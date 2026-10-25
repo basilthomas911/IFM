@@ -6,6 +6,7 @@ using NATS.Client.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Remote;
@@ -18,6 +19,160 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 /// <summary>Uses real NATS and actual named child processes on isolated subjects; never touches live feed subjects.</summary>
 public sealed class MarketDataHostNatsRecoveryIntegrationTests
 {
+    [Fact(Timeout = 60000)]
+    public async Task Hung_exact_option_repair_uses_the_callers_deadline_instead_of_the_five_second_worker_timeout()
+    {
+        await using var fixture = await Fixture.StartAsync(); await using var options = fixture.Worker("Options");
+        var before = await options.StartAsync(Request());
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        var lease = OptionLease(before); await AcquireReadyAsync(options, lease, timeout.Token);
+        await fixture.Connection.PostAsync<bool>($"workers/Options/{before.WorkerInstanceId:D}/hang", new { }, timeout.Token);
+        IMarketDataApi api = new MarketDataApiClient(fixture.Connection, Substitute.For<IMarketDataApi>());
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(8); var elapsed = Stopwatch.StartNew();
+        await Assert.ThrowsAnyAsync<Exception>(() => api.RepairOptionObservationsAsync(new(Guid.NewGuid(), ValueDate,
+            before.GenerationId, [lease.Options[0].Pricing.Contract.ContractId], deadline), timeout.Token));
+        Assert.InRange(elapsed.Elapsed.TotalSeconds, 7.5, 12);
+        var recovered = await api.RecoverMarketDataAsync(new(Guid.NewGuid(), "Options", "GLBX.MDP3", before.WorkerInstanceId,
+            before.GenerationId, ValueDate, "Clean up isolated hung-worker test", true, DateTimeOffset.UtcNow.AddSeconds(20)), timeout.Token);
+        Assert.True(recovered.Recovered, recovered.Error);
+    }
+
+    [Fact(Timeout = 60000)]
+    public async Task Retained_exact_option_observation_and_targeted_repair_cross_real_Host_NATS_without_restarting_futures()
+    {
+        await using var fixture = await Fixture.StartAsync();
+        await using var options = fixture.Worker("Options"); await using var futures = fixture.Worker("Futures");
+        var before = await options.StartAsync(Request());
+        var future = await futures.StartAsync(Request("XCBF.PITCH", "VX"));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+        var lease = OptionLease(before); await AcquireReadyAsync(options, lease, deadline.Token);
+        IMarketDataApi api = new MarketDataApiClient(fixture.Connection, Substitute.For<IMarketDataApi>());
+        MarketDataReadSnapshot snapshot;
+        do { snapshot = await api.GetBackendReadSnapshotAsync(deadline.Token);
+            if (snapshot.OptionObservations?.Length > 0) break;
+            await Task.Delay(50, deadline.Token);
+        } while (true);
+        var frame = Assert.Single(snapshot.OptionObservations!);
+        var admissions = new DatasetWorkerAdmissionRegistry();
+        var publisher = Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>();
+        var ingress = new DatasetPublicationIngress(admissions, publisher, Substitute.For<TomasAI.IFM.Application.MarketData.MarketOutlook.IMarketDataOperationsRecorder>());
+        Assert.False(await ingress.AcceptAsync(frame));
+        admissions.Admit(new(frame.Dataset, frame.ValueDate, frame.WorkerInstanceId, frame.GenerationId, frame.ManifestRevision));
+        Assert.True(await ingress.AcceptAsync(frame)); Assert.False(await ingress.AcceptAsync(frame));
+        using var optionCache = new TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache();
+        var remoteAdmissions = new MarketDataRemoteAdmission();
+        var supervisor = Substitute.For<TomasAI.IFM.Shared.EventModelActor.Contracts.IActorSupervisor>(); supervisor.IsReady.Returns(true);
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        publisher.PublishAsync(Arg.Any<TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent>(), Arg.Any<CancellationToken>())
+            .Returns(call => { if (call.Arg<TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent>().OptionMarketPriceObservation is not null) received.TrySetResult(); return ValueTask.CompletedTask; });
+        using (var receiver = new MarketDataClientReceiver(fixture.Connection, api, new(optionCache), remoteAdmissions, publisher,
+            Substitute.For<TomasAI.IFM.Application.MarketData.MarketOutlook.IMarketDataOperationsRecorder>(), supervisor, NullLogger<MarketDataClientReceiver>.Instance))
+        {
+            await receiver.StartAsync(deadline.Token);
+            try { await received.Task.WaitAsync(TimeSpan.FromSeconds(8), deadline.Token); }
+            finally { await receiver.StopAsync(deadline.Token); }
+        }
+        Assert.True(remoteAdmissions.Options.TryGet(frame.Dataset, out var admitted)); Assert.Equal(frame.GenerationId, admitted.GenerationId);
+        var operation = Guid.NewGuid(); var until = DateTimeOffset.UtcNow.AddSeconds(20);
+        var contract = lease.Options[0].Pricing.Contract.ContractId;
+        var repaired = await api.RepairOptionObservationsAsync(new(operation, ValueDate, before.GenerationId, [contract], until), deadline.Token);
+        Assert.Equal([contract], repaired.Reconnected); Assert.Empty(repaired.Errors);
+        var missing = await api.RepairOptionObservationsAsync(new(operation, ValueDate, before.GenerationId, ["missing-contract"], until), deadline.Token);
+        Assert.Empty(missing.Reconnected); Assert.Contains("no active exact-contract subscription", Assert.Single(missing.Errors));
+        Assert.Equal(before.ProcessId, (await options.GetHealthAsync(deadline.Token)).ProcessId);
+        Assert.Equal(future.ProcessId, (await futures.GetHealthAsync(deadline.Token)).ProcessId);
+        await options.ReleaseOptionChainAsync(new(lease.ScopeId, lease.LeaseId, before.GenerationId), deadline.Token);
+        var released = await api.RepairOptionObservationsAsync(new(operation, ValueDate, before.GenerationId, [contract], until), deadline.Token);
+        Assert.Empty(released.Reconnected); Assert.Single(released.Errors);
+    }
+
+    [Fact(Timeout = 60000)]
+    public async Task Shared_scope_refresh_then_stale_owner_renewal_and_process_replacement_preserve_one_canonical_context()
+    {
+        await using var fixture = await Fixture.StartAsync();
+        await using var options = fixture.Worker("Options");
+        var process = await options.StartAsync(Request());
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        var first = OptionLease(process);
+        await AcquireReadyAsync(options, first, deadline.Token);
+        var original = await options.AcquireOptionChainAsync(first, deadline.Token);
+        var second = first with { LeaseId = Guid.NewGuid() };
+        (await options.AcquireOptionChainAsync(second, deadline.Token)).Active.Should().BeTrue();
+        var refresh = first with { ExpectedContextDigest = original.ContextDigest,
+            Options = first.Options.Select(option => option with { Pricing = option.Pricing with {
+                ValidUntilUtc = option.Pricing.ValidUntilUtc.AddSeconds(-1) } }).ToImmutableArray() };
+        var refreshed = await options.AcquireOptionChainAsync(refresh, deadline.Token);
+        refreshed.Active.Should().BeTrue("{0}", refreshed.Failure);
+        var renewed = await options.AcquireOptionChainAsync(second, deadline.Token);
+        renewed.Active.Should().BeTrue("a stale owner's renewal must use the current shared context: {0}", renewed.Failure);
+        renewed.ContextDigest.Should().Be(refreshed.ContextDigest);
+        IMarketDataApi api = new MarketDataApiClient(fixture.Connection, Substitute.For<IMarketDataApi>());
+        var recovered = await api.RecoverMarketDataAsync(new(Guid.NewGuid(), "Options", "GLBX.MDP3", process.WorkerInstanceId,
+            process.GenerationId, ValueDate, "Shared scope recovery", true, DateTimeOffset.UtcNow.AddSeconds(30)), deadline.Token);
+        recovered.Recovered.Should().BeTrue(recovered.Error);
+        (await options.GetHealthAsync(deadline.Token)).Healthy.Should().BeTrue();
+    }
+
+    [Theory(Timeout = 165000)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Real_options_children_retry_context_restoration_beyond_three_failures_until_success_or_full_deadline(bool permanent)
+    {
+        var output = Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_HOST_DIRECTORY")
+            ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../.artifacts/market-data-host"));
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
+            ["MarketDataHost:WorkerDirectory"] = Path.Combine(output, "Workers"),
+            ["MarketDataHost:DeploymentProfile"] = "SyntheticCi", ["MarketDataHost:DataSource"] = "Synthetic" }).Build();
+        await using var manager = new NatsConnectionManager();
+        var connection = new MarketDataHostConnection(manager, Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_NATS_URL") ?? "nats://127.0.0.1:4222", "retrytest" + Guid.NewGuid().ToString("N"));
+        var attempts = 0;
+        var firstAttempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseAttempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var state = new TomasAI.IFM.Application.MarketData.Host.MarketDataHostState(new DatasetWorkerCurrentValues(), new DatasetWorkerAdmissionRegistry()) {
+            RequalifyOptions = async (lease, token) => {
+                var attempt = Interlocked.Increment(ref attempts);
+                if (attempt == 1 && !permanent) { firstAttempt.TrySetResult(); await releaseAttempt.Task.WaitAsync(token); }
+                if (attempt <= 4 || permanent) throw new InvalidOperationException("Injected context qualification failure");
+                return lease;
+            } };
+        await using var host = new TomasAI.IFM.Application.MarketData.Host.MarketDataWorkerHost(config,
+            NullLogger<TomasAI.IFM.Application.MarketData.Host.MarketDataWorkerHost>.Instance, connection, state);
+        await host.StartAsync(default);
+        var request = Request();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(150));
+        var before = await host.StartWorkerAsync("Options", new(request.Manifest!, request.WorkerInstanceId, request.GenerationId), deadline.Token);
+        var future = Request("XCBF.PITCH", "VX");
+        var unchanged = await host.StartWorkerAsync("Futures", new(future.Manifest!, future.WorkerInstanceId, future.GenerationId), deadline.Token);
+        var lease = OptionLease(before) with { LeaseExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(119) };
+        WorkerOptionChainResult acquired;
+        do { acquired = await host.AcquireOptionLeaseAsync("Options", before.WorkerInstanceId, lease, deadline.Token);
+            if (acquired.Failure?.Code == "UnderlyingQuoteUnavailable") await Task.Delay(50, deadline.Token);
+        } while (acquired.Failure?.Code == "UnderlyingQuoteUnavailable");
+        acquired.Active.Should().BeTrue("{0}", acquired.Failure);
+        var ownership = new WorkerOptionChainOwnership(1, "IFM", [new(Guid.NewGuid(), [lease.Options[0].Pricing.Contract.ContractId])],
+            WorkerOptionChainRuntime.PhysicalDigest(lease.Options));
+        (await host.ApplyCommittedOwnershipAsync("Options", before.WorkerInstanceId, lease,
+            new(lease.ScopeId, Guid.Empty, before.GenerationId, ownership), deadline.Token)).Failure.Should().BeNull();
+        var timer = Stopwatch.StartNew();
+        var requestRecovery = new MarketDataRecoveryRequest(Guid.NewGuid(), "Options", "GLBX.MDP3", before.WorkerInstanceId,
+            before.GenerationId, ValueDate, "Repeated context restoration failures", true, DateTimeOffset.UtcNow.AddMinutes(2));
+        var recovering = host.RecoverAsync(requestRecovery, deadline.Token);
+        Task<MarketDataRecoveryResult>? joined = null;
+        if (!permanent)
+        {
+            await firstAttempt.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            joined = host.RecoverAsync(requestRecovery with { OperationId = Guid.NewGuid() }, deadline.Token);
+            releaseAttempt.SetResult();
+        }
+        var result = await recovering;
+        if (joined is not null) { var shared = await joined; shared.Recovered.Should().BeTrue(shared.Error); shared.GenerationId.Should().Be(result.GenerationId); }
+        attempts.Should().BeGreaterThan(4);
+        result.Recovered.Should().Be(!permanent, result.Error);
+        if (permanent) timer.Elapsed.TotalSeconds.Should().BeInRange(119, 140);
+        else timer.Elapsed.Should().BeLessThan(TimeSpan.FromMinutes(2));
+        (await host.RequireWorker("Futures", unchanged.WorkerInstanceId).GetHealthAsync(deadline.Token)).Healthy.Should().BeTrue();
+        host.GetBackendStatus().Datasets.Single(dataset => dataset.Role == "Futures").ProcessId.Should().Be(unchanged.ProcessId);
+    }
     [Theory(Timeout = 45000)]
     [InlineData(false, true)]
     [InlineData(true, true)]
@@ -591,6 +746,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
             start.Environment["MarketDataHost__DeploymentProfile"] = "SyntheticCi";
             start.Environment["MarketDataHost__DataSource"] = "Synthetic";
             start.Environment["MarketDataHost__ControlOnly"] = "true";
+            start.Environment["Telemetry__Logs__Enabled"] = "false";
             start.Environment["DOTNET_ENVIRONMENT"] = developmentEnvironment ? "Development" : "Production";
             start.Environment["MarketDataRecovery__DevelopmentVerification__Enabled"] = developmentFaults.ToString();
             if (fullBackend)

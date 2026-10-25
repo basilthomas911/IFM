@@ -30,18 +30,23 @@ public sealed class ServerManagerOptions
         ArgumentNullException.ThrowIfNull(environment);
         if (string.IsNullOrWhiteSpace(selection) || selection.Equals("WinForms", StringComparison.OrdinalIgnoreCase))
             return;
-        if (!selection.Equals("Rust", StringComparison.OrdinalIgnoreCase))
+        var standalone = selection.Equals("eGui", StringComparison.OrdinalIgnoreCase);
+        if (!standalone && !selection.Equals("Rust", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"Unknown Development UI selection '{selection}'.");
         if (!environment.Equals("Development", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Rust desktop selection is available only in Development.");
         ArgumentException.ThrowIfNullOrWhiteSpace(repositoryRoot);
         var ui = Processes.Single(process => process.Key.Equals("ui", StringComparison.OrdinalIgnoreCase));
-        ui.DisplayName = "Rust UI";
-        ui.WorkingDirectory = Path.Combine(Path.GetFullPath(repositoryRoot), ".artifacts", "rust-ui", "app");
-        ui.ExecutablePath = "ifm-ui-rust.exe";
+        ui.DisplayName = standalone ? "eGui Rust UI" : "Rust UI";
+        ui.WorkingDirectory = Path.Combine(Path.GetFullPath(repositoryRoot), ".artifacts", standalone ? "standalone-rust-ui" : "rust-ui", "app");
+        ui.ExecutablePath = standalone ? "TomasAI.IFM.UI.Rust.eGui.exe" : "ifm-ui-rust.exe";
         ui.Arguments.Clear();
         ui.EnvironmentVariables["DOTNET_ENVIRONMENT"] = "Development";
-        ui.EnvironmentVariables["IFM_RUST_UI_MODE"] = "live";
+        // Only the hybrid loads a managed bridge; standalone reads its inherited client profile.
+        if (standalone)
+            ui.EnvironmentVariables.Remove("IFM_RUST_UI_MODE");
+        else
+            ui.EnvironmentVariables["IFM_RUST_UI_MODE"] = "live";
         ui.EnvironmentVariables["IFM_UI_START_MAXIMIZED"] = "true";
         ui.WindowStyle = ProcessWindowStyle.Maximized;
         ui.ShutdownMode = ProcessShutdownMode.CloseMainWindow;

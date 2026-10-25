@@ -90,7 +90,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
                     }
                 }, (result,token) => ApiRecoveryUiNotifier.SendAsync(url,result,token), message => WriteManagerLog(message));
             _apiRecovery = controller.RunAsync(_apiRecoveryCancellation.Token);
-            WriteManagerLog("API-only recovery restart controller enabled: one restart per value date; 120-second restart/restore deadline.");
+            WriteManagerLog("API-only recovery restart controller enabled: outstanding/failed restart blocks another attempt until verified recovery; 120-second restart/restore deadline.");
         }
 
         _viewModel.ConsoleVisibility = Visibility.Hidden;

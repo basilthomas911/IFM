@@ -1,0 +1,31 @@
+{
+ "controls":[{"verb":"FeedScenario","value":"Normal"}],
+ "comparison":{"captures":["futures-contracts","futures-draft","option-contracts","option-draft","yield-curves"]},
+ "steps":[
+  {"action":"wait","name":"Stop Market Feeds"},
+  {"action":"invoke","name":"Market Data","type":"Button"},
+  {"action":"wait","name":"Market Data Manager","type":"Window"},
+  {"action":"wait","name":"Add","type":"Button","enabled":true,"scope":"Market Data Manager"},
+  {"action":"wait","name":"Futures Contract Ids","scope":"Market Data Manager"},
+  {"action":"snapshot","name":"futures-contracts","scope":"Market Data Manager"},
+  {"action":"invoke","name":"Add","type":"Button","enabled":true,"scope":"Market Data Manager"},
+  {"action":"wait","name":"Save","type":"Button","scope":"Market Data Manager"},
+  {"action":"snapshot","name":"futures-draft","scope":"Market Data Manager"},
+  {"action":"invoke","name":"Cancel","type":"Button","enabled":true,"scope":"Market Data Manager"},
+  {"action":"expand","name":"","type":"ComboBox","scope":"Market Data Manager"},
+  {"action":"invoke","name":"Futures Option Contracts","type":"Button"},
+  {"action":"wait","name":"Futures Option Contract Ids","scope":"Market Data Manager"},
+  {"action":"wait","name":"Add","type":"Button","enabled":true,"scope":"Market Data Manager"},
+  {"action":"snapshot","name":"option-contracts","scope":"Market Data Manager"},
+  {"action":"invoke","name":"Add","type":"Button","enabled":true,"scope":"Market Data Manager"},
+  {"action":"wait","name":"Save","type":"Button","scope":"Market Data Manager"},
+  {"action":"snapshot","name":"option-draft","scope":"Market Data Manager"},
+  {"action":"invoke","name":"Cancel","type":"Button","enabled":true,"scope":"Market Data Manager"},
+  {"action":"expand","name":"","type":"ComboBox","scope":"Market Data Manager"},
+  {"action":"invoke","name":"Yield Curve Rates","type":"Button"},
+  {"action":"wait","name":"30 Yr","scope":"Market Data Manager"},
+  {"action":"wait","name":"Add","type":"Button","enabled":true,"scope":"Market Data Manager"},
+  {"action":"snapshot","name":"yield-curves","scope":"Market Data Manager"},
+  {"action":"close"}
+ ]
+}

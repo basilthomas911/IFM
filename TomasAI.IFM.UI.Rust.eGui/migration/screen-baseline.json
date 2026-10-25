@@ -1,0 +1,322 @@
+{
+  "source": "TomasAI.IFM.UI.Rust",
+  "ownership": "Independent copy; source project remains unchanged",
+  "files": [
+    {
+      "source": "src/lib.rs",
+      "sha256": "a5599a92230ee3a9d843e0bfde4432dd9d8a2fdb4a7a78d44192b8d3abb709b5"
+    },
+    {
+      "source": "src/main.rs",
+      "sha256": "25a39c2122b3a66f9805c647a546262ebd8cc98968da299cec73066ce63415c4"
+    },
+    {
+      "source": "src/reference.rs",
+      "sha256": "69c12d955d82c531f9724959a5ec719d51e2606dcefe137841bda68b3edea22a"
+    },
+    {
+      "source": "src/system_admin.rs",
+      "sha256": "9c038c977957d46ceb7305847a28c5851dca6f607ccbef665bad2e59085d42bc"
+    },
+    {
+      "source": "src/bridge/mod.rs",
+      "sha256": "960195c930a0845dcea02e5d1de465326ab129492ba5d65a670761790be49ac7"
+    },
+    {
+      "source": "src/bridge/publication_transfer.rs",
+      "sha256": "cd93efd2395e161412d3e2385e240ff1775ce04107933248c177ff987a5b0dcd"
+    },
+    {
+      "source": "src/bridge/wire.rs",
+      "sha256": "3fb0bb0300880b175aa3d68b9b68fd2787f0d240d09ddd829acbb30c9ca06520"
+    },
+    {
+      "source": "src/diagnostics/latency.rs",
+      "sha256": "a0d9f6b1f06d81aceb756fc736207b754ae1b5be67a0e16810b858ce0a32114e"
+    },
+    {
+      "source": "src/diagnostics/mod.rs",
+      "sha256": "7540a3c63a9925ae197bd2e40f7284de9ba4003cd8f3477d0ca61c976127be56"
+    },
+    {
+      "source": "src/editors/calendar_editor.rs",
+      "sha256": "b8419281b3efd05d2ddcb2ea79b5f06ba621028c074c6ec5766264fd62072966"
+    },
+    {
+      "source": "src/editors/contract_editor.rs",
+      "sha256": "21383b200567fd82a64c513339ae688db33f5b11899ee591350a3289144517ba"
+    },
+    {
+      "source": "src/editors/lookup_editor.rs",
+      "sha256": "177e55bf69eb2639aceeda9b8479831d4500f04d3abfc18a24d3234cf7c62160"
+    },
+    {
+      "source": "src/editors/mod.rs",
+      "sha256": "e7fcea7d32aba0c7da28fbe31a23daaca653bfffe240c7092cebd3ca3d3b4d0e"
+    },
+    {
+      "source": "src/editors/yield_curve_editor.rs",
+      "sha256": "c8e142a279624d92458ec72067a45b6e82582f7eb3e696fa40da79d8bda637cc"
+    },
+    {
+      "source": "src/localization/mod.rs",
+      "sha256": "b6566752462315417b7d5e009229b67071bd18acf43e305312f5856a1ad76bc2"
+    },
+    {
+      "source": "src/localization/strings.rs",
+      "sha256": "ff97ea21b8c6298ec4975ffc61278863d1a3f3dfd20c8d952c644d88d44a1c48"
+    },
+    {
+      "source": "src/market/market_charts.rs",
+      "sha256": "b9fcdb28ed5f23894710a09e6e3e4ca86d77202e19f78ad0dba5c7a6c1c13518"
+    },
+    {
+      "source": "src/market/market_data_manager.rs",
+      "sha256": "2b066f37191e903d79d8261e7f6fcb04b563e4de36801d5c07151ba620b0475a"
+    },
+    {
+      "source": "src/market/market_outlook.rs",
+      "sha256": "3712b480bbd00d86896f621a10e2405c4e4bd1878ec812a073e0fba7afa0b91d"
+    },
+    {
+      "source": "src/market/mod.rs",
+      "sha256": "e7651cd298059e6a3579bb21c1ab80531dac63e0df69205e1ea1112770ef734a"
+    },
+    {
+      "source": "src/market/provider_browser.rs",
+      "sha256": "b54eea1ab3b3bf53e2f9cd6d6413c1017756cf330879d8005d324d639effb255"
+    },
+    {
+      "source": "src/navigation/mod.rs",
+      "sha256": "fc3d320f22f5617f0b44771a764787c17ca98dce727360c4423155fec2e79061"
+    },
+    {
+      "source": "src/navigation/shell.rs",
+      "sha256": "5b37380bcf1f4e3565c28086d72b416438ad808f36a1223314572a785995bc6d"
+    },
+    {
+      "source": "src/navigation/sidebar.rs",
+      "sha256": "2932cd7269370204882874d552f6d3a708ec0e00505eb5eb05cfd8ac9a0267f5"
+    },
+    {
+      "source": "src/operations/actor_health.rs",
+      "sha256": "b70ce0f27c7459a298fc848f8579deedd8ad829c6bdc7af68340fca9eaa4723a"
+    },
+    {
+      "source": "src/operations/database_backup.rs",
+      "sha256": "ee4b3f7dba064e3004a47214a0e675d5cef83d918bb53b8627b8c28ec4a7dce1"
+    },
+    {
+      "source": "src/operations/mod.rs",
+      "sha256": "cf1efa63c23e9566bf5e040ef60274d90573b4b58c8565c8f75bb6808d14b40f"
+    },
+    {
+      "source": "src/operations/operations_health.rs",
+      "sha256": "11c013dcfc750a2b361ff89f38c78d50741712dfe918e296f39be74b25cc3c70"
+    },
+    {
+      "source": "src/operations/scheduled_tasks.rs",
+      "sha256": "f8fc9d44beab863f06cf8ca12e64309c06eebea54c6b31ee2743d68c4f629241"
+    },
+    {
+      "source": "src/operations/scheduled_tasks_parity.rs",
+      "sha256": "b70967da519cc2b2dd525359fd8e3be69cad1fcaaf4a5a4cf780813fa9995f14"
+    },
+    {
+      "source": "src/portfolio/mod.rs",
+      "sha256": "cddc4bac8b4433ceba6a156d737fe23ce6f70a179e4b8bd48c4a0ca9a16edd08"
+    },
+    {
+      "source": "src/strategy/mod.rs",
+      "sha256": "7a79f88d2be9fe1dc0d1450453a0a73f8a4a85b3613c0e85d7d380584be581b3"
+    },
+    {
+      "source": "src/strategy/parameter_sets.rs",
+      "sha256": "6606a54d0dd4185cb76519096e576663f534d90d059011b636650adfa4dd881c"
+    },
+    {
+      "source": "src/strategy/strategy_catalog.rs",
+      "sha256": "28cd0969b04a5813c04bf7e7aed5ce7f396993074d9aeddc7c502efd9a1fd31a"
+    },
+    {
+      "source": "src/strategy/strategy_inspection.rs",
+      "sha256": "75f4eafedf97c36cdc94dfd8e8e5c583bc95c0dcf6d939ec0577c53b0083217e"
+    },
+    {
+      "source": "src/strategy/strategy_workspace.rs",
+      "sha256": "86d1e2229778592730b78ae7c3e8302e660831f4e22edcf514186678bab2a14d"
+    },
+    {
+      "source": "src/trading/mod.rs",
+      "sha256": "500379a9e6f44ee29cc810cdbe93e5ee0ab56b6341ff1bbafc62f43bd5bdb83c"
+    },
+    {
+      "source": "src/trading/trade_workspace.rs",
+      "sha256": "775d324f4adb49f1a4550ca5c0b3bf53fa00f18298e8f74a7cc754a5e335fc2a"
+    },
+    {
+      "source": "src/ui/control_parity.rs",
+      "sha256": "7eb17366d46dfd23f8fd25e67e7d424cc66c100d42f52cee3296e8984bd19571"
+    },
+    {
+      "source": "src/ui/mod.rs",
+      "sha256": "1022e6c111439731902b193ee31661d4317b8a5b3c5bcb9cbb3355a4e556c68c"
+    },
+    {
+      "source": "src/ui/presentation.rs",
+      "sha256": "1ebbaad565135e13f3e7f2f048303a30eeb8444792c76287ed9af278d3ca15c6"
+    },
+    {
+      "source": "src/ui/virtual_grid.rs",
+      "sha256": "ed7e2511e0a08a71dd54f552177f5fb7969ec7df5fda832af695356eda804059"
+    },
+    {
+      "source": "src/trading/trade_workspace/blotter.rs",
+      "sha256": "26d0b802941cc1e48ddeb971c4060aeecc5f093b35c8f8de8789a5eeb8293ef6"
+    },
+    {
+      "source": "src/trading/trade_workspace/display_cache.rs",
+      "sha256": "5cf5e60d902e1da3d64dcfafefbc17bbc252424c3c17955ac7c8efd276c6c1e4"
+    },
+    {
+      "source": "src/trading/trade_workspace/iron_condor.rs",
+      "sha256": "445ee2a1decf900f7cf6d40729988ab906beea44c1e2f324feec7b8f1eeff67d"
+    },
+    {
+      "source": "src/trading/trade_workspace/order_layout.rs",
+      "sha256": "49abdd71ae002a727eda69dda3fd9f550dc5ec6613a93a296d85e9f0b12db060"
+    },
+    {
+      "source": "src/trading/trade_workspace/workspace_tabs.rs",
+      "sha256": "482214bc2bfb69b97e26888900fa4be6d533c0e4deb80a1f4d1a2120c0500bd3"
+    },
+    {
+      "source": "catalog/strings.en.json",
+      "sha256": "0921e97430b43b2c2301fc553253a5144e032b141bab020096db80284ad3d53b"
+    },
+    {
+      "source": "contracts/abi-v1.md",
+      "sha256": "d4e0ff87559e0ebd394fa8f41c0ebfc3bb5490552e79eb8300cb1dc60cd90185"
+    },
+    {
+      "source": "tests/actor_health.rs",
+      "sha256": "cf22dc47a7b82858106f3f76385d919dbcd9a80a1539673a146adc6630f14978"
+    },
+    {
+      "source": "tests/calendar_editor.rs",
+      "sha256": "9ae870c55905393e48b5e9e7b9de4ee2e0b5c5940b2f82b2cd8e6953e78b33ac"
+    },
+    {
+      "source": "tests/contract_editor.rs",
+      "sha256": "7d85e34bdac756b03429e94defe62cb56fe5108ebba94728eb73e2522917f435"
+    },
+    {
+      "source": "tests/control_parity.rs",
+      "sha256": "8aa9f026b42b84eaeab63c080cfa6f157693743e4e92ff74269df810472c20df"
+    },
+    {
+      "source": "tests/details.rs",
+      "sha256": "0098d06817bb6391ef917ec6f5425b9a51f9c25a9414b9345a29afdd17c8b0da"
+    },
+    {
+      "source": "tests/grid_column_borders.rs",
+      "sha256": "1c101d63079d10c2e9db5c995ce021d0c96bafe1fe68c59cea1279263ec5073b"
+    },
+    {
+      "source": "tests/lookup_editor.rs",
+      "sha256": "a2ca18317c88099fe98bdb6eeb79dc8b45facc835b717e986b6658e721562938"
+    },
+    {
+      "source": "tests/market_charts.rs",
+      "sha256": "69a590b6fc8bc7ad16cabc091edc42e3203f3d5bc03e56fe2842acba796e829b"
+    },
+    {
+      "source": "tests/market_data_manager.rs",
+      "sha256": "0f3475febb099aa78b3104cc4d06ebf4b96401236e55396bcc44d11a83b6bca9"
+    },
+    {
+      "source": "tests/market_outlook.rs",
+      "sha256": "b40a69a8ca81675a802125412c1ff09af7e713a2eec925cb7cd1b9cfddf0623f"
+    },
+    {
+      "source": "tests/operations_health.rs",
+      "sha256": "af579509b1d1fdd770ce839da7e85225f6d64f269f35c88036afcf5b03a3a3bb"
+    },
+    {
+      "source": "tests/parameter_sets.rs",
+      "sha256": "3c0c92d0f0f7bf57c7bc393685d3885358710ca296b17de63d3d560dcf4e839b"
+    },
+    {
+      "source": "tests/portfolio_migration.rs",
+      "sha256": "750c61fd905896a3085ea3328ec65d2d3f153768a752e2faca35491ec0935292"
+    },
+    {
+      "source": "tests/presentation.rs",
+      "sha256": "8c4f098d74b4bcc6708a90cfa69d6d1cbe1abf72c9fff883378d480cac3fcc71"
+    },
+    {
+      "source": "tests/provider_browser.rs",
+      "sha256": "f79bc06f73597b44d4c3dfaa51ac1f511786396be2a9efdcbc9bab1b6af754a4"
+    },
+    {
+      "source": "tests/publication_transfer.rs",
+      "sha256": "aebf5948b395aaaf1126f09cb913e8c4c345d2b16c0dda6395d389dbf4e2de3a"
+    },
+    {
+      "source": "tests/scheduled_tasks.rs",
+      "sha256": "34f964bb33add7fa8369604c1ba762028f8a24ae3e6a3a5aad1f17109230a931"
+    },
+    {
+      "source": "tests/shell.rs",
+      "sha256": "e164a7249ea74fc70bb29cbfea59801e30b91cf495cb9fa2be3c8565a4b369eb"
+    },
+    {
+      "source": "tests/sidebar.rs",
+      "sha256": "819e86a672d82807bc952ae8778064ec1e50fdca5c289de0fc33b8a8d5dc67ab"
+    },
+    {
+      "source": "tests/strategy_catalog.rs",
+      "sha256": "b64b56f3fd5284ba5f747a2d39ab7d31666f13be0c08549cb566090e76ae665c"
+    },
+    {
+      "source": "tests/strategy_inspection.rs",
+      "sha256": "6155333e3b18e02db22ce23ccbcb0cf43a696eee33a24a4d9d3b984614e672c4"
+    },
+    {
+      "source": "tests/strategy_workspace.rs",
+      "sha256": "bb4b94f90b0da9b33fe62980cfe9bcd307f6c51c6c09c85c40ce56331c5c265c"
+    },
+    {
+      "source": "tests/system_admin.rs",
+      "sha256": "9b1dcc3d5a26b12576ef0bf1016845254664c12ebb21cf6da39fdae765682892"
+    },
+    {
+      "source": "tests/trade_blotter.rs",
+      "sha256": "619856ba5825867db56a240210aa89545ef9d95870c6a62e7931c39e2d5efbd5"
+    },
+    {
+      "source": "tests/trade_workspace.rs",
+      "sha256": "9fa8e43eeda592c9aedce40c56fdea849f69cd9d22698683e39aedb10abfc4b4"
+    },
+    {
+      "source": "tests/virtual_grid.rs",
+      "sha256": "89ab998a258204c7adbe09d5ee6d665e50fa7ab244c13efa534c627749dd9c17"
+    },
+    {
+      "source": "tests/wire.rs",
+      "sha256": "adb90bdae1c79cdae0e878e03515fc1f36c232bff528c143b7e80d1daa1eda59"
+    },
+    {
+      "source": "tests/yield_curve_editor.rs",
+      "sha256": "0df631abd8cc128f2941d1d88901131bf9717b105a0e41d992d6ed6448975bf5"
+    },
+    {
+      "source": "tests/snapshots/strategy-details-default.new.png",
+      "sha256": "8320ab4312563c6103795c224b774578176d8a19eb48b9d115a4b29b3614c55c"
+    },
+    {
+      "source": "tests/snapshots/strategy-details-default.png",
+      "sha256": "8320ab4312563c6103795c224b774578176d8a19eb48b9d115a4b29b3614c55c"
+    }
+  ]
+}

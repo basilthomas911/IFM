@@ -1,6 +1,6 @@
 # Windows Rust UI model inventory — 2026-10-23
 
-Source baseline: `ee157c454`. Target: `TomasAI.IFM.UI.Rust.eGui` (planned; not implemented).
+Source baseline: `ee157c454`. Target: `TomasAI.IFM.UI.Rust.eGui`. This is the source/reference census; implementation ownership is now recorded in `TomasAI.IFM.UI.Rust.eGui/migration/native-ownership.json`. See the current acceptance record in the [full migration plan](IFM-Windows-Rust-UI-Full-Migration-Plan-v0.1.md). Historical target dispositions below are analysis decisions, not the current implementation status.
 
 ## Method and limits
 

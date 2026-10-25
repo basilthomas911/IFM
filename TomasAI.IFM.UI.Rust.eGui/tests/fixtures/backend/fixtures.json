@@ -1,0 +1,302 @@
+[
+  {
+    "name": "strategy-signal-history-query",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries.GetFuturesItiSignalHistoryQuery, TomasAI.IFM.Domain.MarketData.Analytics.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 82,
+    "wireLength": 81
+  },
+  {
+    "name": "backup-operation",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels.DatabaseBackupOperationReadModel, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 97,
+    "wireLength": 108
+  },
+  {
+    "name": "backup-policy",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels.DatabaseBackupPolicyReadModel, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 85,
+    "wireLength": 96
+  },
+  {
+    "name": "backup-protection",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels.DatabaseProtectionSetReadModel, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 21,
+    "wireLength": 21
+  },
+  {
+    "name": "backup-setup",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels.DatabaseBackupSetupReadModel, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 174,
+    "wireLength": 141
+  },
+  {
+    "name": "scheduled-schedule",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskSchedule, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 125,
+    "wireLength": 129
+  },
+  {
+    "name": "scheduled-run",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 229,
+    "wireLength": 180
+  },
+  {
+    "name": "scheduled-dashboard",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTasksDashboard, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 433,
+    "wireLength": 320
+  },
+  {
+    "name": "definition-future",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.InstrumentDefinitionSelection, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 187,
+    "wireLength": 142
+  },
+  {
+    "name": "definition-option",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.InstrumentDefinitionSelection, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 205,
+    "wireLength": 155
+  },
+  {
+    "name": "definition-mapped-future",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 208,
+    "wireLength": 155
+  },
+  {
+    "name": "definition-mapped-option",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 289,
+    "wireLength": 208
+  },
+  {
+    "name": "definition-existing-future",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 228,
+    "wireLength": 174
+  },
+  {
+    "name": "definition-existing-option",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 304,
+    "wireLength": 221
+  },
+  {
+    "name": "definition-remapped-future",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 228,
+    "wireLength": 174
+  },
+  {
+    "name": "definition-remapped-option",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 313,
+    "wireLength": 227
+  },
+  {
+    "name": "supervisor-restart",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Commands.RestartSupervisorActorCommand, TomasAI.IFM.Domain.Supervisor.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 196,
+    "wireLength": 208
+  },
+  {
+    "name": "value-date-query",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Queries.GetValueDateQuery, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 43,
+    "wireLength": 43
+  },
+  {
+    "name": "market-session-query",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Queries.GetMarketSessionQuery, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 51,
+    "wireLength": 51
+  },
+  {
+    "name": "value-date-result",
+    "type": "TomasAI.IFM.Shared.EventSourcing.ServiceResult\u00601[[TomasAI.IFM.Shared.EventSourcing.ScalarReadModel\u00601[[System.DateOnly, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 10,
+    "wireLength": 10
+  },
+  {
+    "name": "error-result",
+    "type": "TomasAI.IFM.Shared.EventSourcing.ServiceResult\u00601[[TomasAI.IFM.Shared.EventSourcing.ScalarReadModel\u00601[[System.DateOnly, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 31,
+    "wireLength": 31
+  },
+  {
+    "name": "command-guid-result",
+    "type": "TomasAI.IFM.Shared.EventSourcing.ServiceResult\u00601[[TomasAI.IFM.Shared.EventSourcing.GuidResult, TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 43,
+    "wireLength": 43
+  },
+  {
+    "name": "market-session-result",
+    "type": "TomasAI.IFM.Shared.EventSourcing.ServiceResult\u00601[[TomasAI.IFM.Domain.MarketData.Shared.ViewModels.MarketSessionReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 50,
+    "wireLength": 50
+  },
+  {
+    "name": "decimal",
+    "type": "System.Decimal, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+    "rawLength": 31,
+    "wireLength": 31
+  },
+  {
+    "name": "negative-decimal",
+    "type": "System.Decimal, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+    "rawLength": 32,
+    "wireLength": 32
+  },
+  {
+    "name": "date-only",
+    "type": "System.DateOnly, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+    "rawLength": 5,
+    "wireLength": 5
+  },
+  {
+    "name": "time-only",
+    "type": "System.TimeOnly, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+    "rawLength": 9,
+    "wireLength": 9
+  },
+  {
+    "name": "provider-contract",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 168,
+    "wireLength": 157
+  },
+  {
+    "name": "provider-contract-patched",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 179,
+    "wireLength": 170
+  },
+  {
+    "name": "provider-contract-review-display",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 191,
+    "wireLength": 175
+  },
+  {
+    "name": "option-legacy-draft",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 126,
+    "wireLength": 120
+  },
+  {
+    "name": "option-provider",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 204,
+    "wireLength": 194
+  },
+  {
+    "name": "option-provider-edited",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 204,
+    "wireLength": 194
+  },
+  {
+    "name": "datetime",
+    "type": "System.DateTime, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+    "rawLength": 10,
+    "wireLength": 10
+  },
+  {
+    "name": "datetime-offset",
+    "type": "System.DateTimeOffset, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+    "rawLength": 10,
+    "wireLength": 10
+  },
+  {
+    "name": "timespan",
+    "type": "System.TimeSpan, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+    "rawLength": 5,
+    "wireLength": 5
+  },
+  {
+    "name": "guid",
+    "type": "System.Guid, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+    "rawLength": 38,
+    "wireLength": 38
+  },
+  {
+    "name": "actor-entity-union",
+    "type": "TomasAI.IFM.Shared.EventModelActor.Contracts.IActorEntityId, TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 8,
+    "wireLength": 8
+  },
+  {
+    "name": "status-log-map",
+    "type": "TomasAI.IFM.Shared.StatusConsole.ViewModels.StatusConsoleLogReadModel, TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 106,
+    "wireLength": 114
+  },
+  {
+    "name": "status-notification",
+    "type": "TomasAI.IFM.Shared.StatusConsole.Events.StatusConsoleLoggedEvent, TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 217,
+    "wireLength": 195
+  },
+  {
+    "name": "lookup-query",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Queries.GetLookupTypesQuery, TomasAI.IFM.Domain.Reference.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 46,
+    "wireLength": 46
+  },
+  {
+    "name": "lookup-result",
+    "type": "TomasAI.IFM.Shared.EventSourcing.ServiceResult\u00601[[TomasAI.IFM.Domain.Reference.Shared.LookupTypeCollection, TomasAI.IFM.Domain.Reference.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 45,
+    "wireLength": 45
+  },
+  {
+    "name": "feed-status-query",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries.GetMarketDataFeedRuntimeStatusQuery, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 56,
+    "wireLength": 56
+  },
+  {
+    "name": "feed-status-result",
+    "type": "TomasAI.IFM.Shared.EventSourcing.ServiceResult\u00601[[TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 196,
+    "wireLength": 144
+  },
+  {
+    "name": "recovery-failure-event",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataDatasetRecoveryFailedEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 354,
+    "wireLength": 297
+  },
+  {
+    "name": "compressed-large",
+    "type": "System.String[], System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+    "rawLength": 920003,
+    "wireLength": 5685
+  },
+  {
+    "name": "daily-analytics-ready-event",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.DailyAnalyticsInitializationStatusEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 198,
+    "wireLength": 159
+  },
+  {
+    "name": "daily-analytics-failure-event",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.DailyAnalyticsInitializationStatusEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 206,
+    "wireLength": 167
+  },
+  {
+    "name": "catalog-query",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery, TomasAI.IFM.Domain.Reference.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 113,
+    "wireLength": 121
+  },
+  {
+    "name": "catalog-command",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogCommand, TomasAI.IFM.Domain.Reference.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "rawLength": 783,
+    "wireLength": 615
+  }
+]

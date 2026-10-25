@@ -294,8 +294,7 @@ sealed class TradeWorkspaceSession : IDisposable
             if(live is not null) rows.Add(Row("realtime","0",live));
             var active = ActiveTrade!;
             var revisions = active.Updates?.Revisions ?? default;
-            rows.AddRange(active.Sections.Rows(TradeMonitorSection.Positions, activeMonitor.TradeHistory, revisions.SavedPositions,
-                activeMonitor.TradeHistory, static history => history.Select((item, index) => Row("position", index.ToString(), item)).ToArray()));
+            rows.AddRange(active.Sections.PositionRows(activeMonitor.TradeHistory));
             var savedPlans = active.PlanPage?.Items ?? [];
             var plans = active.Updates?.Plans(savedPlans, active.PlanDate)
                 ?? (activeMonitor.IsLiveFeedEnabled ? Array.Empty<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot>() : savedPlans);

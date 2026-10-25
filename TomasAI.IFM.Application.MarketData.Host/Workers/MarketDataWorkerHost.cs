@@ -140,7 +140,7 @@ public sealed partial class MarketDataWorkerHost(IConfiguration configuration, I
 
     (WorkerPublicationRelay Relay, DatasetWorkerProcessSupervisor Supervisor) CreateWorker(string role, Guid workerId)
     {
-        var relay = new WorkerPublicationRelay(connection, role, workerId, evidenceWriter);
+        var relay = new WorkerPublicationRelay(connection, role, workerId, evidenceWriter, logger);
         var supervisor = new DatasetWorkerProcessSupervisor(new DatabentoStage3Options(), (frame, ct) =>
         {
             if (role == "Futures") backendState?.Accept(frame);

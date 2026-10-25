@@ -14,6 +14,29 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed partial class OrderCompositionWorkerTests
 {
+    [Fact]
+    public async Task Exact_contract_repair_reconnects_only_its_connection_and_preserves_committed_ownership()
+    {
+        using var prices = Prices(); using var first = new ChainFeed(); using var other = new ChainFeed(); using var repaired = new ChainFeed();
+        var factory = Substitute.For<IDatabentoFeedFactory>(); factory.CreateOptionChainFeed(Arg.Any<DatabentoFeedOptions>()).Returns(first, other, repaired);
+        await using var runtime = Runtime(factory, prices);
+        var request = Request() with { SeparateContractConnection = true };
+        Assert.True((await runtime.AcquireAsync(request, default)).Active);
+        var second = request with { ScopeId = "other-exact-leg", LeaseId = Guid.NewGuid(), Options = [new(Context() with {
+            Contract = Contract() with { ContractId = "other-leg", InstrumentId = 11, RawSymbol = "other-leg" } }, 5000, true)] };
+        Assert.True((await runtime.AcquireAsync(second, default)).Active);
+        var owner = Guid.NewGuid();
+        Assert.True((await runtime.ReleaseAsync(new(request.ScopeId, Guid.Empty, Generation,
+            new(1, "IFM", [new(owner, ["ES-option-call"])], WorkerOptionChainRuntime.PhysicalDigest(request.Options))), default)).Active);
+        Assert.True((await runtime.AcquireAsync(request with { ReconnectExactContract = true }, default)).Active);
+        Assert.Equal(1, first.Stops); Assert.Equal(0, other.Stops); Assert.Equal(0, repaired.Stops);
+        Assert.True((await runtime.ReleaseAsync(new(request.ScopeId, request.LeaseId, Generation), default)).Active);
+        Assert.Equal(0, repaired.Stops);
+        Assert.False((await runtime.ReleaseAsync(new(request.ScopeId, Guid.Empty, Generation,
+            new(2, "IFM", [], WorkerOptionChainRuntime.PhysicalDigest(request.Options))), default)).Active);
+        Assert.Equal(1, repaired.Stops); Assert.Equal(0, other.Stops);
+    }
+
     [Theory]
     [InlineData(2)]
     [InlineData(4)]

@@ -1,0 +1,217 @@
+{
+  "observedUtc": "2026-10-26T12:30:00Z",
+  "overallStatus": "Yellow",
+  "actorCount": 1,
+  "runningActorCount": 1,
+  "processingMailboxCount": 0,
+  "queuedMessageCount": 2,
+  "actors": [
+    {
+      "actorId": {
+        "actorType": "Realtime",
+        "name": "IronCondorPosition"
+      },
+      "domain": "Trade",
+      "implementation": "",
+      "isRunning": false,
+      "lifecycleState": "Registered",
+      "generation": 0,
+      "status": "Yellow",
+      "queueDepth": 0,
+      "accepted": 0,
+      "dequeued": 0,
+      "succeeded": 0,
+      "handledFailures": 0,
+      "escapedFailures": 0,
+      "cancelled": 0,
+      "rejected": 0,
+      "mailboxes": [
+        {
+          "threadId": {
+            "actorType": "Realtime",
+            "name": "IronCondorPosition",
+            "entityId": "101.701.1901.1501"
+          },
+          "queueDepth": 2,
+          "accepted": 0,
+          "dequeued": 0,
+          "succeeded": 0,
+          "handledFailures": 0,
+          "escapedFailures": 0,
+          "cancelled": 0,
+          "rejected": 0,
+          "isAdmissionOpen": false,
+          "lifecycleState": "Running",
+          "generation": 17,
+          "isProcessing": true,
+          "currentVerb": "",
+          "lastAcceptedUtc": "2026-10-26T12:29:59Z",
+          "lastStartedUtc": null,
+          "lastCompletedUtc": null,
+          "lastFailedUtc": null,
+          "lastExceptionType": "",
+          "lastError": "",
+          "revision": 0
+        },
+        {
+          "threadId": {
+            "actorType": "Realtime",
+            "name": "IronCondorPosition",
+            "entityId": "other"
+          },
+          "queueDepth": 0,
+          "accepted": 0,
+          "dequeued": 0,
+          "succeeded": 0,
+          "handledFailures": 0,
+          "escapedFailures": 0,
+          "cancelled": 0,
+          "rejected": 0,
+          "isAdmissionOpen": false,
+          "lifecycleState": "Running",
+          "generation": 9,
+          "isProcessing": false,
+          "currentVerb": "",
+          "lastAcceptedUtc": null,
+          "lastStartedUtc": null,
+          "lastCompletedUtc": "2026-10-26T12:29:00Z",
+          "lastFailedUtc": "2026-10-26T12:30:00Z",
+          "lastExceptionType": "",
+          "lastError": "Timeout",
+          "revision": 0
+        }
+      ]
+    }
+  ],
+  "failures": [],
+  "projectors": [
+    {
+      "actorName": "TradeEvent",
+      "projectorName": "Position",
+      "durableProcessQueue": "",
+      "durableReplayQueue": "",
+      "isReady": true,
+      "recoveryEventsDiscovered": 0,
+      "recoveryEventsQueued": 0,
+      "updatedUtc": "2026-10-26T12:30:00Z",
+      "failureReason": "",
+      "pendingCount": 0,
+      "oldestPendingAgeSeconds": 0,
+      "blockedCount": 0,
+      "terminalFailedCount": 0,
+      "expiredLeaseCount": 0,
+      "outboxPendingCount": 0,
+      "oldestOutboxAgeSeconds": 0,
+      "outboxRetryCount": 0,
+      "busyWorkers": 0,
+      "workerCapacity": 0
+    }
+  ],
+  "workers": [
+    {
+      "workerId": 2,
+      "state": "WaitingForMessage",
+      "isStarted": false,
+      "isRunning": true,
+      "isFaulted": false,
+      "currentMailbox": null,
+      "exceptionType": "",
+      "failureReason": ""
+    }
+  ],
+  "collection": {
+    "revision": 3,
+    "observedUtc": "2026-10-26T12:30:00Z",
+    "expectedActors": 0,
+    "collectedActors": 0,
+    "failedActors": 0,
+    "healthyActors": 0,
+    "degradedActors": 0,
+    "criticalActors": 0,
+    "unknownActors": 0,
+    "queueDepth": 0,
+    "rejected": 0,
+    "failed": 0,
+    "processCpuPercent": 0,
+    "processWorkingSetBytes": 0,
+    "managedHeapBytes": 0,
+    "totalAllocatedBytes": 0,
+    "gen0Collections": 0,
+    "gen1Collections": 0,
+    "gen2Collections": 12,
+    "totalGcPause": "00:00:00.0123456",
+    "threadPoolPendingItems": 0,
+    "threadPoolThreads": 0
+  },
+  "polling": {
+    "state": "Running",
+    "threadName": "",
+    "isAlive": true,
+    "completedCycles": 0,
+    "failedCycles": 0,
+    "overruns": 0,
+    "lastHeartbeatUtc": "2026-10-26T12:30:00Z"
+  },
+  "incidents": [
+    {
+      "threadId": {
+        "actorType": "Realtime",
+        "name": "IronCondorPosition",
+        "entityId": "101.701.1901.1501"
+      },
+      "health": "Degraded",
+      "firstObservedUtc": "2026-10-26T12:29:00Z",
+      "lastObservedUtc": "2026-10-26T12:30:00Z",
+      "generation": 17,
+      "queueDepth": 0,
+      "queueCapacity": 0,
+      "restartsIn60Minutes": 0,
+      "restartsIn24Hours": 0,
+      "requiresTraderReview": false
+    }
+  ],
+  "operations": [
+    {
+      "operationId": "00112233-4455-6677-8899-aabbccddeeff",
+      "threadId": {
+        "actorType": "Realtime",
+        "name": "IronCondorPosition",
+        "entityId": "101.701.1901.1501"
+      },
+      "expectedGeneration": 17,
+      "startedUtc": "2026-10-26T12:30:00Z",
+      "completedUtc": null,
+      "outcome": "Succeeded",
+      "reason": ""
+    }
+  ],
+  "history": [
+    {
+      "revision": 3,
+      "observedUtc": "2026-10-26T12:30:00Z",
+      "expectedActors": 0,
+      "collectedActors": 0,
+      "failedActors": 0,
+      "healthyActors": 0,
+      "degradedActors": 1,
+      "criticalActors": 0,
+      "unknownActors": 0,
+      "queueDepth": 0,
+      "rejected": 0,
+      "failed": 0,
+      "processCpuPercent": 0,
+      "processWorkingSetBytes": 0,
+      "managedHeapBytes": 0,
+      "totalAllocatedBytes": 0,
+      "gen0Collections": 0,
+      "gen1Collections": 0,
+      "gen2Collections": 0,
+      "totalGcPause": "00:00:00",
+      "threadPoolPendingItems": 0,
+      "threadPoolThreads": 0
+    }
+  ],
+  "supervisorAuthorityState": "Active",
+  "manualMutationEnabled": true,
+  "automaticMutationEnabled": false
+}

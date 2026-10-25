@@ -38,7 +38,8 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
     public static byte[] Encode<T>(T value) => MessagePackSerializer.Serialize(value, Serialization);
     public static T Decode<T>(byte[] value) => MessagePackSerializer.Deserialize<T>(value, Serialization);
     /// <summary>Recovery owns its deadline in Host; RPC must not introduce a competing timer.</summary>
-    public static bool IsRecoveryRequest(string path) => path == "api/RecoverMarketDataAsync" || path.EndsWith("/reset", StringComparison.Ordinal);
+    public static bool IsRecoveryRequest(string path) => path is "api/RecoverMarketDataAsync" or "api/RepairOptionObservationsAsync"
+        || path.EndsWith("/reset", StringComparison.Ordinal);
     public async Task<T> PostAsync<T>(string path, object request, CancellationToken token, Guid? operationId = null)
     {
         var id = operationId ?? Guid.NewGuid();

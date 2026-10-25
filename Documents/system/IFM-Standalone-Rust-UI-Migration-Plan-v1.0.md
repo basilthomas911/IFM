@@ -1,10 +1,16 @@
 # IFM Standalone Rust UI Migration Plan
 
 Date: 2026-10-18  
-Status: Implementation design  
+Status: Native implementation and workstation parity complete; clean-Windows/live-session gates open (2026-10-24)  
 Scope: Desktop views, view models, client models, services, subscriptions, configuration, and packaging
 
 **2026-10-23 update:** the target project and sole desktop executable are now `TomasAI.IFM.UI.Rust.eGui` and `TomasAI.IFM.UI.Rust.eGui.exe`. See the revised [Windows full migration plan](IFM-Windows-Rust-UI-Full-Migration-Plan-v0.1.md) and [refreshed model/view-model inventory](IFM-Windows-Rust-UI-Model-Inventory-2026-10-23.md). The source counts below record the 2026-10-18 baseline; the refreshed inventory takes precedence. Protocol compatibility requirements in this document remain applicable.
+
+**2026-10-24 checkpoint:** the native implementation now includes the feature controllers, direct backend clients, typed event consumers, compatible pending journals and read-only existing-format client configuration. The source responsibility ledger is `TomasAI.IFM.UI.Rust.eGui/migration/native-ownership.json`; raw public API methods retain separate method-level reachability status in `tests/fixtures/backend/operations.json`. The original 79 Rust source hashes remain unchanged. Current verification runs 231 native checks, 52 isolated NATS cases and paired FlaUI workflow scenarios against one packaged executable. Historical sections below do not by themselves establish standalone desktop or live-market qualification.
+
+**2026-10-25 acceptance decisions:** the user approved the standalone-only independent date-picker fix as a documented parity exception, keeping the hybrid unchanged. The user also confirmed that no clean Windows VM is available, so the Windows-without-.NET gate remains unverified; workstation import and loaded-module audits do not replace it.
+
+**Current result:** 231 native checks, 52 isolated NATS cases, six additional rendering/transfer checks, the eight-check opt-in visual/theme suite, debug/release frame diagnostics, and 19 paired FlaUI scenarios with 60 captures passed. The independent posting-date correctness case also passed; its unchanged hybrid baseline defect is documented. The final strict protocol rerun reopened 195 native journals through the original managed stores. See the authoritative acceptance table, exact package hash, preserved fund-formula basis and remaining environment/live gates in the [full migration plan](IFM-Windows-Rust-UI-Full-Migration-Plan-v0.1.md#current-acceptance-record-2026-10-24). No default cutover has occurred.
 
 The target is a standalone Rust desktop application that communicates with the existing C# backend through its actor command, query, function, and event contracts over NATS. The desktop release must run without hostfxr, managed bridge assemblies, or an installed .NET runtime. C# remains the authority for trading, portfolio decisions, valuation, persistence, and recovery.
 
@@ -567,21 +573,21 @@ Remove runtime use of [app/hosting.rs](../../TomasAI.IFM.UI.Rust/src/app/hosting
 
 ## 15 Final completion checklist
 
-- [ ] Every source-inventory area and reachable operation is accounted for.
-- [ ] All existing backend C# models, MessagePack contracts, compression settings and actor routes are preserved.
-- [ ] All frontend message types pass C# to Rust and Rust to C# tests.
-- [ ] Canonical hashes and deterministic IDs match exact C# vectors.
-- [ ] No view relies on a managed service, view model, model implementation, session or event consumer at runtime.
-- [ ] All existing controls and actions have behavior parity, including auxiliary and administration dialogs.
-- [ ] Trade forms load before paged history; virtual grids remain bounded at the query and rendering layers.
-- [ ] Realtime trade projections recover after missed updates and reconnects.
-- [ ] Trading and financial outcomes remain correct under lost replies and restarts.
-- [ ] Existing pending journals survive client migration and rollback.
-- [ ] Backend strategy previews pass numerical, API/serialization, input-revision, and UI formatting checks; the standalone UI contains no pricing/payoff engine.
-- [ ] Existing HTTP health features have native adapters, or explicitly implemented equivalent actor routes.
-- [ ] Performance, resource cleanup, desktop tests and live-session qualification have recorded results.
-- [ ] Standalone packaging and clean-machine operation are verified.
-- [ ] Deployment documentation and development launch scripts describe the new client accurately.
+- [x] Current-Rust source responsibilities have native owners or explicit exclusions in the 297-row ledger. The broader public API method registry remains separate; unused backend methods are not declared frontend ports.
+- [x] Existing backend C# models, MessagePack contracts, compression settings and actor routes are preserved by native adapters.
+- [x] Exercised frontend messages pass C# to Rust and Rust to C# checks: 50 typed fixture vectors and 52 isolated service/controller cases.
+- [x] Canonical hashes and deterministic IDs match exact C# vectors.
+- [x] No view relies on a managed service, view model, model implementation, session or event consumer at runtime; static and actual module audits passed.
+- [x] Current-Rust control/data/action checks passed, including 19 paired FlaUI scenarios, 60 captures and additional dialog layout checks. The documented policy/date correctness differences are explicit exceptions.
+- [x] Trade forms load before paged history; virtual grids remain bounded at the query and rendering layers.
+- [x] Realtime client projection, missed-update, scoped refresh and reconnect behavior passed isolated checks; this is not live-provider recovery certification.
+- [x] Trading and financial outcomes passed lost-reply, stale-scope and restart/journal reconciliation checks.
+- [x] Existing pending journal compatibility passed in both directions; unchanged managed stores reopened 195 native journals.
+- [x] Backend preview/preparation contracts, input revisions and display formatting passed; standalone has no pricing/payoff engine. Synthetic UI fixtures are not an additional pricing-calibration claim.
+- [x] Existing HTTP health features have native adapters and paired desktop checks.
+- [ ] Final live-session qualification remains for the user-planned market session; offline resource/desktop results are recorded separately.
+- [ ] Clean-Windows-without-.NET operation remains blocked: no Windows Sandbox is installed and this account is denied Hyper-V VM access. The user confirmed on 2026-10-25 that no clean Windows VM is available. Packaging/import/module checks passed on this workstation.
+- [x] Deployment documentation and separate build/verify/run tasks describe the new client; hybrid remains the default and no cutover occurred.
 
 The earlier [Rust UI migration roadmap](IFM-Windows-Rust-UI-Full-Migration-Plan-v0.1.md) remains a source of screen/control history. This plan replaces its in-process .NET hosting target for the standalone-client work. No production implementation or runtime qualification is claimed by this design.
 

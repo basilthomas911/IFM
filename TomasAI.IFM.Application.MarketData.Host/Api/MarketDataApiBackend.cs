@@ -21,6 +21,7 @@ public sealed partial class MarketDataApiBackend(MarketDataHostConnection connec
         object? result;
         switch (operation)
         {
+            case nameof(RepairOptionObservationsAsync): result = await host.RepairOptionObservationsAsync((OptionObservationRepairRequest)args[0]!, token).ConfigureAwait(false); break;
             case nameof(CloseTradeFeedRecoveryAsync):
                 await TradeRecovery.CloseAsync((DateOnly)args[0]!, token).ConfigureAwait(false); result = true; break;
             case nameof(ReadTradeFeedRecoveryAsync):

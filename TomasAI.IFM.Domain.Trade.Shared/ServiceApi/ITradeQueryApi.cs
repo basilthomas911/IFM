@@ -6,6 +6,9 @@ namespace TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 public interface ITradeQueryApi
 {
+    /// <summary>Computes EOD presentation totals without executing a position command.</summary>
+    Task<ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Order.TradeEndOfDayDisplay>> GetTradeEndOfDayDisplayAsync(TomasAI.IFM.Domain.Trade.Shared.Order.TradeEndOfDayDisplayRequest request,CancellationToken token=default)
+        => throw new NotSupportedException("Backend EOD display is unavailable.");
     Task<ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreparation>> PrepareTradeOrderAsync(TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreparationRequest request, CancellationToken token = default)
         => throw new NotSupportedException("Backend order preparation is unavailable.");
     /// <summary>Computes provisional strategy totals for the exact selected draft snapshot.</summary>

@@ -16,6 +16,13 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class OptionTradeQueryApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), ITradeQueryApi
 {
+    /// <inheritdoc />
+    public Task<ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Order.TradeEndOfDayDisplay>> GetTradeEndOfDayDisplayAsync(
+        TomasAI.IFM.Domain.Trade.Shared.Order.TradeEndOfDayDisplayRequest request,CancellationToken token=default)
+    {
+        var subject=new ActorSubject(ActorType.Query,TomasAI.IFM.Domain.Trade.Shared.Order.GetTradeEndOfDayDisplayQuery.Actor,TomasAI.IFM.Domain.Trade.Shared.Order.GetTradeEndOfDayDisplayQuery.Verb,"none");
+        return RequestAsync<TomasAI.IFM.Domain.Trade.Shared.Order.GetTradeEndOfDayDisplayQuery,TomasAI.IFM.Domain.Trade.Shared.Order.TradeEndOfDayDisplay>(subject,new(){Subject=subject,Request=request},token).AsTask();
+    }
     public async Task<ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreparation>> PrepareTradeOrderAsync(
         TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreparationRequest request, CancellationToken token = default)
     {

@@ -1,0 +1,3502 @@
+[
+  {
+    "date": "2026-11-01",
+    "source": [],
+    "expected": {
+      "status": "No daily Bollinger observations",
+      "start": 1790121600,
+      "end": 1793491200,
+      "minimum": null,
+      "maximum": null,
+      "series": [
+        {
+          "name": "ES Close",
+          "color": "Yellow",
+          "points": []
+        },
+        {
+          "name": "20 EMA",
+          "color": "Blue",
+          "points": []
+        },
+        {
+          "name": "Upper Band",
+          "color": "Green",
+          "points": []
+        },
+        {
+          "name": "Lower Band",
+          "color": "Red",
+          "points": []
+        }
+      ]
+    }
+  },
+  {
+    "date": "2026-11-01",
+    "source": [
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-11-01",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-11-01T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6050,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": null,
+        "StandardDeviation20": null,
+        "Upper20": null,
+        "Lower20": null,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      }
+    ],
+    "expected": {
+      "status": "",
+      "start": 1793491200,
+      "end": 1793577600,
+      "minimum": 6049,
+      "maximum": 6051,
+      "series": [
+        {
+          "name": "ES Close",
+          "color": "Yellow",
+          "points": [
+            [
+              1793491200,
+              6050
+            ]
+          ]
+        },
+        {
+          "name": "20 EMA",
+          "color": "Blue",
+          "points": []
+        },
+        {
+          "name": "Upper Band",
+          "color": "Green",
+          "points": []
+        },
+        {
+          "name": "Lower Band",
+          "color": "Red",
+          "points": []
+        }
+      ]
+    }
+  },
+  {
+    "date": "2026-11-01",
+    "source": [
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-17",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-17T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6005,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-18",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-18T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6006,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-19",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-19T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6007,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-20",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-20T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6008,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-21",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-21T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6009,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-22",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-22T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6010,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-23",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-23T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6011,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-24",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-24T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6012,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-25",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-25T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6013,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-26",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-26T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6014,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-27",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-27T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6015,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-28",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-28T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6016,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-29",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-29T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6017,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-09-30",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-09-30T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6018,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-01",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-01T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6019,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-02",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-02T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6020,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-03",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-03T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6021,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-04",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-04T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6022,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-05",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-05T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6023,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-06",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-06T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6024,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-07",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-07T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6025,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-08",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-08T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6026,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-09",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-09T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6027,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-10",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-10T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6028,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-11",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-11T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6029,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-12",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-12T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6030,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-13",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-13T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6031,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-14",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-14T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6032,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-15",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-15T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6033,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-16",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-16T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6034,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-17",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-17T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6035,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-18",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-18T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6036,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-19",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-19T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6037,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-20",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-20T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6038,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-21",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-21T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6039,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-22",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-22T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6040,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-23",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-23T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6041,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-24",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-24T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6042,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-25",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-25T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6043,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-26",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-26T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6044,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-27",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-27T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6045,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-28",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-28T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6046,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-29",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-29T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6047,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-30",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-30T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6048,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-31",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-31T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6049,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-11-01",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-11-01T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6050,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-11-02",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-11-02T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 9000,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-10-31",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-10-31T08:30:00+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": false,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 9999,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      },
+      {
+        "Metadata": {
+          "SignalKey": {
+            "MarketSeriesIdentity": {
+              "Kind": "Unknown",
+              "ContractId": null,
+              "FuturesSeriesId": null
+            },
+            "SignalKind": "Unknown",
+            "TimeFrame": "Daily",
+            "CalculationConfigurationId": ""
+          },
+          "ContractId": "",
+          "ValueDate": "2026-11-01",
+          "ObservationId": {
+            "Value": "00000000-0000-0000-0000-000000000000"
+          },
+          "MarketDataAsOfUtc": "2026-11-01T08:30:01+00:00",
+          "CalculatedAtUtc": "0001-01-01T00:00:00+00:00",
+          "SourceSequence": 0,
+          "SchemaVersion": 0,
+          "CalculationVersion": "",
+          "CalculationMethod": "Unknown",
+          "IsValid": true,
+          "ValidationIssues": [],
+          "StreamEpochId": "00000000-0000-0000-0000-000000000000",
+          "MarketSeriesIdentity": {
+            "Kind": "Unknown",
+            "ContractId": null,
+            "FuturesSeriesId": null
+          },
+          "FuturesSeriesId": null,
+          "TimeFrame": "Daily",
+          "CalculationConfigurationId": ""
+        },
+        "Price": 6060,
+        "Ema10Center": null,
+        "StandardDeviation10": null,
+        "Upper10": null,
+        "Lower10": null,
+        "Width10": null,
+        "Position10": null,
+        "Ema20Center": 6050,
+        "StandardDeviation20": null,
+        "Upper20": 6060,
+        "Lower20": 6040,
+        "Width20": null,
+        "Position20": null,
+        "Width20Baseline": null,
+        "Width20Ratio": null,
+        "IsWarm": false,
+        "IsProvisional": false,
+        "BaselineValueDate": "0001-01-01",
+        "LivePriceAsOfUtc": null
+      }
+    ],
+    "expected": {
+      "status": "",
+      "start": 1790121600,
+      "end": 1793491200,
+      "minimum": 6008.55,
+      "maximum": 6062.45,
+      "series": [
+        {
+          "name": "ES Close",
+          "color": "Yellow",
+          "points": [
+            [
+              1790121600,
+              6011
+            ],
+            [
+              1790208000,
+              6012
+            ],
+            [
+              1790294400,
+              6013
+            ],
+            [
+              1790380800,
+              6014
+            ],
+            [
+              1790467200,
+              6015
+            ],
+            [
+              1790553600,
+              6016
+            ],
+            [
+              1790640000,
+              6017
+            ],
+            [
+              1790726400,
+              6018
+            ],
+            [
+              1790812800,
+              6019
+            ],
+            [
+              1790899200,
+              6020
+            ],
+            [
+              1790985600,
+              6021
+            ],
+            [
+              1791072000,
+              6022
+            ],
+            [
+              1791158400,
+              6023
+            ],
+            [
+              1791244800,
+              6024
+            ],
+            [
+              1791331200,
+              6025
+            ],
+            [
+              1791417600,
+              6026
+            ],
+            [
+              1791504000,
+              6027
+            ],
+            [
+              1791590400,
+              6028
+            ],
+            [
+              1791676800,
+              6029
+            ],
+            [
+              1791763200,
+              6030
+            ],
+            [
+              1791849600,
+              6031
+            ],
+            [
+              1791936000,
+              6032
+            ],
+            [
+              1792022400,
+              6033
+            ],
+            [
+              1792108800,
+              6034
+            ],
+            [
+              1792195200,
+              6035
+            ],
+            [
+              1792281600,
+              6036
+            ],
+            [
+              1792368000,
+              6037
+            ],
+            [
+              1792454400,
+              6038
+            ],
+            [
+              1792540800,
+              6039
+            ],
+            [
+              1792627200,
+              6040
+            ],
+            [
+              1792713600,
+              6041
+            ],
+            [
+              1792800000,
+              6042
+            ],
+            [
+              1792886400,
+              6043
+            ],
+            [
+              1792972800,
+              6044
+            ],
+            [
+              1793059200,
+              6045
+            ],
+            [
+              1793145600,
+              6046
+            ],
+            [
+              1793232000,
+              6047
+            ],
+            [
+              1793318400,
+              6048
+            ],
+            [
+              1793404800,
+              6049
+            ],
+            [
+              1793491200,
+              6060
+            ]
+          ]
+        },
+        {
+          "name": "20 EMA",
+          "color": "Blue",
+          "points": [
+            [
+              1790121600,
+              6050
+            ],
+            [
+              1790208000,
+              6050
+            ],
+            [
+              1790294400,
+              6050
+            ],
+            [
+              1790380800,
+              6050
+            ],
+            [
+              1790467200,
+              6050
+            ],
+            [
+              1790553600,
+              6050
+            ],
+            [
+              1790640000,
+              6050
+            ],
+            [
+              1790726400,
+              6050
+            ],
+            [
+              1790812800,
+              6050
+            ],
+            [
+              1790899200,
+              6050
+            ],
+            [
+              1790985600,
+              6050
+            ],
+            [
+              1791072000,
+              6050
+            ],
+            [
+              1791158400,
+              6050
+            ],
+            [
+              1791244800,
+              6050
+            ],
+            [
+              1791331200,
+              6050
+            ],
+            [
+              1791417600,
+              6050
+            ],
+            [
+              1791504000,
+              6050
+            ],
+            [
+              1791590400,
+              6050
+            ],
+            [
+              1791676800,
+              6050
+            ],
+            [
+              1791763200,
+              6050
+            ],
+            [
+              1791849600,
+              6050
+            ],
+            [
+              1791936000,
+              6050
+            ],
+            [
+              1792022400,
+              6050
+            ],
+            [
+              1792108800,
+              6050
+            ],
+            [
+              1792195200,
+              6050
+            ],
+            [
+              1792281600,
+              6050
+            ],
+            [
+              1792368000,
+              6050
+            ],
+            [
+              1792454400,
+              6050
+            ],
+            [
+              1792540800,
+              6050
+            ],
+            [
+              1792627200,
+              6050
+            ],
+            [
+              1792713600,
+              6050
+            ],
+            [
+              1792800000,
+              6050
+            ],
+            [
+              1792886400,
+              6050
+            ],
+            [
+              1792972800,
+              6050
+            ],
+            [
+              1793059200,
+              6050
+            ],
+            [
+              1793145600,
+              6050
+            ],
+            [
+              1793232000,
+              6050
+            ],
+            [
+              1793318400,
+              6050
+            ],
+            [
+              1793404800,
+              6050
+            ],
+            [
+              1793491200,
+              6050
+            ]
+          ]
+        },
+        {
+          "name": "Upper Band",
+          "color": "Green",
+          "points": [
+            [
+              1790121600,
+              6060
+            ],
+            [
+              1790208000,
+              6060
+            ],
+            [
+              1790294400,
+              6060
+            ],
+            [
+              1790380800,
+              6060
+            ],
+            [
+              1790467200,
+              6060
+            ],
+            [
+              1790553600,
+              6060
+            ],
+            [
+              1790640000,
+              6060
+            ],
+            [
+              1790726400,
+              6060
+            ],
+            [
+              1790812800,
+              6060
+            ],
+            [
+              1790899200,
+              6060
+            ],
+            [
+              1790985600,
+              6060
+            ],
+            [
+              1791072000,
+              6060
+            ],
+            [
+              1791158400,
+              6060
+            ],
+            [
+              1791244800,
+              6060
+            ],
+            [
+              1791331200,
+              6060
+            ],
+            [
+              1791417600,
+              6060
+            ],
+            [
+              1791504000,
+              6060
+            ],
+            [
+              1791590400,
+              6060
+            ],
+            [
+              1791676800,
+              6060
+            ],
+            [
+              1791763200,
+              6060
+            ],
+            [
+              1791849600,
+              6060
+            ],
+            [
+              1791936000,
+              6060
+            ],
+            [
+              1792022400,
+              6060
+            ],
+            [
+              1792108800,
+              6060
+            ],
+            [
+              1792195200,
+              6060
+            ],
+            [
+              1792281600,
+              6060
+            ],
+            [
+              1792368000,
+              6060
+            ],
+            [
+              1792454400,
+              6060
+            ],
+            [
+              1792540800,
+              6060
+            ],
+            [
+              1792627200,
+              6060
+            ],
+            [
+              1792713600,
+              6060
+            ],
+            [
+              1792800000,
+              6060
+            ],
+            [
+              1792886400,
+              6060
+            ],
+            [
+              1792972800,
+              6060
+            ],
+            [
+              1793059200,
+              6060
+            ],
+            [
+              1793145600,
+              6060
+            ],
+            [
+              1793232000,
+              6060
+            ],
+            [
+              1793318400,
+              6060
+            ],
+            [
+              1793404800,
+              6060
+            ],
+            [
+              1793491200,
+              6060
+            ]
+          ]
+        },
+        {
+          "name": "Lower Band",
+          "color": "Red",
+          "points": [
+            [
+              1790121600,
+              6040
+            ],
+            [
+              1790208000,
+              6040
+            ],
+            [
+              1790294400,
+              6040
+            ],
+            [
+              1790380800,
+              6040
+            ],
+            [
+              1790467200,
+              6040
+            ],
+            [
+              1790553600,
+              6040
+            ],
+            [
+              1790640000,
+              6040
+            ],
+            [
+              1790726400,
+              6040
+            ],
+            [
+              1790812800,
+              6040
+            ],
+            [
+              1790899200,
+              6040
+            ],
+            [
+              1790985600,
+              6040
+            ],
+            [
+              1791072000,
+              6040
+            ],
+            [
+              1791158400,
+              6040
+            ],
+            [
+              1791244800,
+              6040
+            ],
+            [
+              1791331200,
+              6040
+            ],
+            [
+              1791417600,
+              6040
+            ],
+            [
+              1791504000,
+              6040
+            ],
+            [
+              1791590400,
+              6040
+            ],
+            [
+              1791676800,
+              6040
+            ],
+            [
+              1791763200,
+              6040
+            ],
+            [
+              1791849600,
+              6040
+            ],
+            [
+              1791936000,
+              6040
+            ],
+            [
+              1792022400,
+              6040
+            ],
+            [
+              1792108800,
+              6040
+            ],
+            [
+              1792195200,
+              6040
+            ],
+            [
+              1792281600,
+              6040
+            ],
+            [
+              1792368000,
+              6040
+            ],
+            [
+              1792454400,
+              6040
+            ],
+            [
+              1792540800,
+              6040
+            ],
+            [
+              1792627200,
+              6040
+            ],
+            [
+              1792713600,
+              6040
+            ],
+            [
+              1792800000,
+              6040
+            ],
+            [
+              1792886400,
+              6040
+            ],
+            [
+              1792972800,
+              6040
+            ],
+            [
+              1793059200,
+              6040
+            ],
+            [
+              1793145600,
+              6040
+            ],
+            [
+              1793232000,
+              6040
+            ],
+            [
+              1793318400,
+              6040
+            ],
+            [
+              1793404800,
+              6040
+            ],
+            [
+              1793491200,
+              6040
+            ]
+          ]
+        }
+      ]
+    }
+  }
+]

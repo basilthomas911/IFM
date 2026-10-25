@@ -1,0 +1,26 @@
+{
+  "controls": [{"verb":"FeedScenario","value":"Normal"}],
+  "comparison":{"captures":["reference-lookups","lookup-draft","reference-catalog","reference-parameters"]},
+  "steps": [
+    {"action":"wait","name":"Stop Market Feeds"},
+    {"action":"invoke","name":"Reference","type":"Button"},
+    {"action":"wait","name":"Reference Data Manager"},
+    {"action":"wait","name":"Lookup Type Names"},
+    {"action":"snapshot","name":"reference-lookups","scope":"Reference Data Manager"},
+    {"action":"invoke","name":"Add","type":"Button","enabled":true},
+    {"action":"wait","name":"Save","type":"Button"},
+    {"action":"snapshot","name":"lookup-draft","scope":"Reference Data Manager"},
+    {"action":"invoke","name":"Cancel","type":"Button","enabled":true},
+    {"action":"expand","name":"Selection:","type":"ComboBox","enabled":true},
+    {"action":"invoke","name":"trade strategy families","type":"Button"},
+    {"action":"wait","name":"Manage"},
+    {"action":"wait","name":"Futures - v1 (Draft)","type":"Button","enabled":true},
+    {"action":"snapshot","name":"reference-catalog","scope":"Reference Data Manager"},
+    {"action":"expand","name":"Selection:","type":"ComboBox","enabled":true},
+    {"action":"invoke","name":"parameter sets","type":"Button"},
+    {"action":"wait","name":"Parameter Set"},
+    {"action":"wait","name":"Fixture market-data-analytics.futures-iti-signal - v1 (Draft)","type":"Button","enabled":true},
+    {"action":"snapshot","name":"reference-parameters","scope":"Reference Data Manager"},
+    {"action":"close"}
+  ]
+}

@@ -1,0 +1,1682 @@
+[
+  {
+    "name": "outlook-0-False",
+    "live": false,
+    "now": "2026-10-26T12:30:00Z",
+    "expected": {
+      "cells": {
+        "marketDirection": {
+          "value": "Down",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "marketVolatility": {
+          "value": "Low",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "priceDirection": {
+          "value": "Rising",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "priceVolatility": {
+          "value": "Unknown",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "openPrice": {
+          "value": "0.00",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "highPrice": {
+          "value": "0.00",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowPrice": {
+          "value": "0.00",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "closePrice": {
+          "value": "0.00",
+          "foreground": "Caution",
+          "background": "DarkSurface"
+        },
+        "volume": {
+          "value": "0",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "dailyPercentChange": {
+          "value": "0.00%",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "dailyStdDev": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "upperBand": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "mean": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowerBand": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "vwap": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "Default"
+        },
+        "mdi": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Default"
+        },
+        "adx": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "Default"
+        },
+        "atr": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "Default"
+        },
+        "macd": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "Default"
+        },
+        "contractId": {
+          "value": "ESZ6",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trend": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "mdiDownLimit": {
+          "value": "0.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "rsi": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Default"
+        },
+        "mdiTrend": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Default"
+        },
+        "mdiUpLimit": {
+          "value": "0.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "riskPosition": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "upTrendLimit": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "downLimitTrigger": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeEntry": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeExit": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendDelta": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendExtreme": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendReversal": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "fiftyDMA": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "twoHundredDMA": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDirection": {
+          "value": "Warming",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiStrength": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiMarketState": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiCross": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDivergence": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        }
+      },
+      "status": "Market Outlook None | 2026-10-26 | current | warming/degraded: EMA, ITI | EMA/BB baseline unavailable"
+    }
+  },
+  {
+    "name": "outlook-0-True",
+    "live": true,
+    "now": "2026-10-26T12:30:00Z",
+    "expected": {
+      "cells": {
+        "marketDirection": {
+          "value": "Down",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "marketVolatility": {
+          "value": "Low",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "priceDirection": {
+          "value": "Rising",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "priceVolatility": {
+          "value": "Unknown",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "openPrice": {
+          "value": "0.00",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "highPrice": {
+          "value": "0.00",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowPrice": {
+          "value": "0.00",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "closePrice": {
+          "value": "0.00",
+          "foreground": "Caution",
+          "background": "DarkSurface"
+        },
+        "volume": {
+          "value": "0",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "dailyPercentChange": {
+          "value": "0.00%",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "dailyStdDev": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "upperBand": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "mean": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowerBand": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "vwap": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "Default"
+        },
+        "mdi": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Default"
+        },
+        "adx": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "Default"
+        },
+        "atr": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "Default"
+        },
+        "macd": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "Default"
+        },
+        "contractId": {
+          "value": "ESZ6",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trend": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "mdiDownLimit": {
+          "value": "0.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "rsi": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Default"
+        },
+        "mdiTrend": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Default"
+        },
+        "mdiUpLimit": {
+          "value": "0.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "riskPosition": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "upTrendLimit": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "downLimitTrigger": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeEntry": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeExit": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendDelta": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendExtreme": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendReversal": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "fiftyDMA": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "twoHundredDMA": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDirection": {
+          "value": "Warming",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiStrength": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiMarketState": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiCross": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDivergence": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        }
+      },
+      "status": "Market Outlook None | 2026-10-26 | live | warming/degraded: EMA, ITI | EMA/BB baseline unavailable"
+    }
+  },
+  {
+    "name": "outlook-1-False",
+    "live": false,
+    "now": "2026-10-26T12:30:00Z",
+    "expected": {
+      "cells": {
+        "marketDirection": {
+          "value": "Up",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "marketVolatility": {
+          "value": "Low",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "priceDirection": {
+          "value": "Rising",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "priceVolatility": {
+          "value": "Unknown",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "openPrice": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "highPrice": {
+          "value": "6060.23",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowPrice": {
+          "value": "6040.34",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "closePrice": {
+          "value": "6055.45",
+          "foreground": "Caution",
+          "background": "DarkSurface"
+        },
+        "volume": {
+          "value": "123456",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "dailyPercentChange": {
+          "value": "1.23%",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "dailyStdDev": {
+          "value": "10.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "upperBand": {
+          "value": "6070.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "mean": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowerBand": {
+          "value": "6030.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "vwap": {
+          "value": "6050.13",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdi": {
+          "value": "65.13",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "adx": {
+          "value": "26.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "atr": {
+          "value": "12.12",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "macd": {
+          "value": "3.12",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "contractId": {
+          "value": "ESZ6",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trend": {
+          "value": "DownTrending",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdiDownLimit": {
+          "value": "30.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "rsi": {
+          "value": "65.12",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdiTrend": {
+          "value": "UpTrending",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdiUpLimit": {
+          "value": "60.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "riskPosition": {
+          "value": "High",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "upTrendLimit": {
+          "value": "6060.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "downLimitTrigger": {
+          "value": "6040.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeEntry": {
+          "value": "6050.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeExit": {
+          "value": "6040.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendDelta": {
+          "value": "-2.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendExtreme": {
+          "value": "6055.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendReversal": {
+          "value": "6049.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "fiftyDMA": {
+          "value": "6040.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "twoHundredDMA": {
+          "value": "6020.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDirection": {
+          "value": "Init",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiStrength": {
+          "value": "Low",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiMarketState": {
+          "value": "Unknown",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiCross": {
+          "value": "None",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDivergence": {
+          "value": "-1.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        }
+      },
+      "status": "Market Outlook None | 2026-10-26 | current | complete | EMA/BB baseline 2026-10-25"
+    }
+  },
+  {
+    "name": "outlook-1-True",
+    "live": true,
+    "now": "2026-10-26T12:30:00Z",
+    "expected": {
+      "cells": {
+        "marketDirection": {
+          "value": "Up",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "marketVolatility": {
+          "value": "Low",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "priceDirection": {
+          "value": "Rising",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "priceVolatility": {
+          "value": "Unknown",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "openPrice": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "highPrice": {
+          "value": "6060.23",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowPrice": {
+          "value": "6040.34",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "closePrice": {
+          "value": "6055.45",
+          "foreground": "Caution",
+          "background": "DarkSurface"
+        },
+        "volume": {
+          "value": "123456",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "dailyPercentChange": {
+          "value": "1.23%",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "dailyStdDev": {
+          "value": "10.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "upperBand": {
+          "value": "6070.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "mean": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowerBand": {
+          "value": "6030.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "vwap": {
+          "value": "6050.13",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdi": {
+          "value": "65.13",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "adx": {
+          "value": "26.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "atr": {
+          "value": "12.12",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "macd": {
+          "value": "3.12",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "contractId": {
+          "value": "ESZ6",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trend": {
+          "value": "DownTrending",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdiDownLimit": {
+          "value": "30.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "rsi": {
+          "value": "65.12",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdiTrend": {
+          "value": "UpTrending",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdiUpLimit": {
+          "value": "60.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "riskPosition": {
+          "value": "High",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "upTrendLimit": {
+          "value": "6060.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "downLimitTrigger": {
+          "value": "6040.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeEntry": {
+          "value": "6050.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeExit": {
+          "value": "6040.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendDelta": {
+          "value": "-2.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendExtreme": {
+          "value": "6055.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendReversal": {
+          "value": "6049.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "fiftyDMA": {
+          "value": "6040.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "twoHundredDMA": {
+          "value": "6020.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDirection": {
+          "value": "Init",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiStrength": {
+          "value": "Low",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiMarketState": {
+          "value": "Unknown",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiCross": {
+          "value": "None",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDivergence": {
+          "value": "-1.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        }
+      },
+      "status": "Market Outlook None | 2026-10-26 | live | complete | EMA/BB baseline 2026-10-25"
+    }
+  },
+  {
+    "name": "outlook-2-False",
+    "live": false,
+    "now": "2026-10-26T12:30:00Z",
+    "expected": {
+      "cells": {
+        "marketDirection": {
+          "value": "Up",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "marketVolatility": {
+          "value": "Low",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "priceDirection": {
+          "value": "Rising",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "priceVolatility": {
+          "value": "Unknown",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "openPrice": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "highPrice": {
+          "value": "6060.23",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowPrice": {
+          "value": "6040.34",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "closePrice": {
+          "value": "6055.45",
+          "foreground": "Caution",
+          "background": "DarkSurface"
+        },
+        "volume": {
+          "value": "123456",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "dailyPercentChange": {
+          "value": "1.23%",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "dailyStdDev": {
+          "value": "10.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "upperBand": {
+          "value": "6070.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "mean": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowerBand": {
+          "value": "6030.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "vwap": {
+          "value": "~6050.13",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "mdi": {
+          "value": "65.13",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "adx": {
+          "value": "26.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "atr": {
+          "value": "12.12",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "macd": {
+          "value": "-3.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "contractId": {
+          "value": "ESZ6",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trend": {
+          "value": "DownTrending",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "mdiDownLimit": {
+          "value": "0.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "rsi": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Default"
+        },
+        "mdiTrend": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Default"
+        },
+        "mdiUpLimit": {
+          "value": "0.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "riskPosition": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "upTrendLimit": {
+          "value": "6060.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "downLimitTrigger": {
+          "value": "6040.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeEntry": {
+          "value": "6050.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeExit": {
+          "value": "0.00",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendDelta": {
+          "value": "-2.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendExtreme": {
+          "value": "6055.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendReversal": {
+          "value": "6049.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "fiftyDMA": {
+          "value": "6040.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "twoHundredDMA": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDirection": {
+          "value": "Init",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiStrength": {
+          "value": "Low",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiMarketState": {
+          "value": "Unknown",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiCross": {
+          "value": "None",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDivergence": {
+          "value": "-1.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        }
+      },
+      "status": "Market Outlook None | 2026-10-26 | current | complete | EMA/BB baseline 2026-10-25"
+    }
+  },
+  {
+    "name": "outlook-2-True",
+    "live": true,
+    "now": "2026-10-26T12:30:00Z",
+    "expected": {
+      "cells": {
+        "marketDirection": {
+          "value": "Up",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "marketVolatility": {
+          "value": "Low",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "priceDirection": {
+          "value": "Rising",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "priceVolatility": {
+          "value": "Unknown",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "openPrice": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "highPrice": {
+          "value": "6060.23",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowPrice": {
+          "value": "6040.34",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "closePrice": {
+          "value": "6055.45",
+          "foreground": "Caution",
+          "background": "DarkSurface"
+        },
+        "volume": {
+          "value": "123456",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "dailyPercentChange": {
+          "value": "1.23%",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "dailyStdDev": {
+          "value": "10.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "upperBand": {
+          "value": "6070.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "mean": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowerBand": {
+          "value": "6030.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "vwap": {
+          "value": "~6050.13",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "mdi": {
+          "value": "65.13",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "adx": {
+          "value": "26.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "atr": {
+          "value": "12.12",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "macd": {
+          "value": "-3.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "contractId": {
+          "value": "ESZ6",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trend": {
+          "value": "DownTrending",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "mdiDownLimit": {
+          "value": "0.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "rsi": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Default"
+        },
+        "mdiTrend": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Default"
+        },
+        "mdiUpLimit": {
+          "value": "0.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "riskPosition": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "upTrendLimit": {
+          "value": "6060.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "downLimitTrigger": {
+          "value": "6040.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeEntry": {
+          "value": "6050.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeExit": {
+          "value": "0.00",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendDelta": {
+          "value": "-2.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendExtreme": {
+          "value": "6055.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendReversal": {
+          "value": "6049.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "fiftyDMA": {
+          "value": "6040.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "twoHundredDMA": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDirection": {
+          "value": "Init",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiStrength": {
+          "value": "Low",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiMarketState": {
+          "value": "Unknown",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiCross": {
+          "value": "None",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDivergence": {
+          "value": "-1.12",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        }
+      },
+      "status": "Market Outlook None | 2026-10-26 | live | complete | EMA/BB baseline 2026-10-25"
+    }
+  },
+  {
+    "name": "outlook-3-False",
+    "live": false,
+    "now": "2026-10-26T12:30:00Z",
+    "expected": {
+      "cells": {
+        "marketDirection": {
+          "value": "Up",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "marketVolatility": {
+          "value": "Low",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "priceDirection": {
+          "value": "Rising",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "priceVolatility": {
+          "value": "Unknown",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "openPrice": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "highPrice": {
+          "value": "6060.23",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowPrice": {
+          "value": "6040.34",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "closePrice": {
+          "value": "6055.45",
+          "foreground": "Caution",
+          "background": "DarkSurface"
+        },
+        "volume": {
+          "value": "123456",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "dailyPercentChange": {
+          "value": "1.23%",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "dailyStdDev": {
+          "value": "10.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "upperBand": {
+          "value": "6070.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "mean": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowerBand": {
+          "value": "6030.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "vwap": {
+          "value": "6050.13",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdi": {
+          "value": "10.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "adx": {
+          "value": "26.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "atr": {
+          "value": "12.12",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "macd": {
+          "value": "3.12",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "contractId": {
+          "value": "ESZ6",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trend": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdiDownLimit": {
+          "value": "30.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "rsi": {
+          "value": "30.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "mdiTrend": {
+          "value": "DownTrending",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "mdiUpLimit": {
+          "value": "60.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "riskPosition": {
+          "value": "High",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "upTrendLimit": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "downLimitTrigger": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeEntry": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeExit": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendDelta": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendExtreme": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendReversal": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "fiftyDMA": {
+          "value": "6040.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "twoHundredDMA": {
+          "value": "6020.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDirection": {
+          "value": "Warming",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiStrength": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiMarketState": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiCross": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDivergence": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        }
+      },
+      "status": "Market Outlook None | 2026-10-26 | current | complete | EMA/BB baseline 2026-10-25"
+    }
+  },
+  {
+    "name": "outlook-3-True",
+    "live": true,
+    "now": "2026-10-26T12:30:00Z",
+    "expected": {
+      "cells": {
+        "marketDirection": {
+          "value": "Up",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "marketVolatility": {
+          "value": "Low",
+          "foreground": "DarkText",
+          "background": "Caution"
+        },
+        "priceDirection": {
+          "value": "Rising",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "priceVolatility": {
+          "value": "Unknown",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "openPrice": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "highPrice": {
+          "value": "6060.23",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowPrice": {
+          "value": "6040.34",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "closePrice": {
+          "value": "6055.45",
+          "foreground": "Caution",
+          "background": "DarkSurface"
+        },
+        "volume": {
+          "value": "123456",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "dailyPercentChange": {
+          "value": "1.23%",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "dailyStdDev": {
+          "value": "10.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "upperBand": {
+          "value": "6070.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "mean": {
+          "value": "6050.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "lowerBand": {
+          "value": "6030.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "vwap": {
+          "value": "6050.13",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdi": {
+          "value": "10.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "adx": {
+          "value": "26.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "atr": {
+          "value": "12.12",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "macd": {
+          "value": "3.12",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "contractId": {
+          "value": "ESZ6",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trend": {
+          "value": "N/A",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "mdiDownLimit": {
+          "value": "30.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "rsi": {
+          "value": "30.00",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "mdiTrend": {
+          "value": "DownTrending",
+          "foreground": "DarkText",
+          "background": "Negative"
+        },
+        "mdiUpLimit": {
+          "value": "60.00",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "riskPosition": {
+          "value": "High",
+          "foreground": "DarkText",
+          "background": "Positive"
+        },
+        "upTrendLimit": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "downLimitTrigger": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeEntry": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tradeExit": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendDelta": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendExtreme": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "trendReversal": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "fiftyDMA": {
+          "value": "6040.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "twoHundredDMA": {
+          "value": "6020.13",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDirection": {
+          "value": "Warming",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiStrength": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiMarketState": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiCross": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        },
+        "tdiDivergence": {
+          "value": "N/A",
+          "foreground": "LightText",
+          "background": "DarkSurface"
+        }
+      },
+      "status": "Market Outlook None | 2026-10-26 | STALE | complete | EMA/BB baseline 2026-10-25"
+    }
+  }
+]

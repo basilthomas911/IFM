@@ -1,0 +1,1 @@
+[{"RequirementId":"e7b88350-3016-1350-9ee0-16c57f546ab1","Metric":"VxTermStructure","Enabled":true,"MaximumAgeSeconds":132,"PrepareAtStartup":true,"Monitor":true}]

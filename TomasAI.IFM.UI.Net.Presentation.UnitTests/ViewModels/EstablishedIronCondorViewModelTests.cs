@@ -416,6 +416,31 @@ public sealed class EstablishedIronCondorViewModelTests
         vm.TradeLimitSnapshot.TradeLimit.RiskMargin.Should().Be(1847.50m);
         await positions.Received(2).GetHistoryAsync(id,TradeStrategyKind.IronCondor,
             Arg.Any<DateTime>(),Arg.Any<DateTime>(),Arg.Any<CancellationToken>());
+        var historicalRows = vm.TradeHistory;
+        typeof(IronCondorViewModel).GetProperty(nameof(vm.IsLiveFeedEnabled))!.SetValue(vm, true);
+        var liveDate = vm.ValueDate ?? ServerSession().ActiveValueDate!.Value;
+        var current = Position(liveDate.DayNumber - date.DayNumber, 31, StrategyPositionPhase.MarkToMarket) with {
+            Legs = trade.Legs.Select(leg => new StrategyPositionLeg { TradeLegId = leg.TradeLegId,
+                ContractId = leg.ContractId, SignedQuantity = leg.SignedQuantity }).ToArray() };
+        vm.ApplyIronCondorPosition(current).Should().BeTrue();
+        vm.TradeHistory.Should().HaveCount(5);
+        for (var i = 0; i < historicalRows.Length; i++) vm.TradeHistory[i].Should().BeSameAs(historicalRows[i]);
+        var liveRows = vm.TradeHistory;
+        vm.ApplyIronCondorPosition(current with { PositionSequence = 32 }).Should().BeTrue();
+        vm.TradeHistory.Should().BeSameAs(liveRows, "unchanged row values do not invalidate history");
+        vm.ApplyIronCondorTradePlan(new() { Position = current with { PositionSequence = 32 }, ValueDate = current.ValueDate,
+            PlanRevision = 1, IronCondorTradePlanSnapshot = new() { ContractMultiplier = 50, DailyPnl = -250 } }).Should().BeTrue();
+        vm.TradeHistory.Last().TradePnl.Should().Be(-250);
+        for (var i = 0; i < historicalRows.Length; i++) vm.TradeHistory[i].Should().BeSameAs(historicalRows[i]);
+        vm.ApplyIronCondorPosition(current with { ValueDate = liveDate.AddDays(-1), PositionSequence = 100 }).Should().BeFalse();
+        vm.ApplyIronCondorPosition(current with { PositionSequence = 33, Phase = StrategyPositionPhase.EndOfDay }).Should().BeTrue();
+        vm.TradeHistory.Last().TradeStatus.Should().Be(TradeStatus.EndOfDay);
+        var sealedRows = vm.TradeHistory;
+        vm.ApplyIronCondorPosition(current with { PositionSequence = 34 }).Should().BeTrue();
+        vm.TradeHistory.Should().BeSameAs(sealedRows);
+        for (var i = 0; i < historicalRows.Length; i++) vm.TradeHistory[i].Should().BeSameAs(historicalRows[i]);
+        await positions.Received(2).GetHistoryAsync(id, TradeStrategyKind.IronCondor,
+            Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -452,13 +477,26 @@ public sealed class EstablishedIronCondorViewModelTests
         vm.SelectedSavedPosition.Should().BeNull();
         var position = new StrategyPositionSnapshot { Id = StrategyPositionId.Create(trade.Id, TradeStrategyKind.IronCondor),
             StrategyKind = TradeStrategyKind.IronCondor, Phase = StrategyPositionPhase.MarkToMarket,
-            ValueDate = new DateOnly(2026,10,9), AsOfUtc = DateTime.UtcNow, PositionSequence = 1, DailyPnl = -25m,
+            ValueDate = ServerSession().ActiveValueDate!.Value, AsOfUtc = DateTime.UtcNow, PositionSequence = 1, DailyPnl = -25m,
             Legs = trade.Legs.Select(leg => new StrategyPositionLeg { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId }).ToArray() };
         position = StrategyPositionHistoryProjection.EnrichPosition(position, trade);
         vm.ApplyIronCondorPosition(position).Should().BeTrue();
         vm.ApplyIronCondorPosition(position with { PositionSequence = 2, DailyPnl = -35m }).Should().BeTrue();
         vm.IronCondorPosition!.DailyPnl.Should().Be(-35m);
         vm.TradeHistory.Last().TradePnl.Should().Be(-35m);
+        // A raw position/plan update must not remove today's already valued history row.
+        for (var sequence = 3; sequence <= 7; sequence += 2)
+        {
+            var raw = position with { PositionSequence = sequence, HistoryValuation = null, DailyPnl = -40m };
+            vm.ApplyIronCondorPosition(raw).Should().BeTrue();
+            vm.ApplyIronCondorTradePlan(new() { Position = raw, ValueDate = position.ValueDate,
+                PlanRevision = sequence }).Should().BeTrue();
+            vm.TradeHistory.Should().HaveCount(2);
+            vm.TradeHistory.Last().TradePnl.Should().Be(-35m);
+            vm.ApplyIronCondorPosition(raw with { PositionSequence = sequence + 1,
+                HistoryValuation = position.HistoryValuation, DailyPnl = -35m }).Should().BeTrue();
+            vm.TradeHistory.Should().HaveCount(2);
+        }
         vm.CanSelectPositionHistory.Should().BeFalse();
         typeof(IronCondorViewModel).GetProperty(nameof(vm.IsLiveFeedEnabled))!.SetValue(vm,false);
         vm.CanSelectPositionHistory.Should().BeTrue();

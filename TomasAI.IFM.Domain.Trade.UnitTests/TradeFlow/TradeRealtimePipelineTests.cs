@@ -16,6 +16,40 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.TradeFlow;
 public sealed class TradeRealtimePipelineTests
 {
     [Fact]
+    public void Live_position_and_plan_publications_both_include_backend_history_valuation()
+    {
+        var date = new DateOnly(2026, 10, 23);
+        var trade = new EstablishedTradeDefinition { Id = new(101, 701, 1901, 1501),
+            StrategyKind = TradeStrategyKind.IronCondor,
+            Legs = Enumerable.Range(0, 4).Select(i => new TradeLegDefinition {
+                TradeLegId = Guid.NewGuid(), ContractId = $"option-{i}",
+                Expiry = date.AddDays(30), SignedQuantity = i % 2 == 0 ? -1 : 1 }).ToArray() };
+        var cache = new TradeRealtimeHotCache(trade, date);
+        for (var sequence = 1; sequence <= 4; sequence++)
+        {
+            var position = new StrategyPositionSnapshot { Id = StrategyPositionId.Create(trade.Id, trade.StrategyKind),
+                StrategyKind = trade.StrategyKind, ValueDate = date, Phase = StrategyPositionPhase.MarkToMarket,
+                PositionSequence = sequence, RouteGeneration = 1, AsOfUtc = DateTime.UtcNow,
+                Legs = trade.Legs.Select((leg, i) => new StrategyPositionLeg { TradeLegId = leg.TradeLegId,
+                    ContractId = leg.ContractId, SignedQuantity = leg.SignedQuantity,
+                    CurrentPrice = i % 2 == 0 ? 20 + sequence : 10 }).ToArray() };
+            Assert.True(cache.Apply(position));
+            Assert.True(cache.Apply(new TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot {
+                Position = position, ValueDate = date, PlanRevision = sequence,
+                IronCondorTradePlanSnapshot = new() { DailyPnl = -100m * sequence } }));
+            var published = cache.ReadForPublication();
+            var wire = MessagePackBinarySerializer.Shared.Deserialize<TradeRealtimeSnapshot>(
+                MessagePackBinarySerializer.Shared.Serialize(published)! )!;
+            Assert.NotNull(wire.Position!.HistoryValuation);
+            Assert.NotNull(wire.Plan!.Position.HistoryValuation);
+            Assert.Equal(date, wire.Plan.Position.HistoryValuation.ValueDate);
+            Assert.Equal(-20m - 2 * sequence, wire.Plan.Position.HistoryValuation.NetPrice);
+            Assert.Equal(wire.Position.HistoryValuation, wire.Plan.Position.HistoryValuation);
+            Assert.Null(position.HistoryValuation); // Only the outgoing backend projection is enriched.
+        }
+    }
+
+    [Fact]
     public async Task Concurrent_route_changes_and_reads_do_not_publish_retired_cache_updates()
     {
         var registry = new TradeRealtimeCacheRegistry();

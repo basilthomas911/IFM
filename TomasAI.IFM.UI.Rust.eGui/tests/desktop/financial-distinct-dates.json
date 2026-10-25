@@ -1,0 +1,137 @@
+﻿{
+    "controls":  [
+                     {
+                         "verb":  "FeedScenario",
+                         "value":  "Normal"
+                     }
+                 ],
+    "comparison":  {
+                       "captures":  [
+                                        "financial-posting-explicit-dates"
+                                    ],
+                       "apiClockDefaults":  {
+                                                "standaloneDate":  "2026-10-26",
+                                                "basis":  "User requires API-owned dates. The two posting-draft dates use the API session in standalone; unchanged hybrid defaults them from workstation DateTime.Today. Eligibility and all other fields remain exact comparisons.",
+                                                "includeEnabledDates":  true,
+                                                "standaloneTime":  "08:30:00",
+                                                "captures":  [
+                                                                 "financial-posting-draft"
+                                                             ]
+                                            }
+                   },
+    "steps":  [
+                  {
+                      "action":  "wait",
+                      "name":  "Stop Market Feeds"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "Portfolio",
+                      "type":  "Button"
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Native fixture portfolio",
+                      "type":  "Text",
+                      "scope":  "Portfolio Administration"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "Funds",
+                      "type":  "Button",
+                      "scope":  "Portfolio Administration"
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Native fixture fund",
+                      "type":  "Text",
+                      "scope":  "Portfolio Administration"
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Financial Actions",
+                      "type":  "Button",
+                      "enabled":  true,
+                      "scope":  "Portfolio Administration"
+                  },
+                  {
+                      "scope":  "Portfolio Administration",
+                      "type":  "Button",
+                      "name":  "Financial Actions",
+                      "action":  "invoke"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Transaction...",
+                      "action":  "invoke"
+                  },
+                  {
+                      "type":  "Window",
+                      "name":  "Fund Transaction",
+                      "action":  "wait"
+                  },
+                  {
+                      "scope":  "Fund Transaction",
+                      "name":  "financial-posting-draft",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "scope":  "Fund Transaction",
+                      "action":  "date-picker",
+                      "index":  0
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "20",
+                      "action":  "invoke"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Save",
+                      "action":  "invoke"
+                  },
+                  {
+                      "milliseconds":  500,
+                      "action":  "pause"
+                  },
+                  {
+                      "scope":  "Fund Transaction",
+                      "action":  "date-picker",
+                      "index":  1
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "21",
+                      "action":  "invoke"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Save",
+                      "action":  "invoke"
+                  },
+                  {
+                      "milliseconds":  500,
+                      "action":  "pause"
+                  },
+                  {
+                      "scope":  "Fund Transaction",
+                      "type":  "Button",
+                      "name":  "2026-10-20 📆",
+                      "action":  "wait"
+                  },
+                  {
+                      "scope":  "Fund Transaction",
+                      "type":  "Button",
+                      "name":  "2026-10-21 📆",
+                      "action":  "wait"
+                  },
+                  {
+                      "scope":  "Fund Transaction",
+                      "name":  "financial-posting-explicit-dates",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "action":  "close"
+                  }
+              ]
+}

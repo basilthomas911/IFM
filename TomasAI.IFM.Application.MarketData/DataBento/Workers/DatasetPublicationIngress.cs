@@ -135,9 +135,20 @@ public sealed class DatasetPublicationIngress(
         }
     }
 
+    readonly SemaphoreSlim optionDelivery = new(1, 1);
+    public async ValueTask<bool> AcceptAsync(DatasetPublicationEnvelope envelope, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        if (envelope.Kind != DatasetPublicationKind.OptionQuoteObservation)
+            return await AcceptCoreAsync(envelope, cancellationToken).ConfigureAwait(false);
+        await optionDelivery.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return await AcceptCoreAsync(envelope, cancellationToken).ConfigureAwait(false); }
+        finally { optionDelivery.Release(); }
+    }
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "PublishAsync takes ownership of the deserialized lease, including failure cleanup; disposing at the call site would invalidate asynchronous consumption.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
-    public async ValueTask<bool> AcceptAsync(DatasetPublicationEnvelope envelope,
+    async ValueTask<bool> AcceptCoreAsync(DatasetPublicationEnvelope envelope,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(envelope);
@@ -162,7 +173,24 @@ public sealed class DatasetPublicationIngress(
                 return held;
             }
         }
-        if (!admissions.TryAccept(identity, envelope.PublicationSequence, out var generationCancellation))
+        CancellationToken generationCancellation;
+        var accepted = false;
+        TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel? optionObservation = null;
+        if (envelope.Kind == DatasetPublicationKind.OptionQuoteObservation)
+        {
+            if (!admissions.TryGet(identity.Dataset, out var admitted) || admitted != identity)
+            { Record(MarketDataOperationOutcome.Failed, envelope); return false; }
+            var observation = MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload,
+                cancellationToken: cancellationToken).OptionMarketPriceObservation?.OptionTickData
+                ?? throw new InvalidDataException("Missing option observation.");
+            if (observation.SourceGeneration != envelope.GenerationId || observation.ValueDate != envelope.ValueDate)
+                throw new InvalidDataException("Option observation generation/value date differs from envelope.");
+            optionObservation = observation;
+            accepted = admissions.TryAcceptOptionObservation(identity, observation.ContractId, envelope.PublicationSequence,
+                observation.ObservedAtUtc, observation.CalculatedAtUtc, out generationCancellation);
+        }
+        else accepted = admissions.TryAccept(identity, envelope.PublicationSequence, out generationCancellation);
+        if (!accepted)
         {
             Record(MarketDataOperationOutcome.Failed, envelope);
             return false;
@@ -237,6 +265,8 @@ public sealed class DatasetPublicationIngress(
             Record(MarketDataOperationOutcome.Failed, envelope);
             return false;
         }
+        if (optionObservation is { } delivered)
+            admissions.RecordOptionObservation(identity, delivered.ContractId, envelope.PublicationSequence, delivered.ObservedAtUtc, delivered.CalculatedAtUtc);
         Record(MarketDataOperationOutcome.Published, envelope);
         return true;
     }

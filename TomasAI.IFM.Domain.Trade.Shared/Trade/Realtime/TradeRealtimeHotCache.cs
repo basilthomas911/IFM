@@ -151,7 +151,10 @@ public sealed class TradeRealtimeHotCache
             if (next.Position is null || plan.Position.RouteGeneration > next.Position.RouteGeneration
                 || plan.Position.RouteGeneration == next.Position.RouteGeneration && plan.Position.PositionSequence > next.Position.PositionSequence)
                 next = WithPosition(next, plan.Position);
-            Publish(next with { Plan = plan });
+            Publish(next with { Plan = plan with
+            {
+                Position = StrategyPositionHistoryProjection.EnrichPosition(plan.Position, definition)
+            } });
             return true;
         }
     }

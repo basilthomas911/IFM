@@ -1,0 +1,48 @@
+{
+  "controls": [
+    {
+      "verb": "FeedScenario",
+      "value": "Normal"
+    },
+    {
+      "verb": "DesktopOutlookAvailable",
+      "value": "true"
+    }
+  ],
+  "comparison": {
+    "captures": [
+      "market-outlook"
+    ],
+    "region": {
+      "left": 0.78,
+      "right": 1.0,
+      "top": 0.05,
+      "bottom": 0.28
+    },
+    "requiredValues": {
+      "market-outlook": [
+        "6055.45",
+        "65.13",
+        "DownTrending"
+      ]
+    }
+  },
+  "steps": [
+    {
+      "action": "wait",
+      "name": "Stop Market Feeds"
+    },
+    {
+      "action": "wait",
+      "name": "6055.45",
+      "type": "Text"
+    },
+    {
+      "action": "snapshot",
+      "name": "market-outlook"
+    },
+    {
+      "action": "close"
+    }
+  ]
+}

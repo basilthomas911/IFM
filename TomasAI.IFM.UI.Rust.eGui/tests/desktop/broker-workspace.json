@@ -1,0 +1,144 @@
+﻿{
+    "controls":  [
+                     {
+                         "verb":  "FeedScenario",
+                         "value":  "Normal"
+                     },
+                     {
+                         "verb":  "TradeWorkspaceMode",
+                         "value":  "ComposeOptions"
+                     },
+                     {
+                         "verb":  "BrokerInitMode",
+                         "value":  "Normal"
+                     },
+                     {
+                         "verb":  "BrokerReadMode",
+                         "value":  "Empty"
+                     },
+                     {
+                         "verb":  "OptionChainMode",
+                         "value":  "ComposeOptions"
+                     }
+                 ],
+    "comparison":  {
+                       "captures":  [
+                                        "broker-trade",
+                                        "order-fills",
+                                        "broker-qualification"
+                                    ]
+                   },
+    "steps":  [
+                  {
+                      "action":  "wait",
+                      "name":  "Stop Market Feeds"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "Trade Orders",
+                      "type":  "Button",
+                      "enabled":  true
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Trade Order Editor",
+                      "type":  "Window"
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Add Trade...",
+                      "type":  "Button",
+                      "enabled":  true,
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Load Trade",
+                      "type":  "Button",
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "action":  "snapshot",
+                      "name":  "trade-orders",
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "Trade Blotter",
+                      "type":  "Button",
+                      "enabled":  true,
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "action":  "pause",
+                      "milliseconds":  1000
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Trade Blotter",
+                      "type":  "Button",
+                      "enabled":  true,
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "scope":  "Trade Order Editor",
+                      "type":  "Button",
+                      "name":  "Broker Trade",
+                      "action":  "invoke"
+                  },
+                  {
+                      "scope":  "Trade Order Editor",
+                      "type":  "Button",
+                      "name":  "Manage qualification...",
+                      "action":  "wait"
+                  },
+                  {
+                      "milliseconds":  1000,
+                      "action":  "pause"
+                  },
+                  {
+                      "scope":  "Trade Order Editor",
+                      "name":  "broker-trade",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "scope":  "Trade Order Editor",
+                      "type":  "Button",
+                      "name":  "Order Fills",
+                      "action":  "invoke"
+                  },
+                  {
+                      "milliseconds":  1000,
+                      "action":  "pause"
+                  },
+                  {
+                      "scope":  "Trade Order Editor",
+                      "name":  "order-fills",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "scope":  "Trade Order Editor",
+                      "type":  "Button",
+                      "name":  "Broker Trade",
+                      "action":  "invoke"
+                  },
+                  {
+                      "scope":  "Trade Order Editor",
+                      "type":  "Button",
+                      "name":  "Manage qualification...",
+                      "action":  "invoke"
+                  },
+                  {
+                      "milliseconds":  1000,
+                      "action":  "pause"
+                  },
+                  {
+                      "name":  "broker-qualification",
+                      "action":  "snapshot",
+                      "scope":  "Emulator Broker Account Qualification"
+                  },
+                  {
+                      "action":  "close"
+                  }
+              ]
+}

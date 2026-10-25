@@ -1,0 +1,19 @@
+{
+  "controls":[{"verb":"FeedScenario","value":"Normal"}],
+  "comparison":{"captures":["portfolio-policies","portfolio-versions","portfolio-funds"]},
+  "steps":[
+    {"action":"wait","name":"Stop Market Feeds"},
+    {"action":"invoke","name":"Portfolio","type":"Button"},
+    {"action":"wait","name":"Portfolio Administration","type":"Window"},
+    {"action":"wait","name":"Portfolio Actions","type":"Button","enabled":true},
+    {"action":"wait","name":"Native fixture portfolio","type":"Text","scope":"Portfolio Administration"},
+    {"action":"snapshot","name":"portfolio-policies","scope":"Portfolio Administration"},
+    {"action":"invoke","name":"Versions","type":"Button"},
+    {"action":"snapshot","name":"portfolio-versions","scope":"Portfolio Administration"},
+    {"action":"invoke","name":"Funds","type":"Button"},
+    {"action":"wait","name":"Financials","type":"Button"},
+    {"action":"wait","name":"Native fixture fund","type":"Text","scope":"Portfolio Administration"},
+    {"action":"snapshot","name":"portfolio-funds","scope":"Portfolio Administration"},
+    {"action":"close"}
+  ]
+}

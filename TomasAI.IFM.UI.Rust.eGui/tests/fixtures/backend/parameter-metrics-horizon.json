@@ -1,0 +1,1 @@
+{"TargetHorizon":"Daily","TimeFrames":[{"TimeFrame":"OneHour","Weight":"0.5","IsRequired":true,"MaximumAgeSeconds":600},{"TimeFrame":"Daily","Weight":"0.5","IsRequired":true,"MaximumAgeSeconds":600}]}

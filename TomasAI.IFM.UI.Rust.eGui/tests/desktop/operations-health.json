@@ -1,0 +1,97 @@
+﻿{
+    "controls":  [
+                     {
+                         "verb":  "FeedScenario",
+                         "value":  "Normal"
+                     }
+                 ],
+    "comparison":  {
+                       "captures":  [
+                                        "health-stages",
+                                        "health-stage-properties",
+                                        "health-datasets"
+                                    ],
+                       "region":  {
+                                      "left":  0.22,
+                                      "right":  0.78,
+                                      "top":  0.05,
+                                      "bottom":  0.97
+                                  },
+                       "clippedNeighborControls":  [
+                                                       {
+                                                           "type":  "Text",
+                                                           "name":  "Workflow End State",
+                                                           "basis":  "The flattened UIA tree exposes clipped neighboring strategy-panel text; owned-window captures retain the actual pixels."
+                                                       },
+                                                       {
+                                                           "type":  "Text",
+                                                           "name":  "In Progress",
+                                                           "basis":  "Value of the clipped neighboring strategy-panel label; not an operations-health field."
+                                                       }
+                                                   ]
+                   },
+    "steps":  [
+                  {
+                      "action":  "wait",
+                      "name":  "Stop Market Feeds"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "Operations health",
+                      "type":  "Button"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Refresh status",
+                      "action":  "wait",
+                      "enabled":  true
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Refresh status",
+                      "action":  "invoke",
+                      "enabled":  true
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "OptionFeed | Yellow",
+                      "type":  "Button"
+                  },
+                  {
+                      "action":  "snapshot",
+                      "name":  "health-stages"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "OptionFeed | Yellow",
+                      "type":  "Button"
+                  },
+                  {
+                      "action":  "snapshot",
+                      "name":  "health-stage-properties"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "Dataset workers",
+                      "type":  "Button"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "GLBX.MDP3.Options | Orange",
+                      "action":  "wait"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "GLBX.MDP3.Options | Orange",
+                      "action":  "invoke"
+                  },
+                  {
+                      "name":  "health-datasets",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "action":  "close"
+                  }
+              ],
+    "operationalClock":  true
+}

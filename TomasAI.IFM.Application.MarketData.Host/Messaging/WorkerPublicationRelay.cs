@@ -6,11 +6,15 @@ namespace TomasAI.IFM.Application.MarketData.Host;
 
 /// <summary>Forwards replaceable events through Core NATS and waits for persisted evidence receipts only.</summary>
 internal sealed class WorkerPublicationRelay(MarketDataHostConnection connection, string role, Guid worker,
-    TomasAI.IFM.Application.MarketData.Pricing.IOptionTradeEvidenceWriter? evidenceWriter = null)
+    TomasAI.IFM.Application.MarketData.Pricing.IOptionTradeEvidenceWriter? evidenceWriter = null, ILogger? logger = null)
 {
     readonly CancellationTokenSource closed = new();
     readonly SemaphoreSlim publicationGate = new(1, 1);
     long publicationSequence;
+    readonly LatestOptionObservations observations = new();
+    readonly HashSet<string> firstQuotes = new(StringComparer.Ordinal), firstRisks = new(StringComparer.Ordinal);
+    Guid loggedGeneration;
+    internal DatasetPublicationEnvelope[] CaptureObservations() => observations.Capture();
     internal async ValueTask PublishAsync(DatasetPublicationEnvelope envelope, CancellationToken token)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token, closed.Token);
@@ -45,6 +49,16 @@ internal sealed class WorkerPublicationRelay(MarketDataHostConnection connection
             // Evidence can finish persistence after later quotes. The relay owns delivery order;
             // native evidence identity/timestamps remain untouched in the payload.
             if (role == "Options") envelope = envelope with { PublicationSequence = ++publicationSequence };
+            // Retain before transmission so an early or failed delivery can be caught up after admission.
+            if (role == "Options" && observations.Retain(envelope, out var retained))
+            {
+                if (loggedGeneration != envelope.GenerationId) { loggedGeneration = envelope.GenerationId; firstQuotes.Clear(); firstRisks.Clear(); }
+                var tick = retained!;
+                var firstQuote = firstQuotes.Add(tick.ContractId);
+                var firstRisk = tick.GreeksAvailable == true && firstRisks.Add(tick.ContractId);
+                if (firstQuote || firstRisk) logger?.LogInformation("Option first observation received by Host; Contract={Contract}; Generation={Generation}; QuoteUtc={QuoteUtc}; RiskUtc={RiskUtc}; QualifiedRisk={QualifiedRisk}; Sequence={Sequence}",
+                    tick.ContractId, envelope.GenerationId, tick.ObservedAtUtc, tick.CalculatedAtUtc, tick.GreeksAvailable, envelope.PublicationSequence);
+            }
             var client = await connection.GetClientAsync(token).ConfigureAwait(false);
             await client.PublishAsync(connection.Publications(role, worker), envelope,
                 serializer: NatsMessagePackSerializer<DatasetPublicationEnvelope>.Default, replyTo: replyTo, cancellationToken: token).ConfigureAwait(false);

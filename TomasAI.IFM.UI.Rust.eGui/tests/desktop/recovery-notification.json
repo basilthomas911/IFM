@@ -1,0 +1,14 @@
+{
+ "controls":[{"verb":"FeedScenario","value":"Normal"}],
+ "comparison":{"captures":["recovery-dialog"],"onlyNamedControls":["Application Error","Option Pipeline Recovery Failed: Option pipeline recovery failed: The two-minute recovery deadline expired.","OK"]},
+ "steps":[
+  {"action":"wait","name":"Stop Market Feeds"},
+  {"action":"control","verb":"DesktopEvent","value":"Status"},
+  {"action":"control","verb":"DesktopEvent","value":"RecoveryFailure"},
+  {"action":"wait","name":"Application Error","type":"Text"},
+  {"action":"wait","name":"The two-minute recovery deadline expired.","contains":true,"type":"Text"},
+  {"action":"snapshot","name":"recovery-dialog"},
+  {"action":"invoke","name":"OK","type":"Button","enabled":true},
+  {"action":"close"}
+ ]
+}

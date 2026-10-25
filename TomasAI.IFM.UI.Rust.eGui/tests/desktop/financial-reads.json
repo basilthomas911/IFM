@@ -1,0 +1,27 @@
+{
+ "controls":[{"verb":"FeedScenario","value":"Normal"}],
+ "comparison":{"captures":["fund-balances","fund-transactions","fund-reservations","fund-journal","pending-operations","ledger-administration"],"apiClockDefaults":{"standaloneDate":"2026-10-26","standaloneTime":"08:30:00","basis":"User requires API-owned dates. Disabled ledger working-copy date defaults use API ValueDate in standalone; the unchanged hybrid initializes them from workstation DateTime.Today."}},
+ "steps":[
+  {"action":"wait","name":"Stop Market Feeds"},
+  {"action":"invoke","name":"Portfolio","type":"Button"},
+  {"action":"wait","name":"Native fixture portfolio","type":"Text","scope":"Portfolio Administration"},
+  {"action":"invoke","name":"Funds","type":"Button","scope":"Portfolio Administration"},
+  {"action":"wait","name":"Native fixture fund","type":"Text","scope":"Portfolio Administration"},
+  {"action":"wait","name":"Financial Actions","type":"Button","enabled":true,"scope":"Portfolio Administration"},
+  {"action":"snapshot","name":"fund-balances","scope":"Portfolio Administration"},
+  {"action":"invoke","name":"Transactions","type":"Button","scope":"Portfolio Administration"},
+  {"action":"snapshot","name":"fund-transactions","scope":"Portfolio Administration"},
+  {"action":"invoke","name":"Reservations","type":"Button","scope":"Portfolio Administration"},
+  {"action":"snapshot","name":"fund-reservations","scope":"Portfolio Administration"},
+  {"action":"invoke","name":"Journal","type":"Button","scope":"Portfolio Administration"},
+  {"action":"snapshot","name":"fund-journal","scope":"Portfolio Administration"},
+  {"action":"invoke","name":"Pending operations","type":"Button","scope":"Portfolio Administration"},
+  {"action":"snapshot","name":"pending-operations","scope":"Portfolio Administration"},
+  {"action":"invoke","name":"Financial Actions","type":"Button","scope":"Portfolio Administration"},
+  {"action":"invoke","name":"Ledger...","type":"Button","enabled":true},
+  {"action":"wait","name":"Portfolio ledger administration","type":"Window"},
+  {"action":"wait","name":"Apply","type":"Button","enabled":true,"scope":"Portfolio ledger administration"},
+  {"action":"snapshot","name":"ledger-administration","scope":"Portfolio ledger administration"},
+  {"action":"close"}
+ ]
+}

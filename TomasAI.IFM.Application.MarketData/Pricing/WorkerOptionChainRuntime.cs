@@ -115,17 +115,26 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 {
                     // Compare-and-swap the entire pricing batch. A refresh cannot redefine physical routes,
                     // revive an ended lease, or silently overwrite a concurrent reference update.
-                    if (!string.Equals(request.ExpectedContextDigest,existing.Digest,StringComparison.Ordinal)
-                        || !existing.Leases.ContainsKey(request.LeaseId) && !existing.BusinessOwners.Any(x => x.LeaseId == request.LeaseId)
-                        || !string.Equals(PhysicalDigest(existing.Options),PhysicalDigest(ordered),StringComparison.Ordinal)
-                        || ordered.Where((option, index) => option.Pricing.MaximumQuoteAgeMilliseconds > existing.Options[index].Pricing.MaximumQuoteAgeMilliseconds
-                            || option.Pricing.MaximumQuoteSkewMilliseconds > existing.Options[index].Pricing.MaximumQuoteSkewMilliseconds).Any())
-                        return Failure("ConflictingChainScope");
+                    var conflict = !string.Equals(request.ExpectedContextDigest, existing.Digest, StringComparison.Ordinal) ? "Pricing context digest changed"
+                        : !existing.Leases.ContainsKey(request.LeaseId) && !existing.BusinessOwners.Any(x => x.LeaseId == request.LeaseId) ? "Lease does not own this scope"
+                        : !string.Equals(PhysicalDigest(existing.Options), PhysicalDigest(ordered), StringComparison.Ordinal) ? "Physical contract definitions changed"
+                        : ordered.Where((option, index) => option.Pricing.MaximumQuoteAgeMilliseconds > existing.Options[index].Pricing.MaximumQuoteAgeMilliseconds
+                            || option.Pricing.MaximumQuoteSkewMilliseconds > existing.Options[index].Pricing.MaximumQuoteSkewMilliseconds).Any() ? "Quote validity limits were relaxed" : null;
+                    if (conflict is not null)
+                        return new(false, new("ConflictingChainScope", "Chain", request.ScopeId,
+                            $"{conflict}; ScopeId={request.ScopeId}; LeaseId={request.LeaseId}; ExpectedDigest={request.ExpectedContextDigest}; ActualDigest={existing.Digest}; RequestedDigest={digest}"));
                     var latest = ReadUnderlying(underlying!);
                     if (latest is null) return Failure("UnderlyingQuoteUnavailable");
                     foreach (var option in ordered) inputs.Set(new(option.Pricing, latest));
                     existing.Options = ordered;
                     existing.Digest = digest;
+                }
+                if (request.ReconnectExactContract)
+                {
+                    if (!request.SeparateContractConnection || existing.Options.Length != 1)
+                        return Failure("ExactContractRepairRequired");
+                    await sessions.StopAsync(existing.Key.FuturesContractId, existing.Key.MaturityDate,
+                        existing.Key.OptionContractId, existing.Key.ConnectionScopeId).WaitAsync(cancellationToken).ConfigureAwait(false);
                 }
                 await EnsureSessionAsync(existing, cancellationToken).ConfigureAwait(false);
                 if (!existing.BusinessOwners.Any(x => x.LeaseId == request.LeaseId))
@@ -136,7 +145,8 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 request.SeparateContractConnection ? ordered[0].Pricing.Contract.ContractId : "",
                 request.IndependentChainConnection ? request.ScopeId : "");
             // A physical session has one canonical scope; a second scope cannot alter or release it.
-            if (scopes.Values.Any(s => s.Key == key)) return Failure("ConflictingChainScope");
+            if (scopes.Values.Any(s => s.Key == key)) return new(false, new("ConflictingChainScope", "Chain", request.ScopeId,
+                $"Physical subscription already belongs to another scope; ScopeId={request.ScopeId}; LeaseId={request.LeaseId}; Underlying={underlying}; Maturity={request.MaturityDate}"));
             if (scopes.Count >= 16 || scopes.Values.Sum(s => s.Options.Length) + ordered.Length > 2048) return Failure("ChainCapacity");
             var quote = ReadUnderlying(underlying!);
             if (quote is null || quote.Bid <= 0 || quote.Ask < quote.Bid

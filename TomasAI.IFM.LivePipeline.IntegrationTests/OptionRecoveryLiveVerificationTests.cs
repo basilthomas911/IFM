@@ -13,6 +13,44 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 public sealed class OptionRecoveryLiveVerificationTests
 {
     [Fact]
+    public async Task Injection_refreshes_a_raced_generation_without_restarting_the_countdown()
+    {
+        var market = Substitute.For<IMarketDataApi>();
+        var before = new MarketDataDatasetStatus("Options", "GLBX.MDP3", Guid.NewGuid(), Guid.NewGuid(), 100,
+            true, true, "Healthy", null, new DateOnly(2026, 10, 23));
+        var after = before with { GenerationId = Guid.NewGuid(), ProcessId = 200 };
+        var attempts = 0;
+        market.InjectDevelopmentOptionWorkerFaultAsync(Arg.Any<MarketDataDevelopmentFaultRequest>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                if (++attempts == 1) throw new InvalidOperationException("Fault target generation changed.");
+                Assert.Equal(after.GenerationId, call.Arg<MarketDataDevelopmentFaultRequest>().GenerationId);
+                return true;
+            });
+        market.GetBackendStatusAsync(Arg.Any<CancellationToken>()).Returns(new MarketDataBackendStatus(true, before.ValueDate, [after]));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        Assert.True(await OptionRecoveryLiveVerificationService.InjectCurrentTargetAsync(market, Guid.NewGuid(), before, timeout.Token));
+        Assert.Equal(2, attempts);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Injection_never_hides_an_unrelated_error_or_waits_past_its_original_budget(bool stale)
+    {
+        var market = Substitute.For<IMarketDataApi>();
+        var target = new MarketDataDatasetStatus("Options", "GLBX.MDP3", Guid.NewGuid(), Guid.NewGuid(), 100,
+            true, true, "Healthy", null, new DateOnly(2026, 10, 23));
+        market.InjectDevelopmentOptionWorkerFaultAsync(Arg.Any<MarketDataDevelopmentFaultRequest>(), Arg.Any<CancellationToken>())
+            .Returns<bool>(_ => throw new InvalidOperationException(stale ? "Fault target generation changed." : "Development verification disabled"));
+        market.GetBackendStatusAsync(Arg.Any<CancellationToken>()).Returns(new MarketDataBackendStatus(true, target.ValueDate, [target]));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(400));
+        var work = OptionRecoveryLiveVerificationService.InjectCurrentTargetAsync(market, Guid.NewGuid(), target, timeout.Token);
+        if (stale) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => work.WaitAsync(TimeSpan.FromSeconds(2)));
+        else await Assert.ThrowsAsync<InvalidOperationException>(() => work);
+    }
+
+    [Fact]
     public async Task A_locked_report_cannot_abort_the_timer_and_reporting_recovers_after_the_reader_closes()
     {
         var directory = Path.Combine(Path.GetTempPath(), "ifm-option-report-" + Guid.NewGuid().ToString("N"));
@@ -97,7 +135,8 @@ public sealed class OptionRecoveryLiveVerificationTests
     public async Task Explicit_test_can_start_after_a_previous_failed_recovery()
     {
         var runtime = new Runtime { Failure = new InvalidOperationException("Already broken before this test") };
-        var coordinator = new OptionPipelineRecoveryCoordinator(runtime, NullLogger<OptionPipelineRecoveryCoordinator>.Instance);
+        var coordinator = new OptionPipelineRecoveryCoordinator(runtime, NullLogger<OptionPipelineRecoveryCoordinator>.Instance,
+            recoveryBudget: TimeSpan.FromMilliseconds(100));
         var inspection = new OptionPipelineInspection(DateOnly.FromDateTime(DateTime.UtcNow), "stale", ["position"]);
         coordinator.BeginDevelopmentVerification(inspection, Guid.NewGuid(), false, CancellationToken.None);
         await coordinator.Completion!.WaitAsync(TimeSpan.FromSeconds(2)); Assert.Equal("Failed", coordinator.State);

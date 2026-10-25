@@ -6,6 +6,25 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 
 public sealed class OptionPipelineRecoveryCoordinatorTests
 {
+    [Theory]
+    [InlineData("Actor reset")]
+    [InlineData("Host status")]
+    [InlineData("Lease restoration")]
+    [InlineData("End-to-end verification")]
+    public async Task Every_failed_step_retries_more_than_three_times_under_the_original_deadline(string stage)
+    {
+        var runtime = new Runtime { FailuresRemaining = 4, FailureStage = stage };
+        runtime.Complete.SetResult();
+        var recovery = new OptionPipelineRecoveryCoordinator(runtime, NullLogger<OptionPipelineRecoveryCoordinator>.Instance);
+        recovery.Observe(default);
+        await runtime.Entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var original = runtime.Deadline;
+        await recovery.Completion!.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(5, runtime.Calls);
+        Assert.Equal(original, runtime.Deadline);
+        Assert.Equal("Healthy", recovery.State);
+        Assert.Null(recovery.Failure);
+    }
     [Fact]
     public async Task Joining_Host_recovery_preserves_its_original_deadline_instead_of_starting_another_two_minutes()
     {
@@ -65,12 +84,14 @@ public sealed class OptionPipelineRecoveryCoordinatorTests
     }
 
     [Fact]
-    public async Task Reset_exception_is_terminal_and_market_close_clears_the_latched_failure()
+    public async Task Reset_exception_retries_until_deadline_and_market_close_clears_the_latched_failure()
     {
         var runtime = new Runtime(); runtime.Complete.SetException(new InvalidOperationException("Lease restoration failed"));
-        var recovery = new OptionPipelineRecoveryCoordinator(runtime, NullLogger<OptionPipelineRecoveryCoordinator>.Instance);
+        var recovery = new OptionPipelineRecoveryCoordinator(runtime, NullLogger<OptionPipelineRecoveryCoordinator>.Instance,
+            recoveryBudget: TimeSpan.FromMilliseconds(400));
         recovery.Observe(CancellationToken.None); await recovery.Completion!.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Contains("Lease restoration failed", recovery.Failure!.ErrorMessage);
+        Assert.True(runtime.Calls > 1);
         runtime.Inspection = new(null, null, []);
         Assert.Null(recovery.Observe(CancellationToken.None)); Assert.Equal("Healthy", recovery.State);
     }
@@ -101,8 +122,11 @@ public sealed class OptionPipelineRecoveryCoordinatorTests
         public TaskCompletionSource Entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Complete = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int Calls; public DateTimeOffset Deadline;
+        public int FailuresRemaining;
+        public string FailureStage = "Injected failure";
         public OptionPipelineInspection Inspect() => Inspection;
         public Task RecoverAndVerifyAsync(Guid operationId, OptionPipelineInspection inspection, DateTimeOffset deadlineUtc, CancellationToken cancellationToken)
-        { Interlocked.Increment(ref Calls); Deadline = deadlineUtc; Entered.TrySetResult(); return Complete.Task; }
+        { Interlocked.Increment(ref Calls); Deadline = deadlineUtc; Entered.TrySetResult();
+            return Interlocked.Decrement(ref FailuresRemaining) >= 0 ? Task.FromException(new InvalidOperationException(FailureStage)) : Complete.Task; }
     }
 }

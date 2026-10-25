@@ -10,6 +10,7 @@ public sealed class MarketDataHostState(DatasetWorkerCurrentValues futures, Data
     public TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth? ProcessingHealth { get; init; }
     public Func<CancellationToken, Task>? RetireOptions { get; init; }
     public Func<IReadOnlyList<TomasAI.IFM.Application.MarketData.Pricing.WorkerOptionChainRequest>, CancellationToken, Task>? AdoptOptions { get; init; }
+    public Func<TomasAI.IFM.Application.MarketData.Pricing.WorkerOptionChainRequest, CancellationToken, Task<TomasAI.IFM.Application.MarketData.Pricing.WorkerOptionChainRequest>>? RequalifyOptions { get; init; }
     readonly object gate = new();
     readonly Dictionary<(string Dataset, DatasetPublicationKind Kind, string Contract), DatasetPublicationEnvelope> latest = [];
     public DatasetWorkerCurrentValues Futures { get; } = futures;

@@ -1,0 +1,12 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+/// <summary>Prepared configuration and authority supplied by the simulated backend.</summary>
+internal static class FinancialConfigurationFixtures {
+ public static readonly Guid PeriodId=Guid.Parse("230bcb5c-dea4-46cf-9a29-1cd0693b6cd0");
+ public static readonly LedgerAccountDefinition Cash=new(101,1,"Cash",PostingSide.Debit,true,"fixture-cash-hash");
+ public static readonly LedgerAccountDefinition Capital=new(102,1,"Capital",PostingSide.Credit,true,"fixture-capital-hash");
+ public static readonly LedgerReconciliationResult Reconciliation=new(Guid.Parse("230bcb5c-dea4-46cf-9a29-1cd0693b6cd1"),7,1,2,100.25m,100.25m,[],"fixture-cut","fixture-reconciliation-hash");
+ public static FinancialBookConfiguration Book(bool permit=false)=>new(){BookId=11,PortfolioId=1,AccountingEntityId=Guid.Parse("230bcb5c-dea4-46cf-9a29-1cd0693b6cd2"),Currency="USD",ExecutionAccountReference="paper:fixture",Environment="Emulator",MigrationQualified=false,Funds=[new(){FundId=2,CanSpend=permit,Reference=new(){PortfolioVersion=1,FundMandateVersion=1,PolicyId=11,PolicyVersion=1,ValidUntilUtc=StrategyFixtures.At.AddHours(1)},Limits=[new(CapacityScopeKind.Fund,"1.2",CapacityMeasure.Margin,CapacityUnit.Usd,10000.25m)],Deployments=[new(new(){DeploymentKey=PortfolioResponder.Deployment.Key,ValidUntilUtc=StrategyFixtures.At.AddHours(1)},[new(CapacityScopeKind.Deployment,"fixture",CapacityMeasure.LossCharge,CapacityUnit.Usd,1000.25m)],1000.25m)]}]};
+ public static FinancialLedgerConfiguration Ledger=>new(11,"USD","Emulator","Development","fixture-watermark",[new(PeriodId,new(2026,1,1),new(2026,12,31),2,"Open")],[new(Cash,"Active"),new(Capital,"Active")],[new(FinancialLedgerFixtures.DepositRule,"Active",new(2026,1,1),null)],Reconciliation,Book() with{MigrationQualified=true});
+ public static FinancialBookSetup Setup(PrepareFinancialBookRequest request)=>new(["paper:fixture"],["Native fixture fund"],string.IsNullOrWhiteSpace(request.ExecutionAccountReference)?null:new(){Action=LedgerConfigurationAction.CreateBook,BookId=11,Book=Book(),Accounts=[Cash,Capital],Rules=[FinancialLedgerFixtures.DepositRule],PeriodId=PeriodId,PeriodStart=request.PeriodStart,PeriodEnd=request.PeriodEnd});
+ public static FinancialAuthorityDraft Authority(bool permit)=>new(new(){Action=LedgerConfigurationAction.RefreshAuthority,BookId=11,Book=Book(permit)},["Fixture authority; spending is decided by the backend."]);
+}

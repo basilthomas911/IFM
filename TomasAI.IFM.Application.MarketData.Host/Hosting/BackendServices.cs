@@ -1,4 +1,5 @@
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
+using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.OptionChainCache;
 using StackExchange.Redis;
 using TomasAI.IFM.Application.Blackboard;
@@ -67,6 +68,23 @@ public static class BackendServices
         {
             EnabledTrades = date => provider.GetRequiredService<MarketDataApiBackend>().EnabledTrades(date),
             ProcessingHealth = provider.GetRequiredService<TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth>(),
+            RequalifyOptions = async (lease, token) =>
+            {
+                var builder = ImmutableArray.CreateBuilder<WorkerOptionDefinition>(lease.Options.Length);
+                foreach (var option in lease.Options)
+                {
+                    var prepared = await provider.GetRequiredService<IOptionPricingContextProvider>().PrepareAsync(
+                        option.Pricing.Contract, option.Pricing.Calendar, provider.GetRequiredService<TreasuryPublicationPolicy>(),
+                        provider.GetRequiredService<TreasuryRateConversionPolicy>(), lease.GenerationId,
+                        Black76PricingModel.EngineFor(option.Pricing.Contract), DateTimeOffset.UtcNow, token).ConfigureAwait(false);
+                    if (prepared.Failure is { } failure)
+                        throw new InvalidOperationException($"Option recovery context preparation failed: {failure.Code}: {failure.Detail}");
+                    builder.Add(option with { Pricing = prepared.Context! with {
+                        MaximumQuoteAgeMilliseconds = Math.Min(prepared.Context!.MaximumQuoteAgeMilliseconds, option.Pricing.MaximumQuoteAgeMilliseconds),
+                        MaximumQuoteSkewMilliseconds = Math.Min(prepared.Context.MaximumQuoteSkewMilliseconds, option.Pricing.MaximumQuoteSkewMilliseconds) } });
+                }
+                return lease with { Options = builder.MoveToImmutable() };
+            },
             RetireOptions = async token =>
             {
                 await provider.GetRequiredService<QualifiedIndividualOptionFeeds>().RetireSessionAsync(token).ConfigureAwait(false);

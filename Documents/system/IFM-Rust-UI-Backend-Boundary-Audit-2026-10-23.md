@@ -2,6 +2,8 @@
 
 Date: 2026-10-23. Application source baseline: `ee157c454`.
 
+Implementation update (2026-10-24): this document retains the analysis/boundary decisions. Current native ownership and completed workstation checks are recorded in the [full migration plan](IFM-Windows-Rust-UI-Full-Migration-Plan-v0.1.md#current-acceptance-record-2026-10-24); the paragraphs below are not a statement that the original backlog remains unimplemented. The current primary-file CSV has 150 rows.
+
 ## Conclusion
 
 The full source inventory found additional active financial transformations beyond `SelectedOrderPriceRisk.MaximumOptionLoss()`. The earlier narrow conclusion is superseded by this audit.
@@ -15,9 +17,9 @@ This is an analysis and implementation backlog. No application code, database, r
 | Primary source project | Tracked C# source files |
 | --- | ---: |
 | UI.Net.ViewModels | 81 |
-| UI.Net.Models | 15 |
+| UI.Net.Models | 17 |
 | UI.Net.Services | 52 |
-| **Total** | **148** |
+| **Total** | **150** |
 
 The [complete file inventory](IFM-Rust-UI-Backend-Boundary-Inventory-2026-10-23.csv) has one row for every primary source file: decision, finding IDs, reference evidence, calculation/clock locations and review notes. The broader [model inventory](IFM-Windows-Rust-UI-Model-Inventory-2026-10-23.md) and [dependency inventory](IFM-Windows-Rust-UI-Dependency-Inventory-2026-10-23.csv) provide supporting consumers, clients and bridge sources.
 

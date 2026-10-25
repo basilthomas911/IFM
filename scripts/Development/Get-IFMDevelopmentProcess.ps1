@@ -114,6 +114,7 @@ $results = foreach ($process in Get-Process -ErrorAction SilentlyContinue) {
             "TomasAI.IFM.Application.Api.Server" { $role = "api" }
             "TomasAI.IFM.UI.Net" { $role = "ui" }
             "ifm-ui-rust" { $role = "ui" }
+            "TomasAI.IFM.UI.Rust.eGui" { $role = "ui" }
             "TomasAI.IFM.Application.MarketData.Host" { $role = "market-data" }
             { $_ -like "TomasAI.IFM.Application.MarketData.Host.Worker.*" } { $role = "market-data-worker" }
             "TomasAI.IFM.Application.ServerManager.SchedulerHost" { $role = "scheduler" }

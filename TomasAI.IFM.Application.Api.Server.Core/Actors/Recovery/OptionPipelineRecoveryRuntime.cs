@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Realtime;
@@ -9,8 +10,11 @@ namespace TomasAI.IFM.Application.Api.Server.Core.Actors.Recovery;
 /// <summary>Restores only option market/monitoring processing; financial actors and API lifetime are untouched.</summary>
 public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, IMarketDataApi market,
     IFuturesMarketSessionAuthority sessions, TradeRealtimeCacheRegistry caches, TimeProvider? timeProvider = null,
-    TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth? processingHealth = null) : IOptionPipelineRecoveryRuntime
+    TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth? processingHealth = null,
+    ILogger<OptionPipelineRecoveryRuntime>? logger = null) : IOptionPipelineRecoveryRuntime
 {
+    string? recoveryDetail;
+    public string? RecoveryDetail => Volatile.Read(ref recoveryDetail);
     readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     readonly Dictionary<string, DateTimeOffset> missingPlanSince = new(StringComparer.Ordinal);
     DateOnly? observedDate;
@@ -91,6 +95,7 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
         DateTimeOffset deadlineUtc, CancellationToken cancellationToken)
     {
         var started = clock.GetUtcNow();
+        Volatile.Write(ref recoveryDetail, "Replacing option processing actors.");
         var baseline = caches.CaptureRecoveryObservations().ToDictionary(trade => trade.PositionId.Format(),
             trade => (RouteGeneration: trade.Position?.RouteGeneration ?? 0, PositionSequence: trade.Position?.PositionSequence ?? 0));
         // Whole actor generation replacement abandons pending setup work and detaches active handlers without draining.
@@ -100,6 +105,7 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
             if (supervisor.ActorExists(id))
                 await supervisor.RestartAsync(id, cancellationToken).AsTask().WaitAsync(cancellationToken).ConfigureAwait(false);
         }
+        Volatile.Write(ref recoveryDetail, "Restoring the Options worker and saved subscriptions.");
         var status = await market.GetBackendStatusAsync(cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
         var options = status.Datasets.SingleOrDefault(dataset => dataset.Role == "Options" && dataset.Dataset == "GLBX.MDP3"
             && dataset.ValueDate == inspection.ValueDate)
@@ -127,13 +133,47 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
             var replacement = replacementStatus.Datasets.Single(dataset => dataset.Role == "Options" && dataset.Dataset == "GLBX.MDP3");
             if (!replacement.Running || !replacement.Healthy || replacement.ProcessId <= 0 || replacement.ProcessId == oldProcessId)
                 throw new InvalidOperationException("Host did not prove immediate options-process replacement; deploy the matching updated Host and workers.");
+            options = replacement;
         }
         if (inspection.Positions.Length == 0) throw new InvalidOperationException("No live position evidence exists to verify end-to-end option recovery.");
+        var verificationStarted = clock.GetUtcNow();
+        var repairAttempted = new HashSet<string>(StringComparer.Ordinal);
+        var lastDiagnostic = DateTimeOffset.MinValue;
+        string? repairDetail = null;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (sessions.Current.ActiveValueDate != inspection.ValueDate) throw new OperationCanceledException(cancellationToken);
             var current = caches.CaptureRecoveryObservations();
+            var missing = current.Where(trade => inspection.Positions.Contains(trade.PositionId.Format(), StringComparer.Ordinal))
+                .SelectMany(trade => trade.Legs).Where(leg => leg.Observation?.ObservedAtUtc >= started != true
+                    || leg.LastValidRisk?.CalculatedAtUtc >= started != true
+                    || leg.Observation?.SourceGeneration != options.GenerationId || leg.LastValidRisk?.SourceGeneration != options.GenerationId).ToArray();
+            var detail = "Waiting for four fresh legs, a complete newer plan, publication, and open mailboxes. "
+                + string.Join("; ", missing.Select(leg => $"Contract={leg.Definition.ContractId}, Quote={leg.Observation?.ObservedAtUtc:O}, Risk={leg.LastValidRisk?.CalculatedAtUtc:O}, Generation={leg.Observation?.SourceGeneration}"))
+                + (repairDetail is null ? "" : " Repair: " + repairDetail);
+            Volatile.Write(ref recoveryDetail, detail);
+            if (clock.GetUtcNow() - lastDiagnostic >= TimeSpan.FromSeconds(5))
+            {
+                logger?.LogInformation("Option recovery awaiting proof; OperationId={OperationId}; Generation={Generation}; DeadlineUtc={DeadlineUtc}; Detail={Detail}",
+                    operationId, options.GenerationId, deadlineUtc, detail);
+                lastDiagnostic = clock.GetUtcNow();
+            }
+            var contracts = missing.Select(leg => leg.Definition.ContractId).Distinct(StringComparer.Ordinal)
+                .Where(contract => !repairAttempted.Contains(contract)).Take(64).ToArray();
+            if (contracts.Length > 0 && clock.GetUtcNow() - verificationStarted >= TimeSpan.FromSeconds(10))
+            {
+                foreach (var contract in contracts) repairAttempted.Add(contract);
+                try
+                {
+                    var repaired = await market.RepairOptionObservationsAsync(new(operationId, inspection.ValueDate!.Value,
+                        options.GenerationId, contracts, deadlineUtc), cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
+                    repairDetail = "Reconnected=" + string.Join(",", repaired.Reconnected) + "; Errors=" + string.Join(";", repaired.Errors);
+                }
+                catch (Exception error) when (!cancellationToken.IsCancellationRequested)
+                { repairDetail = error.Message; logger?.LogWarning(error, "Option missing-leg repair failed; continuing original recovery; OperationId={OperationId}", operationId); }
+                continue;
+            }
             var proven = inspection.Positions.All(id => current.Any(trade => trade.PositionId.Format() == id
                 && trade.ValueDate == inspection.ValueDate && trade.Position is { } position && trade.Plan is { } plan
                 && plan.IronCondorTradePlanSnapshot?.IsComplete == true
@@ -144,9 +184,11 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
                 && position.RouteGeneration == plan.Position.RouteGeneration
                 && position.PositionSequence >= plan.Position.PositionSequence
                 && plan.Position.Legs.Length == 4 && plan.Position.Legs.All(leg => leg.OptionTick?.ObservedAtUtc >= started
-                    && leg.OptionRisk?.CalculatedAtUtc >= started)
+                    && leg.OptionRisk?.CalculatedAtUtc >= started && leg.OptionTick.SourceGeneration == options.GenerationId
+                    && leg.OptionRisk.SourceGeneration == options.GenerationId)
                 && trade.Legs.Length == 4 && trade.Legs.All(leg => leg.Observation?.ObservedAtUtc >= started
-                    && leg.LastValidRisk?.CalculatedAtUtc >= started)
+                    && leg.LastValidRisk?.CalculatedAtUtc >= started && leg.Observation.SourceGeneration == options.GenerationId
+                    && leg.LastValidRisk.SourceGeneration == options.GenerationId)
                 && caches.HasPublishedPosition(trade.TradeId, plan.Position.RouteGeneration, plan.Position.PositionSequence)));
             if (proven && Mailboxes().All(mailbox => mailbox.IsAdmissionOpen))
             {
@@ -154,8 +196,10 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
                 if (runtime?.OptionProcessingFailureUtc > started) throw new InvalidOperationException(runtime.OptionProcessingError);
                 if (processingHealth?.Read(inspection.ValueDate!.Value, runtime?.OptionGenerationId ?? Guid.Empty) is { } pending && pending.ObservedAtUtc > started)
                     throw new InvalidOperationException(pending.Detail);
+                cancellationToken.ThrowIfCancellationRequested();
                 verifiedThrough = clock.GetUtcNow();
                 processingHealth?.Recovered(inspection.ValueDate!.Value, runtime?.OptionGenerationId ?? Guid.Empty, started);
+                Volatile.Write(ref recoveryDetail, null);
                 return;
             }
             await Task.Delay(TimeSpan.FromMilliseconds(250), clock, cancellationToken).ConfigureAwait(false);

@@ -13,13 +13,19 @@ public sealed partial class MarketDataWorkerHost
     {
         lock (gate)
         {
-            var values = backendState ?? throw new InvalidOperationException("Backend values are not configured.");
+            var values = backendState;
             var active = workers.Where(pair => pair.Key.StartsWith("Futures|", StringComparison.Ordinal))
                 .Select(pair => manifests[pair.Key].Manifest).ToArray();
             var contracts = active.SelectMany(manifest => manifest.Contracts)
-                .Select(contract => values.Futures.GetCatalog().FindFutures(contract.DomainContractId))
+                .Select(contract => values?.Futures.GetCatalog().FindFutures(contract.DomainContractId))
                 .Where(contract => contract is not null).Cast<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel>().ToArray();
-            return new(GetBackendStatus(), active, contracts, values.Capture());
+            var status = GetBackendStatus();
+            var options = publications.Where(pair => pair.Key.StartsWith("Options|", StringComparison.Ordinal))
+                .SelectMany(pair => pair.Value.CaptureObservations())
+                .Where(frame => status.Datasets.Any(dataset => dataset.Role == "Options" && dataset.Lifecycle == "Healthy"
+                    && dataset.WorkerInstanceId == frame.WorkerInstanceId && dataset.GenerationId == frame.GenerationId
+                    && dataset.ValueDate == frame.ValueDate && dataset.ManifestRevision == frame.ManifestRevision)).ToArray();
+            return new(status, active, contracts, values?.Capture() ?? [], OptionObservations: options);
         }
     }
     public async Task<DatasetWorkerControlFrame> ResetOwnedWorkerAsync(string role, Guid workerId,
@@ -64,22 +70,36 @@ public sealed partial class MarketDataWorkerHost
         MarketDataWorkerStart manifest;
         DatasetWorkerProcessSupervisor worker;
         SemaphoreSlim serial;
+        DateTimeOffset? joinedDeadline = null;
+        var joining = false;
         lock (gate)
         {
+            if (role == "Options" && roleStates.TryGetValue(key, out var owned) && owned.Lifecycle == "Recovering")
+            { joining = true; joinedDeadline = owned.RecoveryDeadlineUtc; }
             if (!manifests.TryGetValue(key, out manifest!) || manifest.Manifest.ValueDate != request.ValueDate
                 || !workers.TryGetValue(key, out worker!) || identities[key] != request.ExpectedWorkerInstanceId
-                || request.ExpectedGenerationId == Guid.Empty || worker.Current.GenerationId != request.ExpectedGenerationId)
+                || request.ExpectedGenerationId == Guid.Empty || !joining && worker.Current.GenerationId != request.ExpectedGenerationId)
                 throw new InvalidOperationException("Recovery target no longer identifies the owned dataset process.");
             if (!recoveryLocks.TryGetValue(key, out serial!)) recoveryLocks.Add(key, serial = new(1, 1));
         }
-        if (!await serial.WaitAsync(TimeSpan.FromMilliseconds(100), token).ConfigureAwait(false))
-            throw new InvalidOperationException("This dataset is already recovering.");
+        using var admission = CancellationTokenSource.CreateLinkedTokenSource(token);
+        var admissionDeadline = joinedDeadline is { } ownedDeadline && (request.DeadlineUtc is null || ownedDeadline < request.DeadlineUtc)
+            ? ownedDeadline : request.DeadlineUtc;
+        admission.CancelAfter(admissionDeadline is { } requestedDeadline
+            ? TimeSpan.FromMilliseconds(Math.Max(1, (requestedDeadline - DateTimeOffset.UtcNow).TotalMilliseconds)) : TimeSpan.FromMinutes(2));
+        await serial.WaitAsync(admission.Token).ConfigureAwait(false);
         try
         {
             lock (gate)
+            {
+                if (role == "Options" && roleStates.TryGetValue(key, out var joined) && joined.Lifecycle == "Healthy"
+                    && (joining || joined.GenerationId != request.ExpectedGenerationId) && workers.TryGetValue(key, out var joinedWorker))
+                    return new(request.OperationId, role, request.Dataset, true, true, true, null,
+                        joinedWorker.Current.WorkerInstanceId, joinedWorker.Current.GenerationId);
                 if (!workers.TryGetValue(key, out var current) || !ReferenceEquals(current, worker)
                     || worker.Current.GenerationId != request.ExpectedGenerationId)
                     throw new InvalidOperationException("Recovery target changed before recovery admission.");
+            }
             Exception? failure = null;
             var softTimeout = configuration.GetValue("MarketDataHost:SoftRecoveryTimeout", TimeSpan.FromMinutes(2));
             if (softTimeout <= TimeSpan.Zero || softTimeout > TimeSpan.FromMinutes(2))
@@ -95,7 +115,7 @@ public sealed partial class MarketDataWorkerHost
             var stage = "reset";
             await PublishStateAsync(role, request.Dataset, "Recovering", request.Reason, worker.Current, token, request.OperationId, DateTimeOffset.UtcNow + softTimeout).ConfigureAwait(false);
             backendState?.Fence(role, request.Dataset, request.ExpectedGenerationId);
-            for (var attempt = 0; attempt < 3; attempt++)
+            for (var attempt = 0; role == "Options" || attempt < 3; attempt++)
             {
                 try
                 {
@@ -110,7 +130,9 @@ public sealed partial class MarketDataWorkerHost
                         await RestoreOptionLeasesAsync(role, request.Dataset, worker, budget).ConfigureAwait(false);
                         return response;
                     }).ConfigureAwait(false);
-                    await PublishStateAsync(role, request.Dataset, "Healthy", null, worker.Current, token, request.OperationId).ConfigureAwait(false);
+                    deadline.Token.ThrowIfCancellationRequested();
+                    await PublishStateAsync(role, request.Dataset, "Healthy", null, worker.Current, deadline.Token, request.OperationId).ConfigureAwait(false);
+                    deadline.Token.ThrowIfCancellationRequested();
                     return new(request.OperationId, role, request.Dataset, true, true, true, null,
                         reset.WorkerInstanceId, reset.GenerationId);
                 }
@@ -131,7 +153,9 @@ public sealed partial class MarketDataWorkerHost
                             await RestoreOptionLeasesAsync(role, request.Dataset, worker, budget).ConfigureAwait(false);
                             return true;
                         }).ConfigureAwait(false);
-                        await PublishStateAsync(role, request.Dataset, "Healthy", null, worker.Current, token, request.OperationId).ConfigureAwait(false);
+                        deadline.Token.ThrowIfCancellationRequested();
+                        await PublishStateAsync(role, request.Dataset, "Healthy", null, worker.Current, deadline.Token, request.OperationId).ConfigureAwait(false);
+                        deadline.Token.ThrowIfCancellationRequested();
                         return new(request.OperationId, role, request.Dataset, true, true, true, null,
                             worker.Current.WorkerInstanceId, worker.Current.GenerationId);
                     }
@@ -141,6 +165,11 @@ public sealed partial class MarketDataWorkerHost
                             ? new TimeoutException($"Recovery deadline of {softTimeout.TotalSeconds:F3}s expired during {stage}.", replacementError)
                             : replacementError;
                         if (deadline.IsCancellationRequested || token.IsCancellationRequested) break;
+                        logger.LogWarning(replacementError, "Dataset recovery attempt failed; Role={Role}; Dataset={Dataset}; OperationId={OperationId}; Attempt={Attempt}; Stage={Stage}; RemainingMilliseconds={RemainingMilliseconds}",
+                            role, request.Dataset, request.OperationId, attempt + 1, stage,
+                            request.DeadlineUtc is { } end ? Math.Max(0, (end - DateTimeOffset.UtcNow).TotalMilliseconds) : softTimeout.TotalMilliseconds);
+                        try { await Task.Delay(250, deadline.Token).ConfigureAwait(false); }
+                        catch (OperationCanceledException) when (deadline.IsCancellationRequested) { break; }
                         lock (gate) worker = workers[key];
                     }
                 }

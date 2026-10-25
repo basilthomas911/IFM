@@ -73,6 +73,9 @@ public partial interface IMarketDataApi
     Task<MarketDataRecoveryResult> RecoverMarketDataAsync(MarketDataRecoveryRequest request, CancellationToken cancellationToken = default)
         => Task.FromException<MarketDataRecoveryResult>(new NotSupportedException("Backend recovery is not configured."));
     [MarketDataHostOperation]
+    Task<OptionObservationRepairResult> RepairOptionObservationsAsync(OptionObservationRepairRequest request, CancellationToken cancellationToken = default)
+        => Task.FromException<OptionObservationRepairResult>(new NotSupportedException("Option observation repair is not configured."));
+    [MarketDataHostOperation]
     Task<CompositionDiscoveryResult> AcquireOptionScopeAsync(CompositionDiscoveryRequest request, CancellationToken cancellationToken = default)
         => Task.FromException<CompositionDiscoveryResult>(new NotSupportedException("Option discovery is not configured."));
     [MarketDataHostOperation]
@@ -128,12 +131,19 @@ public sealed record MarketDataRecoveryResult([property: Key(0)] Guid OperationI
     [property: Key(6)] string? Error, [property: Key(7)] Guid WorkerInstanceId, [property: Key(8)] Guid GenerationId);
 
 [MessagePackObject]
+public sealed record OptionObservationRepairRequest([property: Key(0)] Guid OperationId, [property: Key(1)] DateOnly ValueDate,
+    [property: Key(2)] Guid GenerationId, [property: Key(3)] string[] Contracts, [property: Key(4)] DateTimeOffset DeadlineUtc);
+[MessagePackObject]
+public sealed record OptionObservationRepairResult([property: Key(0)] string[] Reconnected, [property: Key(1)] string[] Errors);
+
+[MessagePackObject]
 public sealed record MarketDataReadSnapshot([property: Key(0)] MarketDataBackendStatus Status,
     [property: Key(1)] Databento.Workers.DatasetSubscriptionManifest[] Manifests,
     [property: Key(2)] TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel[] Contracts,
     [property: Key(3)] Databento.Workers.DatasetPublicationEnvelope[] CurrentValues,
     [property: Key(4)] OptionChainCache.OptionChainPublication[]? OptionChains = null,
-    [property: Key(5)] MarketDataBootstrapPrice[]? BootstrapPrices = null);
+    [property: Key(5)] MarketDataBootstrapPrice[]? BootstrapPrices = null,
+    [property: Key(6)] Databento.Workers.DatasetPublicationEnvelope[]? OptionObservations = null);
 [MessagePackObject]
 public sealed record MarketDataBootstrapPrice([property: Key(0)] TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceSnapshot Price,
     [property: Key(1)] string Source);

@@ -4,6 +4,8 @@ using TomasAI.IFM.Application.MarketData.Pricing;
 namespace TomasAI.IFM.Application.MarketData.Remote;
 public partial class MarketDataApiClient
 {
+    public Task<OptionObservationRepairResult> RepairOptionObservationsAsync(OptionObservationRepairRequest request, CancellationToken cancellationToken = default)
+        => CallAsync<OptionObservationRepairResult>(nameof(RepairOptionObservationsAsync), [typeof(OptionObservationRepairRequest), typeof(CancellationToken)], [request, null], cancellationToken);
     public Task<bool> InjectDevelopmentOptionWorkerFaultAsync(MarketDataDevelopmentFaultRequest request, CancellationToken cancellationToken = default)
         => CallAsync<bool>(nameof(InjectDevelopmentOptionWorkerFaultAsync), [typeof(MarketDataDevelopmentFaultRequest), typeof(CancellationToken)], [request, null], cancellationToken);
     public Task<Pricing.TreasuryPricingResult> WarmTreasuryPricingAsync(CancellationToken cancellationToken = default)

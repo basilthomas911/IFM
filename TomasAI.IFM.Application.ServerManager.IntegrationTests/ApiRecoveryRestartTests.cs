@@ -19,17 +19,17 @@ public sealed class ApiRecoveryRestartTests : IDisposable
         => new(SessionDirectory,"test-session",restart,verify??((_,_,_)=>Task.CompletedTask),notify??((_,_)=>Task.CompletedTask),_=>{},clock);
 
     [Fact]
-    public async Task Single_restart_claim_survives_new_controller_and_duplicate_delivery_but_new_value_date_is_allowed()
+    public async Task Verified_restart_releases_claim_for_a_later_episode_but_duplicate_delivery_is_idempotent()
     {
         int calls=0; var request=Request();
-        Task<int> Restart(ApiRecoveryRestartRequest _,CancellationToken token) {calls++;return Task.FromResult(200);}
+        Task<int> Restart(ApiRecoveryRestartRequest _,CancellationToken token) {calls++;return Task.FromResult(100 + 100 * calls);}
         var first=await Controller(Restart).HandleAsync(request,default);
         Assert.Equal("Recovered",first.State); Assert.Equal(1,calls);
         Assert.Equal(first,await Controller(Restart).HandleAsync(request,default)); Assert.Equal(1,calls);
         var second=await Controller(Restart).HandleAsync(request with{OperationId=Guid.NewGuid(),ProcessId=200},default);
-        Assert.Equal("Failed",second.State);Assert.Contains("already been used",second.Error);Assert.Equal(1,calls);
+        Assert.Equal("Recovered",second.State);Assert.Equal(2,calls);
         var tomorrow=await Controller(Restart).HandleAsync(request with{OperationId=Guid.NewGuid(),ValueDate=request.ValueDate.AddDays(1)},default);
-        Assert.Equal("Recovered",tomorrow.State);Assert.Equal(2,calls);
+        Assert.Equal("Recovered",tomorrow.State);Assert.Equal(3,calls);
     }
 
     [Theory]
@@ -48,7 +48,66 @@ public sealed class ApiRecoveryRestartTests : IDisposable
         Assert.Equal("Failed",failed.State);Assert.Contains("two-minute",failed.Error);
         var duplicate=await Controller((_,_)=>throw new Exception("must not restart again"),clock:clock)
             .HandleAsync(request with{OperationId=Guid.NewGuid(),RequestedUtc=clock.GetUtcNow().UtcDateTime},default);
-        Assert.Contains("already been used",duplicate.Error);
+        Assert.Contains("outstanding or failed",duplicate.Error);
+    }
+
+    [Fact]
+    public async Task Claim_remains_until_verification_and_completed_legacy_claim_is_released_after_manager_restart()
+    {
+        var request = Request();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var proof = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = Controller((_, _) => Task.FromResult(200), (_, _, _) => { entered.TrySetResult(); return proof.Task; })
+            .HandleAsync(request, default);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var ledger = Path.Combine(root, $"api-restart-{request.ValueDate:yyyy-MM-dd}.json");
+        Assert.True(File.Exists(ledger));
+        proof.SetResult();
+        Assert.Equal("Recovered", (await pending).State);
+        Assert.False(File.Exists(ledger));
+        // Simulate a manager crash after saving verified success but before deleting its old claim.
+        await File.WriteAllTextAsync(ledger, JsonSerializer.Serialize(request));
+        var later = await Controller((_, _) => Task.FromResult(300)).HandleAsync(request with {
+            OperationId = Guid.NewGuid(), ProcessId = 200 }, default);
+        Assert.Equal("Recovered", later.State);
+        Assert.False(File.Exists(ledger));
+    }
+
+    [Fact]
+    public async Task Real_process_restart_and_verified_restore_allow_another_episode_without_touching_other_children()
+    {
+        ManagedProcessDefinition Definition(string key) => new() { Key = key, DisplayName = key,
+            ExecutablePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", "dotnet.exe"),
+            WorkingDirectory = Path.GetDirectoryName(typeof(TestProcessMarker).Assembly.Location)!,
+            Arguments = [typeof(TestProcessMarker).Assembly.Location, "--delay-ms", "60000"] };
+        await using var supervisor = new ManagedProcessSupervisor([Definition("api"), Definition("market-data"), Definition("ui")],
+            TimeSpan.FromSeconds(10), _ => { });
+        await supervisor.StartAllAsync();
+        var unchanged = supervisor.RunningProcesses.Where(process => process.ProcessKey != "api").ToArray();
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var old = supervisor.RunningProcesses.Single(process => process.ProcessKey == "api");
+            var request = Request() with { ProcessId = old.ProcessId, ProcessStartedUtc = old.StartedAtUtc.UtcDateTime };
+            if (attempt == 1)
+            {
+                // A crash or deployment may remove the process before escalation reads it.
+                using var exited = Process.GetProcessById(old.ProcessId);
+                exited.Kill();
+                await exited.WaitForExitAsync();
+                await supervisor.WaitForExitAsync("api").WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            var restartCalls = 0; var proofCalls = 0;
+            var result = await Controller((value, token) => Interlocked.Increment(ref restartCalls) <= 4
+                    ? Task.FromException<int>(new IOException("Injected transient API launch failure"))
+                    : supervisor.RestartApiAsync(value.ProcessId, value.ProcessStartedUtc, token),
+                (_, pid, _) => { if (Interlocked.Increment(ref proofCalls) <= 4) throw new InvalidOperationException("Injected restore/readiness failure");
+                    using var process = Process.GetProcessById(pid); Assert.False(process.HasExited); return Task.CompletedTask; })
+                .HandleAsync(request, default);
+            Assert.Equal("Recovered", result.State);
+            Assert.Equal(5, restartCalls); Assert.Equal(5, proofCalls);
+            Assert.NotEqual(old.ProcessId, result.ReplacementProcessId);
+            foreach (var child in unchanged) Assert.Equal(child, supervisor.RunningProcesses.Single(process => process.ProcessKey == child.ProcessKey));
+        }
     }
 
     [Fact]
@@ -65,15 +124,18 @@ public sealed class ApiRecoveryRestartTests : IDisposable
     [Fact]
     public async Task Failed_restart_notifies_from_external_controller_even_when_API_never_starts_and_delivery_retries()
     {
-        Directory.CreateDirectory(SessionDirectory);var request=Request();
+        var clock = new ManualTime();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Directory.CreateDirectory(SessionDirectory);var request=Request(clock);
         await File.WriteAllTextAsync(ApiRecoveryRestartProtocol.RequestPath(SessionDirectory,request.OperationId),JsonSerializer.Serialize(request));
         int deliveries=0;var seen=new TaskCompletionSource<ApiRecoveryRestartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var controller=Controller((_,_)=>throw new IOException("API launch failed"),notify:(result,_)=>{
+        var controller=Controller((_,_)=>{ entered.TrySetResult(); throw new IOException("API launch failed"); },clock:clock,notify:(result,_)=>{
             if(Interlocked.Increment(ref deliveries)==1)throw new IOException("broker unavailable");
             seen.TrySetResult(result);return Task.CompletedTask;
         });
         using var stop=new CancellationTokenSource();var loop=controller.RunAsync(stop.Token);
-        try{Assert.Contains("API launch failed",(await seen.Task.WaitAsync(TimeSpan.FromSeconds(8))).Error);Assert.Equal(2,deliveries);}
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(3)); clock.Advance(TimeSpan.FromMinutes(2));
+        try{Assert.Contains("two-minute API restart/restore deadline expired",(await seen.Task.WaitAsync(TimeSpan.FromSeconds(8))).Error);Assert.Equal(2,deliveries);}
         finally{await stop.CancelAsync();await loop;}
     }
 

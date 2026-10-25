@@ -1,0 +1,368 @@
+[
+  {
+    "symbol": "ES",
+    "start": "2026-11-01T02:30:00Z",
+    "end": "2026-11-01T08:30:00Z",
+    "source": [],
+    "expected": {
+      "status": "No saved bars in the last six hours",
+      "start": 1793485800,
+      "end": 1793503800,
+      "minimum": null,
+      "maximum": null,
+      "series": [
+        {
+          "name": "ES Close",
+          "color": "Yellow",
+          "points": []
+        }
+      ]
+    }
+  },
+  {
+    "symbol": "ES",
+    "start": "2026-11-01T02:30:00Z",
+    "end": "2026-11-01T08:30:00Z",
+    "source": [
+      {
+        "ContractId": "ESZ6",
+        "Symbol": "ES",
+        "ValueDate": "2026-11-01",
+        "BarDate": "2026-11-01T08:29:45Z",
+        "BarRateType": "FifteenSeconds",
+        "BarValue": 6050.125,
+        "UpTrendTrigger": 6100,
+        "DownTrendTrigger": 6000,
+        "Id": {
+          "ContractId": "ESZ6",
+          "Symbol": "ES",
+          "ValueDate": "2026-11-01"
+        }
+      }
+    ],
+    "expected": {
+      "status": "",
+      "start": 1793485800,
+      "end": 1793503800,
+      "minimum": 5995,
+      "maximum": 6105,
+      "series": [
+        {
+          "name": "ES Close",
+          "color": "Yellow",
+          "points": [
+            [
+              1793503785,
+              6050.125
+            ],
+            [
+              1793503800,
+              6050.125
+            ]
+          ]
+        },
+        {
+          "name": "Upper Trigger",
+          "color": "Lime",
+          "points": [
+            [
+              1793503785,
+              6100
+            ],
+            [
+              1793503800,
+              6100
+            ]
+          ]
+        },
+        {
+          "name": "Lower Trigger",
+          "color": "Red",
+          "points": [
+            [
+              1793503785,
+              6000
+            ],
+            [
+              1793503800,
+              6000
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "symbol": "ES",
+    "start": "2026-11-01T02:30:00Z",
+    "end": "2026-11-01T08:30:00Z",
+    "source": [
+      {
+        "ContractId": "ESZ6",
+        "Symbol": "ES",
+        "ValueDate": "2026-11-01",
+        "BarDate": "2026-11-01T08:30:00Z",
+        "BarRateType": "FifteenSeconds",
+        "BarValue": 6060,
+        "UpTrendTrigger": 6100,
+        "DownTrendTrigger": 6000,
+        "Id": {
+          "ContractId": "ESZ6",
+          "Symbol": "ES",
+          "ValueDate": "2026-11-01"
+        }
+      },
+      {
+        "ContractId": "ESZ6",
+        "Symbol": "ES",
+        "ValueDate": "2026-11-01",
+        "BarDate": "2026-11-01T02:30:00Z",
+        "BarRateType": "FifteenSeconds",
+        "BarValue": 6040,
+        "UpTrendTrigger": 6100,
+        "DownTrendTrigger": 6000,
+        "Id": {
+          "ContractId": "ESZ6",
+          "Symbol": "ES",
+          "ValueDate": "2026-11-01"
+        }
+      },
+      {
+        "ContractId": "ESZ6",
+        "Symbol": "ES",
+        "ValueDate": "2026-11-01",
+        "BarDate": "2026-11-01T02:29:59Z",
+        "BarRateType": "FifteenSeconds",
+        "BarValue": 9999,
+        "UpTrendTrigger": 6100,
+        "DownTrendTrigger": 6000,
+        "Id": {
+          "ContractId": "ESZ6",
+          "Symbol": "ES",
+          "ValueDate": "2026-11-01"
+        }
+      },
+      {
+        "ContractId": "ESZ6",
+        "Symbol": "ES",
+        "ValueDate": "2026-11-01",
+        "BarDate": "2026-11-01T04:30:00Z",
+        "BarRateType": "Minute",
+        "BarValue": 9000,
+        "UpTrendTrigger": 6100,
+        "DownTrendTrigger": 6000,
+        "Id": {
+          "ContractId": "ESZ6",
+          "Symbol": "ES",
+          "ValueDate": "2026-11-01"
+        }
+      }
+    ],
+    "expected": {
+      "status": "",
+      "start": 1793485800,
+      "end": 1793503800,
+      "minimum": 5995,
+      "maximum": 6105,
+      "series": [
+        {
+          "name": "ES Close",
+          "color": "Yellow",
+          "points": [
+            [
+              1793485800,
+              6040
+            ],
+            [
+              1793503800,
+              6060
+            ]
+          ]
+        },
+        {
+          "name": "Upper Trigger",
+          "color": "Lime",
+          "points": [
+            [
+              1793485800,
+              6100
+            ],
+            [
+              1793503800,
+              6100
+            ]
+          ]
+        },
+        {
+          "name": "Lower Trigger",
+          "color": "Red",
+          "points": [
+            [
+              1793485800,
+              6000
+            ],
+            [
+              1793503800,
+              6000
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "symbol": "VX",
+    "start": "2026-11-01T02:30:00Z",
+    "end": "2026-11-01T08:30:00Z",
+    "source": [],
+    "expected": {
+      "status": "No saved bars in the last six hours",
+      "start": 1793485800,
+      "end": 1793503800,
+      "minimum": null,
+      "maximum": null,
+      "series": [
+        {
+          "name": "VX",
+          "color": "Fuchsia",
+          "points": []
+        }
+      ]
+    }
+  },
+  {
+    "symbol": "VX",
+    "start": "2026-11-01T02:30:00Z",
+    "end": "2026-11-01T08:30:00Z",
+    "source": [
+      {
+        "ContractId": "ESZ6",
+        "Symbol": "ES",
+        "ValueDate": "2026-11-01",
+        "BarDate": "2026-11-01T08:29:45Z",
+        "BarRateType": "FifteenSeconds",
+        "BarValue": 6050.125,
+        "UpTrendTrigger": 6100,
+        "DownTrendTrigger": 6000,
+        "Id": {
+          "ContractId": "ESZ6",
+          "Symbol": "ES",
+          "ValueDate": "2026-11-01"
+        }
+      }
+    ],
+    "expected": {
+      "status": "",
+      "start": 1793485800,
+      "end": 1793503800,
+      "minimum": 6050.1,
+      "maximum": 6050.15,
+      "series": [
+        {
+          "name": "VX",
+          "color": "Fuchsia",
+          "points": [
+            [
+              1793503785,
+              6050.125
+            ],
+            [
+              1793503800,
+              6050.125
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "symbol": "VX",
+    "start": "2026-11-01T02:30:00Z",
+    "end": "2026-11-01T08:30:00Z",
+    "source": [
+      {
+        "ContractId": "ESZ6",
+        "Symbol": "ES",
+        "ValueDate": "2026-11-01",
+        "BarDate": "2026-11-01T08:30:00Z",
+        "BarRateType": "FifteenSeconds",
+        "BarValue": 6060,
+        "UpTrendTrigger": 6100,
+        "DownTrendTrigger": 6000,
+        "Id": {
+          "ContractId": "ESZ6",
+          "Symbol": "ES",
+          "ValueDate": "2026-11-01"
+        }
+      },
+      {
+        "ContractId": "ESZ6",
+        "Symbol": "ES",
+        "ValueDate": "2026-11-01",
+        "BarDate": "2026-11-01T02:30:00Z",
+        "BarRateType": "FifteenSeconds",
+        "BarValue": 6040,
+        "UpTrendTrigger": 6100,
+        "DownTrendTrigger": 6000,
+        "Id": {
+          "ContractId": "ESZ6",
+          "Symbol": "ES",
+          "ValueDate": "2026-11-01"
+        }
+      },
+      {
+        "ContractId": "ESZ6",
+        "Symbol": "ES",
+        "ValueDate": "2026-11-01",
+        "BarDate": "2026-11-01T02:29:59Z",
+        "BarRateType": "FifteenSeconds",
+        "BarValue": 9999,
+        "UpTrendTrigger": 6100,
+        "DownTrendTrigger": 6000,
+        "Id": {
+          "ContractId": "ESZ6",
+          "Symbol": "ES",
+          "ValueDate": "2026-11-01"
+        }
+      },
+      {
+        "ContractId": "ESZ6",
+        "Symbol": "ES",
+        "ValueDate": "2026-11-01",
+        "BarDate": "2026-11-01T04:30:00Z",
+        "BarRateType": "Minute",
+        "BarValue": 9000,
+        "UpTrendTrigger": 6100,
+        "DownTrendTrigger": 6000,
+        "Id": {
+          "ContractId": "ESZ6",
+          "Symbol": "ES",
+          "ValueDate": "2026-11-01"
+        }
+      }
+    ],
+    "expected": {
+      "status": "",
+      "start": 1793485800,
+      "end": 1793503800,
+      "minimum": 6039.975,
+      "maximum": 6060.025,
+      "series": [
+        {
+          "name": "VX",
+          "color": "Fuchsia",
+          "points": [
+            [
+              1793485800,
+              6040
+            ],
+            [
+              1793503800,
+              6060
+            ]
+          ]
+        }
+      ]
+    }
+  }
+]

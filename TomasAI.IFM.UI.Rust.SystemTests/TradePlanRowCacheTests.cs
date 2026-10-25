@@ -71,4 +71,26 @@ public sealed class TradePlanRowCacheTests
         Assert.NotSame(first, sections.Rows(TradeMonitorSection.PositionDetails, source, 2, 2, Encode));
         Assert.Equal(2, encodes);
     }
+
+    [Fact]
+    public void Live_position_updates_reuse_historical_payloads_and_encode_only_the_changed_row()
+    {
+        using var sections = new TradeMonitorRowSections();
+        var history = Enumerable.Range(1, 3).Select(day => new TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeHistoryReadModel {
+            OrderId = 1901, TradeId = 1501, ValueDate = new(2026, 10, day), NetSpread = day }).ToArray();
+        var first = sections.PositionRows(history);
+        Assert.Same(first, sections.PositionRows(history));
+        var updated = history.ToArray();
+        updated[2] = updated[2] with { TradePnl = -250 };
+        var next = sections.PositionRows(updated);
+        Assert.Same(first[0], next[0]); Assert.Same(first[1], next[1]);
+        Assert.Same(first[0].Data, next[0].Data);
+        Assert.NotSame(first[2].Data, next[2].Data);
+        var appended = sections.PositionRows([.. updated, updated[2] with { ValueDate = new(2026, 10, 4) }]);
+        for (var i = 0; i < next.Length; i++) Assert.Same(next[i], appended[i]);
+        Assert.Equal("position:3", appended[3].Id);
+        Assert.Empty(sections.PositionRows([])); // Reload/removal retains no old rows.
+        sections.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => sections.PositionRows(history));
+    }
 }

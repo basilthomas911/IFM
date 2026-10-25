@@ -1,0 +1,134 @@
+{
+    "controls":  [
+                     {
+                         "verb":  "FeedScenario",
+                         "value":  "Normal"
+                     }
+                 ],
+    "comparison":  {
+                       "captures":  [
+                                        "parameters-signals",
+                                        "parameters-observations",
+                                        "parameters-calculation",
+                                        "parameters-validation",
+                                        "parameter-schema",
+                                        "parameter-payload"
+                                    ]
+                   },
+    "steps":  [
+                  {
+                      "action":  "wait",
+                      "name":  "Stop Market Feeds"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "Reference",
+                      "type":  "Button"
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Reference Data Manager"
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Lookup Type Names"
+                  },
+                  {
+                      "type":  "ComboBox",
+                      "name":  "Selection:",
+                      "action":  "expand",
+                      "enabled":  true
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "parameter sets",
+                      "action":  "invoke"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Fixture market-data-analytics.futures-iti-signal - v1 (Draft)",
+                      "action":  "wait",
+                      "enabled":  true
+                  },
+                  {
+                      "scope":  "Reference Data Manager",
+                      "name":  "parameters-signals",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Observations",
+                      "action":  "invoke"
+                  },
+                  {
+                      "scope":  "Reference Data Manager",
+                      "name":  "parameters-observations",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Calculation parameters",
+                      "action":  "invoke"
+                  },
+                  {
+                      "scope":  "Reference Data Manager",
+                      "name":  "parameters-calculation",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Validate",
+                      "action":  "invoke"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Validate",
+                      "action":  "wait",
+                      "enabled":  true
+                  },
+                  {
+                      "scope":  "Reference Data Manager",
+                      "name":  "parameters-validation",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Schema",
+                      "action":  "invoke"
+                  },
+                  {
+                      "type":  "Window",
+                      "name":  "Parameter contract",
+                      "action":  "wait"
+                  },
+                  {
+                      "scope":  "Parameter contract",
+                      "name":  "parameter-schema",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "scope":  "Parameter contract",
+                      "type":  "Button",
+                      "name":  "Close window",
+                      "action":  "invoke"
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "Payload",
+                      "action":  "invoke"
+                  },
+                  {
+                      "type":  "Window",
+                      "name":  "Parameter values",
+                      "action":  "wait"
+                  },
+                  {
+                      "scope":  "Parameter values",
+                      "name":  "parameter-payload",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "action":  "close"
+                  }
+              ]
+}

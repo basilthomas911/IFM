@@ -9,6 +9,36 @@ using TomasAI.IFM.UI.Rust.Bridge.Net;
 /// <summary>Opt-in read-only qualification against the user's running development backend. Never submits commands or starts feeds.</summary>
 public sealed class LiveBackendProcessingBoundaryTests
 {
+    [LiveBackendBoundaryFact]
+    public async Task Server_session_and_six_hour_saved_chart_are_available_without_enabling_live_feed()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        await using var scope = new RustClientServiceScope(Environment.GetEnvironmentVariable("IFM_UI_NATS_URL") ?? "nats://localhost:4222");
+        await scope.StartAsync(deadline.Token);
+        var id = await ResolveEstablishedIdentityAsync(scope, deadline.Token);
+        var day = await scope.GetValueDateAsync(deadline.Token);
+        var session = await scope.Services.MarketDataQueries.QueryMarketSessionAsync(deadline.Token);
+        Assert.True(session.IsValid); Assert.Equal(day, session.OperationalValueDate);
+        var position = StrategyPositionId.Create(id, TradeStrategyKind.IronCondor);
+        var chart = await scope.Services.StrategyTradePlanQueries.GetIronCondorChartAsync(position, day, deadline.Token);
+        Assert.Equal(TimeSpan.FromHours(6), chart.EndUtc - chart.StartUtc);
+        Assert.NotEmpty(chart.Points);
+        Assert.All(chart.Points, point => Assert.InRange(point.AtUtc, chart.StartUtc, chart.EndUtc));
+        Assert.Equal(chart.Points.OrderBy(point => point.AtUtc), chart.Points);
+        // Position history stores one stable daily row; its timestamp is not a six-hour chart sample.
+        var history = await scope.Services.StrategyPositions.GetHistoryAsync(position, TradeStrategyKind.IronCondor,
+            session.AsOfUtc.AddDays(-30), session.AsOfUtc, deadline.Token);
+        Assert.NotEmpty(history);
+        Assert.All(history, row => { Assert.Equal(position, row.Id); Assert.NotNull(row.HistoryValuation); });
+        var directory = Environment.GetEnvironmentVariable("IFM_RUST_TEST_ARTIFACTS")!;
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(Path.Combine(directory, "backend-session-history-results.json"), JsonSerializer.Serialize(new {
+            valueDate = day, session, tradeId = id.Format(), chart.StartUtc, chart.EndUtc, pointCount = chart.Points.Length,
+            historyCount = history.Length, historyDates = history.Select(row => row.ValueDate).Distinct(),
+            note = "Read-only API/current UI service checks. No feed acquisition, submission, posting, or server restart."
+        }, new JsonSerializerOptions { WriteIndented = true }), deadline.Token);
+    }
+
     [LiveBackendScreenFact]
     public void Inspect_running_trade_screen_without_clicking_or_changing_live_feed()
     {
@@ -33,13 +63,7 @@ public sealed class LiveBackendProcessingBoundaryTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
         await using var scope = new RustClientServiceScope(Environment.GetEnvironmentVariable("IFM_UI_NATS_URL") ?? "nats://localhost:4222");
         await scope.StartAsync(deadline.Token);
-        var setupId = TradeEntityId.Parse(Environment.GetEnvironmentVariable("IFM_BOUNDARY_TRADE_ID")!);
-        var setupRead = await scope.Services.PortfolioQueries.GetTradeAsync(setupId.TradeId,deadline.Token);
-        Assert.True(setupRead.Success,setupRead.ErrorMessage); Assert.NotNull(setupRead.Value);
-        Assert.Equal(setupId.PortfolioId,setupRead.Value.PortfolioId);
-        Assert.Equal(setupId.FundId,setupRead.Value.FundId);
-        Assert.True(setupRead.Value.ExecutionOrderId>0 && setupRead.Value.ExecutionTradeId>0);
-        var id = new TradeEntityId(setupId.PortfolioId,setupId.FundId,setupRead.Value.ExecutionOrderId,setupRead.Value.ExecutionTradeId);
+        var id = await ResolveEstablishedIdentityAsync(scope, deadline.Token);
         var day = await scope.GetValueDateAsync(deadline.Token);
         using var metrics = new FundMetricsViewModel(scope.Services.PortfolioFinancial);
         await metrics.LoadAsync(id.PortfolioId,id.FundId,day.AddDays(-30),day).WaitAsync(deadline.Token);
@@ -72,6 +96,19 @@ public sealed class LiveBackendProcessingBoundaryTests
             preparation=prepared.Value, note="Read-only preparation using saved trade opening price; no order submitted; not a current executable quote."
         },new JsonSerializerOptions { WriteIndented=true }),deadline.Token);
     }
+
+    static async Task<TradeEntityId> ResolveEstablishedIdentityAsync(RustClientServiceScope scope, CancellationToken token)
+    {
+        // Setup and established execution identities are separate domains; never infer one from the other.
+        if (Environment.GetEnvironmentVariable("IFM_BOUNDARY_ESTABLISHED_TRADE_ID") is { Length: > 0 } established)
+            return TradeEntityId.Parse(established);
+        var setup = TradeEntityId.Parse(Environment.GetEnvironmentVariable("IFM_BOUNDARY_TRADE_ID")!);
+        var read = await scope.Services.PortfolioQueries.GetTradeAsync(setup.TradeId, token);
+        Assert.True(read.Success, read.ErrorMessage); Assert.NotNull(read.Value);
+        Assert.Equal(setup.PortfolioId, read.Value.PortfolioId); Assert.Equal(setup.FundId, read.Value.FundId);
+        Assert.True(read.Value.ExecutionOrderId > 0 && read.Value.ExecutionTradeId > 0);
+        return new(setup.PortfolioId, setup.FundId, read.Value.ExecutionOrderId, read.Value.ExecutionTradeId);
+    }
 }
 
 public sealed class LiveBackendScreenFactAttribute : FactAttribute
@@ -88,6 +125,6 @@ public sealed class LiveBackendBoundaryFactAttribute : FactAttribute
     public LiveBackendBoundaryFactAttribute()
     {
         if (Environment.GetEnvironmentVariable("IFM_BOUNDARY_LIVE")!="1")
-            Skip="Requires explicit running-backend opt-in and IFM_BOUNDARY_TRADE_ID / IFM_BOUNDARY_UNDERLYING.";
+            Skip="Requires explicit running-backend opt-in, a setup IFM_BOUNDARY_TRADE_ID or IFM_BOUNDARY_ESTABLISHED_TRADE_ID, and IFM_BOUNDARY_UNDERLYING.";
     }
 }

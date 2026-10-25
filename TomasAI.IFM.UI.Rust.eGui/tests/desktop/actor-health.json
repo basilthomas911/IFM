@@ -1,0 +1,23 @@
+{
+ "controls":[{"verb":"FeedScenario","value":"Normal"}],
+ "comparison":{"captures":["actor-health","actor-properties","mailbox-properties"],"region":{"left":0.22,"right":0.78,"top":0.05,"bottom":0.97},"clippedNeighborControls":[{"type":"Text","name":"Workflow End State","basis":"The flattened egui UIA tree exposes horizontally clipped strategy-panel text outside its left pane. This is not an actor explorer field; owned-window screenshots retain the actual pixels."},{"type":"Text","name":"In Progress","basis":"The value paired with the clipped neighboring Workflow End State label; not a field in this actor-health fixture."}]},
+ "steps":[
+  {"action":"wait","name":"Stop Market Feeds"},
+  {"action":"invoke","name":"Actor Health","type":"Button"},
+  {"action":"wait","name":"Refresh actor health","type":"Button","enabled":true},
+  {"action":"text","name":"","type":"Edit","index":0,"value":"2026-10-24T00:00:00Z"},
+  {"action":"invoke","name":"Refresh actor health","type":"Button","enabled":true},
+  {"action":"pause","milliseconds":1000},
+  {"action":"wait","name":"Refresh actor health","type":"Button","enabled":true},
+  {"action":"wait","name":"Trade","type":"Button"},
+  {"action":"invoke","name":"Trade","type":"Button"},
+  {"action":"wait","name":"IronCondorPosition","type":"Button"},
+  {"action":"snapshot","name":"actor-health"},
+  {"action":"invoke","name":"IronCondorPosition","type":"Button"},
+  {"action":"wait","name":"101.701.1901.1501","type":"Button"},
+  {"action":"snapshot","name":"actor-properties"},
+  {"action":"invoke","name":"101.701.1901.1501","type":"Button"},
+  {"action":"snapshot","name":"mailbox-properties"},
+  {"action":"close"}
+ ]
+}

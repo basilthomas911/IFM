@@ -293,7 +293,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             if (EstablishedTrade?.Id != trade.Id) return;
             foreach (var position in history.Where(position => position.Id == positionId && position.StrategyKind == TradeStrategyKind.IronCondor))
                 RememberPositionHistory(position);
-            PublishPositionHistory();
+            if (completedDate is { } completed) PublishPositionHistoryRow(completed, StrategyPositionPhase.MarkToMarket);
+            else PublishPositionHistory();
             if (completedDate is { } saved && history.Any(position => position.Id == positionId
                 && position.ValueDate == saved && position.Phase == StrategyPositionPhase.EndOfDay)) _refreshedEndOfDay = saved;
         }
@@ -379,7 +380,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 if (latest.IronCondorTradePlanSnapshot is { ContractMultiplier: > 0 } currency)
                 {
                     _savedCurrencySnapshots[row.ValueDate] = currency;
-                    PublishPositionHistory();
+                    PublishPositionHistoryRow(row.ValueDate, phase);
                 }
             }
         }
@@ -402,6 +403,9 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// <summary>Retains the latest saved version of each dated lifecycle position, including sealed daily rows.</summary>
     void RememberPositionHistory(StrategyPositionSnapshot position)
     {
+        // Raw live positions may precede their backend history projection. They update
+        // realtime values but must not erase an already displayable daily history row.
+        if (position.HistoryValuation is null) return;
         var date = position.HistoryValuation?.ValueDate ?? position.ValueDate;
         if (date == default) return;
         var phase = position.Phase is StrategyPositionPhase.MarkToMarket or StrategyPositionPhase.EndOfDay
@@ -425,16 +429,43 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         var rows = _positionHistoryRows.Values.Where(position => position.Phase != StrategyPositionPhase.Open && position.HistoryValuation is not null)
             .OrderBy(position => position.HistoryValuation!.ValueDate)
             .ThenBy(position => position.HistoryAsOfUtc == default ? position.AsOfUtc : position.HistoryAsOfUtc)
-            .Select(position => {
-                var value = position.HistoryValuation!;
-                var status = position.Phase switch { StrategyPositionPhase.EndOfDay => TradeStatus.EndOfDay,
-                    StrategyPositionPhase.Close => TradeStatus.Close, _ => TradeStatus.IntraDay };
-                return new TradeHistoryReadModel(trade.Id.OrderId, trade.Id.TradeId, _fundOrderTrade.TradeType,
-                    value.ValueDate, value.DaysToExpiry, status, value.Commission, value.NetPrice,
-                    _savedCurrencySnapshots.TryGetValue(value.ValueDate, out var currency) && currency.DailyPnl is { } daily
-                        ? daily : position.DailyPnl);
-            }).ToArray();
+            .Select(CreatePositionHistoryRow).ToArray();
         _tradeHistory = [opening, .. rows];
+        TradeHistory = [.. _tradeHistory];
+    }
+
+    TradeHistoryReadModel CreatePositionHistoryRow(StrategyPositionSnapshot position)
+    {
+        var value = position.HistoryValuation!;
+        var status = position.Phase switch { StrategyPositionPhase.EndOfDay => TradeStatus.EndOfDay,
+            StrategyPositionPhase.Close => TradeStatus.Close, _ => TradeStatus.IntraDay };
+        return new TradeHistoryReadModel(EstablishedTrade!.Id.OrderId, EstablishedTrade.Id.TradeId, _fundOrderTrade.TradeType,
+            value.ValueDate, value.DaysToExpiry, status, value.Commission, value.NetPrice,
+            _savedCurrencySnapshots.TryGetValue(value.ValueDate, out var currency) && currency.DailyPnl is { } daily
+                ? daily : position.DailyPnl);
+    }
+
+    /// <summary>Replaces one dated row, preserving every other historical row and its display payload.</summary>
+    void PublishPositionHistoryRow(DateOnly date, StrategyPositionPhase phase)
+    {
+        if (EstablishedTrade is not { OpeningHistoryValuation: not null } trade || phase == StrategyPositionPhase.Open) return;
+        var normalized = phase is StrategyPositionPhase.EndOfDay ? StrategyPositionPhase.MarkToMarket : phase;
+        if (!_positionHistoryRows.TryGetValue((date, normalized), out var position) || position.HistoryValuation is null) return;
+        var row = CreatePositionHistoryRow(position);
+        if (_tradeHistory.Count == 0) _tradeHistory.Add(CreateOpeningPosition(trade, _fundOrderTrade.TradeType));
+        var index = _tradeHistory.FindIndex(existing => existing.ValueDate == date && existing.TradeStatus != TradeStatus.Open
+            && (existing.TradeStatus == TradeStatus.Close) == (row.TradeStatus == TradeStatus.Close));
+        if (index >= 0)
+        {
+            if (_tradeHistory[index] == row) return;
+            _tradeHistory[index] = row;
+        }
+        else
+        {
+            index = _tradeHistory.FindIndex(1, existing => existing.ValueDate > date
+                || existing.ValueDate == date && existing.TradeStatus == TradeStatus.Close && row.TradeStatus != TradeStatus.Close);
+            _tradeHistory.Insert(index < 0 ? _tradeHistory.Count : index, row);
+        }
         TradeHistory = [.. _tradeHistory];
     }
 
@@ -505,6 +536,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     public bool ApplyIronCondorPosition(StrategyPositionSnapshot position)
     {
         if (EstablishedTrade is null || position.Id.Trade != EstablishedTrade.Id
+            || IsLiveFeedEnabled && (_valueDate ?? _serverMarketSession?.ActiveValueDate) is { } liveDate && position.ValueDate != liveDate
             || position.StrategyKind != TradeStrategyKind.IronCondor
             || position.Legs.Length != 4 || position.Legs.Select(leg => leg.TradeLegId).Distinct().Count() != 4
             || position.AsOfUtc.Kind != DateTimeKind.Utc
@@ -517,7 +549,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         IronCondorPosition = position;
         OnPropertyChanged(nameof(RealtimeSnapshot));
         RememberPositionHistory(position);
-        PublishPositionHistory();
+        PublishPositionHistoryRow(position.HistoryValuation?.ValueDate ?? position.ValueDate, position.Phase);
         return true;
     }
 
@@ -529,6 +561,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         if (EstablishedTrade is null || plan.Position.Id.Trade != EstablishedTrade.Id
             || plan.Position.StrategyKind != TradeStrategyKind.IronCondor
             || _valueDate.HasValue && plan.ValueDate != _valueDate.Value
+            || IsLiveFeedEnabled && (_valueDate ?? _serverMarketSession?.ActiveValueDate) is { } liveDate && plan.ValueDate != liveDate
             || StrategyTradePlan is { } current && (plan.Position.RouteGeneration < current.Position.RouteGeneration
                 || plan.Position.RouteGeneration == current.Position.RouteGeneration && plan.PlanRevision <= current.PlanRevision))
             return false;
@@ -537,7 +570,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             _savedCurrencySnapshots[plan.ValueDate] = currency;
         OnPropertyChanged(nameof(RealtimeSnapshot));
         ApplyIronCondorPosition(plan.Position);
-        PublishPositionHistory();
+        PublishPositionHistoryRow(plan.ValueDate, plan.Position.Phase);
         return true;
     }
 

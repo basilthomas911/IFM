@@ -1,0 +1,3279 @@
+{
+  "scope": "Current Rust UI responsibility mapping; historical API members retain separate reachability status. Not a desktop acceptance result.",
+  "files": 297,
+  "sourceCensusDrift": [],
+  "originalHashesVerified": 79,
+  "rows": [
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/EasternTime.cs",
+      "disposition": "replaced",
+      "group": "clock",
+      "nativeOwners": [
+        "services/business_context.rs",
+        "date_picker/mod.rs"
+      ],
+      "basis": "Display zone conversion remains local; business date/session eligibility comes only from API."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/MarketData/MarketDataOperationsHealthSnapshot.cs",
+      "disposition": "merged",
+      "group": "operations-health",
+      "nativeOwners": [
+        "state/operations_health.rs",
+        "services/dashboard_health.rs"
+      ],
+      "basis": "Native health adapter; unavailable observations cannot retain stale green."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/Operations/ActorHealthSnapshot.cs",
+      "disposition": "merged",
+      "group": "actor-health",
+      "nativeOwners": [
+        "state/actor_health.rs"
+      ],
+      "basis": "Native HTTP health reads and NATS supervisor controls."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/Operations/FuturesItiGraphWindow.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/Operations/TerminalNotificationUiModel.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/OptionPricing/OptionGreeksUiModel.cs",
+      "disposition": "excluded",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "WinForms-only entry/pricing branch; current Rust constructs BrokerManualTradeOrderViewModel. No local pricing port."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/Portfolio/PortfolioConcurrencyRefreshModel.cs",
+      "disposition": "test-only",
+      "group": "portfolio",
+      "nativeOwners": [
+        "state/portfolio.rs",
+        "state/portfolio/editors.rs",
+        "state/portfolio/fund_editors.rs",
+        "services/portfolio_commands.rs"
+      ],
+      "basis": "Inventory found test/fixture references only; not a production runtime dependency."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/Portfolio/PortfolioFundEditorModels.cs",
+      "disposition": "merged",
+      "group": "portfolio",
+      "nativeOwners": [
+        "state/portfolio.rs",
+        "state/portfolio/editors.rs",
+        "state/portfolio/fund_editors.rs",
+        "services/portfolio_commands.rs"
+      ],
+      "basis": "Native portfolio/fund controllers and typed backend commands."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/Portfolio/PortfolioIdentityAllocationModel.cs",
+      "disposition": "merged",
+      "group": "portfolio",
+      "nativeOwners": [
+        "state/portfolio.rs",
+        "state/portfolio/editors.rs",
+        "state/portfolio/fund_editors.rs",
+        "services/portfolio_commands.rs"
+      ],
+      "basis": "Native portfolio/fund controllers and typed backend commands."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/Portfolio/PortfolioNavigationModel.cs",
+      "disposition": "test-only",
+      "group": "portfolio",
+      "nativeOwners": [
+        "state/portfolio.rs",
+        "state/portfolio/editors.rs",
+        "state/portfolio/fund_editors.rs",
+        "services/portfolio_commands.rs"
+      ],
+      "basis": "Inventory found test/fixture references only; not a production runtime dependency."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/PositionEntryWindow.cs",
+      "disposition": "replaced",
+      "group": "clock",
+      "nativeOwners": [
+        "services/business_context.rs",
+        "date_picker/mod.rs"
+      ],
+      "basis": "Display zone conversion remains local; business date/session eligibility comes only from API."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/Reference/ReferenceUiModels.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/SystemAdmin/DatabaseBackupUiModels.cs",
+      "disposition": "merged",
+      "group": "backup",
+      "nativeOwners": [
+        "state/database_backup.rs",
+        "services/database_backup.rs"
+      ],
+      "basis": "Native backup administration and scoped history/output; no local backup engine."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/SystemAdmin/ScheduleTime.cs",
+      "disposition": "merged",
+      "group": "scheduler",
+      "nativeOwners": [
+        "state/scheduled_tasks.rs"
+      ],
+      "basis": "Native scheduler state, output paging, previews and commands; execution stays on server."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/SystemAdmin/ScheduledTaskUiModels.cs",
+      "disposition": "merged",
+      "group": "scheduler",
+      "nativeOwners": [
+        "state/scheduled_tasks.rs"
+      ],
+      "basis": "Native scheduler state, output paging, previews and commands; execution stays on server."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/TradeMonitoringPolicy.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Models/TradeRealtimeClientMirror.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/App/ActorHealthControlModel.cs",
+      "disposition": "merged",
+      "group": "actor-health",
+      "nativeOwners": [
+        "state/actor_health.rs"
+      ],
+      "basis": "Native HTTP health reads and NATS supervisor controls."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/App/IFMAppViewModel.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/App/IIFMAppLiveViewAdapter.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/App/MarketDataFeedHealthMonitor.cs",
+      "disposition": "merged",
+      "group": "operations-health",
+      "nativeOwners": [
+        "state/operations_health.rs",
+        "services/dashboard_health.rs"
+      ],
+      "basis": "Native health adapter; unavailable observations cannot retain stale green."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/App/MarketDataOperationsHealthViewModel.cs",
+      "disposition": "merged",
+      "group": "operations-health",
+      "nativeOwners": [
+        "state/operations_health.rs",
+        "services/dashboard_health.rs"
+      ],
+      "basis": "Native health adapter; unavailable observations cannot retain stale green."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/App/MarketEconomicCalendarViewModel.cs",
+      "disposition": "merged",
+      "group": "calendar",
+      "nativeOwners": [
+        "state/calendar.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Native calendar editor/sidebar and terminal notifications; API date authority."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/App/StatusConsoleViewModel.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/BaseEditorViewModel.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Contracts/IAppRoot.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Contracts/IAsyncLifecycle.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Contracts/IAsyncOperation.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Contracts/ITradeOrderConfirmationService.cs",
+      "disposition": "merged",
+      "group": "submission",
+      "nativeOwners": [
+        "state/trades/submissions.rs",
+        "services/order_preparation.rs",
+        "services/order_submission.rs",
+        "services/order_close.rs"
+      ],
+      "basis": "Backend preparation/risk values with native confirmation and durable uncertain-operation reconciliation."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Contracts/IUiDispatcher.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Contracts/IUserInteraction.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Contracts/IViewNavigator.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Extensions/LookupTypeListExtension.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Extensions/ObservableUiServiceExtensions.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/GlobalUsings.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Lifecycle/AsyncLifecycleCoordinator.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/MarketData/FuturesContractEditorViewModel.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/MarketData/FuturesEodDataUIViewModel.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/MarketData/FuturesOptionContractEditorViewModel.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/MarketData/FuturesTradeSignalUIViewModel.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/MarketData/FuturesTradeStatusUIViewModel.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/MarketData/InstrumentDefinitionSelectorViewModel.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/MarketData/MarketDataViewModel.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/MarketData/PlaceTradeUIViewModel.cs",
+      "disposition": "merged",
+      "group": "orders",
+      "nativeOwners": [
+        "state/trades.rs",
+        "services/manual_orders.rs",
+        "services/trade_orders.rs"
+      ],
+      "basis": "Native order workspace and scoped command/event owners; server is authoritative."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/MarketData/ReferenceConventionEditor.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/MarketData/YieldCurveRateEditViewModel.cs",
+      "disposition": "merged",
+      "group": "yield",
+      "nativeOwners": [
+        "state/yield_curve.rs"
+      ],
+      "basis": "Native yield editor with backend CRUD/import."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/MarketData/YieldCurveRateEditorViewModel.cs",
+      "disposition": "merged",
+      "group": "yield",
+      "nativeOwners": [
+        "state/yield_curve.rs"
+      ],
+      "basis": "Native yield editor with backend CRUD/import."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Operations/AsyncOperation.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Operations/Domain/TerminalNotificationCorrelation.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Operations/FuturesItiSignalEventRow.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Operations/OperationsViewModel.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Operations/StrategyOperationsViewModel.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Operations/StrategyOperationsViewModelComposition.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Operations/StrategyWorkflowDetails.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Operations/StrategyWorkflowPresentation.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Operations/TerminalEventCorrelation.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Operations/UiServiceOperationException.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Portfolio/FinancialConfigurationOperation.cs",
+      "disposition": "merged",
+      "group": "financial",
+      "nativeOwners": [
+        "state/portfolio/financial_ui.rs",
+        "services/financial.rs",
+        "services/financial_preparation.rs",
+        "services/financial_operations.rs"
+      ],
+      "basis": "Native request preparation/journals and backend-returned financial reports; preserve existing formula basis."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Portfolio/FinancialControlPreparation.cs",
+      "disposition": "merged",
+      "group": "financial",
+      "nativeOwners": [
+        "state/portfolio/financial_ui.rs",
+        "services/financial.rs",
+        "services/financial_preparation.rs",
+        "services/financial_operations.rs"
+      ],
+      "basis": "Native request preparation/journals and backend-returned financial reports; preserve existing formula basis."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Portfolio/FinancialPostingDraft.cs",
+      "disposition": "merged",
+      "group": "financial",
+      "nativeOwners": [
+        "state/portfolio/financial_ui.rs",
+        "services/financial.rs",
+        "services/financial_preparation.rs",
+        "services/financial_operations.rs"
+      ],
+      "basis": "Native request preparation/journals and backend-returned financial reports; preserve existing formula basis."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Portfolio/FinancialPostingOperation.cs",
+      "disposition": "merged",
+      "group": "financial",
+      "nativeOwners": [
+        "state/portfolio/financial_ui.rs",
+        "services/financial.rs",
+        "services/financial_preparation.rs",
+        "services/financial_operations.rs"
+      ],
+      "basis": "Native request preparation/journals and backend-returned financial reports; preserve existing formula basis."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Portfolio/FundFinancialViewModel.cs",
+      "disposition": "merged",
+      "group": "financial",
+      "nativeOwners": [
+        "state/portfolio/financial_ui.rs",
+        "services/financial.rs",
+        "services/financial_preparation.rs",
+        "services/financial_operations.rs"
+      ],
+      "basis": "Native request preparation/journals and backend-returned financial reports; preserve existing formula basis."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Portfolio/FundMetricsViewModel.cs",
+      "disposition": "merged",
+      "group": "financial",
+      "nativeOwners": [
+        "state/portfolio/financial_ui.rs",
+        "services/financial.rs",
+        "services/financial_preparation.rs",
+        "services/financial_operations.rs"
+      ],
+      "basis": "Native request preparation/journals and backend-returned financial reports; preserve existing formula basis."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Portfolio/PendingFinancialConfigurationStore.cs",
+      "disposition": "merged",
+      "group": "financial",
+      "nativeOwners": [
+        "state/portfolio/financial_ui.rs",
+        "services/financial.rs",
+        "services/financial_preparation.rs",
+        "services/financial_operations.rs"
+      ],
+      "basis": "Native request preparation/journals and backend-returned financial reports; preserve existing formula basis."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Portfolio/PendingFinancialOperationStore.cs",
+      "disposition": "merged",
+      "group": "financial",
+      "nativeOwners": [
+        "state/portfolio/financial_ui.rs",
+        "services/financial.rs",
+        "services/financial_preparation.rs",
+        "services/financial_operations.rs"
+      ],
+      "basis": "Native request preparation/journals and backend-returned financial reports; preserve existing formula basis."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Portfolio/PortfolioAdministrationViewModel.cs",
+      "disposition": "merged",
+      "group": "portfolio",
+      "nativeOwners": [
+        "state/portfolio.rs",
+        "state/portfolio/editors.rs",
+        "state/portfolio/fund_editors.rs",
+        "services/portfolio_commands.rs"
+      ],
+      "basis": "Native portfolio/fund controllers and typed backend commands."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Presentation/ObservableObject.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Presentation/PresentationColorRole.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Presentation/PresentationError.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Reference/EconomicCalendarEditorViewModel.cs",
+      "disposition": "merged",
+      "group": "calendar",
+      "nativeOwners": [
+        "state/calendar.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Native calendar editor/sidebar and terminal notifications; API date authority."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Reference/LookupTypeEditorViewModel.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Reference/MDIForwardLossRatioUIViewModel.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Reference/ParameterSets/ParameterComparisonModel.cs",
+      "disposition": "merged",
+      "group": "parameters",
+      "nativeOwners": [
+        "state/parameters.rs",
+        "services/parameters.rs",
+        "services/parameter_fields.rs"
+      ],
+      "basis": "Native typed drafts, validation, lifecycle, assignment and inspection."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Reference/ParameterSets/ParameterFieldEditorModel.cs",
+      "disposition": "merged",
+      "group": "parameters",
+      "nativeOwners": [
+        "state/parameters.rs",
+        "services/parameters.rs",
+        "services/parameter_fields.rs"
+      ],
+      "basis": "Native typed drafts, validation, lifecycle, assignment and inspection."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Reference/ParameterSets/ParameterSetEditorModel.cs",
+      "disposition": "merged",
+      "group": "parameters",
+      "nativeOwners": [
+        "state/parameters.rs",
+        "services/parameters.rs",
+        "services/parameter_fields.rs"
+      ],
+      "basis": "Native typed drafts, validation, lifecycle, assignment and inspection."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Reference/ParameterSets/TypedParameterFieldEditorModel.cs",
+      "disposition": "merged",
+      "group": "parameters",
+      "nativeOwners": [
+        "state/parameters.rs",
+        "services/parameters.rs",
+        "services/parameter_fields.rs"
+      ],
+      "basis": "Native typed drafts, validation, lifecycle, assignment and inspection."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Reference/ReferenceViewModel.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Strategy/MarketAssessmentPresenter.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Strategy/RiskObservationPresentation.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/SystemAdmin/DatabaseBackupViewModel.cs",
+      "disposition": "merged",
+      "group": "backup",
+      "nativeOwners": [
+        "state/database_backup.rs",
+        "services/database_backup.rs"
+      ],
+      "basis": "Native backup administration and scoped history/output; no local backup engine."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/SystemAdmin/ScheduledTasksViewModel.cs",
+      "disposition": "merged",
+      "group": "scheduler",
+      "nativeOwners": [
+        "state/scheduled_tasks.rs"
+      ],
+      "basis": "Native scheduler state, output paging, previews and commands; execution stays on server."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/SystemAdmin/SystemAdminViewModel.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerManualTradeOrderViewModel.cs",
+      "disposition": "merged",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "Native composer/account/preview/execution services; backend owns pricing and financial amounts."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerOrderMutationRules.cs",
+      "disposition": "merged",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "Native composer/account/preview/execution services; backend owns pricing and financial amounts."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerTradeInitializationQuery.cs",
+      "disposition": "merged",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "Native composer/account/preview/execution services; backend owns pricing and financial amounts."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerTradeLegSelection.cs",
+      "disposition": "merged",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "Native composer/account/preview/execution services; backend owns pricing and financial amounts."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerTradePreviewPresentation.cs",
+      "disposition": "merged",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "Native composer/account/preview/execution services; backend owns pricing and financial amounts."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerTradePreviewQuery.cs",
+      "disposition": "merged",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "Native composer/account/preview/execution services; backend owns pricing and financial amounts."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/EndOfDayProcessViewModel.cs",
+      "disposition": "merged",
+      "group": "eod",
+      "nativeOwners": [
+        "state/trades/eod.rs",
+        "services/trade_eod.rs"
+      ],
+      "basis": "Native dialog and existing server position transition."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/FundOrderEditorViewModel.cs",
+      "disposition": "merged",
+      "group": "orders",
+      "nativeOwners": [
+        "state/trades.rs",
+        "services/manual_orders.rs",
+        "services/trade_orders.rs"
+      ],
+      "basis": "Native order workspace and scoped command/event owners; server is authoritative."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeInfoViewModel.cs",
+      "disposition": "excluded",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "WinForms-only entry/pricing branch; current Rust constructs BrokerManualTradeOrderViewModel. No local pricing port."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs",
+      "disposition": "excluded",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "WinForms-only entry/pricing branch; current Rust constructs BrokerManualTradeOrderViewModel. No local pricing port."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/OptionChainDisplaySnapshot.cs",
+      "disposition": "merged",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "Native composer/account/preview/execution services; backend owns pricing and financial amounts."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/OptionTradeSpreadBarUIViewModel.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/SelectedOrderPriceRisk.cs",
+      "disposition": "merged",
+      "group": "submission",
+      "nativeOwners": [
+        "state/trades/submissions.rs",
+        "services/order_preparation.rs",
+        "services/order_submission.rs",
+        "services/order_close.rs"
+      ],
+      "basis": "Backend preparation/risk values with native confirmation and durable uncertain-operation reconciliation."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/TradeOrderConfirmationViewModel.cs",
+      "disposition": "merged",
+      "group": "submission",
+      "nativeOwners": [
+        "state/trades/submissions.rs",
+        "services/order_preparation.rs",
+        "services/order_submission.rs",
+        "services/order_close.rs"
+      ],
+      "basis": "Backend preparation/risk values with native confirmation and durable uncertain-operation reconciliation."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.ViewModels/Trade/TradeOrderEditorViewModel.cs",
+      "disposition": "merged",
+      "group": "orders",
+      "nativeOwners": [
+        "state/trades.rs",
+        "services/manual_orders.rs",
+        "services/trade_orders.rs"
+      ],
+      "basis": "Native order workspace and scoped command/event owners; server is authoritative."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/ApplicationCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/ApplicationQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/BrokerAccountCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/BrokerAccountQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/BrokerOrderCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/BrokerOrderQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/DatabaseBackupApiServiceCollectionExtensions.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/DatabaseBackupCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/DatabaseBackupQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/DownloadLogCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/DownloadLogQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/EstablishedTradeQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/IdempotentCommandId.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/IntrinsicTimePipelineDecisionReferenceQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/IntrinsicTimeStrategyWorkflowQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketConditionAssessmentQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataAnalyticsCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataAnalyticsQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.EconomicCalendar.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataQueryApi.EconomicCalendar.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataQueryApi.OptionChainCache.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/NatsClientApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/OptionTradeQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/OrderCompositionQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/OrderExecutionQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialPolicyCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioIdentityApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioRequestCorrelation.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/RiskQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskApiServiceCollectionExtensions.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/StrategyPositionCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/StrategyPositionQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/StrategyTradePlanQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/SupervisorCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/TradeFeedRecoveryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/TradeOrderLifecycleApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/TradePlacementCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/TradePlanCommandApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/TradePlanQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client/TradeSelectionQueryApi.cs",
+      "disposition": "method-registry",
+      "group": "protocol",
+      "nativeOwners": [
+        "backend/codec.rs",
+        "backend/transport.rs",
+        "backend/contracts.rs"
+      ],
+      "basis": "Per-method native ownership and positive call sites are in tests/fixtures/backend/operations.json; a whole API class is not declared migrated."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/ApplicationUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/CommandResponseUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/EconomicCalendarUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "calendar",
+      "nativeOwners": [
+        "state/calendar.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Native calendar editor/sidebar and terminal notifications; API date authority."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/FuturesBarDataUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/FuturesEodDataUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/FuturesItiSignalUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/FuturesOptionContractUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/FuturesOptionTickDataStreamingStartedEventConsumer.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/FuturesOptionTickDataUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/FuturesRsiSignalUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/FuturesTradeSignalUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/ICommandResponseUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/IFuturesItiSignalUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/IFuturesOptionContractUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/IIntrinsicTimeStrategyWorkflowUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/IMarketDataFeedResetUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/IMarketDataFeedStatusUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/IMarketDataUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/IOptionTradeSpreadBarDataUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/ISystemAdminUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/ITradePlacementUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "orders",
+      "nativeOwners": [
+        "state/trades.rs",
+        "services/manual_orders.rs",
+        "services/trade_orders.rs"
+      ],
+      "basis": "Native order workspace and scoped command/event owners; server is authoritative."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/ITradePlanActionUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/ITradePlanUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/ITradePositionUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/IYieldCurveRateUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "yield",
+      "nativeOwners": [
+        "state/yield_curve.rs"
+      ],
+      "basis": "Native yield editor with backend CRUD/import."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/IntrinsicTimeStrategyWorkflowUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/LookupTypeUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/MarketDataFeedResetUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/MarketDataFeedStatusUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/MarketDataUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/MarketOutlookUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/OptionTradeSpreadBarDataUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/ScheduledTaskUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "scheduler",
+      "nativeOwners": [
+        "state/scheduled_tasks.rs"
+      ],
+      "basis": "Native scheduler state, output paging, previews and commands; execution stays on server."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/SystemAdminUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/TradePlacementUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "orders",
+      "nativeOwners": [
+        "state/trades.rs",
+        "services/manual_orders.rs",
+        "services/trade_orders.rs"
+      ],
+      "basis": "Native order workspace and scoped command/event owners; server is authoritative."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/TradePlanActionUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/TradePlanUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/TradePositionUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.EventConsumer/YieldCurveRateUIEventConsumer.cs",
+      "disposition": "merged",
+      "group": "yield",
+      "nativeOwners": [
+        "state/yield_curve.rs"
+      ],
+      "basis": "Native yield editor with backend CRUD/import."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Composition/UiClientServiceRegistration.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Analytics/MarketDataAnalyticsCommandService.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Analytics/MarketDataAnalyticsEventService.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Analytics/MarketDataAnalyticsQueryService.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Analytics/StrategyOperationsComposition.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Analytics/StrategyOperationsService.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Application/ApplicationEventService.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Application/ApplicationQueryService.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Application/CommandResponseEventService.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Application/StatusConsoleService.cs",
+      "disposition": "merged",
+      "group": "notifications",
+      "nativeOwners": [
+        "services/notifications.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Typed native subscription owners replace managed observable/event wrappers; feature state handles scoped refresh."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Execution/IUiService.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Execution/UiServiceBase.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/GlobalUsings.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/IUiServiceCatalog.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/MarketData/MarketDataCommandService.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/MarketData/MarketDataEventService.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/MarketData/MarketDataOperationsHealthQueryService.cs",
+      "disposition": "merged",
+      "group": "operations-health",
+      "nativeOwners": [
+        "state/operations_health.rs",
+        "services/dashboard_health.rs"
+      ],
+      "basis": "Native health adapter; unavailable observations cannot retain stale green."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/MarketData/MarketDataQueryService.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/MarketData/OptionTradeSpreadBarDataEventService.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedCommandService.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Operations/ActorHealthQueryService.cs",
+      "disposition": "merged",
+      "group": "actor-health",
+      "nativeOwners": [
+        "state/actor_health.rs"
+      ],
+      "basis": "Native HTTP health reads and NATS supervisor controls."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Operations/ServiceResultMapping.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Operations/SupervisorControlOptions.cs",
+      "disposition": "merged",
+      "group": "actor-health",
+      "nativeOwners": [
+        "state/actor_health.rs"
+      ],
+      "basis": "Native HTTP health reads and NATS supervisor controls."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Operations/UiOperationError.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Operations/UiOperationException.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Operations/UiOperationResult.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/OptionPricing/IOptionPricingService.cs",
+      "disposition": "excluded",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "WinForms-only entry/pricing branch; current Rust constructs BrokerManualTradeOrderViewModel. No local pricing port."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/OptionPricing/OptionPricingService.cs",
+      "disposition": "excluded",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "WinForms-only entry/pricing branch; current Rust constructs BrokerManualTradeOrderViewModel. No local pricing port."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Reference/EconomicCalendarService.cs",
+      "disposition": "merged",
+      "group": "calendar",
+      "nativeOwners": [
+        "state/calendar.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Native calendar editor/sidebar and terminal notifications; API date authority."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Reference/IEconomicCalendarService.cs",
+      "disposition": "merged",
+      "group": "calendar",
+      "nativeOwners": [
+        "state/calendar.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Native calendar editor/sidebar and terminal notifications; API date authority."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Reference/IReferenceDataService.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Reference/ReferenceDataService.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Subscriptions/IUiEventSubscription.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Subscriptions/OwnedUiEventSubscription.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/SystemAdmin/DatabaseBackupService.cs",
+      "disposition": "merged",
+      "group": "backup",
+      "nativeOwners": [
+        "state/database_backup.rs",
+        "services/database_backup.rs"
+      ],
+      "basis": "Native backup administration and scoped history/output; no local backup engine."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/SystemAdmin/IDatabaseBackupService.cs",
+      "disposition": "merged",
+      "group": "backup",
+      "nativeOwners": [
+        "state/database_backup.rs",
+        "services/database_backup.rs"
+      ],
+      "basis": "Native backup administration and scoped history/output; no local backup engine."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/SystemAdmin/IScheduledTaskService.cs",
+      "disposition": "merged",
+      "group": "scheduler",
+      "nativeOwners": [
+        "state/scheduled_tasks.rs"
+      ],
+      "basis": "Native scheduler state, output paging, previews and commands; execution stays on server."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs",
+      "disposition": "merged",
+      "group": "scheduler",
+      "nativeOwners": [
+        "state/scheduled_tasks.rs"
+      ],
+      "basis": "Native scheduler state, output paging, previews and commands; execution stays on server."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/BrokerSubmissionAcknowledgement.cs",
+      "disposition": "merged",
+      "group": "submission",
+      "nativeOwners": [
+        "state/trades/submissions.rs",
+        "services/order_preparation.rs",
+        "services/order_submission.rs",
+        "services/order_close.rs"
+      ],
+      "basis": "Backend preparation/risk values with native confirmation and durable uncertain-operation reconciliation."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/DesktopTradeExecutionContext.cs",
+      "disposition": "merged",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "Native composer/account/preview/execution services; backend owns pricing and financial amounts."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/OrderExecutionNotificationService.cs",
+      "disposition": "merged",
+      "group": "orders",
+      "nativeOwners": [
+        "state/trades.rs",
+        "services/manual_orders.rs",
+        "services/trade_orders.rs"
+      ],
+      "basis": "Native order workspace and scoped command/event owners; server is authoritative."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/PortfolioTradeOrderService.cs",
+      "disposition": "merged",
+      "group": "portfolio",
+      "nativeOwners": [
+        "state/portfolio.rs",
+        "state/portfolio/editors.rs",
+        "state/portfolio/fund_editors.rs",
+        "services/portfolio_commands.rs"
+      ],
+      "basis": "Native portfolio/fund controllers and typed backend commands."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/StrategyPositionService.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/TradePlacementCommandService.cs",
+      "disposition": "merged",
+      "group": "orders",
+      "nativeOwners": [
+        "state/trades.rs",
+        "services/manual_orders.rs",
+        "services/trade_orders.rs"
+      ],
+      "basis": "Native order workspace and scoped command/event owners; server is authoritative."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/TradePlacementEventService.cs",
+      "disposition": "merged",
+      "group": "orders",
+      "nativeOwners": [
+        "state/trades.rs",
+        "services/manual_orders.rs",
+        "services/trade_orders.rs"
+      ],
+      "basis": "Native order workspace and scoped command/event owners; server is authoritative."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/TradePlanActionEventService.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/TradePlanEventService.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/TradePlanQueryService.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/TradePositionFeedEventService.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/Trade/TradeQueryService.cs",
+      "disposition": "merged",
+      "group": "orders",
+      "nativeOwners": [
+        "state/trades.rs",
+        "services/manual_orders.rs",
+        "services/trade_orders.rs"
+      ],
+      "basis": "Native order workspace and scoped command/event owners; server is authoritative."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Net.Services/UiServiceCatalog.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/ActorHealthSession.cs",
+      "disposition": "merged",
+      "group": "actor-health",
+      "nativeOwners": [
+        "state/actor_health.rs"
+      ],
+      "basis": "Native HTTP health reads and NATS supervisor controls."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/AsyncSessionOwner.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/BridgeBootstrap.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/BridgeCatalogData.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/BridgeDocument.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/BridgeInput.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/BridgeWire.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/CoalescedDisplayPublisher.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/ContractDraftMapping.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/ContractEditorGateway.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/ContractEditorSession.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/ContractPublicationFormatter.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/DashboardSession.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/DatabaseBackupSession.cs",
+      "disposition": "merged",
+      "group": "backup",
+      "nativeOwners": [
+        "state/database_backup.rs",
+        "services/database_backup.rs"
+      ],
+      "basis": "Native backup administration and scoped history/output; no local backup engine."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/DisplayDescriptors.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/EconomicCalendarEditorSession.cs",
+      "disposition": "merged",
+      "group": "calendar",
+      "nativeOwners": [
+        "state/calendar.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Native calendar editor/sidebar and terminal notifications; API date authority."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/EditorActionGateway.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/FixtureViewModelSession.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/InspectionActionGateway.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/LiveStrategySession.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/LookupEditorSession.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/MarketChartSession.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/MarketDisplayContracts.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/MarketOutlookPresentation.cs",
+      "disposition": "merged",
+      "group": "market",
+      "nativeOwners": [
+        "services/outlook.rs",
+        "services/market_history.rs",
+        "services/strategy_stream.rs"
+      ],
+      "basis": "Native API context/outlook/history/feed adapters and typed event consumption."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/OperationsHealthSession.cs",
+      "disposition": "merged",
+      "group": "operations-health",
+      "nativeOwners": [
+        "state/operations_health.rs",
+        "services/dashboard_health.rs"
+      ],
+      "basis": "Native health adapter; unavailable observations cannot retain stale green."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/ParameterSetSession.cs",
+      "disposition": "merged",
+      "group": "parameters",
+      "nativeOwners": [
+        "state/parameters.rs",
+        "services/parameters.rs",
+        "services/parameter_fields.rs"
+      ],
+      "basis": "Native typed drafts, validation, lifecycle, assignment and inspection."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/PooledBridgeBuffer.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/PortfolioSession.Editors.cs",
+      "disposition": "merged",
+      "group": "portfolio",
+      "nativeOwners": [
+        "state/portfolio.rs",
+        "state/portfolio/editors.rs",
+        "state/portfolio/fund_editors.rs",
+        "services/portfolio_commands.rs"
+      ],
+      "basis": "Native portfolio/fund controllers and typed backend commands."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/PortfolioSession.Financial.cs",
+      "disposition": "merged",
+      "group": "financial",
+      "nativeOwners": [
+        "state/portfolio/financial_ui.rs",
+        "services/financial.rs",
+        "services/financial_preparation.rs",
+        "services/financial_operations.rs"
+      ],
+      "basis": "Native request preparation/journals and backend-returned financial reports; preserve existing formula basis."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/PortfolioSession.Policy.cs",
+      "disposition": "merged",
+      "group": "portfolio",
+      "nativeOwners": [
+        "state/portfolio.rs",
+        "state/portfolio/editors.rs",
+        "state/portfolio/fund_editors.rs",
+        "services/portfolio_commands.rs"
+      ],
+      "basis": "Native portfolio/fund controllers and typed backend commands."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/PortfolioSession.cs",
+      "disposition": "merged",
+      "group": "portfolio",
+      "nativeOwners": [
+        "state/portfolio.rs",
+        "state/portfolio/editors.rs",
+        "state/portfolio/fund_editors.rs",
+        "services/portfolio_commands.rs"
+      ],
+      "basis": "Native portfolio/fund controllers and typed backend commands."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/ProviderDefinitionSession.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/ProviderReferenceMapping.cs",
+      "disposition": "merged",
+      "group": "contracts",
+      "nativeOwners": [
+        "state/futures_contract.rs",
+        "state/option_contract.rs",
+        "state/provider_definitions.rs",
+        "services/provider_mapping.rs"
+      ],
+      "basis": "Native contract/provider drafts, paging and explicit Draft review."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/PublicationCache.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/PublicationTransfer.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/ReferenceReviewMapping.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/RustClientServiceScope.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/RustDiagnosticLogger.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/RustShellViewModelSession.cs",
+      "disposition": "replaced",
+      "group": "shell",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "backend/configuration.rs",
+        "navigation/shell.rs"
+      ],
+      "basis": "Native startup/composition/navigation/configuration; no managed host or service catalog at runtime."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/ScheduledTaskSession.cs",
+      "disposition": "merged",
+      "group": "scheduler",
+      "nativeOwners": [
+        "state/scheduled_tasks.rs"
+      ],
+      "basis": "Native scheduler state, output paging, previews and commands; execution stays on server."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/SidebarSession.cs",
+      "disposition": "merged",
+      "group": "calendar",
+      "nativeOwners": [
+        "state/calendar.rs",
+        "state/sidebar_calendar.rs"
+      ],
+      "basis": "Native calendar editor/sidebar and terminal notifications; API date authority."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/StrategyCatalogSession.cs",
+      "disposition": "merged",
+      "group": "reference",
+      "nativeOwners": [
+        "state/lookup.rs",
+        "state/strategy_catalog.rs",
+        "services/reference.rs"
+      ],
+      "basis": "Native reference manager/catalog and backend queries."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/StrategyDetailsAdapter.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/StrategyInspectionBackend.cs",
+      "disposition": "merged",
+      "group": "strategy",
+      "nativeOwners": [
+        "state/strategy.rs",
+        "state/strategy_inspection.rs",
+        "services/strategy.rs"
+      ],
+      "basis": "Native strategy stream/history and inspection; values/decisions come from backend."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/StringIds.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/TradeComposerSession.cs",
+      "disposition": "merged",
+      "group": "composer",
+      "nativeOwners": [
+        "state/trades/composer.rs",
+        "services/broker_initialization.rs",
+        "services/option_chain.rs",
+        "services/broker_preview.rs"
+      ],
+      "basis": "Native composer/account/preview/execution services; backend owns pricing and financial amounts."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/TradeMonitorRowSections.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/TradeMonitorUpdates.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/TradePlanDisplay.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/TradePlanRowCache.cs",
+      "disposition": "merged",
+      "group": "monitor",
+      "nativeOwners": [
+        "state/trade_monitors/mod.rs",
+        "state/monitor_cache.rs",
+        "services/trade_monitor_queries.rs",
+        "services/trade_feed_recovery.rs"
+      ],
+      "basis": "Established monitor uses complete backend projections, range history and scoped live updates; old local calculation branches are excluded."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/TradeWorkspaceSession.cs",
+      "disposition": "merged",
+      "group": "orders",
+      "nativeOwners": [
+        "state/trades.rs",
+        "services/manual_orders.rs",
+        "services/trade_orders.rs"
+      ],
+      "basis": "Native order workspace and scoped command/event owners; server is authoritative."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/UiRequestHistory.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/VirtualGridDataset.cs",
+      "disposition": "replaced",
+      "group": "lifecycle",
+      "nativeOwners": [
+        "app/runtime.rs",
+        "state/publications.rs",
+        "backend/transport.rs"
+      ],
+      "basis": "Managed observable/dispatcher/gateway/publication/interface infrastructure is replaced by native state, channels, task ownership and typed transport."
+    },
+    {
+      "source": "TomasAI.IFM.UI.Rust.Bridge.Net/YieldCurveEditorSession.cs",
+      "disposition": "merged",
+      "group": "yield",
+      "nativeOwners": [
+        "state/yield_curve.rs"
+      ],
+      "basis": "Native yield editor with backend CRUD/import."
+    }
+  ]
+}

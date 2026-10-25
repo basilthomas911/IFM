@@ -198,3 +198,57 @@ The full solution build additionally exposed three stale test call sites from th
 - Treasury hosted-service fixtures: **2 passed**, `architecture-resolution-treasury-tests.log`.
 - Calendar import integration: **1 passed**, `architecture-resolution-calendar-integration.log`; fixture now uses the PostgreSQL schema catalog and shared accepted-import/event-log transaction.
 - No live acceptance test was started during this cleanup.
+
+## Pre-standalone backend qualification without live trading
+
+Run date: **2026-10-23**. This qualification exercises the existing backend and current managed Rust client boundary before standalone UI implementation. It does not qualify standalone Rust or rendered-screen parity.
+
+### Isolation and permitted operations
+
+- The existing Development API (PID 79168) and MarketData Host (PID 117556) were not restarted or fault-injected. Running-backend checks used queries only: market session/ValueDate, fund metrics, established trade, realtime availability, valued position history, chart history, and order preparation. No live feed was enabled and no order or financial posting was submitted to Development.
+- Mutating integration cases use the domain actor fixture's separately owned PostgreSQL, Scylla, Redis and NATS containers, synthetic market data, and emulator execution. They do not use the Development financial database or a real broker.
+- Builds use isolated artifact directories. The current UI implementation and deployment remain available; no standalone project was created in this verification step.
+
+### Running API evidence through current UI services
+
+Both read-only tests in `LiveBackendProcessingBoundaryTests` passed against execution trade `101.701.1901.1501`:
+
+- API ValueDate was **2026-10-26**, with a valid **Closed** session, no active trading date, and next session start **2026-10-25 22:00 UTC**. The client used the API date despite the workstation still being on Friday 23 October. No current Monday realtime snapshot was available; this is recorded as unavailable, not healthy live-market proof.
+- The server returned a bounded six-hour chart with **237 stored samples** in the initial successful capture. The final check additionally verifies that every sample lies inside the returned range and that samples are ordered. Stored sample count can change as the server window moves.
+- Seven saved position-history rows spanning six value dates from 16 through 23 October carried backend history valuations. The query uses a separate 30-day server-as-of range because these are stable daily lifecycle rows, not minute chart samples.
+- Fund metrics included the approved `LegacyLedgerPostings/v1` calculation basis. Existing formula semantics are preserved; the report is not represented as daily-return or cash-flow-adjusted performance.
+- Read-only preparation of the saved Iron Condor opening-price candidate returned cash **-$572.50**, estimated fees **$2.60**, total **-$569.90**, and maximum loss **$1,927.50**. These are preparation values for a saved-price candidate, not a current executable market quote or an order submission.
+
+Evidence: `.artifacts/pre-standalone-backend-readonly.log` and `.artifacts/pre-standalone-backend-readonly/{backend-processing-live-results.json,backend-session-history-results.json}`.
+
+### Test harness corrections
+
+The initial read-only attempt supplied an execution-trade ID to a setup-trade lookup and correctly received `FundOrderTrade was not found`. The harness now accepts an explicit `IFM_BOUNDARY_ESTABLISHED_TRADE_ID`, retaining the separate setup-to-execution lookup for callers that supply a setup identity. A second assertion incorrectly required stable daily position-history rows within the chart's six-hour sample window; history now has its own bounded server-time range. The chart's six-hour and nonempty assertions remain in place.
+
+Enabling the normally opt-in `BrokerTradePreviewNatsTests` exposed another stale fixture: its actor had no underlying reference data, which the migrated handler correctly rejects. The fixture now supplies controlled option/underlying references and deliberately sends an incorrect client tick of 0.25. Twenty real NATS preview updates prove the backend resolves the ES combination tick to 0.05 and returns independently expected quantity-scaled payoff values. Empty drafts and unknown references return errors. All corrections were test-harness changes; no production backend code was changed to make them pass.
+
+### Final results
+
+**615 unique tests passed; zero remaining failures in the selected verification matrix.** The full presentation run initially skipped its one explicitly opt-in NATS case; that same case was subsequently enabled on a disposable nonstandard-port broker and passed. It is counted once below and is not an outstanding skipped acceptance check.
+
+| Verification | Passed | Evidence under `.artifacts/` |
+| --- | ---: | --- |
+| Order preparation, payoff preview, realtime projections, saved valuation, six-hour ranges | 37 | `pre-standalone-backend-trade-tests.log` |
+| Current UI preparation/cancel and metrics over isolated API/NATS, scoped financial queries, book preparation, financial process replay | 27 | `pre-standalone-backend-isolated-integration.log` |
+| Fund metric numerical and wire contracts | 4 | `pre-standalone-backend-metrics.log` |
+| Evaluated option-chain summary | 2 | `pre-standalone-backend-market-summary.log` |
+| Daily indicator preview/baseline behavior | 5 | `pre-standalone-backend-outlook.log` |
+| Backend MDI classification and boundaries | 8 | `pre-standalone-backend-mdi.log` |
+| Server UTC-window partition selection | 2 | `pre-standalone-backend-server-range.log` |
+| Manual futures/vertical/condor emulator behavior | 17 | `pre-standalone-backend-broker-emulator.log` |
+| Full current managed presentation suite, including 39 architecture checks | 480 | `pre-standalone-backend-current-ui.log` |
+| Explicit real-NATS preview actor/client round trips | 1 | `pre-standalone-backend-preview-nats.log` |
+| Recovery runtime/coordinator and closed-market frozen emulator behavior | 24 | `pre-standalone-backend-recovery.log` |
+| Durable emulator submission, duplicate replay, changed request rejection | 6 | `pre-standalone-backend-emulator-submission.log` |
+| Running Development API through current Rust UI services: metrics, preparation, server date/session, chart and valued history | 2 | `pre-standalone-backend-readonly.log` |
+
+Affected projects built successfully under warnings-as-errors. This is not a claim of a new whole-solution build. The running API/Host retained their original PIDs and creation times throughout. Fixture-owned containers and the additional preview-only NATS broker were stopped after verification. No Development order, financial posting, live-feed start, or service reset occurred.
+
+### Qualification limits
+
+This run can establish backend/current-client behavior and isolated financial execution without live trading. Actual provider quote freshness, market close/open transitions, and visible desktop workflows remain separate acceptance gates. The new standalone Rust transports, models, journals, and screens will still require their own protocol and workflow parity tests before replacing the current UI.

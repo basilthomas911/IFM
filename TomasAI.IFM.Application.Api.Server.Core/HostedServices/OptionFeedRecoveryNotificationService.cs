@@ -30,7 +30,7 @@ public sealed class OptionFeedRecoveryNotificationService(IMarketDataApi market,
         try
         {
             if (!producer.IsRunning)
-                await producer.StartAsync(new(ActorType.Event, nameof(OptionFeedRecoveryNotificationService)), token).ConfigureAwait(false);
+                await producer.StartAsync(new(ActorType.Event, nameof(OptionFeedRecoveryNotificationService)), token).AsTask().WaitAsync(token).ConfigureAwait(false);
         }
         finally { producerStart.Release(); }
     }

@@ -9,6 +9,7 @@ public sealed partial class MarketDataWorkerHost
     readonly Dictionary<(Guid Worker, Guid Lease), WorkerOptionChainRequest> optionLeases = [];
     sealed record BusinessScope(WorkerOptionChainRequest Chain, WorkerOptionChainOwnership Ownership);
     readonly Dictionary<(Guid Worker, string Scope), BusinessScope> businessScopes = [];
+    readonly SemaphoreSlim optionLeaseChanges = new(1, 1);
 
     public async Task<WorkerOptionChainResult> ApplyCommittedOwnershipAsync(string role, Guid workerId,
         WorkerOptionChainRequest chain, WorkerOptionChainRelease update, CancellationToken token)
@@ -31,6 +32,14 @@ public sealed partial class MarketDataWorkerHost
     public async Task<WorkerOptionChainResult> AcquireOptionLeaseAsync(string role, Guid workerId,
         WorkerOptionChainRequest request, CancellationToken token)
     {
+        await optionLeaseChanges.WaitAsync(token).ConfigureAwait(false);
+        try { return await AcquireOptionLeaseCoreAsync(role, workerId, request, token).ConfigureAwait(false); }
+        finally { optionLeaseChanges.Release(); }
+    }
+
+    async Task<WorkerOptionChainResult> AcquireOptionLeaseCoreAsync(string role, Guid workerId,
+        WorkerOptionChainRequest request, CancellationToken token)
+    {
         var worker = RequireWorker(role, workerId);
         lock (gate)
         {
@@ -43,27 +52,45 @@ public sealed partial class MarketDataWorkerHost
         }
         BusinessScope? business;
         lock (gate) businessScopes.TryGetValue((workerId, request.ScopeId), out business);
+        WorkerOptionChainRequest? canonical;
+        lock (gate) canonical = optionLeases.Values.FirstOrDefault(lease => lease.ScopeId == request.ScopeId
+            && lease.GenerationId == request.GenerationId);
+        if (canonical is not null && WorkerOptionChainRuntime.PhysicalDigest(canonical.Options) == WorkerOptionChainRuntime.PhysicalDigest(request.Options))
+        {
+            // A lease renewal never rolls a shared scope back to that owner's older pricing context.
+            // Explicit refreshes compare against the latest Host-owned context, serialized above.
+            request = request.ExpectedContextDigest is null ? request with { Options = canonical.Options }
+                : request with { ExpectedContextDigest = ContextDigest(canonical) };
+        }
         // A restored business owner can refresh pricing before a new temporary lease
         // is attached. Authority comes from committed ownership, not caller claims.
         if (business is not null && business.Ownership.Owners.Length > 0)
         {
             var refreshed = await worker.AcquireOptionChainAsync(request with
-                { LeaseId = business.Ownership.Owners[0].LeaseId,
+                { LeaseId = business.Ownership.Owners[0].LeaseId, ReconnectExactContract = false,
                     ExpectedContextDigest = PricingSemanticHash.Compute(new { request.MaturityDate, request.SeparateContractConnection,
                         Options = business.Chain.Options.OrderBy(option => option.Pricing.Contract.ContractId, StringComparer.Ordinal).ToImmutableArray() }) }, token).ConfigureAwait(false);
             if (!refreshed.Active) return refreshed;
             request = request with { ExpectedContextDigest = refreshed.ContextDigest };
         }
         var result = await worker.AcquireOptionChainAsync(request, token).ConfigureAwait(false);
+        request = request with { ReconnectExactContract = false };
         lock (gate)
         {
             if (!CanUseGeneration(role, worker.Current.Dataset, workerId, request.GenerationId)) return LeaseUnavailable();
             if (result.Active) optionLeases[(workerId, request.LeaseId)] = request;
+            if (result.Active)
+                foreach (var key in optionLeases.Where(pair => pair.Key.Worker == workerId && pair.Value.ScopeId == request.ScopeId).Select(pair => pair.Key).ToArray())
+                    optionLeases[key] = optionLeases[key] with { Options = request.Options, ExpectedContextDigest = null };
             if (result.Active && businessScopes.TryGetValue((workerId, request.ScopeId), out var owned))
                 businessScopes[(workerId, request.ScopeId)] = owned with { Chain = request };
         }
         return result;
     }
+
+    static string ContextDigest(WorkerOptionChainRequest request) => PricingSemanticHash.Compute(new {
+        request.MaturityDate, request.SeparateContractConnection,
+        Options = request.Options.OrderBy(option => option.Pricing.Contract.ContractId, StringComparer.Ordinal).ToImmutableArray() });
 
     public async Task<WorkerOptionChainResult> ReleaseOptionLeaseAsync(string role, Guid workerId,
         WorkerOptionChainRelease request, CancellationToken token)
@@ -93,6 +120,20 @@ public sealed partial class MarketDataWorkerHost
     {
         WorkerOptionChainRequest[] desired;
         BusinessScope[] committed;
+        var contexts = new Dictionary<string, WorkerOptionChainRequest>(StringComparer.Ordinal);
+        async Task<WorkerOptionChainRequest> PrepareAsync(WorkerOptionChainRequest request)
+        {
+            if (contexts.TryGetValue(request.ScopeId, out var canonical))
+            {
+                if (WorkerOptionChainRuntime.PhysicalDigest(canonical.Options) != WorkerOptionChainRuntime.PhysicalDigest(request.Options))
+                    throw new InvalidOperationException("Conflicting desired physical definitions for scope " + request.ScopeId);
+                return request with { Options = canonical.Options };
+            }
+            var prepared = backendState?.RequalifyOptions is { } qualify
+                ? await qualify(request, token).WaitAsync(token).ConfigureAwait(false) : request;
+            contexts[request.ScopeId] = prepared;
+            return prepared;
+        }
         // Capture one authoritative desired subscription manifest, just as futures restores its manifest.
         lock (gate)
         {
@@ -102,18 +143,23 @@ public sealed partial class MarketDataWorkerHost
         }
         foreach (var old in desired)
         {
+            logger.LogInformation("Restoring option subscription; Scope={Scope}; Lease={Lease}; Generation={Generation}; Contracts={Contracts}",
+                old.ScopeId, old.LeaseId, worker.Current.GenerationId, string.Join(",", old.Options.Select(option => option.Pricing.Contract.ContractId)));
             lock (gate)
                 if (!optionLeases.ContainsKey((worker.Current.WorkerInstanceId, old.LeaseId))
                     || old.LeaseExpiresAtUtc <= DateTimeOffset.UtcNow) continue;
             var next = old with { GenerationId = worker.Current.GenerationId, ExpectedContextDigest = null,
                 Options = old.Options.Select(option => option with { Pricing = option.Pricing with
                     { GenerationId = worker.Current.GenerationId } }).ToImmutableArray() };
+            next = await PrepareAsync(next).ConfigureAwait(false);
             WorkerOptionChainResult restored;
             do
             {
                 restored = await worker.AcquireOptionChainAsync(next, token).ConfigureAwait(false);
                 if (restored.Failure?.Code == "UnderlyingQuoteUnavailable") await Task.Delay(50, token).ConfigureAwait(false);
             } while (restored.Failure?.Code == "UnderlyingQuoteUnavailable" && next.LeaseExpiresAtUtc > DateTimeOffset.UtcNow);
+            logger.LogInformation("Option subscription restore result; Scope={Scope}; Lease={Lease}; Generation={Generation}; Active={Active}; Error={Error}",
+                next.ScopeId, next.LeaseId, next.GenerationId, restored.Active, restored.Failure?.Detail);
             bool stillDesired;
             lock (gate)
             {
@@ -127,7 +173,7 @@ public sealed partial class MarketDataWorkerHost
                     await worker.ReleaseOptionChainAsync(new(next.ScopeId, next.LeaseId, next.GenerationId), token).ConfigureAwait(false);
                 continue;
             }
-            if (!restored.Active) throw new InvalidOperationException("Option lease restoration failed: " + restored.Failure?.Code);
+            if (!restored.Active) throw new InvalidOperationException("Option lease restoration failed: " + restored.Failure?.Code + ": " + restored.Failure?.Detail);
             bool retained;
             lock (gate)
             {
@@ -145,6 +191,7 @@ public sealed partial class MarketDataWorkerHost
                 LeaseExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(120), ExpectedContextDigest = null,
                 Options = business.Chain.Options.Select(option => option with { Pricing = option.Pricing with
                     { GenerationId = worker.Current.GenerationId } }).ToImmutableArray() };
+            bootstrap = await PrepareAsync(bootstrap).ConfigureAwait(false);
             WorkerOptionChainResult acquired;
             do
             {

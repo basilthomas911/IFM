@@ -2,6 +2,56 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "IFM Standalone Rust UI: Build",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/UI/Rust/Build-StandaloneRust.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM Standalone Rust UI: Verify Isolated Backend",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/UI/Rust/Verify-StandaloneRust.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM Standalone Rust UI: Run With Client Profile",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/UI/Rust/Start-StandaloneRust.ps1",
+        "-ConfigPath",
+        "${input:standaloneClientProfile}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "IFM Rust UI: Build",
       "type": "process",
       "command": "powershell",
@@ -274,6 +324,26 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "IFM: Prepare API + eGui Rust UI Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "IFM: Stop API + UI (Development)",
+        "IFM: Build Market Data Host (Debug)",
+        "IFM: Build API Server (Debug)",
+        "IFM Standalone Rust UI: Build",
+        "IFM: Build Server Manager (Debug)",
+        "IFM: Build Scheduler Host (Debug)"
+      ],
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "standaloneClientProfile",
+      "type": "promptString",
+      "description": "Full path to an existing UI client JSON profile for the standalone Rust UI"
     }
   ]
 }

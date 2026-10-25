@@ -1,0 +1,1 @@
+{"id":"fixture-policy","revision":7,"enforced":true,"enabledSources":["LocalWorkstation"],"protectionSets":["postgres-main"],"rpo":"00:15:00","rto":"01:30:00","daily":7,"weekly":4,"monthly":12,"verificationLevels":["Checksum"],"maximumVerificationAge":"1.00:00:00"}

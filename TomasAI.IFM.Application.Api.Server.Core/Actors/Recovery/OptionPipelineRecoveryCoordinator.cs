@@ -10,6 +10,7 @@ namespace TomasAI.IFM.Application.Api.Server.Core.Actors.Recovery;
 public sealed record OptionPipelineInspection(DateOnly? ValueDate, string? Failure, string[] Positions, DateTimeOffset? RecoveryDeadlineUtc = null);
 public interface IOptionPipelineRecoveryRuntime
 {
+    string? RecoveryDetail => null;
     OptionPipelineInspection Inspect();
     Task RecoverAndVerifyAsync(Guid operationId, OptionPipelineInspection inspection, DateTimeOffset deadlineUtc, CancellationToken cancellationToken);
 }
@@ -78,8 +79,26 @@ public sealed class OptionPipelineRecoveryCoordinator(IOptionPipelineRecoveryRun
         {
             if (remaining <= TimeSpan.Zero) throw new TimeoutException("The two-minute recovery deadline expired before work could start.");
             logger.LogWarning("Option emergency recovery started; OperationId={OperationId}; DeadlineUtc={DeadlineUtc}; Reason={Reason}", episode.Id, episode.DeadlineUtc, episode.Inspection.Failure);
-            // Even the synchronous prefix of a faulty adapter must not block the deadline observer.
-            var work = Task.Run(() => runtime.RecoverAndVerifyAsync(episode.Id, episode.Inspection, episode.DeadlineUtc, linked.Token), CancellationToken.None);
+            // Every failed attempt remains inside the same episode and original deadline.
+            var work = Task.Run(async () =>
+            {
+                for (var attempt = 1; ; attempt++)
+                {
+                    linked.Token.ThrowIfCancellationRequested();
+                    try
+                    {
+                        await runtime.RecoverAndVerifyAsync(episode.Id, episode.Inspection, episode.DeadlineUtc, linked.Token).WaitAsync(linked.Token).ConfigureAwait(false);
+                        return;
+                    }
+                    catch (Exception error) when (!linked.IsCancellationRequested)
+                    {
+                        episode.LastError = error.Message;
+                        logger.LogWarning(error, "Option recovery attempt failed; continuing; OperationId={OperationId}; Attempt={Attempt}; RemainingMilliseconds={RemainingMilliseconds}",
+                            episode.Id, attempt, Math.Max(0, (episode.DeadlineUtc - clock.GetUtcNow()).TotalMilliseconds));
+                        await Task.Delay(TimeSpan.FromMilliseconds(250), clock, linked.Token).ConfigureAwait(false);
+                    }
+                }
+            }, CancellationToken.None);
             // Observe abandoned faults; never await an uncooperative operation beyond the episode deadline.
             _ = work.ContinueWith(task => { _ = task.Exception; }, CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
@@ -99,6 +118,7 @@ public sealed class OptionPipelineRecoveryCoordinator(IOptionPipelineRecoveryRun
             var now = clock.GetUtcNow().UtcDateTime;
             var id = new MarketDataFeedId(episode.Inspection.ValueDate!.Value);
             var detail = deadline.IsCancellationRequested ? "The two-minute recovery deadline expired." : error.Message;
+            if ((runtime.RecoveryDetail ?? episode.LastError) is { } lastError) detail += " Last failed step: " + lastError;
             var failure = new MarketDataDatasetRecoveryFailedEvent
             {
                 Id = Guid.NewGuid(), CommandId = episode.Id, EntityId = id,
@@ -109,7 +129,7 @@ public sealed class OptionPipelineRecoveryCoordinator(IOptionPipelineRecoveryRun
                 ErrorMessage = $"Option pipeline recovery failed: {detail} Affected positions: {string.Join(", ", episode.Inspection.Positions)}. "
                     + "Live monitoring is not verified. "
                     + (Environment.GetEnvironmentVariable("IFM_API_RECOVERY_CONTROLLER") == "1"
-                        ? "Server Manager will check the single-restart allowance after this UI notification."
+                        ? "Server Manager will check for an outstanding or failed API restart after this UI notification."
                         : "Automatic API restart is disabled in this release.")
             };
             lock (gate)
@@ -130,5 +150,6 @@ public sealed class OptionPipelineRecoveryCoordinator(IOptionPipelineRecoveryRun
         public bool HoldCompletion { get; init; }
         public Task? Work { get; set; }
         public MarketDataDatasetRecoveryFailedEvent? Failure { get; set; }
+        public string? LastError { get; set; }
     }
 }

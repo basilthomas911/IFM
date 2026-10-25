@@ -1,0 +1,26 @@
+{
+  "controls": [{"verb":"FeedScenario","value":"Normal"}],
+  "comparison":{"captures":["system-backups","backup-setup","scheduled-logs","scheduled-setup","scheduled-preview"],"apiClockDefaults":{"standaloneDate":"2026-10-26","standaloneTime":"08:30:00","basis":"User requires all business dates/defaults from the API. Hybrid uses wall time; standalone uses frozen API AsOfUtc 2026-10-26T12:30:00Z, displayed in Eastern time. Only these disabled date/time defaults are excepted."}},
+  "steps": [
+    {"action":"wait","name":"Stop Market Feeds"},
+    {"action":"invoke","name":"System","type":"Button"},
+    {"action":"wait","name":"System Admin Manager"},
+    {"action":"pause","milliseconds":1000},
+    {"action":"snapshot","name":"system-backups","scope":"System Admin Manager"},
+    {"action":"invoke","name":"Setup","type":"Button"},
+    {"action":"wait","name":"Load policy","type":"Button","enabled":true},
+    {"action":"snapshot","name":"backup-setup","scope":"System Admin Manager"},
+    {"action":"expand","name":"","type":"ComboBox","enabled":true,"scope":"System Admin Manager"},
+    {"action":"invoke","name":"Scheduled Tasks","type":"Button"},
+    {"action":"wait","name":"Logs","type":"Button"},
+    {"action":"pause","milliseconds":1000},
+    {"action":"snapshot","name":"scheduled-logs","scope":"System Admin Manager"},
+    {"action":"invoke","name":"Setup","type":"Button"},
+    {"action":"wait","name":"Preview","type":"Button","enabled":true},
+    {"action":"snapshot","name":"scheduled-setup","scope":"System Admin Manager"},
+    {"action":"invoke","name":"Preview","type":"Button","enabled":true},
+    {"action":"pause","milliseconds":1000},
+    {"action":"snapshot","name":"scheduled-preview","scope":"System Admin Manager"},
+    {"action":"close"}
+  ]
+}

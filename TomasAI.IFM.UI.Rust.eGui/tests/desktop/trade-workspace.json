@@ -1,0 +1,17 @@
+{
+ "controls":[{"verb":"FeedScenario","value":"Normal"},{"verb":"TradeWorkspaceMode","value":"ComposeOptions"},{"verb":"BrokerInitMode","value":"Normal"},{"verb":"BrokerReadMode","value":"Empty"},{"verb":"OptionChainMode","value":"ComposeOptions"}],
+ "comparison":{"captures":["trade-orders","trade-blotter"]},
+ "steps":[
+  {"action":"wait","name":"Stop Market Feeds"},
+  {"action":"invoke","name":"Trade Orders","type":"Button","enabled":true},
+  {"action":"wait","name":"Trade Order Editor","type":"Window"},
+  {"action":"wait","name":"Add Trade...","type":"Button","enabled":true,"scope":"Trade Order Editor"},
+  {"action":"wait","name":"Load Trade","type":"Button","scope":"Trade Order Editor"},
+  {"action":"snapshot","name":"trade-orders","scope":"Trade Order Editor"},
+  {"action":"invoke","name":"Trade Blotter","type":"Button","enabled":true,"scope":"Trade Order Editor"},
+  {"action":"pause","milliseconds":1000},
+  {"action":"wait","name":"Trade Blotter","type":"Button","enabled":true,"scope":"Trade Order Editor"},
+  {"action":"snapshot","name":"trade-blotter","scope":"Trade Order Editor"},
+  {"action":"close"}
+ ]
+}

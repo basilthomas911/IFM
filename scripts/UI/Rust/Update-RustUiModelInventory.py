@@ -156,7 +156,7 @@ def main() -> None:
         writer.writerows(supporting)
     commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT).decode().strip()
     lines = [f"# Windows Rust UI model inventory — {args.date}", "",
-        f"Source baseline: `{commit}`. Target: `TomasAI.IFM.UI.Rust.eGui` (planned; not implemented).", "",
+        f"Source baseline: `{commit}`. Target: `TomasAI.IFM.UI.Rust.eGui`. This is a source/reference census; consult the native ownership ledger and full migration plan for implementation and acceptance status.", "",
         "## Method and limits", "",
         "Inventory includes every nonignored working-tree C# file in UI.Net.ViewModels and UI.Net.Models, including contracts, helpers, nested types and journals. "
         "Production and test C# files are scanned for type and extension-method identifier references, with comments and string literals excluded. "

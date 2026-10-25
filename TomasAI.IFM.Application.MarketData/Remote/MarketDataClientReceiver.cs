@@ -50,7 +50,13 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
                 try
                 {
                     if (!isOption && !mirror.Accept(frame)) continue;
-                    await (isOption ? optionIngress : futureIngress).AcceptAsync(frame, stoppingToken).ConfigureAwait(false);
+                    var accepted = await (isOption ? optionIngress : futureIngress).AcceptAsync(frame, stoppingToken).ConfigureAwait(false);
+                    if (isOption && !accepted && frame.Kind == DatasetPublicationKind.OptionQuoteObservation)
+                    {
+                        var tick = MessagePack.MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent>(frame.Payload).OptionMarketPriceObservation!.OptionTickData;
+                        logger.LogDebug("Option observation not admitted; Contract={Contract}; Generation={Generation}; QuoteUtc={QuoteUtc}; RiskUtc={RiskUtc}; PublicationSequence={Sequence}",
+                            tick.ContractId, frame.GenerationId, tick.ObservedAtUtc, tick.CalculatedAtUtc, frame.PublicationSequence);
+                    }
                 }
                 catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested) { }
                 catch (Exception error) when (!stoppingToken.IsCancellationRequested)
@@ -91,6 +97,25 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
                     if (!mirror.Apply(snapshot)) continue;
                     Sync(futures, activeFutures, snapshot, "Futures");
                     Sync(options, activeOptions, snapshot, "Options");
+                    // Live delivery and catch-up share ingress serialization and per-contract ordering.
+                    // Repeated snapshots are harmless and never rewrite exchange/calculation timestamps.
+                    foreach (var observation in snapshot.OptionObservations ?? [])
+                    {
+                        try
+                        {
+                            if (await optionIngress.AcceptAsync(observation, deadline.Token).ConfigureAwait(false))
+                            {
+                                var tick = MessagePack.MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent>(observation.Payload).OptionMarketPriceObservation!.OptionTickData;
+                                logger.LogInformation("Option catch-up delivered; Contract={Contract}; Generation={Generation}; QuoteUtc={QuoteUtc}; RiskUtc={RiskUtc}; PublicationSequence={Sequence}",
+                                    tick.ContractId, observation.GenerationId, tick.ObservedAtUtc, tick.CalculatedAtUtc, observation.PublicationSequence);
+                            }
+                        }
+                        catch (Exception error) when (!deadline.IsCancellationRequested)
+                        {
+                            processingHealth?.Report(observation.ValueDate, observation.GenerationId, "OptionCatchUp", error, stoppingToken);
+                            logger.LogWarning(error, "Option catch-up failed; retained value remains available for retry; Generation={Generation}", observation.GenerationId);
+                        }
+                    }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
                 catch (Exception error)

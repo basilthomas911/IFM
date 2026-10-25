@@ -34,6 +34,25 @@ public sealed class DevelopmentRustUiSelectionTests
         ui.StartOrder.Should().BeGreaterThan(api.StartOrder);
     }
 
+    [Fact]
+    public void Egui_selection_uses_standalone_executable_with_existing_managed_lifecycle()
+    {
+        var options = Options();
+        var api = options.Processes[0];
+        var scheduler = options.Processes[2];
+        options.SelectDevelopmentUi("Development", "eGui", @"C:\repos\IFM");
+        options.Validate();
+        options.Processes[0].Should().BeSameAs(api);
+        api.ReadinessUri.Should().Be("http://localhost:22543/health/launch-ready");
+        options.Processes[2].Should().BeSameAs(scheduler);
+        var ui = options.Processes.Single(p => p.Key == "ui");
+        ui.ResolveExecutablePath().Should().Be(@"C:\repos\IFM\.artifacts\standalone-rust-ui\app\TomasAI.IFM.UI.Rust.eGui.exe");
+        ui.Arguments.Should().BeEmpty();
+        ui.EnvironmentVariables.Should().NotContainKey("IFM_RUST_UI_MODE");
+        ui.ShutdownMode.Should().Be(ProcessShutdownMode.CloseMainWindow);
+        ui.StartOrder.Should().BeGreaterThan(api.StartOrder);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("WinForms")]
@@ -45,11 +64,13 @@ public sealed class DevelopmentRustUiSelectionTests
         options.Processes[1].EnvironmentVariables.Should().NotContainKey("IFM_RUST_UI_MODE");
     }
 
-    [Fact]
-    public void Rust_selection_cannot_change_production_process_targets()
+    [Theory]
+    [InlineData("Rust")]
+    [InlineData("eGui")]
+    public void Rust_selection_cannot_change_production_process_targets(string selection)
     {
         var options = Options();
-        var action = () => options.SelectDevelopmentUi("Production", "Rust", @"C:\repos\IFM");
+        var action = () => options.SelectDevelopmentUi("Production", selection, @"C:\repos\IFM");
         action.Should().Throw<InvalidOperationException>();
         options.Processes[1].ExecutablePath.Should().Be("ui.exe");
     }

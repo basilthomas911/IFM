@@ -93,6 +93,12 @@ public sealed class MarketDataNatsService(MarketDataWorkerHost host, MarketDataH
                     .InvokeAsync(call, deadline.Token).ConfigureAwait(false), null);
             }
             if (request.Path == "api/GetBackendStatusAsync") return Reply(host.GetBackendStatus());
+            if (request.Path == "api/GetBackendReadSnapshotAsync") return Reply(host.CaptureReadSnapshot());
+            if (request.Path == "api/RepairOptionObservationsAsync")
+            {
+                var call = MarketDataHostConnection.Decode<TomasAI.IFM.Application.MarketData.Remote.MarketDataApiCall>(request.Payload);
+                return Reply(await host.RepairOptionObservationsAsync(MarketDataHostConnection.Decode<TomasAI.IFM.Application.MarketData.Contracts.OptionObservationRepairRequest>(call.Arguments[0]), deadline.Token).ConfigureAwait(false));
+            }
             if (request.Path == "api/InjectDevelopmentOptionWorkerFaultAsync")
             {
                 var call = MarketDataHostConnection.Decode<TomasAI.IFM.Application.MarketData.Remote.MarketDataApiCall>(request.Payload);

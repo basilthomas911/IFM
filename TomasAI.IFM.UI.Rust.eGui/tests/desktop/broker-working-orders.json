@@ -1,0 +1,116 @@
+﻿{
+    "controls":  [
+                     {
+                         "verb":  "FeedScenario",
+                         "value":  "Normal"
+                     },
+                     {
+                         "verb":  "TradeWorkspaceMode",
+                         "value":  "ComposeFutures"
+                     },
+                     {
+                         "verb":  "BrokerInitMode",
+                         "value":  "Normal"
+                     },
+                     {
+                         "verb":  "BrokerReadMode",
+                         "value":  "Working"
+                     },
+                     {
+                         "verb":  "OptionChainMode",
+                         "value":  "ComposeFutures"
+                     }
+                 ],
+    "comparison":  {
+                       "captures":  [
+                                        "broker-working-orders",
+                                        "broker-order-fills"
+                                    ]
+                   },
+    "steps":  [
+                  {
+                      "action":  "wait",
+                      "name":  "Stop Market Feeds"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "Trade Orders",
+                      "type":  "Button",
+                      "enabled":  true
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Trade Order Editor",
+                      "type":  "Window"
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Add Trade...",
+                      "type":  "Button",
+                      "enabled":  true,
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Load Trade",
+                      "type":  "Button",
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "action":  "snapshot",
+                      "name":  "trade-orders",
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "Trade Blotter",
+                      "type":  "Button",
+                      "enabled":  true,
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "action":  "pause",
+                      "milliseconds":  1000
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Trade Blotter",
+                      "type":  "Button",
+                      "enabled":  true,
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "scope":  "Trade Order Editor",
+                      "type":  "Button",
+                      "name":  "Orders and Fills",
+                      "action":  "invoke"
+                  },
+                  {
+                      "milliseconds":  1000,
+                      "action":  "pause"
+                  },
+                  {
+                      "scope":  "Trade Order Editor",
+                      "name":  "broker-working-orders",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "scope":  "Trade Order Editor",
+                      "type":  "Button",
+                      "name":  "Order Fills",
+                      "action":  "invoke"
+                  },
+                  {
+                      "milliseconds":  1000,
+                      "action":  "pause"
+                  },
+                  {
+                      "scope":  "Trade Order Editor",
+                      "name":  "broker-order-fills",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "action":  "close"
+                  }
+              ]
+}

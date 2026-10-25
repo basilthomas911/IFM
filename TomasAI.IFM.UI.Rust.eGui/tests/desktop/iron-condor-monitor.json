@@ -1,0 +1,117 @@
+﻿{
+    "controls":  [
+                     {
+                         "verb":  "FeedScenario",
+                         "value":  "Normal"
+                     },
+                     {
+                         "verb":  "TradeWorkspaceMode",
+                         "value":  "Monitor"
+                     },
+                     {
+                         "verb":  "BrokerInitMode",
+                         "value":  "Disabled"
+                     },
+                     {
+                         "verb":  "OptionChainMode",
+                         "value":  "ComposeOptions"
+                     },
+                     {
+                         "verb":  "MonitorMode",
+                         "value":  "Normal"
+                     }
+                 ],
+    "comparison":  {
+                       "captures":  [
+                                        "iron-condor-stopped",
+                                        "iron-condor-live",
+                                        "iron-condor-updated"
+                                    ],
+                       "region":  {
+                                      "left":  0.22,
+                                      "right":  0.78,
+                                      "bottom":  0.97,
+                                      "top":  0.05
+                                  },
+                       "clippedNeighborControls":  [
+                                                       {
+                                                           "type":  "Text",
+                                                           "name":  "Workflow End State",
+                                                           "basis":  "The flattened egui UIA tree exposes horizontally clipped strategy-panel text outside its left pane. This is not an actor explorer field; owned-window screenshots retain the actual pixels."
+                                                       },
+                                                       {
+                                                           "type":  "Text",
+                                                           "name":  "In Progress",
+                                                           "basis":  "The value paired with the clipped neighboring Workflow End State label; not a field in this actor-health fixture."
+                                                       }
+                                                   ]
+                   },
+    "steps":  [
+                  {
+                      "action":  "wait",
+                      "name":  "Stop Market Feeds"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "Trade Orders",
+                      "type":  "Button"
+                  },
+                  {
+                      "action":  "wait",
+                      "name":  "Add Trade...",
+                      "type":  "Button",
+                      "enabled":  true,
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "action":  "invoke",
+                      "name":  "Load Trade",
+                      "type":  "Button",
+                      "enabled":  true,
+                      "scope":  "Trade Order Editor"
+                  },
+                  {
+                      "action":  "pause",
+                      "milliseconds":  1500
+                  },
+                  {
+                      "action":  "snapshot",
+                      "name":  "iron-condor-stopped"
+                  },
+                  {
+                      "type":  "ComboBox",
+                      "name":  "",
+                      "action":  "expand",
+                      "index":  2
+                  },
+                  {
+                      "type":  "Button",
+                      "name":  "LiveFeed ON",
+                      "action":  "invoke"
+                  },
+                  {
+                      "milliseconds":  1000,
+                      "action":  "pause"
+                  },
+                  {
+                      "name":  "iron-condor-live",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "value":  "Newer",
+                      "action":  "control",
+                      "verb":  "MonitorPublish"
+                  },
+                  {
+                      "milliseconds":  1000,
+                      "action":  "pause"
+                  },
+                  {
+                      "name":  "iron-condor-updated",
+                      "action":  "snapshot"
+                  },
+                  {
+                      "action":  "close"
+                  }
+              ]
+}

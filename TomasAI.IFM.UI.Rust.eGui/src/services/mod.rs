@@ -1,0 +1,60 @@
+//! Native equivalents of frontend API services. Business computation stays on the API.
+pub mod actor_requests;
+pub mod broker_preview;
+pub mod broker_reads;
+pub mod broker_account_commands;
+pub mod broker_events;
+pub mod broker_order_commands;
+pub mod broker_order_ui;
+pub mod broker_initialization;
+pub mod broker_preview_display;
+pub mod broker_market_display;
+pub mod broker_market_metrics;
+pub mod business_context;
+pub mod composer_market;
+pub mod dashboard_health;
+pub mod database_backup;
+pub mod feed_control;
+pub mod feed_status;
+pub mod financial;
+pub mod financial_controls;
+pub mod financial_operations;
+pub mod financial_preparation;
+pub mod fund_selections;
+pub mod inspection_display;
+pub mod inspection_json;
+pub mod inspection_queries;
+pub mod manual_orders;
+pub mod market_history;
+pub mod notifications;
+pub mod option_chain;
+pub mod option_draft;
+pub mod option_selection;
+pub mod order_preparation;
+pub mod order_submission;
+pub mod order_submission_store;
+pub mod order_submission_ack;
+pub mod outlook;
+pub mod parameter_fields;
+pub mod parameter_metrics;
+pub mod parameters;
+pub mod portfolio;
+pub mod portfolio_commands;
+pub mod portfolio_reference;
+pub mod provider_mapping;
+pub mod reference;
+pub mod strategy;
+pub mod strategy_display;
+pub mod strategy_stream;
+pub mod trade_orders;
+
+pub mod trade_monitor_queries;
+
+pub mod trade_feed_recovery;
+pub mod monitor_display;
+pub mod order_close;
+
+pub mod trade_eod;
+
+pub mod execution_context;
+pub mod saved_position;

@@ -1,0 +1,67 @@
+{
+  "controls": [
+    {
+      "verb": "FeedScenario",
+      "value": "Normal"
+    }
+  ],
+  "comparison": {
+    "captures": [
+      "strategy-updates",
+      "strategy-details",
+      "strategy-summary"
+    ],
+    "region": {
+      "left": 0.0,
+      "right": 0.22,
+      "top": 0.05,
+      "bottom": 0.97
+    }
+  },
+  "steps": [
+    {
+      "action": "wait",
+      "name": "Stop Market Feeds"
+    },
+    {
+      "action": "wait",
+      "name": "TrendDirectionChanged",
+      "type": "Text"
+    },
+    {
+      "action": "snapshot",
+      "name": "strategy-updates"
+    },
+    {
+      "action": "invoke",
+      "name": "Details",
+      "type": "Button"
+    },
+    {
+      "action": "pause",
+      "milliseconds": 500
+    },
+    {
+      "action": "snapshot",
+      "name": "strategy-details"
+    },
+    {
+      "action": "invoke",
+      "name": "Summary",
+      "type": "Button"
+    },
+    {
+      "action": "pause",
+      "milliseconds": 500
+    },
+    {
+      "action": "snapshot",
+      "name": "strategy-summary"
+    },
+    {
+      "action": "close"
+    }
+  ],
+  "strategyClock": true,
+  "operationalClock": true
+}

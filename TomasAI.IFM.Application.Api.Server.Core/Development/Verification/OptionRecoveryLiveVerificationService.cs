@@ -81,7 +81,7 @@ public sealed class OptionRecoveryLiveVerificationService(IHostEnvironment envir
         using (var injection = CancellationTokenSource.CreateLinkedTokenSource(token))
         {
             injection.CancelAfter(TimeSpan.FromSeconds(10));
-            if (!await market.InjectDevelopmentOptionWorkerFaultAsync(new(request.OperationId, options.WorkerInstanceId, options.GenerationId, inspection.ValueDate!.Value), injection.Token).WaitAsync(injection.Token))
+            if (!await InjectCurrentTargetAsync(market, request.OperationId, options, injection.Token).ConfigureAwait(false))
                 throw new InvalidOperationException("Host did not acknowledge fault injection.");
         }
         recovery.BeginDevelopmentVerification(inspection with { Failure = "Explicitly armed Development Options-worker hang: " + request.Mode }, request.OperationId, request.Mode == "Deadline", token);
@@ -101,6 +101,30 @@ public sealed class OptionRecoveryLiveVerificationService(IHostEnvironment envir
             UiDialogRequiresHumanConfirmation = request.Mode == "Deadline"
         }, token);
         logger.LogInformation("Development option recovery verification finished; OperationId={OperationId}; Mode={Mode}; State={State}; FuturesUnchanged={FuturesUnchanged}", request.OperationId, request.Mode, recovery.State, unchanged);
+    }
+
+    internal static async Task<bool> InjectCurrentTargetAsync(IMarketDataApi market, Guid operationId,
+        MarketDataDatasetStatus target, CancellationToken token)
+    {
+        // A process replacement may race the status read after the fixed countdown.
+        // Refresh only that stale identity; never restart the timer or suppress another error.
+        while (true)
+        {
+            token.ThrowIfCancellationRequested();
+            try
+            {
+                return await market.InjectDevelopmentOptionWorkerFaultAsync(new(operationId,
+                    target.WorkerInstanceId, target.GenerationId, target.ValueDate!.Value), token).WaitAsync(token).ConfigureAwait(false);
+            }
+            catch (Exception error) when (!token.IsCancellationRequested
+                && error.Message.Contains("Fault target generation changed", StringComparison.Ordinal))
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250), token).ConfigureAwait(false);
+                var status = await market.GetBackendStatusAsync(token).WaitAsync(token).ConfigureAwait(false);
+                target = status.Datasets.Single(dataset => dataset.Role == "Options" && dataset.Dataset == "GLBX.MDP3"
+                    && dataset.WorkerInstanceId == target.WorkerInstanceId && dataset.ValueDate == target.ValueDate);
+            }
+        }
     }
 
     internal static async Task WaitForInjectionAsync(OptionRecoveryVerificationRequest request, TimeProvider clock,

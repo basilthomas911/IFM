@@ -1,0 +1,1 @@
+[{"id":"postgres-main","source":"LocalWorkstation","engines":["PostgreSql"],"enabled":true,"policyRevision":7},{"id":"postgres-second","source":"LocalWorkstation","engines":["PostgreSql"],"enabled":true,"policyRevision":0},{"id":"scylla-main","source":"LocalWorkstation","engines":["ScyllaDb"],"enabled":false,"policyRevision":0}]

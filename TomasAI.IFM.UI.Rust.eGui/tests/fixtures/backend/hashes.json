@@ -1,0 +1,32 @@
+[
+  {
+    "json": {
+      "Z": 1.2300,
+      "A": "Unicode \u00E9 \u03A9 \uD83D\uDE00 \u003C\u003E\u0026\u0027\u0022\u002B\u0060\\\n",
+      "Tiny": 0.00001
+    },
+    "hash": "1849768ABBC503C69A67D0939B44CB02EA67474720118E1F4D778359D73D0C67"
+  },
+  {
+    "json": {
+      "DecimalMax": 79228162514264337593543950335,
+      "DecimalMin": -79228162514264337593543950335,
+      "Smallest": 0.0000000000000000000000000001,
+      "Zero": 0.000,
+      "ExponentBoundary": 0.0001
+    },
+    "hash": "4E969153937F4A575B12DDB5156A48EC49A7B2C4AF24F969FA7AFC083D9F7A18"
+  },
+  {
+    "json": {
+      "OperationId": "00112233-4455-6677-8899-aabbccddeeff",
+      "RequestedAtUtc": "2026-10-26T12:30:00.1234567Z",
+      "Values": [
+        1,
+        -2.5000,
+        0.0000012300
+      ]
+    },
+    "hash": "C5BA66729E2EA9B71395FB98B8A0C9D5862A069FE20F9AAE79B5BCCAAAA9C45E"
+  }
+]

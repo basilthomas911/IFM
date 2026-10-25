@@ -1,0 +1,21 @@
+{
+  "controls": [
+    {
+      "verb": "FeedScenario",
+      "value": "Normal"
+    }
+  ],
+  "steps": [
+    {
+      "action": "wait",
+      "name": "Stop Market Feeds"
+    },
+    {
+      "action": "snapshot",
+      "name": "shell"
+    },
+    {
+      "action": "close"
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "controls": [
+    {
+      "verb": "FeedScenario",
+      "value": "Normal"
+    },
+    {
+      "verb": "TradeWorkspaceMode",
+      "value": "Monitor"
+    },
+    {
+      "verb": "BrokerInitMode",
+      "value": "Disabled"
+    },
+    {
+      "verb": "OptionChainMode",
+      "value": "ComposeOptions"
+    },
+    {
+      "verb": "MonitorMode",
+      "value": "Populated"
+    }
+  ],
+  "comparison": {
+    "captures": [
+      "iron-condor-valued-stopped",
+      "iron-condor-valued-live",
+      "iron-condor-valued-loss",
+      "iron-condor-valued-gain"
+    ],
+    "region": {
+      "left": 0.22,
+      "right": 0.78,
+      "bottom": 0.97,
+      "top": 0.05
+    },
+    "clippedNeighborControls": [
+      {
+        "type": "Text",
+        "name": "Workflow End State",
+        "basis": "The flattened egui UIA tree exposes horizontally clipped strategy-panel text outside its left pane. This is not an actor explorer field; owned-window screenshots retain the actual pixels."
+      },
+      {
+        "type": "Text",
+        "name": "In Progress",
+        "basis": "The value paired with the clipped neighboring Workflow End State label; not a field in this actor-health fixture."
+      }
+    ],
+    "requiredValues": {
+      "iron-condor-valued-live": [
+        "-50.00 @ 2.78%"
+      ],
+      "iron-condor-valued-loss": [
+        "-100.00 @ 5.56%"
+      ],
+      "iron-condor-valued-gain": [
+        "50.00 @ 7.14%"
+      ]
+    }
+  },
+  "steps": [
+    {
+      "action": "wait",
+      "name": "Stop Market Feeds"
+    },
+    {
+      "action": "invoke",
+      "name": "Trade Orders",
+      "type": "Button"
+    },
+    {
+      "action": "wait",
+      "name": "Add Trade...",
+      "type": "Button",
+      "enabled": true,
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "invoke",
+      "name": "Load Trade",
+      "type": "Button",
+      "enabled": true,
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "pause",
+      "milliseconds": 1500
+    },
+    {
+      "action": "snapshot",
+      "name": "iron-condor-valued-stopped"
+    },
+    {
+      "type": "ComboBox",
+      "name": "",
+      "action": "expand",
+      "index": 2
+    },
+    {
+      "type": "Button",
+      "name": "LiveFeed ON",
+      "action": "invoke"
+    },
+    {
+      "milliseconds": 1000,
+      "action": "pause"
+    },
+    {
+      "name": "iron-condor-valued-live",
+      "action": "snapshot"
+    },
+    {
+      "value": "PopulatedLoss",
+      "action": "control",
+      "verb": "MonitorPublish"
+    },
+    {
+      "milliseconds": 1000,
+      "action": "pause"
+    },
+    {
+      "name": "iron-condor-valued-loss",
+      "action": "snapshot"
+    },
+    {
+      "action": "control",
+      "verb": "MonitorPublish",
+      "value": "PopulatedGain"
+    },
+    {
+      "action": "pause",
+      "milliseconds": 1000
+    },
+    {
+      "action": "snapshot",
+      "name": "iron-condor-valued-gain"
+    },
+    {
+      "action": "close"
+    }
+  ]
+}

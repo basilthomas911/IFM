@@ -1,0 +1,20 @@
+{
+ "controls":[{"verb":"FeedScenario","value":"Normal"}],
+ "comparison":{"captures":["portfolio-version-draft","policy-draft"]},
+ "steps":[
+  {"action":"wait","name":"Stop Market Feeds"},
+  {"action":"invoke","name":"Portfolio","type":"Button"},
+  {"action":"wait","name":"Native fixture portfolio","type":"Text","scope":"Portfolio Administration"},
+  {"action":"invoke","name":"Portfolio Actions","type":"Button","enabled":true,"scope":"Portfolio Administration"},
+  {"action":"invoke","name":"New Version...","type":"Button","enabled":true},
+  {"action":"wait","name":"Create Portfolio Version","type":"Window"},
+  {"action":"snapshot","name":"portfolio-version-draft","scope":"Create Portfolio Version"},
+  {"action":"invoke","name":"Cancel","type":"Button","enabled":true,"scope":"Create Portfolio Version"},
+  {"action":"invoke","name":"Risk Policy Actions","type":"Button","enabled":true,"scope":"Portfolio Administration"},
+  {"action":"invoke","name":"New Policy...","type":"Button","enabled":true},
+  {"action":"wait","name":"Cancel","type":"Button","enabled":true,"scope":"Portfolio Administration"},
+  {"action":"snapshot","name":"policy-draft","scope":"Portfolio Administration"},
+  {"action":"invoke","name":"Cancel","type":"Button","enabled":true,"scope":"Portfolio Administration"},
+  {"action":"close"}
+ ]
+}

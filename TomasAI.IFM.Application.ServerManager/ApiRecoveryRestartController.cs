@@ -8,7 +8,7 @@ using TomasAI.IFM.Application.ServerManager.Contracts;
 
 namespace TomasAI.IFM.Application.ServerManager;
 
-/// <summary>External, single-attempt escalation. A durable claim precedes termination; API memory cannot reset it.</summary>
+/// <summary>External escalation. A durable claim blocks another restart until end-to-end recovery is verified.</summary>
 public sealed class ApiRecoveryRestartController(string directory, string sessionId,
     Func<ApiRecoveryRestartRequest, CancellationToken, Task<int>> restart,
     Func<ApiRecoveryRestartRequest, int, CancellationToken, Task> verify,
@@ -44,6 +44,8 @@ public sealed class ApiRecoveryRestartController(string directory, string sessio
             var ledger = Path.Combine(Path.GetDirectoryName(directory)!, $"api-restart-{request.ValueDate:yyyy-MM-dd}.json");
             try
             {
+                using var ledgerLock = await LockLedgerAsync(ledger, token).ConfigureAwait(false);
+                await ReleaseVerifiedClaimCoreAsync(ledger, token).ConfigureAwait(false);
                 // CreateNew is atomic across managers and all API incarnations. Flush before killing anything.
                 using var claim = new FileStream(ledger, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
                 var bytes = JsonSerializer.SerializeToUtf8Bytes(request);
@@ -52,31 +54,93 @@ public sealed class ApiRecoveryRestartController(string directory, string sessio
             catch (IOException) when (File.Exists(ledger))
             {
                 return await SaveAsync(new(request.OperationId, request.ValueDate, "Failed", request.ProcessId, null, now,
-                    "The API restart allowance for this value date has already been used. No further automatic restart will occur; reload the trade and enable Live Feed manually."), token).ConfigureAwait(false);
+                    "An API restart for this value date is still outstanding or failed. Another automatic restart is blocked until recovery is verified."), token).ConfigureAwait(false);
             }
             int? replacement = null;
+            string? lastError = null;
             using var deadline = new CancellationTokenSource(RestartBudget, clock);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, deadline.Token);
+            async Task<T> RetryAsync<T>(Func<Task<T>> action, string stage)
+            {
+                for (var attempt = 1; ; attempt++)
+                {
+                    linked.Token.ThrowIfCancellationRequested();
+                    var work = Task.Run(action, CancellationToken.None);
+                    _ = work.ContinueWith(task => _ = task.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+                    try { return await work.WaitAsync(linked.Token).ConfigureAwait(false); }
+                    catch (Exception error) when (!linked.IsCancellationRequested)
+                    {
+                        lastError = stage + ": " + error.Message;
+                        log($"API recovery step failed; retrying: {request.OperationId}; stage={stage}; attempt={attempt}; error={error.Message}");
+                        await Task.Delay(TimeSpan.FromMilliseconds(250), clock, linked.Token).ConfigureAwait(false);
+                    }
+                }
+            }
             try
             {
                 log($"API recovery restart started: {request.OperationId}; old PID={request.ProcessId}; budget=120 seconds.");
-                var work = Task.Run(() => restart(request, linked.Token), CancellationToken.None);
-                _ = work.ContinueWith(task => _ = task.Exception,CancellationToken.None,TaskContinuationOptions.OnlyOnFaulted,TaskScheduler.Default);
-                replacement = await work.WaitAsync(linked.Token).ConfigureAwait(false);
-                if (replacement == request.ProcessId) throw new InvalidOperationException("API process identity did not change.");
-                var proof = Task.Run(() => verify(request, replacement.Value, linked.Token),CancellationToken.None);
-                _ = proof.ContinueWith(task => _ = task.Exception,CancellationToken.None,TaskContinuationOptions.OnlyOnFaulted,TaskScheduler.Default);
-                await proof.WaitAsync(linked.Token).ConfigureAwait(false);
-                return await SaveAsync(new(request.OperationId, request.ValueDate, "Recovered", request.ProcessId, replacement, clock.GetUtcNow().UtcDateTime, null), token).ConfigureAwait(false);
+                replacement = await RetryAsync(async () => {
+                    var pid = await restart(request, linked.Token).ConfigureAwait(false);
+                    if (pid <= 0 || pid == request.ProcessId) throw new InvalidOperationException("API process identity did not change.");
+                    return pid;
+                }, "API restart").ConfigureAwait(false);
+                await RetryAsync(async () => { await verify(request, replacement.Value, linked.Token).ConfigureAwait(false); return true; },
+                    "Trade/feed verification").ConfigureAwait(false);
+                var recovered = await SaveAsync(new(request.OperationId, request.ValueDate, "Recovered", request.ProcessId, replacement, clock.GetUtcNow().UtcDateTime, null), token).ConfigureAwait(false);
+                await ReleaseVerifiedClaimAsync(ledger, token).ConfigureAwait(false);
+                return recovered;
             }
             catch (Exception error) when (!token.IsCancellationRequested)
             {
                 var detail = deadline.IsCancellationRequested ? "The two-minute API restart/restore deadline expired." : error.Message;
+                if (lastError is not null) detail += " Last failed step: " + lastError;
                 return await SaveAsync(new(request.OperationId, request.ValueDate, "Failed", request.ProcessId, replacement, clock.GetUtcNow().UtcDateTime,
                     "API recovery failed: " + detail + " No further automatic API restart will occur for this value date."), token).ConfigureAwait(false);
             }
         }
         finally { serial.Release(); }
+    }
+
+    // Persisted verification is the only authority to release a claim, including after a manager crash.
+    // Duplicate delivery remains idempotent because completed per-operation results are retained.
+    async Task ReleaseVerifiedClaimAsync(string ledger, CancellationToken token)
+    {
+        using var ledgerLock = await LockLedgerAsync(ledger, token).ConfigureAwait(false);
+        await ReleaseVerifiedClaimCoreAsync(ledger, token).ConfigureAwait(false);
+    }
+
+    static async Task<FileStream> LockLedgerAsync(string ledger, CancellationToken token)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(RestartBudget);
+        while (true)
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            try { return new FileStream(ledger + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            catch (IOException) { await Task.Delay(50, deadline.Token).ConfigureAwait(false); }
+        }
+    }
+
+    async Task ReleaseVerifiedClaimCoreAsync(string ledger, CancellationToken token)
+    {
+        if (!File.Exists(ledger)) return;
+        var claim = JsonSerializer.Deserialize<ApiRecoveryRestartRequest>(await File.ReadAllTextAsync(ledger, token).ConfigureAwait(false));
+        if (claim is null) return;
+        var parent = Path.GetDirectoryName(directory)!;
+        // Session IDs are protocol identities, never arbitrary filesystem paths.
+        if (claim.SessionId.Length != 32 || !claim.SessionId.All(Uri.IsHexDigit))
+        {
+            // Test/embedded controllers may use a non-GUID session name; only the current session is allowed.
+            if (claim.SessionId != sessionId) return;
+        }
+        var resultPath = claim.SessionId == sessionId ? ApiRecoveryRestartProtocol.ResultPath(directory, claim.OperationId)
+            : ApiRecoveryRestartProtocol.ResultPath(Path.Combine(parent, claim.SessionId), claim.OperationId);
+        if (!File.Exists(resultPath)) return;
+        var proof = JsonSerializer.Deserialize<ApiRecoveryRestartResult>(await File.ReadAllTextAsync(resultPath, token).ConfigureAwait(false));
+        if (proof?.OperationId != claim.OperationId || proof.ValueDate != claim.ValueDate || proof.PreviousProcessId != claim.ProcessId || proof.State != "Recovered"
+            || proof.Error is not null || proof.ReplacementProcessId is null || proof.ReplacementProcessId == claim.ProcessId) return;
+        File.Delete(ledger);
+        log($"API recovery verified; restart claim released: {claim.OperationId}; value date={claim.ValueDate}.");
     }
 
     async Task<ApiRecoveryRestartResult> SaveAsync(ApiRecoveryRestartResult result, CancellationToken token)
@@ -98,13 +162,14 @@ public sealed class ApiRecoveryRestartController(string directory, string sessio
         {
             do
             {
-                // The allowance is per exchange session. Expired records cannot affect the next value date.
+                // Failed/outstanding claims expire with the exchange session; verified claims release immediately.
                 foreach (var path in Directory.EnumerateFiles(Path.GetDirectoryName(directory)!, "api-restart-*.json").ToArray())
                 {
                     try
                     {
                         var claim=JsonSerializer.Deserialize<ApiRecoveryRestartRequest>(await File.ReadAllTextAsync(path,token).ConfigureAwait(false));
                         if (claim is not null && claim.SessionEndUtc <= clock.GetUtcNow().UtcDateTime) File.Delete(path);
+                        else await ReleaseVerifiedClaimAsync(path, token).ConfigureAwait(false);
                     }
                     catch (IOException) { }
                     catch (JsonException) { } // An incomplete claim remains used; never grant a second restart after uncertain persistence.

@@ -27,7 +27,14 @@ public sealed class BrokerTradePreviewNatsTests
             $"Query.{GetTradeOrderPreviewQuery.Actor}.{GetTradeOrderPreviewQuery.Verb}.*",
             serializer: new NatsByteArrayMessageSerializer(), cancellationToken: timeout.Token);
         await connection.PingAsync(timeout.Token);
-        var context = new TradeOrderQueryContext(Substitute.For<IActorSupervisor>(), Substitute.For<IDbContextFactory>(), NullLogger<TradeOrderQueryActor>.Instance);
+        var db = Substitute.For<IDbContextFactory>();
+        var securities = Substitute.For<TomasAI.IFM.Application.Storage.SecuritiesDb.ISecuritiesDbContext>();
+        db.SecuritiesDb.Returns(securities);
+        securities.GetFuturesOptionContractAsync(Arg.Is<string>(id => id == "SC" || id == "LC"), Arg.Any<CancellationToken>()).Returns(
+            new TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel { UnderlyingContractId = "ES" });
+        securities.GetFuturesContractAsync("ES", Arg.Any<CancellationToken>()).Returns(
+            new TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel { ContractId = "ES", Symbol = "ES", TickSize = .25m });
+        var context = new TradeOrderQueryContext(Substitute.For<IActorSupervisor>(), db, NullLogger<TradeOrderQueryActor>.Instance);
         var actor = new TradeOrderQueryActor(context);
         const int updates = 20;
         var receiving = Task.Run(async () => {
@@ -36,7 +43,7 @@ public sealed class BrokerTradePreviewNatsTests
             {
                 using var actorMessage = new NatsActorMessage(message);
                 await actor.HandleMessageAsync(actorMessage);
-                if (++count == updates + 1) return;
+                if (++count == updates + 2) return;
             }
         });
         await using var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, NullLogger.Instance);
@@ -48,14 +55,18 @@ public sealed class BrokerTradePreviewNatsTests
             var started = System.Diagnostics.Stopwatch.GetTimestamp();
             var preview = await owner.ExecuteAsync(new(0,
                 [new("SC", -1, quantity, 110, true, false, 2, 2.4m, .16, .2, 50),
-                 new("LC", 1, quantity, 120, true, false, .5m, .7m, .10, .1, 50)], quantity, -1.55m, .05m, null), timeout.Token);
+                 new("LC", 1, quantity, 120, true, false, .5m, .7m, .10, .1, 50)], quantity, -1.55m, .25m, null), timeout.Token);
             latencies.Add(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             Assert.Equal(77.5m * quantity, preview.MaximumProfit);
             Assert.Equal(422.5m * quantity, preview.MaximumLoss);
+            Assert.Equal(.05m, preview.ResolvedTickIncrement);
             Assert.Equal(quantity, preview.InputRevision);
             Assert.Equal(0, context.PendingMessageCount);
         }
         await Assert.ThrowsAsync<InvalidOperationException>(() => owner.ExecuteAsync(new(0, [], 0, null, .05m, null), timeout.Token));
+        var missing = await Assert.ThrowsAsync<InvalidOperationException>(() => owner.ExecuteAsync(new(0,
+            [new("UNKNOWN", -1, 1, 110, true, false, 2, 2.4m, .16, .2, 50)], 1, -1.55m, .05m, null), timeout.Token));
+        Assert.Contains("underlying reference is unavailable", missing.Message);
         await receiving;
         Assert.Equal(0, context.PendingMessageCount);
         Console.WriteLine($"Trade preview NATS round trips: {updates}; median={latencies.Order().ElementAt(updates / 2):F2}ms; maximum={latencies.Max():F2}ms");
