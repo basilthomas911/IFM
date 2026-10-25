@@ -23,6 +23,27 @@ fn response(status: &str, body: &str) -> Vec<u8> {
 }
 
 #[tokio::test]
+async fn console_history_pages_validate_replay_watermarks_and_fail_without_advancing_on_bad_responses() {
+    use ifm_ui_egui::services::status_console_history::read_page;
+    let client=HealthClient::new().unwrap();
+    let row=json!({"sequence":1,"id":"11111111-2222-3333-4444-555555555555","statusDate":"2000-01-03T12:00:00Z","message":"startup before UI"});
+    let body=json!({"nextSequence":1,"throughSequence":2,"hasMore":true,"messages":[row]}).to_string();
+    let(url,worker)=server(response("200 OK",&body),Duration::ZERO);
+    let page=read_page(&client,Some(&url),0,None,Duration::from_secs(2)).await.unwrap();worker.join().unwrap();
+    assert_eq!(page.next,1);assert_eq!(page.through,2);assert!(page.more);assert_eq!(page.messages[0].message,"startup before UI");
+    for body in [
+        json!({"nextSequence":1,"throughSequence":2,"hasMore":true,"messages":[]}),
+        json!({"nextSequence":1,"throughSequence":3,"hasMore":true,"messages":[]}),
+        json!({"nextSequence":2,"throughSequence":2,"hasMore":false,"messages":[]}),
+    ] {
+        let(url,worker)=server(response("200 OK",&body.to_string()),Duration::ZERO);
+        assert!(read_page(&client,Some(&url),1,Some(2),Duration::from_secs(2)).await.is_err());worker.join().unwrap();
+    }
+    let(url,worker)=server(response("503 Unavailable","{}"),Duration::ZERO);
+    assert!(read_page(&client,Some(&url),1,Some(2),Duration::from_secs(2)).await.err().unwrap().contains("503"));worker.join().unwrap();
+}
+
+#[tokio::test]
 async fn health_transport_enforces_status_size_json_and_single_deadline() {
     let client = HealthClient::new().unwrap();
     for (bytes,bound,expected) in [
@@ -82,4 +103,22 @@ fn operations_projection_uses_api_time_and_reports_bad_or_stale_health_as_unknow
     let mut invalid = value;
     invalid["stages"][0]["status"] = "InventedGreen".into();
     assert!(project(&invalid, now).is_err());
+}
+
+
+#[tokio::test]
+async fn operational_clock_comes_from_api_headers_not_market_or_workstation_time(){
+ let body=r#"{"schemaVersion":1,"revision":1,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Inactive","sessionState":"Closed","valueDate":null,"stages":[{"stage":"Actor routing/API","status":"Green","required":true,"reasonCode":"Healthy","reason":"Available while market closed"}],"datasets":[]}"#;
+ let client=HealthClient::new().unwrap();
+ for (header,expected) in [("X-IFM-Server-Utc: 2000-01-03T12:30:00Z\r\n","ok"),("Date: Mon, 03 Jan 2000 12:30:00 GMT\r\n","ok"),("X-IFM-Server-Utc: 2000-01-03T12:31:00Z\r\n","stale"),("","missing"),("X-IFM-Server-Utc: invalid\r\n","invalid")]{
+  let raw=format!("HTTP/1.1 200 OK\r\n{header}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
+  let(url,worker)=server(raw.into_bytes(),Duration::ZERO);
+  let result=client.get_observation(&url,4096,tokio::time::Instant::now()+Duration::from_secs(2)).await;
+  if expected=="invalid"{assert!(result.err().unwrap().contains("clock header"));}
+  else{let read=result.unwrap();if expected=="missing"{assert!(read.server_utc.is_none());}else{
+   let projected=project(&read.value,read.server_utc.unwrap());
+   if expected=="stale"{assert!(projected.err().unwrap().contains("stale"));}
+   else{let projected=projected.unwrap();assert_eq!(projected.context["status"],"Inactive");assert_eq!(projected.rows.len(),1);assert_eq!(projected.rows[0].fields["Status"],"Green");}
+  }}worker.join().unwrap();
+ }
 }

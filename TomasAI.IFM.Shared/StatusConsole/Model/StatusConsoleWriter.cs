@@ -32,6 +32,7 @@ public class StatusConsoleWriter(IStatusConsoleEventProducer statusConsole)
     {
         var logEvent = new StatusConsoleLoggedEvent
         {
+            Id = Guid.NewGuid(),
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(ActorType.Notify, StatusConsoleLoggedEvent.Actor, StatusConsoleLoggedEvent.Verb, logSourceType.ToStringFast()),
             EntityId = new ActorEntityId(logSourceType.ToStringFast()),
@@ -45,7 +46,7 @@ public class StatusConsoleWriter(IStatusConsoleEventProducer statusConsole)
         };
         if (!StatusConsole.IsRunning)
             await StatusConsole.StartAsync(logEvent.Subject.ActorId).ConfigureAwait(false);
-        await StatusConsole.SendAsync<StatusConsoleLoggedEvent, ActorEntityId>(logEvent.Subject, logEvent).ConfigureAwait(false);
+        await StatusConsole.PublishConsoleAsync(logEvent).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -58,6 +59,7 @@ public class StatusConsoleWriter(IStatusConsoleEventProducer statusConsole)
     {
         var logEvent = new StatusConsoleLoggedEvent
         {
+            Id = Guid.NewGuid(),
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(ActorType.Notify, StatusConsoleLoggedEvent.Actor, StatusConsoleLoggedEvent.Verb, logSourceType.ToStringFast()),
             EntityId = new ActorEntityId(logSourceType.ToStringFast()),
@@ -73,6 +75,6 @@ public class StatusConsoleWriter(IStatusConsoleEventProducer statusConsole)
         };
         if (!StatusConsole.IsRunning)
             await StatusConsole.StartAsync(logEvent.Subject.ActorId).ConfigureAwait(false);
-        await StatusConsole.SendAsync<StatusConsoleLoggedEvent, ActorEntityId>(logEvent.Subject, logEvent).ConfigureAwait(false);
+        await StatusConsole.PublishConsoleAsync(logEvent).ConfigureAwait(false);
     }
 }

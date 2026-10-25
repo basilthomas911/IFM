@@ -4,6 +4,27 @@ use ifm_ui_egui::{
 };
 
 #[test]
+fn console_replay_merges_live_overlap_without_losing_old_rows_or_deduplication() {
+    let mut notifications=Notifications::default();
+    let at=chrono::DateTime::parse_from_rfc3339("2000-01-03T12:00:00Z").unwrap().to_utc();
+    // Live reaches the UI before the oldest replay page. Replay exceeds both
+    // former truncation limits (500 rows and 1024 remembered identities).
+    let latest=uuid::Uuid::from_u128(1501).to_string();
+    assert!(notifications.console_message(&latest,at+chrono::Duration::seconds(1500),"live during replay"));
+    for index in 0..1500 {
+        let id=uuid::Uuid::from_u128(index+1).to_string();
+        assert!(notifications.console_message(&id,at+chrono::Duration::seconds(index as i64),&format!("message {index}")));
+    }
+    assert_eq!(notifications.publication.status_rows.len(),1501);
+    assert_eq!(notifications.publication.status_rows.first().unwrap().message,"message 0");
+    assert_eq!(notifications.publication.status_rows.last().unwrap().message,"live during replay");
+    assert!(!notifications.console_message(&latest,at+chrono::Duration::seconds(1500),"live during replay"));
+    assert!(!notifications.console_message(&uuid::Uuid::from_u128(1).to_string(),at,"message 0"));
+    assert_eq!(notifications.publication.status_rows.len(),1501);
+    assert_eq!(notifications.publication.error_sequence,0);
+}
+
+#[test]
 fn terminal_recovery_failure_reaches_the_existing_error_dialog_publication_once() {
     let registry = Registry::compiled().unwrap();
     let mut notifications = Notifications::default();
@@ -88,7 +109,7 @@ fn status_console_consumer_preserves_eastern_time_without_raising_an_error_dialo
     assert_eq!(row.message, "Option subscriptions restored");
     assert_eq!(
         row.id,
-        "2026-10-26T12:30:00.0000000Z|Option subscriptions restored"
+        "2026-10-26T12:30:00.0000000Z|00112233-4455-6677-8899-aabbccddeeff"
     );
     assert_eq!(notifications.publication.error_sequence, 0);
     assert!(notifications.publication.error.is_empty());

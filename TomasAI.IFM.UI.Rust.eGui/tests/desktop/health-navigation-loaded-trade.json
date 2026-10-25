@@ -1,0 +1,156 @@
+{
+  "controls": [
+    {
+      "verb": "FeedScenario",
+      "value": "Normal"
+    },
+    {
+      "verb": "TradeWorkspaceMode",
+      "value": "Monitor"
+    },
+    {
+      "verb": "BrokerInitMode",
+      "value": "Disabled"
+    },
+    {
+      "verb": "OptionChainMode",
+      "value": "ComposeOptions"
+    },
+    {
+      "verb": "MonitorMode",
+      "value": "Normal"
+    }
+  ],
+  "comparison": {
+    "captures": [
+      "actor-health-with-loaded-trade",
+      "operations-health-with-loaded-trade",
+      "trade-retained-after-health"
+    ]
+  },
+  "steps": [
+    {
+      "action": "wait",
+      "name": "Stop Market Feeds"
+    },
+    {
+      "action": "invoke",
+      "name": "Trade Orders",
+      "type": "Button"
+    },
+    {
+      "action": "wait",
+      "name": "Add Trade...",
+      "type": "Button",
+      "enabled": true,
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "invoke",
+      "name": "Load Trade",
+      "type": "Button",
+      "enabled": true,
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "pause",
+      "milliseconds": 1500
+    },
+    {
+      "type": "ComboBox",
+      "name": "",
+      "action": "expand",
+      "index": 2
+    },
+    {
+      "type": "Button",
+      "name": "LiveFeed ON",
+      "action": "invoke"
+    },
+    {
+      "milliseconds": 1000,
+      "action": "pause"
+    },
+    {
+      "action": "invoke",
+      "name": "Actor Health",
+      "type": "Button"
+    },
+    {
+      "action": "wait",
+      "name": "Actor Health",
+      "type": "Window"
+    },
+    {
+      "action": "wait",
+      "name": "Refresh actor health",
+      "type": "Button",
+      "enabled": true,
+      "scope": "Actor Health"
+    },
+    {
+      "action": "wait",
+      "name": "Trade",
+      "type": "Button",
+      "scope": "Actor Health"
+    },
+    {
+      "action": "snapshot",
+      "name": "actor-health-with-loaded-trade"
+    },
+    {
+      "action": "invoke",
+      "name": "Operations health",
+      "type": "Button"
+    },
+    {
+      "action": "wait",
+      "name": "Operations Health",
+      "type": "Window"
+    },
+    {
+      "action": "wait",
+      "name": "Refresh status",
+      "type": "Button",
+      "enabled": true,
+      "scope": "Operations Health"
+    },
+    {
+      "action": "snapshot",
+      "name": "operations-health-with-loaded-trade"
+    },
+    {
+      "action": "control",
+      "verb": "MonitorPublish",
+      "value": "Newer"
+    },
+    {
+      "action": "invoke",
+      "name": "Close",
+      "type": "Button",
+      "scope": "Operations Health"
+    },
+    {
+      "action": "absent",
+      "name": "Operations Health",
+      "type": "Window"
+    },
+    {
+      "action": "absent",
+      "name": "Actor Health",
+      "type": "Window"
+    },
+    {
+      "action": "wait",
+      "name": "701:456",
+      "type": "Button"
+    },
+    {
+      "action": "snapshot",
+      "name": "trade-retained-after-health"
+    },
+    {
+      "action": "close"
+    }
+  ]
+}

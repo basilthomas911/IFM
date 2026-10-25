@@ -1453,7 +1453,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     public async ValueTask<ICollection<EventStreamReadModel>> GetEventsFromSnapshotAsync<TSnapshot>(long eventStreamId)
         where TSnapshot : IEvent
     {
-        var snapshotEventNameId = await (this.GetEventNameIdFromTypeAsync<TSnapshot>())
+        var snapshotEventNameId = await GetCompatibleEventNameIdsAsync<TSnapshot>(CancellationToken.None)
             .ConfigureAwait(false);
         var db = _dbFactory.ActorEventSourceDb;
         var maxEventVersion = await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetMaxEventVersion))
@@ -1542,7 +1542,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         where TState : IActorState<TState>
         where TEvent : IEvent
     {
-        var eventNameId = await this.GetEventNameIdFromTypeAsync<TEvent>(cancellationToken)
+        var eventNameId = await GetCompatibleEventNameIdsAsync<TEvent>(cancellationToken)
             .ConfigureAwait(false);
         await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogLastNRangeByEventName)}", this.EventLogSql(EventSourceDbSql.GetEventLogLastNRangeByEventName))
@@ -1583,7 +1583,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         where TSnapshot : IEvent
     {
         var eventStream = new EventStreamReadModel();
-        var snapshotEventNameId = await this.GetEventNameIdFromTypeAsync<TSnapshot>(cancellationToken)
+        var snapshotEventNameId = await GetCompatibleEventNameIdsAsync<TSnapshot>(cancellationToken)
             .ConfigureAwait(false);
         var db = _dbFactory.ActorEventSourceDb;
         var maxEventVersion = await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetMaxEventVersion))
@@ -1654,9 +1654,9 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         where TSnapshot : IEvent
         where TRangeEvent : IEvent
     {
-        var snapshotEventNameId = await this.GetEventNameIdFromTypeAsync<TSnapshot>(cancellationToken)
+        var snapshotEventNameId = await GetCompatibleEventNameIdsAsync<TSnapshot>(cancellationToken)
             .ConfigureAwait(false);
-        var rangeEventNameId = await this.GetEventNameIdFromTypeAsync<TRangeEvent>(cancellationToken)
+        var rangeEventNameId = await GetCompatibleEventNameIdsAsync<TRangeEvent>(cancellationToken)
             .ConfigureAwait(false);
         await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogFromSnapshotLastNRange)}", this.EventLogSql(EventSourceDbSql.GetEventLogFromSnapshotLastNRange))
@@ -1692,7 +1692,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         where TState : IActorState<TState>
         where TEvent : IEvent
     {
-        var eventNameId = await (this.GetEventNameIdFromTypeAsync<TEvent>())
+        var eventNameId = await GetCompatibleEventNameIdsAsync<TEvent>(CancellationToken.None)
             .ConfigureAwait(false);
         return await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogLastNRangeByEventName)}", this.EventLogSql(EventSourceDbSql.GetEventLogLastNRangeByEventName))
@@ -1716,6 +1716,21 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         where TSnapshot : IEvent
            => await (GetEventsFromSnapshotAsync<TSnapshot>(eventStreamId))
             .ConfigureAwait(false);
+
+    async Task<int[]> GetCompatibleEventNameIdsAsync<TEvent>(CancellationToken cancellationToken) where TEvent : IEvent
+    {
+        var type = typeof(TEvent);
+        var current = await this.GetEventNameIdFromTypeAsync(type, cancellationToken).ConfigureAwait(false);
+        var registry = EventTypeRegistry.Default;
+        // Do not cache the alias row IDs: metadata may gain a new registered
+        // spelling while the process is running. Match resolved type, not a short-name guess.
+        var candidates = await _dbFactory.ActorEventSourceDb
+            .Use(nameof(EventSourceDbSql.GetCompatibleEventNameIds), EventSourceDbSql.GetCompatibleEventNameIds)
+            .SetParameters(new GetCompatibleEventNameIds(type.Name, registry.GetReadIdentities(type)))
+            .ExecuteQueryAsync<EventNameIdReadModel>(MapToEventNameId, cancellationToken).ConfigureAwait(false);
+        return candidates.Where(row => registry.Resolve(row.EventTypeName) == type)
+            .Select(row => row.EventNameId).Append(current).Distinct().ToArray();
+    }
 
 
 }

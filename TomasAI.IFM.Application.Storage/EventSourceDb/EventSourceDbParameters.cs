@@ -76,15 +76,16 @@ internal readonly record struct GetEventLogByMaxEventVersion(long eventStreamId,
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetEventLogFromSnapshotLastNRange(
     long eventStreamId,
-    int snapshotEventNameId,
-    int rangeEventNameId,
+    int[] snapshotEventNameId,
+    int[] rangeEventNameId,
     int lastNRange) : IBindValue
 {
     public object Bind() => Values(
         Bigint(eventStreamId),
-        Integer(snapshotEventNameId),
-        Integer(rangeEventNameId),
+        new Npgsql.NpgsqlParameter<int[]> { TypedValue = snapshotEventNameId },
+        new Npgsql.NpgsqlParameter<int[]> { TypedValue = rangeEventNameId },
         Integer(lastNRange));
+    public GetEventLogFromSnapshotLastNRange(long stream, int snapshot, int range, int count) : this(stream, [snapshot], [range], count) { }
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
@@ -96,13 +97,14 @@ internal readonly record struct GetEventLogLastNRange(long eventStreamId) : IBin
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetEventLogLastNRangeByEventName(
     long eventStreamId,
-    int eventNameId,
+    int[] eventNameId,
     int lastNRange) : IBindValue
 {
     public object Bind() => Values(
         Bigint(eventStreamId),
-        Integer(eventNameId),
+        new Npgsql.NpgsqlParameter<int[]> { TypedValue = eventNameId },
         Integer(lastNRange));
+    public GetEventLogLastNRangeByEventName(long stream, int name, int count) : this(stream, [name], count) { }
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
@@ -168,9 +170,15 @@ internal readonly record struct GetEventStreamId(string eventStream) : IBindValu
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct GetMaxEventVersion(long eventStreamId, int snapshotEventNameId) : IBindValue
+internal readonly record struct GetMaxEventVersion(long eventStreamId, int[] snapshotEventNameId) : IBindValue
 {
-    public object Bind() => Values(Bigint(eventStreamId), Integer(snapshotEventNameId));
+    public object Bind() => Values(Bigint(eventStreamId), new Npgsql.NpgsqlParameter<int[]> { TypedValue = snapshotEventNameId });
+    public GetMaxEventVersion(long stream, int snapshot) : this(stream, [snapshot]) { }
+}
+
+internal readonly record struct GetCompatibleEventNameIds(string name, string[] identities) : IBindValue
+{
+    public object Bind() => Values(Text(name), new Npgsql.NpgsqlParameter<string[]> { TypedValue = identities });
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]

@@ -26,8 +26,14 @@ public static class ApiOperationalEndpoints
 {
     public static void MapOperationalEndpoints(WebApplication app)
     {
+        app.MapStatusConsole();
         app.MapGet("/api/market-data/operations-health",
-        (MarketDataOperationsHealthService health, LivePipelineMonitor monitor) => Results.Ok(LivePipelineEndpoints.OperationsSnapshot(health, monitor)))
+        (MarketDataOperationsHealthService health, LivePipelineMonitor monitor, HttpContext context) =>
+        {
+            // Freshness uses the API operational clock, never the last market-session transition.
+            context.Response.Headers["X-IFM-Server-Utc"] = (context.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
+            return Results.Ok(LivePipelineEndpoints.OperationsSnapshot(health, monitor));
+        })
         .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
         app.MapGet("/api/actor-health",
         (IActorSupervisor supervisor, ISupervisorActorMetricsState metrics,

@@ -434,44 +434,14 @@ impl eframe::App for App {
                     {
                         self.health_tab = true;
                         self.actor_tab = false;
-                        self.scheduled_tab = false;
-                        self.catalog_tab = false;
-                        self.parameter_tab = false;
-                        self.lookup_tab = false;
-                        self.contract_tab = false;
-                        self.inspection_tab = false;
-                        self.provider_tab = false;
-                        self.calendar_tab = false;
-                        self.yield_tab = false;
-                        self.grid_tab = false;
                     }
                     if ui.button("Operations health").clicked() {
                         self.health_tab = true;
                         self.actor_tab = false;
-                        self.scheduled_tab = false;
-                        self.catalog_tab = false;
-                        self.parameter_tab = false;
-                        self.lookup_tab = false;
-                        self.contract_tab = false;
-                        self.inspection_tab = false;
-                        self.provider_tab = false;
-                        self.calendar_tab = false;
-                        self.yield_tab = false;
-                        self.grid_tab = false;
                     }
                     if ui.button("Actor Health").clicked() {
                         self.actor_tab = true;
                         self.health_tab = false;
-                        self.scheduled_tab = false;
-                        self.catalog_tab = false;
-                        self.parameter_tab = false;
-                        self.lookup_tab = false;
-                        self.contract_tab = false;
-                        self.inspection_tab = false;
-                        self.provider_tab = false;
-                        self.calendar_tab = false;
-                        self.yield_tab = false;
-                        self.grid_tab = false;
                     }
                 });
             });
@@ -559,32 +529,6 @@ impl eframe::App for App {
                     if self.editor_tx.try_send(payload).is_err() {
                         self.parameters.pending = None;
                         self.strategy_catalog.pending = None;
-                        self.status = catalog.text(strings::QUEUE_FULL).into();
-                    }
-                }
-            } else if self.actor_tab {
-                rendered_views.push("actor-health");
-                if let Some(payload) = self.actor_health.draw(
-                    ctx,
-                    self.publications.get("actor-health"),
-                    catalog,
-                    self.snapshot.as_ref().is_some_and(|s| s.mode == "Live"),
-                ) {
-                    if self.editor_tx.try_send(payload).is_err() {
-                        self.actor_health.pending = None;
-                        self.status = catalog.text(strings::QUEUE_FULL).into();
-                    }
-                }
-            } else if self.health_tab {
-                rendered_views.push("operations-health");
-                if let Some(payload) = self.health.draw(
-                    ctx,
-                    self.publications.get("operations-health"),
-                    catalog,
-                    self.snapshot.as_ref().is_some_and(|s| s.mode == "Live"),
-                ) {
-                    if self.editor_tx.try_send(payload).is_err() {
-                        self.health.pending = None;
                         self.status = catalog.text(strings::QUEUE_FULL).into();
                     }
                 }
@@ -706,6 +650,20 @@ impl eframe::App for App {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     ui.trading_label(&self.shell.workspace);
                 });
+            }
+        }
+        // Health dialogs render independently of the selected workspace.
+        // Their close state never closes a trade or stops its subscriptions.
+        if self.actor_tab {
+            rendered_views.push("actor-health");
+            if let Some(payload)=self.actor_health.draw_dialog(ctx,self.publications.get("actor-health"),catalog,self.snapshot.as_ref().is_some_and(|s|s.mode=="Live"),&mut self.actor_tab){
+                if self.editor_tx.try_send(payload).is_err(){self.actor_health.pending=None;self.status=catalog.text(strings::QUEUE_FULL).into();}
+            }
+        }
+        if self.health_tab {
+            rendered_views.push("operations-health");
+            if let Some(payload)=self.health.draw_dialog(ctx,self.publications.get("operations-health"),catalog,self.snapshot.as_ref().is_some_and(|s|s.mode=="Live"),&mut self.health_tab){
+                if self.editor_tx.try_send(payload).is_err(){self.health.pending=None;self.status=catalog.text(strings::QUEUE_FULL).into();}
             }
         }
         if self.market_data.open {
@@ -909,10 +867,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        &serde_json::from_str::<Catalog>(include_str!("../catalog/strings.en.json"))
-            .unwrap()
-            .text(strings::TITLE)
-            .to_owned(),
+        ifm_ui_egui::WINDOW_TITLE,
         options,
         Box::new(move |cc| {
             ifm_ui_egui::apply_winforms_typography(&cc.egui_ctx)?;

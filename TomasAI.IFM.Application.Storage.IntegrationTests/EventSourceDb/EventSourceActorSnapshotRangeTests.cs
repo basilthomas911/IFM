@@ -515,6 +515,75 @@ public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapsho
 public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFixture fixture)
     : IClassFixture<EventSourceActorSnapshotRangeFixture>
 {
+    [Theory]
+    [InlineData(EventLogWriteMode.Sequential, false, false)]
+    [InlineData(EventLogWriteMode.Sequential, true, true)]
+    [InlineData(EventLogWriteMode.BinaryCopy, false, true)]
+    [InlineData(EventLogWriteMode.BinaryCopy, true, false)]
+    public async Task Mixed_event_identities_preserve_latest_Iron_Condor_snapshot_and_typed_ranges(
+        EventLogWriteMode mode, bool compressed, bool movedSnapshot)
+    {
+        const string snapshotStable = "test.iron-condor-snapshot/v1";
+        const string snapshotMoved = "Moved.IronCondorPositionChangedEvent, Removed.TradeContracts";
+        const string signalStable = "test.rsi-generated/v1";
+        const string signalMoved = "Moved.RsiGeneratedEvent, Removed.SignalContracts";
+        EventTypeRegistry.Default.Register<TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent>(snapshotStable, snapshotMoved);
+        EventTypeRegistry.Default.Register<FuturesRsiSignalGeneratedEvent>(signalStable, signalMoved);
+        await using var context = fixture.CreateActorEventDb(new() { WriteMode = mode, UseLz4Compression = compressed });
+        var source = new TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent
+        {
+            Subject = ActorSubject.Unknown, Id = Guid.NewGuid(), CommandId = Guid.NewGuid(),
+            ReceivedOn = DateTime.UtcNow, IsRealtimeMarketObservation = true,
+            PositionSnapshot = new() { PositionSequence = 1, MarketValue = 312.50m, UnrealizedPnl = -45.25m, AsOfUtc = DateTime.UtcNow }
+        };
+        var latest = source with { Id = Guid.NewGuid(), CommandId = Guid.NewGuid(),
+            PositionSnapshot = source.PositionSnapshot with { PositionSequence = 3, UnrealizedPnl = -67.75m } };
+        var signal = RangeEvent();
+        var stream = NewStream();
+        await context.SaveEventsAsync(stream, source.CommandId, new DomainEventCollection([source, RangeEvent(), latest, signal]), 0, CancellationToken.None);
+        var streamId = await context.GetEventStreamIdAsync(stream);
+        var before = (await context.LoadActorEventStreamAsync<TestActorState>(streamId)).ToArray();
+        before.Select(row => row.EventTypeName).Should().OnlyContain(name => name.Contains(", Version=", StringComparison.Ordinal));
+        var originalBytes = before.Select(row => row.EventData.ToArray()).ToArray();
+
+        await using var sql = new Npgsql.NpgsqlConnection(fixture.ConnectionString);
+        await sql.OpenAsync();
+        async Task RenameMetadata(EventStreamReadModel row, string identity)
+        {
+            await using var insert = new Npgsql.NpgsqlCommand(EventSourceDbSql.InsertEventNameId, sql);
+            // A changed short event name also must not hide an explicitly registered identity.
+            insert.Parameters.AddWithValue("RenamedContractEvent"); insert.Parameters.AddWithValue(identity);
+            var nameId = Convert.ToInt32(await insert.ExecuteScalarAsync());
+            await using var update = new Npgsql.NpgsqlCommand("UPDATE event_log SET eventnameid=$1 WHERE eventversion=$2", sql);
+            update.Parameters.AddWithValue(nameId); update.Parameters.AddWithValue(row.EventVersion);
+            (await update.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+        await RenameMetadata(before[2], movedSnapshot ? snapshotMoved : snapshotStable);
+        await RenameMetadata(before[3], movedSnapshot ? signalStable : signalMoved);
+        var all = (await context.LoadActorEventStreamAsync<TestActorState>(streamId)).ToArray();
+        for (var index = 0; index < all.Length; index++) all[index].EventData.Should().Equal(originalBytes[index]);
+        all.Select(row => row.StreamVersion).Should().Equal(1, 2, 3, 4);
+        var fromSnapshot = await context.GetEventsFromSnapshotAsync<TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent>(streamId);
+        fromSnapshot.Select(row => row.StreamVersion).Should().Equal(3, 4);
+        var loaded = fromSnapshot.First().ToDomainEvent().Should().BeOfType<TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent>().Subject;
+        loaded.EventId.Should().Be(before[2].EventVersion);
+        loaded.PositionSnapshot.Should().BeEquivalentTo(latest.PositionSnapshot);
+
+        var reduced = new List<EventStreamReadModel>();
+        // The unbounded streaming mapper reuses its carrier. Snapshot values
+        // while enumerating, as a production reducer does, before retaining them.
+        void Capture(IEnumerable<EventStreamReadModel> rows) => reduced.AddRange(rows.Select(row => new EventStreamReadModel
+        { EventVersion = row.EventVersion, StreamVersion = row.StreamVersion, EventTypeName = row.EventTypeName, EventData = row.EventData }));
+        await context.MapReduceActorEventStreamAsync<TestActorState, TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent>(streamId, Capture);
+        reduced.Select(row => row.StreamVersion).Should().Equal(3, 4);
+        reduced.Clear();
+        await context.MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TestActorState, TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent, FuturesRsiSignalGeneratedEvent>(streamId, 1, Capture);
+        reduced.Select(row => row.StreamVersion).Should().Equal(3, 4);
+        reduced.Clear();
+        await context.MapReduceActorEventStreamAsync<TestActorState, FuturesRsiSignalGeneratedEvent>(streamId, 1, Capture);
+        reduced.Select(row => row.StreamVersion).Should().Equal(4);
+        reduced.Single().ToDomainEvent().Should().BeOfType<FuturesRsiSignalGeneratedEvent>();
+    }
     [Fact]
     public async Task Latest_trade_plan_load_returns_one_full_source_snapshot_without_projection_recovery()
     {

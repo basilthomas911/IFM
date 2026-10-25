@@ -7,6 +7,11 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// </summary>
 public static class EventSourceDbSql
 {
+    /// <summary>Finds current, stable and historical metadata rows for a typed read without rewriting them.</summary>
+    public const string GetCompatibleEventNameIds = """
+        SELECT EventNameId, EventName, EventTypeName FROM event_name_id
+        WHERE EventName = $1 OR EventTypeName = ANY($2);
+        """;
     /// <summary>
     /// SQL to delete an event log by event version
     /// </summary>
@@ -218,7 +223,7 @@ WITH last_event_range AS (
         el.eventTimestamp
     FROM event_log el
     WHERE el.eventStreamId = $1
-      AND el.eventNameId = $2
+      AND el.eventNameId = ANY($2)
     ORDER BY el.eventVersion DESC
     LIMIT GREATEST($3, 0)
 )
@@ -246,7 +251,7 @@ WITH latest_snapshot AS (
     SELECT MAX(el.eventVersion) AS snapshotVersion
     FROM event_log el
     WHERE el.eventStreamId = $1
-      AND el.eventNameId = $2
+      AND el.eventNameId = ANY($2)
 ),
 last_event_range AS (
     SELECT
@@ -261,7 +266,7 @@ last_event_range AS (
     CROSS JOIN latest_snapshot snapshot
     WHERE snapshot.snapshotVersion IS NOT NULL
       AND el.eventStreamId = $1
-      AND el.eventNameId = $3
+      AND el.eventNameId = ANY($3)
       AND el.eventVersion > snapshot.snapshotVersion
     ORDER BY el.eventVersion DESC
     LIMIT GREATEST($4, 0)
@@ -1000,7 +1005,7 @@ WHERE
 SELECT max(el.eventVersion) as "MaxEventVersion"
 from event_log el 
 where el.eventStreamId = $1
-and el.eventNameId = $2
+and el.eventNameId = ANY($2)
 """;
 
     /// <summary>

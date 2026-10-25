@@ -214,3 +214,39 @@ Foreground timings now measure core readiness. Optional reads emit separate
 `trade_load_background_timing` records with `parent_load_id` correlation when
 started by the load command; the summary reports those separately. Do not compare
 this core-ready total to the older all-sections-ready total as identical metrics.
+
+### Health dialogs with an open trade
+
+Operations Health and Actor Health open independent resizable dialogs. The
+loaded trade remains drawn underneath and keeps consuming live updates. Closing
+the dialog returns to that trade without reloading it or toggling Live Feed.
+`tests/desktop/health-navigation-loaded-trade.json` exercises both dialogs through
+FlaUI with an already loaded live trade and requires actual Window accessibility
+nodes, not just refresh buttons appearing somewhere in the main pane.
+
+Health observations do not depend on market-session activity. Operations freshness
+uses the API `X-IFM-Server-Utc` operational clock (supplied through server
+TimeProvider), or the deployed server's standard HTTP Date header for compatibility.
+It never compares health against the last market-session transition or the UI
+workstation clock. Missing/invalid server time and genuinely stale observations
+remain explicit failures. Actor history uses the supervisor API's observation
+and default time window; it loads automatically when its dialog first opens.
+Inactive market stages remain visible alongside required API/Host health checks.
+
+### Status console history
+
+Backend console writers publish acknowledged messages to the file-backed
+`IFM_STATUS_CONSOLE_HISTORY` JetStream stream on the existing Notify subject.
+Console messages have unique IDs and remain stored independently of API/UI
+lifetimes, value dates, and market hours. The stream has no automatic age/count
+truncation; reading it never acknowledges, purges, or deletes history.
+
+The standalone subscribes before replaying `/api/status-console` in bounded pages
+through a captured sequence watermark. Live and replayed messages merge by ID,
+in timestamp order; the UI retains all console rows rather than only 500.
+Periodic cursor reads and reconnects catch up missed notifications. Failed reads
+leave the cursor unchanged and report an explicit retrying error. The endpoint
+defaults to the configured operations-health API origin and can be overridden
+with `IFM_UI_STATUS_CONSOLE_URL`. No market session or local clock determines
+which console messages are loaded. Retention starts when the updated backend is
+deployed; earlier non-durable messages cannot be recovered from the old channel.

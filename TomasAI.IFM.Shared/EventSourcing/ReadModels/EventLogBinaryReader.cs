@@ -2,21 +2,23 @@ namespace TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
 internal static class EventLogBinaryReader
 {
-    internal static IEvent Read(string typeName, long version, byte[] payload)
+    internal static IEvent Read(string typeName, long version, byte[] payload, IEventTypeResolver? resolver = null)
     {
+        resolver ??= EventTypeRegistry.Default;
         var legacyPortfolioEvent = typeName.StartsWith(
             "TomasAI.IFM.Domain.Portfolio.Command.Model.", StringComparison.Ordinal);
-        typeName = ResolveLegacyPortfolioEventType(typeName);
+        // Explicit old-name registrations take priority over the existing Portfolio compatibility route.
+        var type = resolver.Resolve(typeName);
+        if (type is null && legacyPortfolioEvent)
+            type = resolver.Resolve(ResolveLegacyPortfolioEventType(typeName));
         // An unavailable event type remains observable. Corrupt known events must fail replay.
-        if (Type.GetType(typeName, false, true) is null)
+        if (type is null)
             return new UnknownEvent(subject: default, id: Guid.Empty, entityId: default,
                 eventId: version, commandId: Guid.Empty, aggregateId: string.Empty,
                 eventSource: string.Empty, receivedOn: DateTime.MinValue, eventSourceId: 0,
                 eventSourceVersion: 0, eventTypeName: typeName,
                 eventData: Convert.ToBase64String(payload), eventDate: DateTime.MinValue);
-        return legacyPortfolioEvent
-            ? EventLogMessagePackCodec.Shared.DeserializeLegacyContractless(typeName, version, payload)
-            : EventLogMessagePackCodec.Shared.Deserialize(typeName, version, payload);
+        return EventLogMessagePackCodec.Shared.DeserializeResolved(type, version, payload, legacyPortfolioEvent);
     }
 
     static string ResolveLegacyPortfolioEventType(string typeName)

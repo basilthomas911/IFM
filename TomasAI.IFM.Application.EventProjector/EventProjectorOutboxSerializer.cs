@@ -33,7 +33,9 @@ static class EventProjectorOutboxSerializer
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(eventTypeName);
         ArgumentNullException.ThrowIfNull(payload);
-        var eventType = Type.GetType(eventTypeName, throwOnError: true)!;
+        Type eventType;
+        try { eventType = EventTypeRegistry.Default.ResolveRequired(eventTypeName); }
+        catch (InvalidDataException error) { throw new InvalidOperationException($"Outbox event type '{eventTypeName}' does not implement {nameof(IEvent)}.", error); }
         if (!typeof(IEvent).IsAssignableFrom(eventType))
             throw new InvalidOperationException($"Outbox event type '{eventType.FullName}' does not implement {nameof(IEvent)}.");
         return (IEvent)(MessagePackSerializer.Deserialize(eventType, payload, Options)

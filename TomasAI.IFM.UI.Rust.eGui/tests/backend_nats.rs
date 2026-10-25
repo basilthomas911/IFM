@@ -2884,7 +2884,7 @@ async fn pending_calendar_hydration_does_not_delay_the_recovery_error_publicatio
     ));
     let result = tokio::time::timeout(Duration::from_secs(2), async {
         while let Some(state) = receive.recv().await {
-            if !state.error.is_empty() {
+            if state.error.contains("Option pipeline recovery failed") {
                 return state;
             }
         }
@@ -3606,12 +3606,8 @@ async fn actor_health_http_and_supervisor_commands_preserve_permissions_generati
                     let mut bytes = [0; 8192];
                     let length = stream.read(&mut bytes).unwrap();
                     let request = String::from_utf8_lossy(&bytes[..length]);
-                    assert!(request.contains("fromUtc="));
-                    assert!(request.contains("toUtc="));
-                    assert!(
-                        request.contains("2026-10-26T"),
-                        "API time must own the health query range: {request}"
-                    );
+                    assert!(!request.contains("toUtc="),"API must own the current health-window end: {request}");
+                    if request.contains("fromUtc="){assert!(request.contains("2026-10-26T"),"API observation must own the initial From time: {request}");}
                     let response = format!(
                         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                         body.len()
@@ -3901,3 +3897,20 @@ mod trade_eod;
 
 #[path="support/closing_workspace.rs"]
 mod closing_workspace;
+
+
+#[tokio::test]
+#[ignore="Requires isolated C# compatibility responder"]
+async fn operational_health_closed_market_uses_independent_api_clock(){
+ use std::{io::{Read,Write},net::TcpListener};
+ let listener=TcpListener::bind("127.0.0.1:0").unwrap();let endpoint=format!("http://{}/health",listener.local_addr().unwrap());
+ let worker=std::thread::spawn(move||{let(mut stream,_)=listener.accept().unwrap();let mut buffer=[0u8;4096];stream.read(&mut buffer).unwrap();
+ let body=r#"{"schemaVersion":1,"revision":1,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Inactive","sessionState":"Closed","valueDate":null,"stages":[{"stage":"Actor routing/API","status":"Green","required":true,"reasonCode":"Healthy","reason":"API remains available"}],"datasets":[]}"#;
+ write!(stream,"HTTP/1.1 200 OK\r\nX-IFM-Server-Utc: 2000-01-03T12:30:00Z\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).unwrap();});
+ let backend=Backend::connect(Settings{url:std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),credentials_file:None,token:None,request_timeout:Duration::from_secs(2)}).await.unwrap();
+ // The compatibility MarketSession is in 2026, intentionally unrelated to this
+ // health API clock. A market-session dependency would reject this valid read.
+ let mut health=ifm_ui_egui::state::operations_health::OperationsHealthController::new(Some(endpoint)).unwrap();
+ let publication=health.execute(&backend,&serde_json::json!({"schema":1,"view":"operations-health","intent":"load","requestId":uuid::Uuid::new_v4().to_string()})).await.unwrap();
+ assert_eq!(publication.outcomes[0].state,"Completed");assert_eq!(publication.result.context["status"],"Inactive");assert_eq!(publication.result.rows[0].fields["Status"],"Green");worker.join().unwrap();
+}

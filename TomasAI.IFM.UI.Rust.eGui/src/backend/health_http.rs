@@ -1,5 +1,5 @@
 //! Existing HTTP/JSON health transport, with one caller-owned deadline and
-//! streamed response bounds. Business time is supplied by the API session.
+//! streamed response bounds. Operational time is supplied by the API response.
 use futures_util::StreamExt;
 use serde_json::Value;
 
@@ -7,6 +7,8 @@ use serde_json::Value;
 pub struct HealthClient {
     client: reqwest::Client,
 }
+/// API operational time is independent of market-session observation time.
+pub struct HealthObservation { pub value:Value, pub server_utc:Option<chrono::DateTime<chrono::Utc>> }
 impl HealthClient {
     pub fn new() -> Result<Self, String> {
         if rustls::crypto::CryptoProvider::get_default().is_none() {
@@ -18,12 +20,15 @@ impl HealthClient {
                 .map_err(|_| "Could not initialize HTTP health client")?,
         })
     }
-    pub async fn get(
+    pub async fn get(&self,endpoint:&str,maximum:usize,deadline:tokio::time::Instant)->Result<Value,String>{
+        self.get_observation(endpoint,maximum,deadline).await.map(|read|read.value)
+    }
+    pub async fn get_observation(
         &self,
         endpoint: &str,
         maximum: usize,
         deadline: tokio::time::Instant,
-    ) -> Result<Value, String> {
+    ) -> Result<HealthObservation, String> {
         let url = reqwest::Url::parse(endpoint).map_err(|_| "Invalid health endpoint")?;
         if !matches!(url.scheme(), "http" | "https") {
             return Err("An absolute HTTP(S) health endpoint is required".into());
@@ -41,6 +46,13 @@ impl HealthClient {
                     response.status().as_u16()
                 ));
             }
+            // Prefer the API's TimeProvider clock. HTTP Date supports existing
+            // deployed servers; never substitute the workstation or session clock.
+            let server_utc=if let Some(value)=response.headers().get("x-ifm-server-utc") {
+                Some(chrono::DateTime::parse_from_rfc3339(value.to_str().map_err(|_|"Invalid API clock header")?).map_err(|_|"Invalid API clock header")?.to_utc())
+            }else if let Some(value)=response.headers().get(reqwest::header::DATE) {
+                Some(chrono::DateTime::parse_from_rfc2822(value.to_str().map_err(|_|"Invalid API Date header")?).map_err(|_|"Invalid API Date header")?.to_utc())
+            }else{None};
             if response
                 .content_length()
                 .is_some_and(|n| n > maximum as u64)
@@ -69,7 +81,7 @@ impl HealthClient {
             if !bounded(&value, 0) {
                 return Err("Health response exceeds its nesting bound".into());
             }
-            Ok(value)
+            Ok(HealthObservation{value,server_utc})
         })
         .await
         .map_err(|_| "Health request deadline expired".to_string())?

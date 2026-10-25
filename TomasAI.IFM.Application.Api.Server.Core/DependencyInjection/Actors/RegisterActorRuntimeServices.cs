@@ -145,6 +145,7 @@ public static partial class CoreServiceRegistration
 {
     static void RegisterActorRuntimeServices(IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger, IHostEnvironment? hostEnvironment, Container siContainer, bool focusedActorIntegration)
     {
+        TomasAI.IFM.Application.Api.Server.Core.Hosting.PersistedEventTypeAliases.Register(TomasAI.IFM.Shared.EventSourcing.EventTypeRegistry.Default);
         // register Event Model Actor instances...
         var admissionOptions = config
         .GetSection(ActorAdmissionOptions.SectionName)

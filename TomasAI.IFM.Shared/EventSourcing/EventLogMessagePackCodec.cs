@@ -9,7 +9,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Shared.EventSourcing;
 
 /// <summary>Binary-only event-log codec. The event registry supplies the concrete type; no typeless payloads.</summary>
-public sealed class EventLogMessagePackCodec(bool compressed = false)
+public sealed class EventLogMessagePackCodec(bool compressed = false, IEventTypeResolver? typeResolver = null)
 {
     static readonly MessagePackSerializerOptions BaseOptions = MessagePackSerializerOptions.Standard.WithResolver(
         CompositeResolver.Create([new ActorEntityIdFormatter()], [ContractlessStandardResolver.Instance]));
@@ -37,12 +37,20 @@ public sealed class EventLogMessagePackCodec(bool compressed = false)
 
     public IEvent Deserialize(string typeName, long eventVersion, byte[] payload)
     {
-        var type = Type.GetType(typeName, throwOnError: true)!;
+        var type = (typeResolver ?? EventTypeRegistry.Default).ResolveRequired(typeName);
+        return DeserializeResolved(type, eventVersion, payload, false);
+    }
+
+    internal IEvent DeserializeResolved(Type type, long eventVersion, byte[] payload, bool legacyContractless)
+    {
         if (!typeof(IEvent).IsAssignableFrom(type)) throw new InvalidDataException("Registered type is not an event.");
+        ArgumentNullException.ThrowIfNull(payload);
         var reader = new MessagePackReader(payload);
         if (reader.ReadArrayHeader() != 3 || reader.ReadInt32() != 1) throw new InvalidDataException("Unknown binary event-log envelope.");
         var nullAggregateId = reader.ReadBoolean();
-        var value = (IEvent)MessagePackSerializer.Deserialize(type, ref reader, _readOptions);
+        var value = legacyContractless
+            ? (IEvent)ReadStringKeyedObject(type, ref reader)
+            : (IEvent)MessagePackSerializer.Deserialize(type, ref reader, _readOptions);
         if (!reader.End) throw new InvalidDataException("Trailing bytes in binary event-log payload.");
         if (nullAggregateId) EventInitHelper.SetProperty<string?>(value, nameof(IEvent.AggregateId), null);
         // Match the JSON event-log reader's restoration of authoritative storage metadata.
@@ -56,18 +64,8 @@ public sealed class EventLogMessagePackCodec(bool compressed = false)
     /// </summary>
     public IEvent DeserializeLegacyContractless(string typeName, long eventVersion, byte[] payload)
     {
-        var type = Type.GetType(typeName, throwOnError: true)!;
-        if (!typeof(IEvent).IsAssignableFrom(type)) throw new InvalidDataException("Registered type is not an event.");
-
-        var reader = new MessagePackReader(payload);
-        if (reader.ReadArrayHeader() != 3 || reader.ReadInt32() != 1)
-            throw new InvalidDataException("Unknown binary event-log envelope.");
-        var nullAggregateId = reader.ReadBoolean();
-        var value = (IEvent)ReadStringKeyedObject(type, ref reader);
-        if (!reader.End) throw new InvalidDataException("Trailing bytes in binary event-log payload.");
-        if (nullAggregateId) EventInitHelper.SetProperty<string?>(value, nameof(IEvent.AggregateId), null);
-        EventInitHelper.SetProperty(value, nameof(IEvent.EventId), eventVersion);
-        return value;
+        var type = (typeResolver ?? EventTypeRegistry.Default).ResolveRequired(typeName);
+        return DeserializeResolved(type, eventVersion, payload, true);
     }
 
     object ReadStringKeyedObject(Type type, ref MessagePackReader reader)

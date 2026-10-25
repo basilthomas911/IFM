@@ -20,7 +20,13 @@ try {
   catch {$status='Failed';$errorText=$_.Exception.Message}
   $evidence=Select-String -LiteralPath $log -Pattern '^Desktop evidence: (.+)$' | Select-Object -Last 1
   $results+=@([ordered]@{scenario=$case;status=$status;log=$log;evidence=if($evidence){$evidence.Matches[0].Groups[1].Value}else{$null};error=$errorText})
-  [ordered]@{executable=$exe;sha256=$identity;cases=$results;qualification='Paired FlaUI against isolated synthetic backend services; no live broker or market qualification.'} | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $output 'suite.json') -Encoding UTF8
+  # A loaded trade must remain visible beneath independent health dialogs.
+ $case='health-navigation-loaded-trade';$log=Join-Path $output ($case+'.log');$status='Passed';$errorText=''
+ try {& (Join-Path $PSScriptRoot 'Test-StandaloneDesktopParity.ps1') -Variant Standalone -Scenario ('TomasAI.IFM.UI.Rust.eGui/tests/desktop/'+$case+'.json') -StandaloneExe $exe -FixtureDirectory $fixtureSnapshot *> $log}
+ catch {$status='Failed';$errorText=$_.Exception.Message}
+ $evidence=Select-String -LiteralPath $log -Pattern '^Desktop evidence: (.+)$' | Select-Object -Last 1
+ $results+=@([ordered]@{scenario=$case;variant='Standalone';status=$status;log=$log;evidence=if($evidence){$evidence.Matches[0].Groups[1].Value}else{$null};error=$errorText;basis='Independent health dialogs above an existing live trade; closing a dialog does not reload the trade.'})
+ [ordered]@{executable=$exe;sha256=$identity;cases=$results;qualification='Paired FlaUI against isolated synthetic backend services; no live broker or market qualification.'} | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $output 'suite.json') -Encoding UTF8
   Write-Output ($case+': '+$status)
  }
  # This correctness case deliberately does not reproduce the unchanged hybrid's

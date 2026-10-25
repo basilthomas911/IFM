@@ -2,7 +2,6 @@ use crate::{
     backend::{health_http::HealthClient, transport::Backend},
     contract_editor::{ContractPublication, ContractResult, ContractRow},
     lookup_editor::EditorOutcome,
-    services::business_context::BusinessContext,
 };
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -15,11 +14,10 @@ pub struct OperationsHealthController {
 }
 impl OperationsHealthController {
     pub fn from_env() -> Result<Self, String> {
-        Ok(Self {
-            client: HealthClient::new()?,
-            endpoint: crate::backend::configuration::value("IFM_UI_OPERATIONS_HEALTH_URL")?,
-            generation: 0,
-        })
+        Self::new(crate::backend::configuration::value("IFM_UI_OPERATIONS_HEALTH_URL")?)
+    }
+    pub fn new(endpoint:Option<String>)->Result<Self,String>{
+        Ok(Self{client:HealthClient::new()?,endpoint,generation:0})
     }
     pub async fn execute(
         &mut self,
@@ -44,9 +42,9 @@ impl OperationsHealthController {
                 .endpoint
                 .as_deref()
                 .ok_or("Operations health endpoint is not configured")?;
-            let session = BusinessContext::load(backend).await?;
-            let value = self.client.get(endpoint, 1024 * 1024, deadline).await?;
-            project(&value, session.as_of_utc)
+            let read=self.client.get_observation(endpoint,1024*1024,deadline).await?;
+            let server_utc=read.server_utc.ok_or("Operations health response has no API operational clock")?;
+            project(&read.value,server_utc)
         })
         .await
         .map_err(|_| "Health request deadline expired".to_string())

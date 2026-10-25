@@ -42,6 +42,9 @@
 //! build, fixture/live-mode, deployment, and desktop-test commands.
 
 use crate::control_parity::BorderedTable as _;
+/// Native window identity uses the executable's Cargo package version at build time.
+pub const WINDOW_TITLE: &str = concat!("IFM - eGui ", env!("CARGO_PKG_VERSION"));
+
 /// Native actor transport and exact backend contract adapters.
 pub mod backend;
 /// Atomic native journals for pending client operations.

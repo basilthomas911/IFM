@@ -42,6 +42,13 @@ impl OperationsHealth {
         c: &Catalog,
         live: bool,
     ) -> Option<String> {
+        self.draw_surface(ctx,s,c,live,None)
+    }
+    /// Display the health explorer as an independent desktop dialog.
+    pub fn draw_dialog(&mut self,ctx:&egui::Context,s:&ContractPublication,c:&Catalog,live:bool,open:&mut bool)->Option<String>{
+        self.draw_surface(ctx,s,c,live,Some(open))
+    }
+    fn draw_surface(&mut self,ctx:&egui::Context,s:&ContractPublication,c:&Catalog,live:bool,open:Option<&mut bool>)->Option<String>{
         if self.pending.as_ref().is_some_and(|id| {
             s.outcomes
                 .iter()
@@ -67,7 +74,7 @@ impl OperationsHealth {
                     .max(std::time::Duration::from_millis(100)),
             );
         }
-        egui::CentralPanel::default().show(ctx, |ui| {
+        super::health_surface(ctx,"Operations Health",open, |ui| {
             if ui
                 .add_enabled(
                     live && !s.busy && self.pending.is_none(),

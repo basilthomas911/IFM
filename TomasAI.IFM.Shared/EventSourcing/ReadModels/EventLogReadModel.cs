@@ -12,4 +12,5 @@ public record EventLogReadModel(
     long StreamVersion = 0)
 {
     public IEvent ToDomainEvent() => EventLogBinaryReader.Read(EventTypeName, EventVersion, EventData);
+    public IEvent ToDomainEvent(IEventTypeResolver resolver) => EventLogBinaryReader.Read(EventTypeName, EventVersion, EventData, resolver);
 }

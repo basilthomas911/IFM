@@ -56,6 +56,9 @@ internal static class Program{
      var start=new ProcessStartInfo("dotnet"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};foreach(var argument in new[]{oracle,"--control",url!,step.GetProperty("verb").GetString()!,step.GetProperty("value").GetString()!})start.ArgumentList.Add(argument);
      using var control=Process.Start(start)!;if(!control.WaitForExit(15000)){control.Kill();throw new TimeoutException("Isolated control tool did not finish");}if(control.ExitCode!=0)throw new InvalidOperationException(control.StandardError.ReadToEnd());File.AppendAllText(Path.Combine(output,"controls.log"),control.StandardOutput.ReadToEnd());continue;
     }
+    if(action=="absent"){
+     var gone=Stopwatch.StartNew();while(true){var found=searchRoot.FindAllDescendants(cf=>cf.ByName(name)).Any(e=>type is null||e.ControlType.ToString()==type);if(!found)break;if(gone.Elapsed>TimeSpan.FromSeconds(20))throw new TimeoutException("UI control remained visible: "+name);Thread.Sleep(50);}continue;
+    }
     if(action=="wait"){_ = Wait(searchRoot,name,index,step.TryGetProperty("contains",out var c)&&c.GetBoolean(),type,enabled);continue;}
     if(action=="invoke"){var element=Wait(searchRoot,name,index,false,type,enabled);if(!element.IsEnabled)throw new InvalidOperationException("Control is disabled: "+name);if(element.Patterns.Invoke.IsSupported)element.Patterns.Invoke.Pattern.Invoke();else ClickOwned(element,window,app.ProcessId);continue;}
     if(action=="date-picker"){

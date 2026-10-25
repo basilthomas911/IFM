@@ -72,9 +72,9 @@ impl FileSettings {
             Some(Value::Number(value))=>Some(value.to_string()),
             _=>return Err(format!("Invalid scalar client setting: {name}")),
         };
-        if name=="IFM_UI_ACTOR_HEALTH_URL"&&result.is_none() {
+        if matches!(name,"IFM_UI_ACTOR_HEALTH_URL"|"IFM_UI_STATUS_CONSOLE_URL")&&result.is_none() {
             return self.value("IFM_UI_OPERATIONS_HEALTH_URL",environment)?.map(|endpoint|reqwest::Url::parse(&endpoint)
-                .and_then(|url|url.join("/api/actor-health")).map(String::from).map_err(|_|"Invalid operations-health endpoint".into())).transpose();
+                .and_then(|url|url.join(if name=="IFM_UI_ACTOR_HEALTH_URL"{"/api/actor-health"}else{"/api/status-console"})).map(String::from).map_err(|_|"Invalid operations-health endpoint".into())).transpose();
         }
         Ok(result)
     }

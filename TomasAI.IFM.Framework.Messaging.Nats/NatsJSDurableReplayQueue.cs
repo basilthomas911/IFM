@@ -795,7 +795,9 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         var envelope = DeserializeEnvelope(payload);
         var eventType = EventTypes.GetOrAdd(envelope.EventType, static name =>
         {
-            var type = Type.GetType(name, throwOnError: true)!;
+            Type type;
+            try { type = EventTypeRegistry.Default.ResolveRequired(name); }
+            catch (InvalidDataException error) { throw new InvalidOperationException($"Envelope type '{name}' does not implement {nameof(IEvent)}.", error); }
             if (!typeof(IEvent).IsAssignableFrom(type))
                 throw new InvalidOperationException($"Envelope type '{type}' does not implement {nameof(IEvent)}.");
             return type;

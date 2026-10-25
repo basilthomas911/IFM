@@ -44,6 +44,13 @@ impl ActorHealth {
         c: &Catalog,
         live: bool,
     ) -> Option<String> {
+        self.draw_surface(ctx,s,c,live,None)
+    }
+    /// Display the health explorer as an independent desktop dialog.
+    pub fn draw_dialog(&mut self,ctx:&egui::Context,s:&ContractPublication,c:&Catalog,live:bool,open:&mut bool)->Option<String>{
+        self.draw_surface(ctx,s,c,live,Some(open))
+    }
+    fn draw_surface(&mut self,ctx:&egui::Context,s:&ContractPublication,c:&Catalog,live:bool,open:Option<&mut bool>)->Option<String>{
         if self.pending.as_ref().is_some_and(|id| {
             s.outcomes
                 .iter()
@@ -68,7 +75,7 @@ impl ActorHealth {
         }
         let mut action = None;
         let enabled = live && !s.busy && self.pending.is_none() && self.refresh_pending.is_none();
-        egui::CentralPanel::default().show(ctx, |ui| {
+        super::health_surface(ctx,"Actor Health",open, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.trading_caption(c.text(strings::ACTOR_FROM));
                 ui.add(egui::TextEdit::singleline(&mut self.from).desired_width(250.));
@@ -242,14 +249,15 @@ impl ActorHealth {
             });
         }
         let now = std::time::Instant::now();
-        if self.next_refresh.is_none() {
+        let first_open=self.next_refresh.is_none();
+        if first_open {
             self.next_refresh = Some(now + std::time::Duration::from_secs(15));
         }
         if action.is_none()
-            && matching
+            && live
             && enabled
             && !self.confirm
-            && self.next_refresh.is_none_or(|next| now >= next)
+            && (first_open&&!matching || self.next_refresh.is_none_or(|next| now >= next))
         {
             let id = new_request_id();
             self.refresh_pending = Some(id.clone());
@@ -303,4 +311,18 @@ fn draw_row(
             *selected = Some(row.id.clone());
         }
     }
+}
+
+
+#[cfg(test)]
+mod initial_health_tests {
+ use super::*;
+ #[test]
+ fn opening_actor_dialog_requests_health_immediately_without_market_activity(){
+  let ctx=egui::Context::default();let catalog:Catalog=serde_json::from_str(include_str!("../../catalog/strings.en.json")).unwrap();
+  let mut screen=ActorHealth::default();let publication=ContractPublication::default();let mut open=true;let mut action=None;
+  let _=ctx.run(Default::default(),|ctx|{action=screen.draw_dialog(ctx,&publication,&catalog,true,&mut open);});
+  let intent:serde_json::Value=serde_json::from_str(action.as_ref().expect("Opening must fetch health")).unwrap();assert_eq!(intent["intent"],"load");assert_eq!(intent["view"],"actor-health");
+  let _=ctx.run(Default::default(),|ctx|{action=screen.draw_dialog(ctx,&publication,&catalog,true,&mut open);});assert!(action.is_none(),"Must not duplicate the pending read");
+ }
 }

@@ -1,0 +1,442 @@
+{
+  "schema": 1,
+  "sourceCommit": "1103e54a9154f5a2a540e4dc4d746e1b163c5c2e",
+  "sourcePath": "TomasAI.IFM.Shared/EventSourcing/EventLogMessagePackCodec.cs",
+  "sourceSha256": "8C9347CE84C1998D10915FCD3886C42C6C73D7DA34C844A927F859EC4E946C92",
+  "cases": [
+    {
+      "file": "iron-condor-position-plain.bin",
+      "stableIdentity": "trade.iron-condor.position-changed/v1",
+      "legacyIdentity": "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "sha256": "298385AD3D51E338D27EC5DE6ABB438A2AE22EB20DD04E810CC2D95CFADEA29E",
+      "compressed": false,
+      "storageEventVersion": 42,
+      "expected": {
+        "IsRealtimeMarketObservation": true,
+        "Subject": {
+          "ActorType": 0,
+          "Name": "none",
+          "Verb": "none",
+          "EntityId": "none",
+          "ActorId": {
+            "ActorType": 0,
+            "Name": "none"
+          },
+          "ActorTypeId": {
+            "ActorType": 0,
+            "Name": "none",
+            "Verb": "none"
+          },
+          "ThreadId": {
+            "ActorType": 0,
+            "Name": "none",
+            "EntityId": "none",
+            "MailboxId": {
+              "ActorType": 0,
+              "Name": "none"
+            }
+          },
+          "StreamId": "Unknown.none.none"
+        },
+        "Id": "11111111-2222-3333-4444-555555555555",
+        "EntityId": {
+          "Trade": {
+            "PortfolioId": 0,
+            "FundId": 0,
+            "OrderId": 0,
+            "TradeId": 0,
+            "IsValid": false
+          },
+          "PositionId": "00000000-0000-0000-0000-000000000000",
+          "IsValid": false
+        },
+        "EventId": 42,
+        "CommandId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "AggregateId": null,
+        "EventSource": "frozen-fixture",
+        "ReceivedOn": "2026-10-25T12:00:00Z",
+        "State": {
+          "SchemaVersion": 2,
+          "Id": {
+            "Trade": {
+              "PortfolioId": 0,
+              "FundId": 0,
+              "OrderId": 0,
+              "TradeId": 0,
+              "IsValid": false
+            },
+            "PositionId": "00000000-0000-0000-0000-000000000000",
+            "IsValid": false
+          },
+          "StrategyKind": 0,
+          "Phase": 0,
+          "PositionSequence": 7,
+          "RouteGeneration": 2,
+          "Legs": [],
+          "MarketValue": 312.5,
+          "UnrealizedPnl": -45.25,
+          "RealizedPnl": 0,
+          "AsOfUtc": "2026-10-25T12:00:00Z",
+          "IsOpen": true,
+          "ClosingFills": [],
+          "ValueDate": "0001-01-01",
+          "LatestSealedValueDate": "0001-01-01",
+          "LastMarketObservationUtc": "0001-01-01T00:00:00Z",
+          "CloseBoundaryUtc": null,
+          "DailyOpeningPnl": 0,
+          "DailyPnl": 0,
+          "HistoryAsOfUtc": "0001-01-01T00:00:00Z",
+          "HistoryPositionSequence": 0,
+          "HistoryValuation": null
+        },
+        "EventName": "IronCondorPositionChangedEvent",
+        "EventType": 0
+      },
+      "payloadBase64": "kwHDmpQApG5vbmWkbm9uZaRub25l2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWSlAAAAADZJDAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMADZJGFhYWFhYWFhLWJiYmItY2NjYy1kZGRkLWVlZWVlZWVlZWVlZcCuZnJvemVuLWZpeHR1cmXW/2rd70DcABYCkpQAAAAA2SQwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDAAAAcCkKYzMTIuNTCmLTQ1LjI1oTDW/2rd70DDkAAAxwz/AAAAAP////GIbgkAwKEwoTDHDP8AAAAA////8YhuCQAAwMM="
+    },
+    {
+      "file": "iron-condor-position-lz4.bin",
+      "stableIdentity": "trade.iron-condor.position-changed/v1",
+      "legacyIdentity": "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "sha256": "198CC11D8DB76CF1F04ACFF195BDE297E03D96592585DF6C325CEDF6B891ABF2",
+      "compressed": true,
+      "storageEventVersion": 42,
+      "expected": {
+        "IsRealtimeMarketObservation": true,
+        "Subject": {
+          "ActorType": 0,
+          "Name": "none",
+          "Verb": "none",
+          "EntityId": "none",
+          "ActorId": {
+            "ActorType": 0,
+            "Name": "none"
+          },
+          "ActorTypeId": {
+            "ActorType": 0,
+            "Name": "none",
+            "Verb": "none"
+          },
+          "ThreadId": {
+            "ActorType": 0,
+            "Name": "none",
+            "EntityId": "none",
+            "MailboxId": {
+              "ActorType": 0,
+              "Name": "none"
+            }
+          },
+          "StreamId": "Unknown.none.none"
+        },
+        "Id": "11111111-2222-3333-4444-555555555555",
+        "EntityId": {
+          "Trade": {
+            "PortfolioId": 0,
+            "FundId": 0,
+            "OrderId": 0,
+            "TradeId": 0,
+            "IsValid": false
+          },
+          "PositionId": "00000000-0000-0000-0000-000000000000",
+          "IsValid": false
+        },
+        "EventId": 42,
+        "CommandId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "AggregateId": null,
+        "EventSource": "frozen-fixture",
+        "ReceivedOn": "2026-10-25T12:00:00Z",
+        "State": {
+          "SchemaVersion": 2,
+          "Id": {
+            "Trade": {
+              "PortfolioId": 0,
+              "FundId": 0,
+              "OrderId": 0,
+              "TradeId": 0,
+              "IsValid": false
+            },
+            "PositionId": "00000000-0000-0000-0000-000000000000",
+            "IsValid": false
+          },
+          "StrategyKind": 0,
+          "Phase": 0,
+          "PositionSequence": 7,
+          "RouteGeneration": 2,
+          "Legs": [],
+          "MarketValue": 312.5,
+          "UnrealizedPnl": -45.25,
+          "RealizedPnl": 0,
+          "AsOfUtc": "2026-10-25T12:00:00Z",
+          "IsOpen": true,
+          "ClosingFills": [],
+          "ValueDate": "0001-01-01",
+          "LatestSealedValueDate": "0001-01-01",
+          "LastMarketObservationUtc": "0001-01-01T00:00:00Z",
+          "CloseBoundaryUtc": null,
+          "DailyOpeningPnl": 0,
+          "DailyPnl": 0,
+          "HistoryAsOfUtc": "0001-01-01T00:00:00Z",
+          "HistoryPositionSequence": 0,
+          "HistoryValuation": null
+        },
+        "EventName": "IronCondorPositionChangedEvent",
+        "EventType": 0
+      },
+      "payloadBase64": "kwHDkscDYs0BFsYAAACvhpqUAKRub25lBQAz2SQxAQD3Ai0yMjIyLTMzMzMtNDQ0NC01AQCTkpQAAAAA2SQwAQAQLQgACwUABAIAQwDZJGEBAPcCLWJiYmItY2NjYy1kZGRkLWUBAP8LwK5mcm96ZW4tZml4dHVyZdb/at3vQNwAFgJtABryBQAHApCmMzEyLjUwpi00NS4yNaEwSwBww5AAAMcM/7kA2f////GIbgkAwKEwoTAUAFAJAADAww=="
+    },
+    {
+      "file": "iti-generated-plain.bin",
+      "stableIdentity": "market-data.futures.iti-signal-generated/v1",
+      "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalGeneratedEvent, TomasAI.IFM.Domain.MarketData.Analytics.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "sha256": "876B1109837B4459AD1CED17D0A6307F4CFD0EBF54127D204821EB06ABE565DF",
+      "compressed": false,
+      "storageEventVersion": 42,
+      "expected": {
+        "Subject": {
+          "ActorType": 0,
+          "Name": "none",
+          "Verb": "none",
+          "EntityId": "none",
+          "ActorId": {
+            "ActorType": 0,
+            "Name": "none"
+          },
+          "ActorTypeId": {
+            "ActorType": 0,
+            "Name": "none",
+            "Verb": "none"
+          },
+          "ThreadId": {
+            "ActorType": 0,
+            "Name": "none",
+            "EntityId": "none",
+            "MailboxId": {
+              "ActorType": 0,
+              "Name": "none"
+            }
+          },
+          "StreamId": "Unknown.none.none"
+        },
+        "Id": "11111111-2222-3333-4444-555555555555",
+        "EntityId": null,
+        "EventId": 42,
+        "CommandId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "AggregateId": "signal",
+        "EventSource": "frozen-fixture",
+        "ReceivedOn": "2026-10-25T12:00:00Z",
+        "FuturesItiSignal": null,
+        "CreatedOn": "2026-10-25T12:00:00Z",
+        "CreatedBy": "fixture",
+        "VixFuturesPrice": 0,
+        "DeriveLongerPeriods": false,
+        "EventName": "FuturesItiSignalGeneratedEvent",
+        "EventType": 0
+      },
+      "payloadBase64": "kwHCnZQApG5vbmWkbm9uZaRub25l2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTXAANkkYWFhYWFhYWEtYmJiYi1jY2NjLWRkZGQtZWVlZWVlZWVlZWVlpnNpZ25hbK5mcm96ZW4tZml4dHVyZdb/at3vQMDW/2rd70CnZml4dHVyZcsAAAAAAAAAAMI="
+    },
+    {
+      "file": "iti-generated-lz4.bin",
+      "stableIdentity": "market-data.futures.iti-signal-generated/v1",
+      "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalGeneratedEvent, TomasAI.IFM.Domain.MarketData.Analytics.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "sha256": "FD28AC09C00ACEFE784F0240AA6FE3705FD91B936CC2F0D1BE2C92AE3D82C40A",
+      "compressed": true,
+      "storageEventVersion": 42,
+      "expected": {
+        "Subject": {
+          "ActorType": 0,
+          "Name": "none",
+          "Verb": "none",
+          "EntityId": "none",
+          "ActorId": {
+            "ActorType": 0,
+            "Name": "none"
+          },
+          "ActorTypeId": {
+            "ActorType": 0,
+            "Name": "none",
+            "Verb": "none"
+          },
+          "ThreadId": {
+            "ActorType": 0,
+            "Name": "none",
+            "EntityId": "none",
+            "MailboxId": {
+              "ActorType": 0,
+              "Name": "none"
+            }
+          },
+          "StreamId": "Unknown.none.none"
+        },
+        "Id": "11111111-2222-3333-4444-555555555555",
+        "EntityId": null,
+        "EventId": 42,
+        "CommandId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "AggregateId": "signal",
+        "EventSource": "frozen-fixture",
+        "ReceivedOn": "2026-10-25T12:00:00Z",
+        "FuturesItiSignal": null,
+        "CreatedOn": "2026-10-25T12:00:00Z",
+        "CreatedBy": "fixture",
+        "VixFuturesPrice": 0,
+        "DeriveLongerPeriods": false,
+        "EventName": "FuturesItiSignalGeneratedEvent",
+        "EventType": 0
+      },
+      "payloadBase64": "kwHCktVizJXGAAAAc4adlACkbm9uZQUAM9kkMQEA9wItMjIyMi0zMzMzLTQ0NDQtNQEAU8AA2SRhAQD3Ai1iYmJiLWNjY2MtZGRkZC1lAQDyDqZzaWduYWyuZnJvemVuLWZpeHR1cmXW/2rd70DABwATpxUAoMsAAAAAAAAAAMI="
+    },
+    {
+      "file": "fund-mandate-created-plain.bin",
+      "stableIdentity": "portfolio.fund-mandate-created/v1",
+      "legacyIdentity": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundMandateCreatedEvent, TomasAI.IFM.Domain.Portfolio.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "sha256": "C46E2C866DEDE0B22612CE72A38F9A29C0A9572400366143D92663567F076812",
+      "compressed": false,
+      "storageEventVersion": 42,
+      "expected": {
+        "Subject": {
+          "ActorType": 0,
+          "Name": "none",
+          "Verb": "none",
+          "EntityId": "none",
+          "ActorId": {
+            "ActorType": 0,
+            "Name": "none"
+          },
+          "ActorTypeId": {
+            "ActorType": 0,
+            "Name": "none",
+            "Verb": "none"
+          },
+          "ThreadId": {
+            "ActorType": 0,
+            "Name": "none",
+            "EntityId": "none",
+            "MailboxId": {
+              "ActorType": 0,
+              "Name": "none"
+            }
+          },
+          "StreamId": "Unknown.none.none"
+        },
+        "Id": "11111111-2222-3333-4444-555555555555",
+        "EntityId": {},
+        "EventId": 42,
+        "CommandId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "AggregateId": "",
+        "EventSource": "PortfolioEvent",
+        "ReceivedOn": "2026-10-25T12:00:00Z",
+        "Revision": 3,
+        "OccurredOnUtc": "2026-10-25T12:00:00Z",
+        "Principal": "fixture",
+        "CorrelationId": "00000000-0000-0000-0000-000000000000",
+        "CausationId": "00000000-0000-0000-0000-000000000000",
+        "OriginatedOnUtc": "2026-10-25T12:00:00Z",
+        "Mandate": {
+          "PortfolioId": 12,
+          "FundId": 34,
+          "FundCode": "FIXTURE",
+          "Name": "Frozen replay fixture",
+          "FundMandateVersion": 0,
+          "SchemaVersion": 1,
+          "TradingYear": 0,
+          "OperatingState": 0,
+          "EffectiveFromUtc": "0001-01-01T00:00:00Z",
+          "EffectiveUntilUtc": null,
+          "DecisionHorizon": "",
+          "Objective": "",
+          "UnderlyingUniverse": [],
+          "EligibleAssetTypes": [],
+          "PermittedDirections": [],
+          "PermittedConditions": [],
+          "PermittedTradeFamilies": [],
+          "CreatedOnUtc": "2026-10-25T12:00:00Z",
+          "CreatedBy": "fixture",
+          "HistoricalSource": "",
+          "HistoricalSourceFundId": null,
+          "PermittedTradeStrategyFamilies": []
+        },
+        "IdempotencyKey": "00000000-0000-0000-0000-000000000000",
+        "ProjectionFacts": null,
+        "EventName": "FundMandateCreatedEvent",
+        "EventType": 0
+      },
+      "payloadBase64": "kwHC3AARlACkbm9uZaRub25lpG5vbmXZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NZGkbm9uZQDZJGFhYWFhYWFhLWJiYmItY2NjYy1kZGRkLWVlZWVlZWVlZWVlZaCuUG9ydGZvbGlvRXZlbnTW/2rd70AD1v9q3e9Ap2ZpeHR1cmXZJDAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMNkkMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAw1v9q3e9A3AAWDCKnRklYVFVSRbVGcm96ZW4gcmVwbGF5IGZpeHR1cmUAAQAAxwz/AAAAAP////GIbgkAwKCgkJCQkJDW/2rd70CnZml4dHVyZaDAkNkkMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwwA=="
+    },
+    {
+      "file": "fund-mandate-created-lz4.bin",
+      "stableIdentity": "portfolio.fund-mandate-created/v1",
+      "legacyIdentity": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundMandateCreatedEvent, TomasAI.IFM.Domain.Portfolio.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "sha256": "576E4F97984CFE434CF00EAB9CB1247ADF4B260CFBAD3314B66C933386576CC0",
+      "compressed": true,
+      "storageEventVersion": 42,
+      "expected": {
+        "Subject": {
+          "ActorType": 0,
+          "Name": "none",
+          "Verb": "none",
+          "EntityId": "none",
+          "ActorId": {
+            "ActorType": 0,
+            "Name": "none"
+          },
+          "ActorTypeId": {
+            "ActorType": 0,
+            "Name": "none",
+            "Verb": "none"
+          },
+          "ThreadId": {
+            "ActorType": 0,
+            "Name": "none",
+            "EntityId": "none",
+            "MailboxId": {
+              "ActorType": 0,
+              "Name": "none"
+            }
+          },
+          "StreamId": "Unknown.none.none"
+        },
+        "Id": "11111111-2222-3333-4444-555555555555",
+        "EntityId": {},
+        "EventId": 42,
+        "CommandId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "AggregateId": "",
+        "EventSource": "PortfolioEvent",
+        "ReceivedOn": "2026-10-25T12:00:00Z",
+        "Revision": 3,
+        "OccurredOnUtc": "2026-10-25T12:00:00Z",
+        "Principal": "fixture",
+        "CorrelationId": "00000000-0000-0000-0000-000000000000",
+        "CausationId": "00000000-0000-0000-0000-000000000000",
+        "OriginatedOnUtc": "2026-10-25T12:00:00Z",
+        "Mandate": {
+          "PortfolioId": 12,
+          "FundId": 34,
+          "FundCode": "FIXTURE",
+          "Name": "Frozen replay fixture",
+          "FundMandateVersion": 0,
+          "SchemaVersion": 1,
+          "TradingYear": 0,
+          "OperatingState": 0,
+          "EffectiveFromUtc": "0001-01-01T00:00:00Z",
+          "EffectiveUntilUtc": null,
+          "DecisionHorizon": "",
+          "Objective": "",
+          "UnderlyingUniverse": [],
+          "EligibleAssetTypes": [],
+          "PermittedDirections": [],
+          "PermittedConditions": [],
+          "PermittedTradeFamilies": [],
+          "CreatedOnUtc": "2026-10-25T12:00:00Z",
+          "CreatedBy": "fixture",
+          "HistoricalSource": "",
+          "HistoricalSourceFundId": null,
+          "PermittedTradeStrategyFamilies": []
+        },
+        "IdempotencyKey": "00000000-0000-0000-0000-000000000000",
+        "ProjectionFacts": null,
+        "EventName": "FundMandateCreatedEvent",
+        "EventType": 0
+      },
+      "payloadBase64": "kwHCkscDYs0BVMYAAADQptwAEZQApG5vbmUFADPZJDEBAPcCLTIyMjItMzMzMy00NDQ0LTUBABGRMQBDANkkYQEA9wItYmJiYi1jY2NjLWRkZGQtZQEA8gigrlBvcnRmb2xpb0V2ZW501v9q3e9AAwcAs6dmaXh0dXJl2SQwAQAQLQgACwUABAIADyYAEwJaAPMN3AAWDCKnRklYVFVSRbVGcm96ZW4gcmVwbGF5IHUA8AgAAQAAxwz/AAAAAP////GIbgkAwKCgkAEAAkQABJ4AP6DAkHsAD1AwMDAwwA=="
+    }
+  ]
+}

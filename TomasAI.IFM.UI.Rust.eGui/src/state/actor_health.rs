@@ -4,7 +4,6 @@ use crate::{
     backend::{contracts::*, health_http::HealthClient, schema::Registry, transport::Backend},
     contract_editor::{ContractPublication, ContractResult, ContractRow},
     lookup_editor::EditorOutcome,
-    services::business_context::BusinessContext,
 };
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use rmpv::Value;
@@ -476,13 +475,6 @@ impl ActorHealthController {
     async fn refresh(&mut self, backend: &Backend) -> Result<(), String> {
         let deadline = tokio::time::Instant::now() + backend.default_timeout();
         let result = tokio::time::timeout_at(deadline, async {
-            let session = BusinessContext::load(backend).await?;
-            let from = self
-                .from
-                .unwrap_or(session.as_of_utc - chrono::Duration::hours(1));
-            if from > session.as_of_utc {
-                return Err("The From time must be before the To time".into());
-            }
             let mut url = reqwest::Url::parse(
                 self.endpoint
                     .as_deref()
@@ -490,15 +482,18 @@ impl ActorHealthController {
             )
             .map_err(|_| "Invalid actor health endpoint")?;
             url.set_query(None);
-            url.query_pairs_mut()
-                .append_pair("fromUtc", &from.to_rfc3339())
-                .append_pair("toUtc", &session.as_of_utc.to_rfc3339());
+            // The endpoint supplies ToUtc and its default history window from
+            // the supervisor's operational clock, including while markets close.
+            if let Some(from)=self.from {url.query_pairs_mut().append_pair("fromUtc",&from.to_rfc3339());}
             let snapshot = pascal(
                 &self
                     .client
                     .get(url.as_str(), 8 * 1024 * 1024, deadline)
                     .await?,
             );
+            let observed=utc(&snapshot["ObservedUtc"])?;
+            let from=self.from.unwrap_or(observed-chrono::Duration::hours(1));
+            if from>observed{return Err("The From time must be before the API observation time".into())}
             let projection = project(&snapshot, from, &self.options)?;
             Ok::<_, String>((from, snapshot, projection))
         })

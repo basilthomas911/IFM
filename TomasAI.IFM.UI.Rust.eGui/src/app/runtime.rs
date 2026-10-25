@@ -45,7 +45,7 @@ pub(crate) fn run(
                 })).map_err(|e| e.to_string())?;
                 initial.send(Update::Ready(catalog, snapshot)).await.map_err(|_| "UI closed")?;
                 initial.send(Update::Dashboard(ifm_ui_egui::shell::Dashboard {
-                    title: format!("IFM — standalone Rust — {date}"),
+                    title: ifm_ui_egui::WINDOW_TITLE.to_owned(),
                     status: format!("API ValueDate {date}"),
                     ..Default::default()
                 })).await.map_err(|_| "UI closed")?;

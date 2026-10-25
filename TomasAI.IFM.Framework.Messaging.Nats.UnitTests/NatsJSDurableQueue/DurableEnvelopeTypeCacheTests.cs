@@ -8,6 +8,39 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.UnitTests.NatsJSDurableQueue;
 
 public sealed class DurableEnvelopeTypeCacheTests
 {
+    [Fact]
+    public void Stable_and_moved_names_work_in_binary_and_legacy_json_envelopes_without_changing_writers()
+    {
+        const string stable = "test.durable-envelope-sample/v1";
+        const string moved = "Moved.SampleEvent, Removed.SampleAssembly";
+        EventTypeRegistry.Default.Register<SampleEvent>(stable, moved);
+        var value = SampleData.Event("alias-preserves-payload");
+        var binary = Serialize(value, "type-cache-test");
+        var options = MessagePack.MessagePackSerializerOptions.Standard
+            .WithResolver(MessagePack.Resolvers.ContractlessStandardResolver.Instance)
+            .WithCompression(MessagePack.MessagePackCompression.Lz4BlockArray);
+        var envelope = MessagePack.MessagePackSerializer.Deserialize<Dictionary<string, object>>(binary, options);
+        Assert.Equal(typeof(SampleEvent).AssemblyQualifiedName!, envelope["EventType"]);
+        foreach (var name in new[] { stable, moved })
+        {
+            envelope["EventType"] = name;
+            var aliased = MessagePack.MessagePackSerializer.Serialize(envelope, options);
+            Deserialize(aliased).Should().BeEquivalentTo(value);
+            Deserialize(Legacy(name, JsonConvert.SerializeObject(value))).Should().BeEquivalentTo(value);
+        }
+        Assert.Throws<TypeLoadException>(() => Deserialize(Legacy("test.durable-envelope-sample/v2", "{}")));
+    }
+
+    [Fact]
+    public void Failed_resolution_is_not_cached_and_can_be_repaired_by_explicit_registration()
+    {
+        const string stable = "test.durable-envelope-late-registration/v1";
+        var value = SampleData.Event("late-registration");
+        var bytes = Legacy(stable, JsonConvert.SerializeObject(value));
+        Assert.Throws<TypeLoadException>(() => Deserialize(bytes));
+        EventTypeRegistry.Default.Register<SampleEvent>(stable);
+        Deserialize(bytes).Should().BeEquivalentTo(value);
+    }
     static readonly Func<IEvent, string, byte[]> Serialize = typeof(NatsJSDurableReplayQueue)
         .GetMethod("Serialize", BindingFlags.NonPublic | BindingFlags.Static)!
         .CreateDelegate<Func<IEvent, string, byte[]>>();

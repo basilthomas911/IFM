@@ -412,7 +412,7 @@ DurableEventEnvelope
 
 The envelope itself is UTF-8 JSON. `ConstructorHandling.AllowNonPublicDefaultConstructor` is enabled for both envelope and event serialization.
 
-Deserialization resolves `EventType` with `Type.GetType(..., throwOnError: true)`, verifies that the resolved type implements `IEvent`, and deserializes `EventJson` as that runtime type. Renaming or removing an event type or assembly can therefore make previously stored events unreadable unless type compatibility is preserved.
+Deserialization resolves `EventType` through `EventTypeRegistry.Default`, which supports explicitly registered stable/historical aliases and falls back to legacy CLR resolution. It verifies that the resolved type is a concrete `IEvent` and deserializes the payload as that runtime type. Writers retain their existing assembly-qualified names. Register affected historical names before retiring an event type or assembly; aliases do not migrate payload schemas. Unknown identities and corrupt known payloads still fail explicitly.
 
 The failure envelope stores only the exception message, not the stack trace or exception type.
 

@@ -6,13 +6,15 @@ use crate::{
     sidebar::{SidebarPublication, StatusRow},
 };
 use futures_util::StreamExt;
-use std::{collections::VecDeque, sync::Arc, time::Duration};
+use std::{collections::{HashSet,VecDeque}, sync::Arc, time::Duration};
 
 #[derive(Default)]
 pub struct Notifications {
     pub publication: SidebarPublication,
     seen: VecDeque<String>,
     sequence: u64,
+    // Console history is retained for the UI lifetime, including more than 500/1024 rows.
+    status_seen: HashSet<String>,
 }
 impl Notifications {
     /// Status messages are console rows, not modal errors. Preserve the event's
@@ -25,10 +27,6 @@ impl Notifications {
             .as_str()
             .ok_or("Missing status event identity")?
             .to_owned();
-        let identity = format!("status:{id}");
-        if self.seen.contains(&identity) {
-            return Ok(false);
-        }
         let log = registry.field(kind, "StatusConsoleLog", &value)?;
         let date = chrono::DateTime::parse_from_rfc3339(
             log["StatusDate"].as_str().ok_or("Missing status time")?,
@@ -39,13 +37,14 @@ impl Notifications {
             .as_str()
             .ok_or("Missing status message")?
             .to_owned();
-        if self.seen.len() == 1024 {
-            self.seen.pop_front();
-        }
-        self.seen.push_back(identity);
-        self.publication.status_rows.push(StatusRow {
+        Ok(self.console_message(&id,date,&message))
+    }
+    /// Live notifications and history use the same identity and chronology.
+    pub fn console_message(&mut self,id:&str,date:chrono::DateTime<chrono::Utc>,message:&str)->bool {
+        if !self.status_seen.insert(id.to_owned()){return false;}
+        let row=StatusRow {
             id: format!(
-                "{}.{:07}Z|{message}",
+                "{}.{:07}Z|{id}",
                 date.format("%Y-%m-%dT%H:%M:%S"),
                 date.timestamp_subsec_nanos() / 100
             ),
@@ -53,12 +52,13 @@ impl Notifications {
                 .with_timezone(&chrono_tz::America::New_York)
                 .format("%I:%M:%S%.3f %p")
                 .to_string(),
-            message,
-        });
-        if self.publication.status_rows.len() > 500 {
-            self.publication.status_rows.remove(0);
-        }
-        Ok(true)
+            message:message.to_owned(),
+        };
+        // Other diagnostic rows do not share the console's timestamp identity.
+        // Compare only console rows so an intervening error cannot disrupt replay order.
+        let position=self.publication.status_rows.iter().position(|existing|existing.id.as_bytes().get(4)==Some(&b'-')&&existing.id>row.id).unwrap_or(self.publication.status_rows.len());
+        self.publication.status_rows.insert(position,row);
+        true
     }
     pub fn error(&mut self, identity: String, message: String) -> bool {
         if self.seen.contains(&identity) {
@@ -76,9 +76,6 @@ impl Notifications {
             time: String::new(),
             message,
         });
-        if self.publication.status_rows.len() > 500 {
-            self.publication.status_rows.remove(0);
-        }
         true
     }
     pub fn event(
@@ -135,7 +132,6 @@ impl Notifications {
             if self.seen.contains(&identity){return Ok(false);}
             if self.seen.len()==1024{self.seen.pop_front();}self.seen.push_back(identity.clone());
             self.publication.status_rows.push(StatusRow{id:identity,time,message});
-            if self.publication.status_rows.len()>500{self.publication.status_rows.remove(0);}
             return Ok(true);
         }
         let changed=self.error(identity,message.clone());
@@ -151,7 +147,20 @@ pub async fn monitor(
     backend: Backend,
     registry: Arc<Registry>,
     output: tokio::sync::mpsc::Sender<SidebarPublication>,
+    actions: tokio::sync::mpsc::Receiver<u32>,
+) -> Result<(), String> {
+    let endpoint=crate::backend::configuration::value("IFM_UI_STATUS_CONSOLE_URL")?;
+    monitor_with_console_history(backend,registry,output,actions,endpoint).await
+}
+
+/// Explicit endpoint injection lets isolated protocol tests exercise catch-up
+/// without reading a user's Development profile or contacting its API.
+pub async fn monitor_with_console_history(
+    backend: Backend,
+    registry: Arc<Registry>,
+    output: tokio::sync::mpsc::Sender<SidebarPublication>,
     mut actions: tokio::sync::mpsc::Receiver<u32>,
+    history_endpoint:Option<String>,
 ) -> Result<(), String> {
     let feed = backend.subscribe("Event", "MarketDataFeedEvent").await?;
     let status = backend.subscribe("Notify", "StatusConsoleEvent").await?;
@@ -159,6 +168,13 @@ pub async fn monitor(
     let mut subscription = futures_util::stream::select_all(vec![feed, status, calendar_events]);
     backend.flush().await?;
     let mut notifications = Notifications::default();
+    // Subscribe and flush before the first history read. HTTP polling also
+    // repairs reconnect gaps, independent of calendar and feed readiness.
+    let history_client=crate::backend::health_http::HealthClient::new()?;
+    let mut history_cursor=0_u64;
+    let mut history_through=None;
+    let mut history_dirty=true;
+    let mut history_query=AbortOnDrop(None);
     let mut timer = tokio::time::interval(Duration::from_secs(10));
     timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut query = AbortOnDrop(None);
@@ -170,6 +186,14 @@ pub async fn monitor(
     let mut calendar_revision = 0_u64;
 
     loop {
+        if history_dirty && history_query.0.is_none() {
+            history_dirty=false;
+            let client=history_client.clone();let endpoint=history_endpoint.clone();
+            let cursor=history_cursor;let through=history_through;let timeout=backend.default_timeout();
+            history_query.0=Some(tokio::spawn(async move {
+                crate::services::status_console_history::read_page(&client,endpoint.as_deref(),cursor,through,timeout).await
+            }));
+        }
         if calendar_dirty && calendar_query.0.is_none() {
             calendar_dirty = false;
             let backend = backend.clone();
@@ -187,11 +211,25 @@ pub async fn monitor(
         }
         tokio::select! {
             _ = timer.tick() => {
+                history_dirty=true;
                 calendar_dirty=true;
                 if query.0.is_none() && feed_operation.0.is_none() {
                     let backend = backend.clone();
                     query.0 = Some(tokio::spawn(async move { FeedObservation::load(&backend).await }));
                 }
+            }
+            result=async{history_query.0.as_mut().unwrap().await},if history_query.0.is_some()=>{
+                history_query.0=None;
+                match result.map_err(|e|e.to_string()).and_then(|result|result) {
+                    Ok(page)=>{
+                        for message in page.messages {notifications.console_message(&message.id,message.date,&message.message);}
+                        history_cursor=page.next;
+                        history_through=if page.more{Some(page.through)}else{None};
+                        history_dirty=page.more;
+                    },
+                    Err(error)=>{notifications.error(format!("console-history:{error}"),format!("Status console history unavailable; catch-up will retry: {error}"));},
+                }
+                output.send(notifications.publication.clone()).await.map_err(|_|"UI closed")?;
             }
             event = subscription.next() => {
                 let Some(event) = event else { return Err("Feed notification subscription ended; authoritative refresh required".into()); };
@@ -271,6 +309,7 @@ pub async fn monitor(
                 if !state.connected { notifications.publication.feed_control.ready = false; notifications.publication.feed_control.can_toggle = false; }
                 if let Some(message) = state.last_warning { notifications.error(format!("transport:{}", state.warning_sequence),message); }
                 if state.connected {
+                    history_dirty=true;
                     calendar_dirty=true;calendar_revision+=1;
                     if let Some(task)=calendar_query.0.take(){task.abort();}
                     if let Some(task) = query.0.take() { task.abort(); }

@@ -7,7 +7,7 @@ $containerStarted = $false
 $priorTestUrl = $env:IFM_STANDALONE_TEST_NATS_URL
 $priorOrderJournal = $env:IFM_STANDALONE_ORDER_JOURNAL
 $env:IFM_STANDALONE_ORDER_JOURNAL = Join-Path $repoRoot (".artifacts/native-order-journals/" + [Guid]::NewGuid().ToString("N"))
-$clientKeys=@('DOTNET_ENVIRONMENT','IFM_UI_CONFIG_PATH','IFM_UI_NATS_URL','IFM_UI_NATS_TOKEN','IFM_UI_NATS_CREDENTIALS','IFM_UI_MARKETDATA_NATS_URL','IFM_UI_MARKETDATA_SCOPE','IFM_UI_BROKER_ACCOUNT_ALIAS','IFM_UI_BROKER_ENVIRONMENT','TradeBroker__AccountAlias','TradeBroker__Environment','TradeBroker__Emulator__AccountAlias','IFM_UI_ACTOR_HEALTH_URL','IFM_UI_OPERATIONS_HEALTH_URL','IFM_UI_LIVE_PIPELINE_HEALTH_URL')
+$clientKeys=@('DOTNET_ENVIRONMENT','IFM_UI_CONFIG_PATH','IFM_UI_NATS_URL','IFM_UI_NATS_TOKEN','IFM_UI_NATS_CREDENTIALS','IFM_UI_MARKETDATA_NATS_URL','IFM_UI_MARKETDATA_SCOPE','IFM_UI_BROKER_ACCOUNT_ALIAS','IFM_UI_BROKER_ENVIRONMENT','TradeBroker__AccountAlias','TradeBroker__Environment','TradeBroker__Emulator__AccountAlias','IFM_UI_ACTOR_HEALTH_URL','IFM_UI_STATUS_CONSOLE_URL','IFM_UI_OPERATIONS_HEALTH_URL','IFM_UI_LIVE_PIPELINE_HEALTH_URL')
 $priorClientSettings=@{};foreach($key in $clientKeys){$priorClientSettings[$key]=[Environment]::GetEnvironmentVariable($key,'Process')}
 $profileDirectory=Join-Path $repoRoot ('.artifacts/standalone-verification-profiles/'+[Guid]::NewGuid().ToString('N'))
 Push-Location $repoRoot
@@ -71,6 +71,9 @@ try {
         $natsArguments+=@('--', '--ignored', '--nocapture', '--test-threads=1')
         Invoke-Checked -Executable cargo -Arguments $natsArguments | Tee-Object -Variable integrationOutput
         if(-not($integrationOutput -match 'test result: ok\. [1-9][0-9]* passed')){throw 'Integration filter matched no executed passing tests; acceptance was not verified.'}
+        if(-not $NatsFilter) {
+            Invoke-Checked -Executable cargo -Arguments @('test','--jobs','1','--locked','--no-default-features','--manifest-path','TomasAI.IFM.UI.Rust.eGui/Cargo.toml','--test','status_console_replay','--','--ignored','--nocapture')
+        }
         # Integration operations persist their receipts after the initial native
         # tests. Re-open those exact files through the unchanged managed stores.
         Invoke-Checked -Executable dotnet -Arguments @($oracle, $fixtures, 'TomasAI.IFM.UI.Rust.eGui/target/cross-language')
