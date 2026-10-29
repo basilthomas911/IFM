@@ -13,6 +13,13 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 public sealed class OptionRecoveryLiveVerificationTests
 {
     [Fact]
+    public void Legacy_pipeline_harness_rejects_native_ownership_before_injection()
+    {
+        OptionRecoveryLiveVerificationService.RequireManagedRecovery(MarketDataRecoveryOwnership.Process);
+        Assert.Throws<InvalidOperationException>(()=>OptionRecoveryLiveVerificationService.RequireManagedRecovery(MarketDataRecoveryOwnership.TokioDatasetOwner));
+    }
+
+    [Fact]
     public async Task Injection_refreshes_a_raced_generation_without_restarting_the_countdown()
     {
         var market = Substitute.For<IMarketDataApi>();

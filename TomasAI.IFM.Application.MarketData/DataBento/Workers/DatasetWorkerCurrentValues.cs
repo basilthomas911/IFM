@@ -140,6 +140,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
             state.Admission = null;
             state.Healthy = false;
             state.LastSequence = 0;
+            state.LastStreamSequence = 0;
             ClearValues(state.Contracts.Keys, lastPrices);
         }
     }
@@ -158,7 +159,13 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
     /// Raw batches do not overwrite normalized current values or invent option Greeks.
     /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
-    public bool AcceptPublication(DatasetPublicationEnvelope envelope)
+    public bool AcceptPublication(DatasetPublicationEnvelope envelope) => AcceptPublication(envelope, streaming: false);
+
+    /// <summary>Validates ordered live delivery independently from a newer query
+    /// snapshot. Catch-up may advance the cache but cannot consume executions.</summary>
+    internal bool AcceptStreamingPublication(DatasetPublicationEnvelope envelope) => AcceptPublication(envelope, streaming: true);
+
+    bool AcceptPublication(DatasetPublicationEnvelope envelope, bool streaming)
     {
         ArgumentNullException.ThrowIfNull(envelope);
         lock (gate)
@@ -166,7 +173,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
             var identity = new DatasetWorkerAdmission(envelope.Dataset, envelope.ValueDate,
                 envelope.WorkerInstanceId, envelope.GenerationId, envelope.ManifestRevision);
             if (lastPrices is null || !datasets.TryGetValue(envelope.Dataset, out var state)
-                || state.Admission != identity || envelope.PublicationSequence <= state.LastSequence)
+                || state.Admission != identity || envelope.PublicationSequence <= (streaming ? state.LastStreamSequence : state.LastSequence))
                 return false;
 
             switch (envelope.Kind)
@@ -212,6 +219,9 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                         }
                         if (!Matches(state, price.ContractId, price.ValueDate) || price.AssetTypeId != AssetTypeId.Futures)
                             return false;
+                        // Validate and deliver older queued executions without
+                        // rolling a newer snapshot's query state backwards.
+                        if (envelope.PublicationSequence <= state.LastSequence) break;
                         prices[price.ContractId] = price;
                         if (price.Trade is { } latestTrade && latestTrade.LastPrice > 0 && bootstrapPrices.ContainsKey(price.ContractId)
                             && latestTrade.NormalizedTradeAction is not (NormalizedTradeAction.Cancel or NormalizedTradeAction.Clear)
@@ -232,7 +242,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                     {
                         var value = MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload).Statistics;
                         if (!Matches(state, value.ContractId, value.ValueDate)) return false;
-                        statistics[value.ContractId] = value;
+                        if (envelope.PublicationSequence > state.LastSequence) statistics[value.ContractId] = value;
                         break;
                     }
                 case DatasetPublicationKind.TradeReplayBatch:
@@ -259,7 +269,8 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                     }
                 default: return false;
             }
-            state.LastSequence = envelope.PublicationSequence;
+            state.LastSequence = Math.Max(state.LastSequence, envelope.PublicationSequence);
+            if (streaming) state.LastStreamSequence = envelope.PublicationSequence;
             return true;
         }
     }
@@ -361,6 +372,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
     {
         public DatasetWorkerAdmission? Admission = identity;
         public long LastSequence;
+        public long LastStreamSequence;
         public bool Healthy;
         public Dictionary<string, DatabentoContractRegistration> Contracts { get; } =
             contracts.ToDictionary(contract => contract.DomainContractId, StringComparer.Ordinal);

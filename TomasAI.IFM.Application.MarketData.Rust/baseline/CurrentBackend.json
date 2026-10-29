@@ -1,0 +1,3285 @@
+{
+  "schema": 1,
+  "commit": "8f5c89f93430eea99600d1ffe04da19acfa36353",
+  "hashEncoding": "UTF-8 without BOM, CRLF normalized to LF",
+  "sourceFiles": [
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host.Worker/Hosting/DatasetWorkerArguments.cs",
+      "sha256Utf8Lf": "44bc887940a262f41584fefb766725ad0a06dbdbcbc1c7be55090ebca2443af9"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host.Worker/Hosting/DatasetWorkerAssemblyMarker.cs",
+      "sha256Utf8Lf": "a93062354107e49f72941e92c2b2eb9aefe996bf3ba8b4c3a5e16d160e4f7b53"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host.Worker/Hosting/Program.cs",
+      "sha256Utf8Lf": "9a3b1f8041cd2925cad63bad7ae08be89a5fca418564049ba3f2915ed804c6b8"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host.Worker/Interop/NativeMethods.cs",
+      "sha256Utf8Lf": "822dec10535456fa5f9f9e938020358b40d5ab6298e3c1b59a0958916029157f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host.Worker/Logging/DatasetWorkerLogging.cs",
+      "sha256Utf8Lf": "e6207be12c6a4c8e834512ef7a1c18efbbcb77f18259cb71be879f8e2d1e7ff0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host.Worker/Messaging/PipeDatasetWorkerPublisher.cs",
+      "sha256Utf8Lf": "b03fe3cfc659c519527245cd5f0791b2d1629a155e29f2836e8bef8116014b56"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host.Worker/Runtime/DatasetWorkerRuntime.cs",
+      "sha256Utf8Lf": "daa56f3123d493aba4e87d2dfe9b80e7ca27d817c6a7bed53d2c9ebf0fd04a42"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host.Worker/TomasAI.IFM.Application.MarketData.Host.Worker.csproj",
+      "sha256Utf8Lf": "0c23acf916a872750c130811173146a100d0728c1fcfce780f7cfbef50ab5dca"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Api/MarketDataApiBackend.TradeRecovery.cs",
+      "sha256Utf8Lf": "6c40903ccf3e8d37fbf1edbeebd1e8675f03c4264936b53a35ba2b708f5529d7"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Api/MarketDataApiBackend.cs",
+      "sha256Utf8Lf": "b894142e25ca960248dba2169f76ec0d6edae236bcde04394e31644a39ff58f5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Hosting/BackendServices.cs",
+      "sha256Utf8Lf": "330d87f237685675848f4213ff2dafbfdaafd11c5e58a8331ab69b2f5e79c9be"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Hosting/Program.cs",
+      "sha256Utf8Lf": "163581e49610f4d506d54135264f1080621ed7e37c17df651925e2ed1f35624b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Hosting/RecoveryTestVisibility.cs",
+      "sha256Utf8Lf": "6a81a666c5060888e3a01b5bb25904c7d49ce275011100de9bbda31f4f322d9e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Logging/MarketDataHostLogging.cs",
+      "sha256Utf8Lf": "a1bfb5937bb29b1531ac88d573fa649f0366853914b1fbe55900c56b98463fae"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Messaging/MarketDataNatsService.cs",
+      "sha256Utf8Lf": "0012acbf70e1acd3eee22381553a7da57777f268b5aec258d725ffabbad7e212"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Messaging/OptionChainPublicationRelay.cs",
+      "sha256Utf8Lf": "4073194077edf5b2a873c9777cc2b1c06f791e8f1ba33d26e5e61ea216300d41"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Messaging/WorkerPublicationRelay.cs",
+      "sha256Utf8Lf": "03dd512aed1ab74fea630af86a927da97f9a777697e395f34eb2b01790c5bd47"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/FrozenEmulatorOptionChain.cs",
+      "sha256Utf8Lf": "b1998d72e230d4ad6c7cb1949c13d633cc899ab3c0a1548d51738cabfd01b03a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/HostOptionChainContext.cs",
+      "sha256Utf8Lf": "7360635b67cbd694a21cce4587cc93df0c6ea072f04ad1a6971e7fbc5ea8f67f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/InstrumentDefinitionStore.cs",
+      "sha256Utf8Lf": "f640981f711f5f04869fec62dc3409ae466ea9735a4df48988a9fde42e8a6a2a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/OptionChainStrikeWindow.cs",
+      "sha256Utf8Lf": "bad4a2267cc760ec4ec031b6a6c0be5ebcf2e5d63fc0bdb93309659813b6a114"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/OptionChainStrikeWindowResult.cs",
+      "sha256Utf8Lf": "8b3b69468ec807265b14782b916aecd0586257fdb5a1003d6629ecd63a5b223a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/OptionChainSubscriptionCoverage.cs",
+      "sha256Utf8Lf": "8f98ebfe9db7be981d664b486cf1630e6436ed0fbfa335e1cea09e67d3be1633"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/OptionChainWindowInputs.cs",
+      "sha256Utf8Lf": "d7f3cb61554c7179b97c55c311e238e8a9054da6b0c0cd41fcbf8352fb562bba"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/OptionContractExpiryCalendarRefreshService.cs",
+      "sha256Utf8Lf": "fbc5f26cf320b91658fc5885be75a7cf300c9b6665f12e0f184f6947b3af4b94"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/QualifiedEvaluatedOptionChain.cs",
+      "sha256Utf8Lf": "aa612154469c41488a7ef83df90fdd48cd502314463df4abc40547cd9226631e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/StoredOptionDefinitionRangeLoader.cs",
+      "sha256Utf8Lf": "92712067dec1f922d88ad182271b0d1f8f12bdf4a6bbb2845a08b2a7d9ceeeab"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/StoredOptionUniverseSource.cs",
+      "sha256Utf8Lf": "b51106c6b5bbbc5e97d0ff1c344f252b0e7931cf90751da62e1757deb160a271"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/OptionChains/TradeStrategySymbolStore.cs",
+      "sha256Utf8Lf": "f25bb88fce1c677d19c158f1aebcf89c9263cfc05d8bc30c36a67cceea7c0792"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Pricing/HostCommittedOptionOwnership.cs",
+      "sha256Utf8Lf": "809052dae6a64a148e8e37c74189939d0b0e0fe0b0eb472abc0f0f67779c78e6"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Pricing/HostCompositionMarketDataApi.cs",
+      "sha256Utf8Lf": "744002aecdfbd160035b6c7b5d4bfe2b9561b765517ef48439078e6c5880c76a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Pricing/QualifiedIndividualOptionFeeds.cs",
+      "sha256Utf8Lf": "8052e98a74fc05539d900dc2b2e66e6240a796ef5c693a12fe55a6d07dd72672"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Seeding/FourHourDatabentoSeedReplay.cs",
+      "sha256Utf8Lf": "4936eac469dd90119f7865e18c3585b33f8f0712601cd29bd64a7f1d9d532160"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Seeding/VxBootstrapPriceService.cs",
+      "sha256Utf8Lf": "fd9e832976d2212801dea64f46fba01dc676184783ec5fe29faf7287613301d3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Storage/HistoricalDataLoaderStore.cs",
+      "sha256Utf8Lf": "0622f0ba81d40f6f32179097004250ebed769f40fd1ebc0e930b863e3339a5bd"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/TomasAI.IFM.Application.MarketData.Host.csproj",
+      "sha256Utf8Lf": "f68d0e6a34cd07b41eb9dbfcc368846d452a374b3789fe2da08076426b535683"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Workers/MarketDataDatasetMonitor.cs",
+      "sha256Utf8Lf": "e2fa033ec98c29a00dfbedf5f366bfc873c1ef151c8c3fc354479f62b9e74af3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Workers/MarketDataDevelopmentFault.cs",
+      "sha256Utf8Lf": "87381fe8eb0c5922a0aaccac44a3f403198f72d08ca8ce3f0cc521bc5221555a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Workers/MarketDataHostState.cs",
+      "sha256Utf8Lf": "06a1efec6ed50572283b63dba2d35b0f9d9967a7f13a0fcdfc0212205d827f88"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Workers/MarketDataOptionObservationRepair.cs",
+      "sha256Utf8Lf": "99aab31e80e7d3d1987da1d76120f51ae0729c22928facd648267ad66ed78e51"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Workers/MarketDataWorkerHost.cs",
+      "sha256Utf8Lf": "9f50aa8566d14ff1b322ea0f254945ade7bbca14d7839defc2f158564bed91d4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Workers/MarketDataWorkerLeases.cs",
+      "sha256Utf8Lf": "05e1e6e6bc1379b69cdd939a0fac4dba39b58cec2066a270219ddb54f305b43f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Workers/MarketDataWorkerManifest.cs",
+      "sha256Utf8Lf": "ceb54f621df66a58338858393d514984e9318a743cc2e1dc3a453a37959d406e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData.Host/Workers/MarketDataWorkerRecovery.cs",
+      "sha256Utf8Lf": "fafc8db2bfa7ad3dbb1b8e40d0d0cfdb99fcb5d8f58640b64dce84d811aadb11"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/ApplicationDiagnosticLog.cs",
+      "sha256Utf8Lf": "7553a2c1dbb76392b4e443dab4544a89c41995121c46b8386449de10c0975603"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/FuturesContractRolloverConfigurationException.cs",
+      "sha256Utf8Lf": "bda3a799ff48e4c5403c0c6c1aa516c700420e9203490ca2a8569a6c32f8fc48"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/FuturesMarketHealthSnapshot.cs",
+      "sha256Utf8Lf": "e448232dd860f4ada3c65a174c9efcaa9e312829df004eed35b2de13575836ed"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/FuturesTermStructureContracts.cs",
+      "sha256Utf8Lf": "eb806c3d1965052a1aeb8bd6edd6426469fadb72c553ac0a62376930845d1ce4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/FuturesEodAnalyticsAssembly.cs",
+      "sha256Utf8Lf": "e528fb16cf95790e9769ce769e49d5dca339af2765c8c06c8acf3417fcaaa39d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/HistoricalAcquisitionCheckpoint.cs",
+      "sha256Utf8Lf": "d7d283cb68df962ae48d730b9e17d7f370f308000f4704b741b89a67458db7b1"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/HistoricalAcquisitionStage.cs",
+      "sha256Utf8Lf": "343f153c34a075884f50af0d908976dce09b1a09e0fc37d7d13a8c4ef8a2f36a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/HistoricalDataLoaderAudit.cs",
+      "sha256Utf8Lf": "5ba8e750f220eec73da7e0fa7583e12a5a1bcb92092090b282c7311bd5bf9df6"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/HistoricalDataLoaderGap.cs",
+      "sha256Utf8Lf": "d51f12b95e6e3612b6f9179acad4e9faf4bdbfa36b7d1df414fe724bf9b6d50e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/HistoricalDataLoaderRoll.cs",
+      "sha256Utf8Lf": "5c9749ca1bb52783d5751b5c2b8cf75b6700959df45a31c38e474367f45992cd"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/HistoricalDataLoaderState.cs",
+      "sha256Utf8Lf": "79b986fba1180f8d069ec305c6ebd88e9205360ebbe7c2187cc1bc1a40518317"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/HistoricalDataLoaderStatus.cs",
+      "sha256Utf8Lf": "850762f42c127c1a35997bc87e8074247172a55eb9f225357fe60720c113021a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IFuturesEodAnalyticsAssembler.cs",
+      "sha256Utf8Lf": "a5bf1bb0a972d16e463b39653c1e2c5f81e9221e7ddb813e9a64859679547001"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IFuturesExchangeBusinessCalendar.cs",
+      "sha256Utf8Lf": "ef99c833aad44a0d9e8547fd48b3f44b2351849bcc9aa3fc39d1a94ca0883784"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IHistoricalAcquisitionCheckpointSink.cs",
+      "sha256Utf8Lf": "11d65d4acee9e181b46fadebb10ff6bf1a4513b8267856b24477ddcc3151f726"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IHistoricalAnalyticsSignalReader.cs",
+      "sha256Utf8Lf": "436ce0252d1cd3165931aebb7edbc68de6372d2c418fe1885a739e09b153ae1d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IHistoricalDailyReplayPublisher.cs",
+      "sha256Utf8Lf": "228eef6ae4438b82ef35815faff7068a6045dd7bbd7381dfe916a0257ad3c4b3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IHistoricalDataLoaderStore.cs",
+      "sha256Utf8Lf": "b65c951d2c9ad32cb59560c5cf23a1acec9767b0f6fa4404b4c8b61e0c81e75b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IHistoricalObservationSink.cs",
+      "sha256Utf8Lf": "42b48071e9f13a49420ddee4bf7d73d91702589eb2de88d5dd7a6818a93600b0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IHistoricalObservationStore.cs",
+      "sha256Utf8Lf": "bda9a16661721c2a7c691b5b7c1a32c2b57740733165bf8ea1e0a175372e0c2a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IHistoricalReplayPublisher.cs",
+      "sha256Utf8Lf": "587f88f0480ee8a48070af14d0a6f8c3c0994429925a45e2713481540314078b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IHistoricalSeriesRequestResolver.cs",
+      "sha256Utf8Lf": "439c3feb537c6ca1b4e0b0d418d65f7c4e2acf89660d1ce42ac3ba1b3513a766"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IMarketDataHistoricalApi.cs",
+      "sha256Utf8Lf": "a5fedd24969821c9192d5182a3d882c673af49704fddb852d97687ec2103358d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IMarketSessionCalendar.cs",
+      "sha256Utf8Lf": "36d2657500a7211acf7246df540b20d758365c87c9432bee85b79372bf476a90"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/MarketAnalyticsSignalFamily.cs",
+      "sha256Utf8Lf": "f0106d3dc5a330d88f67bf8917a69a4401ef49626f2e1919edf4de58424184ff"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/MarketAnalyticsSignalResult.cs",
+      "sha256Utf8Lf": "7eb57f33026a2309f3582c26b76a2f9c3dae43241fba47e6b3299e7b1511cb95"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/MarketDataHistoricalEstimate.cs",
+      "sha256Utf8Lf": "bd4afadf168e1cf33acf75736b8bb28bb385b3def1d8544761f543a030e92418"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/MarketDataHistoricalManifest.cs",
+      "sha256Utf8Lf": "144ccf80fa9825d6581e59140987700306c65b4e29d7c0adb4aa9e37c6f854b3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/MarketDataHistoricalRequest.cs",
+      "sha256Utf8Lf": "54ffd1df3cc0d4c3fc98aa44a31b25b882e312fee7e2134735474effdec1cbee"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/MarketDataHistoricalSeriesRequest.cs",
+      "sha256Utf8Lf": "12a6b32788279ec254c036db0e95b67a631f90e4ed8734d31b570d0d58c92ba2"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/MarketSessionBounds.cs",
+      "sha256Utf8Lf": "92d28921317718f5b7c54646605e80f331537689c1fe13d36baada27e8ebb6fc"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/NormalizedHistoricalBatch.cs",
+      "sha256Utf8Lf": "ae3c6e09675846ef4abdc827a28d2a702cc1a4f4f96709566debd971744b7902"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/NormalizedHistoricalTrade.cs",
+      "sha256Utf8Lf": "032e5bda4cad331af408443fb8e25971a1c81a42e4c31c733475523c42224fd1"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/NullHistoricalAnalyticsSignalReader.cs",
+      "sha256Utf8Lf": "72c3ebab069193260586b016348004dae49a2d7cfb63c830e93b0be0cd8aad5f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/NullHistoricalDailyReplayPublisher.cs",
+      "sha256Utf8Lf": "3871ff00393e8cba52ffb346235a791c645db2a4d6d07fea9e86645fab1ef16e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/NullHistoricalReplayPublisher.cs",
+      "sha256Utf8Lf": "0a038fc1ab05a489e1bcd99d6ab1bf49d102c5d8edd9b845873c8053c465b48b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/IInstrumentDefinitionStore.cs",
+      "sha256Utf8Lf": "ad483f331c6897267bf9ed59786e687bad8f4664ea018fdd321f627a21f5704c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs",
+      "sha256Utf8Lf": "0b6d104eabae2aa0c93b3a7e031ba2182928f753bb726bd51daeb44e617f1a92"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.TradeFeedRecovery.cs",
+      "sha256Utf8Lf": "91bfe06763598f0efb0810cc73fc899580ab2d2d62ac811ec54d33e32ea3363b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs",
+      "sha256Utf8Lf": "39e91a1ba8843313da0f73c3dfd3db53cbec26a95cfd27e3950a267187b8e352"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/IOptionChainCache.cs",
+      "sha256Utf8Lf": "8e040b91bebb0eb19de8f2e69d600107468224e209980036125786d7d981ef00"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/IOptionChainStatisticsStore.cs",
+      "sha256Utf8Lf": "90ee71a728da172b96fed5f059aa318b433077325c4a78e0a0d35b4c4914c3bb"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/IReferenceDataApi.cs",
+      "sha256Utf8Lf": "f4b1b32c4de6fe4cd72c879c18bcb2b026fac9b9ba02ad191836e356e4646e92"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/IStrategyOptionChainParameterStore.cs",
+      "sha256Utf8Lf": "d0a06d9239c5600e6ae7316e7490a40b75d3217912cfe064c32dc3fab68e544f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/ITradeStrategySymbolCatalog.cs",
+      "sha256Utf8Lf": "b5fb1dc32512f68f1cab9993dff6ddcf1faf722e244850ec0aa4b8725db2c385"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/ITradeStrategySymbolSource.cs",
+      "sha256Utf8Lf": "4f5c794c7edf8878cf6700da551c302d7e49b8d24f3f1d7da7586b1f63fd9a9c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/ITradeStrategySymbolStore.cs",
+      "sha256Utf8Lf": "020b769088e05f0756e4aa5e4e75c28ea95eacb72750313604fcee816a94b59e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/InstrumentDefinitionSelectionMapper.cs",
+      "sha256Utf8Lf": "c7a2fd359f8d19d9f574e8cb91c39de9d05b9b2e3c1aac1d6b96f06d13dd3c9d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/InstrumentDefinitionSnapshot.cs",
+      "sha256Utf8Lf": "87b96efa6c5f5a9cb33a886d3b0b6f5a936a3148a4e89c73943056208b866f67"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/InvalidFuturesOptionQuoteException.cs",
+      "sha256Utf8Lf": "d82f60f0e82b2a6f7220e917a74ae910361982b3bfce602c4e042cdfad81518d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataApiAlreadyRunningException.cs",
+      "sha256Utf8Lf": "a99229069af0053fc7936f4f9487c256c547d488997be54b1c55fa94d69a7c5d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataApiException.cs",
+      "sha256Utf8Lf": "0ac38cf01c3a5aa48817c32e957363fc1741f049bc4610931935fa72883ce801"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataApiNotRunningException.cs",
+      "sha256Utf8Lf": "5b3002b451dcc9f4c20f482cdab0320baa4fa789c8deaeb28a81579d06e669be"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataApiValueDateMismatchException.cs",
+      "sha256Utf8Lf": "8abdad91f6f3f94939b70af3a0ef03addab059d068fc1e7e8058b5bdec7856bf"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataBatchResolutionException.cs",
+      "sha256Utf8Lf": "a5d4e42d53638cd0d8627fba4c23d9201401fa820b597920dad71e8dba20bffa"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataCapacityExceededException.cs",
+      "sha256Utf8Lf": "280109b54a514022bd979693094a36047d55ed8452a504bc3d0f5480f529ffb5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataContractException.cs",
+      "sha256Utf8Lf": "ba53ef202bf16a148e9df7bc1b037338c2b5ac1b41e542765c138caf03aec398"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataContractKindMismatchException.cs",
+      "sha256Utf8Lf": "43c3c546b5ddcb0807981b0b4e0d60ab72169af0708765d3402c72cfdfc96438"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataContractMappingException.cs",
+      "sha256Utf8Lf": "da437a1b33e4631073ac6fa3b3e6e502b38e6b3845c73b1a26504e823c6ef35f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataContractNotFoundException.cs",
+      "sha256Utf8Lf": "0f4ea74af189967abb4422cd034b2ca237a41dbccfa9287efd6f77c459ec8721"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataDevelopmentFaultRequest.cs",
+      "sha256Utf8Lf": "afceb615e31ffd24f1c7a79020eabd2e1fb3d0a5eaf7885eda30fd2bf9e7d139"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataPricingInputUnavailableException.cs",
+      "sha256Utf8Lf": "903453e1b5b2dc391e027e131ee7179e3e27b5e0cbc1e664a1bea82faba05bc2"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/MarketDataRouteConflictException.cs",
+      "sha256Utf8Lf": "670199f596b40c289108dc5485445c196f4b9d8e2c1e9a5dbca5bb0e780feac7"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/OnTheRunFuturesContractNotFoundException.cs",
+      "sha256Utf8Lf": "a73dc21ca46d0566589839f99999910b766d14d6385483fbaa026d0e7b26f896"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/OptionChainCacheScope.cs",
+      "sha256Utf8Lf": "283203da2210b92a6d3531f85f7f5dce74d9b8de1892b2b04702e035013c3861"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/OptionChainCacheStatus.cs",
+      "sha256Utf8Lf": "5be8142fa7e2899ec4da4b88a007dbb94b5950b68211dba5d1754feced0e693b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/OptionChainConflictException.cs",
+      "sha256Utf8Lf": "ffd3dbee7bf686c3d47a62cfec3005dc1b46c7e3567e2b1a331d7788f363fabc"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/OptionChainSnapshotOutcome.cs",
+      "sha256Utf8Lf": "1e6592166219822eb447f928d42f682af8f258647d33a04a07c80c79a8dbe136"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/OptionChainSnapshotRequest.cs",
+      "sha256Utf8Lf": "41e07ccd4540cc105152462246a0ab64353d20f215846aa010ab8880ec5134bd"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/OptionChainSnapshotResult.cs",
+      "sha256Utf8Lf": "ecb51c591086905b3e1369ad7ad657e59cc47cbc80b200963848d09baba00e39"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/StrategyMarketDataProfile.cs",
+      "sha256Utf8Lf": "9f35472d1af2557cd19496ceb8242a2f582b105c1cba2bdd25cdfd88601e82ce"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionAcquireBatchRequest.cs",
+      "sha256Utf8Lf": "c37c3033dba99e6131a8d1af06f6b266926c089e2e6e228b52500057f1289d2c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionAcquireRequest.cs",
+      "sha256Utf8Lf": "0654aabbce8910394329af908a6a8ef712b7e0eba440020115c783eeb2cd53b7"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionAssetKind.cs",
+      "sha256Utf8Lf": "7807f9e6d004e0412edff4a7e8e27ce044fef79063d13cc2712d9d0cdd036e36"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionChainKey.cs",
+      "sha256Utf8Lf": "0b02e1af7388fbffa8e1c1f7647194e6ddd3d2651a0e24d3ed6cbe5ce3df338a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionIdentity.cs",
+      "sha256Utf8Lf": "21bc856c18516afc24e69dd2c94e9a06b0b1e10415fff6b3e92be4a80b1f4e93"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionLeasePurpose.cs",
+      "sha256Utf8Lf": "197c51eb8c2f71e31e62bb3efef083c04b47a6860b4b981939734655b196947e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionLeaseResult.cs",
+      "sha256Utf8Lf": "3646a26075252f44ced9fe270492bb0fc6628c48aa7900b00739da80238e52ee"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionLeaseSelection.cs",
+      "sha256Utf8Lf": "762552a2a7b2d462c00e7823f5cc6a8cf2eb3d3e54c5161fc6d17442c116cafc"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionLeaseToken.cs",
+      "sha256Utf8Lf": "2210a6ddc88904d5e169d6a6a343638831493befa89b36209336e6f3a2240cec"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionLeaseView.cs",
+      "sha256Utf8Lf": "efe8ad57acad33df54f7881890b65f4669412cd7fa507a2c11b6c5242cdfe3d5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionOwnerKey.cs",
+      "sha256Utf8Lf": "1f43b9f0bd32f4ad3a257e83de24dc61c271c43afdcd4854f23fae26fc4e512a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionOwnerQuery.cs",
+      "sha256Utf8Lf": "ae5c97ce1404f9b1fd83727099ebaa60cbd99ef946c8463a72ae894ee6431f9a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionReleaseRequest.cs",
+      "sha256Utf8Lf": "9264bbf836eec45e20db3ca52bfaecaeda0788b89c6e68eb1df2ded7452a73b9"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionRenewRequest.cs",
+      "sha256Utf8Lf": "ea6958b762a9db2cf6290cf41a0c90c636f033025f374ba85efa62f5e4643545"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionResultCode.cs",
+      "sha256Utf8Lf": "6446cc33eafe750d1029876a656027478c39c11a33293c56d526a2a3c5917cd3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionTarget.cs",
+      "sha256Utf8Lf": "3e5bc864889c84bf8496cfc79c49ab71d21d51b2bf2055f36b168d9d67165053"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/SubscriptionTickerKey.cs",
+      "sha256Utf8Lf": "1575617934584f6558bc30eb7d95ae973e9cef93193066afed61ba51d110952a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/TickAggregationNotRunningException.cs",
+      "sha256Utf8Lf": "bad500b2fa521f8cc6108183e2b3be5fd7f2e6e9f9313d5c1e08372ef5bcfda5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/TradeStrategyProduct.cs",
+      "sha256Utf8Lf": "23d63cebbe8bab702f5af5af2bac7785c002a29c8e06b8a3331e876e75cfbea0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/UnavailableOptionChainCache.cs",
+      "sha256Utf8Lf": "9a99b725760d8c2d9e237bb29ec9ad9dcc670c8c61c9eac72171ce7287a36bc5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Contracts/UnderlyingTickerNotRunningException.cs",
+      "sha256Utf8Lf": "64f5dbaa4fc8f72c4a7a098d732032ee3930accc1cad49194b218b626ddc887a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoContractMetadata.cs",
+      "sha256Utf8Lf": "5b58db677213bc00368572121f82634013b33f53b8e5a977e4e522af41938462"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoContractRegistration.cs",
+      "sha256Utf8Lf": "0a8d084448f076ca430af0b01e2f4b2550c9a6905458ef2ac72633cb9b7fc4e8"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoContractRegistrationRegistry.cs",
+      "sha256Utf8Lf": "8cd32f92c97c6227eb25727969091d50e8cb655a1667dea42b48f42a1131471b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoCurrentFuturesContractResolver.cs",
+      "sha256Utf8Lf": "2b03f497c578373d91f9192c9b8414aed55879e1cf11be853905a19766807a96"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoDatasetFeedHealth.cs",
+      "sha256Utf8Lf": "23bb43555c6ea5d36ff75300470b0e19253d15cf7eadc691389303eaf67ebcea"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoDatasetSelection.cs",
+      "sha256Utf8Lf": "6e8d6976af9a820487d418f10d830f225f42a66c50f29fe528cc8b672ffdbc3b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoMarketDataApi.cs",
+      "sha256Utf8Lf": "16a7cf71f5734263fa1822b1f9d4a2f2dd3de17c48fa4a4be3c822602e38d4c4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoMarketDataApiHealth.cs",
+      "sha256Utf8Lf": "32b86535bb0d126adabec4298542da2c3c614e9acfb292f25099900059df2836"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoMarketDataApiOptions.cs",
+      "sha256Utf8Lf": "0a7681034eac1c5bc5374b3401c14d78aa25b3140759a367b68fb1676a5daceb"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoMarketDataCatalog.cs",
+      "sha256Utf8Lf": "c4ca85e83f84b664909e793d3380f036e1c3dde63e4087523e9c63a04cd655ae"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoMarketDataEpoch.cs",
+      "sha256Utf8Lf": "39bd7a393cc5c0d2ad6e37834cda6b89d3a06a69df1cf520e9e20341506d8151"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoMarketDataEpochFactory.cs",
+      "sha256Utf8Lf": "ddb26c1e138718c17674569fe237a4941af6f02e996306de2307cb206a77c4fc"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoMarketDataEpochHealth.cs",
+      "sha256Utf8Lf": "9ed4fabfaec1a1b7cbb7ba1127389f318d6903a34928a34a3b2632fa2bed3568"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoMarketDataRuntimeOptions.cs",
+      "sha256Utf8Lf": "b85f83269e27486522d624fa6eaa553dac34793d6aa9ccddc18af2f1879215bb"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoOptionRouteRegistry.cs",
+      "sha256Utf8Lf": "183d57da8a7dd2c060d4b968c3908ca22ce3b3bc2c9d3613d00493028e02bac9"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoTickerStreamRouteController.cs",
+      "sha256Utf8Lf": "b521f22e380d5df6b9e1e3c84549baaeb8fbe30c4ad9a94117ff38b0e1790c45"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/DatabentoTradeStrategySymbolSource.cs",
+      "sha256Utf8Lf": "5bc2bb318ddbc64e736d3bf03f394f863e3e9da0d21e858eba70aa40cb1663a1"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/FuturesContractRolloverStartupCheck.cs",
+      "sha256Utf8Lf": "ee93a345a2f1993e3d055958b4bda379036e608320278c9f802421137e971306"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/FuturesRolloverPreparationPolicy.cs",
+      "sha256Utf8Lf": "766a6f451bef9aad4c54a186fc299d9573e644e471d59623c3dfcf8240234ee4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Historical/CmeFuturesMarketSessionCalendar.cs",
+      "sha256Utf8Lf": "6d69005328f7677cd63d6e970845191fd04edf7a60d5e3fcbf8bbad6fd153336"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Historical/ConfiguredHistoricalSeriesRequestResolver.cs",
+      "sha256Utf8Lf": "b9e3e466ba360972c55fa70daa11de843557d65241181bebb05a7d25dea72fe5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Historical/DatabentoHistoricalApi.cs",
+      "sha256Utf8Lf": "b69a63c352da59547dd21ab173690ef15d5b3b1f18eafde0a3ff539fc67eb4e4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Historical/DatabentoHistoricalOptions.cs",
+      "sha256Utf8Lf": "034c2bbc5150c7f4d0bffb978662d38321b89cdecf5173b9385c2cbd5bf5cbb8"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Historical/DatabentoHistoricalSeriesProfile.cs",
+      "sha256Utf8Lf": "90397a42c3cb02260236dd0237802030986be7a9a0076304bcad882c6c651fa8"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Historical/HistoricalBudgetExceededException.cs",
+      "sha256Utf8Lf": "dce8cf7da580a44d65a5b9d36a44a75ec6dbd5fb12b25eb6c504d09b15a2d69c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/IDatabentoContractRegistrationRegistry.cs",
+      "sha256Utf8Lf": "793bc94105aeeeeb81f05e7c0b834babf5c54dd99c31dc53f31d72f661da4010"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/IDatabentoCurrentFuturesContractResolver.cs",
+      "sha256Utf8Lf": "65b5c74ea1a2cc2fdde8f2919895ff80b518a0cc59ad7334c3d997022d35a27c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/IDatabentoMarketDataCatalog.cs",
+      "sha256Utf8Lf": "4562395f2cf6f5a0136f138d06de65aae4cbe8fb9e1ff3091bab43bf13785195"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/IDatabentoMarketDataEpoch.cs",
+      "sha256Utf8Lf": "75a357d1b4df554960f65be0efc1e6e9f7a06b86006820a532d89e1ffe7ff9a8"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/IDatabentoMarketDataEpochFactory.cs",
+      "sha256Utf8Lf": "f5b5f9498399f649d434bc0f18194a5024373871dddb298f1ecff819cffd4f57"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/IFuturesContractRolloverStartupCheck.cs",
+      "sha256Utf8Lf": "5c59147b13df2fbe2a05184611eaa0cd4f66a4a37ef5389c9d9bc8d06cb09886"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/MarketDataServiceCollectionExtensions.cs",
+      "sha256Utf8Lf": "1240a2ab306e0e591e86a474a2249d94a21c018bfa3b3a582f173ca4a5e5f67e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/OptionExpiryCalendarPolicy.cs",
+      "sha256Utf8Lf": "08821a9f148d9ba20d3543bb84699e43a6885bff64a53b63f86baf95780c8862"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/ReferenceCountedTickAggregationEventPublisher.cs",
+      "sha256Utf8Lf": "05e718f09ab295ad11e7464b03c5d0e8b201ec1a5fab3331e8ee9a694ea14266"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/CompositeMarketDataOperationsRecorder.cs",
+      "sha256Utf8Lf": "4f55831f61715b390395f657ab94db99f530701453328eea45e1627ddfe676e9"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoBulkWatchdogSnapshot.cs",
+      "sha256Utf8Lf": "a92bfb42e85dc68a0ed1439b3e28f4160be034f35f64a19e320783b71b40c4af"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoContractAuthority.cs",
+      "sha256Utf8Lf": "220081b43d3b9399509760439327a65c18957ee44d78982e3a0cdd062e7c9d67"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoContractRole.cs",
+      "sha256Utf8Lf": "a106fff1a8c9480156c52f41d2a069300f565c0c29813eb4e37b4ef6dd080816"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoDatasetEvaluation.cs",
+      "sha256Utf8Lf": "b0118683105c13e1ae1b44d8b3ed816b8f9f27e85d5b68610dcd8e0787647ac0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoDatasetFailureReason.cs",
+      "sha256Utf8Lf": "a7e93433743e2affba529c88cecb42a391527748f72f71ca68d0fca08f5f516a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoDatasetHealthEvaluator.cs",
+      "sha256Utf8Lf": "251afa3651793fdb0a25c56760ae118957b2da2bfaba4c809e3feb48d5fa833d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoDatasetResetRequest.cs",
+      "sha256Utf8Lf": "20d580dc765cd03b2848ac5d3fc794a85fd28561b3995ac4f18148c1143764af"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoDatasetResetResult.cs",
+      "sha256Utf8Lf": "e4f24a5dc421c57ee51eb447965d136609d55c169c822ba37ceff886a9dc5d43"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoDatasetState.cs",
+      "sha256Utf8Lf": "80c1e82326b8e70bba3253db3fe212685a9491904a9596777c039e2c3c495675"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoDisplayHealth.cs",
+      "sha256Utf8Lf": "8c09d888bf54790d8c773bf218b8becc74f0b738af3a993cf1771c6ed6222da0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoFeedCriticality.cs",
+      "sha256Utf8Lf": "37ef8cd19c0d85a735a8f8545036ba428992f9de1813d3c609a9db9210a93926"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoFeedWatchdogStatus.cs",
+      "sha256Utf8Lf": "af8925566b97b906688507b23752008e88ed452611396d5acd017f60f30066b4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoHardAttemptEvidence.cs",
+      "sha256Utf8Lf": "af55df436183dacb1461f467c96f8cbca9f415a8e5974de3d184ab5b14c0795e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoHardRecoveryEngine.cs",
+      "sha256Utf8Lf": "f5298500ff69c44c0264ff570ab7c1fab3a1725a1bd100ea9bd3527ae4aa0486"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoHardRecoveryOutcome.cs",
+      "sha256Utf8Lf": "7bc01c77dca9c80416691f9c20e272ce7a1e26d287ee7b2110eca2a49e590995"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoHardRecoveryPolicy.cs",
+      "sha256Utf8Lf": "1e9adfcceaf85f5e10537ca20539a15a05741a63c8fd2b4d8cdbd3eed5ba7d3a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoHardRecoveryRequest.cs",
+      "sha256Utf8Lf": "31574ecc0cfb788a4a12890f42fd2fbceebe7f04b45205c18817082a11b7565d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoHardRecoveryResult.cs",
+      "sha256Utf8Lf": "0c68a79d8124439f0db1b3163dd72b97fff20e838f7f7ce486c85aab2ea0d95f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoLifecycleRuntime.cs",
+      "sha256Utf8Lf": "00d244c666308fb9c61bb5fd9cc95e7ce4646d487525899c4cb0fc5967835e27"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoLifecycleSnapshot.cs",
+      "sha256Utf8Lf": "ebe3fd899f8bb8bc519808ae3056fcffdb40cd9451b399ec56c68a24c41b9617"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoLifecycleState.cs",
+      "sha256Utf8Lf": "14da21fc43aa6e5f45baa5b9c58c53198c57be277887bfe41fb7dbb4bdbd4383"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoMajorStatus.cs",
+      "sha256Utf8Lf": "d1203d433a145b02548ed83dadda97fe7db784745a9e24c8a54858402328c7cd"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoMarketDataWatchdogService.cs",
+      "sha256Utf8Lf": "3b1ae745b135c81c816733db56b25fffa5d8f1b6f52c9d3759c2bb8f3522998f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoOperationReason.cs",
+      "sha256Utf8Lf": "2250d0763a5e26dc6ffd8a62f76a18b89d92cfe5ce6d683566130ef47e74bda8"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoRecoveryEpisodeCoordinator.cs",
+      "sha256Utf8Lf": "b5db5fe414f445bce016993cb5f63ab089dbb0c9086f5cfa84cc54a8b7408275"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoRecoveryEpisodePolicy.cs",
+      "sha256Utf8Lf": "45343b550710a9f4fbc3192b89b394b0b061dff44868d8cfdda8bf2d30e5cf09"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoRecoveryEpisodeState.cs",
+      "sha256Utf8Lf": "4f7c0a9a2f489e162166a0c4199e0146bfb637d4a8ced633d649401a9e57d33a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoRecoveryEpisodeStatusException.cs",
+      "sha256Utf8Lf": "154b3c046249df3872420568c6ebf9b3746e7d24560bb04edaa3819222b0b32d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoRecoveryHoldingBuffer.cs",
+      "sha256Utf8Lf": "e6977551a6fa7918f69e7439f58d5511e2cebfbb311b8b3161ecfc04cafc1a06"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoRecoveryHoldingSnapshot.cs",
+      "sha256Utf8Lf": "93deca8a6800fa8100802360808ef0dd8a19739ce9c763e2846924edd2465e56"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoRecoveryRequestOutcome.cs",
+      "sha256Utf8Lf": "1acd366586b69d8fd159498deb377c046ec7346e147a12d63aa2ae4f4a8cf2ed"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoRecoveryRequestResult.cs",
+      "sha256Utf8Lf": "042deb992fdb245b8d8db7395262c369e132779dfe8fd1227cb5a557dc65ea17"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoSoftGatePolicy.cs",
+      "sha256Utf8Lf": "2a52fd49b219baf9788481c8e6d21ccd4ee7be93fbcfd7ca9fe395445d53074e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoSoftGateResult.cs",
+      "sha256Utf8Lf": "1786d7670ebd382608f24e9fe53335dd02c769cf037efea3ff01c76ecbcf25c3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoSoftRecoveryGate.cs",
+      "sha256Utf8Lf": "553581a1da9b63c5a2dafa831f50c6f768904138b2715ddf53d232bc5adb4cb3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoStage3Options.cs",
+      "sha256Utf8Lf": "1bddbffe15ee49200408eb182edacbcd659b9f0afb961749ebced669e835bfed"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoStageMetric.cs",
+      "sha256Utf8Lf": "3a3772362091632e0f87c3644081003d208146990b052659339f254a8a8848c2"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoTerminalFaultSignal.cs",
+      "sha256Utf8Lf": "ebfb5475670f7c681c67c3e2491326bc373f5dc690695fcd580811b3945eb5dc"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoWatchdogMetrics.cs",
+      "sha256Utf8Lf": "5a9fb5709d9fc25737b3363ae5cc25e798a5b138f1362893a03fa1771ed7fba4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoWatchdogMetricsSnapshot.cs",
+      "sha256Utf8Lf": "5bd933731bf2b0ea4b1e73a7294c29b83ab87cbf62095d88b309aceb01c93f2d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoWatchdogObservation.cs",
+      "sha256Utf8Lf": "97060e611655253e3507c7916dae4e1906cbeceae42a915e19c0ec07a87f5977"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoWatchdogOptions.cs",
+      "sha256Utf8Lf": "cba23efcdb3f727732c2c85fb496f7153c8abaccdc50762fc49728de90702787"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatasetIncidentDecision.cs",
+      "sha256Utf8Lf": "f5f0d385b28c40c06faa5800f536d0659f2b7a12734ec2ad3eeebada42b4cf02"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatasetIncidentSnapshot.cs",
+      "sha256Utf8Lf": "52d6905210846bdd6c66dd333ea752b1da1202da5bb3dc358b0d66d53dd16328"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatasetIncidentStateMachine.cs",
+      "sha256Utf8Lf": "01c9edb5c6ebea4cb5482543e5a462b1382e83315acde452505cf85a10c22a95"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatasetIncidentTransition.cs",
+      "sha256Utf8Lf": "6f9797759c2148fd8d59f0941caa1b1cd975a836e823fd50da9a26b8d19f0b5f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatasetRecoveryAction.cs",
+      "sha256Utf8Lf": "f6b9162f1aed627bf274cd4c098b330318c72eb6ad78f2a7348802f897ebc9e2"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatasetWorkerAdmission.cs",
+      "sha256Utf8Lf": "7cdead4dabbecab4724dded83163ed96e94bcb806c991ab518c855a88c60235b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatasetWorkerAdmissionRegistry.cs",
+      "sha256Utf8Lf": "2bd04badd3f64988a9df662781ebc2493add2ea147ae8af58793d8f157e879c3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/FuturesRolloverContractAssignment.cs",
+      "sha256Utf8Lf": "ae8b71162c068e64b12c2ac26266ea4e4b2eb7f361eec0979949c99e1fecae8c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/ICurrentFuturesContractCatalog.cs",
+      "sha256Utf8Lf": "f5a121408422186b820503ff3c942c5b4109661404378ef7f833a12d2f4f09a0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/IDatabentoContractAuthority.cs",
+      "sha256Utf8Lf": "90168fbc19b520482ec6127f63094efd54336aaa1050c8b748e4c570e7f3b2a1"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/IDatabentoDatasetProcessRecovery.cs",
+      "sha256Utf8Lf": "b9811f59a115ad80433408a7feaba6a61551b136fd1156d1be6280b6c9f4beb3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/IDatabentoLifecycleRuntime.cs",
+      "sha256Utf8Lf": "a90c8cf219023a0dc64b595eea8367321c3f4f85fc9e5992361680a8999c2ba7"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/IDatabentoRecoveryRequester.cs",
+      "sha256Utf8Lf": "67126af9306a4b78abe2e4d32a99b1d3adb133197956535d579351e5d66e7485"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/IDatabentoWatchdogPublisher.cs",
+      "sha256Utf8Lf": "cbb02558eb0622ffa6e662c89875704b536de2b0be5e0224eecdd84cd7bfd68d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/IMarketDataLifecycleRequests.cs",
+      "sha256Utf8Lf": "72fa38c5e08c06250abcd7ddf9d3c1267de5cd87f24db603513ac3b46770d3ff"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/IMarketDataServiceStore.cs",
+      "sha256Utf8Lf": "e67665a3cf52c2430c0109e6a0f607b383d65464897d8b31db039f79bc0cd8f6"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/IRecoveryInfrastructureProbe.cs",
+      "sha256Utf8Lf": "92ee78af24579d2ab90018868dd4223697a3077c07a84252c73b0312c2e70707"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/InMemoryMarketDataServiceStore.cs",
+      "sha256Utf8Lf": "5a35d63dff068ead3fc867f216156464594be99c9da70625bc7c7afb4e8aa59e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/NullDatabentoWatchdogPublisher.cs",
+      "sha256Utf8Lf": "e73a9aac6d31527d4e68760e9099105b00b87875cc7da55da3085029d38d4324"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/RecoveryInfrastructureKind.cs",
+      "sha256Utf8Lf": "cfe2729b9aaa8a23c04b5a8c43508890aa22051f08554cc8ad38be767b0ea5a6"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/RecoveryProbeResult.cs",
+      "sha256Utf8Lf": "2ab513f634d619aea729b95b6625d5e4c81e4d15fdbbc1b3b7730c8179184cc0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/UnavailableDatabentoDatasetProcessRecovery.cs",
+      "sha256Utf8Lf": "ca6947f99a0598a3e006c922675ee427560592176cf0b4381ae9593655ef1dcc"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/ResolvedCurrentFuturesContract.cs",
+      "sha256Utf8Lf": "1e4037b3a0db35262f3a2484697c8425450daad2a0be51ba5b17e2ed243a8c5e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/SyntheticFuturesContractFactory.cs",
+      "sha256Utf8Lf": "2fe33c68f4923991e8c5c4d28ddcdada2e0b5f06e40ba36b0a459feaaaacaa8b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/SyntheticPersistenceIsolationGuard.cs",
+      "sha256Utf8Lf": "e16e521bafa8042447779969478ac29770f97ed0700b255a933d44af53ff9f8d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatabentoHardAttemptResult.cs",
+      "sha256Utf8Lf": "3936e0b3a596b03571a42222005ba309d4dce5ba1307af30186e96b926812762"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatabentoLocalQualificationEvaluator.cs",
+      "sha256Utf8Lf": "5a7a8c2c56befb86233374329d50cbe3032d982717ed0dfa5375f8988552b216"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatabentoSupervisedWorkerOptions.cs",
+      "sha256Utf8Lf": "926162d3bdc6578c44b0ef8785211a61089df8d3ea28230268f808f1713f5c4d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetDesiredSubscriptionRegistry.cs",
+      "sha256Utf8Lf": "67cb59ad7d4e7fd40dbd094f7b09ab3632e8ec377daa0dcacf11ab582ad6efbf"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetPublicationEnvelope.cs",
+      "sha256Utf8Lf": "dba6a2deaf75170f0cb4df0c1043d67a7b8bc93cd3a2484cf99bfa7e33044d85"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetPublicationFrameCodec.cs",
+      "sha256Utf8Lf": "9002761daff2c29c8faf9b744df67215ed0f784fdb42f99b4c565f1638ab57db"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetPublicationIngress.cs",
+      "sha256Utf8Lf": "b636a05e17351bbf05ca66b6d31c6f17339bc7d19ad9e9cdf3ccc99bffdc375b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetPublicationKind.cs",
+      "sha256Utf8Lf": "039fa0a235b2150d4201079962846a57daca179b0a8b0fbb060b79fb6122919a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetRecoveryManifestSnapshot.cs",
+      "sha256Utf8Lf": "042e1d76bca1454d6b6fa7f77a6aaa7f7d7d3bb1d786e7550d7f63260d14be2f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetSubscriptionContract.cs",
+      "sha256Utf8Lf": "6617303081739a8cac1c06b0336974d7365525290a6ec49bd85cb3a5e20cd5ce"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetSubscriptionManifest.cs",
+      "sha256Utf8Lf": "96eb2e560a69054da78991f0b3f73435b8bd0fca186c61c3a6f4113ac1eb3633"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerAggregationDiagnostics.cs",
+      "sha256Utf8Lf": "d5535dbd2f31c0d052f0f9175a1ef6112050d27dfeb2b61f67c4f51334d556a0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerControlFrame.cs",
+      "sha256Utf8Lf": "6f0095ae68b8ff768eca7b6b944abc44d95982080743b3acb06c4c7dc4a43546"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerCurrentValues.cs",
+      "sha256Utf8Lf": "ac1c50d72a9377fbc0c31f06d87125627b6806b3787ed1b5aefc4db1df8a18f5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerDiagnostics.cs",
+      "sha256Utf8Lf": "47e42d292fe1bf96b36907dcd5a65cb55e5f0cab7d0ce15b6d2aa4cea256bd39"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerDrainDiagnostics.cs",
+      "sha256Utf8Lf": "9ae687fa1e6f3f745b3638714157c6072a9f6f3b960b932770059c9b6422c2cf"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerFrameCodec.cs",
+      "sha256Utf8Lf": "d6e2900bb943c6d2657290a62c38db0cabcf60b8197225c6233c6e56eaa68f12"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerMessageKind.cs",
+      "sha256Utf8Lf": "b11c1df61f6851a9588df17642b244310c4f77624baa03ab5e4fcb2e9de43eae"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerProcessRecoveryService.cs",
+      "sha256Utf8Lf": "17522a7453bf21c78f8cd344f71436475322380e9eb02c8f4852c8340c1303bb"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerProcessSnapshot.cs",
+      "sha256Utf8Lf": "9b2639285a9077298aa2374a72a51afd4386d555785e3cc68c7da118a4095841"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerProcessSupervisor.cs",
+      "sha256Utf8Lf": "4cd7fbb79bc08316bc155d646bbc1e8873fb9152e24ecf982e80b76aba05ed55"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerRecordProgress.cs",
+      "sha256Utf8Lf": "abdeba2eab36761814b969eaa3fcf1d79d17f0e479d9cdb8045371d2673d77ca"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerStartRequest.cs",
+      "sha256Utf8Lf": "e4db9eeaf72e8c5dd13cf64a269dad8bc62844b066a49eb48da85de1cca6d18c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/HardWorkerContainmentResult.cs",
+      "sha256Utf8Lf": "bc26a6046555a94c8f8519207f333544aca62b4e0d19c2305dbb5cc2b2883f20"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/IDatasetWorkerProcess.cs",
+      "sha256Utf8Lf": "0d959537ccaf051dabac2eb22cc2b63ccae395c96b3ee638b4cc846fb79dad67"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/LatestOptionObservations.cs",
+      "sha256Utf8Lf": "f6946b35dafbe3b8ea8ab1ab84477b2893e4d9798dd22fe16a0b0e0e7d729af1"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/MarketDataHostConnection.cs",
+      "sha256Utf8Lf": "9b8f60b6703514893e445be68c97ac99573cf24b733247ab58d0a8bc0d948511"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/OptionTradeAcknowledgment.cs",
+      "sha256Utf8Lf": "10a0fcf6ce156f06f349afe915429de6089d494d3433fbd93bd9f0a37affbb52"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/PooledFrameBuffer.cs",
+      "sha256Utf8Lf": "58c7f537801c5238f4cbdc9caee745554d721ac2baa836c156307673d598bec9"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/RemoteDatasetWorkerProcess.cs",
+      "sha256Utf8Lf": "fa457bf9cd3fcf27f1a9bc0357d433035036ac5043a3cc5b401366bc4b6a7eb2"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/SupervisedDatabentoHardRecoveryRuntime.cs",
+      "sha256Utf8Lf": "2970f4378446ffced9a92a542ef5ced2ded7b334ba6d07b1900a90ebf2c8b56e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/SupervisedDatabentoLifecycleRuntime.cs",
+      "sha256Utf8Lf": "3bfa5e54b2460a7c25ea32dc4a48f91c7ac297443c58acd4f55ed2443d914c91"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DataBento/Workers/WorkerPricingContextCodec.cs",
+      "sha256Utf8Lf": "4028a448d5458ded0077287bb289f68abb44449ae251a5d43b45a00e86d8a643"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/DatabentoSessionAnalytics.cs",
+      "sha256Utf8Lf": "e85f9e7c2e028191a54af843f7b4f731144034f924cdcb91a23637743dd10fbb"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/FinancialModelingPrepReferenceDataApi.cs",
+      "sha256Utf8Lf": "1dd2959561f099a7bdba3cab89d8dd9933478c7f3840c6bc3229a70ddde08187"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/FmpImportDataset.cs",
+      "sha256Utf8Lf": "b2578ca42ddb9f35c3d47e4e40b3745aef646a6c38b0cbffc36e47d7e9c771d7"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/FmpImportDateResult.cs",
+      "sha256Utf8Lf": "10a9c37f65b7fd49b6bdeb4c42a24b9859a5e1e51da6ee1234086a73d6f71d01"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/FmpImportDateStatus.cs",
+      "sha256Utf8Lf": "fac67de7c8a45154c7a3ea457f7570dd1a2d35b406b6e008a671507ae5c24da4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/FmpMarketDataImportCoordinator.cs",
+      "sha256Utf8Lf": "7b67a48b3a92513c2268c6eb55059cdbbb1a4bda98993c2d9d0b62c3b8dd183d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/FmpMarketDataImportException.cs",
+      "sha256Utf8Lf": "3a4e8b4158ad30d2d437793290a86d1b76fa2002f1534176cb3199faab24344b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/FmpMarketDataImportOptions.cs",
+      "sha256Utf8Lf": "f9c013a4d4ce9e7d7c5f72136c61c539c6606d93f271175b75abf5580e4f4dcf"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/FmpMarketDataImportRequest.cs",
+      "sha256Utf8Lf": "f84d0c4602cf8a213fb6da737aa9c492838fb985225672894ffbe7d4ac1e24d2"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/FmpMarketDataImportResult.cs",
+      "sha256Utf8Lf": "a180898420ef552850b0cab1d65a44e470675bb139973ab5cb7b0a110bbde2a2"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/FmpMarketDataServiceCollectionExtensions.cs",
+      "sha256Utf8Lf": "d212749aa7b59763f4ce8cdb6e4d5130021f5ad8a56178157b1648c5b8017e4e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/IFmpMarketDataImportCoordinator.cs",
+      "sha256Utf8Lf": "22a8c728424db077bdb26e64c01291db5c5b361524568ef07f58ee2feb4d19af"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/MarketDataImportPolicyOptions.cs",
+      "sha256Utf8Lf": "5836aec7aad38e66b0cf56974469cadab9752de86a47e6922fddc0c215b00580"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Historical/FuturesEodAnalyticsAssembler.cs",
+      "sha256Utf8Lf": "1367182bbd5575b97c4d5e448ed6c0ac934033c538b338a17eb21e53fac7b959"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Historical/HistoricalAnalyticsWarmupOptions.cs",
+      "sha256Utf8Lf": "74bf9db1edcd8b441df16c156259f234f7e43ef4144d7fe824d0571a2133b6c0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Historical/HistoricalAnalyticsWarmupOutcome.cs",
+      "sha256Utf8Lf": "de9e9da101d57323abe92729938924b39854cb4410389201ad19d35b36561f71"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Historical/HistoricalAnalyticsWarmupResult.cs",
+      "sha256Utf8Lf": "58c05426c8d02cd8f35830da0f89e07865ca0d2ee255842cbaca02bca965a9c3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Historical/HistoricalAnalyticsWarmupService.cs",
+      "sha256Utf8Lf": "c88fcfabca31cd649fbdcf20e23bfee239d963282a2f9302858f9f838b6c8508"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Historical/HistoricalDataLoader.cs",
+      "sha256Utf8Lf": "eb741baf5483b8e337ab700e2ef9838c09c30cc63b22e85f5587f894be824e9e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Historical/RsiHistoricalSeedWindowModel.cs",
+      "sha256Utf8Lf": "2855d718abb0f5e25155eab8369beccc78011fb63188ec788741649eb6d52fa8"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/IMarketDataOperationsRecorder.cs",
+      "sha256Utf8Lf": "1e7a440f9869ff255dc447954134f209f00bce37960c00a8e9d5ed777bb1efca"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/IMarketOutlookHotCache.cs",
+      "sha256Utf8Lf": "80f017b08a5dafcaf9709a1ea7d3f6843df1778e4af2870a4980e6570d82ea02"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/IMarketOutlookHotCacheWriter.cs",
+      "sha256Utf8Lf": "cf23e336166f438c32c36d094f070a58b205e3132a2a035e1a7c3c7fcbcebb60"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/IMarketOutlookOperations.cs",
+      "sha256Utf8Lf": "7b27bd635371b119add9edc6cc2f4ba5c48c7a764405f2311f19e1841ee34bb1"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/IMarketOutlookUpdateReader.cs",
+      "sha256Utf8Lf": "490f72d4e4cbc72ea0e3fcf144c67e0eedb83ab1e73eaa1c86895c3d1a12dceb"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/IMarketOutlookUpdateWriter.cs",
+      "sha256Utf8Lf": "15f383ff06a41a92b67f9065b0604e57c5972c7b50747f28dd5c56d005675fa3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketDataOperationMeasurement.cs",
+      "sha256Utf8Lf": "94fc5e84b6eb4c3650b9cd3eb1a741cb72cbf0324ab20b7d7d0a6dd3aa56f8e1"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketDataOperationOutcome.cs",
+      "sha256Utf8Lf": "b8af82f78b65bcd7606dce21d945932ed78c285c10c50d064936bac26d94aa89"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketDataOperationStage.cs",
+      "sha256Utf8Lf": "4a3be58441e45b6651bb58f3294a267ca07c4c4562310ab046f71855fc7ccbcd"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookComponentType.cs",
+      "sha256Utf8Lf": "88f34ebe01e2d2e4f90e7fa87990de11f1fdfd7f37bfc97e5764b13c439588b1"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookComponentWrite.cs",
+      "sha256Utf8Lf": "8b9310d635bece8fb8cb8278dae4d385ce6bc7a3f90bafe534252695436450b1"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookHotCache.cs",
+      "sha256Utf8Lf": "e68ea9505be5ec2ea1292f4e086bd80bd5502fd35ba9e3c2d2f96318d3b2f7cc"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookHotCacheMetrics.cs",
+      "sha256Utf8Lf": "f4138378a3af7c95e17b101512aa1c5900b020fe61dc07609b0770fb99ba3188"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookHotCacheWriteResult.cs",
+      "sha256Utf8Lf": "d1e62f74b750ab549d98b7da0954f206e04a81a9f849a354c19cf961a5472858"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookInputState.cs",
+      "sha256Utf8Lf": "35d741bfa0ba85c7a1471624b4baeb63f0fdf5c9238f7fcefaf0a398e0d653b5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookProcessorMetrics.cs",
+      "sha256Utf8Lf": "fbd4650a69a2536a3080cc9f9b423ac9bd9b53bf128dde14f9d820447fcfa187"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookProcessorMetricsSnapshot.cs",
+      "sha256Utf8Lf": "49068a062b53a92fd1a4a93c2c7a90181ca3c4c3cf2748477dc8e6774cc9803c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookSourcePosition.cs",
+      "sha256Utf8Lf": "ae9cb5646a70d7d34ff5d4a24704c344ae6df43ac86e681b694c414213a7e359"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookUpdate.cs",
+      "sha256Utf8Lf": "466408d5c00ef5ce57f2cce0579851d319c189d576ce6eb8e253153c4636ca99"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookUpdateChannel.cs",
+      "sha256Utf8Lf": "ed3b582135d73843b7b9050b003129620d4a53d765cad768d2ffc194fd4754a9"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookUpdateKind.cs",
+      "sha256Utf8Lf": "4a08f090304ee7aa7e6232e26ce31a37d25aa03a06c25305a0b97218dd94dfbf"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookUpdateMetricSnapshot.cs",
+      "sha256Utf8Lf": "d961723b91f197dfb257dcc9815488ed359b86ec856feb09c49418d8a42f4382"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookUpdateSubmission.cs",
+      "sha256Utf8Lf": "18dcf23faa3d041b7f34f8e64c858eff65aaa75abee943c5cff159d5244dd86f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/MarketOutlook/SessionIndicatorReadiness.cs",
+      "sha256Utf8Lf": "2ad39993550e7adf6ba771b6853379938525aaaf74ff32852b94aef40c22d0e6"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/FuturesItiRuntimeOutcome.cs",
+      "sha256Utf8Lf": "ab3e8f3d4a18080411b03dace3e845163a8393a230430548cd5978b6519abdbf"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/FuturesItiRuntimeSnapshot.cs",
+      "sha256Utf8Lf": "d05ed9862f8f1469c272a193155eed41e0ec2ad2e2b82c66f3f45747fc49e9c2"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/FuturesItiSignalRuntimeTelemetry.cs",
+      "sha256Utf8Lf": "a759588c88adf8a378770e02f94a5d52a753c53b60368225d663b6d7123deed0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/ILivePipelineProbe.cs",
+      "sha256Utf8Lf": "081f7faf99bb6b5f7970088218bc78e40b8a6abc8d589517f8c3f65915999082"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/LivePipelineEvidence.cs",
+      "sha256Utf8Lf": "a069e83a1d36215a4ae89e8f5edbae49ef98defe2374bacbd540c8a4ba2a578c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/LivePipelineMonitor.cs",
+      "sha256Utf8Lf": "733df90fff3dff88aaffcd8cc2b656b00d4f635a662a1910ff4210c881dca4ce"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/LivePipelineMonitorOptions.cs",
+      "sha256Utf8Lf": "17d5a38fea87bd871be09b711f4af668fcb48e783f6f558a926ed21f3d2cc5b4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/MarketDataBackendHealthObserver.cs",
+      "sha256Utf8Lf": "cbb88daac4f7e7d53c8fb014f8b387763c92ab994b1057b2ec25082bcdedc5cf"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/MarketDataOperationsHealthObserver.cs",
+      "sha256Utf8Lf": "532006cc558905dcfa5da2d06c532fb4dd090c60e0780158aec74bbe7a9aa938"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/MarketDataOperationsHealthService.cs",
+      "sha256Utf8Lf": "2ad7660724b0b441ee57699141ed447d3308c65990905f3c7ffd4ec368cd29dd"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/MarketDataOperationsHealthSnapshot.cs",
+      "sha256Utf8Lf": "dfc0d3eb987348c08e21d7d80065d34d4db75296e0ea80c87f3577104e98b7e5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/MarketDataOperationsStatus.cs",
+      "sha256Utf8Lf": "3b9ff8b600cc84962cbfd08e59a1b94bce298c5cbea0ce2e7567261769266047"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OperationsHealth/MarketDataStageHealth.cs",
+      "sha256Utf8Lf": "8bc1d9d66ea754fa915e8fd55ad046adbf3a00517fb73e6432bbfe15a65264e9"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/IOptionChainSnapshotPublisher.cs",
+      "sha256Utf8Lf": "df8fa696947533587fa9de3ae2693db5b6199059bd866f836962ee1941eadf1e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/IOptionUniversePlanner.cs",
+      "sha256Utf8Lf": "1c3ffbe57e768811ab5f5cefcb27509a675939d1e73a90e422de639a2da65890"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/IOptionUniverseSource.cs",
+      "sha256Utf8Lf": "f5212348162c74b7bbadb455cc28bf6bf678d1b810e0a4444d51f3552b30db0c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionChainBackgroundUpdater.cs",
+      "sha256Utf8Lf": "d8d4f071e3bea40fd7a9ddb4356796432f715170d4900e5591de9a2b8e18af79"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionChainCache.cs",
+      "sha256Utf8Lf": "e360571e11f72fd74bf52f2642b153b9865e86d620282ff3d0631a9c0a239f3b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionChainCacheServiceCollectionExtensions.cs",
+      "sha256Utf8Lf": "2db0a84856b6df1aeae0e2c5f29c2548d52a0229989bf9ee0985f739be3df808"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionChainCacheTelemetry.cs",
+      "sha256Utf8Lf": "668ec0979164e04641f38f9b6bbfa5daaa8fead9df2e2d868aa0930f0b19695f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionChainCandidatePreparation.cs",
+      "sha256Utf8Lf": "0061f415b3297d80b9181ef820db8c58ca168d639d2d85b127cd1d045c0a53ae"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionChainCoverageObservations.cs",
+      "sha256Utf8Lf": "f62ab061b22d28d7307068f52ddacd3d8fd1e48cfc31bbfab0a1f8c12c015a63"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionChainPublication.cs",
+      "sha256Utf8Lf": "28abb9969bb1f7fd2eb22104eb62a352ae60060792a1c7b0d24075e8ceff9337"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionChainPublicationFrame.cs",
+      "sha256Utf8Lf": "288a4910b810b1e4d9edf4e3e3d9a6ee911b531ecdcbf758cd41c4ee737175b1"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionFeedSessionCleanup.cs",
+      "sha256Utf8Lf": "b1c742d26214896046498ebf8e5c458803a7ee6ce2ee332ceceff9af8094e90f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionUniversePlanResult.cs",
+      "sha256Utf8Lf": "4405f5049d97a7c11509ced7f94a5668b781a60377052a390ceefa5bd8860c50"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionUniversePlanner.cs",
+      "sha256Utf8Lf": "bc133a069ac0eb5d80677cd2d90615a9da5f6a7a0f0a3aceda9bf1c9f7947229"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/PreparedOptionUniverse.cs",
+      "sha256Utf8Lf": "b46a90653373479764fb434e833531f48b762bd0ce9eec6645855abea3711d45"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionChainCache/StrategyOptionChainScope.cs",
+      "sha256Utf8Lf": "54f9c9e8b0814208c9423d8e21c8da25b697677b9ab4c2c052a04635b383e7bb"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/OptionalApplicationDiagnosticLog.cs",
+      "sha256Utf8Lf": "7c33e5fe429ddd3ebf7f85f6e4b12e468a91e942e92f6f93e182d529fda4f5a3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/Black76OptionChainGreeksEnricher.cs",
+      "sha256Utf8Lf": "3971dbc53c3af749f0cfbf2a7289dab9c240aaac3595f8573cc923cc63722cf0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/Black76PricingModel.cs",
+      "sha256Utf8Lf": "f0c60572f941499dece219f6fe78987d56827cb5ad779e9d32383ec41447ff38"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/ChainIvObservation.cs",
+      "sha256Utf8Lf": "77e547fde22cbc0c21e3797cb8b3e0d2b5427651de2f61b799cf0758acc80672"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/ChainSelectionCalculation.cs",
+      "sha256Utf8Lf": "8e65245342856f2064e0e01dc6a9c44b280fd2666dfe0315175137312f27e253"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CoalescedOptionChainPricing.cs",
+      "sha256Utf8Lf": "348d435eddff453dac2233c1bd002b23a6dd1a72caae66cdf017acb996dae90a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CommittedOptionChainOwnership.cs",
+      "sha256Utf8Lf": "f2574b68321f7f11e14bda7ddb73813d56ff123b48ec018a16462236297e4100"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionContextRefreshResult.cs",
+      "sha256Utf8Lf": "8fd8aed635e0731065f74d0153a58e82b2f9180d4ad42830f2dca4734774e0df"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionDiscoveryRequest.cs",
+      "sha256Utf8Lf": "e506e424a7452653ea30bf61587ecf9ebebb5115fd36176dc7a087685a5388b4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionDiscoveryResult.cs",
+      "sha256Utf8Lf": "a76076e43c01aae5547d5963da51a496a1bd972b528f9ec1445ed14796defe0e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionFutureDefinition.cs",
+      "sha256Utf8Lf": "d44b1603940eb39ddfe161381e502a80612a945254b51860113fb651e9bc357f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionInstrumentSnapshot.cs",
+      "sha256Utf8Lf": "4d50c278fd9785f135727166f6aa81128c4b1bd4f13131c40a625281c9a7c471"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionMarketDataPlan.cs",
+      "sha256Utf8Lf": "153af1ea507b8600444992fec1339547120548f9cfb36aeb29279e105e56efbe"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionMarketInstrument.cs",
+      "sha256Utf8Lf": "b5d59e04be81dd95a87db3301b7ee510ba18f663aa8fbf2a7b61e9d28a308fae"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionMarketPage.cs",
+      "sha256Utf8Lf": "5c4da45c7824ddad3090185350a67a2c6dda3708e11071b34ce7673bfc3b3474"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionMarketPreparation.cs",
+      "sha256Utf8Lf": "86c60e2528b0f8fbacc78be7b006b7619c467103a332913db52f22667a03c8f1"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionMarketSourceException.cs",
+      "sha256Utf8Lf": "f22718390eba0aee3577ed3824618715afb81e7e6ab1d3363e468297efd10920"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionPreparation.cs",
+      "sha256Utf8Lf": "9812d2ac3b2d714bbe5eeb41e550a4e53e5abf1214d01402242ce254ce94a547"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionPreparationKey.cs",
+      "sha256Utf8Lf": "5d08810ad497e922f5a688db00e42697e5d0f9f29821b82329965be6e90ab65b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionPreparationResult.cs",
+      "sha256Utf8Lf": "ec733987cf975fc2ee34c3bad71fc51eaad25d174563a2f74b4676dcaadf8c94"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionPreparationService.cs",
+      "sha256Utf8Lf": "2b75f34505e823125c4957a763f30593a8ecc5273274affc115bef21af55300d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionRoutePlan.cs",
+      "sha256Utf8Lf": "74c5a0224643d9434071f5a306a2e36d045c2f34a95299731e59f01182c28deb"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionSnapshotRequest.cs",
+      "sha256Utf8Lf": "502b043add792706857944af399bc0b5247f3ed5e8aaa3979802f8ab10e84020"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/CompositionSnapshotResult.cs",
+      "sha256Utf8Lf": "5625e9a72f5910bb10248febe53a1d4cfeddb66d185d78e37e812c13b229de0f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/EuropeanOptionUniverse.cs",
+      "sha256Utf8Lf": "4d8d818c5461869cd3fdcdccff90b0d45ae097e480abeb37caa46f74993c545b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/EuropeanOptionUniverseResult.cs",
+      "sha256Utf8Lf": "7245031b9b859a88d0eddeb232b8493917d0f6f2f822badb6700777332e6bbc6"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/FixtureTradeBlotterSnapshotSource.cs",
+      "sha256Utf8Lf": "0b2de759efd59c9999af73e752de371f59406edd9860eaf658ce3d1f612472d8"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/ICompositionMarketDataApi.cs",
+      "sha256Utf8Lf": "455daaca8954c85e61144b40886b2c3d0a2e2a6ad3182ba2c928d84edd9a09b3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/ICompositionMarketSource.cs",
+      "sha256Utf8Lf": "06692a43f04a5f0b1d8c624a8a6f90686d2eb7a39ab0513d311e7dcb85f98294"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/ICompositionPreparationStore.cs",
+      "sha256Utf8Lf": "6566b54edb182607c0990d917d5625b2ab8704d60abda7b61f3ca91193fca264"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/ICompositionRoutePlanStore.cs",
+      "sha256Utf8Lf": "9a0cc1c4e17d40d48c967a87b8cb59c1dadfcecf528a773b0e243b628fe08382"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/IMarketCompositionSnapshotProvider.cs",
+      "sha256Utf8Lf": "573c8118cca3ebdf86e640983f685d771f99f72fd53e46f2382f39ee5d4be2b2"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/IOptionPricingContextProvider.cs",
+      "sha256Utf8Lf": "995921570e64c2bbd42bda8f759bdd5acc2e4a443cf65422e5791c192849e05f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/IOptionTradeEvidenceWriter.cs",
+      "sha256Utf8Lf": "0add3de4310153723e8f8fc5aed7650f3528488dd8fe5d3cbff57d0b5a93ad67"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/IRecoverableOptionDiscovery.cs",
+      "sha256Utf8Lf": "482f60feed0e689668cbd59f1a21437efc2303a7645889194f14292bbbca43ef"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/ITradeBlotterSnapshotSource.cs",
+      "sha256Utf8Lf": "b8d328b40b9ac26c186e85f2c87e0053ffec78a3807b472f860193bf10b8dc36"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/IndividualOptionObservationPublisher.cs",
+      "sha256Utf8Lf": "4c83169147019ccef22e063b696dc93c9131fcc2835cc80ebc2381f143192866"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/IndividualOptionRiskReader.cs",
+      "sha256Utf8Lf": "eec82504c53eef7a65b7df58cd851d123be6bc443dd483107b3cc0d1a4b546fc"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/MarketCompositionSnapshot.cs",
+      "sha256Utf8Lf": "57312889a741cb6cca147b9ea6ba9c1859b8cb4063c9ee408e0bb549b04340d5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/MarketCompositionSnapshotProvider.cs",
+      "sha256Utf8Lf": "ccbd76ccc75d43b2cd19b68b2cf02795b30cd2e829f78b4a81d5856445f227e9"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionChainAtmIvEstimator.cs",
+      "sha256Utf8Lf": "cf0544b5b4b8f6c8c07a524553a50b1db0f86cfeaeeaac24961ee4e9c454c44b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionChainPricingInputStore.cs",
+      "sha256Utf8Lf": "c8ea49272de2e61a82a562126d4493b1e09515c6ec98a8a3586509ca6d416165"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionChainPricingInputs.cs",
+      "sha256Utf8Lf": "8021892d9126fb04711acc9d0a5061ae178095be5cafc421436f52f6665e5dc7"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionDefinitionCandidate.cs",
+      "sha256Utf8Lf": "ae713e5b16b2a05430b0ae9b9b1c8696a0a0084a2058d8f2f79f9db0670a2a03"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionPricingContextProvider.cs",
+      "sha256Utf8Lf": "7d28c4dc77147de67a705c0a0e9b840ca598fc719e3f0479f36a6e03afbb5a1a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionPricingContextResult.cs",
+      "sha256Utf8Lf": "dd8e9689b73c5418ecca26c4e950da0d645983f4b31a93ec984e4275799a3a8c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionPricingPassResult.cs",
+      "sha256Utf8Lf": "5462127eb7847053be5f646d25fa6395fb790e25143514da61294c6dfe5f2fed"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionPricingReferenceBundle.cs",
+      "sha256Utf8Lf": "77994413b6916a3e1e38287d87eceeeb0da2f3f7da4deecf2c001e016c946b24"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionPricingRefreshPolicy.cs",
+      "sha256Utf8Lf": "5d11198d6086d7a1d9caaecffc62c2dd9bbdad65b6f851ecac6552b021349dba"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionPricingValue.cs",
+      "sha256Utf8Lf": "63eaf22a9792c1726207ab2be672081ba42b78e76a4a24f02ebd26720a14b92e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionSelectionValue.cs",
+      "sha256Utf8Lf": "7dbe95495dac03ebcabe82da9b09396ffb2cba2c5aa7e582a16d6bfb6f87e5d7"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionTradeEvidence.cs",
+      "sha256Utf8Lf": "91947d759e64203416879ec6c160f19940ac4f50c4f118f326452f1872c757eb"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionTradePricing.cs",
+      "sha256Utf8Lf": "2ba68f4f19e84b8918eb0e9227b4b43a3d4f32e50096401af9c67365fc6aa4df"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionTradeRealtimeEvent.cs",
+      "sha256Utf8Lf": "11046534a479f596b2a9a6c37d0152284ab8d5ec149cd2152db9b801facb1cc5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/OptionTradeSource.cs",
+      "sha256Utf8Lf": "50ea10f498f25c4f4f05ccffe4a65331cd25d641fd438237c2ed8f56ede91392"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/PricingSemanticHash.cs",
+      "sha256Utf8Lf": "e15c606cafe7fe5a1ee92aa8c82c9b847fb22429c611006f3024bbe4865666fa"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/PricingSourceClockPolicy.cs",
+      "sha256Utf8Lf": "8d91f7bf77c700497a0b0c2c60d8fb70afdfbd5bb20920d4c6459388eb6e12c0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/QualifiedCompositionDiscovery.cs",
+      "sha256Utf8Lf": "9378da5d02cb98150619b90792a336be4618bf09769662cd852ae442c81481a8"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/QualifiedOptionDefinition.cs",
+      "sha256Utf8Lf": "9e8a315034efbf677d240027058200f98584512d6954331ef2a818ad6483f9ab"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/RecoveringOptionLeaseRegistry.cs",
+      "sha256Utf8Lf": "a7083301c0eee18601744f9bdb8442622a8d9bf5456a291f19fc88865cec5fb5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/ReviewedEsOptionReference.cs",
+      "sha256Utf8Lf": "a84c9eab7fedccdf3297efa2f85582e2efc2fd92382660d48b3539f872b8c86e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/ReviewedOptionReference.cs",
+      "sha256Utf8Lf": "c898ad8a978fff1731d2922e13787f23f87b3aa963003dbf010ce6e34c06c209"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/StagedTradeLeg.cs",
+      "sha256Utf8Lf": "eb6f271e35086731d97012f34137ab7f6d8e293dbbb4d6c12d52362f9e53d3f6"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/TradeBlotterDirection.cs",
+      "sha256Utf8Lf": "56789067a16d87237d58c4a68e8c3e4965050180016c76f8c08aefa6ef02a406"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/TradeBlotterLegStager.cs",
+      "sha256Utf8Lf": "a1ddbbbfeb068fb792856d6d2c3af0f6df4bf8b6fec3133a83b1ed6824b9504b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/TradeBlotterOptionRight.cs",
+      "sha256Utf8Lf": "cda194cf54bc7403688ca7edf3676691e4b5cb50b6adf844e32335c41ff6ff0c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/TradeBlotterPositionIntent.cs",
+      "sha256Utf8Lf": "c2f4a6822248d9d6f65f3f54eaa4f27110ea2cf69cac25912f1ee0eb3933fcc4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/TradeBlotterStagingRequest.cs",
+      "sha256Utf8Lf": "bc9d4e6e2e953c0d4e4fb4a476e1349f8d89bc9d3c02e28be274b14c9f1860f2"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/TradeBlotterStagingResult.cs",
+      "sha256Utf8Lf": "ae1835d47b6e6aedc0e3e764e59dd5201f6197f180104aee45614c2a28082761"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/TradeBlotterStrategy.cs",
+      "sha256Utf8Lf": "7c736a487834f5ea88ce46238c4c682f1a2cfa0ee968baaad987a8fd86ca2ca9"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/TreasuryPricingProvider.cs",
+      "sha256Utf8Lf": "a56e8be2b560965e628d3b641ef83805191b090a63f8bdc734bdc51d128262b9"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/TreasuryPricingResult.cs",
+      "sha256Utf8Lf": "ede92ce784ec823ed7f5215494558bfd3fe4c23d7b4517719042015c4997a620"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/TreasuryPublicationDate.cs",
+      "sha256Utf8Lf": "5f21bef2b83edb31740fac419b5f82477b3b7ef40b47cf2d36ca72f38de1058e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/TreasuryPublicationPolicy.cs",
+      "sha256Utf8Lf": "8c705d66c27c8ea28323b4ac542411b849ed179e88629d241145d2623772f4b7"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/UsTreasuryPublicationCalendar.cs",
+      "sha256Utf8Lf": "289a6c1b6f18b083201c7e41de3b3abe7163ddc5e3ebf27c2cba8c09cff05c01"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/WorkerFuturesCompositionSource.cs",
+      "sha256Utf8Lf": "59e3a5ca041d7bf43cc3ba57deaa31655f428058439f3145933c535db0fe086a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/WorkerOptionChainOwner.cs",
+      "sha256Utf8Lf": "1c616c86584ac0628e7c913baf0c4e4b13eaad2ccd59e61440e3323dbf59a523"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/WorkerOptionChainOwnership.cs",
+      "sha256Utf8Lf": "785ff8be4301e2fbe9cb2089eb89a9702f14b0766cbedf63e950e3b66b311976"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/WorkerOptionChainRelease.cs",
+      "sha256Utf8Lf": "711ecef5a082891499cec9e4dfe511dce196ec84fbfc7b162d4e54bc6f9b4d78"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/WorkerOptionChainRequest.cs",
+      "sha256Utf8Lf": "7fc126e4d22e1c0259723a1ea954dc7f825fccd275b0ae0d0ca280307f56e6d4"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/WorkerOptionChainResult.cs",
+      "sha256Utf8Lf": "10e69f00074bbc8eca5d0fa3f99b06cc825b4b5f4a3d9b2f786ac0f38298d5e3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/WorkerOptionChainRuntime.cs",
+      "sha256Utf8Lf": "d9dcbdd904b93be57dc4d886d9b17e0a8ec8f95a7799be2e07d9951049ffaf16"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Pricing/WorkerOptionDefinition.cs",
+      "sha256Utf8Lf": "f5d13bd7479be7566d97ae6b322df83d15c5d71f1d8ae4713d70dd10f81f35ac"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Recovery/OptionFeedProcessingHealth.cs",
+      "sha256Utf8Lf": "b6969b19cf35b6cfcc45f14bb185070e8562d6948e1f90093bf3ddd90016198c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Recovery/OptionWorkerReadiness.cs",
+      "sha256Utf8Lf": "cb6b7d05d6314cf9da18b0453bc81f8bc99f621fb107b795afc2d8423f92b805"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Recovery/TradeFeedRecoveryService.cs",
+      "sha256Utf8Lf": "bd76d2ccf6735d38acd6963fd1b2b7dbbf9843cd192842ae0302635b7232300d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/RemainingApplicationDiagnosticLog.cs",
+      "sha256Utf8Lf": "04d3575f218fbbe5ec7f29160ea3bac8520fe3b2de2bca844e903e30ecefd438"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Remote/MarketDataApiCall.cs",
+      "sha256Utf8Lf": "a514ce1032fe43f492e0363f2553141a8f7bd768d22a95976fbc346f2ad2ceb3"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Remote/MarketDataApiClient.Backend.cs",
+      "sha256Utf8Lf": "c3f84c95a89ec242c38a8e4fb8ef3decf0c1bc0fda5a3faa17f98f10ccf6ce4f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Remote/MarketDataApiClient.TradeFeedRecovery.cs",
+      "sha256Utf8Lf": "153355e91f44a3b5c6fee29eadf0e18d3d34b4d040bee6449e9611884385369f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Remote/MarketDataApiClient.cs",
+      "sha256Utf8Lf": "e18f1b275981412a01643f5b30be86d1fb6a213226cf9393d7261a4c95c9a606"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Remote/MarketDataClientReceiver.cs",
+      "sha256Utf8Lf": "25b4b18ce8fec1b91569d0d451c172e2be2adae9cd8a344de088b9cd87917d98"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Remote/MarketDataReadMirror.State.cs",
+      "sha256Utf8Lf": "4bb81cc482dfc803d93cbe949cfa53ee64e38e810c64070740140e80a425e47d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Remote/MarketDataReadMirror.cs",
+      "sha256Utf8Lf": "eb562121ce5b4bc1f8d596ba0b981d7629ff7d4f06c538fe2a6bf010d1d94017"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Remote/MarketDataRemoteAdmission.cs",
+      "sha256Utf8Lf": "fbd1ee8c62cf60d20600cc0a858df694a338820e18f1af0f4a14521ffb2f600a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Remote/RemoteReferenceDataApi.cs",
+      "sha256Utf8Lf": "5a7bc029521786c325b4a194d0d6c6a4ca0cd6225943399994220ef87371e074"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/DesiredSubscriptionManifest.cs",
+      "sha256Utf8Lf": "a31562fd6544c1c93a1846d6055b84497733865808bb998bd17c213585d45a48"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/DesiredSubscriptionRoute.cs",
+      "sha256Utf8Lf": "57694ab1bfd52be1ade3ac1e0353b34b7e60cbd0f95e148c0fe6132e4bee0589"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/DurableCompositionRuntime.cs",
+      "sha256Utf8Lf": "1ee099b8845b5ba3ef5bc91139556db20d9450dd8126fbbf5bee86e541339f25"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/DurableRealization.cs",
+      "sha256Utf8Lf": "a2ea77a5b2922649932710a029484d48d94271394cf4f65ba93953dd32d0e481"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/DurableSubscriptionDelivery.cs",
+      "sha256Utf8Lf": "16b0c106152d36217a77bb7b92b67462bca0f16a5e6a8cf08b6b8967ba818de0"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/ICommittedOptionOwnership.cs",
+      "sha256Utf8Lf": "255296e469b7d6ae61786e317786fbbc1e00e94d7fddd596f2724edd429d8dcc"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/IDurableCompositionReconciler.cs",
+      "sha256Utf8Lf": "38ca11aa83a1c6387272dfa765bb8cbd3f445332b44795d01142e2482e8f6dcf"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/MarketDataSubscriptionCoordinator.cs",
+      "sha256Utf8Lf": "4ed20586803252d3fff6082222b18819e2de2163a7b0c5a067c67ca6a006a215"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/BusinessSubscriptionSourceKind.cs",
+      "sha256Utf8Lf": "a7d77129af6ee4732849e5f6662ca9ea34002b61df62f6ac1efa34e325ba1ac6"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/BusinessSubscriptionSourceReference.cs",
+      "sha256Utf8Lf": "64b0b1b3bc05a2b5902ae83f44dc1390963293eff6d8b187ce5a8a57d514bc91"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableAuthorityMutation.cs",
+      "sha256Utf8Lf": "7c4ce42a4eee69a74f042f7c6bdc2f679da63ab7300cabbf383e43e939b78bbd"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableAuthorityState.cs",
+      "sha256Utf8Lf": "82617d71899980caf59b8cba63bd1744a3162f712b6dcb0fce4c5e4e46e0fee9"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableAuthorityStatus.cs",
+      "sha256Utf8Lf": "49cdf6f3a3b824dd80e4f9ef160bc861d0838ec162b65fe66b4d3ff102646a0e"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableIntentResult.cs",
+      "sha256Utf8Lf": "195686dfbc2350876de4e0f0e0c283269e8e02b4abe5d9e0f9e41b1243d48e4a"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableIntentResultCode.cs",
+      "sha256Utf8Lf": "b9ac7de6fb5d81b8c61a78705610dd0a7037e7a2e87ae4e7c4dc5246f94d570d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableSubscriptionContract.cs",
+      "sha256Utf8Lf": "f686ecd9a694a1e606c8bd73377c79a7a99be1a52499996fb66f6f0d9ebf59be"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableSubscriptionLease.cs",
+      "sha256Utf8Lf": "a40609868b0533745b0ea9ed04fbda031c2aac7cef962d5be0fc7df06c8f0793"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableSubscriptionOutboxItem.cs",
+      "sha256Utf8Lf": "915766ca99d10c151d848c74569aecb510df66ad1d1b7ef87762f15e5f3fd0e7"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableSubscriptionOwner.cs",
+      "sha256Utf8Lf": "c33b0fdf0518b06c8457e3f50f13dbdb5e488a78bf3bb908ba2a9919233a80fe"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableSubscriptionRelease.cs",
+      "sha256Utf8Lf": "f775e595a10057c9218d560733e9be9340e39178dd72674540323eaa799d7b8b"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableSubscriptionSnapshot.cs",
+      "sha256Utf8Lf": "4e0dac4ee8299f25bac16d931052a364cb3918f64ea5a79019b84a023aafa7a5"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableSubscriptionTicker.cs",
+      "sha256Utf8Lf": "45cf873a69dd1c6a36a271fa5a2af59b81357ef32ad55b00e0add83d32e3f50c"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/DurableSubscriptionTransition.cs",
+      "sha256Utf8Lf": "7382f1955dc986a30ce4b2e0a68a1bffd0c43c8e7dc86bf635b112a6093c829d"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/ICommittedBusinessEventJournal.cs",
+      "sha256Utf8Lf": "407d0e63f1be49bb6fb0904807561eb52d0290ee2549b9989c889a949eb77ddd"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/ICommittedBusinessSubscriptionSource.cs",
+      "sha256Utf8Lf": "9bf7be3bb8ff8225e3063f743c7591cbc2390cce8fa3a918b0a761e6297d9f4f"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Persistence/IDurableSubscriptionIntentStore.cs",
+      "sha256Utf8Lf": "2959f263f2b6e2b010624dab537e1ffc08cb7c053b38da135163da43f7759a38"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/Stage4SubscriptionOptions.cs",
+      "sha256Utf8Lf": "8939425d15589e93aa5478681753ae29542f73b7075fc8cc3254bd48360135ca"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/SubscriptionDatasetAvailability.cs",
+      "sha256Utf8Lf": "62aa42a8406318f6cb0993754d809d64d4259e7bcf43426c48bbedc9c9372e93"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Subscriptions/TickerLeasePolicy.cs",
+      "sha256Utf8Lf": "0add4d734d51fa971f07e2e1e5a0f607904b577baba9ad0269218bb98735cbaa"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/TomasAI.IFM.Application.MarketData.csproj",
+      "sha256Utf8Lf": "f2171e4ca356bb17d59189ecc2b53385f38924038f399246bb4ef2dfb4b63e68"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/TradeStrategySymbols/InstrumentDefinitionRefresh.cs",
+      "sha256Utf8Lf": "8f619c94b3e5dad272aff0c7e78304b6b4d46d457b58435290cbca3ef10417d8"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/TradeStrategySymbols/StoredInstrumentDefinitionSymbolCatalog.cs",
+      "sha256Utf8Lf": "71e1f15e1f502868d8cf2d6696c81eb9f54613a7adfefd6cf0c8a2897e5ff191"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/TradeStrategySymbols/StoredInstrumentDefinitionSymbolSource.cs",
+      "sha256Utf8Lf": "d99088e348266d3bb1b3d4204ecbfde0395bc4edfb3d1fa8b76cddad18685d23"
+    },
+    {
+      "path": "TomasAI.IFM.Application.MarketData/TradeStrategySymbols/TradeStrategySymbolCatalog.cs",
+      "sha256Utf8Lf": "28d1e6b25e5ba7c5d51ccd4eb47ff4284b57215dc96a06b58ccc620d373e1102"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/CpuAffinityMode.cs",
+      "sha256Utf8Lf": "49e520359cae2935999cc37f579a991ff82ff0a1f7eb177fa06e9128c66e49e6"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/DatabentoFeedOptions.cs",
+      "sha256Utf8Lf": "dc25873051ff127efcc46279df2929e0b0f37e164cfd56ef4535397d785e1dcc"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/DatabentoHistoricalProviderOptions.cs",
+      "sha256Utf8Lf": "10ed6dc4d6daecaaa1442394a169f8a0f84d85db5881b9bf7d5330e6caa99cd1"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/DatabentoServiceCollectionExtensions.cs",
+      "sha256Utf8Lf": "5f76fd50b4c34b98601dc799f7567a951873f31ccd02732aca0e7c41504d3512"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedCoreIsolationMode.cs",
+      "sha256Utf8Lf": "de6533fbd0e8a63b9c069df4b805be97655cf917742c45252ff37c23e11d6ccf"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedCoreIsolationOptions.cs",
+      "sha256Utf8Lf": "6b9e6a72df9ed4c1b7765c8bbd4883c3b864d5e6ded0cd143fe569e1c0e8b47f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedCpuAffinityOptions.cs",
+      "sha256Utf8Lf": "8f8551bc9c0c9eadd57c6779a77041bc1e5e38b46f41dec53a2c68ef08ca5411"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedDataSourceMode.cs",
+      "sha256Utf8Lf": "6b8c0341d9baf5aaa4ddcd0cd4fe1bd4833b076d2f885789f0970b2988621577"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedDeploymentProfile.cs",
+      "sha256Utf8Lf": "d601d6e187bc79453c93c95d21f8ea3dda180979ae9e454fe961dfe5284299e3"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedDrainOptions.cs",
+      "sha256Utf8Lf": "be28eb2b245506c0727539ac4fd85d832acf0fc7521dae90b10ed951f8eaa8b8"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedGcOptions.cs",
+      "sha256Utf8Lf": "4608e19bbfc30ab77cefc7d5f98cefdc05b596d51b5128ac7d0a459c93ed666b"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedMemoryOptions.cs",
+      "sha256Utf8Lf": "4cd0a7cab7f1f199f801e9245dab46b0897dadf8cb7c1e979d0a941296da065a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedNumaOptions.cs",
+      "sha256Utf8Lf": "7564f2af11a63a0090cea0fd9ee0eaece73c70163e445bd574cd008dbaab99d9"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedProcessorResidencyOptions.cs",
+      "sha256Utf8Lf": "44ca47eb2ea05274ae6c782eee6fa8fb7d316a3b52012c1ee0c21e41a1faa3a8"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedProcessorSelectionKind.cs",
+      "sha256Utf8Lf": "f129bdb3436fd67cd1942c1e1a570d1cbad7e4a90c84b7ad240412ba38583003"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedRingBackpressureOptions.cs",
+      "sha256Utf8Lf": "264cbc0bd780f6ac9f54f87fefb317c64cbccddf733caeaa96276bf9492514e0"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedThreadPriority.cs",
+      "sha256Utf8Lf": "bba5bb20693a75d098e9ec622cab480afd18e1771c9a4ab3b3d8eee7f9446663"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedThreadPriorityOptions.cs",
+      "sha256Utf8Lf": "e78d5f4f8fa988872333c8fb236949ece0e4d463d3182c9338db7f6456239680"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/FeedTransportHealthOptions.cs",
+      "sha256Utf8Lf": "b70801eb1a7b3a362c9342a8bd9e0714d9370df696994d744e6b0bd3bedf8af4"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/LogicalProcessorLocation.cs",
+      "sha256Utf8Lf": "ca12657ac6e80a598060626bb147f182577d8e3d2b63b887db09591d270270bf"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/NumaLocalityMode.cs",
+      "sha256Utf8Lf": "c53f478299c7b618bd35492b10304d939d0ae9ea3fd61b8902699f6539ae7f64"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/SyntheticFeedOptions.cs",
+      "sha256Utf8Lf": "aeb59b9c7a3feaa39639046ad11ebdeb38ee7931837eb6822232fb63ffdb5a4b"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/DatabentoContractMappingException.cs",
+      "sha256Utf8Lf": "2103f5f361712ef0cc77244d7432b7904d78a763c3e4ee9ee7503be7dcabe5f5"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/DatabentoFeedException.cs",
+      "sha256Utf8Lf": "676c557d929142236baca00a368a714992574d37526df217df2a65f6ac211440"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/DatabentoFeedTimeoutException.cs",
+      "sha256Utf8Lf": "fc6bde6b81166e316adff856c0c0fe3e08b14fc859b8e8c216cab659bd5f65fd"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/FeedStopDrainIncompleteException.cs",
+      "sha256Utf8Lf": "aa89834832765754ce900225ab5a1395f748dea3b7ed468f4beb0692aa261165"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Historical/DatabentoHistoricalProvider.cs",
+      "sha256Utf8Lf": "2794dc3946c222378577e48957c3b836105833550a9c6896a575cddbadcc9dde"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/DatabentoFeedStatus.cs",
+      "sha256Utf8Lf": "40e969f44a39809754271d2794702b4245d2ea1621cef6174ba6cdffa6c44602"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/DatabentoNativeLibraryResolver.cs",
+      "sha256Utf8Lf": "59c7cbbfd656a99ab30fc21057cbc4bde79c3a49ee4f18152c6ac68788ebf52a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/FeedState.cs",
+      "sha256Utf8Lf": "9eddcc47898c535616dccfe8654ce9db96f3023360c8a82114f6283350067aaa"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/LatestPriceResult64.cs",
+      "sha256Utf8Lf": "7d9b76baf39f26d1c0b7e2803aaaff3f03be68b02af0ad49f05b8aee5eeb307c"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/MarketDataKinds.cs",
+      "sha256Utf8Lf": "f215f5cd9ca02b29299002bbaa59ace90ca00254a404bedd8383de12aaf0fc8a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/MarketRecord64.cs",
+      "sha256Utf8Lf": "6329d446d99cd2969c2dc4f21ec3ef8d4821487f1b583771a8dec7073c32e5ae"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/MarketRecordHeader32.cs",
+      "sha256Utf8Lf": "69a251ce354dc04e4147601422e9319573c22439257e568258bc188b280668df"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/MarketRecordKind.cs",
+      "sha256Utf8Lf": "a2c446b0adebcda38ef35c4f4e50dbca7827cf1fc1bcd39c4326a491fb09b18b"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/MboRecord64.cs",
+      "sha256Utf8Lf": "90e8fa96634458b6e38f842a85c9b592537e958572f167a69f792450394beefd"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeBatchResult.cs",
+      "sha256Utf8Lf": "61b6474aecb6c048d213033bfc37f2dc32cd36f4ba7c3660b06414e81acf3012"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeConstants.cs",
+      "sha256Utf8Lf": "98b3b5568a3f1a428f13b97adac426e09758087b098e22622ffe999f4e5c8636"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeContractDetail.cs",
+      "sha256Utf8Lf": "3f74c75bc2671432d25acca685f4a5f99075a071207c4d1d466f381b286a5770"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeContractDetailFlags.cs",
+      "sha256Utf8Lf": "349851675f6d673110cd0f5b0f8c8b87de863635c302e4e366d21547d9f9d477"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeContractQuery.cs",
+      "sha256Utf8Lf": "fe4cc81e2afaec4ce73be678132bf3e906317eb8f6e5bfadcc17a0cee52b7947"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeContractQueryKind.cs",
+      "sha256Utf8Lf": "8753cd00f39dbca3393112f99c75a2a9059b269f5e111b628ee7edec1f91fc49"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeFeedConfig.cs",
+      "sha256Utf8Lf": "4c4fdf423330f6af3361f2ea1640dc43cf17f1e6a65d42b2cfd9c2167fadeae1"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeFeedStats.cs",
+      "sha256Utf8Lf": "a7c3b96e2d129b21bd5f83be583ee14c50dd2e4abd986072895253ac9f967946"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeHistoricalBatch.cs",
+      "sha256Utf8Lf": "77edc2c8aa0f4acba9b17564895a9c11df95e3d4e576b68d994bceb474ea791c"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeHistoricalEstimate.cs",
+      "sha256Utf8Lf": "f7041afb1cd4cb324f9ce822f073f09fc643556acf32943bc244406dc80b7dbc"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeHistoricalFlags.cs",
+      "sha256Utf8Lf": "737def261c9122d4c35905638b8ffc79ce8c0d8f4c4fe6711f7ff85c2d75ac7f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeHistoricalRecord.cs",
+      "sha256Utf8Lf": "29605f3ef49ae186c2835843be8e1c75a849beac353f419b536d819e0b5daafc"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeHistoricalRecordKind.cs",
+      "sha256Utf8Lf": "adffd5e13e8d5a99bc229752f150fb9d28ff3fff3ce6621d6f00f9a6684858ef"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeHistoricalRequest.cs",
+      "sha256Utf8Lf": "ef7403c9e72acbd4b79cd1846ecd1555929609b2184cfdffa9576e9511ec45ee"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeHistoricalSchema.cs",
+      "sha256Utf8Lf": "9fff092fb955c30f2b999987c3ff2c319f754b011c12bc4e68aee80eb7b2d0ee"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeLatestPriceRequest.cs",
+      "sha256Utf8Lf": "059b142ce041574441d57de0f05fd71d0ebfd8eae28a46ae2b710a88ea8973ab"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeMethods.cs",
+      "sha256Utf8Lf": "86a7818b900415d9da61b972c73a772309daa91487e8b1b4bb1eeb7c03f2369e"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeOptionChainSubscription.cs",
+      "sha256Utf8Lf": "4ea2d280ef1ba0666717668a3a5b995c515e76872d404ce1e2022d2ac48ccf67"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeOptionContractSelection.cs",
+      "sha256Utf8Lf": "a4731fc06ff8f43e3ea15e3ac6ef04503fffcd8842b7303805e063da241f3217"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeStatus.cs",
+      "sha256Utf8Lf": "65235d6d1a8ab8e223e714d3adda8940f661c9075c140b411b50cac4011bf691"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeTickerInstrumentMapping.cs",
+      "sha256Utf8Lf": "c8f0732ff25883f12a8c0b8d92549926acac0a67da6a201257ef00b4a59575e0"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeTickerSubscription.cs",
+      "sha256Utf8Lf": "812f340c77570734b5e824ae183143c278f72e1539f25de24cd0cde318540395"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeUtf8Slice.cs",
+      "sha256Utf8Lf": "e9268764edeae200ebc40138e806c94df583139609994e37b805e2802534556f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeWaitFlags.cs",
+      "sha256Utf8Lf": "133d568facd3838d8b2b48d742fe4d8566c9dcf613f1a77356558d463d367184"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeWaitResult.cs",
+      "sha256Utf8Lf": "4ae9c2cb8ee203cc9b8faf9627f21fd5784f8fcb778bcf07353fc9890536ec08"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeWatchdogFeedStatus.cs",
+      "sha256Utf8Lf": "dccd3768d806decc8d8296931ed94d11e17df43361c776eb94270f825287448b"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/NativeWatchdogSnapshot.cs",
+      "sha256Utf8Lf": "b8d950c87dd54269af29565796a1de625018b3e4d91e19d04acdaafb7fd238c8"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/QuoteRecord64.cs",
+      "sha256Utf8Lf": "3dc3b63ac00dad0ce91a4dd0dd9d6e218adfd1fffa1b79d7e9b23f2066062f38"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/SafeContractDetailsResultHandle.cs",
+      "sha256Utf8Lf": "777191650d0c3909c7c0e978abf5759d849ce79e7571a10efad27549ddcfad75"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/SafeDbFeedHandle.cs",
+      "sha256Utf8Lf": "0e3d3ebfdedad12dcefa400b40556872a10938aa56dd0bc23d3dee09e978114f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/SafeHistoricalResultHandle.cs",
+      "sha256Utf8Lf": "91350748765e9b6cb589b1ab63806c9674ecbf5cf180214624b066df10cee366"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/StatisticsRecord64.cs",
+      "sha256Utf8Lf": "5a112698b5f81b9014ae66c04bdd425f66c70ffec0590792411dc77f5ea58d5b"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Interop/TradeRecord64.cs",
+      "sha256Utf8Lf": "5f5f1ed6c896d7947332c4e0c167ed0f0ec6f405dbeaae13709c9b5b2e680e80"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/LastPrice/DatabentoLastPriceStore.cs",
+      "sha256Utf8Lf": "3fde698b1f13a71e4b6e52a163c7fb657031b2e90fcc6e877abe09e1e315881c"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/LastPrice/IDatabentoLastPriceReaderProvider.cs",
+      "sha256Utf8Lf": "6bc640240184c0148d82e0937af9483938e25b6edecfa791d866e7f3819d5ecf"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/LastPrice/IDatabentoLastPriceStore.cs",
+      "sha256Utf8Lf": "fc3a17db803c8aafc5a95482a806ff4e1625418c8d3ad61956c0e0454e333c03"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/LastPrice/IDatabentoLastPriceWriter.cs",
+      "sha256Utf8Lf": "29a9d6b0476aa0b6f1cab97f2a9643804c3516fc080d97cc275c60eae5723dd0"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/BoundedOptionChainTransientEventPublisher.cs",
+      "sha256Utf8Lf": "a95ebef140789ea18012454cac239ea60e5d2abebdce1bf595885a428039cda7"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/DatabentoOptionChainRoute.cs",
+      "sha256Utf8Lf": "0a074c71c610ba45532e5177b61bc582c0adff91c8250de502f32c15bddd511f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/DatabentoOptionChainSessionManager.cs",
+      "sha256Utf8Lf": "db73eb29a124e3583ccd4bb14832d47276847f019089fd241574db9f001217de"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/DatabentoOptionChainSessionRequest.cs",
+      "sha256Utf8Lf": "fad4a0eccb4408a2a0225b0c05e8a3ab96bc487415eeb992dc40b470fa91d9a1"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/FuturesOptionChainQuoteChangedServiceEvent.cs",
+      "sha256Utf8Lf": "3ec4cc0bfd72cd0fd3610ea5dc66be4ec13d7e5c4b4bf40ba7c1d23ccf9dce91"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/FuturesOptionChainTradeChangedServiceEvent.cs",
+      "sha256Utf8Lf": "5af04a359770c8e012d1ec51f4ad7291ad0c83d392311445d363ae8562b48169"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/IDatabentoOptionChainSessionManager.cs",
+      "sha256Utf8Lf": "b0f9323f1f2db4ab5d154006b61063e67191fd3ee079d690c53e483158e0521e"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/IOptionChainGreeksEnricher.cs",
+      "sha256Utf8Lf": "a07de9a869f51d6fda241bcb39a1d9adcbcb3ea2dd43afca1c38abfb5bb47bc6"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/IOptionChainStateStore.cs",
+      "sha256Utf8Lf": "a22207d841821b9184f068a538635a15b8011bc84ff6f6803ee1c0be235c2bec"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/IOptionChainTransientEventPublisher.cs",
+      "sha256Utf8Lf": "9304a120d3c7aef0cd6bc3e6fb327080cd23d2230d92a8aadf9c9b28e1657845"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/IOptionChainTransientEventSink.cs",
+      "sha256Utf8Lf": "0f3c41512f96d3c748e5049b904806098c872dba20ebb63fe081a063216a1d65"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/IRetainedOptionTradeEnricher.cs",
+      "sha256Utf8Lf": "fcb5779af0fb9bb72ea330c1f4e00660ab822e8fc09ad4064f152d172d10057f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/OptionChainContractState.cs",
+      "sha256Utf8Lf": "bf93b95a2806e47991a771d4df382785e5b6fde4b84d363ee398b816bcb517cd"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/OptionChainSessionKey.cs",
+      "sha256Utf8Lf": "e74f6924d0017aa11fdb9347886e69772b3a9fe824b88cdef3167c28b7830864"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/OptionChain/OptionChainStateStore.cs",
+      "sha256Utf8Lf": "c4817790fd6cdc86c684f5b8799ea6c7847cda1899d2af661b37100cd90ffaaa"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Properties/AssemblyInfo.cs",
+      "sha256Utf8Lf": "005556a99de14f18fe45d49dbf68b73c96970423d44a2a4748c26fb82e23a64f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/BatchPool.cs",
+      "sha256Utf8Lf": "9926b13586a749a021ee953f9772ff9f55aa1ef2fd2aa08bdcdd1e4db9146c33"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/BoundedBatchChannel.cs",
+      "sha256Utf8Lf": "b83c2d62ba444e81620ac86df36ade8e0942b12cea7a764035e7815a7bcd82d8"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/CurrentProcessor.cs",
+      "sha256Utf8Lf": "d0cdc556d72fa0cfe51fa14fd84d0e2a8e473e73e1feab520a799ed6feb107b5"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoContractDetailsQueryResult.cs",
+      "sha256Utf8Lf": "e5194f01e2daea15106842f2fcb756b96f8bdbfc6cb6aac8d0e7f8ab3cddcad1"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoDiagnostics.cs",
+      "sha256Utf8Lf": "f5bec74d149e69410b620c38866531f6a5e91dd670dd9209f45800e9f07137aa"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoFeedFactory.cs",
+      "sha256Utf8Lf": "6be87dfa1c320d4d95fff0d160bec1969c3ac5eae079edbea8a438693562033a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoFeedMonitor.cs",
+      "sha256Utf8Lf": "a10df89228f6261c68eaeba83b386f1c5623b062a7721e6a2453bc28f998b63a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoInputSymbology.cs",
+      "sha256Utf8Lf": "d6f88cb53013558221a4c2dfa7d88aebd3354f59c0d149cbde8e3226be8435ea"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoInstrumentDefinitionClient.cs",
+      "sha256Utf8Lf": "1f59b556add7c96e6e3731b6bb82f923cfe1cd61b133cd4aba0189c378f1a34f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoLatestPriceClient.cs",
+      "sha256Utf8Lf": "528a797f5d28e19e5b77c67bed5d1444acc76d00a15f7c41d666ff765d21b61a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoMarketDataQueries.cs",
+      "sha256Utf8Lf": "7b818cf7b322c946ee8b72eb7d0facecf2aa4a3fee02f3f26380a5af38a6e3c0"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoNativeFeedWatchdogStatus.cs",
+      "sha256Utf8Lf": "e699ee742aa810986b1ee192040f0e40efd5e04d99cde0f6c0e8ebba2e9c7a0a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoNativeWatchdog.cs",
+      "sha256Utf8Lf": "b8afa249ba6c93c9e1605bc45a460c832e117011a525da4c38c5cd628afa81d1"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoNativeWatchdogSnapshot.cs",
+      "sha256Utf8Lf": "69bd394d2f9b1e2c33e0d980be05eb521bf237f5cdbc2fa5c568721d1c6e6824"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoOperationRunner.cs",
+      "sha256Utf8Lf": "9e7baef0e72645168b23e13d1b7812f9741b6ebaca404fbafaa7297a8ea67945"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoQualificationGate.cs",
+      "sha256Utf8Lf": "017f91d92bb9380fd498ff743fa9c6e7141e90d90bd92330d9089d4fd4da217b"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoRecoveryException.cs",
+      "sha256Utf8Lf": "f2f9947e68c271e0a2e329350a74b7f4f349a758f7b1c4bfe8d2c34bcc7077b8"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoRecoveryOrchestrator.cs",
+      "sha256Utf8Lf": "6a43d4235fd6eb12267bf24a8a834c2ca82790b0f0164afd46141d645a3d9694"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/DatabentoSyntheticQualificationProbe.cs",
+      "sha256Utf8Lf": "865d0be6519941b38f30a892c29d3e55d4eaa5d45fc2a2d5e0435d17293b2532"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedGcCoordinator.cs",
+      "sha256Utf8Lf": "356c491c65762314084d937fcb4fe48bcbeba800286a17a140b2ceacfefd96c6"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedHealthSnapshot.cs",
+      "sha256Utf8Lf": "831fcde61954d3bc205c137388ef1879373d243c3b6bb47bdb3fd43985f503ea"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedMetricSeverity.cs",
+      "sha256Utf8Lf": "31861aa539b6ec8cc39aee87f570222eed47631fc398388895d6ad5df3f4be8d"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedMetricsSnapshot.cs",
+      "sha256Utf8Lf": "cbfb99a09215c5eaa1ad307d901f450a7940bc22fb5f4c83bd38496f26704167"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedOptionsValidator.cs",
+      "sha256Utf8Lf": "71e64748f53d2865948523a5ca8c7d63d409cbb359f061b72477e3a188c814bd"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedPlacementLease.cs",
+      "sha256Utf8Lf": "3cdf2c8245bf0e78576c01f5fe544a27577d1dc7f1380a6f4a1e8bededd64f16"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedQualificationBaseline.cs",
+      "sha256Utf8Lf": "d79445c7c46e32cc68c7bc9769748a1984ab4b39a0e741bfbd9276e9b7d5bd02"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedQualificationObservation.cs",
+      "sha256Utf8Lf": "cf90a7d4c4f03cc647868d35863ba3cbfd5b215ea408dc46e8a2089f2be76d53"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedQualificationResult.cs",
+      "sha256Utf8Lf": "65127146d55c29de8bd824a35dc2dbd989105f6e4d2030d5533ca32a7478a847"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedReadinessState.cs",
+      "sha256Utf8Lf": "543339bb6e708cd223c9ab9019fc5b44b2f9a9bd4a9369bb959de43195472548"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedRecoveryAttempt.cs",
+      "sha256Utf8Lf": "c0e5788c1d25a5a350dfc1808a779209f164fd08687d63db3628238de6e267b0"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedRecoveryFaultKind.cs",
+      "sha256Utf8Lf": "54f293aec631b2d4682bcb76ea746ec6fc3310f597e18838a5b8ecaca5486807"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedRecoveryResult.cs",
+      "sha256Utf8Lf": "c46f1c9b4f9ac55d2a19f0e0ea32385240caafbb4933399d0f1d46b14cd1dd2e"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/FeedRecoverySchema.cs",
+      "sha256Utf8Lf": "6cf06b75e959e905033b66a406d000afe200bd1f8eaef283c25ee3b71daa94a0"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IDatabentoFeedAlertSink.cs",
+      "sha256Utf8Lf": "a7a896a31d54cd27cc8d2b8c5bad49ae8d2c4660e6758cf9a9ba1f1d5ec31ac4"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IDatabentoFeedFactory.cs",
+      "sha256Utf8Lf": "31f2a07cabde0c411ed6cb5ba289a30b08d963d3b178f616d4171009c8f25e08"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IDatabentoFeedMetricsExporter.cs",
+      "sha256Utf8Lf": "7e38e8d661e5eaf1e285ebb14140ab7fbd406bdcd8805007df8c49653744b17d"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IDatabentoLatestPriceClient.cs",
+      "sha256Utf8Lf": "fc65978bed7d445ed023cc43211159578a9bec30c1ed4273fda751d46898d71f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IDatabentoMarketDataQueries.cs",
+      "sha256Utf8Lf": "531d2e7fca13c6b04d6ecfde82775b3994c4a0c6103647c4dfb1e0ab3bf3fd0a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IDatabentoOperationRunner.cs",
+      "sha256Utf8Lf": "1e1356b24f1b7f855f81cc073cfe2925eb5623bfe92af006ccf37494ff594013"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IDatabentoOptionChainFeed.cs",
+      "sha256Utf8Lf": "ba873e0e5b79474f236e32ba01b53d5fc3cd4bd8ced2ffef08fe0f2bfeb1dce3"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IDatabentoRecoveryAttemptExecutor.cs",
+      "sha256Utf8Lf": "7250073ea93f545e3ba19f34a821241f27348e85de3805b0b2c87ac9424a1e1a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IDatabentoRecoveryDelay.cs",
+      "sha256Utf8Lf": "c6064a5884d474690e827c6626d698193aae6fa26b767cd24892f8d718a0d8e0"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IDatabentoTickerFeed.cs",
+      "sha256Utf8Lf": "aa7702e5a7b316a8a9f3989133d6554b5dac7e1fef95535bc730a50c03131658"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IInstrumentDefinitionProvider.cs",
+      "sha256Utf8Lf": "d20a7c9f694dd2c631f73c456ae675e68fcd14dfbc494cdd197acedd792a178a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/ILatestPriceAdmissionClock.cs",
+      "sha256Utf8Lf": "ef0ea8c87dd757c7f928d8fa9332159c8bd542483aa221ff924b129c8043c6bf"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/IMultiplexedTickerBatchReader.cs",
+      "sha256Utf8Lf": "cd2cbce6f1e129b9eb84871d55a2c07beb2d6d869b81cec8241590a0d2fe1672"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/ISynchronousBatchReader.cs",
+      "sha256Utf8Lf": "e931adb3de0e689f6f466679076f2053c86e59d2f4d7a089a640323436af7996"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/InstrumentBatch64.cs",
+      "sha256Utf8Lf": "4c3db0eeefa46f8cff89e0f036f958fa846a3e9a7e5f9634fa0f5ac655d2d17c"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/LatestPriceAdmissionControl.cs",
+      "sha256Utf8Lf": "04419900481b29871be6859d61e7c5da121ddc028faa4c98f6f6f867f6677808"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/LatestPriceFreshnessPolicy.cs",
+      "sha256Utf8Lf": "9fe2e38c188effdaa9354ec0d577a77d93c193d8655b98e34cbf241ee8982ea0"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/LatestPricePolicy.cs",
+      "sha256Utf8Lf": "82d9fe78a88cd06b650a0e43786e52e951c8b33f59cdfcf28c936a1c713739ad"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/LatestPriceQueryInvoker.cs",
+      "sha256Utf8Lf": "ee033756691b4eadfef31591034728db32613da59c5e5ca021bb4e796231cfaa"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/LatestPriceRequest.cs",
+      "sha256Utf8Lf": "f1106229a943d95afbc158493adaa6afdea1b9a27a56b4a5c79acf8a8bdc8f2c"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/LatestPriceResultFlags.cs",
+      "sha256Utf8Lf": "cffa09c131299a6883f84c72922381b8d1182d3ab23a4026f3b62d4baf7f08b4"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/LinuxThreadConfiguration.cs",
+      "sha256Utf8Lf": "5f34305b10821c8f195b7414a2623cc61ca1180e8920a5cda6762b9e3600cd9c"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/MarketDataBatch64.cs",
+      "sha256Utf8Lf": "da3b2aff6d653b01e48c4ebe267aa0a7dd592cadd32023685de2a8780c9c6782"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/MboRecoveryBaseline.cs",
+      "sha256Utf8Lf": "a9149aec308a1864736bfe6680bbca81b25ae1acc48a9067fad0036c590a1496"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/MonotonicDeadline.cs",
+      "sha256Utf8Lf": "792ec51259311ad66b5f46315b9626d2b88a2ee2d4993da0b3466f880695f111"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/MultiplexedTickerBatchReader.cs",
+      "sha256Utf8Lf": "7f93926f59c0c53e26c318742d8bfc849210dd2ceeb26dae3d5175bfd7fe1ea2"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/OptionChainDefinitionFilter.cs",
+      "sha256Utf8Lf": "4220b56cf3a077ce9c5434819fff135091c3791979d7f7162b722936184d8795"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/OptionChainDefinitionRequest.cs",
+      "sha256Utf8Lf": "f5a94ef76fb3dd59ef185af8828d603fd5d1a65d7e29f026a72b99ac2a94f387"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/OptionChainDefinitions.cs",
+      "sha256Utf8Lf": "5aa9f75d45b5a8db4d20559db6df6db4cdc9ad66cd7e7901c5e100598cae90ec"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/OptionChainSubscription.cs",
+      "sha256Utf8Lf": "cdf63486d978418cf01212cd8043cba3dbc0861b62e6aae3c2b14bb9ce5fc391"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/OptionContractSelection.cs",
+      "sha256Utf8Lf": "e14e7e7516906e715e4731721ebbbc5ee1d69c27405990c3e0d7eed58bbad00f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/OptionUniversePolicy.cs",
+      "sha256Utf8Lf": "7dbff40565cfb2c8c27878ef3ebaca39d2ae98985755d8421784e5327821246f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/ProcessCoreIsolationCoordinator.cs",
+      "sha256Utf8Lf": "1c31af38cc01691f12d44492eb113ea897148929b43beccd0d9a705100bcf41d"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/ProcessorCandidate.cs",
+      "sha256Utf8Lf": "e9df546ff43091458757c757ae7cea74c016b43f810a41d412564c048f82aa29"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/ProcessorCoreKind.cs",
+      "sha256Utf8Lf": "312038c0cdb9c77ba7d5bbc97538d811f6551a9390e2e0f98610cd8d7955bc1c"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/ProcessorPairResolution.cs",
+      "sha256Utf8Lf": "aadb07f763eb1134d147ef85dfbb4e93733e19401185f873e53b5ec36b41cb5f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/ProcessorTopology.cs",
+      "sha256Utf8Lf": "1104ec7babed7c74670d22badbc26b0461e568fafccda9e90fff3c3919c44115"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/SyntheticOptionChainFeed.cs",
+      "sha256Utf8Lf": "eb7929ea74404336fd858860f8786ee557299f40659d336e08f7c277586bde19"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/SyntheticTickerFeed.cs",
+      "sha256Utf8Lf": "7288e847d0c42d0d4b025f531c39d6a002e26980c48cdb29a698c83a840f848b"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/SystemLatestPriceAdmissionClock.cs",
+      "sha256Utf8Lf": "4a6f801971dce724077bb1ada31b2fe5ebb7faea52291ab784e5bff31fd21e56"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/TickerInstrumentRegistration.cs",
+      "sha256Utf8Lf": "3dc1e549c8bf5f1956e7d3105f045abb9634ba44172ea4d7e29d1fc1c523c41a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/TickerSubscription.cs",
+      "sha256Utf8Lf": "7e2c342ec8134f970f1ff14b477cc49fcf8c247ff3a2f553363433e9c4b36f39"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/TimestampReplayCursor.cs",
+      "sha256Utf8Lf": "1ea3a28d5661fa95d5238c4139e9eb2e37cfb19abf6cf8daa0c3056445911418"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/Runtime/WindowsThreadAffinity.cs",
+      "sha256Utf8Lf": "7f3f8f8a574b22b9daac3dd6bad74bf4dc446fa9af652f8cbe2634c521d2a0eb"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/DatabentoLiveFeedHealthPolicy.cs",
+      "sha256Utf8Lf": "b43f4f9b8e6df838003d2bab4379a2fb75c44998f39bfe5d1dea09bd87a709d1"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/DatabentoLiveFeedHealthState.cs",
+      "sha256Utf8Lf": "9e4cac24927c6c2ea19bf311035bbfc6e223cc6ada9e086ac1e9885d956a923d"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/ITickAggregationMetricsSource.cs",
+      "sha256Utf8Lf": "74010565671dee3d6d61f34ab8cd74c04a9efb18292631838448ab85bf6e11ae"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/ITickAggregationService.cs",
+      "sha256Utf8Lf": "516a0f0dc169c8dc6f2733350a2e069edec6076873898cce4bf3443de6be3a87"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/ITickContractMappingProvider.cs",
+      "sha256Utf8Lf": "f86b39ea0fc3996ad31c7d68a17820966e280d498acb2e4cd049e68f62c154e1"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/ITickContractMappingStore.cs",
+      "sha256Utf8Lf": "a6da9344c6df9575efc8bc8f9b238b510d96894fcfab54a0fe7398ee0628d5d3"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/ITickValueDateProvider.cs",
+      "sha256Utf8Lf": "9316c56dba6eb70b98b415b79915916a5d78ea4d2e5d4a16563a0fc4edf10355"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/ITickerStreamRouteController.cs",
+      "sha256Utf8Lf": "8640af196c59546e3639be1cc97e03f8edd4a1dba2772c14dca2245917d1f8c0"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/TickAggregationContractStatus.cs",
+      "sha256Utf8Lf": "cfe3c3c1dd2a36fae9aaa6a289d262b4aec907e2fdca21d6254974d47a99c097"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/TickAggregationOptions.cs",
+      "sha256Utf8Lf": "f1a08a77e5187ac88c1b3931a442b1b6a81addac276030f7204516523a0ea064"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/TickAggregationTickerStatus.cs",
+      "sha256Utf8Lf": "fb43e4335c5960227efaf1c076e573f0e14d2cc6394283e4bac8e9341419e197"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/TickContractMapping.cs",
+      "sha256Utf8Lf": "39e4ac84ea754842d93a7987758bb5eca8bed7a31a72c6c51eb6b260525809fe"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/Contracts/UtcTickValueDateProvider.cs",
+      "sha256Utf8Lf": "ccceb6410705e28c9e5c19ee1b1713b431dc5773ff953a01b0d8d8f9edf4b6f7"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/DatabentoTickContractMappingStore.cs",
+      "sha256Utf8Lf": "80bc93ca5467f49eeb081f72e124afb89ce998135aa14de47647b22950df3162"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/DatabentoTradeNormalizer.cs",
+      "sha256Utf8Lf": "9d942d3accdf1fcca4982468cd2af94f3d0fcfdb3c93f83a7f161f765802e343"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/FuturesSessionAccumulator.cs",
+      "sha256Utf8Lf": "ff0d414db9ef5a49e415db5962fb2a003e0edcf425590d94151f0faf4159b850"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/FuturesVwapSourceAccumulator.cs",
+      "sha256Utf8Lf": "67c5a430b4db8e503665abee9db89353eb78ba3e4ac1b885b849ae577ef7ffd0"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/TickAggregationLog.cs",
+      "sha256Utf8Lf": "8bb207122ffc08b7abe8c5cf44cbed243f1f2b008d21b9322c1a7200e2829094"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TickAggregation/TickAggregationService.cs",
+      "sha256Utf8Lf": "51da1a9d4b5d5d8879121f3641f4e7383c5ba968f9f5cbb0c4134896b685d471"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.DataBento/TomasAI.IFM.Framework.MarketData.DataBento.csproj",
+      "sha256Utf8Lf": "43d32dfa1923ccb065d65153fdfb8e894f272740019e073b0585ab80cde9be5c"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Configuration/FinancialModelingPrepOptions.cs",
+      "sha256Utf8Lf": "77a4c8748785a9a7c1b496a399be363aea3f88c7796ba16faebee153b7224977"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Configuration/FinancialModelingPrepServiceCollectionExtensions.cs",
+      "sha256Utf8Lf": "e8f076f066114315ed86cdf1c65cf9c3fe3b38fe85ed717776ddf2be91422e8b"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Exceptions/FinancialModelingPrepAuthenticationException.cs",
+      "sha256Utf8Lf": "60dec3df1a129a164360325bd9ba35d3573fcd1067aaffb752a49c343ec5cf49"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Exceptions/FinancialModelingPrepConfigurationException.cs",
+      "sha256Utf8Lf": "5aae9bd5b84c8bbf2c894eeb8b454700937d59d477f6b3722f9229225616ec2e"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Exceptions/FinancialModelingPrepContractException.cs",
+      "sha256Utf8Lf": "bff7a1e5cb2d74324d40a4239f0cc5f2020138d2631c184d11e2cc98f90a53a4"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Exceptions/FinancialModelingPrepException.cs",
+      "sha256Utf8Lf": "8d3b20a16172cd6e1a8a69d76aa0fcb63d15a0614a5a5ddf985960d72441b9a9"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Exceptions/FinancialModelingPrepRateLimitException.cs",
+      "sha256Utf8Lf": "fcb9d191597408c4125499a4e8b9889a06482c49c51226365413e6521eeb4cef"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Exceptions/FinancialModelingPrepResponseException.cs",
+      "sha256Utf8Lf": "4af8b04dcafeb5ea83f0b0cc73876be4c9e8e65c6f2577cee6c9b74a342b529c"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Exceptions/FinancialModelingPrepResponseTooLargeException.cs",
+      "sha256Utf8Lf": "b92130a383dd9f7be2b25ce811479b419a709dadafa34ab21d4eea644c8848ce"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Exceptions/FinancialModelingPrepUnavailableException.cs",
+      "sha256Utf8Lf": "2baf81721c93025017e15241477487d5867698afa88c4003e2d59127a548587f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Exceptions/FinancialModelingPrepValidationException.cs",
+      "sha256Utf8Lf": "9f0ee91350be33b61ed5669e38533dd2140f95c146da68d62731455cff5330bf"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/FinancialModelingPrepEconomicCalendar.cs",
+      "sha256Utf8Lf": "be7865658e14d5cb7d09fa1a5f7e87a7b44ed7728a28f81da8e4d879058c1d9f"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/FinancialModelingPrepTreasuryCurve.cs",
+      "sha256Utf8Lf": "9dc1a115fe9eeaf44ab4d7644547ea94aa6f5532e19a854cb15400b197dcf9c7"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Internal/FinancialModelingPrepEconomicCalendarDto.cs",
+      "sha256Utf8Lf": "3ebf5c6a2540066061d19f649b57b7be8dfffad53ff1b614e711ee372cbce441"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Internal/FinancialModelingPrepHttpClient.cs",
+      "sha256Utf8Lf": "7be88c0b1df622fe1754765d9d04c61159c175deb79601292c3c8abb468206fc"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Internal/FinancialModelingPrepProviderUtilities.cs",
+      "sha256Utf8Lf": "9e9a2361ea5df6c65ebce83ab6b11bfff92e01d955e07fb8cd8d395d47a4adb4"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Internal/FinancialModelingPrepRequestGate.cs",
+      "sha256Utf8Lf": "fc1bdb44ee498bfcdab95502e3afce0fd046d9d6bb3c168005c5904af55b5467"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Internal/FinancialModelingPrepTreasuryRateDto.cs",
+      "sha256Utf8Lf": "a34b3d2cc13823c5bc9a4d46d23ecdae4482f7afc6e5a8447b1c0c3f6a3c5e21"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/TomasAI.IFM.Framework.MarketData.FinancialModelingPrep.csproj",
+      "sha256Utf8Lf": "25a22b02e855c119ac99da289681161ac960c05114cff5735454dd1165d77451"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData/OptionChainCache/OptionChainPublication.cs",
+      "sha256Utf8Lf": "4db904ca7875efd0c2471971a94280d73ca4ee72c8a9b7cb5b951a94e63ccd1a"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData/OptionChainCache/OptionChainSnapshotStore.cs",
+      "sha256Utf8Lf": "29b8b51bb4f66fa0f482f0511dfba06f183752bfbbd1d419e38b562070aaabbd"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData/ReferenceData/TreasuryRateConversion.cs",
+      "sha256Utf8Lf": "4bbcf5c047405258d65f8baa2e117aa4978d59778130b2bb15c7b6744e3c0311"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData/ReferenceData/UsTreasuryCurve.cs",
+      "sha256Utf8Lf": "1f757f207e49a97aae064a02fa4b8bc9c8b13dd80f0d7383620a5cd524540f06"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData/TickAggregation/BoundedRealtimeTickPublisher.cs",
+      "sha256Utf8Lf": "b7f3043a50ea61b2ba29a49707e921fc707ea4fbc7f04c1e279d84858c04f83b"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData/TickAggregation/BoundedTickLiveEventPublisher.cs",
+      "sha256Utf8Lf": "17ce1c543a9d02ad56c5307d25c87a2d18b9fd5738f06836d2a5407b6b30d259"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData/TickAggregation/NullTickLiveEventPublisher.cs",
+      "sha256Utf8Lf": "8a73fc15d523d735398924ae3b6dbd785f6a213bb60fafb5413d7bb622e06e92"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData/TickAggregation/TickAggregationEventPublisher.cs",
+      "sha256Utf8Lf": "e42a78ffb321d5db09d6664805fb5227f2468ad6af3283f3c59f739cc51f8971"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData/TickAggregation/TickLiveRouter.cs",
+      "sha256Utf8Lf": "75bf2f8ba818bf17f699c524935cb838f0dc6bda1c26f8965d8ecdf5cc1c0557"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData/TickAggregation/TickQuoteBufferPool.cs",
+      "sha256Utf8Lf": "efb19f33f2de2fe2468f97665ce6ce5921393fafe070003bb2295be486fbcae0"
+    },
+    {
+      "path": "TomasAI.IFM.Framework.MarketData/TomasAI.IFM.Framework.MarketData.csproj",
+      "sha256Utf8Lf": "55156fee8d94f7287d2599b011d00a365b3632fe347f00a6a0a5ab4c12edb4df"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/Cargo.lock",
+      "sha256Utf8Lf": "2ea4c9ce5862277073f9809776b553a04718eb3e046fbb1f6c03e8461000cb08"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/Cargo.toml",
+      "sha256Utf8Lf": "9cf0d038451d12ea18886e91ecb51fbfeb7d72709fc9b1073c1b49f794b4fbaa"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/build.rs",
+      "sha256Utf8Lf": "b96d65fd8a3e05b3bc83cac08eeee1fe9a721d2253d327fea80ab897f84e9973"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Benchmarks/BenchmarkNativeApi.cs",
+      "sha256Utf8Lf": "d91d57b431abcfb12144dfce28fc4e196c3602ccc017b5b12362dbbe0c14451a"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Benchmarks/DatabentoFeed.Native.Benchmarks.csproj",
+      "sha256Utf8Lf": "ab769e37ebbc0ff8862d5f8e0bd8fbfbc9a5f18315aa4b888ab6e2c50342e4cf"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Benchmarks/NativeFeedBenchmarks.cs",
+      "sha256Utf8Lf": "40bdcd90dfff53eea431d8744c62813b932adfe40d7b987546d247c99224d96b"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Benchmarks/NativeProducerBenchmarks.cs",
+      "sha256Utf8Lf": "6c28860e945343321f385c0119ef4e7b1f3a031dedb81815a78ecfb38f6f51d9"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Benchmarks/PInvokeDrainBenchmarks.cs",
+      "sha256Utf8Lf": "b3a08f9a7eecfca07b54f58e17e1a404a0edff33390fb59a46b341fd09f86674"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Benchmarks/Program.cs",
+      "sha256Utf8Lf": "8e4217e90c3e07637fc3e0722ae0aeaf3bc0c25a3be9adec4316f5b55f7698e5"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.ComparisonTests/DatabentoFeed.Native.ComparisonTests.csproj",
+      "sha256Utf8Lf": "81fb65ea76b1e24656950c28237882974199fb47fe866fb5be86bf8473c05818"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.ComparisonTests/NativeParityTests.cs",
+      "sha256Utf8Lf": "441c11df6a6150417b25f6a2617fa0eff6083eb5a8839ad3825f871114cfb29e"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/Abi.cs",
+      "sha256Utf8Lf": "b3304ce2a8a7e4c39b0c9cb709273d10e9adf796f4dae7355eed66715c10608e"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/DatabentoFeed.Native.Interop.csproj",
+      "sha256Utf8Lf": "7e204bea70ef3f2b5b02b34944b16b9d11d06bffd725ae7ec3f710ea71a360e8"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/NativeApi.cs",
+      "sha256Utf8Lf": "7a7d5cd3621c1b027d41aca346bd039f0a5e3af75b5eae049f6bd7e181cface8"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/PreparedSyntheticFeed.cs",
+      "sha256Utf8Lf": "de8e0bea6275e56ba7d73bac56941ac80e7d0a770f86ac8a93bd6a79e5f8c2ac"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/SyntheticFeedRunner.cs",
+      "sha256Utf8Lf": "dca65108bd53a6ca8bdfc44434422ec821d72ab0f396cadef40ea6213e0d0c69"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/exports.def",
+      "sha256Utf8Lf": "462cb6986afbff414e2a403936e584c4bc6fe65349c6447596e1b7fa32c0eb97"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/src/abi.rs",
+      "sha256Utf8Lf": "59319507b83f394e1fa38deb8995a996a5ffbf5ca1539627155df0f029c09700"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/src/diagnostics.rs",
+      "sha256Utf8Lf": "274d5c2e5d45b2fe68eeb5b7c71765e7bed4eb228e449fc2dff18c0dacaa5084"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/src/engine.rs",
+      "sha256Utf8Lf": "b3b7673e26eacfc9d4e552c221d5d738c1d89ed04fe5cd59db2937a2368c3e65"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/src/lib.rs",
+      "sha256Utf8Lf": "fdf60999041fac5694ff4a08836d6b82e876ca11fbd37c82be0ed2468e5454e7"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/src/live.rs",
+      "sha256Utf8Lf": "9971ea10194e1dd4c73eef167148283f8b9d14967e267678eb3753c1eeee847f"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/src/windows.rs",
+      "sha256Utf8Lf": "cd3db9d2b9e5dd54fd4cedc053446c928f20c5dfaf99b703d75478165300a084"
+    },
+    {
+      "path": "native.rust/DatabentoFeed.Rust/tests/ffi_synthetic.rs",
+      "sha256Utf8Lf": "44862539463d14a361e26c2471f14f1abc53d20666a7c41516a50d9976d2ebea"
+    },
+    {
+      "path": "native.rust/OptionPricer.Rust/Cargo.lock",
+      "sha256Utf8Lf": "33d3aae41fff692fb2274407eba33269d6e1c50f470524797536159c4c1edd07"
+    },
+    {
+      "path": "native.rust/OptionPricer.Rust/Cargo.toml",
+      "sha256Utf8Lf": "643f23c3f20da585871f0fb263682162f9d1e67e50460bbd0be74c6f0143cf81"
+    },
+    {
+      "path": "native.rust/OptionPricer.Rust/build.rs",
+      "sha256Utf8Lf": "b96d65fd8a3e05b3bc83cac08eeee1fe9a721d2253d327fea80ab897f84e9973"
+    },
+    {
+      "path": "native.rust/OptionPricer.Rust/exports.def",
+      "sha256Utf8Lf": "c33fe394940d9751d71c9ad3b5fa23f2d61594638681726923cf79a78673f8a8"
+    },
+    {
+      "path": "native.rust/OptionPricer.Rust/include/ifm_option_pricer_native.h",
+      "sha256Utf8Lf": "86c6ebd4300574f6b737a8bd97c096f86e7948c20bd9536f91c8458343838a96"
+    },
+    {
+      "path": "native.rust/OptionPricer.Rust/src/abi.rs",
+      "sha256Utf8Lf": "d6342d0d5ade96b10f66bd944c94a41124f6f8e62da1a5a4bb524d402da193cf"
+    },
+    {
+      "path": "native.rust/OptionPricer.Rust/src/black76.rs",
+      "sha256Utf8Lf": "16da99b0b8cd1655bc28fcd679a0884480cb4a81c691db0fe392381cb3a37cfe"
+    },
+    {
+      "path": "native.rust/OptionPricer.Rust/src/lib.rs",
+      "sha256Utf8Lf": "1b421e12ca901fc48c53ef153975a38bdf61c4fe383fd5254797deb02a6a21b2"
+    },
+    {
+      "path": "native.rust/OptionPricer.Rust/tests/ffi_scalar.rs",
+      "sha256Utf8Lf": "bbe7819a68a88935815efe8155e327f7976e97c0b16beef365ac861f2108b565"
+    },
+    {
+      "path": "native/DatabentoFeed.Native/include/databento_feed_native.h",
+      "sha256Utf8Lf": "f41800d35d48a8963f5264952f1552c6acf3d1b627e0bf73cbb43c4fe407bf78"
+    },
+    {
+      "path": "native/DatabentoFeed.Native/src/databento_feed_native.cpp",
+      "sha256Utf8Lf": "616ad863513a0657aa0c00b12ff0f93f4391917c86e23d5602d44c5a0f940345"
+    },
+    {
+      "path": "native/DatabentoFeed.Native/src/databento_live_normalization.hpp",
+      "sha256Utf8Lf": "d67bc826538363868fe11917a7aa4a8ba2b0a76a3dc73d1f3027713c8ad4c14a"
+    },
+    {
+      "path": "native/DatabentoFeed.Native/src/instrument_mapping_selector.hpp",
+      "sha256Utf8Lf": "3b4cc7311eeb5333631212fc208e1c2abc6d8b371817cca8ac089c1b0030ca10"
+    },
+    {
+      "path": "native/DatabentoFeed.Native/src/latest_price_session_guard.hpp",
+      "sha256Utf8Lf": "8716a5b92518c5b7aada995676840d8bbf50045eb9396eaef3a623e3dea2e9c8"
+    },
+    {
+      "path": "native/DatabentoFeed.Native/tests/databento_feed_native_tests.cpp",
+      "sha256Utf8Lf": "07c2ee4ab0891f0eee6b3245546d7755fbdf23868b781c0449c786ffd219b568"
+    }
+  ],
+  "apiMethods": [
+    {
+      "name": "InjectDevelopmentOptionWorkerFaultAsync",
+      "signature": "Task<bool> InjectDevelopmentOptionWorkerFaultAsync(MarketDataDevelopmentFaultRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "WarmTreasuryPricingAsync",
+      "signature": "Task<Pricing.TreasuryPricingResult> WarmTreasuryPricingAsync(CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "ReadTreasuryCurveAsync",
+      "signature": "Task<TomasAI.IFM.Shared.MarketData.Contracts.TreasuryCurveSnapshot?> ReadTreasuryCurveAsync(DateOnly asOfDate, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "ReadTreasuryCurvesAsync",
+      "signature": "Task<TomasAI.IFM.Shared.MarketData.Contracts.TreasuryCurveSnapshot[]> ReadTreasuryCurvesAsync(DateOnly fromInclusive, DateOnly toInclusive, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "ReadEconomicCalendarAsync",
+      "signature": "Task<TomasAI.IFM.Shared.MarketData.Contracts.EconomicCalendarEntry[]> ReadEconomicCalendarAsync(DateOnly fromInclusive, DateOnly toInclusive, string[]? countryCodes, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "RefreshInstrumentDefinitionsAsync",
+      "signature": "Task<InstrumentDefinitionSnapshot> RefreshInstrumentDefinitionsAsync(CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "RefreshOptionCalendarAsync",
+      "signature": "Task<int> RefreshOptionCalendarAsync(string symbol, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "EvaluateOptionChainAsync",
+      "signature": "Task<TomasAI.IFM.Shared.EventSourcing.ServiceResult<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.EvaluatedOptionChainReadModel>> EvaluateOptionChainAsync( TomasAI.IFM.Domain.MarketData.Shared.Queries.GetEvaluatedOptionChainQuery query, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "ResetMarketDataAsync",
+      "signature": "Task ResetMarketDataAsync(DateOnly valueDate, Guid operationId, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "ReconcileCommittedSubscriptionsAsync",
+      "signature": "Task<Subscriptions.DurableRealization?> ReconcileCommittedSubscriptionsAsync(CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "ReleaseCompositionAsync",
+      "signature": "Task<WorkerOptionChainResult> ReleaseCompositionAsync(string dataset, WorkerOptionChainRelease request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "AcquireMonitoredOptionAsync",
+      "signature": "Task<bool> AcquireMonitoredOptionAsync(TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner owner, TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel contract, DateOnly valueDate, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "ReleaseMonitoredOptionAsync",
+      "signature": "Task<bool> ReleaseMonitoredOptionAsync(TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner owner, string contractId, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "ReadFiveMinuteSeedBarsAsync",
+      "signature": "Task<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(string contractId, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "GetBackendReadSnapshotAsync",
+      "signature": "Task<MarketDataReadSnapshot> GetBackendReadSnapshotAsync(CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "PrepareSessionAsync",
+      "signature": "Task<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel[]> PrepareSessionAsync(DateOnly valueDate, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "GetBackendStatusAsync",
+      "signature": "Task<MarketDataBackendStatus> GetBackendStatusAsync(CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "RecoverMarketDataAsync",
+      "signature": "Task<MarketDataRecoveryResult> RecoverMarketDataAsync(MarketDataRecoveryRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "RepairOptionObservationsAsync",
+      "signature": "Task<OptionObservationRepairResult> RepairOptionObservationsAsync(OptionObservationRepairRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "AcquireOptionScopeAsync",
+      "signature": "Task<CompositionDiscoveryResult> AcquireOptionScopeAsync(CompositionDiscoveryRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "ReleaseOptionScopeAsync",
+      "signature": "Task<WorkerOptionChainResult> ReleaseOptionScopeAsync(WorkerOptionChainRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "CaptureCompositionAsync",
+      "signature": "Task<CompositionSnapshotResult> CaptureCompositionAsync(string dataset, CompositionSnapshotRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "CaptureOptionRiskAsync",
+      "signature": "Task<MarketCompositionSnapshot?> CaptureOptionRiskAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "PrepareCompositionAsync",
+      "signature": "Task<CompositionPreparationResult> PrepareCompositionAsync(CompositionPreparationKey key, CompositionMarketDataPlan plan, string horizon, DateTimeOffset deadline, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "PrepareCachedCompositionAsync",
+      "signature": "Task<CompositionPreparationResult> PrepareCachedCompositionAsync(CompositionPreparationKey key, OptionChainSnapshotRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "EstimateHistoricalAsync",
+      "signature": "Task<MarketDataHistoricalEstimate> EstimateHistoricalAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "LoadHistoricalAsync",
+      "signature": "Task<HistoricalDataLoaderState> LoadHistoricalAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs"
+    },
+    {
+      "name": "TryGetMarketInstrumentId",
+      "signature": "bool TryGetMarketInstrumentId(string contractId, out uint marketInstrumentId)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesMarketHealth",
+      "signature": "FuturesMarketHealthSnapshot GetFuturesMarketHealth(string contractId)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetTradeStrategySymbolsAsync",
+      "signature": "Task<TomasAI.IFM.Shared.EventSourcing.ServiceResult<TradeStrategySymbolReadModel[]>> GetTradeStrategySymbolsAsync( TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "StartStreamingFuturesTickDataAsync",
+      "signature": "Task<SubscriptionLeaseResult> StartStreamingFuturesTickDataAsync( SubscriptionAcquireRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "StartStreamingFuturesTickDataAsync",
+      "signature": "Task<bool> StartStreamingFuturesTickDataAsync( string futuresContractId, TickerStreamOwner? owner = null)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "StartStreamingFuturesOptionTickDataAsync",
+      "signature": "Task<SubscriptionLeaseResult> StartStreamingFuturesOptionTickDataAsync( SubscriptionAcquireRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "StartStreamingFuturesOptionTickDataAsync",
+      "signature": "Task<bool> StartStreamingFuturesOptionTickDataAsync( string futuresOptionContractId, TickerStreamOwner? owner = null)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "StartStreamingFuturesOptionChainDataAsync",
+      "signature": "Task<SubscriptionLeaseResult> StartStreamingFuturesOptionChainDataAsync( SubscriptionAcquireRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "RenewSubscriptionLeaseAsync",
+      "signature": "Task<SubscriptionLeaseResult> RenewSubscriptionLeaseAsync( SubscriptionRenewRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "ReleaseSubscriptionLeaseAsync",
+      "signature": "Task<SubscriptionLeaseResult> ReleaseSubscriptionLeaseAsync( SubscriptionReleaseRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "AcquireSelectedSubscriptionLeasesAsync",
+      "signature": "Task<SubscriptionLeaseResult> AcquireSelectedSubscriptionLeasesAsync( SubscriptionAcquireBatchRequest request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetSubscriptionLeasesAsync",
+      "signature": "Task<SubscriptionLeaseResult> GetSubscriptionLeasesAsync( SubscriptionOwnerQuery request, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "IsDatabentoFeedUp",
+      "signature": "bool IsDatabentoFeedUp(TimeSpan? timeout = null)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetRuntimeStatus",
+      "signature": "MarketDataFeedRuntimeStatusReadModel GetRuntimeStatus()",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "TryGetOnTheRunFuturesContract",
+      "signature": "bool TryGetOnTheRunFuturesContract( string symbol, out FuturesContractV3ReadModel contract)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "TryGetFuturesTermStructureContracts",
+      "signature": "bool TryGetFuturesTermStructureContracts( string symbol, out FuturesTermStructureContracts contracts)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "UpdateFuturesTermStructureContractsAsync",
+      "signature": "Task<bool> UpdateFuturesTermStructureContractsAsync( string symbol, DateOnly valueDate, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "UpdateOnTheRunFuturesContractAsync",
+      "signature": "Task<bool> UpdateOnTheRunFuturesContractAsync( string symbol, DateOnly valueDate, CancellationToken cancellationToken = default, bool forceProviderRefresh = false)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "TryGetLastTickPrice",
+      "signature": "bool TryGetLastTickPrice( string contractId, out FuturesMarketPriceSnapshot snapshot)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "TryGetLastOptionTickPrice",
+      "signature": "bool TryGetLastOptionTickPrice( string contractId, out OptionTickerPriceSnapshot snapshot)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "TryGetFuturesSessionStatistics",
+      "signature": "bool TryGetFuturesSessionStatistics( string contractId, out FuturesSessionStatisticsSnapshot snapshot)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "IsTickDataStreamActive",
+      "signature": "bool IsTickDataStreamActive(string contractId)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "StartAsync",
+      "signature": "Task StartAsync( DateOnly valueDate, Func<Guid, int, string, Task>? errorMessageHandler = null, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "StopAsync",
+      "signature": "Task StopAsync(DateOnly valueDate)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesContractAsync",
+      "signature": "Task<FuturesContractV3ReadModel?> GetFuturesContractAsync( string futuresContractId)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesContractsAsync",
+      "signature": "Task<FuturesContractV3ReadModel[]> GetFuturesContractsAsync( string[] futuresContractIds)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesOptionContractAsync",
+      "signature": "Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync( string futuresOptionContractId)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesOptionContractsAsync",
+      "signature": "Task<FuturesOptionContractReadModel[]> GetFuturesOptionContractsAsync( string[] futuresOptionContractIds)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesOptionChainContractsAsync",
+      "signature": "Task<FuturesOptionContractReadModel[]> GetFuturesOptionChainContractsAsync( string futuresContractId, DateOnly maturityDate)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesOptionChainContractsBySymbolAsync",
+      "signature": "Task<FuturesOptionContractReadModel[]> GetFuturesOptionChainContractsBySymbolAsync( string underlyingSymbol, DateOnly fromMaturityDate, DateOnly throughMaturityDate)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "DiscoverOptionContractExpiriesAsync",
+      "signature": "Task<OptionContractExpiryReadModel[]> DiscoverOptionContractExpiriesAsync( string underlyingSymbol, DateOnly fromExpiry, DateOnly throughExpiry, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesOptionChainContractsByRootAsync",
+      "signature": "Task<FuturesOptionContractReadModel[]> GetFuturesOptionChainContractsByRootAsync( string underlyingSymbol, string providerRoot, DateOnly maturityDate)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesOptionChainContractsByRootAsync",
+      "signature": "Task<FuturesOptionContractReadModel[]> GetFuturesOptionChainContractsByRootAsync( string underlyingSymbol, string providerRoot, DateOnly fromMaturityDate, DateOnly throughMaturityDate, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesPriceAsync",
+      "signature": "Task<decimal?> GetFuturesPriceAsync( string futuresContractId)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesOptionPriceAsync",
+      "signature": "Task<decimal?> GetFuturesOptionPriceAsync( string futuresOptionContractId)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesLastPriceReader",
+      "signature": "IFuturesLastPriceReader GetFuturesLastPriceReader( string futuresContractId)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "GetFuturesOptionLastPriceReader",
+      "signature": "IFuturesOptionLastPriceReader GetFuturesOptionLastPriceReader( string futuresOptionContractId)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "StopStreamingFuturesTickDataAsync",
+      "signature": "Task<bool> StopStreamingFuturesTickDataAsync( string futuresContractId, TickerStreamOwner? owner = null)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "StopStreamingFuturesOptionTickDataAsync",
+      "signature": "Task<bool> StopStreamingFuturesOptionTickDataAsync( string futuresOptionContractId, TickerStreamOwner? owner = null)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.cs"
+    },
+    {
+      "name": "CloseTradeFeedRecoveryAsync",
+      "signature": "Task<bool> CloseTradeFeedRecoveryAsync(DateOnly date, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.TradeFeedRecovery.cs"
+    },
+    {
+      "name": "ReadTradeFeedRecoveryAsync",
+      "signature": "Task<TradeFeedRecoveryRegistration[]> ReadTradeFeedRecoveryAsync(DateOnly date, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.TradeFeedRecovery.cs"
+    },
+    {
+      "name": "LoadTradeFeedRecoveryAsync",
+      "signature": "Task<bool> LoadTradeFeedRecoveryAsync(string tradeId, DateOnly date, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.TradeFeedRecovery.cs"
+    },
+    {
+      "name": "EnableTradeFeedRecoveryAsync",
+      "signature": "Task<bool> EnableTradeFeedRecoveryAsync(string tradeId, DateOnly date, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.TradeFeedRecovery.cs"
+    },
+    {
+      "name": "DisableTradeFeedRecoveryAsync",
+      "signature": "Task<bool> DisableTradeFeedRecoveryAsync(string tradeId, DateOnly date, CancellationToken cancellationToken = default)",
+      "source": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.TradeFeedRecovery.cs"
+    }
+  ],
+  "apiProperties": [
+    "OptionChainCache",
+    "CoreFuturesRoutesAreRuntimeOwned"
+  ],
+  "performanceBaseline": "Not yet qualified; implementation cannot claim performance or final acceptance from source checksums."
+}

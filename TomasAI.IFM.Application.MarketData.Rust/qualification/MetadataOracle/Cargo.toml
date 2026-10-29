@@ -1,0 +1,9 @@
+[package]
+name = "ifm-metadata-upstream-oracle"
+version = "0.1.0"
+edition = "2024"
+[dependencies]
+dbn = { version = "=0.66.0", features = ["async"] }
+tokio = { version = "=1.53.1", features = ["rt", "macros"] }
+sha2 = "=0.10.9"
+time = "=0.3.55"

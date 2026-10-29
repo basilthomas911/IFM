@@ -1,0 +1,132 @@
+[
+  {
+    "price": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "revision": 0,
+    "wire": "nKlHTEJYLk1EUDPN///O/////6xFUzwiJlzmvKLlrZfOAAtKS6Ewzv/////Pf//////////PGOJhIfVCTRXPGOJhIfVCTefZJGZmZWVkZGNjLWJiYWEtOTk4OC03NzY2LTU1NDQzMzIyMTEwMKtFUyBvcHRpb24gAQ==",
+    "identity": "232942712148ba6e159670d87880f0276451cfa89bbd6cba11f56ef4210c0d9a",
+    "sourceDigest": "9d8e4d2304ca00cbc0d276b4d3b1105e1e52cdee8e5635fede62a4cee0c73166",
+    "semantic": "fd3ca509e3660a050cba3becd7c31eaee4d7327ea8cc2f9a7e0ed4356856f82f"
+  },
+  {
+    "price": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "revision": 1,
+    "wire": "nKlHTEJYLk1EUDPN///O/////6xFUzwiJlzmvKLlrZfOAAtKS6Ewzv/////Pf//////////PGOJhIfVCTRXPGOJhIfVCTejZJDAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMKtFUyBvcHRpb24gAQ==",
+    "identity": "232942712148ba6e159670d87880f0276451cfa89bbd6cba11f56ef4210c0d9a",
+    "sourceDigest": "9d8e4d2304ca00cbc0d276b4d3b1105e1e52cdee8e5635fede62a4cee0c73166",
+    "semantic": "fb796955fd8aaf066c74184ad0aeaea2519583bf632805892e2a0c74973d1610"
+  },
+  {
+    "price": [
+      1,
+      0,
+      0,
+      589824
+    ],
+    "revision": 0,
+    "wire": "nKlHTEJYLk1EUDPN///O/////6xFUzwiJlzmvKLlrZfOAAtKS6swLjAwMDAwMDAwMc7/////z3//////////zxjiYSH1Qk0VzxjiYSH1Qk3n2SRmZmVlZGRjYy1iYmFhLTk5ODgtNzc2Ni01NTQ0MzMyMjExMDCrRVMgb3B0aW9uIAE=",
+    "identity": "232942712148ba6e159670d87880f0276451cfa89bbd6cba11f56ef4210c0d9a",
+    "sourceDigest": "d63b27c2926f0216c8555cb9819cf9d1ebf6b5208f8e2458648bd90266d73081",
+    "semantic": "69dd7b6966feeeea14e969f695fe43b310ede096304e578a7e3bc58ca4598411"
+  },
+  {
+    "price": [
+      1,
+      0,
+      0,
+      589824
+    ],
+    "revision": 1,
+    "wire": "nKlHTEJYLk1EUDPN///O/////6xFUzwiJlzmvKLlrZfOAAtKS6swLjAwMDAwMDAwMc7/////z3//////////zxjiYSH1Qk0VzxjiYSH1Qk3o2SQwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDCrRVMgb3B0aW9uIAE=",
+    "identity": "232942712148ba6e159670d87880f0276451cfa89bbd6cba11f56ef4210c0d9a",
+    "sourceDigest": "d63b27c2926f0216c8555cb9819cf9d1ebf6b5208f8e2458648bd90266d73081",
+    "semantic": "f584cb7e2865c49a2a03cec5a894994d598084f3d65547f36bc8afe1aba8e1a5"
+  },
+  {
+    "price": [
+      12300,
+      0,
+      0,
+      -2147221504
+    ],
+    "revision": 0,
+    "wire": "nKlHTEJYLk1EUDPN///O/////6xFUzwiJlzmvKLlrZfOAAtKS6ctMS4yMzAwzv/////Pf//////////PGOJhIfVCTRXPGOJhIfVCTefZJGZmZWVkZGNjLWJiYWEtOTk4OC03NzY2LTU1NDQzMzIyMTEwMKtFUyBvcHRpb24gAQ==",
+    "identity": "232942712148ba6e159670d87880f0276451cfa89bbd6cba11f56ef4210c0d9a",
+    "sourceDigest": "6ec3742d27e86ff19ee1023791af7919e467270e78df23e9bceda0c21b24a5be",
+    "semantic": "4eaa77637412929e3bdd0baf72741ca1ca7fa55a87f08af60037d279c44d364e"
+  },
+  {
+    "price": [
+      12300,
+      0,
+      0,
+      -2147221504
+    ],
+    "revision": 1,
+    "wire": "nKlHTEJYLk1EUDPN///O/////6xFUzwiJlzmvKLlrZfOAAtKS6ctMS4yMzAwzv/////Pf//////////PGOJhIfVCTRXPGOJhIfVCTejZJDAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMKtFUyBvcHRpb24gAQ==",
+    "identity": "232942712148ba6e159670d87880f0276451cfa89bbd6cba11f56ef4210c0d9a",
+    "sourceDigest": "6ec3742d27e86ff19ee1023791af7919e467270e78df23e9bceda0c21b24a5be",
+    "semantic": "a75a4496a91b65d29928e991cffb85d0340248d5fd1a1691d3512f89b191d46e"
+  },
+  {
+    "price": [
+      -539222988,
+      2,
+      0,
+      393216
+    ],
+    "revision": 0,
+    "wire": "nKlHTEJYLk1EUDPN///O/////6xFUzwiJlzmvKLlrZfOAAtKS6wxMjM0NS42Nzg5MDDO/////89//////////88Y4mEh9UJNFc8Y4mEh9UJN59kkZmZlZWRkY2MtYmJhYS05OTg4LTc3NjYtNTU0NDMzMjIxMTAwq0VTIG9wdGlvbiAB",
+    "identity": "232942712148ba6e159670d87880f0276451cfa89bbd6cba11f56ef4210c0d9a",
+    "sourceDigest": "07467393e7657d921abf8c8c61c8f3e551e75dc03b0587952299362b8819a74b",
+    "semantic": "02fba91e100e6e52540fa5ee5ed29bfc12d8bbb637619231b5b8dd85ad97068a"
+  },
+  {
+    "price": [
+      -539222988,
+      2,
+      0,
+      393216
+    ],
+    "revision": 1,
+    "wire": "nKlHTEJYLk1EUDPN///O/////6xFUzwiJlzmvKLlrZfOAAtKS6wxMjM0NS42Nzg5MDDO/////89//////////88Y4mEh9UJNFc8Y4mEh9UJN6NkkMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwq0VTIG9wdGlvbiAB",
+    "identity": "232942712148ba6e159670d87880f0276451cfa89bbd6cba11f56ef4210c0d9a",
+    "sourceDigest": "07467393e7657d921abf8c8c61c8f3e551e75dc03b0587952299362b8819a74b",
+    "semantic": "d36cb2db00ab8898f0024e1fe3f30b462a08927a2979500fe228326728f96f58"
+  },
+  {
+    "price": [
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "revision": 0,
+    "wire": "nKlHTEJYLk1EUDPN///O/////6xFUzwiJlzmvKLlrZfOAAtKS703OTIyODE2MjUxNDI2NDMzNzU5MzU0Mzk1MDMzNc7/////z3//////////zxjiYSH1Qk0VzxjiYSH1Qk3n2SRmZmVlZGRjYy1iYmFhLTk5ODgtNzc2Ni01NTQ0MzMyMjExMDCrRVMgb3B0aW9uIAE=",
+    "identity": "232942712148ba6e159670d87880f0276451cfa89bbd6cba11f56ef4210c0d9a",
+    "sourceDigest": "0641845c9b8d6ab4645191f6b7e3f80328e893c69a1943f0388c3d8bf86242a9",
+    "semantic": "9c5a33addb92f604dad17b3868623bb7da37efbdbc4f38f7feeb5b5559f88ec9"
+  },
+  {
+    "price": [
+      -1,
+      -1,
+      -1,
+      0
+    ],
+    "revision": 1,
+    "wire": "nKlHTEJYLk1EUDPN///O/////6xFUzwiJlzmvKLlrZfOAAtKS703OTIyODE2MjUxNDI2NDMzNzU5MzU0Mzk1MDMzNc7/////z3//////////zxjiYSH1Qk0VzxjiYSH1Qk3o2SQwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDCrRVMgb3B0aW9uIAE=",
+    "identity": "232942712148ba6e159670d87880f0276451cfa89bbd6cba11f56ef4210c0d9a",
+    "sourceDigest": "0641845c9b8d6ab4645191f6b7e3f80328e893c69a1943f0388c3d8bf86242a9",
+    "semantic": "3dec8a38c439a17ce36a4ddc0f0a8579b999bf958f9f00acd0dbfbf334446ac9"
+  }
+]

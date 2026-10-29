@@ -44,6 +44,11 @@ public sealed class HistoricalDataLoader
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
     }
 
+    /// <summary>Reads optional provider availability through the same backend boundary.</summary>
+    public ValueTask<DateTimeOffset?> GetAvailableEndAsync(MarketDataHistoricalRequest request, CancellationToken token)
+        => remote is null ? historicalApi.GetAvailableEndAsync(request, token)
+            : new ValueTask<DateTimeOffset?>(remote.GetHistoricalAvailableEndAsync(request, token));
+
     /// <summary>Executes or resumes one data load and reuses an immutable completed request.</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async ValueTask<HistoricalDataLoaderState> ExecuteAsync(

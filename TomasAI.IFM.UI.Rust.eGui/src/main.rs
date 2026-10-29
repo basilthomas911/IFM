@@ -26,8 +26,10 @@ enum Update {
     Ready(Catalog, Snapshot),
     /// Changed strategy observation/details publication.
     Snapshot(Snapshot),
-    /// Worker/transport error text for display in the application.
+    /// Startup-blocking failure; runtime warnings must not use this modal path.
     Error(String),
+    /// Recoverable service or action failure, visible in status/console and logs.
+    Warning(String),
     /// Request ID and error for an intent rejected before execution.
     SubmissionRejected(String, String),
     /// Changed trading publication with background-prepared display data.
@@ -66,6 +68,8 @@ struct ReadProfile {
 struct App {
     stopping: std::sync::Arc<std::sync::atomic::AtomicBool>,
     error_dialog: Option<String>,
+    /// Retains runtime diagnostics across independent sidebar publications.
+    runtime_notices: ifm_ui_egui::services::notifications::Notifications,
     /// UI-thread receiver for owned updates from the intake worker.
     rx: mpsc::Receiver<Update>,
     /// Bounded sender of numeric user actions to the intake worker.
@@ -243,6 +247,14 @@ impl eframe::App for App {
                     self.portfolio.submission_rejected(&id, &e);
                     self.status = e;
                 }
+                Update::Warning(e) => {
+                    if self.runtime_notices.warning(format!("runtime:{e}"),e.clone()) {
+                        if let Some(row)=self.runtime_notices.publication.status_rows.last() {
+                            self.shell.sidebar_snapshot.status_rows.push(row.clone());
+                        }
+                    }
+                    self.status=e;
+                }
                 Update::Error(e) => {
                     self.error_dialog = Some(e.clone());
                     self.trade_workspace.transport_failed(&e);
@@ -275,6 +287,8 @@ impl eframe::App for App {
                     self.shell.dashboard.feed_running = health.running;
                     self.shell.dashboard.feed_health = health.health;
                     self.shell.dashboard.feed_health_reason = health.reason;
+                    self.shell.dashboard.options_health = health.options_health;
+                    self.shell.dashboard.options_health_reason = health.options_reason;
                 }
                 Update::MarketOutlook(result) => {
                     match result {
@@ -304,7 +318,15 @@ impl eframe::App for App {
                     }
                     self.shell.dashboard = s;
                 }
-                Update::Sidebar(s) => {
+                Update::Sidebar(mut s) => {
+                    for row in &self.runtime_notices.publication.status_rows {
+                        if row.id.starts_with("current-warning|") {
+                            if s.status_rows.iter().any(|existing|existing.id.starts_with("current-warning|") && existing.id>=row.id){continue;}
+                            s.status_rows.retain(|existing|!existing.id.starts_with("current-warning|"));
+                        }else{s.status_rows.retain(|existing|existing.id!=row.id);}
+                        let position=s.status_rows.iter().position(|existing|existing.id.as_bytes().get(4)==Some(&b'-')&&existing.id>row.id).unwrap_or(s.status_rows.len());
+                        s.status_rows.insert(position,row.clone());
+                    }
                     if let Ok(date)=chrono::NaiveDate::parse_from_str(&s.api_today,"%Y-%m-%d") { ifm_ui_egui::date_picker::set_api_today(ctx,date); }
                     self.shell.sidebar_snapshot = s;
                 },
@@ -323,7 +345,12 @@ impl eframe::App for App {
                 }
                 Update::Contracts(s) => {
                     if let Err(error) = self.publications.apply(s) {
-                        self.error_dialog = Some(error);
+                        // A local contract-validation failure has no request
+                        // subject. Reject this publication and retain diagnostics;
+                        // an invalid view update must not interrupt the application.
+                        ifm_ui_egui::diagnostics::errors::record("ui.publication_invalid",None,None,&error);
+                        self.runtime_notices.warning(format!("publication:{error}"),error.clone());
+                        self.status=error;
                     }
                 }
                 Update::Editor(s) => self.editor_snapshot = s,
@@ -434,6 +461,11 @@ impl eframe::App for App {
                     {
                         self.health_tab = true;
                         self.actor_tab = false;
+                    }
+                    let options=&self.shell.dashboard.options_health;
+                    if ui.add(egui::Button::new(egui::RichText::new("Options Health").color(ifm_ui_egui::operations::operations_health::status_color(options))))
+                        .on_hover_text(&self.shell.dashboard.options_health_reason).clicked() {
+                        self.health_tab=true; self.actor_tab=false; self.health.datasets=true;
                     }
                     if ui.button("Operations health").clicked() {
                         self.health_tab = true;
@@ -805,15 +837,15 @@ impl eframe::App for App {
         }
         if let Some(message) = self.error_dialog.clone() {
             egui::Modal::new(egui::Id::new("standalone-runtime-error")).show(ctx, |ui| {
-                ui.heading(ifm_ui_egui::presentation::dialog_title("Application Error"));
-                ui.label(message);
-                if ui.button("OK").clicked() {
+                if ifm_ui_egui::status_dialog::body(ui,&message,ifm_ui_egui::status_dialog::Severity::Error).acknowledged {
                     self.error_dialog = None;
                 }
             });
         }
-        // The worker can now acknowledge this rendered batch. Never ACK while it is still queued to the GUI.
-        for delivery in &self.shell.sidebar_snapshot.console_deliveries { delivery.mark_displayed(); }
+        // Retain only two pages after resize; console display has no ACK or replay.
+        let capacity=ifm_ui_egui::console_capacity::current();
+        let rows=&mut self.shell.sidebar_snapshot.status_rows;
+        ifm_ui_egui::console_capacity::trim_to(rows,capacity);
         if self.frame_times.len() < 10000 {
             self.frame_times
                 .push(frame_started.elapsed().as_secs_f64() * 1000.0);
@@ -882,6 +914,7 @@ fn main() -> eframe::Result {
             Ok(Box::new(App {
                 stopping,
                 error_dialog: None,
+                runtime_notices: Default::default(),
                 rx,
                 tx,
                 editor_tx,

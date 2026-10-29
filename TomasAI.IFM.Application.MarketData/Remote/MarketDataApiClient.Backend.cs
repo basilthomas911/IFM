@@ -65,6 +65,8 @@ public partial class MarketDataApiClient
         => CallAsync<CompositionPreparationResult>(nameof(PrepareCompositionAsync), [typeof(CompositionPreparationKey), typeof(CompositionMarketDataPlan), typeof(string), typeof(DateTimeOffset), typeof(CancellationToken)], [key, plan, horizon, deadline, null], cancellationToken);
     public Task<CompositionPreparationResult> PrepareCachedCompositionAsync(CompositionPreparationKey key, OptionChainSnapshotRequest request, CancellationToken cancellationToken = default)
         => CallAsync<CompositionPreparationResult>(nameof(PrepareCachedCompositionAsync), [typeof(CompositionPreparationKey), typeof(OptionChainSnapshotRequest), typeof(CancellationToken)], [key, request, null], cancellationToken);
+    public Task<DateTimeOffset?> GetHistoricalAvailableEndAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken = default)
+        => CallAsync<DateTimeOffset?>(nameof(GetHistoricalAvailableEndAsync), [typeof(MarketDataHistoricalRequest), typeof(CancellationToken)], [request, null], cancellationToken);
     public Task<MarketDataHistoricalEstimate> EstimateHistoricalAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken = default)
         => CallAsync<MarketDataHistoricalEstimate>(nameof(EstimateHistoricalAsync), [typeof(MarketDataHistoricalRequest), typeof(CancellationToken)], [request, null], cancellationToken);
     public Task<HistoricalDataLoaderState> LoadHistoricalAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken = default)

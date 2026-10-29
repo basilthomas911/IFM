@@ -12,11 +12,15 @@ pub struct PipelineHealth {
     pub running: Option<bool>,
     pub health: String,
     pub reason: String,
+    pub options_health: String,
+    pub options_reason: String,
 }
 impl PipelineHealth {
     pub fn unknown(running: Option<bool>) -> Self {
         Self {
             running,
+            options_health: "Yellow".into(),
+            options_reason: "Options readiness has not been verified.".into(),
             health: if running == Some(false) {
                 "Inactive"
             } else {
@@ -29,6 +33,8 @@ impl PipelineHealth {
     pub fn unavailable(error: &str) -> Self {
         Self {
             running: None,
+            options_health: "Yellow".into(),
+            options_reason: "Options status unavailable.".into(),
             health: "Unknown".into(),
             reason: format!("Pipeline health unavailable: {error}"),
         }
@@ -130,10 +136,32 @@ impl DashboardHealth {
         };
         // An HTTP diagnostic failure must not erase an independently confirmed
         // feed-running observation or keep a previous green classification.
-        Ok(result.unwrap_or_else(|error| {
+        let mut health = result.unwrap_or_else(|error| {
             let mut value = PipelineHealth::unknown(running);
             value.reason = format!("Pipeline health unavailable: {error}");
             value
-        }))
+        });
+        if let Ok(url) = reqwest::Url::parse(endpoint).and_then(|u| u.join("/api/market-data/options-health")) {
+            match self.client.get(url.as_str(), 256 * 1024, deadline).await {
+                Ok(value) => { let (state, reason) = options_health(&value); health.options_health=state.into(); health.options_reason=reason.into(); },
+                Err(error) => health.options_reason=format!("Options status unavailable: {error}"),
+            }
+        }
+        Ok(health)
     }
+}
+/// Only current-generation scope/resource proofs permit green. Quote silence
+/// does not imply a broken connection and never initiates recovery from this UI.
+pub fn options_health(value: &Value) -> (&'static str, &'static str) {
+    let Some(datasets)=value["datasets"].as_array() else {return ("Yellow", "Options status unavailable");};
+    if datasets.is_empty() {return ("Inactive", "Options inactive");}
+    if datasets.iter().any(|d| matches!(d["lifecycle"].as_str(),Some("StoppedError"|"Failed"|"Down"))) {return ("Red", "Options dataset is down");}
+    if datasets.iter().all(|d| !d["running"].as_bool().unwrap_or(false) && matches!(d["lifecycle"].as_str(),Some("Stopped"|"Inactive"|"Idle"))) {return ("Inactive", "Options inactive");}
+    if datasets.iter().any(|d| matches!(d["lifecycle"].as_str(),Some("Starting"|"Recovering"|"Resetting")) || d["running"]!=true || d["healthy"]!=true) {return ("Yellow", "Options starting or recovering");}
+    if datasets.iter().any(|d| matches!(d["lifecycle"].as_str(),Some("Idle"))) {return ("Inactive", "Options inactive");}
+    let proof=&value["workload"];
+    let scopes=proof["scopes"].as_array(); let ready=proof["readyScopes"].as_array();
+    if datasets.len()==1 && proof["generationId"]==datasets[0]["generationId"] && proof["generationId"].as_str().is_some_and(|s|s!="00000000-0000-0000-0000-000000000000") && proof["replacementPending"]==false && proof["nativeResourceProofsComplete"]==true && scopes.zip(ready).is_some_and(|(s,r)| !s.is_empty() && s.iter().all(|x|r.contains(x))) {
+        ("Green", "Current Options generation and monitoring scopes verified")
+    } else { ("Yellow", "Options connected; waiting for verified live data") }
 }

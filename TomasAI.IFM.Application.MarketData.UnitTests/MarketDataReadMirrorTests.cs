@@ -6,6 +6,18 @@ using static TomasAI.IFM.Application.MarketData.UnitTests.OrderCompositionPricin
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed class MarketDataReadMirrorTests
 {
+    [Theory]
+    [InlineData(MarketDataRecoveryOwnership.Process)]
+    [InlineData(MarketDataRecoveryOwnership.TokioDatasetOwner)]
+    public void Recovery_authority_is_unknown_until_an_accepted_snapshot(MarketDataRecoveryOwnership ownership)
+    {
+        using var cache=new Cache(new Clock());
+        var mirror=new MarketDataReadMirror(cache);
+        Assert.Equal(MarketDataRecoveryOwnership.Unknown,mirror.DatasetRecoveryOwnership);
+        Assert.True(mirror.Apply(new(new(false,null,[],Guid.NewGuid(),RecoveryOwnership:ownership),[],[],[])));
+        Assert.Equal(ownership,mirror.DatasetRecoveryOwnership);
+    }
+
     sealed class Clock : TimeProvider { public override DateTimeOffset GetUtcNow() => At; }
     [Fact]
     public async Task Fragmented_publication_rejects_missing_or_corrupted_frames_and_replays_without_partial_visibility()

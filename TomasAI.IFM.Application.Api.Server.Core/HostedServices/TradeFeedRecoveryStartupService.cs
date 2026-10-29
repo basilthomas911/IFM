@@ -85,8 +85,12 @@ public sealed class TradeFeedRecoveryStartupService(IMarketDataApi market, IFutu
                         try
                         {
                             using var delivery = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken); delivery.CancelAfter(TimeSpan.FromSeconds(3));
+                            logger.LogWarning("Backend failure notification publishing; Subject={Subject}; OperationId={OperationId}; EventId={EventId}; Detail={Detail}",
+                                failure.Subject.ToString(), failure.CommandId, failure.Id, failure.ErrorMessage);
                             if (!producer.IsRunning) await producer.StartAsync(new(ActorType.Event, nameof(TradeFeedRecoveryStartupService)), delivery.Token).AsTask().WaitAsync(delivery.Token);
                             await producer.SendAsync<MarketDataDatasetRecoveryFailedEvent, MarketDataFeedId>(failure.Subject, failure, delivery.Token).AsTask().WaitAsync(delivery.Token);
+                            logger.LogError("Backend failure notification published; Subject={Subject}; OperationId={OperationId}; EventId={EventId}; Detail={Detail}",
+                                failure.Subject.ToString(), failure.CommandId, failure.Id, failure.ErrorMessage);
                             break;
                         }
                         catch (Exception sendError) when (!stoppingToken.IsCancellationRequested)

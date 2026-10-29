@@ -42,6 +42,8 @@
 //! build, fixture/live-mode, deployment, and desktop-test commands.
 
 use crate::control_parity::BorderedTable as _;
+/// Consistent outcome dialogs with accessible vector status icons.
+pub mod status_dialog;
 /// Native window identity uses the executable's Cargo package version at build time.
 pub const WINDOW_TITLE: &str = concat!("IFM - eGui ", env!("CARGO_PKG_VERSION"));
 
@@ -371,3 +373,6 @@ pub fn apply_winforms_typography(ctx: &egui::Context) -> std::io::Result<()> {
     presentation::apply(ctx);
     Ok(())
 }
+
+/// Retention follows two pages of the current console viewport.
+pub mod console_capacity;

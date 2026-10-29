@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Api.Server.Core.Http.OutputCaching;
 using Serilog;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
@@ -26,7 +27,23 @@ public static class ApiOperationalEndpoints
 {
     public static void MapOperationalEndpoints(WebApplication app)
     {
-        app.MapStatusConsole();
+        // Copied native readiness evidence: this diagnostic never acquires leases or initiates recovery.
+        app.MapGet("/api/market-data/options-health", async (TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketData, CancellationToken token) =>
+        {
+            var snapshot = await marketData.GetBackendReadSnapshotAsync(token).ConfigureAwait(false);
+            return Results.Ok(new { datasets = snapshot.Status.Datasets.Where(d => d.Role == "Options"), workload = snapshot.NativeOptionWorkload });
+        });
+        app.MapGet("/api/market-data/recovery-audit-health",async (TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketData,CancellationToken token) =>
+            Results.Ok((await marketData.GetBackendStatusAsync(token).ConfigureAwait(false)).RecoveryAudit));
+        app.MapGet("/api/market-data/recovery-log", async (IDbContextFactory databases, DateOnly valueDate,
+            string? dataset, Guid? operationId, int? limit, CancellationToken token) =>
+        {
+            if (valueDate==default || limit is <1 or >4096 || dataset?.Length>64)
+                return Results.BadRequest(new { Error="A ValueDate, optional dataset/operation and limit 1..4096 are required." });
+            var records=await TomasAI.IFM.Application.Storage.MarketDataServiceDb.Recovery.MarketDataRecoveryLog.QueryAsync(
+                databases.MarketDataServiceDb.Database.ConnectionString,valueDate,dataset,operationId,limit??256,token).ConfigureAwait(false);
+            return Results.Ok(records.Select(record=>System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(record)));
+        });
         app.MapGet("/api/market-data/operations-health",
         (MarketDataOperationsHealthService health, LivePipelineMonitor monitor, HttpContext context) =>
         {

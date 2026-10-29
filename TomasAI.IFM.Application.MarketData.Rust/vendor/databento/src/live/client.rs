@@ -1,0 +1,1560 @@
+use std::{fmt, future::Future, net::SocketAddr, time::Duration as StdDuration};
+
+use dbn::{
+    decode::{
+        dbn::{
+            async_decode_metadata_with_fsm, async_decode_record_ref_with_fsm,
+            fsm::{DbnFsm, ProcessResult},
+        },
+        AsyncDynReader,
+    },
+    rtype, v1, Compression, ErrorCode, ErrorMsg, Metadata, Record, RecordRef, SystemCode,
+    SystemMsg, VersionUpgradePolicy,
+};
+use time::Duration;
+use tokio::{
+    io::{AsyncReadExt, BufReader, ReadHalf, WriteHalf},
+    net::{TcpStream, ToSocketAddrs},
+};
+use tracing::{debug, error, info, info_span, instrument, warn, Span};
+
+use crate::ApiKey;
+
+use super::{
+    protocol::{self, Protocol, SessionOptions},
+    ClientBuilder, SlowReaderBehavior, Subscription, TimeoutConf, Unset,
+};
+
+/// The Live client. Used for subscribing to real-time and intraday historical market data.
+///
+/// Use [`LiveClient::builder()`](Client::builder) to get a type-safe builder for
+/// initializing the required parameters for the client.
+pub struct Client {
+    key: ApiKey,
+    dataset: String,
+    send_ts_out: bool,
+    upgrade_policy: VersionUpgradePolicy,
+    heartbeat_interval: Option<Duration>,
+    user_agent_ext: Option<String>,
+    compression: Compression,
+    slow_reader_behavior: Option<SlowReaderBehavior>,
+    timeout_conf: TimeoutConf,
+    protocol: Protocol<WriteHalf<TcpStream>>,
+    peer_addr: SocketAddr,
+    sub_counter: u32,
+    subscriptions: Vec<Subscription>,
+    reader: AsyncDynReader<BufReader<ReadHalf<TcpStream>>>,
+    fsm: DbnFsm,
+    session_id: String,
+    is_closed: bool,
+    span: Span,
+}
+
+impl Client {
+    /// Creates a new client connected to a Live gateway.
+    ///
+    /// # Errors
+    /// This function returns an error when `key` is invalid or it's unable to connect
+    /// and authenticate with the Live gateway.
+    /// This function returns an error when `key` or `heartbeat_interval` are invalid,
+    /// or it's unable to connect and authenticate with the Live gateway.
+    #[deprecated(since = "0.27.0", note = "Use the builder instead")]
+    pub async fn connect(
+        key: String,
+        dataset: String,
+        send_ts_out: bool,
+        upgrade_policy: VersionUpgradePolicy,
+        heartbeat_interval: Option<Duration>,
+    ) -> crate::Result<Self> {
+        let builder = Self::builder()
+            .key(key)?
+            .dataset(dataset)
+            .send_ts_out(send_ts_out)
+            .upgrade_policy(upgrade_policy);
+        if let Some(heartbeat_interval) = heartbeat_interval {
+            builder.heartbeat_interval(heartbeat_interval).build().await
+        } else {
+            builder.build().await
+        }
+    }
+
+    /// Creates a new client connected to the Live gateway at `addr`. This is an advanced method and generally
+    /// [`builder()`](Self::builder) or [`connect()`](Self::connect) should be used instead.
+    ///
+    /// # Errors
+    /// This function returns an error when `key` or `heartbeat_interval` are invalid,
+    /// or it's unable to connect and authenticate with the Live gateway.
+    #[deprecated(since = "0.27.0", note = "Use the builder instead")]
+    pub async fn connect_with_addr(
+        addr: impl ToSocketAddrs,
+        key: String,
+        dataset: String,
+        send_ts_out: bool,
+        upgrade_policy: VersionUpgradePolicy,
+        heartbeat_interval: Option<Duration>,
+    ) -> crate::Result<Self> {
+        let builder = Self::builder()
+            .addr(addr)
+            .await?
+            .key(key)?
+            .dataset(dataset)
+            .send_ts_out(send_ts_out)
+            .upgrade_policy(upgrade_policy);
+        if let Some(heartbeat_interval) = heartbeat_interval {
+            builder.heartbeat_interval(heartbeat_interval).build().await
+        } else {
+            builder.build().await
+        }
+    }
+
+    pub(crate) async fn new(
+        ClientBuilder {
+            addr,
+            key,
+            dataset,
+            send_ts_out,
+            upgrade_policy,
+            heartbeat_interval,
+            buf_size,
+            user_agent_ext,
+            compression,
+            slow_reader_behavior,
+            timeout_conf,
+        }: ClientBuilder<ApiKey, String>,
+    ) -> crate::Result<Self> {
+        let connect_fut = async {
+            if let Some(addr) = addr {
+                TcpStream::connect(addr.as_slice()).await
+            } else {
+                TcpStream::connect(protocol::determine_gateway(&dataset)).await
+            }
+        };
+        let stream = apply_connect_timeout(connect_fut, timeout_conf.connect).await?;
+        let peer_addr = stream.peer_addr()?;
+        let (recver, sender) = tokio::io::split(stream);
+        let mut recver = BufReader::new(recver);
+        let mut protocol = Protocol::new(sender);
+        let options = SessionOptions {
+            compression,
+            send_ts_out,
+            heartbeat_interval_s: heartbeat_interval.map(|i| i.whole_seconds()),
+            user_agent_ext: user_agent_ext.as_deref(),
+            slow_reader_behavior,
+        };
+        let session_id = apply_auth_timeout(
+            protocol.authenticate(&mut recver, &key, &dataset, options),
+            timeout_conf.auth,
+        )
+        .await?;
+        // Construct reader based on compression mode
+        let reader = AsyncDynReader::with_buffer(recver, compression);
+        let span = info_span!("LiveClient", %dataset, session_id);
+        Ok(Self {
+            key,
+            dataset,
+            send_ts_out,
+            upgrade_policy,
+            heartbeat_interval,
+            user_agent_ext,
+            compression,
+            slow_reader_behavior,
+            timeout_conf,
+            protocol,
+            peer_addr,
+            reader,
+            fsm: DbnFsm::builder()
+                .upgrade_policy(upgrade_policy)
+                .buffer_size(buf_size.unwrap_or(DbnFsm::DEFAULT_BUF_SIZE))
+                .build()
+                // Not setting input version so it's infallible
+                .unwrap(),
+            session_id,
+            is_closed: false,
+            span,
+            sub_counter: 0,
+            subscriptions: Vec::new(),
+        })
+    }
+
+    /// Returns a type-safe builder for setting the required parameters
+    /// for initializing a [`LiveClient`](Client).
+    pub fn builder() -> ClientBuilder<Unset, Unset> {
+        ClientBuilder::default()
+    }
+
+    /// Returns the API key used by the instance of the client.
+    pub fn key(&self) -> &str {
+        &self.key.0
+    }
+
+    /// Returns the dataset the client is configured for.
+    pub fn dataset(&self) -> &str {
+        &self.dataset
+    }
+
+    /// Returns an identifier for the current Live session.
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
+    /// Returns whether client is configured to request that the gateway send `ts_out`
+    /// with each message.
+    pub fn send_ts_out(&self) -> bool {
+        self.send_ts_out
+    }
+
+    /// Returns the upgrade policy for decoding DBN from previous versions.
+    pub fn upgrade_policy(&self) -> VersionUpgradePolicy {
+        self.upgrade_policy
+    }
+
+    /// Returns the heartbeat interval override if there is one, otherwise `None`.
+    pub fn heartbeat_interval(&self) -> Option<Duration> {
+        self.heartbeat_interval
+    }
+
+    /// Returns the compression mode for the live data stream.
+    pub fn compression(&self) -> Compression {
+        self.compression
+    }
+
+    /// Returns the slow read behavior setting, if configured.
+    pub fn slow_reader_behavior(&self) -> Option<SlowReaderBehavior> {
+        self.slow_reader_behavior
+    }
+
+    /// Returns the timeouts for connecting and authenticating with the gateway.
+    pub fn timeout_conf(&self) -> &TimeoutConf {
+        &self.timeout_conf
+    }
+
+    /// Returns an immutable reference to all subscriptions made with this instance.
+    pub fn subscriptions(&self) -> &Vec<Subscription> {
+        &self.subscriptions
+    }
+
+    /// Returns a mutable reference to all subscriptions made with this instance.
+    pub fn subscriptions_mut(&mut self) -> &mut Vec<Subscription> {
+        &mut self.subscriptions
+    }
+
+    /// Closes the connection with the gateway, ending the session and all subscriptions.
+    ///
+    /// # Errors
+    /// This function returns an error if the shutdown of the TCP stream is unsuccessful, this usually
+    /// means the stream is no longer usable.
+    pub async fn close(&mut self) -> crate::Result<()> {
+        self.protocol.shutdown().await
+        // Don't set is_closed since it'll be set after in-flight records are read
+    }
+
+    /// Attempts to add a new subscription to the session. Note that
+    /// an `Ok(())` result from this function does not necessarily indicate that
+    /// the subscription succeeded, only that it was sent to the gateway.
+    ///
+    /// # Errors
+    /// This function returns an error if it's unable to communicate with the gateway.
+    ///
+    /// # Cancel safety
+    /// This method is not cancellation safe. If this method is used in a
+    /// [`tokio::select!`] statement and another branch completes first, the subscription
+    /// may have been partially sent, resulting in the gateway rejecting the
+    /// subscription, sending an error, and closing the connection.
+    #[instrument(parent = &self.span, skip_all)]
+    pub async fn subscribe(&mut self, mut sub: Subscription) -> crate::Result<()> {
+        if sub.id.is_none() {
+            if self.sub_counter == u32::MAX {
+                warn!("Exhausted all subscription IDs");
+            } else {
+                self.sub_counter += 1;
+            }
+            sub.id = Some(self.sub_counter);
+        }
+        self.protocol.subscribe(&sub).await?;
+        self.subscriptions.push(sub);
+        Ok(())
+    }
+
+    /// Instructs the gateway to start sending data, starting the session. Except
+    /// in cases of a reconnect, this method should only be called once on a given
+    /// instance.
+    ///
+    /// Returns the DBN metadata associated with this session. This is primarily useful
+    /// when saving the data to a file to replay it later.
+    ///
+    /// # Errors
+    /// This function returns an error if it's unable to communicate with the gateway or
+    /// there was an error decoding the DBN metadata. It will also return an error if
+    /// the session has already been started.
+    ///
+    /// # Cancel safety
+    /// This method is not cancellation safe. If this method is used in a
+    /// [`tokio::select!`] statement and another branch completes first, the live
+    /// gateway may only receive a partial message, resulting in it sending an error and
+    /// closing the connection.
+    #[instrument(parent = &self.span, skip_all)]
+    pub async fn start(&mut self) -> crate::Result<Metadata> {
+        if self.fsm.has_decoded_metadata() {
+            return Err(crate::Error::BadArgument {
+                param_name: "self",
+                desc: "ignored request to start session that has already been started".to_owned(),
+            });
+        };
+        info!("Starting session");
+        self.protocol.start_session().await?;
+        Ok(async_decode_metadata_with_fsm(&mut self.reader, &mut self.fsm).await?)
+    }
+
+    /// Starts with an application-owned incremental metadata decoder.
+    ///
+    /// IFM extension: the decoder must consume exactly the DBN metadata and return
+    /// its original wire version. It must not read subsequent records. Cancellation
+    /// requires dropping the entire client, exactly as with `start()`.
+    pub async fn start_with_metadata_decoder<F>(&mut self, decode: F) -> crate::Result<Metadata>
+    where
+        F: for<'a> FnOnce(
+            &'a mut (dyn tokio::io::AsyncRead + Unpin + Send),
+        ) -> std::pin::Pin<Box<dyn Future<Output = dbn::Result<Metadata>> + Send + 'a>>,
+    {
+        if self.fsm.has_decoded_metadata() {
+            return Err(crate::Error::BadArgument {
+                param_name: "self",
+                desc: "session already started".to_owned(),
+            });
+        }
+        self.protocol.start_session().await?;
+        let mut metadata = decode(&mut self.reader).await?;
+        // Never feed metadata into the original grow-to-wire-length FSM. The
+        // unchanged record decoder starts fresh at the exact next wire byte.
+        self.fsm = DbnFsm::builder()
+            .input_dbn_version(Some(metadata.version))?
+            .upgrade_policy(self.upgrade_policy)
+            .skip_metadata(true)
+            .ts_out(metadata.ts_out)
+            .buffer_size(65_536)
+            .build()?;
+        metadata.upgrade(self.upgrade_policy);
+        Ok(metadata)
+    }
+
+    /// Fetches the next record. This method should only be called after the session has
+    /// been [started](Self::start).
+    ///
+    /// Returns `Ok(None)` if the gateway closed the connection and no more records
+    /// can be read.
+    ///
+    /// # Errors
+    /// This function returns an error when:
+    /// - it's unable to decode the next record
+    /// - it's unable to read from the TCP stream
+    /// - no data has been received within the expected interval
+    /// - the session hasn't been started
+    ///
+    /// # Cancel safety
+    /// This method is cancel safe. It can be used within a [`tokio::select!`] statement
+    /// without the potential for corrupting the input stream.
+    #[instrument(parent = &self.span, level = "debug", skip_all)]
+    pub async fn next_record(&mut self) -> crate::Result<Option<RecordRef<'_>>> {
+        if !self.fsm.has_decoded_metadata() {
+            return Err(crate::Error::BadArgument {
+                param_name: "self",
+                desc: "Can't call LiveClient::next_record before starting session".to_owned(),
+            });
+        };
+        let timeout = self.heartbeat_timeout();
+        let record = tokio::time::timeout(
+            timeout,
+            async_decode_record_ref_with_fsm(&mut self.reader, &mut self.fsm),
+        )
+        .await
+        .map_err(|_elapsed| {
+            self.is_closed = true;
+            crate::Error::HeartbeatTimeout(
+                // timeout should be well within range
+                time::Duration::try_from(timeout).unwrap(),
+            )
+        })??;
+        if let Some(rec) = record {
+            Self::log_record(&self.span, rec);
+        } else {
+            self.is_closed = true;
+        }
+        Ok(record)
+    }
+
+    /// Reads available data from the socket into the internal buffer.
+    ///
+    /// Returns the number of bytes read. A return value of 0 indicates that the
+    /// connection has been closed gracefully.
+    ///
+    /// This method is intended to be used with [`try_next_record()`](Self::try_next_record)
+    /// for fine-grained control over I/O and record processing.
+    ///
+    /// # Errors
+    /// This function returns an error when:
+    /// - it's unable to read from the TCP stream
+    /// - no data has been received within the expected interval
+    /// - the session hasn't been started
+    ///
+    /// # Cancel safety
+    /// This method is cancel safe. It can be used within a [`tokio::select!`] statement
+    /// without the potential for corrupting the input stream.
+    ///
+    /// # Example
+    /// ```ignore
+    /// loop {
+    ///     // Process all buffered records
+    ///     while let Some(record) = client.try_next_record()? {
+    ///         process(record);
+    ///     }
+    ///     // Read more data from the socket
+    ///     if client.fill_buf().await? == 0 {
+    ///         break; // Connection closed
+    ///     }
+    /// }
+    /// ```
+    #[instrument(parent = &self.span, level = "debug", skip_all)]
+    pub async fn fill_buf(&mut self) -> crate::Result<usize> {
+        if !self.fsm.has_decoded_metadata() {
+            return Err(crate::Error::BadArgument {
+                param_name: "self",
+                desc: "Can't call LiveClient::fill_buf before starting session".to_owned(),
+            });
+        };
+        let timeout = self.heartbeat_timeout();
+        let read_result = tokio::time::timeout(timeout, self.reader.read(self.fsm.space()))
+            .await
+            .map_err(|_elapsed| {
+                self.is_closed = true;
+                crate::Error::HeartbeatTimeout(
+                    // timeout should be well within range
+                    time::Duration::try_from(timeout).unwrap(),
+                )
+            })?;
+        match read_result {
+            Ok(nbytes) => {
+                if nbytes == 0 {
+                    self.is_closed = true;
+                } else {
+                    self.fsm.fill(nbytes);
+                }
+                Ok(nbytes)
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => {
+                self.is_closed = true;
+                Ok(0)
+            }
+            Err(err) => Err(crate::Error::Io(err)),
+        }
+    }
+
+    /// Returns the next record from the internal buffer without performing any I/O.
+    ///
+    /// Returns `Ok(None)` if there are no complete records in the buffer. Use
+    /// [`fill_buf()`](Self::fill_buf) to read more data from the socket, or
+    /// [`is_closed()`](Self::is_closed) to check if the connection is closed.
+    ///
+    /// # Errors
+    /// This function returns an error if it encounters an invalid record or if the
+    /// session hasn't been started.
+    ///
+    /// # Example
+    /// ```ignore
+    /// loop {
+    ///     while let Some(record) = client.try_next_record()? {
+    ///         process(record);
+    ///     }
+    ///     if client.fill_buf().await? == 0 {
+    ///         break;
+    ///     }
+    /// }
+    /// ```
+    pub fn try_next_record(&mut self) -> crate::Result<Option<RecordRef<'_>>> {
+        if !self.fsm.has_decoded_metadata() {
+            return Err(crate::Error::BadArgument {
+                param_name: "self",
+                desc: "Can't call LiveClient::try_next_record before starting session".to_owned(),
+            });
+        };
+        match self.fsm.process() {
+            ProcessResult::Record(_) => Ok(self
+                .fsm
+                .last_record()
+                .inspect(|rec| Self::log_record(&self.span, *rec))),
+            ProcessResult::ReadMore(_) => Ok(None),
+            ProcessResult::Err(err) => Err(err.into()),
+            ProcessResult::Metadata(_) => unreachable!("metadata already decoded"),
+        }
+    }
+
+    /// Returns `true` if the connection is closed.
+    ///
+    /// The connection is considered closed after [`next_record()`](Self::next_record)
+    /// or [`fill_buf()`](Self::fill_buf) returns `Ok(None)` or `Ok(0)` respectively.
+    ///
+    /// After a connection is closed, use [`reconnect()`](Self::reconnect) to
+    /// establish a new connection.
+    pub fn is_closed(&self) -> bool {
+        self.is_closed
+    }
+
+    fn heartbeat_timeout(&self) -> StdDuration {
+        self.heartbeat_interval
+            .map(|i| StdDuration::from_secs(i.whole_seconds().unsigned_abs() + 10))
+            .unwrap_or_else(|| StdDuration::from_secs(40))
+    }
+
+    /// Closes the current connection, then reopens the connection and authenticates
+    /// with the live gateway.
+    ///
+    /// # Errors
+    /// This function returns an error if it's unable to connect to the gateway or
+    /// authentication fails.
+    ///
+    /// # Cancel safety
+    /// This method is not cancellation safe. If this method is used in a
+    /// [`tokio::select!`] statement and another branch completes first, the reconnect
+    /// may be in an invalid intermediate state and the reconnect should be reattempted.
+    pub async fn reconnect(&mut self) -> crate::Result<()> {
+        info!("Reconnecting");
+        if let Err(err) = self.close().await {
+            warn!(
+                ?err,
+                "Failed to close connection before reconnect. Proceeding"
+            );
+        }
+        let connect_fut = TcpStream::connect(self.peer_addr);
+        let stream = apply_connect_timeout(connect_fut, self.timeout_conf.connect).await?;
+        let (recver, sender) = tokio::io::split(stream);
+        let mut recver = BufReader::new(recver);
+        self.protocol = Protocol::new(sender);
+        self.sub_counter = 0;
+        let options = SessionOptions {
+            compression: self.compression,
+            send_ts_out: self.send_ts_out,
+            heartbeat_interval_s: self.heartbeat_interval.map(|i| i.whole_seconds()),
+            user_agent_ext: self.user_agent_ext.as_deref(),
+            slow_reader_behavior: self.slow_reader_behavior,
+        };
+        self.session_id = apply_auth_timeout(
+            self.protocol
+                .authenticate(&mut recver, &self.key, &self.dataset, options),
+            self.timeout_conf.auth,
+        )
+        .await?;
+        // Reconstruct reader with same compression mode
+        self.reader = AsyncDynReader::with_buffer(recver, self.compression);
+        self.fsm.reset();
+        self.is_closed = false;
+        self.span = info_span!("LiveClient", dataset = %self.dataset, session_id = self.session_id);
+        Ok(())
+    }
+
+    /// Resubscribes to all subscriptions, removing the original `start` time, if any.
+    /// Usually performed after a [`reconnect()`](Self::reconnect).
+    ///
+    /// # Errors
+    /// This function returns an error if it fails to send any of the subscriptions to
+    /// the gateway.
+    pub async fn resubscribe(&mut self) -> crate::Result<()> {
+        for sub in self.subscriptions.iter_mut() {
+            sub.start = None;
+            self.sub_counter = self.sub_counter.max(sub.id.unwrap_or(0));
+            self.protocol.subscribe(sub).await?;
+        }
+        Ok(())
+    }
+
+    fn log_record(span: &tracing::Span, rec: RecordRef) {
+        match rec.header().rtype {
+            rtype::SYSTEM => {
+                if let Ok(system) = rec.try_get::<SystemMsg>() {
+                    let msg = system.msg().unwrap_or("<invalid msg>");
+                    let code = system.code().ok().unwrap_or(SystemCode::Unset);
+                    match code {
+                        SystemCode::Heartbeat => {
+                            debug!(parent: span, ?code, "Received gateway heartbeat");
+                        }
+                        SystemCode::EndOfInterval => {
+                            debug!(parent: span, ?code, %msg, "Received system message");
+                        }
+                        SystemCode::SlowReaderWarning => {
+                            warn!(parent: span, ?code, %msg, "Received system message");
+                        }
+                        _ => {
+                            info!(parent: span, ?code, %msg, "Received system message");
+                        }
+                    }
+                } else {
+                    let system = rec.get::<v1::SystemMsg>().unwrap();
+                    if system.is_heartbeat() {
+                        debug!(parent: span, "Received gateway heartbeat");
+                    } else {
+                        let msg = system.msg().unwrap_or("<invalid msg>");
+                        info!(parent: span,  %msg, "Received system message");
+                    }
+                }
+            }
+            rtype::ERROR => {
+                if let Ok(error) = rec.try_get::<ErrorMsg>() {
+                    let msg = error.err().unwrap_or("<invalid err>");
+                    let code = error.code().unwrap_or(ErrorCode::Unset);
+                    error!(parent: span, ?code, %msg, "Received error");
+                } else {
+                    let error = rec.get::<v1::ErrorMsg>().unwrap();
+                    let msg = error.err().unwrap_or("<invalid err>");
+                    error!(parent: span, %msg, "Received error");
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+impl fmt::Debug for Client {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Implemented manually because TCP types don't implement Debug
+        f.debug_struct("LiveClient")
+            .field("key", &self.key)
+            .field("dataset", &self.dataset)
+            .field("send_ts_out", &self.send_ts_out)
+            .field("upgrade_policy", &self.upgrade_policy)
+            .field("heartbeat_interval", &self.heartbeat_interval)
+            .field("compression", &self.compression)
+            .field("slow_reader_warning", &self.slow_reader_behavior)
+            .field("timeout_conf", &self.timeout_conf)
+            .field("peer_addr", &self.peer_addr)
+            .field("sub_counter", &self.sub_counter)
+            .field("subscriptions", &self.subscriptions)
+            .field("session_id", &self.session_id)
+            .field("is_closed", &self.is_closed)
+            .finish_non_exhaustive()
+    }
+}
+
+fn to_std_duration(d: Duration) -> StdDuration {
+    StdDuration::from_secs(d.whole_seconds().unsigned_abs())
+}
+
+async fn apply_connect_timeout(
+    connect_fut: impl Future<Output = std::io::Result<TcpStream>>,
+    timeout: Option<Duration>,
+) -> crate::Result<TcpStream> {
+    if let Some(t) = timeout {
+        Ok(tokio::time::timeout(to_std_duration(t), connect_fut)
+            .await
+            .map_err(|_| crate::Error::ConnectTimeout(t))??)
+    } else {
+        Ok(connect_fut.await?)
+    }
+}
+
+async fn apply_auth_timeout(
+    auth_fut: impl Future<Output = crate::Result<String>>,
+    timeout: Option<Duration>,
+) -> crate::Result<String> {
+    if let Some(t) = timeout {
+        tokio::time::timeout(to_std_duration(t), auth_fut)
+            .await
+            .map_err(|_| crate::Error::AuthTimeout(t))?
+    } else {
+        auth_fut.await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{ffi::c_char, fmt};
+
+    use async_compression::tokio::write::ZstdEncoder;
+    use dbn::{
+        encode::AsyncDbnMetadataEncoder,
+        enums::rtype,
+        publishers::Dataset,
+        record::{HasRType, OhlcvMsg, RecordHeader, TradeMsg, WithTsOut},
+        FlagSet, Mbp10Msg, MetadataBuilder, Record, RecordBuf, SType, Schema,
+    };
+    use time::{Duration, OffsetDateTime};
+    use tokio::{
+        io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+        join,
+        net::{TcpListener, TcpStream},
+        select,
+        sync::mpsc::UnboundedSender,
+        task::JoinHandle,
+    };
+    use tracing::level_filters::LevelFilter;
+
+    use super::*;
+    use crate::USER_AGENT;
+
+    const TEST_KEY: &str = "32-character-with-lots-of-filler";
+
+    struct MockGateway {
+        dataset: String,
+        send_ts_out: bool,
+        slow_reader_behavior: Option<SlowReaderBehavior>,
+        listener: TcpListener,
+        stream: Option<BufReader<TcpStream>>,
+    }
+
+    impl MockGateway {
+        async fn new(dataset: String, send_ts_out: bool) -> Self {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            Self {
+                dataset,
+                send_ts_out,
+                slow_reader_behavior: None,
+                listener,
+                stream: None,
+            }
+        }
+
+        async fn accept(&mut self) {
+            let stream = self.listener.accept().await.unwrap().0;
+            stream.set_nodelay(true).unwrap();
+            self.stream = Some(BufReader::new(stream));
+        }
+
+        async fn authenticate(&mut self, heartbeat_interval: Option<Duration>) {
+            self.accept().await;
+            self.send("lsg-test\n").await;
+            self.send("cram=t7kNhwj4xqR0QYjzFKtBEG2ec2pXJ4FK\n").await;
+            let auth_line = self.read_line().await;
+            let auth_start = auth_line.find("auth=").unwrap() + 5;
+            let auth_end = auth_line[auth_start..].find('|').unwrap();
+            let auth = &auth_line[auth_start..auth_start + auth_end];
+            let (auth, bucket) = auth.split_once('-').unwrap();
+            assert!(
+                auth.chars().all(|c| c.is_ascii_hexdigit()),
+                "Expected '{auth}' to be composed of only hex characters"
+            );
+            assert_eq!(bucket, "iller");
+            assert!(auth_line.contains(&format!("dataset={}", self.dataset)));
+            assert!(auth_line.contains("encoding=dbn"));
+            assert!(auth_line.contains(&format!("ts_out={}", if self.send_ts_out { 1 } else { 0 })));
+            assert!(auth_line.contains(&format!("client={}", *USER_AGENT)));
+            if let Some(heartbeat_interval) = heartbeat_interval {
+                assert!(auth_line.contains(&format!(
+                    "heartbeat_interval_s={}",
+                    heartbeat_interval.whole_seconds()
+                )));
+            } else {
+                assert!(!auth_line.contains("heartbeat_interval_s="));
+            }
+            if let Some(slow_reader_behavior) = self.slow_reader_behavior {
+                assert!(auth_line.contains(&format!("slow_reader_behavior={slow_reader_behavior}")));
+            } else {
+                assert!(!auth_line.contains("slow_reader_behavior="));
+            }
+            self.send("success=1|session_id=5\n").await;
+        }
+
+        async fn subscribe(&mut self, subscription: Subscription, is_last: bool) {
+            let sub_line = self.read_line().await;
+            assert!(sub_line.contains(&format!("symbols={}", subscription.symbols.to_api_string())));
+            assert!(sub_line.contains(&format!("schema={}", subscription.schema)));
+            assert!(sub_line.contains(&format!("stype_in={}", subscription.stype_in)));
+            assert!(sub_line.contains("id="));
+            if let Some(start) = subscription.start {
+                assert!(sub_line.contains(&format!("start={}", start.unix_timestamp_nanos())))
+            }
+            assert!(sub_line.contains(&format!("snapshot={}", subscription.use_snapshot as u8)));
+            assert!(sub_line.contains(&format!("is_last={}", is_last as u8)));
+        }
+
+        async fn start(&mut self) {
+            let start_line = self.read_line().await;
+            assert_eq!(start_line, "start_session\n");
+            let dataset = self.dataset.clone();
+            let stream = self.stream();
+            let mut encoder = AsyncDbnMetadataEncoder::new(stream);
+            encoder
+                .encode(
+                    &MetadataBuilder::new()
+                        .dataset(dataset)
+                        .start(time::OffsetDateTime::now_utc().unix_timestamp_nanos() as u64)
+                        .schema(None)
+                        .stype_in(None)
+                        .stype_out(SType::InstrumentId)
+                        .build(),
+                )
+                .await
+                .unwrap();
+        }
+
+        async fn send(&mut self, bytes: &str) {
+            self.stream().write_all(bytes.as_bytes()).await.unwrap();
+            info!("Sent: {}", &bytes[..bytes.len() - 1])
+        }
+
+        async fn send_record(&mut self, record: RecordBuf) {
+            let bytes = record.as_ref();
+            // test for partial read bugs
+            let half = bytes.len() / 2;
+            self.stream().write_all(&bytes[..half]).await.unwrap();
+            self.stream().flush().await.unwrap();
+            self.stream().write_all(&bytes[half..]).await.unwrap();
+        }
+
+        /// Start with compressed output - sends compressed metadata and returns encoder
+        async fn start_compressed(&mut self) -> ZstdEncoder<&mut BufReader<TcpStream>> {
+            let start_line = self.read_line().await;
+            assert_eq!(start_line, "start_session\n");
+            let dataset = self.dataset.clone();
+
+            // Create zstd encoder wrapping the stream
+            let stream = self.stream.as_mut().unwrap();
+            let mut encoder = ZstdEncoder::new(stream);
+
+            // Encode metadata into the compressed stream
+            let mut meta_encoder = AsyncDbnMetadataEncoder::new(&mut encoder);
+            meta_encoder
+                .encode(
+                    &MetadataBuilder::new()
+                        .dataset(dataset)
+                        .start(time::OffsetDateTime::now_utc().unix_timestamp_nanos() as u64)
+                        .schema(None)
+                        .stype_in(None)
+                        .stype_out(SType::InstrumentId)
+                        .build(),
+                )
+                .await
+                .unwrap();
+            encoder.flush().await.unwrap();
+            encoder
+        }
+
+        async fn read_line(&mut self) -> String {
+            let mut res = String::new();
+            self.stream().read_line(&mut res).await.unwrap();
+            info!("Read: {}", &res[..res.len() - 1]);
+            res
+        }
+
+        fn stream(&mut self) -> &mut BufReader<TcpStream> {
+            self.stream.as_mut().unwrap()
+        }
+
+        fn addr(&self) -> String {
+            format!("127.0.0.1:{}", self.listener.local_addr().unwrap().port())
+        }
+
+        async fn close(&mut self) {
+            if let Some(stream) = self.stream.as_mut() {
+                stream.shutdown().await.unwrap();
+            }
+            self.stream = None;
+        }
+    }
+
+    struct Fixture {
+        send: UnboundedSender<Event>,
+        port: u16,
+        task: JoinHandle<()>,
+    }
+
+    enum Event {
+        Exit,
+        Accept,
+        Authenticate(Option<Duration>),
+        Send(String),
+        Subscribe(Subscription, bool),
+        Start,
+        SendRecord(RecordBuf),
+        Disconnect,
+    }
+
+    impl fmt::Debug for Event {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Event::Exit => write!(f, "Exit"),
+                Event::Accept => write!(f, "Accept"),
+                Event::Authenticate(hb_int) => write!(f, "Authenticate({hb_int:?})"),
+                Event::Send(msg) => write!(f, "Send({msg:?})"),
+                Event::Subscribe(sub, is_last) => write!(f, "Subscribe({sub:?}, {is_last:?})"),
+                Event::Start => write!(f, "Start"),
+                Event::SendRecord(_) => write!(f, "SendRecord"),
+                Event::Disconnect => write!(f, "Disconnect"),
+            }
+        }
+    }
+
+    impl Fixture {
+        pub async fn new(dataset: String, send_ts_out: bool) -> Self {
+            let (send, mut recv) = tokio::sync::mpsc::unbounded_channel();
+            let mut mock = MockGateway::new(dataset, send_ts_out).await;
+            let port = mock.listener.local_addr().unwrap().port();
+            let task = tokio::task::spawn(async move {
+                loop {
+                    match recv.recv().await {
+                        Some(Event::Authenticate(hb_int)) => mock.authenticate(hb_int).await,
+                        Some(Event::Accept) => mock.accept().await,
+                        Some(Event::Send(msg)) => mock.send(&msg).await,
+                        Some(Event::Subscribe(sub, is_last)) => mock.subscribe(sub, is_last).await,
+                        Some(Event::Start) => mock.start().await,
+                        Some(Event::SendRecord(rec)) => mock.send_record(rec).await,
+                        Some(Event::Disconnect) => mock.close().await,
+                        Some(Event::Exit) | None => break,
+                    }
+                }
+            });
+            Self { task, port, send }
+        }
+
+        /// Accept but don't authenticate
+        pub fn accept(&mut self) {
+            self.send.send(Event::Accept).unwrap();
+        }
+
+        /// Accept and authenticate
+        pub fn authenticate(&mut self, heartbeat_interval: Option<Duration>) {
+            self.send
+                .send(Event::Authenticate(heartbeat_interval))
+                .unwrap();
+        }
+
+        pub fn expect_subscribe(&mut self, subscription: Subscription, is_last: bool) {
+            self.send
+                .send(Event::Subscribe(subscription, is_last))
+                .unwrap();
+        }
+
+        pub fn start(&mut self) {
+            self.send.send(Event::Start).unwrap();
+        }
+
+        pub fn send(&mut self, msg: String) {
+            self.send.send(Event::Send(msg)).unwrap();
+        }
+
+        pub fn send_record<R: HasRType>(&mut self, record: R) {
+            self.send
+                .send(Event::SendRecord(RecordBuf::from(record)))
+                .unwrap();
+        }
+
+        pub fn addr(&self) -> String {
+            format!("127.0.0.1:{}", self.port)
+        }
+
+        pub fn disconnect(&mut self) {
+            self.send.send(Event::Disconnect).unwrap()
+        }
+
+        pub async fn stop(self) {
+            self.send.send(Event::Exit).unwrap();
+            self.task.await.unwrap()
+        }
+    }
+
+    async fn setup(
+        dataset: Dataset,
+        send_ts_out: bool,
+        heartbeat_interval: Option<Duration>,
+    ) -> (Fixture, Client) {
+        let _ = tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(LevelFilter::DEBUG)
+            .with_test_writer()
+            .try_init();
+        let mut fixture = Fixture::new(dataset.to_string(), send_ts_out).await;
+        fixture.authenticate(heartbeat_interval);
+        let builder = Client::builder()
+            .addr(fixture.addr())
+            .await
+            .unwrap()
+            .key(TEST_KEY.to_owned())
+            .unwrap()
+            .dataset(dataset.to_string())
+            .send_ts_out(send_ts_out)
+            .timeout_conf(TimeoutConf {
+                connect: None,
+                auth: None,
+            });
+        let target = if let Some(heartbeat_interval) = heartbeat_interval {
+            builder.heartbeat_interval(heartbeat_interval)
+        } else {
+            builder
+        }
+        .build()
+        .await
+        .unwrap();
+        (fixture, target)
+    }
+
+    #[tokio::test]
+    async fn test_subscribe() {
+        let (mut fixture, mut client) = setup(Dataset::XnasItch, false, None).await;
+        let subscription = Subscription::builder()
+            .symbols(vec!["MSFT", "TSLA", "QQQ"])
+            .schema(Schema::Ohlcv1M)
+            .stype_in(SType::RawSymbol)
+            .build();
+        fixture.expect_subscribe(subscription.clone(), true);
+        client.subscribe(subscription).await.unwrap();
+        fixture.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_subscribe_snapshot() {
+        let (mut fixture, mut client) =
+            setup(Dataset::XnasItch, false, Some(Duration::MINUTE)).await;
+        let subscription = Subscription::builder()
+            .symbols(vec!["MSFT", "TSLA", "QQQ"])
+            .schema(Schema::Ohlcv1M)
+            .stype_in(SType::RawSymbol)
+            .use_snapshot(true)
+            .build();
+        fixture.expect_subscribe(subscription.clone(), true);
+        client.subscribe(subscription).await.unwrap();
+        fixture.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_subscribe_snapshot_failed() {
+        let (fixture, mut client) =
+            setup(Dataset::XnasItch, false, Some(Duration::seconds(5))).await;
+
+        let err = client
+            .subscribe(
+                Subscription::builder()
+                    .symbols(vec!["MSFT", "TSLA", "QQQ"])
+                    .schema(Schema::Ohlcv1M)
+                    .stype_in(SType::RawSymbol)
+                    .start(time::OffsetDateTime::now_utc())
+                    .use_snapshot(true)
+                    .build(),
+            )
+            .await
+            .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("cannot request snapshot with start time"));
+
+        fixture.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_subscription_chunking() {
+        const SYMBOL: &str = "TEST";
+        const SYMBOL_COUNT: usize = 1001;
+        let (mut fixture, mut client) = setup(Dataset::XnasItch, false, None).await;
+        let sub_base = Subscription::builder()
+            .schema(Schema::Ohlcv1M)
+            .stype_in(SType::RawSymbol);
+        let subscription = sub_base.clone().symbols(vec![SYMBOL; SYMBOL_COUNT]).build();
+        client.subscribe(subscription).await.unwrap();
+        let mut i = 0;
+        while i < SYMBOL_COUNT {
+            let chunk_size = 500.min(SYMBOL_COUNT - i);
+            fixture.expect_subscribe(
+                sub_base.clone().symbols(vec![SYMBOL; chunk_size]).build(),
+                i + chunk_size == SYMBOL_COUNT,
+            );
+            i += chunk_size;
+        }
+        fixture.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_next_record() {
+        const REC: OhlcvMsg = OhlcvMsg {
+            hd: RecordHeader::new::<OhlcvMsg>(rtype::OHLCV_1M, 1, 2, 3),
+            open: 1,
+            high: 2,
+            low: 3,
+            close: 4,
+            volume: 5,
+        };
+        let (mut fixture, mut client) =
+            setup(Dataset::GlbxMdp3, false, Some(Duration::minutes(5))).await;
+        fixture.start();
+        let metadata = client.start().await.unwrap();
+        assert_eq!(metadata.version, dbn::DBN_VERSION);
+        assert!(metadata.schema.is_none());
+        assert_eq!(metadata.dataset, Dataset::GlbxMdp3.as_str());
+        fixture.send_record(REC);
+        let rec = client.next_record().await.unwrap().unwrap();
+        assert_eq!(*rec.get::<OhlcvMsg>().unwrap(), REC);
+        fixture.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_next_record_with_ts_out() {
+        let expected = WithTsOut::new(
+            TradeMsg {
+                hd: RecordHeader::new::<TradeMsg>(rtype::MBP_0, 1, 2, 3),
+                price: 1,
+                size: 2,
+                action: b'A' as c_char,
+                side: b'A' as c_char,
+                flags: FlagSet::default(),
+                depth: 1,
+                ts_recv: 0,
+                ts_in_delta: 0,
+                sequence: 2,
+            },
+            time::OffsetDateTime::now_utc().unix_timestamp_nanos() as u64,
+        );
+        let (mut fixture, mut client) = setup(Dataset::GlbxMdp3, true, None).await;
+        fixture.start();
+        let metadata = client.start().await.unwrap();
+        assert_eq!(metadata.version, dbn::DBN_VERSION);
+        assert!(metadata.schema.is_none());
+        assert_eq!(metadata.dataset, Dataset::GlbxMdp3.as_str());
+        fixture.send_record(expected.clone());
+        let rec = client.next_record().await.unwrap().unwrap();
+        assert_eq!(*rec.get::<WithTsOut<TradeMsg>>().unwrap(), expected);
+        fixture.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_close() {
+        let (mut fixture, mut client) =
+            setup(Dataset::GlbxMdp3, true, Some(Duration::seconds(45))).await;
+        fixture.start();
+        client.start().await.unwrap();
+        client.close().await.unwrap();
+        fixture.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_error_without_success() {
+        const DATASET: Dataset = Dataset::OpraPillar;
+        let mut fixture = Fixture::new(DATASET.to_string(), false).await;
+        let addr = fixture.addr();
+        let client_task = tokio::spawn(async move {
+            let res = Client::builder()
+                .addr(addr)
+                .await
+                .unwrap()
+                .key(TEST_KEY.to_owned())
+                .unwrap()
+                .dataset(DATASET.to_string())
+                .build()
+                .await;
+            if let Err(e) = &res {
+                dbg!(e);
+            }
+            assert!(matches!(res, Err(e) if e.to_string().contains("Unknown failure")));
+        });
+        let fixture_task = tokio::spawn(async move {
+            fixture.accept();
+
+            fixture.send("lsg-test\n".to_owned());
+            fixture.send("cram=t7kNhwj4xqR0QYjzFKtBEG2ec2pXJ4FK\n".to_owned());
+            fixture.send("Unknown failure\n".to_owned());
+        });
+        let (r1, r2) = join!(client_task, fixture_task);
+        r1.unwrap();
+        r2.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_cancellation_safety() {
+        let (mut fixture, mut client) = setup(Dataset::GlbxMdp3, true, None).await;
+        fixture.start();
+        let metadata = client.start().await.unwrap();
+        assert_eq!(metadata.version, dbn::DBN_VERSION);
+        assert!(metadata.schema.is_none());
+        assert_eq!(metadata.dataset, Dataset::GlbxMdp3.as_str());
+        fixture.send_record(Mbp10Msg::default());
+
+        let mut int_1 = tokio::time::interval(std::time::Duration::from_millis(1));
+        let mut int_2 = tokio::time::interval(std::time::Duration::from_millis(1));
+        let mut int_3 = tokio::time::interval(std::time::Duration::from_millis(1));
+        let mut int_4 = tokio::time::interval(std::time::Duration::from_millis(1));
+        let mut int_5 = tokio::time::interval(std::time::Duration::from_millis(1));
+        let mut int_6 = tokio::time::interval(std::time::Duration::from_millis(1));
+        for _ in 0..5_000 {
+            select! {
+                _ =  int_1.tick() => {
+                    fixture.send_record(Mbp10Msg::default());
+                }
+                _ =  int_2.tick() => {
+                    fixture.send_record(Mbp10Msg::default());
+                }
+                _ =  int_3.tick() => {
+                    fixture.send_record(Mbp10Msg::default());
+                }
+                _ =  int_4.tick() => {
+                    fixture.send_record(Mbp10Msg::default());
+                }
+                _ =  int_5.tick() => {
+                    fixture.send_record(Mbp10Msg::default());
+                }
+                _ =  int_6.tick() => {
+                    fixture.send_record(Mbp10Msg::default());
+                }
+                res = client.next_record() => {
+                    let rec = res.unwrap().unwrap();
+                    dbg!(rec.header());
+                    assert_eq!(*rec.get::<Mbp10Msg>().unwrap(), Mbp10Msg::default());
+                }
+            }
+        }
+        fixture.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_reconnect() {
+        let (mut fixture, mut client) = setup(Dataset::EqusMini, true, None).await;
+        let sub = Subscription::builder()
+            .symbols(["SPY", "QQQ"])
+            .schema(Schema::Trades)
+            .start(OffsetDateTime::UNIX_EPOCH)
+            .build();
+        fixture.expect_subscribe(sub.clone(), true);
+        client.subscribe(sub.clone()).await.unwrap();
+        fixture.start();
+        let metadata = client.start().await.unwrap();
+        assert_eq!(metadata.version, dbn::DBN_VERSION);
+        assert!(metadata.schema.is_none());
+        assert_eq!(metadata.dataset, Dataset::EqusMini.as_str());
+
+        let trade = TradeMsg {
+            hd: RecordHeader::default::<TradeMsg>(rtype::MBP_0),
+            price: 1,
+            size: 2,
+            action: 'T' as c_char,
+            side: 'B' as c_char,
+            flags: FlagSet::default(),
+            depth: 0,
+            ts_recv: 3,
+            ts_in_delta: 4,
+            sequence: 5,
+        };
+        fixture.send_record(trade.clone());
+        assert_eq!(
+            *client
+                .next_record()
+                .await
+                .unwrap()
+                .unwrap()
+                .get::<TradeMsg>()
+                .unwrap(),
+            trade
+        );
+
+        fixture.disconnect();
+        // Receives None when gateway closes connection
+        assert!(client.next_record().await.unwrap().is_none());
+        fixture.authenticate(None);
+        client.reconnect().await.unwrap();
+
+        let mut resub = sub.clone();
+        resub.start = None;
+        fixture.expect_subscribe(resub, true);
+        client.resubscribe().await.unwrap();
+        fixture.start();
+        client.start().await.unwrap();
+        fixture.send_record(trade.clone());
+        assert_eq!(
+            *client
+                .next_record()
+                .await
+                .unwrap()
+                .unwrap()
+                .get::<TradeMsg>()
+                .unwrap(),
+            trade
+        );
+
+        fixture.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_next_record_with_zstd_compression() {
+        const REC: OhlcvMsg = OhlcvMsg {
+            hd: RecordHeader::new::<OhlcvMsg>(rtype::OHLCV_1M, 1, 2, 3),
+            open: 1,
+            high: 2,
+            low: 3,
+            close: 4,
+            volume: 5,
+        };
+        let _ = tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(LevelFilter::DEBUG)
+            .with_test_writer()
+            .try_init();
+
+        let mut mock = MockGateway::new(Dataset::GlbxMdp3.to_string(), false).await;
+        let addr = mock.addr();
+
+        // Spawn mock server task
+        let mock_task = tokio::spawn(async move {
+            mock.authenticate(None).await;
+            let mut encoder = mock.start_compressed().await;
+
+            // Send records through compressed stream
+            encoder.write_all(REC.as_ref()).await.unwrap();
+            encoder.write_all(REC.as_ref()).await.unwrap();
+            encoder.flush().await.unwrap();
+            encoder.shutdown().await.unwrap();
+        });
+
+        // Build client with compression
+        let mut client = Client::builder()
+            .addr(addr)
+            .await
+            .unwrap()
+            .key(TEST_KEY.to_owned())
+            .unwrap()
+            .dataset(Dataset::GlbxMdp3.to_string())
+            .compression(Compression::Zstd)
+            .build()
+            .await
+            .unwrap();
+
+        // Start session and read records
+        let metadata = client.start().await.unwrap();
+        assert_eq!(metadata.dataset, Dataset::GlbxMdp3.to_string());
+
+        let rec1 = client.next_record().await.unwrap().unwrap();
+        assert_eq!(*rec1.get::<OhlcvMsg>().unwrap(), REC);
+
+        let rec2 = client.next_record().await.unwrap().unwrap();
+        assert_eq!(*rec2.get::<OhlcvMsg>().unwrap(), REC);
+
+        mock_task.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_try_next_record_and_fill_buf() {
+        const REC1: OhlcvMsg = OhlcvMsg {
+            hd: RecordHeader::new::<OhlcvMsg>(rtype::OHLCV_1M, 1, 2, 3),
+            open: 1,
+            high: 2,
+            low: 3,
+            close: 4,
+            volume: 5,
+        };
+        const REC2: OhlcvMsg = OhlcvMsg {
+            hd: RecordHeader::new::<OhlcvMsg>(rtype::OHLCV_1M, 4, 5, 6),
+            open: 10,
+            high: 20,
+            low: 30,
+            close: 40,
+            volume: 50,
+        };
+        let (mut fixture, mut client) = setup(Dataset::GlbxMdp3, false, None).await;
+        fixture.start();
+        client.start().await.unwrap();
+
+        // Initially no records buffered
+        assert!(!client.is_closed());
+        assert!(client.try_next_record().unwrap().is_none());
+
+        // Send and read records. May require multiple fill_buf calls since TCP
+        // can deliver partial data.
+        fixture.send_record(REC1);
+        fixture.send_record(REC2);
+        let rec1 = loop {
+            if let Some(rec) = client.try_next_record().unwrap() {
+                break rec;
+            }
+            let nbytes = client.fill_buf().await.unwrap();
+            assert!(nbytes > 0);
+            assert!(!client.is_closed());
+        };
+        assert_eq!(*rec1.get::<OhlcvMsg>().unwrap(), REC1);
+        let rec2 = loop {
+            if let Some(rec) = client.try_next_record().unwrap() {
+                break rec;
+            }
+            let nbytes = client.fill_buf().await.unwrap();
+            assert!(nbytes > 0);
+        };
+        assert_eq!(*rec2.get::<OhlcvMsg>().unwrap(), REC2);
+
+        // No more records in buffer
+        assert!(client.try_next_record().unwrap().is_none());
+
+        // Disconnect and verify is_closed
+        fixture.disconnect();
+        let nbytes = client.fill_buf().await.unwrap();
+        assert_eq!(nbytes, 0);
+        assert!(client.is_closed());
+
+        fixture.stop().await;
+    }
+
+    #[tokio::test]
+    async fn test_slow_reader_behavior_warn() {
+        let _ = tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(LevelFilter::DEBUG)
+            .with_test_writer()
+            .try_init();
+        let mut mock = MockGateway::new(Dataset::XnasItch.to_string(), false).await;
+        mock.slow_reader_behavior = Some(SlowReaderBehavior::Warn);
+        let addr = mock.addr();
+        let mock_task = tokio::spawn(async move {
+            mock.authenticate(None).await;
+        });
+        let _client = Client::builder()
+            .addr(addr)
+            .await
+            .unwrap()
+            .key(TEST_KEY.to_owned())
+            .unwrap()
+            .dataset(Dataset::XnasItch.to_string())
+            .slow_reader_behavior(SlowReaderBehavior::Warn)
+            .build()
+            .await
+            .unwrap();
+        mock_task.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_slow_reader_behavior_skip() {
+        let _ = tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(LevelFilter::DEBUG)
+            .with_test_writer()
+            .try_init();
+        let mut mock = MockGateway::new(Dataset::XnasItch.to_string(), false).await;
+        mock.slow_reader_behavior = Some(SlowReaderBehavior::Skip);
+        let addr = mock.addr();
+        let mock_task = tokio::spawn(async move {
+            mock.authenticate(None).await;
+        });
+        let _client = Client::builder()
+            .addr(addr)
+            .await
+            .unwrap()
+            .key(TEST_KEY.to_owned())
+            .unwrap()
+            .dataset(Dataset::XnasItch.to_string())
+            .slow_reader_behavior(SlowReaderBehavior::Skip)
+            .build()
+            .await
+            .unwrap();
+        mock_task.await.unwrap();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_heartbeat_timeout_next_record() {
+        let (mut fixture, mut client) =
+            setup(Dataset::GlbxMdp3, false, Some(Duration::seconds(1))).await;
+        fixture.start();
+        client.start().await.unwrap();
+
+        // With paused time, the timeout fires immediately when we advance
+        let err = client.next_record().await.unwrap_err();
+        assert!(
+            matches!(&err, crate::Error::HeartbeatTimeout(_)),
+            "Expected HeartbeatTimeout, got: {err}"
+        );
+        assert!(client.is_closed());
+        fixture.stop().await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_heartbeat_timeout_fill_buf() {
+        let (mut fixture, mut client) =
+            setup(Dataset::GlbxMdp3, false, Some(Duration::seconds(1))).await;
+        fixture.start();
+        client.start().await.unwrap();
+
+        let err = client.fill_buf().await.unwrap_err();
+        assert!(
+            matches!(&err, crate::Error::HeartbeatTimeout(_)),
+            "Expected HeartbeatTimeout, got: {err}"
+        );
+        assert!(client.is_closed());
+        fixture.stop().await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_reconnect_resets_heartbeat_timer() {
+        let (mut fixture, mut client) =
+            setup(Dataset::GlbxMdp3, false, Some(Duration::seconds(1))).await;
+        fixture.start();
+        client.start().await.unwrap();
+
+        // Resume real time so the TCP EOF is delivered before the heartbeat timeout
+        tokio::time::resume();
+        fixture.disconnect();
+        // Read until closed. Should get None (disconnect), not heartbeat timeout
+        let rec = client.next_record().await.unwrap();
+        assert!(rec.is_none());
+        assert!(client.is_closed());
+        tokio::time::pause();
+
+        // Reconnect should reset the timer
+        fixture.authenticate(Some(Duration::seconds(1)));
+        client.reconnect().await.unwrap();
+        assert!(!client.is_closed());
+
+        // Need to start session again after reconnect
+        fixture.start();
+        client.start().await.unwrap();
+
+        tokio::time::resume();
+        fixture.disconnect();
+        let rec = client.next_record().await.unwrap();
+        assert!(rec.is_none()); // closed, not timeout
+
+        fixture.stop().await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_connect_timeout() {
+        // Use a non-routable address to guarantee a timeout (loopback would get
+        // ECONNREFUSED immediately). With paused time, the timeout fires instantly.
+        let result = Client::builder()
+            .addr("192.0.2.1:13000")
+            .await
+            .unwrap()
+            .key(TEST_KEY.to_owned())
+            .unwrap()
+            .dataset("GLBX.MDP3")
+            .timeout_conf(TimeoutConf {
+                connect: Some(Duration::seconds(1)),
+                auth: None,
+            })
+            .build()
+            .await;
+        assert!(
+            matches!(result, Err(crate::Error::ConnectTimeout(_))),
+            "Expected ConnectTimeout, got {result:?}"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_auth_timeout() {
+        // Accept TCP connection but never send the CRAM greeting
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (_stream, _addr) = listener.accept().await.unwrap();
+            // Hold the connection open but never send anything
+            tokio::time::sleep(StdDuration::from_secs(60)).await;
+        });
+        let result = Client::builder()
+            .addr(addr)
+            .await
+            .unwrap()
+            .key(TEST_KEY.to_owned())
+            .unwrap()
+            .dataset("GLBX.MDP3")
+            .timeout_conf(TimeoutConf {
+                connect: None,
+                auth: Some(Duration::seconds(1)),
+            })
+            .build()
+            .await;
+        assert!(
+            matches!(result, Err(crate::Error::AuthTimeout(_))),
+            "Expected AuthTimeout, got {result:?}"
+        );
+        server.abort();
+    }
+
+    #[test]
+    fn test_default_timeout_conf() {
+        let builder = Client::builder();
+        let timeout_conf = builder.timeout_conf;
+        assert_eq!(timeout_conf.connect, Some(Duration::seconds(10)));
+        assert_eq!(timeout_conf.auth, Some(Duration::seconds(30)));
+    }
+}

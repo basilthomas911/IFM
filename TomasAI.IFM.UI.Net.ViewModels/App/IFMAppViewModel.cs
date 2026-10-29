@@ -1913,12 +1913,12 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 OnPropertyChanged(nameof(DailyAnalyticsStatus));
                 if (ShouldNotifyRecovery("DailyAnalytics", status.CommandId))
                 {
-                    if (status.RefreshFailed)
-                        PublishError(status.ErrorCode, status.ErrorMessage, "Daily EMA / Bollinger Initialization");
+                    // Historical refresh retries are status evidence, not terminal
+                    // application errors. Preserve visibility without a modal.
                     _ = WriteStatusConsoleAsync(status.ErrorMessage);
                 }
                 break;
-            case MarketDataDatasetRecoveryFailedEvent failed when ShouldNotifyRecovery(failed.Role + "/" + failed.Dataset + "/" + failed.EventSource, failed.CommandId):
+            case MarketDataDatasetRecoveryFailedEvent failed when ShouldNotifyRecovery(failed.Role + "/" + failed.Dataset + "/" + failed.EventSource, failed.EventSource == "RustMarketDataOwner" ? failed.Id : failed.CommandId):
                 PublishError(failed.ErrorCode, failed.ErrorMessage, failed.EventSource == "ApiRecoveryUiNotifier" ? "API Recovery Failed"
                     : failed.Role == "Options" ? "Option Pipeline Recovery Failed" : "Market Data Recovery Failed");
                 _ = WriteStatusConsoleAsync(failed.ErrorMessage);

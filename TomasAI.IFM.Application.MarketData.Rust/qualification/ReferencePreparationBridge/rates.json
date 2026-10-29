@@ -1,0 +1,853 @@
+[
+  {
+    "name": "one-month",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      },
+      {
+        "tenor": 2,
+        "words": [
+          410,
+          0,
+          0,
+          131072
+        ]
+      },
+      {
+        "tenor": 3,
+        "words": [
+          42,
+          0,
+          0,
+          65536
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": null,
+    "curveDigest": "58b0f135ed437148d447ed2f2f6406e167680da16f616bf96f320ad19862ca64",
+    "value": "mAGmNC4wMDAwyz+kRyPScqf2zgALSkqS1/8AAMAwauCSBADZQDU4YjBmMTM1ZWQ0MzcxNDhkNDQ3ZWQyZjJmNjQwNmUxNjc2ODBkYTE2ZjYxNmJmOTZmMzIwYWQxOTg2MmNhNjSVqlVTVHJlYXN1cnm6ZGFpbHlfdHJlYXN1cnlfeWllbGRfY3VydmUBv1VTVHJlYXN1cnktUGFyQ210LVNlbWlhbm51YWwvdjHZg2h0dHBzOi8vaG9tZS50cmVhc3VyeS5nb3YvcG9saWN5LWlzc3Vlcy9maW5hbmNpbmctdGhlLWdvdmVybm1lbnQvaW50ZXJlc3QtcmF0ZS1zdGF0aXN0aWNzL2ludGVyZXN0LXJhdGVzLWZyZXF1ZW50bHktYXNrZWQtcXVlc3Rpb25zt0ZsYXRTZWxlY3RlZENtdFByb3h5L3Yx",
+    "semanticDigest": "91bdbccff4c68f3efdd585ee37fd8e5359609bac4f288ad6ff8eda3f636a5a73"
+  },
+  {
+    "name": "two-month",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      },
+      {
+        "tenor": 2,
+        "words": [
+          410,
+          0,
+          0,
+          131072
+        ]
+      },
+      {
+        "tenor": 3,
+        "words": [
+          42,
+          0,
+          0,
+          65536
+        ]
+      }
+    ],
+    "tenor": 2,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": null,
+    "curveDigest": "58b0f135ed437148d447ed2f2f6406e167680da16f616bf96f320ad19862ca64",
+    "value": "mAKkNC4xMMs/pMecQ4emsc4AC0pKktf/AADAMGrgkgQA2UA1OGIwZjEzNWVkNDM3MTQ4ZDQ0N2VkMmYyZjY0MDZlMTY3NjgwZGExNmY2MTZiZjk2ZjMyMGFkMTk4NjJjYTY0lapVU1RyZWFzdXJ5umRhaWx5X3RyZWFzdXJ5X3lpZWxkX2N1cnZlAb9VU1RyZWFzdXJ5LVBhckNtdC1TZW1pYW5udWFsL3Yx2YNodHRwczovL2hvbWUudHJlYXN1cnkuZ292L3BvbGljeS1pc3N1ZXMvZmluYW5jaW5nLXRoZS1nb3Zlcm5tZW50L2ludGVyZXN0LXJhdGUtc3RhdGlzdGljcy9pbnRlcmVzdC1yYXRlcy1mcmVxdWVudGx5LWFza2VkLXF1ZXN0aW9uc7dGbGF0U2VsZWN0ZWRDbXRQcm94eS92MQ==",
+    "semanticDigest": "1943b993425c8ecd17eeae80b3b663e6ff7637dc7cfda94538c49d16942cce09"
+  },
+  {
+    "name": "three-month",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      },
+      {
+        "tenor": 2,
+        "words": [
+          410,
+          0,
+          0,
+          131072
+        ]
+      },
+      {
+        "tenor": 3,
+        "words": [
+          42,
+          0,
+          0,
+          65536
+        ]
+      }
+    ],
+    "tenor": 3,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": null,
+    "curveDigest": "58b0f135ed437148d447ed2f2f6406e167680da16f616bf96f320ad19862ca64",
+    "value": "mAOjNC4yyz+lSASYd5nszgALSkqS1/8AAMAwauCSBADZQDU4YjBmMTM1ZWQ0MzcxNDhkNDQ3ZWQyZjJmNjQwNmUxNjc2ODBkYTE2ZjYxNmJmOTZmMzIwYWQxOTg2MmNhNjSVqlVTVHJlYXN1cnm6ZGFpbHlfdHJlYXN1cnlfeWllbGRfY3VydmUBv1VTVHJlYXN1cnktUGFyQ210LVNlbWlhbm51YWwvdjHZg2h0dHBzOi8vaG9tZS50cmVhc3VyeS5nb3YvcG9saWN5LWlzc3Vlcy9maW5hbmNpbmctdGhlLWdvdmVybm1lbnQvaW50ZXJlc3QtcmF0ZS1zdGF0aXN0aWNzL2ludGVyZXN0LXJhdGVzLWZyZXF1ZW50bHktYXNrZWQtcXVlc3Rpb25zt0ZsYXRTZWxlY3RlZENtdFByb3h5L3Yx",
+    "semanticDigest": "05e10515343f5ebd6a2b2e92e0e3c23e8e145730bcb2b490b970755a9c028333"
+  },
+  {
+    "name": "wrong-source",
+    "day": 739914,
+    "Source": "Other",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      },
+      {
+        "tenor": 2,
+        "words": [
+          410,
+          0,
+          0,
+          131072
+        ]
+      },
+      {
+        "tenor": 3,
+        "words": [
+          42,
+          0,
+          0,
+          65536
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "TreasuryConventionUnverified",
+    "curveDigest": "5281b7987654b5a408ab6646c1d3beeb87a290e1dc4ef25e20af9aff33fd9913",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "wrong-country",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "CA",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      },
+      {
+        "tenor": 2,
+        "words": [
+          410,
+          0,
+          0,
+          131072
+        ]
+      },
+      {
+        "tenor": 3,
+        "words": [
+          42,
+          0,
+          0,
+          65536
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "RateConventionUnsupported",
+    "curveDigest": "d35da5cf46d98488bd04b5f607610ef43e1a0d6fd50a71a136a1d2d6e8685a49",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "wrong-currency",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "CAD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      },
+      {
+        "tenor": 2,
+        "words": [
+          410,
+          0,
+          0,
+          131072
+        ]
+      },
+      {
+        "tenor": 3,
+        "words": [
+          42,
+          0,
+          0,
+          65536
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "RateConventionUnsupported",
+    "curveDigest": "2376605b99aa8c5e5d874d9bff925f484cf3934ff42ab17b1858c50a2c92e118",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "missing-date",
+    "day": 0,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      },
+      {
+        "tenor": 2,
+        "words": [
+          410,
+          0,
+          0,
+          131072
+        ]
+      },
+      {
+        "tenor": 3,
+        "words": [
+          42,
+          0,
+          0,
+          65536
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "TreasuryInvalid",
+    "curveDigest": "652a63733a3663879cd61bead37e1b87c2ef6137b298f7ce1231b27767a72588",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "non-utc",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 60,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      },
+      {
+        "tenor": 2,
+        "words": [
+          410,
+          0,
+          0,
+          131072
+        ]
+      },
+      {
+        "tenor": 3,
+        "words": [
+          42,
+          0,
+          0,
+          65536
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "TreasuryInvalid",
+    "curveDigest": "58b0f135ed437148d447ed2f2f6406e167680da16f616bf96f320ad19862ca64",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "no-rates",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "TreasuryInvalid",
+    "curveDigest": "5c4df4014aa289446dd826d01aec6cc87917f6438965d56b2ae8228b40b69771",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "duplicate-rate",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      },
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "TreasuryInvalid",
+    "curveDigest": "b6d91a1c98d63ac8aefd872c76f8f267aa1ac84ae25b81ec632670a1e18ccb6c",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "unknown-tenor",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 4,
+        "words": [
+          4,
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "TreasuryInvalid",
+    "curveDigest": "d2696a28c64552b297d62c8b1fed6dfc75f93f2f1d50f0967f288019c0f34103",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "unsupported-tenor",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      },
+      {
+        "tenor": 2,
+        "words": [
+          410,
+          0,
+          0,
+          131072
+        ]
+      },
+      {
+        "tenor": 3,
+        "words": [
+          42,
+          0,
+          0,
+          65536
+        ]
+      }
+    ],
+    "tenor": 6,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "TreasuryHorizonUnsupported",
+    "curveDigest": "58b0f135ed437148d447ed2f2f6406e167680da16f616bf96f320ad19862ca64",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "missing-tenor",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 2,
+        "words": [
+          410,
+          0,
+          0,
+          131072
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "TreasuryTenorMissing",
+    "curveDigest": "ff227d14689e0949b58e64d10427c2f6b6a4b203ceca7c175ab047da564d63bc",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "wrong-policy",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          40000,
+          0,
+          0,
+          262144
+        ]
+      },
+      {
+        "tenor": 2,
+        "words": [
+          410,
+          0,
+          0,
+          131072
+        ]
+      },
+      {
+        "tenor": 3,
+        "words": [
+          42,
+          0,
+          0,
+          65536
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "other/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "TreasuryConventionUnverified",
+    "curveDigest": "58b0f135ed437148d447ed2f2f6406e167680da16f616bf96f320ad19862ca64",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "rate--200",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          200,
+          0,
+          0,
+          2147483648
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "RateConversionDomainInvalid",
+    "curveDigest": "003888af7b6026b89eaf1f52873b033392c15382d344b14e649d2ddb9a855b22",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "rate--200.00000000000000000000000001",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          536870913,
+          2085225666,
+          1084202172,
+          2149187584
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "RateConversionDomainInvalid",
+    "curveDigest": "a45b0104146d16d6f746e6855789ca993e717741284f33aa777f58adc0e02721",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "rate--199.99999999999999999999999999",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          536870911,
+          2085225666,
+          1084202172,
+          2149187584
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": "RateConversionDomainInvalid",
+    "curveDigest": "598eb1ce002af6b836f92d4917d5326e4bd57ee7219972367681c3e9aa5d3344",
+    "value": null,
+    "semanticDigest": null
+  },
+  {
+    "name": "rate-0",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": null,
+    "curveDigest": "456c063aee4acd9449435facca820fda1cdf68c84258ef9c6f64e79304e7e374",
+    "value": "mAGhMMsAAAAAAAAAAM4AC0pKktf/AADAMGrgkgQA2UA0NTZjMDYzYWVlNGFjZDk0NDk0MzVmYWNjYTgyMGZkYTFjZGY2OGM4NDI1OGVmOWM2ZjY0ZTc5MzA0ZTdlMzc0lapVU1RyZWFzdXJ5umRhaWx5X3RyZWFzdXJ5X3lpZWxkX2N1cnZlAb9VU1RyZWFzdXJ5LVBhckNtdC1TZW1pYW5udWFsL3Yx2YNodHRwczovL2hvbWUudHJlYXN1cnkuZ292L3BvbGljeS1pc3N1ZXMvZmluYW5jaW5nLXRoZS1nb3Zlcm5tZW50L2ludGVyZXN0LXJhdGUtc3RhdGlzdGljcy9pbnRlcmVzdC1yYXRlcy1mcmVxdWVudGx5LWFza2VkLXF1ZXN0aW9uc7dGbGF0U2VsZWN0ZWRDbXRQcm94eS92MQ==",
+    "semanticDigest": "80cd4285774f10cebda568e8318e633a9f19f5b9e56f302b97590fd950dfb9d3"
+  },
+  {
+    "name": "rate-0.0000000000000000000000000001",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          1,
+          0,
+          0,
+          1835008
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": null,
+    "curveDigest": "a9b48c23e709b71a51ac14c915a1ec0e108985490952e5fb4da16bf7ec11ad80",
+    "value": "mAG+MC4wMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxywAAAAAAAAAAzgALSkqS1/8AAMAwauCSBADZQGE5YjQ4YzIzZTcwOWI3MWE1MWFjMTRjOTE1YTFlYzBlMTA4OTg1NDkwOTUyZTVmYjRkYTE2YmY3ZWMxMWFkODCVqlVTVHJlYXN1cnm6ZGFpbHlfdHJlYXN1cnlfeWllbGRfY3VydmUBv1VTVHJlYXN1cnktUGFyQ210LVNlbWlhbm51YWwvdjHZg2h0dHBzOi8vaG9tZS50cmVhc3VyeS5nb3YvcG9saWN5LWlzc3Vlcy9maW5hbmNpbmctdGhlLWdvdmVybm1lbnQvaW50ZXJlc3QtcmF0ZS1zdGF0aXN0aWNzL2ludGVyZXN0LXJhdGVzLWZyZXF1ZW50bHktYXNrZWQtcXVlc3Rpb25zt0ZsYXRTZWxlY3RlZENtdFByb3h5L3Yx",
+    "semanticDigest": "722add24f84710b87dc0054c5754098854686a0bcb852619a4afa27036b9e861"
+  },
+  {
+    "name": "rate-79228162514264337593543950335",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          4294967295,
+          4294967295,
+          4294967295,
+          0
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": null,
+    "curveDigest": "95ea5c8aeefd4bf7a12cc310e4a772e047f0c538a38960748bce23b899f822b6",
+    "value": "mAG9NzkyMjgxNjI1MTQyNjQzMzc1OTM1NDM5NTAzMzXLQF6fNTsEw1zOAAtKSpLX/wAAwDBq4JIEANlAOTVlYTVjOGFlZWZkNGJmN2ExMmNjMzEwZTRhNzcyZTA0N2YwYzUzOGEzODk2MDc0OGJjZTIzYjg5OWY4MjJiNpWqVVNUcmVhc3VyebpkYWlseV90cmVhc3VyeV95aWVsZF9jdXJ2ZQG/VVNUcmVhc3VyeS1QYXJDbXQtU2VtaWFubnVhbC92MdmDaHR0cHM6Ly9ob21lLnRyZWFzdXJ5Lmdvdi9wb2xpY3ktaXNzdWVzL2ZpbmFuY2luZy10aGUtZ292ZXJubWVudC9pbnRlcmVzdC1yYXRlLXN0YXRpc3RpY3MvaW50ZXJlc3QtcmF0ZXMtZnJlcXVlbnRseS1hc2tlZC1xdWVzdGlvbnO3RmxhdFNlbGVjdGVkQ210UHJveHkvdjE=",
+    "semanticDigest": "db079ba6f92c80a5b8f861eeb3a12b53ed545425757e18cb96bf71d8f7abed5f"
+  },
+  {
+    "name": "rate-4.1234567890123456789012345678",
+    "day": 739914,
+    "Source": "USTreasury",
+    "CountryCode": "US",
+    "CurrencyCode": "USD",
+    "retrieved": 17931023400000123,
+    "offset": 0,
+    "rates": [
+      {
+        "tenor": 1,
+        "words": [
+          4265145166,
+          1712161813,
+          2235330404,
+          1835008
+        ]
+      }
+    ],
+    "tenor": 1,
+    "policy": {
+      "Source": "USTreasury",
+      "SourceSeriesId": "daily_treasury_yield_curve",
+      "Convention": 1,
+      "Version": "USTreasury-ParCmt-Semiannual/v1",
+      "EvidenceId": "https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/interest-rates-frequently-asked-questions"
+    },
+    "error": null,
+    "curveDigest": "7caef3ad1d5abad95d95b6effd05d14dd4927a14a7ef2f66ad0325792ce31586",
+    "value": "mAG+NC4xMjM0NTY3ODkwMTIzNDU2Nzg5MDEyMzQ1Njc4yz+k5byAwXdDzgALSkqS1/8AAMAwauCSBADZQDdjYWVmM2FkMWQ1YWJhZDk1ZDk1YjZlZmZkMDVkMTRkZDQ5MjdhMTRhN2VmMmY2NmFkMDMyNTc5MmNlMzE1ODaVqlVTVHJlYXN1cnm6ZGFpbHlfdHJlYXN1cnlfeWllbGRfY3VydmUBv1VTVHJlYXN1cnktUGFyQ210LVNlbWlhbm51YWwvdjHZg2h0dHBzOi8vaG9tZS50cmVhc3VyeS5nb3YvcG9saWN5LWlzc3Vlcy9maW5hbmNpbmctdGhlLWdvdmVybm1lbnQvaW50ZXJlc3QtcmF0ZS1zdGF0aXN0aWNzL2ludGVyZXN0LXJhdGVzLWZyZXF1ZW50bHktYXNrZWQtcXVlc3Rpb25zt0ZsYXRTZWxlY3RlZENtdFByb3h5L3Yx",
+    "semanticDigest": "52ba203633e9fb07288a01071deb376138ba7c31490b3c5e068f28fd3634c0ff"
+  }
+]

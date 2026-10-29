@@ -63,6 +63,9 @@ impl Backend {
             .event_callback(move |event| {
                 let sender = connection_sender.clone();
                 async move {
+                    if !matches!(&event, async_nats::Event::Connected) {
+                        crate::diagnostics::errors::record("nats.connection_event",None,None,&format!("{event:?}"));
+                    }
                     sender.send_modify(|state| {
                         state.revision += 1;
                         let warning = match event {
@@ -90,8 +93,8 @@ impl Backend {
         }
         let client = tokio::time::timeout(settings.request_timeout, options.connect(settings.url))
             .await
-            .map_err(|_| "NATS connection deadline expired".to_string())?
-            .map_err(|e| format!("NATS connection failed: {}", e.kind()))?;
+            .map_err(|_| crate::diagnostics::errors::request_failure("NATS.connect",&uuid::Uuid::new_v4().to_string(),"NATS connection deadline expired".into()))?
+            .map_err(|e| crate::diagnostics::errors::request_failure("NATS.connect",&uuid::Uuid::new_v4().to_string(),format!("NATS connection failed: {e}; details={e:?}")))?;
         Ok(Self {
             client,
             timeout: settings.request_timeout,
@@ -120,9 +123,19 @@ impl Backend {
         deadline: tokio::time::Instant,
         trace: Option<(&str, &str)>,
     ) -> Result<Value, String> {
+        let operation = uuid::Uuid::new_v4().to_string();
+        let result = self.request_until_inner(subject, body, deadline, trace, &operation).await;
+        result.map_err(|error| crate::diagnostics::errors::request_failure(
+            &subject.route().unwrap_or_else(|_| "invalid-actor-subject".into()), &operation, error))
+    }
+    async fn request_until_inner(
+        &self, subject: &ActorSubject, body: &Value, deadline: tokio::time::Instant,
+        trace: Option<(&str, &str)>, operation: &str,
+    ) -> Result<Value, String> {
         let route = subject.route()?;
         let bytes = codec::encode(body)?;
         let mut headers = async_nats::HeaderMap::new();
+        headers.insert("IFM-UI-Operation-Id", operation);
         if let Some((parent, state)) = trace {
             headers.insert("traceparent", parent);
             if !state.is_empty() {
@@ -131,23 +144,42 @@ impl Backend {
         }
         let request = self
             .client
-            .request_with_headers(route, headers, bytes.into());
+            .request_with_headers(route.clone(), headers, bytes.into());
         let reply = tokio::time::timeout_at(deadline, request)
             .await
             .map_err(|_| {
                 "Backend request deadline expired; a submitted write may have an unknown outcome"
                     .to_string()
             })?
-            .map_err(|e| format!("Backend request failed: {}", e.kind()))?;
-        codec::decode(&reply.payload)
+            .map_err(|e| format!("Backend request failed: {e}; details={e:?}"))?;
+        let decoded=codec::decode(&reply.payload)?;
+        // A valid reply can still reject a command/query. Preserve the wire
+        // response for its controller while retaining the backend's full error.
+        if decoded.as_array().is_some_and(|parts|parts.len()>=4&&parts[0].as_bool()==Some(false)) {
+            if let Err(error)=super::contracts::service_result(&decoded) {
+                crate::diagnostics::errors::record("backend.request_rejected",Some(&route),Some(operation),&error);
+            }
+        }
+        Ok(decoded)
     }
     /// The only non-actor RPC used by this frontend is the existing versioned
     /// MarketData Host control subject. Scope is one validated deployment token.
     pub async fn marketdata_control_until(&self,scope:&str,body:&Value,deadline:tokio::time::Instant)->Result<Value,String>{
-        if scope.is_empty()||!scope.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'){return Err("Invalid MarketData Host scope".into())}
-        let subject=format!("ifm.{scope}.marketdata.v1.control");let bytes=codec::encode(body)?;
-        let reply=tokio::time::timeout_at(deadline,self.client.request(subject,bytes.into())).await.map_err(|_|"MarketData Host request deadline expired; reconcile saved live-feed intent".to_string())?.map_err(|e|format!("MarketData Host request failed: {}",e.kind()))?;
-        codec::decode(&reply.payload)
+        let operation=uuid::Uuid::new_v4().to_string();
+        let valid=!scope.is_empty()&&scope.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-');
+        let subject=if valid {format!("ifm.{scope}.marketdata.v1.control")}else{"invalid-marketdata-scope".into()};
+        let result=async {
+            if !valid{return Err("Invalid MarketData Host scope".into())}
+            let bytes=codec::encode(body)?;
+            let mut headers=async_nats::HeaderMap::new();headers.insert("IFM-UI-Operation-Id",operation.as_str());
+            let reply=tokio::time::timeout_at(deadline,self.client.request_with_headers(subject.clone(),headers,bytes.into())).await.map_err(|_|"MarketData Host request deadline expired; reconcile saved live-feed intent".to_string())?.map_err(|e|format!("MarketData Host request failed: {e}; details={e:?}"))?;
+            let decoded=codec::decode(&reply.payload)?;
+            if let Some(error)=decoded.as_array().filter(|parts|parts.len()==2).and_then(|parts|parts[1].as_str()) {
+                crate::diagnostics::errors::record("backend.request_rejected",Some(&subject),Some(&operation),error);
+            }
+            Ok(decoded)
+        }.await;
+        result.map_err(|error|crate::diagnostics::errors::request_failure(&subject,&operation,error))
     }
     /// Subscriber ownership is scoped: dropping the returned stream unsubscribes.
     pub async fn subscribe(
@@ -163,20 +195,21 @@ impl Backend {
         self.client
             .subscribe(format!("{actor}.{name}.>"))
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| crate::diagnostics::errors::request_failure(&format!("{actor}.{name}.>"), &uuid::Uuid::new_v4().to_string(), format!("NATS subscription failed: {e}; details={e:?}")))
     }
     /// Bind the exact durable push delivery subject so JetStream sees active UI interest.
     pub async fn subscribe_console(&self) -> Result<async_nats::Subscriber, String> {
-        self.client.subscribe("ConsoleDelivery.SingleUI.messages").await.map_err(|error|error.to_string())
+        self.client.subscribe("Notify.StatusConsoleEvent.>").await.map_err(|error|crate::diagnostics::errors::request_failure("Notify.StatusConsoleEvent.Logged",&uuid::Uuid::new_v4().to_string(),format!("NATS console subscription failed: {error}; details={error:?}")))
     }
     pub async fn flush(&self) -> Result<(), String> {
         self.flush_until(tokio::time::Instant::now() + self.timeout)
             .await
     }
     pub async fn flush_until(&self, deadline: tokio::time::Instant) -> Result<(), String> {
-        tokio::time::timeout_at(deadline, self.client.flush())
+        let result = tokio::time::timeout_at(deadline, self.client.flush())
             .await
-            .map_err(|_| "NATS flush deadline expired".to_string())?
-            .map_err(|e| e.to_string())
+            .map_err(|_| "NATS flush deadline expired".to_string())
+            .and_then(|result|result.map_err(|e|format!("NATS flush failed: {e}; details={e:?}")));
+        result.map_err(|error|crate::diagnostics::errors::request_failure("NATS.flush",&uuid::Uuid::new_v4().to_string(),error))
     }
 }

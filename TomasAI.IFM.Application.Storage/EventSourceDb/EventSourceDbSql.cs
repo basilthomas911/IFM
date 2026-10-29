@@ -247,11 +247,14 @@ ORDER BY el.eventVersion ASC;
     /// the outer query restores chronological replay order.
     /// </summary>
     public const string GetEventLogFromSnapshotLastNRange = """
-WITH latest_snapshot AS (
-    SELECT MAX(el.eventVersion) AS snapshotVersion
+WITH snapshot_versions AS MATERIALIZED (
+    SELECT el.eventVersion
     FROM event_log el
     WHERE el.eventStreamId = $1
       AND el.eventNameId = ANY($2)
+),
+latest_snapshot AS (
+    SELECT MAX(eventVersion) AS snapshotVersion FROM snapshot_versions
 ),
 last_event_range AS (
     SELECT
@@ -999,13 +1002,19 @@ WHERE
 """;
 
     /// <summary>
-    /// SQL to get maximum event version
+    /// Finds the newest compatible snapshot within one stream. Materializing
+    /// the filtered keys prevents PostgreSQL's generic min/max plan from walking
+    /// the global event-version index when a snapshot is absent or very old.
     /// </summary>
     public const string GetMaxEventVersion = """
-SELECT max(el.eventVersion) as "MaxEventVersion"
-from event_log el 
-where el.eventStreamId = $1
-and el.eventNameId = ANY($2)
+WITH snapshot_versions AS MATERIALIZED (
+    SELECT el.eventVersion
+    FROM event_log el
+    WHERE el.eventStreamId = $1
+      AND el.eventNameId = ANY($2)
+)
+SELECT max(eventVersion) as "MaxEventVersion"
+FROM snapshot_versions
 """;
 
     /// <summary>

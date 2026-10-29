@@ -4,6 +4,12 @@ Date: 2026-10-25. Static snapshot of the current working tree, including uncommi
 
 Companion: [design](MarketData-Rust-FFI-Lifecycle-Design-v0.1.md). Source paths below are relative to the repository root. This is a source inventory, not proof that every branch executes in the running Development profile. Generated/build outputs are excluded by `rg --files`; nested test utilities are identified separately. No runtime cutover was performed.
 
+## Preservation rule for this inventory
+
+Execution plan: [Rust MarketData API implementation](MarketData-Rust-FFI-Implementation-Plan-v0.1.md). All new Rust-backend implementation and its managed adapter belong under `TomasAI.IFM.Application.MarketData.Rust`. Inventory counts describe the existing baseline, not future files.
+
+The agreed implementation adds a separate Rust FFI backend while keeping the current backend and existing `native.rust/DatabentoFeed.Rust` implementation unchanged. Per-file descriptions such as "port", "replace" or "retire" below identify the responsibility replaced or bypassed **within the new backend**, not authorization to edit/remove the baseline file. Copy/adapt existing native provider code into the new library with recorded provenance. Baseline worker executables, ABI/DLL and build paths remain available. Any baseline removal or shared-source consolidation requires a later explicit decision. Backend composition, new native packaging and backend-specific recovery adapters are the allowed integration changes; business consumers and existing public wire contracts stay compatible.
+
 ## 1. Scope counts
 
 | Root | Source files |
@@ -1052,13 +1058,13 @@ Disposition is an architectural assignment, not permission to delete each file. 
 
 | Source file | Proposed disposition |
 |---|---|
-| `TomasAI.IFM.Application.MarketData.Host.Worker/Hosting/DatasetWorkerArguments.cs` | Retire child worker executable after acceptance; transfer lifecycle to Rust dataset owners. |
-| `TomasAI.IFM.Application.MarketData.Host.Worker/Hosting/DatasetWorkerAssemblyMarker.cs` | Retire child worker executable after acceptance; transfer lifecycle to Rust dataset owners. |
-| `TomasAI.IFM.Application.MarketData.Host.Worker/Hosting/Program.cs` | Retire child worker executable after acceptance; transfer lifecycle to Rust dataset owners. |
-| `TomasAI.IFM.Application.MarketData.Host.Worker/Interop/NativeMethods.cs` | Retire child worker executable after acceptance; transfer lifecycle to Rust dataset owners. |
-| `TomasAI.IFM.Application.MarketData.Host.Worker/Logging/DatasetWorkerLogging.cs` | Retire child worker executable after acceptance; transfer lifecycle to Rust dataset owners. |
-| `TomasAI.IFM.Application.MarketData.Host.Worker/Messaging/PipeDatasetWorkerPublisher.cs` | Retire child worker executable after acceptance; transfer lifecycle to Rust dataset owners. |
-| `TomasAI.IFM.Application.MarketData.Host.Worker/Runtime/DatasetWorkerRuntime.cs` | Retire child worker executable after acceptance; transfer lifecycle to Rust dataset owners. |
+| `TomasAI.IFM.Application.MarketData.Host.Worker/Hosting/DatasetWorkerArguments.cs` | Preserve current worker executable; new Rust backend bypasses it and owns dataset lifecycle through Tokio. |
+| `TomasAI.IFM.Application.MarketData.Host.Worker/Hosting/DatasetWorkerAssemblyMarker.cs` | Preserve current worker executable; new Rust backend bypasses it and owns dataset lifecycle through Tokio. |
+| `TomasAI.IFM.Application.MarketData.Host.Worker/Hosting/Program.cs` | Preserve current worker executable; new Rust backend bypasses it and owns dataset lifecycle through Tokio. |
+| `TomasAI.IFM.Application.MarketData.Host.Worker/Interop/NativeMethods.cs` | Preserve current worker executable; new Rust backend bypasses it and owns dataset lifecycle through Tokio. |
+| `TomasAI.IFM.Application.MarketData.Host.Worker/Logging/DatasetWorkerLogging.cs` | Preserve current worker executable; new Rust backend bypasses it and owns dataset lifecycle through Tokio. |
+| `TomasAI.IFM.Application.MarketData.Host.Worker/Messaging/PipeDatasetWorkerPublisher.cs` | Preserve current worker executable; new Rust backend bypasses it and owns dataset lifecycle through Tokio. |
+| `TomasAI.IFM.Application.MarketData.Host.Worker/Runtime/DatasetWorkerRuntime.cs` | Preserve current worker executable; new Rust backend bypasses it and owns dataset lifecycle through Tokio. |
 
 ### TomasAI.IFM.Application.BlackBoard
 
@@ -1121,34 +1127,34 @@ Disposition is an architectural assignment, not permission to delete each file. 
 
 | Source file | Proposed disposition |
 |---|---|
-| `native/DatabentoFeed.Native/include/databento_feed_native.h` | Retire C++ backend only after equivalent Rust feature/ABI qualification. |
-| `native/DatabentoFeed.Native/src/databento_feed_native.cpp` | Retire C++ backend only after equivalent Rust feature/ABI qualification. |
-| `native/DatabentoFeed.Native/src/databento_live_normalization.hpp` | Retire C++ backend only after equivalent Rust feature/ABI qualification. |
-| `native/DatabentoFeed.Native/src/instrument_mapping_selector.hpp` | Retire C++ backend only after equivalent Rust feature/ABI qualification. |
-| `native/DatabentoFeed.Native/src/latest_price_session_guard.hpp` | Retire C++ backend only after equivalent Rust feature/ABI qualification. |
+| `native/DatabentoFeed.Native/include/databento_feed_native.h` | Preserve current C++ backend; new Rust library independently implements equivalent provider features. |
+| `native/DatabentoFeed.Native/src/databento_feed_native.cpp` | Preserve current C++ backend; new Rust library independently implements equivalent provider features. |
+| `native/DatabentoFeed.Native/src/databento_live_normalization.hpp` | Preserve current C++ backend; new Rust library independently implements equivalent provider features. |
+| `native/DatabentoFeed.Native/src/instrument_mapping_selector.hpp` | Preserve current C++ backend; new Rust library independently implements equivalent provider features. |
+| `native/DatabentoFeed.Native/src/latest_price_session_guard.hpp` | Preserve current C++ backend; new Rust library independently implements equivalent provider features. |
 | `native/DatabentoFeed.Native/tests/databento_feed_native_tests.cpp` | Retain/extend parity tests. |
 
 ### native.rust/DatabentoFeed.Rust
 
 | Source file | Proposed disposition |
 |---|---|
-| `native.rust/DatabentoFeed.Rust/build.rs` | Reuse audited decoder/SDK/ABI tests; refactor lifecycle rather than assuming current bridge is sufficient. |
+| `native.rust/DatabentoFeed.Rust/build.rs` | Preserve this implementation unchanged; copy audited decoder/SDK code and test ideas into the new library and change lifecycle only there. |
 | `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Benchmarks/BenchmarkNativeApi.cs` | Retain/extend parity tests. |
 | `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Benchmarks/NativeFeedBenchmarks.cs` | Retain/extend parity tests. |
 | `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Benchmarks/NativeProducerBenchmarks.cs` | Retain/extend parity tests. |
 | `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Benchmarks/PInvokeDrainBenchmarks.cs` | Retain/extend parity tests. |
 | `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Benchmarks/Program.cs` | Retain/extend parity tests. |
 | `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.ComparisonTests/NativeParityTests.cs` | Retain/extend parity tests. |
-| `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/Abi.cs` | Reuse audited decoder/SDK/ABI tests; refactor lifecycle rather than assuming current bridge is sufficient. |
-| `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/NativeApi.cs` | Reuse audited decoder/SDK/ABI tests; refactor lifecycle rather than assuming current bridge is sufficient. |
-| `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/PreparedSyntheticFeed.cs` | Reuse audited decoder/SDK/ABI tests; refactor lifecycle rather than assuming current bridge is sufficient. |
-| `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/SyntheticFeedRunner.cs` | Reuse audited decoder/SDK/ABI tests; refactor lifecycle rather than assuming current bridge is sufficient. |
-| `native.rust/DatabentoFeed.Rust/src/abi.rs` | Reuse audited decoder/SDK/ABI tests; refactor lifecycle rather than assuming current bridge is sufficient. |
-| `native.rust/DatabentoFeed.Rust/src/diagnostics.rs` | Reuse audited decoder/SDK/ABI tests; refactor lifecycle rather than assuming current bridge is sufficient. |
-| `native.rust/DatabentoFeed.Rust/src/engine.rs` | Reuse audited decoder/SDK/ABI tests; refactor lifecycle rather than assuming current bridge is sufficient. |
-| `native.rust/DatabentoFeed.Rust/src/lib.rs` | Reuse audited decoder/SDK/ABI tests; refactor lifecycle rather than assuming current bridge is sufficient. |
-| `native.rust/DatabentoFeed.Rust/src/live.rs` | Reuse audited decoder/SDK/ABI tests; refactor lifecycle rather than assuming current bridge is sufficient. |
-| `native.rust/DatabentoFeed.Rust/src/windows.rs` | Reuse audited decoder/SDK/ABI tests; refactor lifecycle rather than assuming current bridge is sufficient. |
+| `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/Abi.cs` | Preserve this implementation unchanged; copy audited decoder/SDK code and test ideas into the new library and change lifecycle only there. |
+| `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/NativeApi.cs` | Preserve this implementation unchanged; copy audited decoder/SDK code and test ideas into the new library and change lifecycle only there. |
+| `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/PreparedSyntheticFeed.cs` | Preserve this implementation unchanged; copy audited decoder/SDK code and test ideas into the new library and change lifecycle only there. |
+| `native.rust/DatabentoFeed.Rust/dotnet/DatabentoFeed.Native.Interop/SyntheticFeedRunner.cs` | Preserve this implementation unchanged; copy audited decoder/SDK code and test ideas into the new library and change lifecycle only there. |
+| `native.rust/DatabentoFeed.Rust/src/abi.rs` | Preserve this implementation unchanged; copy audited decoder/SDK code and test ideas into the new library and change lifecycle only there. |
+| `native.rust/DatabentoFeed.Rust/src/diagnostics.rs` | Preserve this implementation unchanged; copy audited decoder/SDK code and test ideas into the new library and change lifecycle only there. |
+| `native.rust/DatabentoFeed.Rust/src/engine.rs` | Preserve this implementation unchanged; copy audited decoder/SDK code and test ideas into the new library and change lifecycle only there. |
+| `native.rust/DatabentoFeed.Rust/src/lib.rs` | Preserve this implementation unchanged; copy audited decoder/SDK code and test ideas into the new library and change lifecycle only there. |
+| `native.rust/DatabentoFeed.Rust/src/live.rs` | Preserve this implementation unchanged; copy audited decoder/SDK code and test ideas into the new library and change lifecycle only there. |
+| `native.rust/DatabentoFeed.Rust/src/windows.rs` | Preserve this implementation unchanged; copy audited decoder/SDK code and test ideas into the new library and change lifecycle only there. |
 | `native.rust/DatabentoFeed.Rust/tests/ffi_synthetic.rs` | Retain/extend parity tests. |
 
 ### native.rust/OptionPricer.Rust

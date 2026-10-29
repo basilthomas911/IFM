@@ -73,6 +73,9 @@ public sealed class OptionRecoveryLiveVerificationService(IHostEnvironment envir
                 { request.Mode, ElapsedSeconds = elapsed.TotalSeconds, RemainingSeconds = remaining.TotalSeconds, request.DelaySeconds }, token), token).ConfigureAwait(false);
         // Read starting conditions only after the fixed countdown. Stale values are evidence, never an arming gate.
         var backend = await ReadStatusAsync(token).ConfigureAwait(false);
+        // This older harness deliberately controls the C# coordinator. It must
+        // never inject a native fault and then pretend C# owns its recovery.
+        RequireManagedRecovery(backend.RecoveryOwnership);
         var options = backend.Datasets.Single(dataset => dataset.Role == "Options" && dataset.Dataset == "GLBX.MDP3");
         var inspection = CaptureTargets(caches, options.ValueDate ?? throw new InvalidOperationException("Options worker has no active value date."));
         var futures = backend.Datasets.Where(dataset => dataset.Role == "Futures").ToArray();
@@ -101,6 +104,12 @@ public sealed class OptionRecoveryLiveVerificationService(IHostEnvironment envir
             UiDialogRequiresHumanConfirmation = request.Mode == "Deadline"
         }, token);
         logger.LogInformation("Development option recovery verification finished; OperationId={OperationId}; Mode={Mode}; State={State}; FuturesUnchanged={FuturesUnchanged}", request.OperationId, request.Mode, recovery.State, unchanged);
+    }
+
+    internal static void RequireManagedRecovery(MarketDataRecoveryOwnership ownership)
+    {
+        if (ownership == MarketDataRecoveryOwnership.TokioDatasetOwner)
+            throw new InvalidOperationException("The C# pipeline fault harness cannot control native dataset recovery. Use the Rust-owned dataset acceptance fixtures.");
     }
 
     internal static async Task<bool> InjectCurrentTargetAsync(IMarketDataApi market, Guid operationId,

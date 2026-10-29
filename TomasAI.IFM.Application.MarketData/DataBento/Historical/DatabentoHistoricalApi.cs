@@ -36,6 +36,20 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
     }
 
     /// <inheritdoc/>
+    public async ValueTask<DateTimeOffset?> GetAvailableEndAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken)
+    {
+        ValidateRequest(request);
+        if (_provider is not IHistoricalProviderAvailability availability) return null;
+        DateTimeOffset? end = null;
+        foreach (var series in request.Series)
+        {
+            var current = await availability.GetAvailableEndAsync(_resolver.Resolve(request, series), cancellationToken).ConfigureAwait(false);
+            end = end is null || current < end ? current : end;
+        }
+        return end;
+    }
+
+    /// <inheritdoc/>
     public async ValueTask<MarketDataHistoricalEstimate> EstimateAsync(
         MarketDataHistoricalRequest request,
         CancellationToken cancellationToken)

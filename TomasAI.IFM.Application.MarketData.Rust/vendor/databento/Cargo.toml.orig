@@ -1,0 +1,67 @@
+[package]
+name = "databento"
+authors = ["Databento <support@databento.com>"]
+version = "0.58.0"
+edition = "2021"
+repository = "https://github.com/databento/databento-rs"
+description = "Official Databento client library"
+license = "Apache-2.0"
+# maximum of 5
+keywords = ["real-time", "historical", "market-data", "trading", "tick-data"]
+# see https://crates.io/category_slugs
+categories = ["api-bindings", "finance"]
+
+[package.metadata.docs.rs]
+# Document all features on docs.rs
+all-features = true
+# To build locally: `RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --open`
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = ["historical", "live", "reqwest/default-tls"]
+historical = [
+  "dep:async-compression",
+  "dep:futures",
+  "dep:reqwest",
+  "dep:serde",
+  "dep:tokio-util",
+  "dep:serde_json",
+  "dep:zstd",
+  "tokio/fs"
+]
+live = ["tokio/net", "tokio/time"]
+chrono = ["dep:chrono"]
+
+[dependencies]
+dbn = { version = "0.66", features = ["async", "serde"] }
+
+async-compression = { version = "0.4", features = ["tokio", "zstd"], optional = true }
+chrono = { version = ">=0.4.34", optional = true, default-features = false, features = ["alloc"] }
+# Async stream trait
+futures = { version = "0.3", optional = true }
+# Used for Live authentication and historical checksums
+hex = "0.4"
+reqwest = { version = "0.13", optional = true, features = ["form", "json", "query", "stream"], default-features = false }
+serde = { version = "1.0", optional = true, features = ["derive"] }
+serde_json = { version = "1.0", optional = true }
+# Used for Live authentication and historical checksums
+sha2 = "0.10"
+thiserror = "2.0"
+time = { version = ">=0.3.35", features = ["macros", "parsing", "serde-human-readable"] }
+tokio = { version = ">=1.41", features = ["io-util", "macros"] }
+# Stream utils
+tokio-util = { version = "0.7", features = ["io"], optional = true }
+tracing = "0.1"
+bon = "3"
+zstd = { version = "0.13", optional = true }
+
+[dev-dependencies]
+anyhow = "1.0.104"
+chrono = { version = ">=0.4.34", default-features = false, features = ["alloc"] }
+async-compression = { version = "0.4", features = ["tokio", "zstd"] }
+clap = { version = "4.6.6", features = ["derive"] }
+rstest = "0.26.1"
+tempfile = "3.27.0"
+tokio = { version = "1.53", features = ["full", "test-util"] }
+tracing-subscriber = "0.3.23"
+wiremock = "0.6"

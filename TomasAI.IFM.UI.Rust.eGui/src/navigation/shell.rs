@@ -25,6 +25,9 @@ pub struct Dashboard {
     pub feed_health: String,
     /// Backend explanation of the current feed-health state.
     pub feed_health_reason: String,
+    /// Current Options generation readiness, independent of connection health.
+    pub options_health: String,
+    pub options_health_reason: String,
     /// Display-ready status supplied by the managed projection or current view state.
     pub status: String,
     /// Published market-outlook display fields.

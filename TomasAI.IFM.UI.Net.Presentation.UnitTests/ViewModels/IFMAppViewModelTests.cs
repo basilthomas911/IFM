@@ -25,7 +25,19 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 public class IFMAppViewModelTests
 {
     [Fact]
-    public async Task Daily_indicator_failure_is_visible_deduplicated_and_does_not_stop_market_feeds()
+    public async Task Native_reset_and_final_failure_share_operation_but_each_distinct_record_is_visible_once()
+    {
+        var viewModel=CreateSubject();
+        var reset=new TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataDatasetRecoveryFailedEvent {
+            Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),Role="Options",Dataset="GLBX.MDP3",EventSource="RustMarketDataOwner",ErrorCode=503,ErrorMessage="Resetting dataset"};
+        await viewModel.ApplyMarketDataFeedStatusAsync(reset);var first=viewModel.LastError!.Sequence;
+        await viewModel.ApplyMarketDataFeedStatusAsync(reset);viewModel.LastError.Sequence.Should().Be(first);
+        var final=reset with {Id=Guid.NewGuid(),ErrorMessage="Final reset failed"};
+        await viewModel.ApplyMarketDataFeedStatusAsync(final);viewModel.LastError.Sequence.Should().BeGreaterThan(first);
+        await viewModel.ApplyMarketDataFeedStatusAsync(final);viewModel.LastError.Message.Should().Be(final.ErrorMessage);
+    }
+    [Fact]
+    public async Task Daily_indicator_retry_is_status_only_and_does_not_stop_market_feeds()
     {
         var vm = CreateSubject();
         await vm.ApplyMarketDataFeedStatusAsync(new TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedStartedCompleteEvent());
@@ -41,15 +53,14 @@ public class IFMAppViewModelTests
         status.BaselineValueDate.Should().Be(new DateOnly(2026, 10, 22));
         await vm.ApplyMarketDataFeedStatusAsync(status);
         vm.IsMarketDataFeedActive.Should().BeTrue();
-        vm.LastError!.Caption.Should().Be("Daily EMA / Bollinger Initialization");
+        vm.LastError.Should().BeNull();
         vm.DailyAnalyticsStatus.Should().Be(status.ErrorMessage);
-        var sequence = vm.LastError.Sequence;
         await vm.ApplyMarketDataFeedStatusAsync(status with { Id = Guid.NewGuid() });
-        vm.LastError.Sequence.Should().Be(sequence);
+        vm.LastError.Should().BeNull();
         await vm.ApplyMarketDataFeedStatusAsync(status with { CommandId = Guid.NewGuid(), RefreshFailed = false,
             ErrorCode = 0, ErrorMessage = "Historical initialization completed." });
         vm.DailyAnalyticsStatus.Should().Be("Historical initialization completed.");
-        vm.LastError.Sequence.Should().Be(sequence);
+        vm.LastError.Should().BeNull();
         vm.IsMarketDataFeedActive.Should().BeTrue();
     }
     [Fact]

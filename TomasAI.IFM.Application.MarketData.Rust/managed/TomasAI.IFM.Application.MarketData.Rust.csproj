@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Retain application contracts, reference qualification and digest identity;
+         numerical execution and provider lifetime belong to the new native owner. -->
+    <ProjectReference Include="../../TomasAI.IFM.Application.MarketData/TomasAI.IFM.Application.MarketData.csproj" />
+    <!-- Reuse configuration and classified exception contracts only; provider I/O remains native. -->
+    <ProjectReference Include="../../TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/TomasAI.IFM.Framework.MarketData.FinancialModelingPrep.csproj" />
+  </ItemGroup>
+</Project>

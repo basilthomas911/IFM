@@ -110,6 +110,13 @@ public static class EventSourceSchemaSql
     ON event_projector_state (ProjectorName, Outcome);
     """;
 
+    /// <summary>Covering lookup for compatible snapshot types in one stream;
+    /// avoids reading unrelated event types or payload pages.</summary>
+    public const string CreateSnapshotLookupIndex = """
+        CREATE INDEX IF NOT EXISTS ix_event_log_stream_name_version
+        ON public.event_log (EventStreamId, EventNameId, EventVersion DESC);
+        """;
+
     public const string CreateEventProjectorStateReliabilityV2 = """
     ALTER TABLE event_projector_state
         ADD COLUMN IF NOT EXISTS EventStreamId bigint,
@@ -346,6 +353,8 @@ public static class EventSourceSchemaSql
             new("event_log", CreateEventLogTable, "DROP TABLE IF EXISTS public.event_log;")
         };
         definitions.AddRange([
+            new("event_log_snapshot_lookup_v4", CreateSnapshotLookupIndex,
+                "DROP INDEX IF EXISTS public.ix_event_log_stream_name_version;"),
             new("command_log", CreateCommandLog, "DROP TABLE IF EXISTS public.command_log;"),
             new("command_log_messagepack_v1", AddCommandLogMessagePackPayload,
                 DropCommandLogMessagePackPayload),

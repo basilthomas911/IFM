@@ -88,7 +88,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
                         } catch (HttpRequestException) { }
                         await Task.Delay(250,token).ConfigureAwait(false);
                     }
-                }, (result,token) => ApiRecoveryUiNotifier.SendAsync(url,result,token), message => WriteManagerLog(message));
+                }, (result,token) => ApiRecoveryUiNotifier.SendAsync(url,result,token, message => WriteManagerLog(message)), message => WriteManagerLog(message));
             _apiRecovery = controller.RunAsync(_apiRecoveryCancellation.Token);
             WriteManagerLog("API-only recovery restart controller enabled: outstanding/failed restart blocks another attempt until verified recovery; 120-second restart/restore deadline.");
         }

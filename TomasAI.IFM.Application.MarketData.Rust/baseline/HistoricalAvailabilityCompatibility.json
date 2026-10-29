@@ -1,0 +1,37 @@
+[
+  {
+    "path": "TomasAI.IFM.Application.MarketData/Contracts/Historical/IMarketDataHistoricalApi.cs",
+    "original": "",
+    "reviewed": "    /// <summary>Returns the exclusive schema availability end, or null when unsupported.</summary>\n    ValueTask<DateTimeOffset?> GetAvailableEndAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken)\n        => ValueTask.FromResult<DateTimeOffset?>(null);\n\n"
+  },
+  {
+    "path": "TomasAI.IFM.Application.MarketData/DataBento/Historical/DatabentoHistoricalApi.cs",
+    "original": "",
+    "reviewed": "    }\n\n    /// <inheritdoc/>\n    public async ValueTask<DateTimeOffset?> GetAvailableEndAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken)\n    {\n        ValidateRequest(request);\n        if (_provider is not IHistoricalProviderAvailability availability) return null;\n        DateTimeOffset? end = null;\n        foreach (var series in request.Series)\n        {\n            var current = await availability.GetAvailableEndAsync(_resolver.Resolve(request, series), cancellationToken).ConfigureAwait(false);\n            end = end is null || current < end ? current : end;\n        }\n        return end;\n"
+  },
+  {
+    "path": "TomasAI.IFM.Application.MarketData/Historical/HistoricalAnalyticsWarmupService.cs",
+    "original": "            if (insufficientSeries.Length > 0)\n",
+    "reviewed": "            if (insufficientSeries.Length > 0 || template.Series.Any(series =>\n                expected.Any(date => date > LastValidDate(coverage[series.SeriesIdentity]))))\n"
+  },
+  {
+    "path": "TomasAI.IFM.Application.MarketData/Historical/HistoricalAnalyticsWarmupService.cs",
+    "original": "",
+    "reviewed": "                // Read storage first. Provider availability is needed only when\n                // acquisition is required, and never advances the API ValueDate.\n                var availableEnd = await loader.GetAvailableEndAsync(template with { StartDate = startDate, EndDate = endDate }, cancellationToken).ConfigureAwait(false);\n                if (availableEnd is { } publishedEnd)\n                {\n                    var requestedEnd = endDate;\n                    while (!calendar.IsTradingDate(endDate) || calendar.GetSession(endDate).EndUtc > publishedEnd)\n                    {\n                        if (endDate <= DateOnly.MinValue.AddDays(1))\n                            throw new InvalidDataException(\"No completed trading session exists within provider availability.\");\n                        endDate = endDate.AddDays(-1);\n                    }\n                    expectedBaselineDate = endDate;\n                    startDate = endDate.AddDays(-(options.LookbackCalendarDays - 1));\n                    expected = TradingDates(startDate, endDate);\n                    coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken).ConfigureAwait(false);\n                    // Availability is known, so acquire even one missing published\n                    // session. Never ask for a session the provider cannot supply.\n                    insufficientSeries = template.Series.Select(series => new { Series = series, ValidSessionCount = ValidSessionCount(coverage[series.SeriesIdentity]) })\n                        .Where(value => value.ValidSessionCount < options.MinimumValidDailySessions\n                            || expected.Any(date => date > LastValidDate(coverage[value.Series.SeriesIdentity]))).ToArray();\n                    logger.LogInformation(\"Daily analytics provider boundary: RequestedCompletedDate={RequestedDate}; PublishedEndUtc={PublishedEndUtc}; AcquisitionEndDate={EndDate}\",\n                        requestedEnd, publishedEnd, endDate);\n                }\n"
+  },
+  {
+    "path": "TomasAI.IFM.Application.MarketData/Historical/HistoricalDataLoader.cs",
+    "original": "",
+    "reviewed": "\n    /// <summary>Reads optional provider availability through the same backend boundary.</summary>\n    public ValueTask<DateTimeOffset?> GetAvailableEndAsync(MarketDataHistoricalRequest request, CancellationToken token)\n        => remote is null ? historicalApi.GetAvailableEndAsync(request, token)\n            : new ValueTask<DateTimeOffset?>(remote.GetHistoricalAvailableEndAsync(request, token));\n"
+  },
+  {
+    "path": "TomasAI.IFM.Application.MarketData/Remote/MarketDataApiClient.Backend.cs",
+    "original": "",
+    "reviewed": "    public Task<DateTimeOffset?> GetHistoricalAvailableEndAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken = default)\n        => CallAsync<DateTimeOffset?>(nameof(GetHistoricalAvailableEndAsync), [typeof(MarketDataHistoricalRequest), typeof(CancellationToken)], [request, null], cancellationToken);\n"
+  },
+  {
+    "path": "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs",
+    "original": "",
+    "reviewed": "    /// <summary>Reads the exclusive provider availability boundary without acquiring data.</summary>\n    [MarketDataHostOperation]\n    Task<DateTimeOffset?> GetHistoricalAvailableEndAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken = default)\n        => Task.FromResult<DateTimeOffset?>(null);\n"
+  }
+]

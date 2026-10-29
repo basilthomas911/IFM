@@ -15,6 +15,7 @@ public sealed class MarketDataServiceSchemaDb(IDbConnectionSettings settings, IL
         new("market_data_service", MarketDataServiceSchemaSql.CreateSchema, "DROP SCHEMA IF EXISTS market_data_service CASCADE;"),
         new("futures_rollover_contract_assignment", MarketDataServiceSchemaSql.CreateAssignments,
             "DROP TABLE IF EXISTS market_data_service.futures_rollover_contract_assignment;"),
+        new("marketdata_recovery_log", MarketDataServiceSchemaSql.CreateRecoveryLog, "DROP TABLE IF EXISTS market_data_service.marketdata_recovery_log;"),
         new("watchdog_status_log", MarketDataServiceSchemaSql.CreateWatchdogLog,
             "DROP TABLE IF EXISTS market_data_service.watchdog_status_log;"),
         new("stage4_subscription_intent", MarketDataServiceSchemaSql.CreateDurableSubscriptions,

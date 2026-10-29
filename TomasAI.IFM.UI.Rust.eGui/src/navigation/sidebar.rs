@@ -24,9 +24,6 @@ pub struct FeedControl {
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SidebarPublication {
-    /// Worker-owned delivery receipt. The GUI marks it only after accepting this publication for rendering.
-    #[serde(skip)]
-    pub console_deliveries: Vec<std::sync::Arc<crate::services::status_console_history::ConsoleDelivery>>,
     /// API AsOfUtc converted to the display zone, for calendar decoration only.
     /// Missing data never falls back to the workstation's date.
     pub api_today: String,
@@ -52,6 +49,9 @@ pub struct SidebarPublication {
     pub error: String,
     /// Monotonic error identity used to avoid redisplaying the same backend error.
     pub error_sequence: u64,
+    /// Retained explicit outcomes; copied in memory, never part of the old bridge wire contract.
+    #[serde(skip)]
+    pub outcome_dialogs: Vec<crate::status_dialog::Notice>,
 }
 /// One published economic-calendar row with display-ready outcome values.
 #[derive(Clone, Default, Deserialize)]
@@ -93,7 +93,11 @@ pub struct SidebarView {
     /// Last backend error identity already processed by the view.
     last_error_sequence: u64,
     /// Optional currently displayed error-dialog text.
-    error_dialog: Option<String>,
+    error_dialog: Option<(String, crate::status_dialog::Severity)>,
+    /// Last outcome retained by the visible dialog queue.
+    last_outcome_sequence: u64,
+    /// Do not overwrite an unacknowledged failure with later success.
+    pending_dialogs: std::collections::VecDeque<(String, crate::status_dialog::Severity)>,
 }
 impl SidebarPublication {
     /// Borrow the latest published status message, or None when status history is empty.
@@ -298,15 +302,19 @@ impl SidebarView {
         );
         if snapshot.error_sequence > self.last_error_sequence && !snapshot.error.is_empty() {
             self.last_error_sequence = snapshot.error_sequence;
-            self.error_dialog = Some(snapshot.error.clone());
+            self.pending_dialogs.push_back((snapshot.error.clone(), crate::status_dialog::Severity::Error));
         }
-        if let Some(message) = self.error_dialog.clone() {
+        for notice in &snapshot.outcome_dialogs {
+            if notice.sequence>self.last_outcome_sequence {
+                self.last_outcome_sequence=notice.sequence;
+                if self.pending_dialogs.len()==64 { self.pending_dialogs.pop_front(); }
+                self.pending_dialogs.push_back((notice.message.clone(),notice.severity));
+            }
+        }
+        if self.error_dialog.is_none() { self.error_dialog=self.pending_dialogs.pop_front(); }
+        if let Some((message,severity)) = self.error_dialog.clone() {
             egui::Modal::new(egui::Id::new("calendar-error-dialog")).show(ui.ctx(), |ui| {
-                ui.heading(crate::presentation::dialog_title("Application Error"));
-                ui.trading_label(message);
-                if ui.button("OK").clicked() {
-                    self.error_dialog = None;
-                }
+                if crate::status_dialog::body(ui,&message,severity).acknowledged { self.error_dialog=None; }
             });
         }
         action
@@ -345,6 +353,7 @@ impl SidebarView {
                 - ui.spacing().item_spacing.y
                 - ui.spacing().scroll.allocated_width())
             .max(0.);
+            crate::console_capacity::observe(body_height,18.0+ui.spacing().item_spacing.y);
             egui::ScrollArea::horizontal()
                 .id_salt("status-console-horizontal")
                 .auto_shrink([false, false])

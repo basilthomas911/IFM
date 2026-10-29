@@ -23,21 +23,6 @@ fn response(status: &str, body: &str) -> Vec<u8> {
 }
 
 #[tokio::test]
-async fn console_setup_and_batch_ack_are_explicit_requests_and_report_failed_acknowledgements() {
-    use ifm_ui_egui::services::status_console_history::{connect,acknowledge,ConsoleDelivery};
-    let client=HealthClient::new().unwrap();
-    let(url,worker)=server(response("200 OK","{}"),Duration::ZERO);
-    connect(&client,Some(&url),Duration::from_secs(2)).await.unwrap();worker.join().unwrap();
-    let(url,worker)=server(response("503 Unavailable","{}"),Duration::ZERO);
-    assert!(acknowledge(&client,Some(&url),&["receipt".into()],Duration::from_secs(2)).await.err().unwrap().contains("503"));worker.join().unwrap();
-    let receipt=ConsoleDelivery::new(vec!["receipt".into()]);
-    assert!(tokio::time::timeout(Duration::from_millis(20),receipt.wait_displayed()).await.is_err());
-    receipt.mark_displayed();
-    tokio::time::timeout(Duration::from_millis(20),receipt.wait_displayed()).await.unwrap();
-    assert!(receipt.is_displayed());
-}
-
-#[tokio::test]
 async fn health_transport_enforces_status_size_json_and_single_deadline() {
     let client = HealthClient::new().unwrap();
     for (bytes,bound,expected) in [

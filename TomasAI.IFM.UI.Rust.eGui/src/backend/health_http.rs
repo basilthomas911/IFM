@@ -12,9 +12,12 @@ pub struct HealthObservation { pub value:Value, pub server_utc:Option<chrono::Da
 impl HealthClient {
     /// One bounded acknowledgement request per rendered console batch. No backend I/O runs in paint.
     pub async fn post_json(&self, endpoint: &str, body: &Value, deadline: tokio::time::Instant) -> Result<(), String> {
+        self.post_json_inner(endpoint,body,deadline).await.map_err(|error|audit_failure("POST",endpoint,error))
+    }
+    async fn post_json_inner(&self, endpoint: &str, body: &Value, deadline: tokio::time::Instant) -> Result<(), String> {
         tokio::time::timeout_at(deadline, async {
             let response = self.client.post(endpoint).json(body).send().await
-                .map_err(|_| "Console acknowledgement endpoint could not be reached")?;
+                .map_err(|error|format!("Console acknowledgement endpoint could not be reached: {:?}",error.without_url()))?;
             if !response.status().is_success() {
                 return Err(format!("Console acknowledgement failed (HTTP {})", response.status().as_u16()));
             }
@@ -28,13 +31,18 @@ impl HealthClient {
         Ok(Self {
             client: reqwest::Client::builder()
                 .build()
-                .map_err(|_| "Could not initialize HTTP health client")?,
+                .map_err(|error|format!("Could not initialize HTTP health client: {error:?}"))?,
         })
     }
     pub async fn get(&self,endpoint:&str,maximum:usize,deadline:tokio::time::Instant)->Result<Value,String>{
         self.get_observation(endpoint,maximum,deadline).await.map(|read|read.value)
     }
     pub async fn get_observation(
+        &self, endpoint: &str, maximum: usize, deadline: tokio::time::Instant,
+    ) -> Result<HealthObservation, String> {
+        self.get_observation_inner(endpoint,maximum,deadline).await.map_err(|error|audit_failure("GET",endpoint,error))
+    }
+    async fn get_observation_inner(
         &self,
         endpoint: &str,
         maximum: usize,
@@ -50,7 +58,7 @@ impl HealthClient {
                 .get(url)
                 .send()
                 .await
-                .map_err(|_| "Health endpoint could not be reached")?;
+                .map_err(|error|format!("Health endpoint could not be reached: {:?}",error.without_url()))?;
             if response.status() != reqwest::StatusCode::OK {
                 return Err(format!(
                     "Health unavailable (HTTP {})",
@@ -80,7 +88,7 @@ impl HealthClient {
                 body.extend_from_slice(&chunk);
             }
             let value: Value =
-                serde_json::from_slice(&body).map_err(|_| "Health response is invalid JSON")?;
+                serde_json::from_slice(&body).map_err(|error|format!("Health response is invalid JSON: {error:?}"))?;
             fn bounded(value: &Value, depth: usize) -> bool {
                 depth <= 20
                     && match value {
@@ -97,4 +105,13 @@ impl HealthClient {
         .await
         .map_err(|_| "Health request deadline expired".to_string())?
     }
+}
+
+/// Keep the route useful without exposing URL credentials or query secrets.
+fn audit_failure(method: &str,endpoint: &str,error: String)->String {
+    let route=reqwest::Url::parse(endpoint).map(|mut url| {
+        let _=url.set_username("");let _=url.set_password(None);url.set_query(None);url.set_fragment(None);
+        format!("{method} {url}")
+    }).unwrap_or_else(|_|format!("{method} invalid-http-endpoint"));
+    crate::diagnostics::errors::request_failure(&route,&uuid::Uuid::new_v4().to_string(),error)
 }

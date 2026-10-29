@@ -29,6 +29,12 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var context = Substitute.For<IMarketDataFeedCommandContext>();
         context.Logger.Returns(Microsoft.Extensions.Logging.Abstractions.NullLogger<MarketDataFeedCommandActor>.Instance);
         var container = Substitute.For<IContainerInstance>();
+        // Startup now uses the authoritative API date and prepared backend assignments.
+        var dates=Substitute.For<IValueDateProvider>();dates.ValueDate.Returns(SampleData.ValueDate);
+        container.Resolve<IValueDateProvider>().Returns(dates);
+        var marketData=Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>();
+        marketData.PrepareSessionAsync(SampleData.ValueDate,Arg.Any<CancellationToken>()).Returns(Task.FromResult(SampleData.FuturesContracts));
+        container.Resolve<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>().Returns(marketData);
         var authority = Substitute.For<IFuturesMarketSessionAuthority>();
         authority.Current.Returns(new MarketSessionReadModel
         {

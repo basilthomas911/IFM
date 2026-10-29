@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Api.Server.Core.HostedServices;
 using TomasAI.IFM.Application.Api.Server.Core.Actors.Recovery;
 using TomasAI.IFM.Application.Api.Server.Core.Development.Provisioning;
 using TomasAI.IFM.Application.Api.Server.Core.Development.Verification;
@@ -238,8 +239,14 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<IMarketOutlookUpdateReader>(provider =>
         provider.GetRequiredService<MarketOutlookUpdateChannel>());
         services.AddSingleton<LatestMarketOutlookSnapshotPublisher>();
+        services.AddSingleton<MarketOutlookConsolePublisher>(provider => new(
+            provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>(),
+            provider.GetRequiredService<TomasAI.IFM.Shared.StatusConsole.ServiceApi.IStatusConsoleEventProducer>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<MarketOutlookConsolePublisher>>()));
         services.AddSingleton<IMarketOutlookSnapshotPublisher>(provider =>
-        provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
+        provider.GetRequiredService<MarketOutlookConsolePublisher>());
+        services.AddHostedService(provider => provider.GetRequiredService<MarketOutlookConsolePublisher>());
         services.AddHostedService(provider =>
         provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
         services.AddSingleton<MarketOutlookUpdateProcessor>();

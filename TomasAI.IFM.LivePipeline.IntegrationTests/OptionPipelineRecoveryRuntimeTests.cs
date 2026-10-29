@@ -16,7 +16,59 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 public sealed class OptionPipelineRecoveryRuntimeTests
 {
     [Theory]
+    [InlineData(MarketDataRecoveryOwnership.TokioDatasetOwner)]
+    [InlineData(MarketDataRecoveryOwnership.Unknown)]
+    public async Task Native_or_unknown_dataset_does_not_start_Csharp_recovery_or_restart_actors(MarketDataRecoveryOwnership ownership)
+    {
+        var market=Substitute.For<IMarketDataApi>();
+        market.DatasetRecoveryOwnership.Returns(ownership);
+        var actors=Substitute.For<IActorSupervisor>();
+        var sessions=Substitute.For<IFuturesMarketSessionAuthority>();
+        var runtime=new OptionPipelineRecoveryRuntime(actors,market,sessions,new TradeRealtimeCacheRegistry());
+        var inspection=runtime.Inspect();
+        Assert.Null(inspection.ValueDate);
+        Assert.Null(inspection.Failure);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>runtime.RecoverAndVerifyAsync(
+            Guid.NewGuid(),new(DateOnly.FromDateTime(DateTime.UtcNow),"injected",[]),DateTimeOffset.UtcNow.AddMinutes(2),default));
+        Assert.DoesNotContain(market.ReceivedCalls(),call=>call.GetMethodInfo().Name is "GetBackendStatusAsync" or "RecoverMarketDataAsync" or "RepairOptionObservationsAsync");
+        Assert.Empty(actors.ReceivedCalls());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Native_idle_requires_explicit_workload_evidence_and_never_shortens_deadline(bool complete)
+    {
+        var clock=new LivePipelineIntegrationTests.ManualTime();var start=clock.GetUtcNow();
+        var date=DateOnly.FromDateTime(start.UtcDateTime);
+        var before=new MarketDataDatasetStatus("Options","GLBX.MDP3",Guid.NewGuid(),Guid.NewGuid(),123,true,true,"Healthy",null,date);
+        var after=before with{WorkerInstanceId=Guid.NewGuid(),GenerationId=Guid.NewGuid()};var current=before;
+        var host=Guid.NewGuid();var market=Substitute.For<IMarketDataApi>();
+        MarketDataBackendStatus Status()=>new(true,date,[current],host,EnabledOptionTrades:[],RecoveryOwnership:MarketDataRecoveryOwnership.TokioDatasetOwner);
+        market.GetBackendStatusAsync(Arg.Any<CancellationToken>()).Returns(_=>Status());
+        market.GetRuntimeStatus().Returns(new TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel{
+            EnabledOptionTrades=[],OptionProcessingError="Injected",OptionProcessingFailureUtc=start});
+        var requested=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        market.RecoverMarketDataAsync(Arg.Any<MarketDataRecoveryRequest>(),Arg.Any<CancellationToken>()).Returns(call=>{
+            current=after;requested.TrySetResult();return new MarketDataRecoveryResult(call.Arg<MarketDataRecoveryRequest>().OperationId,"Options","GLBX.MDP3",true,true,true,null,after.WorkerInstanceId,after.GenerationId);});
+        market.GetBackendReadSnapshotAsync(Arg.Any<CancellationToken>()).Returns(_=>new MarketDataReadSnapshot(Status(),[],[],[],
+            NativeOptionWorkload:complete?new(after.GenerationId,clock.GetUtcNow(),false,[],[],[]):null));
+        var sessions=Substitute.For<IFuturesMarketSessionAuthority>();sessions.Current.Returns(new MarketSessionReadModel{ActiveValueDate=date});
+        var supervisor=Substitute.For<IActorSupervisor>();supervisor.IsReady.Returns(true);supervisor.RuntimeContext.Returns(new SupervisorRuntimeContext());
+        var runtime=new OptionPipelineRecoveryRuntime(supervisor,market,sessions,new TradeRealtimeCacheRegistry(),clock);
+        var coordinator=new OptionPipelineRecoveryCoordinator(runtime,NullLogger<OptionPipelineRecoveryCoordinator>.Instance,clock);
+        coordinator.Observe(default);await requested.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        if(complete){await coordinator.Completion!.WaitAsync(TimeSpan.FromSeconds(3));Assert.Equal("Healthy",coordinator.State);}
+        else{
+            clock.Advance(TimeSpan.FromSeconds(119));await Task.Delay(30);Assert.Equal("Recovering",coordinator.State);Assert.Null(coordinator.Failure);
+            clock.Advance(TimeSpan.FromSeconds(1));await coordinator.Completion!.WaitAsync(TimeSpan.FromSeconds(3));Assert.Equal("Failed",coordinator.State);
+            Assert.Contains("deadline expired",coordinator.Failure!.ErrorMessage);
+        }
+    }
+
+    [Theory]
     [InlineData("fresh")]
+    [InlineData("native-fresh")]
     [InlineData("missing-subscription")]
     [InlineData("no-quote")]
     [InlineData("hung-repair")]
@@ -31,8 +83,9 @@ public sealed class OptionPipelineRecoveryRuntimeTests
         market.GetRuntimeStatus().Returns(new TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel {
             EnabledOptionTrades = [trade.Id.Format()], OptionProcessingError = "Injected failure", OptionProcessingFailureUtc = start });
         var before = new MarketDataDatasetStatus("Options", "GLBX.MDP3", Guid.NewGuid(), Guid.NewGuid(), 100, true, true, "Healthy", null, date);
-        var after = before with { ProcessId = 200, GenerationId = Guid.NewGuid() }; var status = before;
-        market.GetBackendStatusAsync(Arg.Any<CancellationToken>()).Returns(_ => new MarketDataBackendStatus(true, date, [status]));
+        var after = before with { ProcessId = outcome=="native-fresh"?before.ProcessId:200, WorkerInstanceId=Guid.NewGuid(), GenerationId = Guid.NewGuid() }; var status = before;
+        var host=Guid.NewGuid();
+        market.GetBackendStatusAsync(Arg.Any<CancellationToken>()).Returns(_ => new MarketDataBackendStatus(true, date, [status],host,RecoveryOwnership:outcome=="native-fresh"?MarketDataRecoveryOwnership.TokioDatasetOwner:MarketDataRecoveryOwnership.Process));
         var restored = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         market.RecoverMarketDataAsync(Arg.Any<MarketDataRecoveryRequest>(), Arg.Any<CancellationToken>()).Returns(call => {
             status = after; restored.TrySetResult();
@@ -43,7 +96,7 @@ public sealed class OptionPipelineRecoveryRuntimeTests
         market.RepairOptionObservationsAsync(Arg.Any<OptionObservationRepairRequest>(), Arg.Any<CancellationToken>()).Returns(call => {
             var request = call.Arg<OptionObservationRepairRequest>(); repair.TrySetResult(request);
             if (outcome == "hung-repair") return stalled.Task;
-            if (outcome is "fresh" or "wrong-generation")
+            if (outcome is "fresh" or "native-fresh" or "wrong-generation")
             {
                 var fresh = Position(trade, date, 12, clock.GetUtcNow(), after.GenerationId);
                 if (outcome == "wrong-generation") fresh = fresh with { Legs = fresh.Legs.Select((leg, index) => index == 3
@@ -71,7 +124,7 @@ public sealed class OptionPipelineRecoveryRuntimeTests
         var requested = await repair.Task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.Equal(["ES-option-3"], requested.Contracts); Assert.Equal(after.GenerationId, requested.GenerationId);
         Assert.Equal(start.AddMinutes(2), requested.DeadlineUtc);
-        if (outcome == "fresh")
+        if (outcome is "fresh" or "native-fresh")
         {
             clock.Advance(TimeSpan.FromSeconds(1)); await coordinator.Completion!.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.Equal("Healthy", coordinator.State); Assert.Null(coordinator.Failure);

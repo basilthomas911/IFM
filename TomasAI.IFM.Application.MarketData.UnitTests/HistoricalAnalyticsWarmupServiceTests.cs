@@ -301,6 +301,52 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
         Assert.Equal(1, replay.PublishCount);
     }
 
+    [Theory]
+    [InlineData(2026, 10, 28, 2026, 10, 28, 2026, 10, 27)]
+    [InlineData(2024, 10, 28, 2024, 10, 27, 2024, 10, 25)]
+    [InlineData(2024, 11, 4, 2024, 11, 4, 2024, 11, 1)]
+    [InlineData(2024, 3, 11, 2024, 3, 11, 2024, 3, 8)]
+    [InlineData(2024, 12, 31, 2024, 12, 31, 2024, 12, 30)]
+    public async Task AcquisitionStopsAtPublishedSchemaBoundaryIncludingWeekendsAndDst(
+        int y, int m, int d, int py, int pm, int pd, int ey, int em, int ed)
+    {
+        var calendar = new CmeFuturesMarketSessionCalendar();
+        var store = new MemoryObservationStore();
+        var target = new DateOnly(y, m, d);
+        var expected = new DateOnly(ey, em, ed);
+        var clock = new CompletedSessionClock(calendar.GetSession(target).EndUtc.AddHours(1));
+        var api = new FillingHistoricalApi(calendar) { AvailableEnd = new DateTimeOffset(py, pm, pd, 0, 0, 0, TimeSpan.Zero) };
+        var loader = new HistoricalDataLoader(api, new MemoryDataLoaderStore(), store,
+            new NullHistoricalReplayPublisher(), calendar, clock);
+        var replay = new RecordingDailyReplayPublisher();
+        using var service = new HistoricalAnalyticsWarmupService(new() { Enabled = true }, loader, store, replay, calendar, clock);
+        var request = new MarketDataHistoricalRequest {
+            DataLoadAttemptId = Guid.NewGuid(), Series = [new() { SeriesIdentity = Es, Schema = HistoricalDataSchema.OhlcvDaily }],
+            StartDate = target.AddYears(-1), EndDate = target, MaximumCostUsd = 10, MaximumBytes = 1_073_741_824,
+            NormalizationVersion = "availability-test", RequestedBy = "test", AnalyticsTargetContractId = "ES-ACTIVE" };
+        var result = await service.EnsureAsync(request, default);
+        var actual = Assert.Single(api.Requests);
+        Assert.Equal(expected, actual.EndDate);
+        Assert.Equal(expected.AddDays(-364), actual.StartDate);
+        Assert.True(calendar.GetSession(actual.EndDate).EndUtc <= api.AvailableEnd);
+        Assert.True(result.ValidSessionCount >= 200);
+        Assert.False(service.BaselineIsStale);
+        Assert.Equal(target, request.EndDate);
+        Assert.True(store.RangeReads >= 2);
+        Assert.Equal(1, api.AvailabilityReads);
+        // Same published range is immutable; retry cannot resubmit paid work.
+        await service.EnsureAsync(request, default);
+        Assert.Single(api.Requests);
+        // Once publication advances, load only the missing completed session;
+        // never reuse the immutable cache entry for the older bounded request.
+        api.AvailableEnd = calendar.GetSession(target).EndUtc;
+        await service.EnsureAsync(request, default);
+        Assert.Equal(2, api.Requests.Count);
+        Assert.Equal(target, api.Requests[1].StartDate);
+        Assert.Equal(target, api.Requests[1].EndDate);
+        Assert.Equal(target, service.BaselineValueDate);
+    }
+
     [Fact]
     public void OptionsRequireOneYearAndExactlyEma200WarmupDepth()
     {
@@ -319,6 +365,11 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
             Enabled = true,
             MinimumValidDailySessions = 200
         }.Validate().MinimumValidDailySessions);
+    }
+
+    sealed class CompletedSessionClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     sealed class Fixture
@@ -470,6 +521,10 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
 
     sealed class FillingHistoricalApi(IMarketSessionCalendar calendar) : IMarketDataHistoricalApi
     {
+        internal DateTimeOffset? AvailableEnd { get; set; }
+        internal int AvailabilityReads { get; private set; }
+        public ValueTask<DateTimeOffset?> GetAvailableEndAsync(MarketDataHistoricalRequest request, CancellationToken token)
+        { AvailabilityReads++; token.ThrowIfCancellationRequested(); return ValueTask.FromResult(AvailableEnd); }
         internal List<MarketDataHistoricalRequest> Requests { get; } = [];
 
         public ValueTask<MarketDataHistoricalEstimate> EstimateAsync(

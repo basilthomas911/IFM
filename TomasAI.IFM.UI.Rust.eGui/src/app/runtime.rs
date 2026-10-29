@@ -19,6 +19,7 @@ pub(crate) fn run(
     {
         Ok(value) => value,
         Err(error) => {
+            ifm_ui_egui::diagnostics::errors::record("ui.runtime_start_failed",None,None,&format!("{error:?}"));
             let _ = updates.try_send(Update::Error(format!(
                 "Cannot start native runtime: {error}"
             )));
@@ -41,7 +42,7 @@ pub(crate) fn run(
                 let catalog: Catalog = serde_json::from_str(include_str!("../../catalog/strings.en.json")).map_err(|e| e.to_string())?;
                 let snapshot: Snapshot = serde_json::from_value(serde_json::json!({
                     "schema":1,"epoch":uuid::Uuid::new_v4().to_string(),"generation":1,"mode":"Live","workflowId":"","revision":0,"roots":[],
-                    "status":format!("Connected — API ValueDate {date}")
+                    "status":format!("Connected â€” API ValueDate {date}")
                 })).map_err(|e| e.to_string())?;
                 initial.send(Update::Ready(catalog, snapshot)).await.map_err(|_| "UI closed")?;
                 initial.send(Update::Dashboard(ifm_ui_egui::shell::Dashboard {
@@ -59,7 +60,7 @@ pub(crate) fn run(
         let mut backend = None;
         let registry = match Registry::compiled() {
             Ok(registry)=>std::sync::Arc::new(registry),
-            Err(error)=>{if let Some(task)=startup.take(){task.abort();}let _=updates.try_send(Update::Error(format!("Invalid compiled backend metadata: {error}")));context.request_repaint();return;}
+            Err(error)=>{ifm_ui_egui::diagnostics::errors::record("ui.metadata_invalid",None,None,&error);if let Some(task)=startup.take(){task.abort();}let _=updates.try_send(Update::Error(format!("Invalid compiled backend metadata: {error}")));context.request_repaint();return;}
         };
         let lookup_state = std::sync::Arc::new(tokio::sync::Mutex::new(LookupController::default()));
         let calendar_state = std::sync::Arc::new(tokio::sync::Mutex::new(ifm_ui_egui::state::calendar::CalendarController::default()));
@@ -90,7 +91,7 @@ pub(crate) fn run(
             tokio::select! {
                 _=tick.tick()=>{},
                 publication=async{sidebar_updates.as_mut().unwrap().recv().await},if sidebar_updates.is_some()=>{
-                    if let Some(publication)=publication { pending.push(Update::Sidebar(publication)); }
+                    if let Some(publication)=publication {pending.retain(|old|!matches!(old,Update::Sidebar(_)));pending.push(Update::Sidebar(publication)); }
                     else { sidebar_updates=None; }
                 }
             }
@@ -103,7 +104,7 @@ pub(crate) fn run(
                             let (strategy_updates,mut strategy_received)=tokio::sync::mpsc::channel(8);
                             let strategy_backend=client.clone();let strategy_registry=registry.clone();let strategy_results=results.clone();
                             operations.spawn(ifm_ui_egui::services::strategy_stream::run(strategy_backend,strategy_registry,strategy_receiver,strategy_updates));
-                            operations.spawn(async move{while let Some(update)=strategy_received.recv().await{let update=match update{Ok(snapshot)=>Update::Snapshot(snapshot),Err(error)=>Update::Error(error)};if strategy_results.send(update).await.is_err(){break;}}});
+                            operations.spawn(async move{while let Some(update)=strategy_received.recv().await{let update=match update{Ok(snapshot)=>Update::Snapshot(snapshot),Err(error)=>Update::Warning(error)};if strategy_results.send(update).await.is_err(){break;}}});
                             let (sidebar_sender, sidebar_receiver) = tokio::sync::mpsc::channel(32);
                             sidebar_updates = Some(sidebar_receiver);
                             let (action_sender,action_receiver)=tokio::sync::mpsc::channel(32);sidebar_actions=Some(action_sender);
@@ -115,7 +116,7 @@ pub(crate) fn run(
                             let results = results.clone();
                             operations.spawn(async move {
                                 if let Err(error) = ifm_ui_egui::services::notifications::monitor(monitor_backend, registry, sidebar_sender,action_receiver).await {
-                                    let _ = results.send(Update::Error(error)).await;
+                                    let _ = results.send(Update::Warning(error)).await;
                                 }
                             });
                             operations.spawn(async move {
@@ -161,19 +162,19 @@ pub(crate) fn run(
                 }
             }
             while let Some(outcome) = operations.try_join_next() {
-                if let Err(error) = outcome { pending.push(Update::Error(format!("Native controller task failed: {error}"))); }
+                if let Err(error) = outcome { pending.push(Update::Warning(format!("Native controller task failed: {error}"))); }
             }
             if pending.len() < 64 { match actions.try_recv() {
                 Ok(u32::MAX) | Err(mpsc::TryRecvError::Disconnected) => break,
                 Ok(action) if matches!(action&0xf000_0000,0x8000_0000|0x9000_0000|0xa000_0000|0xb000_0000)=>{
-                    if sidebar_actions.as_ref().is_none_or(|sender|sender.try_send(action).is_err()){pending.push(Update::Error("Calendar action is unavailable while its service is starting or busy".into()));}
+                    if sidebar_actions.as_ref().is_none_or(|sender|sender.try_send(action).is_err()){pending.push(Update::Warning("Calendar action is unavailable while its service is starting or busy".into()));}
                 }
                 Ok(action) => {
                     if matches!(action,2|10..=13|1000..=0x0fff_ffff){
-                        if strategy_actions.as_ref().is_none_or(|sender|sender.try_send(action).is_err()){pending.push(Update::Error("Strategy action is unavailable while its service is starting or busy".into()));}
+                        if strategy_actions.as_ref().is_none_or(|sender|sender.try_send(action).is_err()){pending.push(Update::Warning("Strategy action is unavailable while its service is starting or busy".into()));}
                     }else{
                         // Every unsupported action returns a visible rejection, never a successful fixture outcome.
-                        pending.push(Update::Error(format!("Standalone action {action} has no native controller yet")));
+                        pending.push(Update::Warning(format!("Standalone action {action} has no native controller yet")));
                     }
                 }
                 Err(mpsc::TryRecvError::Empty) => {}
@@ -246,7 +247,7 @@ pub(crate) fn run(
                                         let Some(state)=weak.upgrade()else{break;};
                                         if let Some(publication)=state.lock().await.refresh_if_loaded(&backend,&registry).await{if results.send(Update::Contracts(publication)).await.is_err(){break;}}
                                     }
-                                    let _=results.send(Update::Error("Backup notifications stopped; reload the view to reattach.".into())).await;
+                                    let _=results.send(Update::Warning("Backup notifications stopped; reload the view to reattach.".into())).await;
                                 }));
                             }
                             let _=results.send(update).await;
@@ -292,7 +293,7 @@ pub(crate) fn run(
                                         let Some(state)=weak.upgrade()else{break;};
                                         if let Some(publication)=state.lock().await.refresh_if_loaded(&backend,&registry).await{if results.send(Update::Contracts(publication)).await.is_err(){break;}}
                                     }
-                                    if let Some(state)=weak.upgrade(){state.lock().await.observer_unavailable();let _=results.send(Update::Error("Scheduled-task notifications stopped; reload the view to reattach.".into())).await;}
+                                    if let Some(state)=weak.upgrade(){state.lock().await.observer_unavailable();let _=results.send(Update::Warning("Scheduled-task notifications stopped; reload the view to reattach.".into())).await;}
                                 }));
                             }
                             let _=results.send(update).await;
@@ -340,7 +341,7 @@ pub(crate) fn run(
                                 Ok(publication) => Ok(publication),
                                 Err(error) => state.failed(value["requestId"].as_str().unwrap_or_default().into(), &error),
                             };
-                            let update = match publication { Ok(p) => Update::Contracts(p), Err(error) => Update::Error(error) };
+                            let update = match publication { Ok(p) => Update::Contracts(p), Err(error) => Update::Warning(error) };
                             let _ = results.send(update).await;
                         });
                     }
@@ -363,11 +364,12 @@ pub(crate) fn run(
                         value["requestId"].as_str().unwrap_or_default().into(),
                         format!("Native controller is not yet available for {} / {}", value["view"].as_str().unwrap_or("unknown"), value["intent"].as_str().unwrap_or("unknown")),
                     )),
-                    Err(error) => pending.push(Update::Error(format!("Invalid UI intent: {error}"))),
+                    Err(error) => pending.push(Update::Warning(format!("Invalid UI intent: {error}"))),
                 }
             }
             while pending.len() < 64 {
                 if let Some(sidebar) = sidebar_updates.as_mut().and_then(|receiver| receiver.try_recv().ok()) {
+                    pending.retain(|old|!matches!(old,Update::Sidebar(_)));
                     pending.push(Update::Sidebar(sidebar));
                     continue;
                 }
@@ -378,8 +380,21 @@ pub(crate) fn run(
                 pending.push(update);
             }
             while !pending.is_empty() {
+                // Audit on the service thread, outside paint callbacks. A full
+                // UI channel retries delivery without repeatedly logging it.
+                let audit = match &pending[0] {
+                    Update::Error(error) => Some((None, error.clone())),
+                    Update::Warning(error) => { ifm_ui_egui::diagnostics::errors::record("ui.warning_handed_to_ui",None,None,error); None },
+                    Update::SubmissionRejected(id,error) => Some((Some(id.clone()),error.clone())),
+                    _ => None,
+                };
                 match updates.try_send(pending.remove(0)) {
-                    Ok(()) => context.request_repaint(),
+                    Ok(()) => {
+                        if let Some((operation,error))=audit {
+                            ifm_ui_egui::diagnostics::errors::record("ui.error_handed_to_ui",None,operation.as_deref(),&error);
+                        }
+                        context.request_repaint();
+                    },
                     Err(mpsc::TrySendError::Full(update)) => { pending.insert(0, update); break; }
                     Err(mpsc::TrySendError::Disconnected(_)) => {
                         if let Some(task) = startup.take() { task.abort(); }

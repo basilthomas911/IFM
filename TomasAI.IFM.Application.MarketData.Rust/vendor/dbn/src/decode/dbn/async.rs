@@ -1,0 +1,1157 @@
+use std::path::Path;
+
+use async_compression::tokio::bufread::ZstdDecoder;
+use tokio::{
+    fs::File,
+    io::{self, BufReader},
+};
+
+use crate::{
+    decode::{
+        dbn::fsm::{DbnFsm, ProcessResult},
+        zstd::zstd_decoder,
+        AsyncDecodeRecord, AsyncDecodeRecordRef, AsyncDynReader, AsyncSkipBytes, DbnMetadata,
+        VersionUpgradePolicy, ZSTD_FILE_BUFFER_CAPACITY,
+    },
+    HasRType, Metadata, RecordRef, Result, DBN_VERSION,
+};
+
+/// An async decoder for Databento Binary Encoding (DBN), both metadata and records.
+pub struct Decoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    metadata: Metadata,
+    decoder: RecordDecoder<R>,
+}
+
+impl<R> Decoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    /// Creates a new async DBN [`Decoder`] from `reader`. Will upgrade records from
+    /// previous DBN version to the current version.
+    ///
+    /// # Errors
+    /// This function will return an error if it is unable to parse the metadata in
+    /// `reader` or the input is encoded in a newer version of DBN.
+    ///
+    /// # Cancel safety
+    /// If interrupted, discard the entire reader/client. A partial metadata parse
+    /// must not be resumed on the same input stream.
+    pub async fn new(reader: R) -> crate::Result<Self> {
+        let mut metadata_decoder = MetadataDecoder::new(reader);
+        let mut metadata = metadata_decoder.decode().await?;
+        metadata.upgrade(VersionUpgradePolicy::default());
+        Ok(Self {
+            decoder: RecordDecoder::from(metadata_decoder),
+            metadata,
+        })
+    }
+
+    /// Creates a new async DBN [`Decoder`] from `reader`. It will decode records from
+    /// previous DBN versions according to `upgrade_policy`.
+    ///
+    /// # Errors
+    /// This function will return an error if it is unable to parse the metadata in
+    /// `reader` or the input is encoded in a newer version of DBN.
+    ///
+    /// # Cancel safety
+    /// If interrupted, discard the entire reader/client. A partial metadata parse
+    /// must not be resumed on the same input stream.
+    pub async fn with_upgrade_policy(
+        reader: R,
+        upgrade_policy: VersionUpgradePolicy,
+    ) -> crate::Result<Self> {
+        let mut metadata_decoder = MetadataDecoder::with_upgrade_policy(reader, upgrade_policy);
+        let metadata = metadata_decoder.decode().await?;
+        Ok(Self {
+            decoder: RecordDecoder::from(metadata_decoder),
+            metadata,
+        })
+    }
+
+    /// Returns a mutable reference to the inner reader.
+    ///
+    /// Note: be careful not to modify the inner reader after beginning decoding.
+    #[deprecated(
+        since = "0.29.0",
+        note = "Will be removed in a future version because modifying the inner reader through this method can leave the decoder in an inconsistent state"
+    )]
+    pub fn get_mut(&mut self) -> &mut R {
+        #[expect(deprecated)]
+        self.decoder.get_mut()
+    }
+
+    /// Consumes the decoder and returns the inner reader.
+    pub fn into_inner(self) -> R {
+        self.decoder.into_inner()
+    }
+
+    /// Consumes this decoder without cloning retained metadata. This is intended
+    /// for fully consumed streams whose owner returns metadata to its caller.
+    pub fn into_parts(self) -> (Metadata, R) {
+        (self.metadata, self.decoder.into_inner())
+    }
+
+    /// Sets the behavior for decoding DBN data of previous versions.
+    ///
+    /// # Errors
+    /// This function will return an error if the `version` and `upgrade_policy` are
+    /// incompatible.
+    pub fn set_upgrade_policy(&mut self, upgrade_policy: VersionUpgradePolicy) -> Result<()> {
+        self.decoder.set_upgrade_policy(upgrade_policy)?;
+        self.metadata.upgrade(upgrade_policy);
+        Ok(())
+    }
+
+    /// Tries to decode a single record and returns a reference to the record that
+    /// lasts until the next method call. Returns `Ok(None)` if `reader` has been
+    /// exhausted.
+    ///
+    /// # Errors
+    /// This function returns an error if the underlying reader returns an error. If
+    /// the next record is of a different type than `T`, this function returns a
+    /// [`Error::Conversion`](crate::Error::Conversion) error.
+    ///
+    /// # Cancel safety
+    /// If interrupted, discard the entire reader/client. A partial metadata parse
+    /// must not be resumed on the same input stream.
+    pub async fn decode_record<'a, T: HasRType + 'a>(&'a mut self) -> Result<Option<&'a T>> {
+        self.decoder.decode().await
+    }
+
+    /// Tries to decode all records into a `Vec`. This eagerly decodes the data.
+    ///
+    /// # Errors
+    /// This function returns an error if the underlying reader returns an error. If
+    /// the next record is of a different type than `T`, this function returns a
+    /// [`Error::Conversion`](crate::Error::Conversion) error.
+    ///
+    /// # Cancel safety
+    /// This method is not cancellation safe. If used within a `tokio::select!` statement
+    /// partially decoded records will be lost and the stream may be corrupted.
+    pub async fn decode_records<T: HasRType + Clone>(&mut self) -> Result<Vec<T>> {
+        self.decoder.decode_records().await
+    }
+
+    /// Tries to decode a single record and returns a reference to the record that
+    /// lasts until the next method call. Returns `Ok(None)` if `reader` has been
+    /// exhausted.
+    ///
+    /// # Errors
+    /// This function returns an error if the underlying reader returns an error. It
+    /// will also return an error if it encounters an invalid record.
+    ///
+    /// # Cancel safety
+    /// If interrupted, discard the entire reader/client. A partial metadata parse
+    /// must not be resumed on the same input stream.
+    pub async fn decode_record_ref(&mut self) -> Result<Option<RecordRef<'_>>> {
+        self.decoder.decode_ref().await
+    }
+}
+
+impl<R> Decoder<ZstdDecoder<BufReader<R>>>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    /// Creates a new async DBN [`Decoder`] from Zstandard-compressed `reader`.
+    ///
+    /// # Errors
+    /// This function will return an error if it is unable to parse the metadata in `reader`.
+    ///
+    /// # Cancel safety
+    /// This method is not cancellation safe. If this method is used in a
+    /// `tokio::select!` statement and another branch completes first, the metadata
+    /// may have been partially read, corrupting the stream.
+    pub async fn with_zstd(reader: R) -> crate::Result<Self> {
+        Decoder::new(zstd_decoder(BufReader::new(reader))).await
+    }
+}
+
+impl<R> Decoder<ZstdDecoder<R>>
+where
+    R: io::AsyncBufReadExt + Unpin,
+{
+    /// Creates a new async DBN [`Decoder`] from Zstandard-compressed buffered `reader`.
+    ///
+    /// # Errors
+    /// This function will return an error if it is unable to parse the metadata in `reader`.
+    ///
+    /// # Cancel safety
+    /// This method is not cancellation safe. If this method is used in a
+    /// `tokio::select!` statement and another branch completes first, the metadata
+    /// may have been partially read, corrupting the stream.
+    pub async fn with_zstd_buffer(reader: R) -> crate::Result<Self> {
+        Decoder::new(zstd_decoder(reader)).await
+    }
+}
+
+impl Decoder<File> {
+    /// Creates a new async DBN [`Decoder`] from the file at `path`.
+    ///
+    /// # Errors
+    /// This function will return an error if it is unable to read the file at `path` or
+    /// if it is unable to parse the metadata in the file.
+    ///
+    /// # Cancel safety
+    /// This method is not cancellation safe. If this method is used in a
+    /// `tokio::select!` statement and another branch completes first, the metadata
+    /// may have been partially read, corrupting the stream.
+    pub async fn from_file(path: impl AsRef<Path>) -> crate::Result<Self> {
+        let file = File::open(path.as_ref()).await.map_err(|e| {
+            crate::Error::io(
+                e,
+                format!("opening DBN file at path '{}'", path.as_ref().display()),
+            )
+        })?;
+        Self::new(file).await
+    }
+}
+
+impl Decoder<ZstdDecoder<BufReader<File>>> {
+    /// Creates a new async DBN [`Decoder`] from the Zstandard-compressed file at `path`.
+    ///
+    /// # Errors
+    /// This function will return an error if it is unable to read the file at `path` or
+    /// if it is unable to parse the metadata in the file.
+    ///
+    /// # Cancel safety
+    /// This method is not cancellation safe. If this method is used in a
+    /// `tokio::select!` statement and another branch completes first, the metadata
+    /// may have been partially read, corrupting the stream.
+    pub async fn from_zstd_file(path: impl AsRef<Path>) -> crate::Result<Self> {
+        let file = File::open(path.as_ref()).await.map_err(|e| {
+            crate::Error::io(
+                e,
+                format!(
+                    "opening Zstandard-compressed DBN file at path '{}'",
+                    path.as_ref().display()
+                ),
+            )
+        })?;
+        Self::with_zstd_buffer(BufReader::with_capacity(ZSTD_FILE_BUFFER_CAPACITY, file)).await
+    }
+}
+
+impl<R> DbnMetadata for Decoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    fn metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    fn metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.metadata
+    }
+}
+
+impl<R> AsyncDecodeRecordRef for Decoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    async fn decode_record_ref(&mut self) -> crate::Result<Option<RecordRef<'_>>> {
+        self.decoder.decode_ref().await
+    }
+}
+
+impl<R> AsyncDecodeRecord for Decoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    async fn decode_record<'a, T: HasRType + 'a>(&'a mut self) -> crate::Result<Option<&'a T>> {
+        self.decoder.decode().await
+    }
+}
+
+/// An async decoder for files and streams of Databento Binary Encoding (DBN) records.
+pub struct RecordDecoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    reader: R,
+    fsm: DbnFsm,
+}
+
+impl<R> From<MetadataDecoder<R>> for RecordDecoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    fn from(metadata_decoder: MetadataDecoder<R>) -> Self {
+        let MetadataDecoder { reader, mut fsm } = metadata_decoder;
+        if fsm
+            .upgrade_policy()
+            .is_upgrade_situation(fsm.input_dbn_version().unwrap())
+        {
+            fsm.grow_compat(DbnFsm::DEFAULT_BUF_SIZE);
+        }
+        Self { reader, fsm }
+    }
+}
+
+impl<R> RecordDecoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    /// Creates a new DBN [`RecordDecoder`] from `reader`.
+    ///
+    /// Note: assumes the input is of the current DBN version. To decode records from a
+    /// previous version, use [`RecordDecoder::with_version()`].
+    pub fn new(reader: R) -> Self {
+        Self::with_version(reader, DBN_VERSION, VersionUpgradePolicy::AsIs, false).unwrap()
+    }
+
+    /// Creates a new `RecordDecoder` that will decode from `reader`
+    /// with the specified DBN version.
+    ///
+    /// # Errors
+    /// This function will return an error if the `version` exceeds the supported version.
+    pub fn with_version(
+        reader: R,
+        version: u8,
+        upgrade_policy: VersionUpgradePolicy,
+        ts_out: bool,
+    ) -> crate::Result<Self> {
+        let fsm = DbnFsm::builder()
+            .compat_size(crate::MAX_RECORD_LEN)
+            .skip_metadata(true)
+            .input_dbn_version(Some(version))?
+            .upgrade_policy(upgrade_policy)
+            .ts_out(ts_out)
+            .build()?;
+        Ok(Self { reader, fsm })
+    }
+
+    /// Creates a new `RecordDecoder` that will decode from `reader` and use the state
+    /// and buffered data already in `fsm`.
+    pub fn with_fsm(reader: R, fsm: DbnFsm) -> Self {
+        Self { reader, fsm }
+    }
+
+    /// Sets the DBN version to expect when decoding.
+    ///
+    /// # Errors
+    /// This function will return an error if the `version` exceeds the highest
+    /// supported version or the `version` and `upgrade_policy` are incompatible.
+    pub fn set_version(&mut self, version: u8) -> crate::Result<()> {
+        self.fsm.set_input_dbn_version(version).map(drop)
+    }
+
+    /// Sets the behavior for decoding DBN data of previous versions.
+    ///
+    /// # Errors
+    /// This function will return an error if the `version` and `upgrade_policy` are
+    /// incompatible.
+    pub fn set_upgrade_policy(
+        &mut self,
+        upgrade_policy: VersionUpgradePolicy,
+    ) -> crate::Result<()> {
+        self.fsm.set_upgrade_policy(upgrade_policy)
+    }
+
+    /// Sets whether to expect a send timestamp appended after every record.
+    pub fn set_ts_out(&mut self, ts_out: bool) {
+        self.fsm.set_ts_out(ts_out);
+    }
+
+    /// Tries to decode a single record and returns a reference to the record that
+    /// lasts until the next method call. Returns `None` if `reader` has been
+    /// exhausted.
+    ///
+    /// # Errors
+    /// This function returns an error if the underlying reader returns an error. If
+    /// the next record is of a different type than `T`, this function returns a
+    /// [`Error::Conversion`](crate::Error::Conversion) error.
+    ///
+    /// # Cancel safety
+    /// If interrupted, discard the entire reader/client. A partial metadata parse
+    /// must not be resumed on the same input stream.
+    pub async fn decode<'a, T: HasRType + 'a>(&'a mut self) -> Result<Option<&'a T>> {
+        self.decode_ref().await.and_then(|rec| {
+            if let Some(rec) = rec {
+                rec.try_get().map(Some)
+            } else {
+                Ok(None)
+            }
+        })
+    }
+
+    /// Tries to decode all records into a `Vec`. This eagerly decodes the data.
+    ///
+    /// # Errors
+    /// This function returns an error if the underlying reader returns an error. If
+    /// the next record is of a different type than `T`, this function returns a
+    /// [`Error::Conversion`](crate::Error::Conversion) error.
+    ///
+    /// # Cancel safety
+    /// This method is not cancellation safe. If used within a `tokio::select!` statement
+    /// partially decoded records will be lost and the stream may be corrupted.
+    pub async fn decode_records<T: HasRType + Clone>(&mut self) -> Result<Vec<T>> {
+        let mut res = Vec::new();
+        while let Some(rec) = self.decode::<T>().await? {
+            res.push(rec.clone());
+        }
+        Ok(res)
+    }
+
+    /// Tries to decode a single record and returns a reference to the record that
+    /// lasts until the next method call. Returns `None` if `reader` has been
+    /// exhausted.
+    ///
+    /// # Errors
+    /// This function returns an error if the underlying reader returns an
+    /// error of a kind other than `io::ErrorKind::UnexpectedEof` upon reading.
+    /// It will also return an error if it encounters an invalid record.
+    ///
+    /// # Cancel safety
+    /// If interrupted, discard the entire reader/client. A partial metadata parse
+    /// must not be resumed on the same input stream.
+    pub async fn decode_ref(&mut self) -> Result<Option<RecordRef<'_>>> {
+        loop {
+            match self.fsm.process() {
+                ProcessResult::ReadMore(_) => match self.reader.read(self.fsm.space()).await {
+                    Ok(0) => return Ok(None),
+                    Ok(nbytes) => {
+                        self.fsm.fill(nbytes);
+                    }
+                    Err(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => {
+                        return Ok(None);
+                    }
+                    Err(err) => {
+                        return Err(crate::Error::io(err, "decoding record reference"));
+                    }
+                },
+                ProcessResult::Record(_) => return Ok(self.fsm.last_record()),
+                ProcessResult::Err(error) => return Err(error),
+                ProcessResult::Metadata(_) => unreachable!("skipped metadata"),
+            }
+        }
+    }
+
+    /// Returns a mutable reference to the inner reader.
+    ///
+    /// Note: be careful not to modify the inner reader after beginning decoding.
+    #[deprecated(
+        since = "0.29.0",
+        note = "Will be removed in a future version because modifying the inner reader through this method can leave the decoder in an inconsistent state"
+    )]
+    pub fn get_mut(&mut self) -> &mut R {
+        &mut self.reader
+    }
+
+    /// Consumes the decoder and returns the inner reader.
+    pub fn into_inner(self) -> R {
+        self.reader
+    }
+}
+
+impl<R> AsyncDecodeRecordRef for RecordDecoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    async fn decode_record_ref(&mut self) -> crate::Result<Option<RecordRef<'_>>> {
+        self.decode_ref().await
+    }
+}
+
+impl<R> AsyncDecodeRecord for RecordDecoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    async fn decode_record<'a, T: HasRType + 'a>(&'a mut self) -> crate::Result<Option<&'a T>> {
+        self.decode().await
+    }
+}
+
+impl<R> RecordDecoder<R>
+where
+    R: io::AsyncReadExt + io::AsyncSeekExt + Unpin,
+{
+    /// Seeks to absolute byte position `pos` and clears buffered decoder state.
+    ///
+    /// # Warning
+    /// Callers are responsible for ensuring `pos` is a valid record boundary.
+    ///
+    /// # Cancel safety
+    /// This method may not be cancellation safe, depending on the cancellation safety
+    /// of `seek()` of the inner reader `R`.
+    ///
+    /// # Errors
+    /// This function returns an error if it fails to seek in the inner reader.
+    pub async fn seek_to(&mut self, pos: u64) -> crate::Result<()> {
+        self.reader
+            .seek(std::io::SeekFrom::Start(pos))
+            .await
+            .map(drop)
+            .map_err(|err| crate::Error::io(err, format!("seeking to byte offset {pos}")))?;
+        self.fsm.reset_for_seek();
+        Ok(())
+    }
+}
+
+impl<R> RecordDecoder<AsyncDynReader<R>>
+where
+    R: io::AsyncReadExt + io::AsyncBufReadExt + Unpin,
+{
+    /// Seeks to absolute byte position `pos` and clears buffered decoder state.
+    ///
+    /// # Warning
+    /// Callers are responsible for ensuring `pos` is a valid record boundary.
+    ///
+    /// # Cancel safety
+    /// This method is not cancel safe.
+    ///
+    /// # Errors
+    /// This function returns an error if it fails to seek in the inner reader, or if
+    /// the input is Zstandard-compressed.
+    pub async fn seek_to(&mut self, pos: u64) -> crate::Result<()>
+    where
+        R: io::AsyncSeekExt,
+    {
+        if self.reader.is_compressed() {
+            return Err(crate::Error::BadArgument {
+                param_name: "self".to_owned(),
+                desc: "absolute seek is unsupported for zstd-compressed input".to_owned(),
+            });
+        }
+        self.reader
+            .get_mut()
+            .seek(std::io::SeekFrom::Start(pos))
+            .await
+            .map(drop)
+            .map_err(|err| crate::Error::io(err, format!("seeking to byte offset {pos}")))?;
+        self.fsm.reset_for_seek();
+        Ok(())
+    }
+
+    /// Returns whether the input is Zstandard-compressed.
+    pub fn is_compressed(&self) -> bool {
+        self.reader.is_compressed()
+    }
+}
+
+impl<R> RecordDecoder<R>
+where
+    R: AsyncSkipBytes + io::AsyncReadExt + Unpin,
+{
+    /// Seeks forward the specified number of bytes.
+    ///
+    /// # Cancel safety
+    /// This method may not be cancellation safe, depending on the cancellation safety
+    /// of `skip_bytes()` of the inner reader `R`.
+    ///
+    /// # Errors
+    /// This function returns an error if it fails to seek ahead in the inner reader.
+    pub async fn skip_bytes(&mut self, n_bytes: usize) -> crate::Result<()> {
+        let skipped = self.fsm.skip(n_bytes);
+        if skipped < n_bytes {
+            self.reader.skip_bytes(n_bytes - skipped).await
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl<R> RecordDecoder<ZstdDecoder<BufReader<R>>>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    /// Creates a new async DBN [`RecordDecoder`] from a Zstandard-compressed `reader`.
+    pub fn with_zstd(reader: R) -> Self {
+        RecordDecoder::new(zstd_decoder(BufReader::new(reader)))
+    }
+}
+
+impl<R> RecordDecoder<ZstdDecoder<R>>
+where
+    R: io::AsyncBufReadExt + Unpin,
+{
+    /// Creates a new async DBN [`RecordDecoder`] from a Zstandard-compressed buffered `reader`.
+    pub fn with_zstd_buffer(reader: R) -> Self {
+        RecordDecoder::new(zstd_decoder(reader))
+    }
+}
+
+/// An async decoder for the metadata in files and streams in Databento Binary Encoding (DBN).
+pub struct MetadataDecoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    reader: R,
+    fsm: DbnFsm,
+}
+
+impl<R> MetadataDecoder<R>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    /// Creates a new async DBN [`MetadataDecoder`] from `reader`.
+    pub fn new(reader: R) -> Self {
+        Self {
+            reader,
+            fsm: DbnFsm::new(DbnFsm::DEFAULT_BUF_SIZE, 0),
+        }
+    }
+
+    /// Creates a new async DBN [`MetadataDecoder`] from `reader`. It will decode
+    /// metadata from previous DBN versions according to `upgrade_policy`.
+    ///
+    /// # Errors
+    /// This function will return an error if it is unable to parse the metadata in
+    /// `reader`.
+    pub fn with_upgrade_policy(reader: R, upgrade_policy: VersionUpgradePolicy) -> Self {
+        let fsm = DbnFsm::builder()
+            .compat_size(0)
+            .upgrade_policy(upgrade_policy)
+            .build()
+            // No error because `input_dbn_version` wasn't overwritten
+            .unwrap();
+        Self { reader, fsm }
+    }
+
+    /// Creates a new `MetadataDecoder` that will decode from `reader` and use the state
+    /// and buffered data already in `fsm`.
+    pub fn with_fsm(reader: R, fsm: DbnFsm) -> Self {
+        Self { reader, fsm }
+    }
+
+    /// Decodes and returns a DBN [`Metadata`].
+    ///
+    /// # Errors
+    /// This function will return an error if it is unable to parse the metadata or the
+    /// input is encoded in a newere version of DBN.
+    ///
+    /// # Cancel safety
+    /// If interrupted, discard the entire reader/client. A partial metadata parse
+    /// must not be resumed on the same input stream.
+    pub async fn decode(&mut self) -> Result<Metadata> {
+        decode_metadata_with_fsm(&mut self.reader, &mut self.fsm).await
+    }
+
+    /// Returns a mutable reference to the inner reader.
+    pub fn get_mut(&mut self) -> &mut R {
+        &mut self.reader
+    }
+
+    /// Consumes the decoder and returns the inner reader.
+    pub fn into_inner(self) -> R {
+        self.reader
+    }
+}
+
+impl<R> MetadataDecoder<ZstdDecoder<BufReader<R>>>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    /// Creates a new async DBN [`MetadataDecoder`] from a Zstandard-compressed `reader`.
+    pub fn with_zstd(reader: R) -> Self {
+        MetadataDecoder::new(zstd_decoder(BufReader::new(reader)))
+    }
+}
+
+impl<R> MetadataDecoder<ZstdDecoder<R>>
+where
+    R: io::AsyncBufReadExt + Unpin,
+{
+    /// Creates a new async DBN [`MetadataDecoder`] from a Zstandard-compressed buffered `reader`.
+    pub fn with_zstd_buffer(reader: R) -> Self {
+        MetadataDecoder::new(zstd_decoder(reader))
+    }
+}
+
+/// A low-level function for decoding DBN [`Metadata`]. Generally, the [`Decoder`] or
+/// [`MetadataDecoder`] should be used instead of this function.
+///
+/// # Errors
+/// This function will return an error if it is unable to parse the metadata or the
+/// input is encoded in a newere version of DBN.
+///
+/// # Cancel safety
+/// On interruption discard the reader/client; a partial parse is not resumable.
+///
+/// Requires a fresh metadata boundary. Prefilled/started FSMs return an error.
+pub async fn decode_metadata_with_fsm<R>(mut reader: R, fsm: &mut DbnFsm) -> crate::Result<Metadata>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    if fsm.has_decoded_metadata() || !fsm.data().is_empty() {
+        return Err(crate::Error::decode(
+            "metadata decoder is not at a fresh boundary",
+        ));
+    }
+    let (mut metadata, _) =
+        super::streaming::decode(&mut reader, super::streaming::Policy::default()).await?;
+    fsm.install_streamed_metadata(&mut metadata)?;
+    Ok(metadata)
+}
+
+/// A low-level function for decoding the next [`RecordRef`]. Returns `None` if `reader`
+/// has been exhausted.
+///
+/// Generally [`Decoder`] and [`RecordDecoder`] should be used instead of this function.
+///
+/// # Errors
+/// This function returns an error if the underlying reader returns an
+/// error of a kind other than `io::ErrorKind::UnexpectedEof` upon reading.
+/// It will also return an error if it encounters an invalid record.
+///
+/// # Cancel safety
+/// This method is cancel safe. It can be used within a `tokio::select!` statement
+/// without the potential for corrupting the input stream.
+///
+/// # Panics
+/// This function will panic if it encounters DBN metadata. The caller must ensure
+/// the metadata has already been decoded.
+pub async fn decode_record_ref_with_fsm<'a, R>(
+    mut reader: R,
+    fsm: &'a mut DbnFsm,
+) -> Result<Option<RecordRef<'a>>>
+where
+    R: io::AsyncReadExt + Unpin,
+{
+    loop {
+        match fsm.process() {
+            ProcessResult::ReadMore(_) => match reader.read(fsm.space()).await {
+                Ok(0) => return Ok(None),
+                Ok(nbytes) => {
+                    fsm.fill(nbytes);
+                }
+                Err(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => {
+                    return Ok(None);
+                }
+                Err(err) => {
+                    return Err(crate::Error::io(err, "decoding record reference"));
+                }
+            },
+            ProcessResult::Record(_) => return Ok(fsm.last_record()),
+            ProcessResult::Err(error) => return Err(error),
+            ProcessResult::Metadata(_) => panic!("found DBN metadata when expected records"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::clone_on_copy)]
+
+    use rstest::rstest;
+    use tokio::io::AsyncWriteExt;
+
+    use super::*;
+    use crate::{
+        decode::{tests::TEST_DATA_PATH, DbnMetadata},
+        encode::{
+            dbn::{AsyncEncoder, AsyncRecordEncoder},
+            AsyncEncodeRecord, DbnEncodable,
+        },
+        rtype, v1, v2, Bbo1SMsg, CbboMsg, Cmbp1Msg, Error, ErrorMsg, ImbalanceMsg,
+        InstrumentDefMsg, MboMsg, Mbp10Msg, Mbp1Msg, OhlcvMsg, Record, RecordHeader, Result,
+        Schema, StatMsg, StatusMsg, TbboMsg, TradeMsg, WithTsOut,
+    };
+
+    #[rstest]
+    #[case::mbo(Schema::Mbo, MboMsg::default())]
+    #[case::trades(Schema::Trades, TradeMsg::default())]
+    #[case::cmbp1(Schema::Cmbp1, Cmbp1Msg::default_for_schema(Schema::Cmbp1))]
+    #[case::cbbo1s(Schema::Cbbo1S, CbboMsg::default_for_schema(Schema::Cbbo1S))]
+    #[case::bbo1s(Schema::Bbo1S, Bbo1SMsg::default_for_schema(Schema::Bbo1S))]
+    #[case::bbo1m(Schema::Bbo1M, Bbo1SMsg::default_for_schema(Schema::Bbo1M))]
+    #[case::tbbo(Schema::Tbbo, TbboMsg::default())]
+    #[case::mbp1(Schema::Mbp1, Mbp1Msg::default())]
+    #[case::mbp10(Schema::Mbp10, Mbp10Msg::default())]
+    #[case::ohlcv1d(Schema::Ohlcv1D, OhlcvMsg::default_for_schema(Schema::Ohlcv1D))]
+    #[case::ohlcv1h(Schema::Ohlcv1H, OhlcvMsg::default_for_schema(Schema::Ohlcv1H))]
+    #[case::ohlcv1m(Schema::Ohlcv1M, OhlcvMsg::default_for_schema(Schema::Ohlcv1M))]
+    #[case::ohlcv1s(Schema::Ohlcv1S, OhlcvMsg::default_for_schema(Schema::Ohlcv1S))]
+    #[case::definitions(Schema::Definition, InstrumentDefMsg::default())]
+    #[case::imbalance(Schema::Imbalance, ImbalanceMsg::default())]
+    #[case::statistics(Schema::Statistics, StatMsg::default())]
+    #[case::status(Schema::Status, StatusMsg::default())]
+    #[tokio::test]
+    async fn test_dbn_identity<R: DbnEncodable + HasRType + PartialEq + Clone>(
+        #[case] schema: Schema,
+        #[case] _rec: R,
+    ) -> Result<()> {
+        let mut file_decoder =
+            Decoder::from_zstd_file(format!("{TEST_DATA_PATH}/test_data.{schema}.v3.dbn.zst"))
+                .await?;
+        let file_metadata = file_decoder.metadata().clone();
+        let mut file_records = Vec::new();
+        while let Some(record) = file_decoder.decode_record::<R>().await? {
+            file_records.push(record.clone());
+        }
+        assert_eq!(file_records.is_empty(), schema == Schema::Ohlcv1D);
+        let mut buffer = Vec::new();
+        let mut buf_encoder = AsyncEncoder::with_zstd(&mut buffer, &file_metadata).await?;
+
+        for record in file_records.iter() {
+            buf_encoder.encode_record(record).await.unwrap();
+        }
+        buf_encoder.get_mut().shutdown().await.unwrap();
+        let mut buf_cursor = std::io::Cursor::new(&mut buffer);
+        let mut buf_decoder = Decoder::with_zstd(&mut buf_cursor).await?;
+        assert_eq!(*buf_decoder.metadata(), file_metadata);
+        let mut buf_records = Vec::new();
+        while let Some(record) = buf_decoder.decode_record::<R>().await? {
+            buf_records.push(record.clone());
+        }
+        assert_eq!(buf_records, file_records);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_skip_bytes() {
+        let mut decoder = Decoder::from_file(format!("{TEST_DATA_PATH}/test_data.mbo.v3.dbn"))
+            .await
+            .unwrap();
+        decoder
+            .decoder
+            .skip_bytes(std::mem::size_of::<MboMsg>())
+            .await
+            .unwrap();
+        assert!(decoder.decode_record::<MboMsg>().await.unwrap().is_some());
+        assert!(decoder.decode_record::<MboMsg>().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_seek_to_resets_buffered_records() {
+        let mut first = MboMsg {
+            hd: RecordHeader::new::<MboMsg>(rtype::MBO, 1, 100, 1),
+            ..Default::default()
+        };
+        first.order_id = 1;
+        let mut second = MboMsg {
+            hd: RecordHeader::new::<MboMsg>(rtype::MBO, 1, 101, 2),
+            ..Default::default()
+        };
+        second.order_id = 2;
+        let mut buffer = Vec::new();
+        buffer.extend_from_slice(first.as_ref());
+        buffer.extend_from_slice(second.as_ref());
+
+        let mut decoder = RecordDecoder::with_version(
+            std::io::Cursor::new(buffer),
+            DBN_VERSION,
+            VersionUpgradePolicy::AsIs,
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(*decoder.decode::<MboMsg>().await.unwrap().unwrap(), first);
+        decoder
+            .seek_to(std::mem::size_of::<MboMsg>() as u64)
+            .await
+            .unwrap();
+        assert_eq!(*decoder.decode::<MboMsg>().await.unwrap().unwrap(), second);
+        decoder.seek_to(0).await.unwrap();
+        assert_eq!(*decoder.decode::<MboMsg>().await.unwrap().unwrap(), first);
+    }
+
+    #[tokio::test]
+    async fn test_seek_to_compressed_returns_bad_argument() {
+        let reader =
+            AsyncDynReader::from_file(format!("{TEST_DATA_PATH}/test_data.mbo.v3.dbn.zst"))
+                .await
+                .unwrap();
+        let mut decoder =
+            RecordDecoder::with_version(reader, DBN_VERSION, VersionUpgradePolicy::AsIs, false)
+                .unwrap();
+
+        assert!(matches!(
+            decoder.seek_to(0).await.unwrap_err(),
+            Error::BadArgument { param_name, desc }
+                if param_name == "self" && desc.contains("zstd-compressed")
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_dbn_identity_with_ts_out() {
+        let rec1 = WithTsOut {
+            rec: OhlcvMsg {
+                hd: RecordHeader::new::<WithTsOut<OhlcvMsg>>(rtype::OHLCV_1D, 1, 446, 1678284110),
+                open: 160270000000,
+                high: 161870000000,
+                low: 157510000000,
+                close: 158180000000,
+                volume: 3170000,
+            },
+            ts_out: 1678486110,
+        };
+        let mut rec2 = rec1.clone();
+        rec2.rec.hd.instrument_id += 1;
+        rec2.ts_out = 1678486827;
+        let mut buffer = Vec::new();
+        let mut encoder = AsyncRecordEncoder::new(&mut buffer);
+        encoder.encode(&rec1).await.unwrap();
+        encoder.encode(&rec2).await.unwrap();
+        let mut decoder_with = RecordDecoder::new(buffer.as_slice());
+        let res1_with = decoder_with
+            .decode::<WithTsOut<OhlcvMsg>>()
+            .await
+            .unwrap()
+            .unwrap()
+            .clone();
+        let res2_with = decoder_with
+            .decode::<WithTsOut<OhlcvMsg>>()
+            .await
+            .unwrap()
+            .unwrap()
+            .clone();
+        assert_eq!(rec1, res1_with);
+        assert_eq!(rec2, res2_with);
+        let mut decoder_without = RecordDecoder::new(buffer.as_slice());
+        let res1_without = decoder_without
+            .decode::<OhlcvMsg>()
+            .await
+            .unwrap()
+            .unwrap()
+            .clone();
+        let res2_without = decoder_without
+            .decode::<OhlcvMsg>()
+            .await
+            .unwrap()
+            .unwrap()
+            .clone();
+        assert_eq!(rec1.rec, res1_without);
+        assert_eq!(rec2.rec, res2_without);
+    }
+
+    #[tokio::test]
+    async fn test_decode_record_0_length() {
+        let buf = vec![0; std::mem::size_of::<RecordHeader>()];
+        let mut target = RecordDecoder::new(buf.as_slice());
+        assert!(
+            matches!(target.decode_ref().await, Err(Error::Decode(msg)) if msg.starts_with("invalid record with impossible length"))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_decode_record_length_less_than_header() {
+        let buf = vec![3u8, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let mut target = RecordDecoder::new(buf.as_slice());
+        let res = target.decode_ref().await;
+        dbg!(&res);
+        assert!(
+            matches!(res, Err(Error::Decode(msg)) if msg.starts_with("invalid record with impossible length"))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_decode_partial_record() {
+        let buf = vec![6u8, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+        assert!(buf[0] as usize * RecordHeader::LENGTH_MULTIPLIER > buf.len());
+
+        let mut target = RecordDecoder::new(buf.as_slice());
+        let res = target.decode_ref().await;
+        dbg!(&res);
+        assert!(matches!(res, Ok(None)));
+    }
+
+    #[tokio::test]
+    async fn test_decode_record_length_longer_than_buffer() {
+        let rec = ErrorMsg::new(1680703198000000000, None, "Test", true);
+        let mut target = RecordDecoder::new(&rec.as_ref()[..rec.record_size() - 1]);
+        let res = target.decode_ref().await;
+        dbg!(&res);
+        assert!(matches!(res, Ok(None)));
+    }
+
+    #[tokio::test]
+    async fn test_decode_multiframe_zst() {
+        let mut decoder = RecordDecoder::with_zstd(
+            tokio::fs::File::open(format!(
+                "{TEST_DATA_PATH}/multi-frame.definition.v1.dbn.frag.zst"
+            ))
+            .await
+            .unwrap(),
+        );
+        let mut count = 0;
+        while let Some(_rec) = decoder.decode::<v1::InstrumentDefMsg>().await.unwrap() {
+            count += 1;
+        }
+        assert_eq!(count, 8);
+    }
+
+    #[tokio::test]
+    async fn test_decode_upgrade_v2() -> crate::Result<()> {
+        let mut decoder = Decoder::with_upgrade_policy(
+            zstd_decoder(BufReader::new(
+                tokio::fs::File::open(format!("{TEST_DATA_PATH}/test_data.definition.v1.dbn.zst"))
+                    .await
+                    .unwrap(),
+            )),
+            VersionUpgradePolicy::UpgradeToV2,
+        )
+        .await?;
+        assert_eq!(decoder.metadata().version, 2);
+        assert_eq!(decoder.metadata().symbol_cstr_len, crate::SYMBOL_CSTR_LEN);
+        let mut has_decoded = false;
+        while let Some(_rec) = decoder.decode_record::<v2::InstrumentDefMsg>().await? {
+            has_decoded = true;
+        }
+        assert!(has_decoded);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decode_upgrade_v3() -> crate::Result<()> {
+        let mut decoder = Decoder::with_upgrade_policy(
+            zstd_decoder(BufReader::new(
+                tokio::fs::File::open(format!("{TEST_DATA_PATH}/test_data.definition.v1.dbn.zst"))
+                    .await
+                    .unwrap(),
+            )),
+            VersionUpgradePolicy::UpgradeToV3,
+        )
+        .await?;
+        assert_eq!(decoder.metadata().version, crate::DBN_VERSION);
+        assert_eq!(decoder.metadata().symbol_cstr_len, crate::SYMBOL_CSTR_LEN);
+        let mut has_decoded = false;
+        while let Some(_rec) = decoder.decode_record::<InstrumentDefMsg>().await? {
+            has_decoded = true;
+        }
+        assert!(has_decoded);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decode_past_capacity() {
+        const N: u64 = 5_000;
+        let mut buf: Vec<u8> = Vec::new();
+        {
+            let mut encoder = AsyncRecordEncoder::new(&mut buf);
+            for i in 0..N {
+                let mut rec = MboMsg::default();
+                rec.hd.ts_event = i;
+                encoder.encode(&rec).await.unwrap();
+            }
+        }
+        assert!(buf.len() > DbnFsm::DEFAULT_BUF_SIZE * 2);
+        let records = RecordDecoder::new(buf.as_slice())
+            .decode_records::<MboMsg>()
+            .await
+            .unwrap();
+        assert_eq!(records.len(), N as usize);
+        for (i, rec) in records.iter().enumerate() {
+            assert_eq!(rec.hd.ts_event, i as u64);
+        }
+    }
+
+    #[rstest]
+    #[case::mbo(Schema::Mbo, MboMsg::default())]
+    #[case::trades(Schema::Trades, TradeMsg::default())]
+    #[case::cmbp1(Schema::Cmbp1, Cmbp1Msg::default_for_schema(Schema::Cmbp1))]
+    #[case::cbbo1s(Schema::Cbbo1S, CbboMsg::default_for_schema(Schema::Cbbo1S))]
+    #[case::bbo1s(Schema::Bbo1S, Bbo1SMsg::default_for_schema(Schema::Bbo1S))]
+    #[case::tbbo(Schema::Tbbo, TbboMsg::default())]
+    #[case::mbp1(Schema::Mbp1, Mbp1Msg::default())]
+    #[case::mbp10(Schema::Mbp10, Mbp10Msg::default())]
+    #[case::ohlcv1m(Schema::Ohlcv1M, OhlcvMsg::default_for_schema(Schema::Ohlcv1M))]
+    #[case::definitions(Schema::Definition, InstrumentDefMsg::default())]
+    #[case::imbalance(Schema::Imbalance, ImbalanceMsg::default())]
+    #[case::statistics(Schema::Statistics, StatMsg::default())]
+    #[case::status(Schema::Status, StatusMsg::default())]
+    #[tokio::test]
+    async fn test_decode_stream<R: DbnEncodable + HasRType + PartialEq + Clone>(
+        #[case] schema: Schema,
+        #[case] _rec: R,
+    ) -> Result<()> {
+        use futures_core::Stream;
+        use std::pin::pin;
+
+        let mut file_decoder =
+            Decoder::from_zstd_file(format!("{TEST_DATA_PATH}/test_data.{schema}.v3.dbn.zst"))
+                .await?;
+        let mut expected = Vec::new();
+        while let Some(record) = file_decoder.decode_record::<R>().await? {
+            expected.push(record.clone());
+        }
+
+        let mut decoder =
+            Decoder::from_zstd_file(format!("{TEST_DATA_PATH}/test_data.{schema}.v3.dbn.zst"))
+                .await?;
+        let mut stream = pin!(decoder.decode_stream());
+        let mut buf_results = Vec::new();
+        while let Some(item) = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx)).await {
+            buf_results.push(item?);
+        }
+
+        assert_eq!(buf_results.len(), expected.len());
+        for (buf, exp) in buf_results.iter().zip(expected.iter()) {
+            assert_eq!(*buf.get::<R>().unwrap(), *exp);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decode_stream_mixed_types() -> crate::Result<()> {
+        use futures_core::Stream;
+        use std::pin::pin;
+
+        let trade = TradeMsg {
+            hd: RecordHeader::new::<TradeMsg>(rtype::MBP_0, 1, 100, 1678284110000000000),
+            price: 5_000_000_000,
+            size: 10,
+            ..TradeMsg::default()
+        };
+        let ohlcv = OhlcvMsg {
+            hd: RecordHeader::new::<OhlcvMsg>(rtype::OHLCV_1S, 1, 200, 1678284120000000000),
+            open: 100,
+            high: 200,
+            low: 75,
+            close: 125,
+            volume: 65,
+        };
+        let mut buffer = Vec::new();
+        let mut encoder = AsyncRecordEncoder::new(&mut buffer);
+        encoder.encode(&trade).await.unwrap();
+        encoder.encode(&ohlcv).await.unwrap();
+
+        let mut decoder = RecordDecoder::new(buffer.as_slice());
+        let mut stream = pin!(decoder.decode_stream());
+        let mut results = Vec::new();
+        while let Some(item) = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx)).await {
+            results.push(item?);
+        }
+
+        assert_eq!(results.len(), 2);
+        assert!(results[0].has::<TradeMsg>());
+        assert!(results[1].has::<OhlcvMsg>());
+        assert_eq!(*results[0].get::<TradeMsg>().unwrap(), trade);
+        assert_eq!(*results[1].get::<OhlcvMsg>().unwrap(), ohlcv);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decode_stream_error_after_valid() {
+        use futures_core::Stream;
+        use std::pin::pin;
+
+        let trade = TradeMsg {
+            hd: RecordHeader::new::<TradeMsg>(rtype::MBP_0, 1, 100, 1678284110000000000),
+            price: 5_000_000_000,
+            size: 10,
+            ..TradeMsg::default()
+        };
+        let mut buffer = Vec::new();
+        let mut encoder = AsyncRecordEncoder::new(&mut buffer);
+        encoder.encode(&trade).await.unwrap();
+        // Append a corrupt record
+        buffer.extend_from_slice(&[0u8; std::mem::size_of::<RecordHeader>()]);
+
+        let mut decoder = RecordDecoder::new(buffer.as_slice());
+        let mut stream = pin!(decoder.decode_stream());
+
+        let first = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(*first.get::<TradeMsg>().unwrap(), trade);
+
+        let second = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx))
+            .await
+            .unwrap();
+        assert!(matches!(second, Err(Error::Decode(_))));
+    }
+}

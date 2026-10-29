@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><RunAnalyzers>false</RunAnalyzers>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../../TomasAI.IFM.Shared.Contracts/TomasAI.IFM.Shared.Contracts.csproj" /></ItemGroup>
+</Project>

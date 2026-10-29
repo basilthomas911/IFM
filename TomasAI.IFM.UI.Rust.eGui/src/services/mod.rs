@@ -58,4 +58,3 @@ pub mod trade_eod;
 
 pub mod execution_context;
 pub mod saved_position;
-pub mod status_console_history;

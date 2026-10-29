@@ -27,6 +27,55 @@ financial representation.
 
 ## Verification
 
+### Durable error evidence
+
+The standalone client writes JSON Lines to
+`%LOCALAPPDATA%/TomasAI/IFM/UI.Rust.eGui/Logs/ui-errors.jsonl`, even when the
+API or NATS is unavailable. Four rotated archives (`.1` through `.4`) and the
+current file are limited to 5 MiB each across UI restarts (single UI supported).
+Writes are synced to disk on the service/controller error paths, and mirrored
+to stderr for Server Manager. Logging failures go to stderr without failing a
+backend operation. An interrupted final record is repaired on the next append.
+
+Each record contains UTC diagnostic time, PID, UI version, event, request
+subject (or HTTP method and sanitized route), operation ID and full details.
+Large details are split into numbered parts with the same operation ID.
+This diagnostic clock does not supply the trading ValueDate. Request payloads
+and NATS credentials are not logged; HTTP URL credentials/query strings are omitted.
+
+`backend.request_failed` covers request/reply, decode and deadline failures;
+the operation ID also travels in the `IFM-UI-Operation-Id` NATS header.
+`backend.failure_notification_received` records each terminal notification,
+including repeated deliveries, with the backend command/event IDs and source.
+`ui.error_queued` and `ui.error_handed_to_ui` describe UI delivery stages, **not**
+proof of user acknowledgement. Backend API/Server Manager logs separately record
+publication attempts and successful producer completion using the same backend IDs.
+Request correlation does not bypass notification deduplication or retry writes.
+
+### Application alert policy
+
+Global Application Error dialogs are reserved for confirmed terminal dataset/API
+recovery outcomes, the explicit two-minute dataset reset escalation, and failures
+that prevent UI startup (runtime, configuration, credentials, API business context
+or compiled-contract metadata). The native dataset owner supplies recovery facts;
+the UI does not infer fatality from a numeric error code or a NATS disconnect.
+
+Daily EMA/Bollinger refresh failures, stale-baseline warnings, calendar refresh
+failures, console setup/ACK retries, NATS warnings, malformed notifications, busy
+or unavailable actions and recoverable controller failures remain visible in the
+status console and durable logs. They cannot replace, clear or increment an
+outstanding terminal dialog. Request-specific validation/submission failures stay
+with the originating view. A later terminal event can escalate an operation that
+previously produced a warning. Warnings do not change backend retry/recovery policy
+or represent successful recovery. Stopped observers explicitly report that a view
+must be reloaded; this presentation change does not invent automatic recovery.
+
+`ui.warning_replaced` and `ui.warning_handed_to_ui` identify non-modal diagnostics.
+Request transport logs retain the subject, operation ID and full exception details.
+Backend failure notifications remain audited even when classified as status only.
+
+### Build and protocol checks
+
 From the repository root:
 
 ```powershell
@@ -233,20 +282,16 @@ remain explicit failures. Actor history uses the supervisor API's observation
 and default time window; it loads automatically when its dialog first opens.
 Inactive market stages remain visible alongside required API/Host health checks.
 
-### Status console history
+### Live system console
 
-Backend console writers publish acknowledged messages to the file-backed
-`IFM_STATUS_CONSOLE_HISTORY` JetStream stream on the existing Notify subject.
-Console messages have unique IDs and remain stored independently of API/UI
-lifetimes, value dates, and market hours. The stream has no automatic age/count
-truncation; reading it never acknowledges, purges, or deletes history.
+Console traffic uses Core NATS `Notify.StatusConsoleEvent.Logged.>` directly.
+There is no JetStream console stream, catch-up request, render receipt, ACK or
+redelivery. Messages sent before subscribing or while disconnected are not replayed.
 
-The standalone subscribes before replaying `/api/status-console` in bounded pages
-through a captured sequence watermark. Live and replayed messages merge by ID,
-in timestamp order; the UI retains all console rows rather than only 500.
-Periodic cursor reads and reconnects catch up missed notifications. Failed reads
-leave the cursor unchanged and report an explicit retrying error. The endpoint
-defaults to the configured operations-health API origin and can be overridden
-with `IFM_UI_STATUS_CONSOLE_URL`. No market session or local clock determines
-which console messages are loaded. Retention starts when the updated backend is
-deployed; earlier non-durable messages cannot be recovered from the old channel.
+Retention is twice the number of visible rows: `2 * ceil(body_height / (18 + row_spacing))`.
+The first layout measures the viewport; resize updates capacity. Newest rows appear
+at the top, oldest rows are evicted, and growing the window never restores evicted rows.
+Intake hands bounded latest snapshots to a separate GUI relay, so painting cannot
+block console reception. Repeated sidebar snapshots coalesce before GUI delivery.
+Warnings occupy one replaceable row and cannot evict recovery deduplication identities.
+Only an actual disconnected-to-connected transition initiates connection refresh work.

@@ -3,6 +3,26 @@ namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 /// <summary>Complete PostgreSQL schema catalog for MarketDataServiceDb.</summary>
 public static class MarketDataServiceSchemaSql
 {
+    /// <summary>Append-only recovery facts; conflicts never overwrite history.</summary>
+    public const string CreateRecoveryLog = """
+        CREATE TABLE IF NOT EXISTS market_data_service.marketdata_recovery_log (
+          record_id uuid PRIMARY KEY,
+          operation_id uuid NOT NULL,
+          sequence bigint NOT NULL CHECK(sequence>0),
+          value_date date NOT NULL,
+          role text NOT NULL,
+          dataset text NOT NULL,
+          kind text NOT NULL,
+          occurred_at_utc timestamptz NOT NULL,
+          received_at_utc timestamptz NOT NULL,
+          projected_at_utc timestamptz NOT NULL DEFAULT now(),
+          payload_digest text NOT NULL CHECK(length(payload_digest)=64),
+          payload text NOT NULL CHECK(octet_length(payload)<=262144),
+          source_event_id bigint NOT NULL,
+          UNIQUE(operation_id,sequence));
+        CREATE INDEX IF NOT EXISTS ix_marketdata_recovery_date
+          ON market_data_service.marketdata_recovery_log(value_date,role,dataset,occurred_at_utc);
+        """;
     public const string CreateCompositionRoutePlan = """
         CREATE TABLE IF NOT EXISTS market_data_service.composition_route_plan (
           plan_id text PRIMARY KEY CHECK(length(plan_id)=64),

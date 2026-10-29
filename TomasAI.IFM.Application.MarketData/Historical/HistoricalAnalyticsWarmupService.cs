@@ -98,8 +98,33 @@ public sealed class HistoricalAnalyticsWarmupService : IDisposable
             // Make existing durable history usable before any provider request can fail or wait.
             var replayedBeforeAcquisition = coverage.All(pair => ValidSessionCount(pair.Value) >= options.MinimumValidDailySessions)
                 && await ReplayCoverageAsync(coverage, template, startDate, endDate, cancellationToken).ConfigureAwait(false);
-            if (insufficientSeries.Length > 0)
+            if (insufficientSeries.Length > 0 || template.Series.Any(series =>
+                expected.Any(date => date > LastValidDate(coverage[series.SeriesIdentity]))))
             {
+                // Read storage first. Provider availability is needed only when
+                // acquisition is required, and never advances the API ValueDate.
+                var availableEnd = await loader.GetAvailableEndAsync(template with { StartDate = startDate, EndDate = endDate }, cancellationToken).ConfigureAwait(false);
+                if (availableEnd is { } publishedEnd)
+                {
+                    var requestedEnd = endDate;
+                    while (!calendar.IsTradingDate(endDate) || calendar.GetSession(endDate).EndUtc > publishedEnd)
+                    {
+                        if (endDate <= DateOnly.MinValue.AddDays(1))
+                            throw new InvalidDataException("No completed trading session exists within provider availability.");
+                        endDate = endDate.AddDays(-1);
+                    }
+                    expectedBaselineDate = endDate;
+                    startDate = endDate.AddDays(-(options.LookbackCalendarDays - 1));
+                    expected = TradingDates(startDate, endDate);
+                    coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken).ConfigureAwait(false);
+                    // Availability is known, so acquire even one missing published
+                    // session. Never ask for a session the provider cannot supply.
+                    insufficientSeries = template.Series.Select(series => new { Series = series, ValidSessionCount = ValidSessionCount(coverage[series.SeriesIdentity]) })
+                        .Where(value => value.ValidSessionCount < options.MinimumValidDailySessions
+                            || expected.Any(date => date > LastValidDate(coverage[value.Series.SeriesIdentity]))).ToArray();
+                    logger.LogInformation("Daily analytics provider boundary: RequestedCompletedDate={RequestedDate}; PublishedEndUtc={PublishedEndUtc}; AcquisitionEndDate={EndDate}",
+                        requestedEnd, publishedEnd, endDate);
+                }
                 foreach (var insufficient in insufficientSeries)
                 {
                     var acquisitionStart = insufficient.ValidSessionCount < options.MinimumValidDailySessions ? startDate

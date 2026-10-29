@@ -373,6 +373,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.Dat
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.Serialization", "TomasAI.IFM.Application.Serialization\TomasAI.IFM.Application.Serialization.csproj", "{F646E58C-485F-4CA1-9E0E-49A0D71934BD}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.MarketData.Feed.Recovery.IntegrationTests", "TomasAI.IFM.Domain.MarketData.Feed.Recovery.IntegrationTests\TomasAI.IFM.Domain.MarketData.Feed.Recovery.IntegrationTests.csproj", "{7098E3BC-9AA6-4610-84F9-499485FE1B6A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -3767,6 +3771,26 @@ Global
 		{F646E58C-485F-4CA1-9E0E-49A0D71934BD}.Release|x64.Build.0 = Release|Any CPU
 		{F646E58C-485F-4CA1-9E0E-49A0D71934BD}.Release|x86.ActiveCfg = Release|Any CPU
 		{F646E58C-485F-4CA1-9E0E-49A0D71934BD}.Release|x86.Build.0 = Release|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Debug|ARM.Build.0 = Debug|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Debug|x64.Build.0 = Debug|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Debug|x86.Build.0 = Debug|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Release|ARM.ActiveCfg = Release|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Release|ARM.Build.0 = Release|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Release|ARM64.Build.0 = Release|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Release|x64.ActiveCfg = Release|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Release|x64.Build.0 = Release|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Release|x86.ActiveCfg = Release|Any CPU
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -3774,6 +3798,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{6A97337C-D076-4D02-9507-4822B854CE4D} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF} = {A74F262E-BDE7-D5D2-89E9-785413424D0A}
+		{7098E3BC-9AA6-4610-84F9-499485FE1B6A} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {52576792-F2A1-4895-A6E4-1DFA73E160D6}

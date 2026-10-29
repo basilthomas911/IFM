@@ -13,15 +13,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Command;
 /// <summary>Handles StartMarketDataFeed commands through computation and state-owned event application.</summary>
 public static class StartMarketDataFeed
 {
-    /// <summary>Captures the API-owned session once, before command validation and event persistence.</summary>
-    public static StartMarketDataFeedCommand ResolveSession(this StartMarketDataFeedCommand command, MarketSessionReadModel session, DateTimeOffset startTime)
+    /// <summary>Captures the API value-date provider once, before validation and event persistence.
+    /// The captured date is passed unchanged to preparation and the backend; no feed clock derives it.</summary>
+    public static StartMarketDataFeedCommand ResolveSession(this StartMarketDataFeedCommand command, IValueDateProvider valueDates)
     {
         ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(session);
-        if (!session.IsValid || session.OperationalValueDate == default)
-            throw new InvalidOperationException("The API market session has not been initialized.");
-        // Feed ingestion follows the exchange clock, even when financial EOD has advanced its operational date.
-        var id = new MarketDataFeedId(FuturesTradingValueDate.GetOperational(startTime));
+        ArgumentNullException.ThrowIfNull(valueDates);
+        var valueDate = valueDates.ValueDate;
+        if (valueDate == default)
+            throw new InvalidOperationException("The API value-date provider has not been initialized.");
+        var id = new MarketDataFeedId(valueDate);
         return command with
         {
             EntityId = id,

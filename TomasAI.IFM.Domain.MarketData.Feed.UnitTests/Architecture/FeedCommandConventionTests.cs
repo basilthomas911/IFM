@@ -1,6 +1,8 @@
 using System.Reflection;
 using FluentAssertions;
 using MessagePack;
+using NSubstitute;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -19,20 +21,15 @@ public sealed class FeedCommandConventionTests
     private static readonly TradeEntityId TradeId = new(1, 2, 3, 4);
 
     [Fact]
-    public void Parameterless_start_uses_server_session_and_preserves_prepared_contracts_in_event()
+    public void Parameterless_start_uses_API_value_date_and_preserves_prepared_contracts_in_event()
     {
         var request = new StartMarketDataFeedCommand { CommandId = Guid.NewGuid() };
         var wire = MessagePackSerializer.Deserialize<StartMarketDataFeedCommand>(MessagePackSerializer.Serialize(request));
         wire.ValueDate.Should().Be(default);
-        var session = new MarketSessionReadModel
-        {
-            OperationalValueDate = ValueDate, Revision = 1,
-            SessionStartUtc = new DateTime(2026, 10, 4, 22, 0, 0, DateTimeKind.Utc),
-            SessionEndUtc = new DateTime(2026, 10, 5, 21, 0, 0, DateTimeKind.Utc),
-            NextTransitionUtc = new DateTime(2026, 10, 5, 21, 0, 0, DateTimeKind.Utc),
-            AsOfUtc = new DateTime(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc)
-        };
-        var resolved = wire.ResolveSession(session, new DateTimeOffset(session.AsOfUtc));
+        var dates = Substitute.For<IValueDateProvider>();
+        dates.ValueDate.Returns(ValueDate);
+        var resolved = wire.ResolveSession(dates);
+        _ = dates.Received(1).ValueDate;
         var state = new MarketDataFeedCommandState();
         var result = resolved.Execute(state, SampleData.FuturesContracts);
         result.Success.Should().BeTrue(result.ErrorMessage);
@@ -41,8 +38,9 @@ public sealed class FeedCommandConventionTests
         source.EntityId.ValueDate.Should().Be(ValueDate);
         source.FuturesContracts.Should().BeEquivalentTo(SampleData.FuturesContracts);
         request.ValueDate.Should().Be(default, "resolving the backend snapshot must not mutate the request");
-        wire.ResolveSession(session with { OperationalValueDate = ValueDate.AddDays(1) }, new DateTimeOffset(session.AsOfUtc))
-            .ValueDate.Should().Be(ValueDate);
+        dates.ValueDate.Returns(ValueDate.AddDays(1));
+        wire.ResolveSession(dates).ValueDate.Should().Be(ValueDate.AddDays(1));
+        resolved.ValueDate.Should().Be(ValueDate, "a later provider change cannot alter an accepted command");
     }
 
     [Fact]

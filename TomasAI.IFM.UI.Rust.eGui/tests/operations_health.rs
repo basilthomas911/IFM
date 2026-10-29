@@ -56,13 +56,13 @@ fn stage_and_worker_selection_inspects_exact_shared_fields() {
     );
     h.set_size(eframe::egui::vec2(1100., 800.));
     h.run();
-    h.get_by_label("TickAggregation | Green").click();
+    h.query_all_by_label("TickAggregation").next().unwrap().click();
     h.run();
     h.get_by_label("Pending");
     h.get_by_label("4");
     h.get_by_label("Dataset workers").click();
     h.run();
-    h.get_by_label("GLBX.MDP3 | Green").click();
+    h.query_all_by_label("GLBX.MDP3").next().unwrap().click();
     h.run();
     h.get_by_label("Process Id");
     h.get_by_label("123");
@@ -80,10 +80,21 @@ fn refresh_dispatches_only_a_read_and_pending_is_guarded() {
         (OperationsHealth::default(), None),
     );
     h.run();
-    h.get_by_label("Refresh status").click();
+    assert!(h.query_by_label("Refresh status").is_none());
     h.run();
     let p: serde_json::Value = serde_json::from_str(h.state().1.as_ref().unwrap()).unwrap();
     assert_eq!(p["view"], "operations-health");
     assert_eq!(p["intent"], "load");
     assert!(h.state().0.pending.is_some());
+}
+
+#[test]
+fn compact_dialog_has_plain_colored_items_and_title_bar_close_only() {
+    let (c,s)=fixture();
+    let mut h=Harness::new_state(move |ctx,state:&mut (OperationsHealth,bool)| {state.0.draw_dialog(ctx,&s,&c,true,&mut state.1);},(OperationsHealth::default(),true));
+    h.set_size(eframe::egui::vec2(1200.,800.)); h.run();
+    assert!(h.query_all_by_label("TickAggregation").next().is_some());
+    assert!(h.query_by_label("TickAggregation | Green").is_none());
+    assert!(h.query_by_label("Refresh status").is_none());
+    h.get_by_label("Health details");
 }

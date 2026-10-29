@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
 using NSubstitute;
@@ -7,6 +8,7 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using Xunit;
 
@@ -14,6 +16,21 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 
 public sealed class OptionRecoveryNotificationIntegrationTests
 {
+    [Fact]
+    public async Task Native_backend_owns_notifications_without_Csharp_polling_or_publication()
+    {
+        var market=Substitute.For<IMarketDataApi>();
+        market.DatasetRecoveryOwnership.Returns(MarketDataRecoveryOwnership.TokioDatasetOwner);
+        market.GetBackendStatusAsync(Arg.Any<CancellationToken>()).Returns(new MarketDataBackendStatus(
+            true,new DateOnly(2026,10,28),[],RecoveryOwnership:MarketDataRecoveryOwnership.TokioDatasetOwner));
+        var producer=Substitute.For<IJSActorProducer>();
+        using var service=new OptionFeedRecoveryNotificationService(market,producer,NullLogger<OptionFeedRecoveryNotificationService>.Instance);
+        await service.StartAsync(default);
+        await service.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.DoesNotContain(market.ReceivedCalls(),call=>call.GetMethodInfo().Name==nameof(IMarketDataApi.GetBackendStatusAsync));
+        Assert.Empty(producer.ReceivedCalls());
+    }
+
     [IsolatedRecoveryBrokerTheory(Timeout = 20000)]
     [InlineData(true)]
     public async Task Failed_full_recovery_notifies_UI_even_when_Host_status_never_returns(bool uncooperative)
@@ -138,7 +155,8 @@ public sealed class OptionRecoveryNotificationIntegrationTests
             market.GetBackendStatusAsync(Arg.Any<CancellationToken>()).Returns(new MarketDataBackendStatus(true, new(2026, 10, 22), [status]));
             ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
             await using var producer = new NatsJetStreamActorProducer(new NatsJetStreamProducerOptions { Url = url! }, NullLogger<NatsJetStreamActorProducer>.Instance);
-            using var service = new OptionFeedRecoveryNotificationService(market, producer, NullLogger<OptionFeedRecoveryNotificationService>.Instance);
+            var logger = Substitute.For<ILogger<OptionFeedRecoveryNotificationService>>();
+            using var service = new OptionFeedRecoveryNotificationService(market, producer, logger);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await service.StartAsync(timeout.Token);
             try
@@ -159,6 +177,11 @@ public sealed class OptionRecoveryNotificationIntegrationTests
             }
             finally { await service.StopAsync(CancellationToken.None); }
             Assert.False(producer.IsRunning);
+            Assert.Contains(logger.ReceivedCalls(),call => call.GetMethodInfo().Name == "Log"
+                && call.GetArguments()[2]?.ToString() is { } entry
+                && entry.Contains("Backend failure notification published",StringComparison.Ordinal)
+                && entry.Contains(subject,StringComparison.Ordinal)
+                && entry.Contains(status.OperationId.ToString(),StringComparison.Ordinal));
         }
         finally { await js.DeleteStreamAsync(streamName); }
     }

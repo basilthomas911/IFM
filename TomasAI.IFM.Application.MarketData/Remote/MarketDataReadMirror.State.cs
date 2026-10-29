@@ -15,6 +15,9 @@ public sealed partial class MarketDataReadMirror
         { FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3"), Contracts = [] });
     readonly DatasetWorkerCurrentValues values = new();
     MarketDataBackendStatus status = new(false, null, []);
+    bool ownershipKnown;
+    /// <summary>Ownership received with the backend snapshot, without a control RPC.</summary>
+    public MarketDataRecoveryOwnership DatasetRecoveryOwnership { get { lock (gate) return ownershipKnown ? status.RecoveryOwnership : MarketDataRecoveryOwnership.Unknown; } }
     Guid optionGeneration;
     DateTime? optionFailureUtc;
     Guid failedOptionGeneration;
@@ -33,6 +36,7 @@ public sealed partial class MarketDataReadMirror
                 hostInstance = snapshot.Status.HostInstanceId; revision = snapshot.Status.Revision;
             }
             status = snapshot.Status;
+            ownershipKnown = true;
             var failure = status.Datasets.FirstOrDefault(x => x.Role == "Options" && x.Lifecycle is "StoppedError" or "CleanupUnconfirmed");
             if (failure is null) { optionFailureUtc = null; failedOptionGeneration = Guid.Empty; }
             else if (failedOptionGeneration != failure.GenerationId) { failedOptionGeneration = failure.GenerationId; optionFailureUtc = failure.ChangedAtUtc == default ? DateTime.UtcNow : failure.ChangedAtUtc.UtcDateTime; }
@@ -65,7 +69,7 @@ public sealed partial class MarketDataReadMirror
         }
     }
     public bool Accept(DatasetPublicationEnvelope envelope)
-    { lock (gate) return values.AcceptPublication(envelope); }
+    { lock (gate) return values.AcceptStreamingPublication(envelope); }
     public bool NeedsOption(Guid generation, string scope, long version)
     { lock (gate) return generation == optionGeneration && optionChainCache.GetStatus(new(scope, generation)).ChainVersion < version; }
     public void AcceptOption(OptionChainCache.OptionChainPublication publication)

@@ -24,24 +24,28 @@ public sealed class MarketOpenSessionTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void Backend_resolves_date_without_market_hours_or_pending_eod_admission(bool open, bool pending)
+    [InlineData(2001, 1, 3)]
+    [InlineData(2026, 10, 29)]
+    [InlineData(2035, 6, 12)]
+    public void Feed_start_uses_provider_date_including_backtesting_dates(int year, int month, int day)
     {
-        var date = new DateOnly(2026,10,16);
-        var session = new MarketSessionReadModel {
-            OperationalValueDate=date, ActiveValueDate=open ? date : null,
-            State=open ? FuturesMarketState.OffTrading : FuturesMarketState.Closed,
-            IsEndOfDayPending=pending,
-            SessionStartUtc=new(2026,10,15,22,0,0,DateTimeKind.Utc),
-            SessionEndUtc=new(2026,10,16,21,0,0,DateTimeKind.Utc),
-            NextTransitionUtc=new(2026,10,15,21,0,0,DateTimeKind.Utc),
-            Revision=1, AsOfUtc=new(2026,10,15,12,0,0,DateTimeKind.Utc)
-        };
-        new StartMarketDataFeedCommand().ResolveSession(session, new DateTimeOffset(2026,10,15,12,0,0,TimeSpan.Zero))
-            .ValueDate.Should().Be(new DateOnly(2026,10,15));
+        var date = new DateOnly(year, month, day);
+        var dates = Substitute.For<IValueDateProvider>();
+        dates.ValueDate.Returns(date);
+        var command = new StartMarketDataFeedCommand { EntityId = new(new DateOnly(1999, 1, 4)) };
+
+        var resolved = command.ResolveSession(dates);
+
+        resolved.ValueDate.Should().Be(date);
+        resolved.Subject.EntityId.Should().Be(new TomasAI.IFM.Domain.MarketData.Feed.Shared.MarketDataFeedId(date).Format());
+        _ = dates.Received(1).ValueDate;
+    }
+
+    [Fact]
+    public void Uninitialized_value_date_is_rejected_without_a_clock_fallback()
+    {
+        var dates = Substitute.For<IValueDateProvider>();
+        Action start = () => new StartMarketDataFeedCommand().ResolveSession(dates);
+        start.Should().Throw<InvalidOperationException>().WithMessage("*value-date provider*");
     }
 }
-

@@ -78,8 +78,7 @@ public class MarketDataFeedCommandActor(
     {
         var command = ParseMappedCommand(context, message, _parseMap);
         return command is StartMarketDataFeedCommand start
-            ? start.ResolveSession(context.Container.Resolve<IFuturesMarketSessionAuthority>().Current,
-                context.Container.Resolve<TimeProvider>().GetUtcNow())
+            ? start.ResolveSession(context.Container.Resolve<IValueDateProvider>())
             : command;
     }
 

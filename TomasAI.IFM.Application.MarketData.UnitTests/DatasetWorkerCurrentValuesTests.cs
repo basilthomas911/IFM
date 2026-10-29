@@ -17,6 +17,30 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed class DatasetWorkerCurrentValuesTests
 {
     [Fact]
+    public void Snapshot_ahead_of_stream_never_consumes_executions_or_rolls_back_current_prices()
+    {
+        using var values = new DatasetWorkerCurrentValues();
+        var identity = Admission("GLBX.MDP3");
+        values.ActivateDataset(identity, [Registration(Es, identity.Dataset)]);
+        Assert.True(values.AcceptPublication(Price(identity, Es, 110m, 100)));
+        foreach (var sequence in new long[] { 1, 2, 3, 100, 101 })
+        {
+            var frame = Price(identity, Es, sequence == 101 ? 111m : 100m, sequence);
+            Assert.True(values.AcceptStreamingPublication(frame));
+            Assert.False(values.AcceptStreamingPublication(frame));
+            Assert.True(values.TryGetLastTickPrice(Es, out var cached));
+            Assert.Equal(sequence == 101 ? 111m : 110m, cached.Trade!.Value.LastPrice);
+        }
+        Assert.False(values.AcceptStreamingPublication(Price(identity, "UNKNOWN", 999m, 102)));
+        values.ClearDataset(identity.Dataset);
+        Assert.False(values.AcceptStreamingPublication(Price(identity, Es, 999m, 102)));
+        var replacement = identity with { GenerationId = Guid.NewGuid() };
+        values.ActivateDataset(replacement, [Registration(Es, identity.Dataset)]);
+        Assert.True(values.AcceptStreamingPublication(Price(replacement, Es, 112m, 1)));
+        Assert.False(values.AcceptStreamingPublication(Price(identity, Es, 999m, 103)));
+    }
+
+    [Fact]
     public void Bootstrap_retains_source_time_survives_recovery_and_never_replaces_live_trade()
     {
         using var values = new DatasetWorkerCurrentValues();

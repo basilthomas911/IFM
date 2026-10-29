@@ -178,6 +178,26 @@
         "hidden": true
       },
       "postDebugTask": "IFM: Stop API + UI (Development)"
+    },
+    {
+      "name": "_IFM: Server Manager + eGui + Rust MarketData (compound)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/.artifacts/rust-marketdata-development/Manager/IFMServerManager.dll",
+      "cwd": "${workspaceFolder}/.artifacts/rust-marketdata-development/Manager",
+      "console": "internalConsole",
+      "stopAtEntry": false,
+      "justMyCode": true,
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development",
+        "IFM_REPOSITORY_ROOT": "${workspaceFolder}",
+        "IFM_DEVELOPMENT_UI": "eGui",
+        "IFM_UI_CONFIG_PATH": "${workspaceFolder}/TomasAI.IFM.UI.Net/appsettings.Development.json"
+      },
+      "presentation": {
+        "hidden": true
+      },
+      "postDebugTask": "IFM: Stop API + UI (Development)"
     }
   ],
   "compounds": [
@@ -215,6 +235,18 @@
       "presentation": {
         "group": "IFM Development",
         "order": 3
+      }
+    },
+    {
+      "name": "IFM: API + eGui Rust UI + Rust MarketData (Development)",
+      "configurations": [
+        "_IFM: Server Manager + eGui + Rust MarketData (compound)"
+      ],
+      "preLaunchTask": "IFM: Prepare API + eGui + Rust MarketData Debug",
+      "stopAll": true,
+      "presentation": {
+        "group": "IFM Development",
+        "order": 4
       }
     }
   ]

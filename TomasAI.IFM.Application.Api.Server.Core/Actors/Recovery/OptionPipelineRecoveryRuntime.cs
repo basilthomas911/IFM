@@ -22,6 +22,10 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
     readonly Dictionary<string, DateTimeOffset> monitoringSince = new(StringComparer.Ordinal);
     public OptionPipelineInspection Inspect()
     {
+        // Rust owns detection, the complete dataset reset and its NATS outcome.
+        // Never turn an absent native quote into competing API actor/dataset recovery.
+        if (market.DatasetRecoveryOwnership != MarketDataRecoveryOwnership.Process)
+            return new(null, null, []);
         try { return InspectCore(); }
         catch (Exception error)
         {
@@ -94,6 +98,8 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
     public async Task RecoverAndVerifyAsync(Guid operationId, OptionPipelineInspection inspection,
         DateTimeOffset deadlineUtc, CancellationToken cancellationToken)
     {
+        if (market.DatasetRecoveryOwnership != MarketDataRecoveryOwnership.Process)
+            throw new InvalidOperationException("Native dataset recovery is exclusively owned by Rust.");
         var started = clock.GetUtcNow();
         Volatile.Write(ref recoveryDetail, "Replacing option processing actors.");
         var baseline = caches.CaptureRecoveryObservations().ToDictionary(trade => trade.PositionId.Format(),
@@ -123,19 +129,45 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
         }
         else
         {
-            var oldProcessId = options.ProcessId;
-            var recovered = await market.RecoverMarketDataAsync(new(operationId, "Options", options.Dataset,
+            var request = new MarketDataRecoveryRequest(operationId, "Options", options.Dataset,
                 options.WorkerInstanceId, options.GenerationId, inspection.ValueDate!.Value,
                 "Emergency option pipeline recovery; discard pending setup work and replace the process immediately.",
-                ReplaceProcessImmediately: true, DeadlineUtc: deadlineUtc), cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
+                ReplaceProcessImmediately: true, DeadlineUtc: deadlineUtc);
+            var recovered = await market.RecoverMarketDataAsync(request, cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
             if (!recovered.Recovered) throw new InvalidOperationException(recovered.Error ?? "Options worker restoration failed.");
             var replacementStatus = await market.GetBackendStatusAsync(cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
             var replacement = replacementStatus.Datasets.Single(dataset => dataset.Role == "Options" && dataset.Dataset == "GLBX.MDP3");
-            if (!replacement.Running || !replacement.Healthy || replacement.ProcessId <= 0 || replacement.ProcessId == oldProcessId)
-                throw new InvalidOperationException("Host did not prove immediate options-process replacement; deploy the matching updated Host and workers.");
+            OptionRecoveryReplacementProof.Validate(status, options, replacementStatus, replacement, request, recovered);
             options = replacement;
         }
-        if (inspection.Positions.Length == 0) throw new InvalidOperationException("No live position evidence exists to verify end-to-end option recovery.");
+        if (inspection.Positions.Length == 0)
+        {
+            // The process backend retains its existing trade-only contract.
+            if (status.RecoveryOwnership != MarketDataRecoveryOwnership.TokioDatasetOwner)
+                throw new InvalidOperationException("No live position evidence exists to verify end-to-end option recovery.");
+            Volatile.Write(ref recoveryDetail, "Verifying native background publications or confirmed idle ownership.");
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (clock.GetUtcNow() >= deadlineUtc) throw new TimeoutException("The two-minute recovery deadline expired while verifying native workload.");
+                if (sessions.Current.ActiveValueDate != inspection.ValueDate) throw new OperationCanceledException(cancellationToken);
+                var snapshot = await market.GetBackendReadSnapshotAsync(cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
+                if (snapshot.Status.HostInstanceId == status.HostInstanceId
+                    && OptionRecoveryWorkloadProof.IsComplete(snapshot, options, started, clock.GetUtcNow())
+                    && Mailboxes().All(mailbox => mailbox.IsAdmissionOpen))
+                {
+                    var local = processingHealth?.Read(inspection.ValueDate!.Value, options.GenerationId);
+                    if (local is null || local.ObservedAtUtc <= started)
+                    {
+                        verifiedThrough = clock.GetUtcNow();
+                        processingHealth?.Recovered(inspection.ValueDate!.Value, options.GenerationId, started);
+                        Volatile.Write(ref recoveryDetail, null);
+                        return;
+                    }
+                }
+                await Task.Delay(TimeSpan.FromMilliseconds(250), clock, cancellationToken).ConfigureAwait(false);
+            }
+        }
         var verificationStarted = clock.GetUtcNow();
         var repairAttempted = new HashSet<string>(StringComparer.Ordinal);
         var lastDiagnostic = DateTimeOffset.MinValue;

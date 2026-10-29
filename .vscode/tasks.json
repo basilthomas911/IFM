@@ -357,6 +357,62 @@
         "IFM: Build Scheduler Host (Debug)"
       ],
       "problemMatcher": []
+    },
+    {
+      "label": "IFM: Build Rust Market Data Host (Debug)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/TomasAI.IFM.Application.MarketData.Rust/scripts/Build-NativeHost.ps1",
+        "-Configuration",
+        "Debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM: Configure Rust MarketData Development Manager",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/TomasAI.IFM.Application.MarketData.Rust/scripts/Prepare-NativeAcceptance.ps1",
+        "-ApiConfiguration",
+        "Debug",
+        "-PackageDirectory",
+        "${workspaceFolder}/.artifacts/rust-marketdata-package/Debug",
+        "-ManagerDirectory",
+        "${workspaceFolder}/.artifacts/rust-marketdata-development/Manager"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM: Prepare API + eGui + Rust MarketData Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "IFM: Stop API + UI (Development)",
+        "IFM: Build Rust Market Data Host (Debug)",
+        "IFM: Build API Server (Debug)",
+        "IFM Standalone Rust UI: Build",
+        "IFM: Build Server Manager (Debug)",
+        "IFM: Build Scheduler Host (Debug)",
+        "IFM: Configure Rust MarketData Development Manager"
+      ],
+      "problemMatcher": []
     }
   ],
   "inputs": [

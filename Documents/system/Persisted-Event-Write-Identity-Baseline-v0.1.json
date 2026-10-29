@@ -1218,6 +1218,66 @@
     "EventTypeName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayBatchRealtimeEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
+    "currentType": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedConnectionRestoredEvent",
+    "sourceAssembly": "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+    "EventName": "MarketDataFeedConnectionRestoredEvent",
+    "EventTypeName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedConnectionRestoredEvent, TomasAI.IFM.Application.Contracts.MarketData.Feed, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+  },
+  {
+    "currentType": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedDatasetResetCompletedEvent",
+    "sourceAssembly": "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+    "EventName": "MarketDataFeedDatasetResetCompletedEvent",
+    "EventTypeName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedDatasetResetCompletedEvent, TomasAI.IFM.Application.Contracts.MarketData.Feed, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+  },
+  {
+    "currentType": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedDatasetResetStartedEvent",
+    "sourceAssembly": "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+    "EventName": "MarketDataFeedDatasetResetStartedEvent",
+    "EventTypeName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedDatasetResetStartedEvent, TomasAI.IFM.Application.Contracts.MarketData.Feed, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+  },
+  {
+    "currentType": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedMonitoringRestoredEvent",
+    "sourceAssembly": "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+    "EventName": "MarketDataFeedMonitoringRestoredEvent",
+    "EventTypeName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedMonitoringRestoredEvent, TomasAI.IFM.Application.Contracts.MarketData.Feed, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+  },
+  {
+    "currentType": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryCompletedEvent",
+    "sourceAssembly": "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+    "EventName": "MarketDataFeedRecoveryCompletedEvent",
+    "EventTypeName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryCompletedEvent, TomasAI.IFM.Application.Contracts.MarketData.Feed, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+  },
+  {
+    "currentType": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryFailedEvent",
+    "sourceAssembly": "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+    "EventName": "MarketDataFeedRecoveryFailedEvent",
+    "EventTypeName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryFailedEvent, TomasAI.IFM.Application.Contracts.MarketData.Feed, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+  },
+  {
+    "currentType": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryInterruptedEvent",
+    "sourceAssembly": "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+    "EventName": "MarketDataFeedRecoveryInterruptedEvent",
+    "EventTypeName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryInterruptedEvent, TomasAI.IFM.Application.Contracts.MarketData.Feed, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+  },
+  {
+    "currentType": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryRecordStorageFailedEvent",
+    "sourceAssembly": "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+    "EventName": "MarketDataFeedRecoveryRecordStorageFailedEvent",
+    "EventTypeName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryRecordStorageFailedEvent, TomasAI.IFM.Application.Contracts.MarketData.Feed, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+  },
+  {
+    "currentType": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryRecordStoredEvent",
+    "sourceAssembly": "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+    "EventName": "MarketDataFeedRecoveryRecordStoredEvent",
+    "EventTypeName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryRecordStoredEvent, TomasAI.IFM.Application.Contracts.MarketData.Feed, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+  },
+  {
+    "currentType": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryStartedEvent",
+    "sourceAssembly": "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+    "EventName": "MarketDataFeedRecoveryStartedEvent",
+    "EventTypeName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.MarketDataFeedRecoveryStartedEvent, TomasAI.IFM.Application.Contracts.MarketData.Feed, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+  },
+  {
     "currentType": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickQuoteDataChangedEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
     "EventName": "FuturesTickQuoteDataChangedEvent",

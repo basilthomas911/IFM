@@ -48,6 +48,38 @@ public sealed class MarketDataApiNatsContractTests
         await server.WaitAsync(deadline.Token);
     }
 
+    [Fact(Timeout = 15000)]
+    public async Task Historical_availability_boundary_and_unsupported_null_cross_real_NATS()
+    {
+        await using var connections = new NatsConnectionManager();
+        var connection = new MarketDataHostConnection(connections, "nats://127.0.0.1:4222", "availabilitytest" + Guid.NewGuid().ToString("N"));
+        var backend = Substitute.For<IMarketDataApi>();
+        var request = new TomasAI.IFM.Application.MarketData.Contracts.Historical.MarketDataHistoricalRequest {
+            DataLoadAttemptId = Guid.NewGuid(), Series = [], StartDate = new(2025,10,28), EndDate = new(2026,10,28),
+            MaximumCostUsd = 10, MaximumBytes = 1_000_000, NormalizationVersion = "test", RequestedBy = "test" };
+        DateTimeOffset? expected = new DateTimeOffset(2026, 10, 28, 0, 0, 0, TimeSpan.Zero);
+        backend.GetHistoricalAvailableEndAsync(Arg.Any<TomasAI.IFM.Application.MarketData.Contracts.Historical.MarketDataHistoricalRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(expected), Task.FromResult<DateTimeOffset?>(null));
+        var dispatcher = new MarketDataApiDispatcher(backend);
+        var nats = await connection.GetClientAsync(CancellationToken.None);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var subscription = await nats.Connection.SubscribeCoreAsync<MarketDataHostRequest>(connection.Scope + ".control",
+            serializer: NatsMessagePackSerializer<MarketDataHostRequest>.Default, cancellationToken: deadline.Token);
+        var server = Task.Run(async () => {
+            var handled = 0;
+            await foreach (var message in subscription.Msgs.ReadAllAsync(deadline.Token)) {
+                var payload = await dispatcher.InvokeAsync(MarketDataHostConnection.Decode<MarketDataApiCall>(message.Data!.Payload), deadline.Token);
+                await message.ReplyAsync(new MarketDataHostReply(payload, null), serializer: NatsMessagePackSerializer<MarketDataHostReply>.Default, cancellationToken: deadline.Token);
+                if (++handled == 2) break;
+            }
+        }, deadline.Token);
+        await nats.PingAsync(deadline.Token);
+        var client = new MarketDataApiClient(connection, Substitute.For<IMarketDataApi>());
+        Assert.Equal(expected, await client.GetHistoricalAvailableEndAsync(request, deadline.Token));
+        Assert.Null(await client.GetHistoricalAvailableEndAsync(request, deadline.Token));
+        await server.WaitAsync(deadline.Token);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task API_dispatch_deadline_does_not_wait_for_a_noncooperative_implementation()
     {

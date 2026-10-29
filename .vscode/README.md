@@ -1,5 +1,26 @@
 # IFM development launch profiles
 
+## API + eGui with Rust MarketData
+
+Select **IFM: API + eGui Rust UI + Rust MarketData (Development)** and press `F5`.
+The preparation tasks stop the prior repository session, incrementally build the
+Rust market-data DLL/Host and eGui, build the Debug API/Server Manager/Scheduler,
+and prepare a separate Manager configuration. That Manager starts the native
+Host, API, eGui and Scheduler with the existing Development client profile.
+
+The native Host package is `.artifacts/rust-marketdata-package/Debug`; the
+Manager configuration is `.artifacts/rust-marketdata-development/Manager`.
+The API uses its normal `bin/Debug/net10.0` output. Dataset resources are owned
+inside the native Host's Rust implementation. The regular launch choices keep
+their current backend selection. Native Release acceptance preparation retains
+its existing defaults.
+
+The stop preflight includes repository MarketData Hosts and dataset workers so
+switching profiles cannot leave the previous backend responding on the same
+NATS subjects. Preparing the configuration alone does not start processes.
+
+## Existing development profiles
+
 Open **Run and Debug** in VS Code and select **IFM: API + UI (Development)**.
 Press `F5` to:
 

@@ -5,3 +5,6 @@ pub mod latency;
 
 /// Correlated first-load and already-open trade timings.
 pub mod trade_load;
+
+/// Durable local request failures and backend notification audit records.
+pub mod errors;

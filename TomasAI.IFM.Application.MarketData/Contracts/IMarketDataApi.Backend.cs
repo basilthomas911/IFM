@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Pricing;
 namespace TomasAI.IFM.Application.MarketData.Contracts;
@@ -9,6 +9,9 @@ public sealed class MarketDataHostOperationAttribute : Attribute;
 
 public partial interface IMarketDataApi
 {
+    /// <summary>Cached backend lifecycle authority. Native datasets supervise themselves;
+    /// callers must not start a second recovery episode or reset API actors for them.</summary>
+    MarketDataRecoveryOwnership DatasetRecoveryOwnership => MarketDataRecoveryOwnership.Process;
     [MarketDataHostOperation]
     Task<bool> InjectDevelopmentOptionWorkerFaultAsync(MarketDataDevelopmentFaultRequest request, CancellationToken cancellationToken = default)
         => Task.FromException<bool>(new NotSupportedException("Development fault injection is not configured."));
@@ -95,6 +98,10 @@ public partial interface IMarketDataApi
     Task<CompositionPreparationResult> PrepareCachedCompositionAsync(CompositionPreparationKey key, OptionChainSnapshotRequest request,
         CancellationToken cancellationToken = default)
         => Task.FromException<CompositionPreparationResult>(new NotSupportedException("Composition preparation is not configured."));
+    /// <summary>Reads the exclusive provider availability boundary without acquiring data.</summary>
+    [MarketDataHostOperation]
+    Task<DateTimeOffset?> GetHistoricalAvailableEndAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult<DateTimeOffset?>(null);
     [MarketDataHostOperation]
     Task<MarketDataHistoricalEstimate> EstimateHistoricalAsync(MarketDataHistoricalRequest request, CancellationToken cancellationToken = default)
         => Task.FromException<MarketDataHistoricalEstimate>(new NotSupportedException("Historical estimates are not configured."));
@@ -110,7 +117,29 @@ public sealed record MarketDataBackendStatus([property: Key(0)] bool Ready, [pro
     [property: Key(3)] Guid HostInstanceId = default, [property: Key(4)] long Revision = 0,
     [property: Key(5)] byte[][]? WorkerObservations = null,
     [property: Key(6)] Recovery.OptionFeedProcessingFailure? OptionProcessingFailure = null,
-    [property: Key(7)] string[]? EnabledOptionTrades = null);
+    [property: Key(7)] string[]? EnabledOptionTrades = null,
+    [property: Key(8)] MarketDataRecoveryOwnership RecoveryOwnership = MarketDataRecoveryOwnership.Process,
+    [property: Key(9)] MarketDataRecoveryAuditHealth? RecoveryAudit = null);
+
+/// <summary>Passive audit-delivery diagnostics. These never determine dataset connectivity or trigger dataset recovery.</summary>
+[MessagePackObject]
+public sealed record MarketDataRecoveryAuditHealth(
+    [property: Key(0)] long PendingRecords, [property: Key(1)] long PendingBytes,
+    [property: Key(2)] long? OldestUnacknowledgedAgeMilliseconds, [property: Key(3)] long DeliveryAttempts,
+    [property: Key(4)] long DeliveryRetries, [property: Key(5)] long WriteFailures,
+    [property: Key(6)] long DeliveryFailures, [property: Key(7)] long RejectedRecords,
+    [property: Key(8)] long CaptureFailures, [property: Key(9)] long UndurableRecords,
+    [property: Key(10)] string? LastError);
+
+/// <summary>Identifies the resource whose replacement proves recovery. Missing
+/// wire values retain the existing separate-process recovery contract.</summary>
+public enum MarketDataRecoveryOwnership
+{
+    /// <summary>Local client has not received its backend ownership snapshot.</summary>
+    Unknown = -1,
+    Process = 0,
+    TokioDatasetOwner = 1
+}
 [MessagePackObject]
 public sealed record MarketDataDatasetStatus([property: Key(0)] string Role, [property: Key(1)] string Dataset,
     [property: Key(2)] Guid WorkerInstanceId, [property: Key(3)] Guid GenerationId,
@@ -143,7 +172,22 @@ public sealed record MarketDataReadSnapshot([property: Key(0)] MarketDataBackend
     [property: Key(3)] Databento.Workers.DatasetPublicationEnvelope[] CurrentValues,
     [property: Key(4)] OptionChainCache.OptionChainPublication[]? OptionChains = null,
     [property: Key(5)] MarketDataBootstrapPrice[]? BootstrapPrices = null,
-    [property: Key(6)] Databento.Workers.DatasetPublicationEnvelope[]? OptionObservations = null);
+    [property: Key(6)] Databento.Workers.DatasetPublicationEnvelope[]? OptionObservations = null,
+    [property: Key(7)] NativeOptionWorkloadEvidence? NativeOptionWorkload = null);
+
+/// <summary>Native-only copied ownership evidence. Empty scopes prove idle only
+/// when replacement is complete; readiness alone never proves cached pricing.
+/// Version 1 additionally attests the native transport/reference/pricing/broker/
+/// persistence readiness proofs for this exact replacement. This permits valid
+/// background workloads with no executable candidates; loaded-trade checks remain
+/// independent and mandatory.</summary>
+[MessagePackObject]
+public sealed record NativeOptionWorkloadEvidence([property: Key(0)] Guid GenerationId,
+    [property: Key(1)] DateTimeOffset ObservedAtUtc, [property: Key(2)] bool ReplacementPending,
+    [property: Key(3)] string[] Scopes, [property: Key(4)] string[] ReadyScopes,
+    [property: Key(5)] string[] OptionScopes,
+    [property: Key(6)] int FormatVersion = 0,
+    [property: Key(7)] bool NativeResourceProofsComplete = false);
 [MessagePackObject]
 public sealed record MarketDataBootstrapPrice([property: Key(0)] TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceSnapshot Price,
     [property: Key(1)] string Source);

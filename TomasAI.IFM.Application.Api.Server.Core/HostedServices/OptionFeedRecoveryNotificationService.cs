@@ -44,14 +44,17 @@ public sealed class OptionFeedRecoveryNotificationService(IMarketDataApi market,
         {
             do
             {
+                if (market.DatasetRecoveryOwnership == MarketDataRecoveryOwnership.TokioDatasetOwner) return;
                 try
                 {
                     if (recovery.Failure is not { } terminal || terminal.CommandId == sentOperation && DateTime.UtcNow - sentAt < TimeSpan.FromSeconds(10)) continue;
                     using var delivery = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                     delivery.CancelAfter(TimeSpan.FromSeconds(3));
+                    LogPublishing(terminal.Subject.ToString(), terminal.CommandId, terminal.Id, terminal.ErrorMessage);
                     await EnsureProducerStartedAsync(delivery.Token).ConfigureAwait(false);
                     await producer.SendAsync<MarketDataDatasetRecoveryFailedEvent, MarketDataFeedId>(terminal.Subject, terminal, delivery.Token)
                         .AsTask().WaitAsync(delivery.Token).ConfigureAwait(false);
+                    LogPublished(terminal.Subject.ToString(), terminal.CommandId, terminal.Id, terminal.ErrorMessage);
                     if (escalation is not null) await escalation.RequestAsync(terminal, delivery.Token).ConfigureAwait(false);
                     sentOperation = terminal.CommandId; sentAt = DateTime.UtcNow;
                 }
@@ -67,10 +70,15 @@ public sealed class OptionFeedRecoveryNotificationService(IMarketDataApi market,
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (market.DatasetRecoveryOwnership == MarketDataRecoveryOwnership.TokioDatasetOwner) return;
             try
             {
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 deadline.CancelAfter(TimeSpan.FromSeconds(3));
+                var status = await market.GetBackendStatusAsync(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
+                // Rust publishes its retained terminal events directly. No polling,
+                // duplicate failure publication or API-restart escalation for native datasets.
+                if (status.RecoveryOwnership == MarketDataRecoveryOwnership.TokioDatasetOwner) return;
                 await EnsureProducerStartedAsync(deadline.Token).ConfigureAwait(false);
                 // Observe API actors before Host RPC: a healthy worker or an unavailable Host must not hide API quarantine.
                 if (recovery is null && supervisor is not null && sessions is not null)
@@ -82,13 +90,14 @@ public sealed class OptionFeedRecoveryNotificationService(IMarketDataApi market,
                             .SelectMany(source => source.CaptureSnapshot().Mailboxes));
                     foreach (var failed in failures)
                     {
+                        LogPublishing(failed.Subject.ToString(), failed.CommandId, failed.Id, failed.ErrorMessage);
                         await producer.SendAsync<MarketDataDatasetRecoveryFailedEvent, MarketDataFeedId>(failed.Subject, failed, deadline.Token)
                             .AsTask().WaitAsync(deadline.Token).ConfigureAwait(false);
+                        LogPublished(failed.Subject.ToString(), failed.CommandId, failed.Id, failed.ErrorMessage);
                         pipeline.MarkPublished(failed.CommandId);
                         logger.LogError("Option pipeline recovery deadline exceeded; OperationId={OperationId}; Detail={Detail}", failed.CommandId, failed.ErrorMessage);
                     }
                 }
-                var status = await market.GetBackendStatusAsync(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
                 foreach (var dataset in status.Datasets.Where(dataset => (dataset.Role is "Options" or "Futures")
                     && dataset.Lifecycle is "StoppedError" or "CleanupUnconfirmed"))
                 {
@@ -98,14 +107,18 @@ public sealed class OptionFeedRecoveryNotificationService(IMarketDataApi market,
                     if (dataset.Role == "Options")
                     {
                         var failed = CreateEvent(dataset);
+                        LogPublishing(failed.Subject.ToString(), failed.CommandId, failed.Id, failed.ErrorMessage);
                         await producer.SendAsync<OptionMarketDataFeedFailedEvent, MarketDataFeedId>(failed.Subject, failed, deadline.Token)
                             .AsTask().WaitAsync(deadline.Token).ConfigureAwait(false);
+                        LogPublished(failed.Subject.ToString(), failed.CommandId, failed.Id, failed.ErrorMessage);
                     }
                     else
                     {
                         var failed = CreateDatasetEvent(dataset);
+                        LogPublishing(failed.Subject.ToString(), failed.CommandId, failed.Id, failed.ErrorMessage);
                         await producer.SendAsync<MarketDataDatasetRecoveryFailedEvent, MarketDataFeedId>(failed.Subject, failed, deadline.Token)
                             .AsTask().WaitAsync(deadline.Token).ConfigureAwait(false);
+                        LogPublished(failed.Subject.ToString(), failed.CommandId, failed.Id, failed.ErrorMessage);
                     }
                     published[key] = identity;
                     lastPublished[key] = DateTime.UtcNow;
@@ -117,6 +130,16 @@ public sealed class OptionFeedRecoveryNotificationService(IMarketDataApi market,
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
         }
     }
+
+    /// <summary>Correlates delivery attempts with failures even if producer startup or publication throws.</summary>
+    void LogPublishing(string subject, Guid operationId, Guid eventId, string detail)
+        => logger.LogWarning("Backend failure notification publishing; Subject={Subject}; OperationId={OperationId}; EventId={EventId}; Detail={Detail}",
+            subject, operationId, eventId, detail);
+
+    /// <summary>Records producer completion; UI receipt is audited separately by the client.</summary>
+    void LogPublished(string subject, Guid operationId, Guid eventId, string detail)
+        => logger.LogError("Backend failure notification published; Subject={Subject}; OperationId={OperationId}; EventId={EventId}; Detail={Detail}",
+            subject, operationId, eventId, detail);
 
     /// <inheritdoc />
     public override async Task StopAsync(CancellationToken cancellationToken)

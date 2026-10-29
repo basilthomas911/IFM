@@ -34,7 +34,14 @@ public sealed class ApiRecoveryUiNotifierTests
             var stream=await js.CreateStreamAsync(new StreamConfig("API_RESTART_UI_TEST",[subject]));
             var consumer=await stream.CreateOrUpdateConsumerAsync(new ConsumerConfig("ui"){AckPolicy=ConsumerConfigAckPolicy.Explicit,FilterSubject=subject});
             var result=new ApiRecoveryRestartResult(Guid.NewGuid(),date,"Failed",100,null,DateTime.UtcNow,"API recovery failed: test startup timeout");
-            using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(10));await ApiRecoveryUiNotifier.SendAsync(url,result,budget.Token);
+            var audit=new List<string>();
+            using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(10));await ApiRecoveryUiNotifier.SendAsync(url,result,budget.Token,audit.Add);
+            Assert.Equal(2,audit.Count);
+            var published=System.Text.Json.JsonDocument.Parse(audit[1]).RootElement;
+            Assert.Equal("backend.failure_notification_published",published.GetProperty("Event").GetString());
+            Assert.Equal(result.OperationId,published.GetProperty("OperationId").GetGuid());
+            Assert.Equal(subject,published.GetProperty("Subject").GetString());
+            Assert.Equal(result.Error,published.GetProperty("Detail").GetString());
             var received=false;
             await foreach(var message in consumer.ConsumeAsync<byte[]>(serializer:new NatsByteArrayMessageSerializer(),cancellationToken:budget.Token)) {
                 var failure=ActorExtensions.DataSerializer.Deserialize<MarketDataDatasetRecoveryFailedEvent>(message.Data!)!;

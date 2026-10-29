@@ -32,6 +32,7 @@ public partial class MarketDataApiClient(MarketDataHostConnection connection, IM
     public Task<SubscriptionLeaseResult> GetSubscriptionLeasesAsync(SubscriptionOwnerQuery request, CancellationToken cancellationToken = default) => CallAsync<SubscriptionLeaseResult>(nameof(GetSubscriptionLeasesAsync), [typeof(SubscriptionOwnerQuery), typeof(CancellationToken)], [request, null], cancellationToken);
     public bool IsDatabentoFeedUp(TimeSpan? timeout = null) => readMirror.IsDatabentoFeedUp(timeout);
     public MarketDataFeedRuntimeStatusReadModel GetRuntimeStatus() => readMirror.GetRuntimeStatus();
+    public MarketDataRecoveryOwnership DatasetRecoveryOwnership => readMirror.DatasetRecoveryOwnership;
     public bool TryGetOnTheRunFuturesContract(string symbol,
         out FuturesContractV3ReadModel contract) => readMirror.TryGetOnTheRunFuturesContract(symbol, out contract);
     public bool TryGetFuturesTermStructureContracts(string symbol,
