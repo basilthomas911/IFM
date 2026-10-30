@@ -30,6 +30,40 @@ fn ready(r: &Recovery) {
     assert_eq!(r.status().phase, Phase::Running);
 }
 #[tokio::test(start_paused = true)]
+async fn transport_proof_alone_does_not_end_reconstruction_but_completed_setup_allows_quiet_quotes() {
+    let health = Recovery::new(all(), Deadline::recovery());
+    health.monitor_provider();
+    let ticket = health.status().ticket;
+    assert!(!health.complete_setup(ticket));
+    health.prove(ticket, Proof::Retired);
+    health.prove(ticket, Proof::Transport);
+    advance(Duration::from_secs(119)).await;
+    assert_eq!(health.status().deadline.unwrap().remaining(), Duration::from_secs(1));
+    assert!(health.complete_setup(ticket));
+    advance(Duration::from_secs(900)).await;
+    assert_eq!(health.status().phase, Phase::Starting);
+    assert!(health.status().deadline.is_none());
+    assert!(health.failures(0, 16).is_empty());
+    assert!(health.status().missing.contains(&Proof::Pricing));
+    // No late old generation may certify a replacement's setup.
+    let next = health.replace(all(), Deadline::recovery()).unwrap();
+    assert!(!health.complete_setup(ticket));
+    assert!(!health.complete_setup(next));
+    assert!(health.status().deadline.is_some());
+}
+
+#[tokio::test(start_paused = true)]
+async fn late_setup_completion_cannot_erase_a_reconstruction_timeout() {
+    let health = Recovery::new(all(), Deadline::recovery());
+    health.monitor_provider();
+    let ticket=health.status().ticket;
+    health.prove(ticket, Proof::Retired); health.prove(ticket, Proof::Transport);
+    advance(Duration::from_secs(120)).await;
+    assert!(!health.complete_setup(ticket));
+    assert_eq!(health.status().phase, Phase::Failed);
+    assert_eq!(health.failures(0,16).len(),1);
+}
+#[tokio::test(start_paused = true)]
 async fn retries_and_replacements_cannot_extend_original_two_minute_window() {
     let root = Arc::new(Owner::default());
     let r = Recovery::new(all(), Deadline::recovery());

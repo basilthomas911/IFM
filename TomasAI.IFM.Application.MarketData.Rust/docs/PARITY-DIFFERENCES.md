@@ -1,5 +1,24 @@
 # Behavioral differences and acceptance disposition
 
+## Market opening and quiet underlying bootstrap (2026-10-29)
+
+Explicit native market opening now replaces the full date-scoped owner after
+joined retirement, including same-date starts. The API/Host processes and cold
+configuration stay alive. The API provider initializes the opening date even if
+the previous close was missed; old EOD projection cannot undo that opening.
+
+Fresh option bootstrap cannot reuse an old owner's quote book. It requests
+MBP-1 replay from the API ValueDate's exchange-session start and waits for its
+replay-completed control record before reading the latest retained quote. This
+differs from waiting exclusively for a new live quote change. Temporary replay
+is not published as executable events. The fifteen-minute quote validation and
+105 CLR decimal midpoint fixtures are unchanged. The pinned SDK fixture requires
+the exact session start and supplies no subsequent live quote changes.
+
+Scheduled opening uses the native transport/publication proof for native owners;
+managed process-worker subscription counters are still required for that backend.
+No expected/received counters are fabricated for the native implementation.
+
 Baseline: commit `8f5c89f93430eea99600d1ffe04da19acfa36353` and the frozen
 `baseline/CurrentBackend.json`. Exact financial/source values remain mandatory.
 This register does not grant production acceptance or numerical tolerances.
@@ -145,3 +164,142 @@ recovery timer and does not grant a new recovery allowance. Explicit consumption
 superseding accepted nonempty demand and stopping feeds remove the result.
 Actual C#/DLL preparation validates the complete-empty business hash and its
 native Host fence, immutable replay and unchanged SDK connection count.
+
+## Session-volume publication correction (2026-10-29)
+
+Accepted live futures executions now emit the existing session-statistics event
+before their market-price event whenever cumulative volume is usable. This adds
+notifications, not a new calculation or wire contract: the existing native session
+accumulator supplies exact quantities. Duplicate executions still emit nothing;
+unchanged-price executions advance volume. VWAP accumulation is unchanged.
+
+Catch-up retains statistics only for the frame's API-supplied ValueDate. Official
+cleared volume for a prior reference date still streams normally to its dated
+consumer, but cannot overwrite the active-date catch-up slot. Retention keeps its
+existing item/byte bounds and never reads a workstation-derived trading date.
+
+Evidence: `futures_bar_continuity` crosses the real C# formatter, API read mirror
+and production bar accumulator (cumulative volume 1,3,6). `native_current_publications`
+covers old/future dates, malformed payloads, capacity and retirement. The native
+broker-delivery and stalled-broker recovery integration cases pass with statistics
+preceding price. Live verification requires loading the rebuilt native Host DLL;
+the already-running session was not restarted for this build.
+
+## Dataset reconstruction and quiet-market readiness (2026-10-29)
+
+A provider heartbeat or temporary bootstrap session cannot certify final Options
+subscriptions. Concrete source acknowledgements and component setup now supply
+explicit reconstruction completion. The original reconstruction deadline remains
+active until then. Once setup completes, missing quotes remain business-data
+unavailability; healthy heartbeat-only markets do not trigger quote-silence resets.
+Monitoring success still requires current-generation pricing and delivered output.
+
+An unchanged accepted desired intent retains one bounded, detached qualified
+subscription recipe. A dataset reset reopens that recipe before background
+discovery, without retaining sockets, tasks, old quote values or old output.
+Any different desired object, date or manifest revision requalifies the input;
+an observed background policy/coverage change invalidates the saved recipe.
+Background maintenance continues after the replacement source starts.
+
+The isolated populated-background integration fixture now expects three SDK
+connections rather than four: initial temporary-underlying and final-option
+sessions, then one direct final-option reconstruction. Storage can remain stalled
+during that reconstruction. Old-generation query values remain fenced.
+
+Setup diagnostics start before reference/discovery work and include generation,
+ValueDate, setup stage and changing missing-underlying contract names. They use
+the existing bounded diagnostic transport, independent of resource retirement.
+
+Internal cache capture now treats known absent/invalid/incoherent market inputs
+as pending business data, retried on existing data/calculation events. In
+particular, `QuoteUnavailable` during the replacement's first-quote gap cannot
+reset an acknowledged healthy source. Invalid snapshot structure, changed
+generations, numerical component failure and unknown errors still escalate.
+The SDK fixture deliberately separates the underlying and option quote on each
+replacement to exercise this gap deterministically.
+
+An empty cache directory while quotes are pending is not an explicit
+no-candidate result. Background-only readiness requires captured/published scope
+results. Loaded-trade monitoring is certified independently by its delivered leg
+quotes; optional background composition cannot block that confirmation.
+
+Futures delivery exposes broker connectivity separately from first-frame
+publication. Acknowledged final subscriptions plus a connected publisher finish
+setup in a quiet market, while financial publication remains unverified until
+an actual current-generation frame is flushed. Its setup timer is then removed;
+pending actual broker writes retain their independent failure detection.
+
+The supervisor retains the ticket captured when each physical group was created.
+Concurrent recovery commands cannot relabel that group's late proofs or failure
+notifications with the replacement ticket.
+
+### Complete saved-trade demand before observing native readiness
+
+The native Host restoration adapter submits every persisted trade leg to Rust
+before waiting once for dataset readiness. Previously the shared persistence
+service called a native readiness wait after each leg, so unavailable source
+setup could prevent later legs from ever reaching the native owner. The public
+Load/Enable result still requires native readiness; command acceptance alone is
+not success. Cancelling that observer retains the complete persisted/native
+business intent. The current C# backend and shared persistence service are unchanged.
+`qualification/TradeDemandBridge` exercises the actual managed adapter and DLL
+with unavailable loopback endpoints, including all-four admission before waiting,
+no premature success, cancellation retention, explicit API ValueDate isolation,
+and joined native shutdown. eGui displays stored database data before invoking
+this separate live restoration phase.
+
+### Bounded multi-block recovery acknowledgements
+
+Recovery audit receipts accept MessagePack-CSharp Lz4BlockArray extension 98
+with multiple writer segments. The decoder retains its 8 KiB encoded/decoded
+capacity, bounds the block count, validates every declared length before allocation,
+and rejects mismatched counts, malformed blocks, truncation and identity conflicts.
+Unsuccessful Function replies preserve server failure details, including missing
+sequence predecessors; a decoder error must not hide the underlying storage error.
+This changes receipt compatibility/diagnostics only. It does not acknowledge failed
+writes, remove pending records, invent missing predecessors or relax event ordering.
+Unit tests split successful receipts at every byte boundary and cover malformed
+lengths; opt-in captured-reply qualification checks actual C# success/failure frames.
+
+### Qualification audit storage isolation
+
+Managed qualification executables initialize a process-specific temporary audit
+outbox before constructing native resources. `scripts/Test-NativeOwnership.ps1`
+also isolates its Cargo fixtures and children, restores the caller's environment
+on exit, and preserves explicitly configured test roots. Direct Cargo fixture
+invocations should set `IFM_MARKETDATA_RECOVERY_OUTBOX` to a test-only directory.
+The TradeDemandBridge rejects the live outbox before opening its native runtime.
+Five frozen October 27 SDK fixture records found in the Development queue were
+moved with SHA-256 verification to a forensic artifact archive on October 29;
+no replacement predecessors were fabricated and persisted event history was unchanged.
+
+
+### Idempotent saved monitor admission
+
+Canonical monitor identity is excluded from the global raw-source configuration
+fingerprint, alongside the existing per-contract demand fields. Each monitor is
+still checked against active native ownership before admission. Repeating an
+already accepted four-leg saved Load therefore preserves the native revision and
+original deadline, while changed business identities and real source/policy/date
+changes retain their admission and replacement checks. The actual managed/DLL
+qualification failed against the preceding deployed DLL and passed against the
+corrected package; cancellation still retains all four saved/native demands.
+
+### Planned coverage replacement preserves its resolved recipe
+
+Background refresh prepares changed membership before asking the dataset owner
+to retire the active source. It passes the fully resolved copied Intent to the
+factory's existing recipe cache, fenced by desired identity/revision/ValueDate
+and the committed physical signature. The next group opens new provider,
+reference, pricing and publication resources directly. It does not repeat quiet
+underlying acquisition for a membership that refresh already resolved. Empty
+replacement membership still retires to idle; unknown acquisition errors still
+enter supervised recovery.
+
+A planned maintenance change starts its recovery budget when its replacement
+is ready. Quiet-provider planning time cannot supply an already-expired incident
+deadline. Explicit pending business handoffs retain their original budget.
+The SDK fixture verifies unchanged-policy stability, a policy revision opening
+only one final replacement session, and removed-policy retirement. Virtual-time
+tests verify the maintenance/pending-handoff deadline distinction. This is
+native-only; neither legacy C# lifecycle nor UI error filtering is changed.

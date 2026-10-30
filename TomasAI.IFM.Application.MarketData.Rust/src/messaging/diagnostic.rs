@@ -18,8 +18,8 @@ pub fn encode(value: &Diagnostic, worker: [u8; 16]) -> Result<Vec<u8>, &'static 
     } else {
         value.worker
     };
-    if worker == [0; 16] {
-        return Err("Invalid diagnostic worker identity");
+    if worker == [0; 16] || value.attempt == 0 {
+        return Err("Invalid diagnostic worker or attempt identity");
     }
     let (kind, code, last, message) = match &value.event {
         Event::System { code, message } => (1, *code, false, message),
@@ -89,5 +89,8 @@ mod tests {
         assert_eq!(fields[7].as_bool(), Some(true));
         assert_eq!(fields[8].as_str(), Some("unknown provider error 999"));
         assert!(encode(last, [0; 16]).is_err());
+        let mut invalid = last.clone();
+        invalid.attempt = 0;
+        assert!(encode(&invalid, [1; 16]).is_err(), "The Host rejects zero attempts; do not enqueue an unacknowledgeable diagnostic");
     }
 }

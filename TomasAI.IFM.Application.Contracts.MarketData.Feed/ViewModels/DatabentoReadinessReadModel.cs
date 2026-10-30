@@ -17,4 +17,7 @@ public sealed record DatabentoReadinessReadModel
     [Key(9)] public DateTime? NextRetryOnUtc { get; init; }
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Retains the existing array-shaped serialization and application contract.")]
     [Key(10)] public DatabentoFeedStatusReadModel[] Feeds { get; init; } = [];
+    /// <summary>Rust supplies joined dataset transport/publication readiness;
+    /// managed worker subscription counters do not exist for this backend.</summary>
+    [Key(11)] public bool NativeDatasetOwnership { get; init; }
 }

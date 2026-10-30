@@ -18,6 +18,9 @@ use tokio_util::sync::CancellationToken;
 /// Copied readiness supplied by the concrete native dataset implementation.
 #[derive(Clone, Default)]
 pub struct Readiness {
+    /// Final source subscriptions and required components have been rebuilt.
+    /// Temporary bootstrap activity and missing market quotes cannot supply this.
+    pub setup_complete: bool,
     /// Actual proofs for the current physical owner; never include Retired.
     pub proofs: Vec<Proof>,
     /// Classified sanitized failure requiring whole-dataset replacement.
@@ -125,6 +128,9 @@ impl<T: Send + Sync + 'static> Supervisor<T> {
         let owner = root.clone();
         let task=root.spawn_service(move|root_stop|async move{
             let mut resources:Option<Box<dyn Resources>>=None;
+            // Capture the physical group's ticket at construction. A concurrent
+            // fault/command must not stamp old resource proofs with a new ticket.
+            let mut resource_ticket=health.status().ticket;
             let mut updates=updates;
             let mut active=0;
             let mut rebuild=true;
@@ -200,7 +206,7 @@ impl<T: Send + Sync + 'static> Supervisor<T> {
                         health.audit_attempt();
                         let start=owner.child().map_err(|e|format!("Native child admission failed: {e:?}")).and_then(|child|std::panic::catch_unwind(std::panic::AssertUnwindSafe(||factory.start(intent,Arc::new(child),deadline))).unwrap_or_else(|_|Err("Native dataset factory panicked".into())));
                         match start {
-                            Ok(resource)=>{resources=Some(resource);health.audit_owner(factory.audit_identity());},
+                            Ok(resource)=>{resources=Some(resource);resource_ticket=ticket;health.audit_owner(factory.audit_identity());},
                             Err(error)=>{
                                 health.fault(health.status().ticket,&error,deadline);
                                 if !retry(deadline,&stopping,&root_stop).await{health.status();if stopping.is_cancelled()||root_stop.is_cancelled(){break;}}
@@ -217,20 +223,19 @@ impl<T: Send + Sync + 'static> Supervisor<T> {
                     if provider.is_some(){health.monitor_provider();}
                     let connection=provider.as_mut().and_then(|events|events.borrow_and_update().clone());
                     if let Some(Err(error))=&connection {
-                        let current=health.status();
-                        health.provider_fault(current.ticket,error);
+                        health.provider_fault(resource_ticket,error);
                         rebuild=true;continue;
                     }
                     if let Some(error)=state.failure {
-                        health.fault(health.status().ticket,&error,state.deadline.map_or(deadline,|d|d.earliest(deadline)));
+                        health.fault(resource_ticket,&error,state.deadline.map_or(deadline,|d|d.earliest(deadline)));
                         rebuild=true;continue;
                     }
-                    if matches!(connection,Some(Ok(()))) {
-                        health.prove(health.status().ticket,Proof::Transport);
-                        if health.connection_alive(){final_reset=false;retired_failure=None;}
-                    }
-                    let ticket=health.status().ticket;
+                    // A nested bootstrap reader can report provider activity.
+                    // Only concrete final-source proofs certify reconstruction.
+                    let ticket=resource_ticket;
+                    if state.setup_complete {health.monitor_provider();}
                     for proof in state.proofs {if proof!=Proof::Retired{health.prove(ticket,proof);}}
+                    if state.setup_complete {health.complete_setup(ticket);}
                     let status=health.status();
                     tokio::select!{biased;
                         ()=root_stop.cancelled()=>break,()=stopping.cancelled()=>break,
@@ -240,7 +245,7 @@ impl<T: Send + Sync + 'static> Supervisor<T> {
                             // Begin this fault now, never with a deadline captured
                             // before that idle wait. Active incidents keep theirs.
                             let current=health.status();
-                            health.fault(current.ticket,"Native dataset health channel closed",current.deadline.unwrap_or_else(Deadline::recovery));
+                            health.fault(ticket,"Native dataset health channel closed",current.deadline.unwrap_or_else(Deadline::recovery));
                             rebuild=true;
                         }},
                         _=async {match provider.as_mut(){Some(events)=>{let _=events.changed().await;},None=>std::future::pending().await}}=>{},

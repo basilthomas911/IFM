@@ -4,7 +4,7 @@ fn outcome(id:uuid::Uuid,severity:&str)->Vec<u8>{
     serde_json::to_vec(&serde_json::json!({"Version":1,"RecordId":id.to_string(),"OperationId":uuid::Uuid::from_u128(42).to_string(),"Role":"Options","Dataset":"GLBX.MDP3","ValueDate":"2026-10-29","OccurredAtUtc":"2026-10-29T12:00:00Z","Severity":severity,"MonitoringReady":false,"Message":"Options reset completed. Connection restored; monitoring is not yet verified."})).unwrap()
 }
 #[test]
-fn completion_is_queued_once_without_replacing_the_failure_or_conflating_monitoring(){
+fn completion_is_deduplicated_and_only_the_latest_outcome_is_retained(){
     let registry=Registry::compiled().unwrap();let mut n=Notifications::default();
     n.error("failed-operation".into(),"Recovery deadline expired; resetting dataset".into());
     let sequence=n.publication.error_sequence;let error=n.publication.error.clone();
@@ -17,7 +17,20 @@ fn completion_is_queued_once_without_replacing_the_failure_or_conflating_monitor
     assert_eq!(n.publication.outcome_dialogs[0].severity,Severity::Success);
     assert!(n.publication.outcome_dialogs[0].message.contains("not yet verified"));
     assert!(n.event(&registry,subject,&outcome(uuid::Uuid::from_u128(2),"warning")).unwrap());
-    assert_eq!(n.publication.outcome_dialogs[1].severity,Severity::Warning);
+    assert_eq!(n.publication.outcome_dialogs.len(),1);
+    assert_eq!(n.publication.outcome_dialogs[0].severity,Severity::Warning);
+}
+#[test]
+fn a_burst_retains_one_latest_dialog_and_retries_do_not_restore_older_messages(){
+    let registry=Registry::compiled().unwrap();let mut n=Notifications::default();
+    let subject="Notify.MarketDataRecoveryOutcome.2026-10-29";
+    for id in 1..=100 {
+        assert!(n.event(&registry,subject,&outcome(uuid::Uuid::from_u128(id),"success")).unwrap());
+        assert_eq!(n.publication.outcome_dialogs.len(),1);
+        assert_eq!(n.publication.outcome_dialogs[0].sequence,id as u64);
+    }
+    assert!(!n.event(&registry,subject,&outcome(uuid::Uuid::from_u128(1),"success")).unwrap());
+    assert_eq!(n.publication.outcome_dialogs[0].sequence,100);
 }
 #[test]
 fn invalid_outcomes_never_open_a_dialog(){

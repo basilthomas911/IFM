@@ -52,6 +52,7 @@ impl NativeFactory {
             .last()
             .unwrap()
             .send_replace(Readiness {
+                setup_complete: false,
                 failure: Some("injected source failure".into()),
                 deadline: Some(Deadline::recovery()),
                 proofs: vec![],
@@ -105,6 +106,7 @@ impl Factory for NativeFactory {
             })
             .unwrap();
         let (health, observed) = watch::channel(Readiness {
+            setup_complete: false,
             proofs: self.proofs.clone(),
             failure: None,
             deadline: None,

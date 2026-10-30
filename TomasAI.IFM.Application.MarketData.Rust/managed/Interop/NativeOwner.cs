@@ -50,6 +50,8 @@ internal sealed partial class NativeMarketDataLibrary
     internal ulong OwnerFeatures;
     internal OwnerIdentityCall? OwnerIdentity;
     internal HandleCall? CreateOwner;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate int OwnerReinitializeCall(ulong handle, ulong operation, uint date);
+    internal OwnerReinitializeCall? OwnerReinitialize;
     internal OwnerInputCall? OwnerCatalog, OwnerCommand, OwnerStart;
     internal OwnerFuturesCall? OwnerFutures;
     internal OwnerHealthCall? OwnerHealth;
@@ -85,6 +87,7 @@ internal sealed partial class NativeMarketDataLibrary
         OwnerRecoveryRequest=Optional<OwnerRecoveryRequestCall>("ifm_market_data_owner_recovery_request_v1");
         OwnerFeatures=Optional<OwnerFeaturesCall>("ifm_market_data_owner_features_v1")?.Invoke()??0;
         CreateOwner = Optional<HandleCall>("ifm_market_data_owner_create_v1");
+        OwnerReinitialize = Optional<OwnerReinitializeCall>("ifm_market_data_owner_reinitialize_v1");
         OwnerStart = Optional<OwnerInputCall>("ifm_market_data_owner_start_v1");
         OwnerCatalog = Optional<OwnerInputCall>("ifm_market_data_owner_catalog_v1");
         OwnerCommand = Optional<OwnerInputCall>("ifm_market_data_owner_command_v1");

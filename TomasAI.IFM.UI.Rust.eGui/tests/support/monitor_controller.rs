@@ -83,3 +83,34 @@ async fn monitor_controller_displays_core_before_optional_history_and_fences_lat
  assert_eq!(hub.current().result.context["chartLoading"],"False");assert_eq!(hub.current().result.context["observationsLoading"],"False");assert!(!hub.current().result.context["chartError"].is_empty());
  hub.close(key).unwrap();control(&b,"MonitorRelease",Value::Nil).await;control(&b,"MonitorMode","Disabled".into()).await;
 }
+
+/// Given stored trade data, live restoration must never become a load barrier.
+#[tokio::test]
+#[ignore="Requires isolated C# compatibility responder"]
+async fn monitor_controller_two_phase_load_preserves_database_view_on_live_timeout_and_rejection(){
+ let b=Backend::connect(Settings{url:std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),credentials_file:None,token:None,request_timeout:Duration::from_secs(2)}).await.unwrap();
+ let r=std::sync::Arc::new(Registry::compiled().unwrap());let context=BusinessContext::load(&b).await.unwrap();let deadline=||tokio::time::Instant::now()+Duration::from_secs(2);
+ let hub=Hub::with_host_scope("nativecompat").unwrap();let key="1.2.701.456";
+ // Database hydration must finish before any live command is sent.
+ control(&b,"MonitorMode","HoldOptional".into()).await;
+ tokio::time::timeout(Duration::from_secs(1),hub.open(&b,r.clone(),open_request(),context.clone(),deadline())).await.unwrap().unwrap();
+ assert!(data(&hub,"established").is_some());assert_eq!(control(&b,"MonitorHostCount",Value::Nil).await.as_array().unwrap()[0],Value::from(0));
+ control(&b,"MonitorMode","HostTimeout".into()).await;control(&b,"MonitorRelease",Value::Nil).await;
+ wait(&hub,|h|h.current().result.context["observationsLoading"]=="False"&&h.current().result.context["chartLoading"]=="False").await;
+ assert!(data(&hub,"plan").is_some());let saved=data(&hub,"position-details").unwrap();let chart=data(&hub,"chart").unwrap();
+ tokio::time::sleep(Duration::from_millis(2100)).await;
+ wait(&hub,|h|h.current().result.context["monitorStatus"].contains("restoration failed")).await;
+ assert_eq!(data(&hub,"position-details").unwrap(),saved);assert_eq!(data(&hub,"chart").unwrap(),chart);assert!(data(&hub,"plan").is_some());assert!(data(&hub,"established").is_some());
+ assert_eq!(hub.current().result.context["monitorCanLive"],"True");hub.close(key).unwrap();
+ // Rejection also stays in the live section, without closing stored data.
+ control(&b,"MonitorMode","HostReject".into()).await;hub.open(&b,r.clone(),open_request(),context.clone(),deadline()).await.unwrap();
+ wait(&hub,|h|h.current().result.context["monitorStatus"].contains("Fixture recovery rejected")).await;assert!(data(&hub,"position-details").is_some_and(|v|!v.is_null()));hub.close(key).unwrap();
+ // Saved enabled intent is restored once (Load already reconciles); no second Enable.
+ control(&b,"MonitorMode","SavedEnabled".into()).await;hub.open(&b,r.clone(),open_request(),context.clone(),deadline()).await.unwrap();
+ wait(&hub,|h|h.current().result.context["monitorLive"]=="True").await;assert!(data(&hub,"realtime").is_some());assert_eq!(control(&b,"MonitorHostCount",Value::Nil).await.as_array().unwrap()[0],Value::from(1));hub.close(key).unwrap();
+ // Closing the tab cancels the pending restore; its late timeout cannot reopen it.
+ control(&b,"MonitorMode","HostTimeout".into()).await;hub.open(&b,r.clone(),open_request(),context,deadline()).await.unwrap();
+ wait(&hub,|h|h.current().result.context["monitorStatus"].contains("checking saved")).await;hub.close(key).unwrap();
+ tokio::time::sleep(Duration::from_millis(2100)).await;assert!(hub.current().result.rows.is_empty());
+ control(&b,"MonitorMode","Disabled".into()).await;
+}

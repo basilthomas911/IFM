@@ -43,6 +43,7 @@ mod committed_refresh;
 pub mod statistics;
 
 type FactCache = Arc<Mutex<Option<(time::Date, Arc<Facts>)>>>;
+type SetupDiagnostics = Arc<Mutex<Option<(Weak<super::live::Diagnostics>, [u8;16], [u8;16], u64)>>>;
 /// Immutable native policy/source configuration. The weak market directory
 /// observes copied prices without retaining a physical sibling dataset owner.
 #[derive(Clone)]
@@ -64,6 +65,7 @@ pub struct Configuration {
     facts: FactCache,
     reference_cache: Arc<Mutex<Option<Arc<Bootstrap>>>>,
     refresh_incident: Arc<Mutex<Option<Deadline>>>,
+    setup_diagnostics: SetupDiagnostics,
 }
 struct Facts {
     policies: Vec<Arc<crate::option_chain::strategy::Parameters>>,
@@ -103,6 +105,7 @@ impl Configuration {
             facts: Arc::default(),
             reference_cache: Arc::default(),
             refresh_incident: Arc::default(),
+            setup_diagnostics: Arc::default(),
         }
     }
     /// Replaces global reference policy while retaining only immutable raw facts
@@ -152,6 +155,7 @@ impl Configuration {
                 facts: previous.facts.clone(),
                 reference_cache: previous.reference_cache.clone(),
                 refresh_incident: previous.refresh_incident.clone(),
+                setup_diagnostics: previous.setup_diagnostics.clone(),
                 ..self.clone()
             };
             result.effective_scopes()?;
@@ -162,6 +166,19 @@ impl Configuration {
             }
             Ok(self.clone())
         }
+    }
+    pub(in crate::dataset) fn bind_setup_diagnostics(&self, sink: &Arc<super::live::Diagnostics>, worker: [u8;16], generation: [u8;16], revision: u64) -> Result<(),String> {
+        *self.setup_diagnostics.lock().map_err(|_| "Native setup diagnostics interrupted")? = Some((Arc::downgrade(sink),worker,generation,revision));
+        Ok(())
+    }
+    fn waiting_underlyings(&self, contracts: &[String], clock: &Clock) -> Result<(),String> {
+        let binding=self.setup_diagnostics.lock().map_err(|_| "Native setup diagnostics interrupted")?.clone();
+        if let Some((sink,worker,generation,revision))=binding && let Some(sink)=sink.upgrade() {
+            let mut text=format!("Native Options bootstrap waiting for {} underlying quotes; generation={}; contracts=",contracts.len(),crate::messaging::wire::guid(generation));
+            for contract in contracts {if text.len()+contract.len()+1>3800{text.push_str("[truncated]");break;}text.push_str(contract);text.push(',');}
+            sink.retain(super::live::Diagnostic{worker,lane:Lane::OptionsGlbx,attempt:revision,observed:clock.utc_ticks().map_err(|_|"Native setup clock unavailable")?,replaced:0,event:super::transport::Event::System{code:u8::MAX,message:text}})?;
+        }
+        Ok(())
     }
     async fn source_facts(
         &self,
@@ -405,6 +422,11 @@ impl Configuration {
             let symbols = missing.iter().map(|r| r.source.clone()).collect::<Vec<_>>();
             let mut source = base.source.clone();
             source.registrations = missing;
+            // A clean opening has no previous book. Recover the latest quote
+            // from this API-selected trading session instead of requiring a new
+            // change in a quiet deferred future. This temporary source publishes
+            // no executable events; provider event times and validation remain intact.
+            let replay = super::futures_bootstrap::session_start(base.date)?;
             source.plan = SessionPlan {
                 lane: Lane::OptionsGlbx,
                 subscriptions: [Schema::Trades, Schema::Mbp1]
@@ -413,18 +435,19 @@ impl Configuration {
                         schema,
                         symbology: SType::InstrumentId,
                         symbols: symbols.clone(),
-                        replay_start_ns: None,
+                        replay_start_ns: (schema == Schema::Mbp1).then_some(replay),
                     })
                     .collect(),
             };
             prices.extend(
-                super::bootstrap_quotes::acquire(
+                super::bootstrap_quotes::acquire_with_progress(
                     source,
                     base.date,
                     clock.clone(),
                     parent.clone(),
                     stop,
                     deadline,
+                    |missing| self.waiting_underlyings(missing, &clock),
                 )
                 .await?,
             );
@@ -747,6 +770,9 @@ pub struct RefreshStatus {
     pub error: Option<String>,
     /// The first acquisition attempt's original dataset budget.
     pub deadline: Option<Deadline>,
+    /// Fully resolved copied replacement metadata. No task, socket, quote or
+    /// physical generation is retained; the replacement rebuilds all resources.
+    pub replacement: Option<Arc<Intent>>,
 }
 /// Dataset-tracked background fact refresh. Drop cancels immediately. The native
 /// parent tracks and joins its task even if the command/consumer has disappeared.
@@ -836,40 +862,44 @@ impl Configuration {
                     if maintenance {maintenance_at=tokio::time::Instant::now()+period;}
                     let pending=config.committed.as_ref().map(|directory|directory.pending_deadline()).transpose()?.flatten();
                     let deadline=pending.unwrap_or_else(Deadline::recovery);
+                    let mut replacement = None;
                     let attempt:Result<bool,String>=async{
+                        let mut changed = false;
                         if let Some(directory)=&config.committed {
                             let current=directory.current()?;
                             let acknowledged=directory.accepted()?.map(|book|directory.acknowledged(&book)).transpose()?.unwrap_or(false);
                             if !current||!acknowledged {
                                 let ready=health.as_ref().is_some_and(|health|health.status().phase==crate::runtime::recovery::Phase::Running);
-                                if !config.refresh_committed_in_place(task_parent.clone(),&stopping,deadline,physical,ready).await?{return Ok(false);}
+                                if !config.refresh_committed_in_place(task_parent.clone(),&stopping,deadline,physical,ready).await?{changed=true;}
                             }
                         }
-                        if !maintenance{return Ok(true);}
-                        let facts=config.source_facts(date,task_parent.clone(),&stopping,deadline,true).await?;
-                        if facts.fingerprint()?!=initial{return Ok(false);}
-                        if !config.refresh_browsers(date,task_parent.clone(),&stopping,deadline).await? {return Ok(false);}
+                        if !maintenance && !changed{return Ok(true);}
+                        let facts=config.source_facts(date,task_parent.clone(),&stopping,deadline,maintenance).await?;
+                        changed |= facts.fingerprint()?!=initial;
+                        if !config.refresh_browsers(date,task_parent.clone(),&stopping,deadline).await? {changed=true;}
                         let next=config.resolve(base.clone(),task_parent.clone(),clock.clone(),&stopping,deadline).await?;
-                        Ok(match (&active,&next){
+                        let unchanged = !changed && match (&active,&next){
                             (None,None)=>true,
                             (Some(old),Some(new))=>old.source.registrations==new.source.registrations && old.caches==new.caches,
                             _=>false,
-                        })
+                        };
+                        replacement=next;
+                        Ok(unchanged)
                     }.await;
                     if stopping.is_cancelled(){return Ok(());}
                     match attempt {
                         Ok(true)=>{state.send_modify(|_|{});},
-                        Ok(false)=>{state.send_replace(RefreshStatus{error:Some("Native background policy/coverage changed; replacing dataset resources".into()),deadline:Some(deadline)});return Ok(());},
+                        Ok(false)=>{state.send_replace(replacement_status(replacement,pending));return Ok(());},
                         Err(error)=>{
                             *config.refresh_incident.lock().map_err(|_|"Native background refresh status interrupted")?=Some(deadline);
-                            state.send_replace(RefreshStatus{error:Some(error),deadline:Some(deadline)});return Ok(());
+                            state.send_replace(RefreshStatus{error:Some(error),deadline:Some(deadline),replacement:None});return Ok(());
                         }
                     }
                 }
             }).catch_unwind().await;
             if !stopping.is_cancelled(){
                 let error=match result{Ok(Ok(()))=>None,Ok(Err(error))=>Some(error),Err(_)=>Some("Native background refresh panicked".into())};
-                if let Some(error)=error{state.send_replace(RefreshStatus{error:Some(error),deadline:Some(Deadline::recovery())});}
+                if let Some(error)=error{state.send_replace(RefreshStatus{error:Some(error),deadline:Some(Deadline::recovery()),replacement:None});}
             }
         }).map_err(|_|"Native background refresh task admission failed")?;
         Ok(Refresh { stop, changes })
@@ -884,6 +914,17 @@ impl Refresh {
 impl Drop for Refresh {
     fn drop(&mut self) {
         self.stop.cancel();
+    }
+}
+
+// A healthy-provider quiet wait precedes a planned replacement, not a dataset
+// failure. Start its budget when the complete replacement is ready. An explicit
+// pending business handoff keeps its original deadline, including when expired.
+fn replacement_status(replacement: Option<Arc<Intent>>, pending: Option<Deadline>) -> RefreshStatus {
+    RefreshStatus {
+        error: Some("Native background policy/coverage changed; replacing dataset resources".into()),
+        deadline: Some(pending.unwrap_or_else(Deadline::recovery)),
+        replacement,
     }
 }
 
@@ -909,6 +950,16 @@ fn refresh_budget(
 #[cfg(test)]
 mod recovery_budget_tests {
     use super::*;
+    #[tokio::test(start_paused = true)]
+    async fn planned_change_starts_budget_after_quiet_wait_but_preserves_explicit_handoff() {
+        let explicit=Deadline::recovery();
+        tokio::time::advance(Duration::from_secs(180)).await;
+        let planned=replacement_status(None,None);
+        assert_eq!(planned.deadline.unwrap().remaining(),Duration::from_secs(120));
+        let handoff=replacement_status(None,Some(explicit));
+        assert!(handoff.deadline.unwrap().remaining().is_zero());
+        assert!(planned.replacement.is_none());
+    }
     #[tokio::test(start_paused = true)]
     async fn automatic_refresh_reuses_original_deadline_and_explicit_new_episode_can_retry() {
         let state = Mutex::new(Some(Deadline::recovery()));

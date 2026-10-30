@@ -14,6 +14,7 @@ use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 struct QuietFactory {
+    reconstructed: bool,
     source: Mutex<Weak<Child>>,
     starts: AtomicUsize,
 }
@@ -47,7 +48,11 @@ impl Factory for QuietFactory {
         self.starts.fetch_add(1, Ordering::SeqCst);
         *self.source.lock().unwrap() = Arc::downgrade(&parent);
         // No quote, reference, pricing or publication proof is supplied.
-        let (_sender, status) = watch::channel(Readiness::default());
+        let (_sender, status) = watch::channel(Readiness {
+            setup_complete: self.reconstructed,
+            proofs: if self.reconstructed { vec![Proof::Transport] } else { vec![] },
+            ..Default::default()
+        });
         parent.provider_received();
         Ok(Box::new(Quiet {
             parent,
@@ -66,6 +71,7 @@ async fn settle() {
 async fn fifteen_minutes_of_provider_activity_without_quotes_cannot_start_recovery() {
     let root = Arc::new(Owner::default());
     let factory = Arc::new(QuietFactory {
+        reconstructed: true,
         source: Mutex::new(Weak::new()),
         starts: AtomicUsize::new(0),
     });
@@ -108,5 +114,35 @@ async fn fifteen_minutes_of_provider_activity_without_quotes_cannot_start_recove
     root.wait_idle(&CancellationToken::new(), Deadline::recovery())
         .await
         .unwrap();
+    assert!(root.disposable().unwrap());
+}
+
+#[tokio::test(start_paused = true)]
+async fn bootstrap_activity_cannot_cancel_reconstruction_deadline_or_prevent_final_reset() {
+    let root = Arc::new(Owner::default());
+    let factory = Arc::new(QuietFactory {
+        reconstructed: false,
+        source: Mutex::new(Weak::new()), starts: AtomicUsize::new(0),
+    });
+    let supervisor = Supervisor::start(root.clone(), factory.clone(), Some(Arc::new(())),
+        Requirements::new(&[Proof::Transport, Proof::Pricing]), Deadline::recovery()).unwrap();
+    settle().await;
+    let old = factory.source.lock().unwrap().upgrade().unwrap();
+    for _ in 0..3 {
+        tokio::time::advance(std::time::Duration::from_secs(30)).await;
+        old.provider_received();
+        settle().await;
+        assert!(supervisor.recovery().status().deadline.is_some());
+        assert!(!supervisor.recovery().connection_alive());
+        assert_eq!(factory.starts.load(Ordering::SeqCst), 1);
+    }
+    tokio::time::advance(std::time::Duration::from_secs(30)).await;
+    settle().await;
+    assert!(old.cancellation().is_cancelled());
+    assert_eq!(factory.starts.load(Ordering::SeqCst), 2, "Exactly one final replacement must occur");
+    drop(old);
+    supervisor.cancel(); supervisor.join(Deadline::recovery()).await.unwrap();
+    drop(supervisor); drop(factory); root.stop().unwrap();
+    root.wait_idle(&CancellationToken::new(), Deadline::recovery()).await.unwrap();
     assert!(root.disposable().unwrap());
 }

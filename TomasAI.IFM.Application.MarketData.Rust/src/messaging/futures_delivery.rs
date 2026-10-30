@@ -24,6 +24,8 @@ use tokio_util::sync::CancellationToken;
 /// Native publication availability, distinct from provider source readiness.
 #[derive(Clone, Debug, Default)]
 pub struct Status {
+    /// Broker transport is connected, independently of a first market frame.
+    pub connected: bool,
     /// A current native frame has completed a broker protocol flush.
     pub running: bool,
     /// One original setup/recovery deadline is active.
@@ -81,6 +83,7 @@ impl Drop for Exit {
             let _ = self.data.cancel_lane(self.lane);
         }
         self.status.send_modify(|status| {
+            status.connected = false;
             status.running = false;
             if !self.clean {
                 status.terminal = true;
@@ -199,6 +202,7 @@ impl Delivery {
                     }
                     let budget = *episode.get_or_insert_with(Deadline::recovery);
                     status.send_modify(|s| {
+                        s.connected = false;
                         s.running = false;
                         s.recovering = true;
                         s.deadline = Some(budget);
@@ -306,6 +310,11 @@ impl Delivery {
                 crate::dataset::lanes::Phase::Running => {}
             }
             let health = publisher.status();
+            status.send_if_modified(|s| {
+                if s.connected == health.connected {return false;}
+                s.connected=health.connected;
+                true
+            });
             let pending = health.pending_since.map(Deadline::recovery_from);
             if let Some(error) = health.failure {
                 if let Some(pending) = pending {
@@ -327,10 +336,24 @@ impl Delivery {
             let fresh = first_current.is_some_and(|(generation, threshold)| {
                 Some(generation) == physical && health.flushed >= threshold
             }) || config.control_only && health.connected;
+            // An acknowledged source and connected publisher can legitimately
+            // have no market frame. Finish setup without certifying publication
+            // or retaining a timer that resets a heartbeat-only quiet feed.
+            if provider.phase == crate::dataset::lanes::Phase::Running
+                && health.connected && first_current.is_none() && health.pending_since.is_none()
+            {
+                *episode=None;
+                status.send_if_modified(|s| {
+                    if !s.recovering && s.deadline.is_none() {return false;}
+                    s.recovering=false;s.deadline=None;
+                    true
+                });
+            }
             if provider.phase == crate::dataset::lanes::Phase::Running
                 && fresh
-                && episode.take().is_some()
+                && !status.borrow().running
             {
+                *episode=None;
                 status.send_modify(|s| {
                     s.running = true;
                     s.recovering = false;

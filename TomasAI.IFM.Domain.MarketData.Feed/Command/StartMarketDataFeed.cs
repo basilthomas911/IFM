@@ -19,7 +19,10 @@ public static class StartMarketDataFeed
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(valueDates);
-        var valueDate = valueDates.ValueDate;
+        // The API resolves a fresh opening boundary before any event or backend
+        // preparation. Custom/backtest providers retain complete date authority.
+        var valueDate = valueDates is IMarketOpenValueDateInitializer opening
+            ? opening.InitializeMarketOpen() : valueDates.ValueDate;
         if (valueDate == default)
             throw new InvalidOperationException("The API value-date provider has not been initialized.");
         var id = new MarketDataFeedId(valueDate);

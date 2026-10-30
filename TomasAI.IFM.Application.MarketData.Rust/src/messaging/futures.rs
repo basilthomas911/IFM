@@ -242,6 +242,15 @@ impl Futures {
             OutputSource::Observation(Observation::Trade(trade))
                 if matches!(source.state.update, Some(Update::Trade { .. })) =>
             {
+                // Publish the coherent cumulative session volume before the trade
+                // that consumes it on the API side. The remote mirror must not
+                // depend on an unrelated official-statistics change to advance.
+                if let Some(stats) = source.state.session.filter(|s| s.has_volume()) {
+                    output.push(Event {
+                        kind: 4,
+                        value: state.instrument.statistics(stats, Identity::fresh(source.observed))?,
+                    });
+                }
                 Self::vwap(state, source, source.state.market, &mut output)?;
                 Self::flush(state, 2, source.observed, &mut output)?;
                 // Bars require every accepted execution, including unchanged

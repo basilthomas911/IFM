@@ -225,6 +225,33 @@ public sealed class GetValueDateTests
         => GetMarketSession.Calculate(DateTimeOffset.Parse(instant)).NextTransitionUtc
             .Should().Be(DateTime.Parse(expectedTransition).ToUniversalTime());
 
+    [Theory]
+    [InlineData("2026-10-29T18:00:00-04:00", "2026-10-30")]
+    [InlineData("2026-11-01T18:00:00-05:00", "2026-11-02")]
+    public void Explicit_open_resolves_new_session_even_after_missed_close(string instant,string expected)
+    {
+        var clock=new SettableTimeProvider(DateTimeOffset.Parse("2026-10-29T16:00:00-04:00"));
+        var provider=new FuturesValueDateProvider(clock);
+        var authority=new FuturesMarketSessionAuthority(clock,provider);
+        clock.UtcNow=DateTimeOffset.Parse(instant);
+        provider.ValueDate.Should().Be(new DateOnly(2026,10,29));
+        provider.InitializeMarketOpen().Should().Be(DateOnly.Parse(expected));
+        provider.InitializeMarketOpen().Should().Be(DateOnly.Parse(expected),"repeated opening must not advance another day");
+        authority.Current.OperationalValueDate.Should().Be(DateOnly.Parse(expected));
+        provider.ApplyCompletedEndOfDay(new DateOnly(2026,10,29));
+        provider.ValueDate.Should().Be(DateOnly.Parse(expected),"late close projection must not undo an explicit opening");
+    }
+
+    [Fact]
+    public void Opening_after_completed_close_keeps_the_same_next_value_date()
+    {
+        var clock=new SettableTimeProvider(DateTimeOffset.Parse("2026-10-29T16:00:00-04:00"));
+        var provider=new FuturesValueDateProvider(clock);
+        provider.ApplyCompletedEndOfDay(new DateOnly(2026,10,29));
+        clock.UtcNow=DateTimeOffset.Parse("2026-10-29T18:00:00-04:00");
+        provider.InitializeMarketOpen().Should().Be(new DateOnly(2026,10,30));
+    }
+
     sealed class SettableTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public DateTimeOffset UtcNow { get; set; } = utcNow;

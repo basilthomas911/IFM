@@ -428,6 +428,11 @@ typedef struct ifm_market_data_retired_evidence_v1_result {
 int32_t ifm_market_data_owner_route_v1(uint64_t handle,const uint8_t *input,uint32_t length,uint8_t *changed);
 uint64_t ifm_market_data_owner_features_v1(void);
 int32_t ifm_market_data_owner_create_v1(uint64_t handle);
+/* Async joined opening replacement. api_date is YYYYMMDD from the API provider.
+ * Completion/control result confirms old resources joined and a fresh idle owner
+ * installed. Failed retirement cannot admit overlapping dataset resources.
+ * Capability bit 0x20000. Runtime, cold configuration and audit spool survive. */
+int32_t ifm_market_data_owner_reinitialize_v1(uint64_t handle, uint64_t operation, uint32_t api_date);
 int32_t ifm_market_data_owner_catalog_v1(uint64_t handle, const uint8_t* input, uint32_t length);
 int32_t ifm_market_data_owner_futures_v1(uint64_t handle, uint32_t selected, const uint8_t* input, uint32_t length);
 int32_t ifm_market_data_owner_start_v1(uint64_t handle, const uint8_t* input, uint32_t length);

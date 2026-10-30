@@ -8,7 +8,7 @@ use ifm_market_data_native::ffi::{
 fn native_owner_commands_are_bounded_and_mutually_exclusive_with_prototype_live_ownership() {
     assert_eq!(std::mem::size_of::<NativeOwnerHealth>(), 64);
     assert_eq!(std::mem::size_of::<NativeOwnerIdentity>(), 56);
-    assert_eq!(ifm_market_data_owner_features_v1(), 0x1ffff);
+    assert_eq!(ifm_market_data_owner_features_v1(), 0x3ffff);
     let mut handle = 0;
     // SAFETY: All inputs/outputs below are caller-owned aligned fixed records or
     // bounded readable/writable arrays that remain live for each synchronous call.
@@ -637,6 +637,28 @@ fn native_owner_commands_are_bounded_and_mutually_exclusive_with_prototype_live_
             0,
             "retained publication identity must not keep Live Feed enabled"
         );
+
+        assert_eq!(ifm_market_data_owner_reinitialize_v1(handle, 90, 0), 1);
+        assert_eq!(ifm_market_data_owner_reinitialize_v1(handle, 0, 20261028), 1);
+        for (operation,date) in [(90,20261028),(91,20261028)] {
+            assert_eq!(ifm_market_data_owner_reinitialize_v1(handle,operation,date),0);
+            let limit=std::time::Instant::now()+std::time::Duration::from_secs(5);
+            let mut completion=NativeCompletion{size:0,outcome:0,operation:0,value:0.0,reserved:0};
+            loop {
+                let mut count=0;
+                assert_eq!(ifm_market_data_runtime_drain_v1(handle,&mut completion,1,&mut count),0);
+                if count==1 {break;}
+                assert!(std::time::Instant::now()<limit,"native opening must join without provider availability");
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            assert_eq!(completion.operation,operation);
+            assert_eq!(completion.outcome,0);
+            let mut result=ifm_market_data_native::ffi::live::NativeControlResult::default();
+            assert_eq!(ifm_market_data_native::ffi::live::ifm_market_data_live_take_v1(handle,operation,4112,&mut result),0);
+            assert_eq!(result.failure,0);
+            assert_eq!(ifm_market_data_owner_identity_v1(handle,1,56,&mut identity),0);
+            assert_eq!(identity.flags&2,0,"fresh opening cannot inherit live demand");
+        }
 
         assert_eq!(ifm_market_data_runtime_stop_v1(handle), 0);
         let (finished, completion) = std::sync::mpsc::channel();

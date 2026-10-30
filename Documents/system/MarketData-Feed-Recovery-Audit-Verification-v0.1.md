@@ -2,6 +2,86 @@
 
 ## Scope and status
 
+### October 29 evening loaded-trade live acceptance
+
+Trade `101.701.1901.1501` was opened in eGui with Live Feed enabled for API
+ValueDate 2026-10-30. All four saved recovery contracts were verified in
+`trade.live_feed_recovery`; four current-generation quotes and 22/22 ready scopes
+were observed. The user confirmed advancing plans, green Options Health and the
+"Live monitoring is verified" success message after controlled recovery.
+
+The Options-only recovery request at 19:39:01 EDT replaced its worker and
+generation. The test observed complete resource proof, all four post-injection
+quotes and 22/22 ready scopes within 10.015 seconds. Futures dataset identities
+and API/Host/eGui/scheduler process IDs stayed unchanged. Native audit episode
+`f9ace818-5d8c-6d6a-fe9e-64779e6bb3dd` persisted Started, ConnectionRestored,
+Completed and MonitoringRestored; eGui durably logged receipt of the final
+notification. Its monitoring-restored timestamp was 19:39:04.183 EDT.
+
+The subsequent 19:39:29–19:54:29 EDT soak ran for 900 seconds with 46 samples.
+Every sample showed healthy Options and futures, 22/22 scopes ready and positive
+native resource proof. No process restarted, no observer query failed, no new
+recovery episode occurred and eGui logged no new diagnostic errors during the
+window. PostgreSQL contained 1,667 new plans for the trade/date, with actual
+trade-plan sequences 145 through 1,811. The passive realtime sample field named
+`sequence` is Position.SequenceId; it is not this per-date trade-plan sequence.
+
+Evidence: `.artifacts/live-trade-verification-20261029-evening/verification-summary.json`,
+`controlled-recovery.jsonl`, `recovery-audit.json`, `soak-samples.jsonl`,
+`soak-complete.json`, and `trade-progress.jsonl`. Windows computer-use initialization
+failed with os error 3, so visible UI acceptance relies on the user's explicit
+confirmation, supported by backend/notification evidence. No production source
+changes or application restarts were made during this live verification. This
+passes the current loaded-trade/reset/15-minute baseline; it is not an assertion
+about untested trading actions or every future recovery failure mode.
+
+### October 29 evening market-open investigation
+
+The red Options indicator was confirmed against native backend status, not just
+the UI. Recovery operation `76835d1e-1e14-f82b-a7f1-e9439156d55a`
+started at 19:08:33 EDT after a raw-reference broker connection failed with
+Windows socket error 10022. Its `ResetCompleted` record at 19:10:22 confirms
+retirement and replacement of the dataset resources; it does not prove monitoring
+readiness. Replacement setup waited for the quiet `ES20270319` underlying quote.
+The terminal `Failed` record at 19:12:22 and native `StoppedError` status confirm
+that this episode did not recover. Both futures datasets remained healthy.
+
+The corrective package replays the temporary underlying MBP-1 book from the
+API-selected session opening and awaits its replay-completed record. Provider
+timestamps, decimal arithmetic and existing quote validation remain enforced.
+The SDK fixtures cover replay followed only by heartbeats. Four background SDK
+tests and the actual managed/native DLL lifecycle qualification passed. The
+corrected DLL (`d29c75a2a0b33f86d04c0f6e311716468b6271b85949642866a31d74484e7a08`)
+was deployed at 19:27 EDT. Automatic Quartz occurrence
+`28c2da3c-778e-dcd7-09a5-0743f49c8886` then ran from 19:30:03.298 to
+19:30:16.681 EDT, returning `BusinessCompleted`, exit 0 and ValueDate
+2026-10-30. Native owner `4aa1c42c-c398-9c15-f6ee-5f274f4dbd6d` was joined
+and replaced by `bbda4414-4598-427a-e845-fec479165df4`; all three initial
+dataset identities changed. API 53180, Host 37440, eGui 72636 and scheduler
+72688 stayed running throughout this opening occurrence. Temporary qualification
+schedule `364d30f0-d85d-4b40-8127-a894e8b5771f` was disabled and removed
+through the command actor afterward; ordinary opening/closing schedules remain.
+
+The subsequent native background policy/coverage refresh completed, and operation
+`82df4f33-2630-d9c5-47d5-b460d6d30190` recorded `MonitoringRestored` at
+19:30:53.962 EDT. A 19:31:49 backend sample verified all three datasets healthy,
+18 requested background scopes, 18 ready scopes and positive resource proof.
+The 19:32 ES outlook query reported Green, no missing inputs, available ITI and
+daily analytics, volume 17,156 and a current provider timestamp. These are backend
+checks; no new loaded-trade or visual UI acceptance is claimed by this occurrence.
+Evidence is under `.artifacts/market-open-clean-start-20261029/`, including
+`replay-before-open.json`, `replay-automatic-status.json`,
+`replay-post-open-stable.json`, `replay-disable.json`, and `replay-remove.json`.
+
+A separate manual scheduler Run Now qualification exposed an existing durable
+consumer cursor ahead of the current EventStream. That manual request was rejected
+through the command actor to prevent later execution; no stream or consumer was
+deleted. The automatic Quartz opening path above was verified independently.
+
+The earlier 19:08 market-open occurrence completed successfully in 9.617 seconds,
+but its completion gate proves futures readiness only. That receipt must not be
+presented as proof that the independent Options background initialization passed.
+
 This report accompanies `MarketData-Feed-Recovery-Audit-Implementation-Plan-v0.1.md`.
 Implementation records native recovery decisions without moving dataset recovery into C#.
 Implementation and isolated audit verification completed on 2026-10-29. The additional public-recovery observer mismatch is corrected and its explicit qualifications pass. Final full native regression passed (432 tests, zero failures), and the authorized separate acceptance session was launched. The live baseline/trade/visible-UI gate is not yet claimed complete.
@@ -209,3 +289,194 @@ dotnet test TomasAI.IFM.UI.Net.Presentation.UnitTests --filter FullyQualifiedNam
 ```
 
 Serialize builds that share .NET intermediate outputs. Do not rebuild a Windows native test executable while an integration fixture is executing it. A recording attempt intentionally times out in the lost-reply test; the test succeeds only when its retry is durably reconciled.
+
+## October 29 afternoon: stored trade and Options-only recovery
+
+The user confirmed prompt display of stored trade data before live restoration,
+then green Options Health and generating plans. Foreground stored load measured
+136.6 ms; six-hour chart hydration completed separately in 586.9 ms. The hybrid
+UI is unchanged. Automated tests cover retaining stored data during pending or
+failed restoration, closing cancellation and no redundant saved-enabled Enable.
+
+Controlled operation `0c473879-34cb-4f33-94e6-450cc19f36c7` was armed for five
+minutes and injected at 15:15:27 Eastern. Native audit operation
+`04ea4bb0-5df9-25bf-a3c4-35f15388352a` recorded resource retirement and
+MonitoringRestored after 3,517 ms. By ten seconds independent observation verified
+all four leg quotes were observed after injection in the replacement generation,
+with 22/22 scopes ready. Host, API and both futures identities remained unchanged.
+The durable UI receipt at 19:15:30.944505Z contains "Dataset recovery completed.
+Live monitoring is verified." The user saw and dismissed a success dialog but
+did not independently confirm its exact wording.
+
+The next fifteen minutes (19:15:30.887664Z to 19:30:30.887664Z) contain 59 health
+samples, all 22/22 ready and one Options generation. Trade snapshot revision
+advanced 5733 to 12067; plan position revision advanced 2481467 to 2483715.
+The passive observer recorded no disconnect/error. ES volume also advanced.
+This passes the controlled-recovery and continued-processing gate.
+
+Two natural recoveries started just afterward at 19:30:42Z and 19:31:26Z with
+"Conflicting option trade economic content". Monitoring was restored in 6,830 ms
+and 4,333 ms respectively; plans continued. The triggering economic-content
+conflict remains a separate investigation. Its integrity check was not weakened.
+
+Evidence: `.artifacts/dataset-only-acceptance-20261029-1423/` contains controlled
+and passive journals, native snapshots and `post-reset-15-minute-verification.json`.
+The embedded UTC timestamps, rather than the artifact folder label, identify
+the actual test window.
+
+Additional qualification found multi-block C# audit failure receipts were masked
+by a compression decoder restriction. The corrected decoder retains its 8 KiB
+limit and preserves underlying server errors. Twenty-three audit tests passed;
+captured actual success and multi-block failure replies also passed. The latter
+identifies missing predecessors in five frozen October 27 synthetic fixture
+records. Those files were preserved with SHA-256 verification in
+`.artifacts/qualification-outbox-archive-20261029-1524/`; no predecessors were
+fabricated and persisted event history was unchanged. Pending audit records
+reached zero. Two rejected files and historical cumulative counters remain.
+Qualification executables now isolate their temporary outboxes; the managed
+bridge rejects accidental use of the live root before opening native resources.
+
+Repeated saved-load qualification failed against the old DLL and passed against
+the corrected DLL. Final package SHA-256:
+`f7909370a0822f9f6d448bc29dbd0ea36daf06f6f3c6583bf3c39399c3db4a86`.
+It was deployed after the observation window. Its live repeated-load check is
+recorded separately when complete; the fifteen-minute result above belongs to
+the preceding deployed DLL.
+
+### Final package live repeat-load verification
+
+The final package started Native Host PID 40816, API PID 57364 and eGui PID
+36052. At 19:35:03Z, a real Host `LoadTradeFeedRecoveryAsync` for saved trade
+101.701.1901.1501 returned true in 78 ms. Options worker identity
+83bd0ed2-c5d6-2504-439c-4d7caa4931a5, generation
+5f3790ad-c8bf-5f69-761f-e9d7b3710b1a, Host PID and manifest revision 5 were
+unchanged before/after. All 22 scopes and resource proofs remained ready; all
+four captured leg quotes belonged to that generation with current observations.
+Audit health after this startup showed zero pending records, retries, delivery
+failures, write failures and capture failures, with the two previously rejected
+files still counted. Evidence: `final-package-live-repeat-load.json` in the
+controlled acceptance artifact directory. Final visible trade confirmation in
+the restarted UI was requested separately.
+
+### Reopened-trade follow-up failed: coverage replacement
+
+The user's subsequent visible check reported deadline dialogs and a stopped
+Options feed. This supersedes any inference that the brief final-package check
+established ongoing stability. The earlier controlled reset result remains valid
+for its recorded window; final reopened-trade acceptance has not passed.
+
+Native operation `91f10cda-15fb-e3e2-a92f-9afcd3e3d026` recorded Started and
+ResetStarted at 19:37:00Z, physical ResetCompleted at 19:37:00.837Z, then Failed
+at 19:39:00Z. Physical reset completion did not mean monitoring restoration.
+The replacement repeatedly waited for ES20270319 underlying quotes. At 19:41:49Z
+the live endpoint reported Recovering with zero of four scopes ready.
+
+The background refresh path discarded a newly resolved membership when reporting
+a policy/coverage change. Some other change branches reported replacement before
+resolving it at all. A healthy-provider quote wait could also consume a maintenance
+budget that was then reused as an already-expired replacement deadline. Thus the
+replacement could immediately hit its reset boundary and repeat cold acquisition.
+
+The correction prepares replacement metadata while the current feed remains
+owned, passes that copied recipe across retirement and recreates physical source,
+reference and pricing resources from it. Planned maintenance starts its recovery
+budget when replacement is ready; an explicit pending business handoff retains
+its original deadline. Unknown acquisition errors continue to enter recovery.
+No prices, current-generation outputs or readiness proofs are retained/fabricated.
+Qualification includes a changed-policy SDK session-count assertion, unchanged
+policy stability, removed-policy retirement, and virtual-time deadline cases.
+Results and live acceptance are recorded after those gates complete.
+
+The changed-policy SDK regression passed in 90.35 seconds: unchanged policy
+kept two initial SDK sessions (bootstrap plus final), changed policy added only
+one final session, and removing the last policy added none. Both existing idle
+and cached-background recovery integration tests passed. Two virtual-time budget
+tests and actual C#-to-DLL four-leg/cancellation/repeated-load qualification passed.
+Strict Clippy passed. Evidence: `.artifacts/refresh-recipe-*.log`.
+
+Corrected native package SHA-256:
+`e9b1d1ea816a3fc3f726b8e75fab3bc1a320d7065957eaceaa18b8529d2af0a1`.
+The corrected session started at 19:48:49Z (Host 73484, API 66408, eGui 27556).
+Two subsequent real coverage-change operations exercised the corrected path:
+`89219f2c-654b-c1b4-9510-6488fcb0ccef` verified monitoring after 21,303 ms;
+`511a84b0-66fb-600c-50f2-d54bf7c94e25` after 8,124 ms. Both durably recorded
+old-resource retirement, completion and MonitoringRestored. The matching final
+notifications reached eGui. These are monitoring timings; connection restoration
+alone was earlier and is not reported as complete monitoring recovery.
+The longer follow-up observation and visible check are tracked separately.
+
+The corrected live follow-up ran 310.61 seconds after first 22/22 readiness
+(19:49:30.812971Z to 19:54:41.431099Z, 32 sampled observations). Three actual
+coverage replacements recorded MonitoringRestored in 21,303 ms, 8,124 ms and
+4,939 ms. There were zero Failed/ResetStarted records, zero probe errors and
+zero backend-failure receipts in eGui PID 27556. Host/API/UI process identities
+remained unchanged across that observation. Final state was Healthy, 22/22 scopes
+ready, complete resource proofs and four replacement-generation leg observations.
+Trade plans continued to persist. Audit pending/retry/delivery/write/capture
+failure counts were zero; the two historical rejected files remained counted.
+Evidence and exact generation/quote timestamps are in
+`.artifacts/refresh-recipe-live-20261029-1549/verification.json` and its samples.
+This passes the focused corrected-path backend follow-up; it is not a new
+fifteen-minute soak or a substitute for the user's still-pending visible check.
+
+The user subsequently confirmed: "Trade open; stored data appear promptly;
+Live Feed enabled." At 20:34:42Z (16:34 Eastern), independent backend checks
+reported Options Healthy, 22/22 scopes ready, no recovery deadline and persisted
+plans advancing 110582 to 110583 within the preceding second. The recovery log
+contained no Failed or ResetStarted records since the corrected session began.
+This confirms the visible stored-load/enabled-feed check and current backend
+progress; it does not imply a new screenshot or user confirmation of every
+displayed live value.
+
+## October 29 pre-close soak and scheduled EOD acceptance
+
+The latest native package completed a fresh 918.11-second observation from
+20:41:36.136599Z to 20:56:54.251639Z (16:41:36 to 16:56:54 Eastern).
+All 45 samples had healthy datasets and 22/22 Options scopes ready, with four
+current-generation leg observations. Plans advanced monotonically from 111509
+to 113535. Processes and four saved live-feed contracts remained unchanged.
+There were no recovery records, probe failures or durable UI error events.
+The maximum observed age of an individual leg quote was 39.004 seconds; this
+is quote age during quiet trading, not a measured delivery-latency guarantee.
+Market Outlook price/volume advanced, daily analytics were Available, and ITI
+changed from Stale to Available following a new intrinsic-time signal.
+
+The authoritative actor-owned close schedule was enabled, desired revision 2,
+with expression `0 1 17 ? * MON-FRI`, America/New_York. The matching Quartz
+trigger was installed for 21:01Z. Static disabled seed settings and empty legacy
+PostgreSQL schedule-definition rows were not treated as the active authority;
+no schedule configuration was changed for this test.
+
+The scheduled run `3479d0ba-cf15-7c2f-b651-4f80e8b71ec2` started at
+21:01:00.471612Z and completed at 21:01:06.0877089Z with exit 0 and
+BusinessCompleted. The API returned HTTP 200 and close run
+`25d290eb-d8f6-4efc-9199-e678ab4c0fb8`, finalizing two positions for October 29.
+The durable completed-EOD marker advanced to October 29; all three datasets
+became Idle and today's recovery-intent contract count fell from four to zero.
+
+Loaded trade 101.701.1901.1501 persisted EndOfDay position sequence 2492128,
+ValueDate and LatestSealedValueDate 2026-10-29, with the 21:00Z session boundary.
+Both the position-change event and realtime UI snapshot carried that same sealed
+snapshot at 21:01:05.172Z/21:01:05.178Z. Its history row retains the first daily
+mark's stable UTC key (October 28 23:04Z, inside the October 29 trading session);
+the stored payload explicitly identifies October 29 and the final EOD sequence.
+The unexpired position remains open, as expected for daily sealing.
+
+At 21:03:08Z feeds remained Idle, plans remained stopped at 113912, and there
+were no unexpected process restarts, recovery records or durable UI errors.
+The API session reported no active date and IsMarketOpen/IsLiveTrading false;
+the next operational date is October 30 with the next transition at 22:00Z.
+Audit pending/retry/write/delivery/capture failures remained zero; two historical
+rejected fixture files remained counted. Visible EOD/live-toggle confirmation
+was requested from the user and remains separate from backend/event verification.
+
+Evidence: `.artifacts/market-close-soak-20261029/` contains raw samples,
+`soak-verification.json`, `close-verification.json`, canonical scheduler receipts,
+stored EOD payloads, UI-bound position-event observations and the API session.
+These observations pass the latest-package soak and scheduled-close backend gates.
+They do not repeat the still-separate forced-reset acceptance on this package.
+
+The user subsequently confirmed in the still-open trade view: "EOD is visible;
+Live Feed is disabled." No close/reopen was required. This completes the visible
+EOD/live-toggle check and accepts the latest-package fifteen-minute soak and
+scheduled market-close gates together with the backend evidence above.

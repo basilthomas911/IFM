@@ -63,6 +63,7 @@ impl Factory for Feed {
                     availability.observe("short-put", usable).unwrap();
                     if let Some(key) = availability.expired() {
                         health.send_replace(Readiness {
+                            setup_complete: false,
                             proofs: vec![],
                             failure: Some(format!(
                                 "Required output unavailable for 30 seconds: {key}"
@@ -76,6 +77,7 @@ impl Factory for Feed {
                         setup = None;
                     }
                     health.send_replace(Readiness {
+                        setup_complete: false,
                         proofs: if usable {
                             vec![Proof::Transport, Proof::Publication]
                         } else {

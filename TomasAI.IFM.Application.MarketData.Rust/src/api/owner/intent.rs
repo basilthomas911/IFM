@@ -12,6 +12,12 @@ impl MarketData {
     /// # Errors
     /// Default dates or an active dataset owned by another value date.
     pub fn validate_api_date(&self, date: time::Date) -> Result<(), String> {
+        if self.closing.load(std::sync::atomic::Ordering::Acquire) {
+            return Err("Native market-data owner is retiring".into());
+        }
+        if self.session_date.is_some_and(|opening| opening != date) {
+            return Err("Command ValueDate differs from the API opening epoch".into());
+        }
         if date.to_julian_day() == 1721426 {
             return Err("Native market data requires an explicit API ValueDate".into());
         }

@@ -1,0 +1,6 @@
+<Project>
+  <!-- Qualification executables must never reuse a live recovery outbox. -->
+  <ItemGroup Condition="'$(OutputType)' == 'Exe'">
+    <Compile Include="$(MSBuildThisFileDirectory)Shared/IsolatedRecoveryAudit.cs" Link="Qualification/IsolatedRecoveryAudit.cs" />
+  </ItemGroup>
+</Project>

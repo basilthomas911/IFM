@@ -66,6 +66,7 @@ impl Drop for Options {
 /// Runtime-owned backend. Copied query views never contain this owner or its
 /// supervisors; holding a query result cannot delay dataset reconstruction.
 pub struct MarketData {
+    session_date: Option<time::Date>,
     futures: BTreeMap<Lane, Futures>,
     options: Options,
     claims: Mutex<Option<Arc<Coordinator>>>,
@@ -130,6 +131,7 @@ impl MarketData {
         );
         let options = Options { factory, control };
         let owner = Self {
+            session_date: None,
             futures,
             options,
             claims: Mutex::new(None),
@@ -149,6 +151,19 @@ impl MarketData {
         if let Some(catalog) = catalog {
             owner.configure_options_catalog(catalog)?;
         }
+        Ok(owner)
+    }
+    /// Creates a fresh opening epoch pinned exclusively to the API-supplied date.
+    /// The caller must join the previous owner before admitting this replacement.
+    ///
+    /// # Errors
+    /// Invalid date or stopped/exhausted root admission prevents replacement.
+    pub fn new_session(root: Arc<Owner>, clock: Arc<Clock>, date: time::Date) -> Result<Self, String> {
+        if date.to_julian_day() == 1721426 {
+            return Err("Native market data requires an explicit API ValueDate".into());
+        }
+        let mut owner = Self::new(root, clock, None)?;
+        owner.session_date = Some(date);
         Ok(owner)
     }
     fn notification_date(

@@ -57,3 +57,6 @@ struct StartGuard{hub:Hub,data:Arc<Mutex<data::Monitor>>,incarnation:uuid::Uuid}
 impl Drop for StartGuard{fn drop(&mut self){let changed=if let Ok(mut state)=self.data.lock(){if state.incarnation==self.incarnation&&state.starting{state.starting=false;state.collecting=false;state.status="Live-feed change was interrupted; saved API intent requires reconciliation".into();true}else{false}}else{false};if changed{let _=self.hub.publish();}}}
 struct OpenGuard{hub:Hub,key:String,incarnation:uuid::Uuid,armed:bool}
 impl Drop for OpenGuard{fn drop(&mut self){if !self.armed{return}let same=self.hub.owner(&self.key).ok().and_then(|data|data.lock().ok().map(|data|data.incarnation==self.incarnation)).unwrap_or(false);if same{let _=self.hub.close(&self.key);}}}
+
+#[cfg(test)]
+mod two_phase_tests;

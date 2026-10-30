@@ -100,7 +100,11 @@ impl Record {
             .filter(|v| v.len() == 4)
             .ok_or("Invalid audit service reply")?;
         if service[0] != Value::Boolean(true) {
-            return Err("Recovery audit storage rejected".into());
+            let failed=service[3].as_array().and_then(|result|result.get(1)).and_then(Value::as_array);
+            let message=failed.and_then(|event|event.get(10)).and_then(Value::as_str)
+                .or_else(||service[2].as_str()).unwrap_or("No failure detail");
+            let detail=failed.and_then(|event|event.get(12)).and_then(Value::as_str).unwrap_or("");
+            return Err(format!("Recovery audit storage rejected: {message}; {detail}"));
         }
         let result = service[3]
             .as_array()
@@ -233,20 +237,34 @@ fn decode(bytes: &[u8]) -> Result<Value, String> {
     if let Some(array) = value.as_array()
         && let Some(Value::Ext(98, lengths)) = array.first()
     {
-        if array.len() != 2 {
+        // MessagePack-CSharp may split even a small receipt across pooled
+        // writer segments. Extension 98 contains one decoded length per block.
+        // Bound both the block count and total output before allocating.
+        if !(2..=32).contains(&array.len()) {
             return Err("Invalid audit compression".into());
         }
-        let length = rmp::decode::read_int::<u64, _>(&mut std::io::Cursor::new(lengths))
-            .ok()
-            .filter(|n| *n <= 8192)
-            .ok_or("Audit decompression capacity")? as usize;
-        let compressed = array[1]
-            .as_slice()
-            .ok_or("Invalid audit compression bytes")?;
-        let output = lz4_flex::block::decompress(compressed, length)
-            .map_err(|_| "Invalid audit compression body")?;
-        if output.len() != length {
-            return Err("Invalid audit compression length".into());
+        let mut sizes = std::io::Cursor::new(lengths);
+        let mut decoded_sizes = Vec::with_capacity(array.len() - 1);
+        let mut total = 0usize;
+        for block in &array[1..] {
+            let length = rmp::decode::read_int::<u64, _>(&mut sizes)
+                .ok().filter(|n| (1..=8192).contains(n))
+                .ok_or("Audit decompression capacity")? as usize;
+            total = total.checked_add(length).filter(|n| *n <= 8192)
+                .ok_or("Audit decompression capacity")?;
+            if block.as_slice().is_none() {return Err("Invalid audit compression bytes".into());}
+            decoded_sizes.push(length);
+        }
+        if sizes.position() != lengths.len() as u64 {
+            return Err("Audit compression length count mismatch".into());
+        }
+        let mut output = Vec::with_capacity(total);
+        for (block, length) in array[1..].iter().zip(decoded_sizes) {
+            let compressed = block.as_slice().ok_or("Invalid audit compression bytes")?;
+            let decoded = lz4_flex::block::decompress(compressed, length)
+                .map_err(|_| "Invalid audit compression body")?;
+            if decoded.len() != length {return Err("Invalid audit compression length".into());}
+            output.extend_from_slice(&decoded);
         }
         let mut remaining = output.as_slice();
         scan(&mut remaining, 0)?;

@@ -26,7 +26,14 @@ public sealed class FuturesMarketSessionAuthority : IFuturesMarketSessionAuthori
     }
 
     /// <inheritdoc />
-    public MarketSessionReadModel Current => Volatile.Read(ref _current);
+    public MarketSessionReadModel Current
+    {
+        get
+        {
+            var current=Volatile.Read(ref _current);
+            return current.OperationalValueDate==_valueDateProvider.ValueDate?current:Refresh();
+        }
+    }
 
     /// <summary>Re-evaluates the authoritative decision and advances its revision when state changes.</summary>
     public MarketSessionReadModel Refresh()

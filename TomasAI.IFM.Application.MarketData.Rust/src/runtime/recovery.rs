@@ -507,16 +507,6 @@ impl Recovery {
             return false;
         }
         state.proven |= proof as u8;
-        if state.transport_driven && proof == Proof::Transport {
-            state.status.deadline = None;
-            // A restored connection ends the connection incident even when the
-            // first usable market observation has not arrived yet.
-            if state.status.phase == Phase::Recovering {
-                state.status.phase = Phase::Starting;
-                state.status.root_error = None;
-                state.status.latest_error = None;
-            }
-        }
         state.status.missing = PROOFS
             .into_iter()
             .filter(|p| state.required.0 & *p as u8 != 0 && state.proven & *p as u8 == 0)
@@ -524,7 +514,33 @@ impl Recovery {
         if state.status.missing.is_empty() {
             state.status.phase = Phase::Running;
             state.status.deadline = None;
+            state.status.root_error = None;
+            state.status.latest_error = None;
         }
+        Self::audit_proofs(&mut state);
+        self.changed.send_replace(state.status.clone());
+        true
+    }
+    /// Ends bounded reconstruction only after the concrete final source and
+    /// required components are installed. Financial readiness can then await
+    /// genuine market data without treating a quiet connection as a failure.
+    /// Bootstrap heartbeats alone cannot call this successfully.
+    pub fn complete_setup(&self, ticket: Ticket) -> bool {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        self.expire(&mut state);
+        if ticket != state.status.ticket
+            || !matches!(state.status.phase, Phase::Starting | Phase::Recovering)
+            || state.proven & Proof::Transport as u8 == 0
+            || state.proven & Proof::Retired as u8 == 0
+        {
+            return false;
+        }
+        if state.status.deadline.is_none() && state.status.phase != Phase::Recovering {
+            return true;
+        }
+        state.transport_driven = true;
+        state.status.deadline = None;
+        state.status.phase = Phase::Starting;
         Self::audit_proofs(&mut state);
         self.changed.send_replace(state.status.clone());
         true

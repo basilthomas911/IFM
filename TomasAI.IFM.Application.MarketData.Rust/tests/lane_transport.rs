@@ -40,6 +40,7 @@ enum Mode {
     Pricing,
     PricingAt(u64, u64),
     PricingTradeAt(u64),
+    PricingTradeReplayAt(u64),
     QuoteFlood,
     DuplicateAck,
     TradeOrdering,
@@ -581,7 +582,7 @@ impl Fixture {
 }
 
 async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
-    let timestamp = if let Mode::PricingTradeAt(at) = mode {
+    let timestamp = if let Mode::PricingTradeAt(at) | Mode::PricingTradeReplayAt(at) = mode {
         at
     } else if let Mode::PricingAt(at, step) = mode {
         at + if attempt > 0 { step } else { 0 }
@@ -617,6 +618,7 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
         return;
     }
     assert!(line.contains("schema=trades"));
+    let mut quote_replay=false;
     if matches!(
         mode,
         Mode::FuturesQuotes
@@ -624,6 +626,7 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
             | Mode::Pricing
             | Mode::PricingAt(_, _)
             | Mode::PricingTradeAt(_)
+            | Mode::PricingTradeReplayAt(_)
             | Mode::OptionReplay
             | Mode::QuoteFlood
             | Mode::DuplicateAck
@@ -634,6 +637,12 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
             return;
         }
         assert!(line.contains("schema=mbp-1"));
+        quote_replay=line.contains("start=");
+        if matches!(mode, Mode::PricingTradeReplayAt(_)) && attempt == 0 {
+            // There will be no later live quote changes: the initial book is
+            // supplied only when the client explicitly requests session replay.
+            assert!(line.contains("start=1793052000000000000"), "quiet underlying bootstrap must use the API ValueDate 2026-10-27 session start: {line}");
+        }
         if matches!(mode, Mode::OptionReplay) {
             line.clear();
             if peer.read_line(&mut line).await.unwrap_or(0) == 0 {
@@ -724,6 +733,7 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
                 | Mode::Pricing
                 | Mode::PricingAt(_, _)
                 | Mode::PricingTradeAt(_)
+            | Mode::PricingTradeReplayAt(_)
                 | Mode::OptionReplay
                 | Mode::QuoteFlood
                 | Mode::DuplicateAck
@@ -810,6 +820,7 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
             Mode::Pricing
                 | Mode::PricingAt(_, _)
                 | Mode::PricingTradeAt(_)
+            | Mode::PricingTradeReplayAt(_)
                 | Mode::OptionReplay
                 | Mode::QuoteFlood
                 | Mode::DuplicateAck
@@ -819,6 +830,12 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
                 (42, 6_000_000_000_000, 6_000_500_000_000),
                 (43, 99_750_000_000, 100_250_000_000),
             ] {
+                if matches!(mode, Mode::PricingTradeAt(_) | Mode::PricingTradeReplayAt(_)) && attempt > 0 && instrument == 43 {
+                    // Deterministically expose the replacement's quote gap:
+                    // subscription acknowledgements/underlying data are live,
+                    // but optional cache capture must wait for the option quote.
+                    tokio::time::sleep(Duration::from_millis(40)).await;
+                }
                 let mut quote = databento::dbn::Mbp1Msg {
                     sequence: 8,
                     ts_recv: 15,
@@ -834,7 +851,7 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
                 quote.levels[0].ask_sz = 10;
                 records.encode(&quote).await.unwrap();
             }
-            if matches!(mode, Mode::PricingTradeAt(_)) {
+            if matches!(mode, Mode::PricingTradeAt(_) | Mode::PricingTradeReplayAt(_)) {
                 trade.hd.instrument_id = 43;
                 trade.price = 100_000_000_000;
                 trade.hd.ts_event = timestamp + 16;
@@ -859,7 +876,7 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
                         .unwrap();
                 }
             }
-            if additional_statistics && matches!(mode, Mode::PricingTradeAt(_)) {
+            if additional_statistics && matches!(mode, Mode::PricingTradeAt(_) | Mode::PricingTradeReplayAt(_)) {
                 trade.hd.instrument_id = 43;
                 trade.hd.ts_event = timestamp + 19;
                 trade.ts_recv = timestamp + 20;
@@ -1009,6 +1026,9 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
             }
         }
     }
+    if quote_replay {
+        records.encode(&SystemMsg::new(timestamp+30,Some(SystemCode::ReplayCompleted),"Finished mbp-1 replay").unwrap()).await.unwrap();
+    }
     if matches!(
         mode,
         Mode::HealthyHeartbeat
@@ -1018,6 +1038,7 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
             | Mode::Pricing
             | Mode::PricingAt(_, _)
             | Mode::PricingTradeAt(_)
+            | Mode::PricingTradeReplayAt(_)
             | Mode::OptionReplay
             | Mode::QuoteFlood
             | Mode::DuplicateAck
@@ -2737,34 +2758,34 @@ async fn native_futures_delivery_integration(failure_mode: u8) {
         Deadline::after(Duration::from_secs(2)),
     )
     .unwrap();
-    let packet = tokio::time::timeout(Duration::from_secs(2), packets.recv())
-        .await
-        .unwrap()
-        .unwrap();
-    let compressed = rmpv::decode::read_value(&mut packet.as_slice()).unwrap();
-    let array = compressed.as_array().unwrap();
-    let rmpv::Value::Ext(98, length) = &array[0] else {
-        panic!("Expected production envelope compression");
-    };
-    let length = rmpv::decode::read_value(&mut length.as_slice())
-        .unwrap()
-        .as_u64()
-        .unwrap() as usize;
-    let content = lz4_flex::block::decompress(array[1].as_slice().unwrap(), length).unwrap();
-    let envelope = rmpv::decode::read_value(&mut content.as_slice()).unwrap();
-    let envelope = envelope.as_array().unwrap();
-    assert_eq!(envelope[0].as_str(), Some("GLBX.MDP3"));
-    assert_eq!(envelope[6].as_u64(), Some(3));
-    let event = rmpv::decode::read_value(&mut envelope[7].as_slice().unwrap()).unwrap();
-    let event = event.as_array().unwrap();
-    assert_eq!(
-        event[0].as_array().unwrap()[1].as_str(),
-        Some("FuturesMarketPrice")
-    );
-    assert_eq!(
-        event[12].as_array().unwrap()[15].as_array().unwrap()[5].as_str(),
-        Some("6000.25")
-    );
+    // The coherent session statistics now precede the execution that consumes
+    // them. Decode the actual NATS packets, not a second volume algorithm.
+    let mut last_volume = None;
+    loop {
+        let packet = tokio::time::timeout(Duration::from_secs(2), packets.recv())
+            .await.unwrap().unwrap();
+        let compressed = rmpv::decode::read_value(&mut packet.as_slice()).unwrap();
+        let array = compressed.as_array().unwrap();
+        let rmpv::Value::Ext(98, length) = &array[0] else { panic!("Expected production envelope compression"); };
+        let length = rmpv::decode::read_value(&mut length.as_slice()).unwrap().as_u64().unwrap() as usize;
+        let content = lz4_flex::block::decompress(array[1].as_slice().unwrap(), length).unwrap();
+        let envelope = rmpv::decode::read_value(&mut content.as_slice()).unwrap();
+        let envelope = envelope.as_array().unwrap();
+        assert_eq!(envelope[0].as_str(), Some("GLBX.MDP3"));
+        let event = rmpv::decode::read_value(&mut envelope[7].as_slice().unwrap()).unwrap();
+        let event = event.as_array().unwrap();
+        if envelope[6].as_u64() == Some(4) {
+            let statistics = event[8].as_array().unwrap();
+            assert_eq!(statistics[1].as_i64(), Some(i64::from(date.to_julian_day() - 1721426)));
+            last_volume = statistics[7].as_i64();
+            continue;
+        }
+        assert_eq!(envelope[6].as_u64(), Some(3));
+        assert!(last_volume.is_some_and(|v| v > 0), "volume must reach the broker before its execution");
+        assert_eq!(event[0].as_array().unwrap()[1].as_str(), Some("FuturesMarketPrice"));
+        assert_eq!(event[12].as_array().unwrap()[15].as_array().unwrap()[5].as_str(), Some("6000.25"));
+        break;
+    }
     let mut health = delivery.changes();
     tokio::time::timeout(Duration::from_secs(2), async {
         while !health.borrow().running {
@@ -2774,7 +2795,7 @@ async fn native_futures_delivery_integration(failure_mode: u8) {
     .await
     .unwrap();
     let detached_catchup = delivery.current().capture(0, 128).unwrap();
-    assert_eq!(detached_catchup.len(), 1);
+    assert_eq!(detached_catchup.len(), 2);
     if failure_mode == 1 {
         let incident = Deadline::after(Duration::from_millis(100));
         let before = Instant::now();
@@ -5289,7 +5310,7 @@ async fn native_futures_configured_case(
                 // Financial readiness is deliberately a separate result field.
                 tokio::time::timeout(Duration::from_secs(6), receive)
                     .await
-                    .unwrap()
+                    .unwrap_or_else(|_| panic!("Quiet final source did not become connected: health={:?}; accepted={}; contracts={:?}", market.health(Lane::FuturesGlbx).status(),fixture.accepted.load(Ordering::SeqCst),market.futures_contracts(Lane::FuturesGlbx)))
                     .unwrap()
             } else {
                 // Observe the original incident deadline independently of the
@@ -5322,6 +5343,7 @@ async fn native_futures_configured_case(
             assert_eq!(market.health(Lane::FuturesXcbf).status().ticket, sibling);
             if quiet_no_quotes {
                 assert!(market.health(Lane::FuturesGlbx).connection_alive());
+                assert!(market.health(Lane::FuturesGlbx).status().deadline.is_none(), "Quiet final subscriptions must finish setup without inventing a financial publication");
                 assert!(market.failures().is_empty());
                 assert_eq!(terminal_notices.load(Ordering::SeqCst), 0);
                 let replacement = market.publication_identity(Lane::FuturesGlbx).unwrap();
@@ -5945,7 +5967,9 @@ async fn native_options_group_case(
         panic!()
     };
     fields[4] = 43.into();
-    let fixture = Fixture::new(Mode::PricingTradeAt(at as u64 * 100)).await;
+    let fixture = Fixture::new(if populated_background {
+        Mode::PricingTradeReplayAt(at as u64 * 100)
+    } else {Mode::PricingTradeAt(at as u64 * 100)}).await;
     let stop = CancellationToken::new();
     let http = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}/curve.xml", http.local_addr().unwrap());
@@ -6031,6 +6055,8 @@ async fn native_options_group_case(
     .unwrap();
     let remove_policies = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let removed = remove_policies.clone();
+    let update_policy = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let updated = update_policy.clone();
     let policy_body = if populated_background {
         serde_json::to_vec(&serde_json::json!([
             policy_fixture[0]["command"]["parameters"]
@@ -6068,11 +6094,13 @@ async fn native_options_group_case(
     let counted = reference_calls.clone();
     let block_references = Arc::new(std::sync::atomic::AtomicBool::new(stall_reference));
     let blocked = block_references.clone();
+    let diagnostics = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let diagnostic_log = diagnostics.clone();
     let server = tokio::spawn(async move {
         let mut clients = tokio::task::JoinSet::new();
         loop {
             tokio::select! {biased;()=broker_stop.cancelled()=>break,accepted=listener.accept()=>{
-                let (socket,_)=accepted.unwrap();let published=published.clone();let durable=durable.clone();let raw_reference=raw_reference.clone();let counted=counted.clone();let blocked=blocked.clone();let policy_count=policy_count.clone();let definition_count=definition_count.clone();let policy_body=policy_body.clone();let definitions_body=definitions_body.clone();let canonical_body=canonical_body.clone();let removed=removed.clone();let journal_body=current_journal.lock().unwrap().clone();
+                let (socket,_)=accepted.unwrap();let published=published.clone();let durable=durable.clone();let raw_reference=raw_reference.clone();let counted=counted.clone();let blocked=blocked.clone();let policy_count=policy_count.clone();let definition_count=definition_count.clone();let policy_body=policy_body.clone();let definitions_body=definitions_body.clone();let canonical_body=canonical_body.clone();let removed=removed.clone();let updated=updated.clone();let journal_body=current_journal.lock().unwrap().clone();let diagnostic_log=diagnostic_log.clone();
                 clients.spawn(async move{let (read,mut write)=socket.into_split();let mut peer=BufReader::new(read);if write.write_all(b"INFO {\"server_id\":\"native-options\",\"version\":\"2.10.0\",\"proto\":1,\"max_payload\":1048576}\r\n").await.is_err(){return;}
                     let mut line=String::new();let mut subscription=None;
                     loop{line.clear();if peer.read_line(&mut line).await.unwrap_or(0)==0{break;}let fields:Vec<_>=line.split_whitespace().collect();
@@ -6097,7 +6125,7 @@ async fn native_options_group_case(
                                     }else if input[1].as_u64()!=Some(10){counted.fetch_add(1,Ordering::SeqCst);}
                                     assert_eq!(input.len(),4);if blocked.load(Ordering::SeqCst){continue;}
                                     let args=serde_json::from_slice::<serde_json::Value>(input[2].as_slice().unwrap()).unwrap();
-                                    let body=if policy_request{assert_eq!(args["environment"],"Development");if removed.load(Ordering::SeqCst){b"[]".to_vec()}else{policy_body.clone()}}
+                                    let body=if policy_request{assert_eq!(args["environment"],"Development");if removed.load(Ordering::SeqCst){b"[]".to_vec()}else if updated.load(Ordering::SeqCst){let mut policies:serde_json::Value=serde_json::from_slice(&policy_body).unwrap();policies[0][1]=2.into();serde_json::to_vec(&policies).unwrap()}else{policy_body.clone()}}
                                     else if input[1].as_u64()==Some(5){assert_eq!(args["root"],"ES");definitions_body.clone()}
                                     else if input[1].as_u64()==Some(7){
                                         if !args["root"].is_null(){use sha2::{Digest,Sha256};serde_json::to_vec(&serde_json::json!({"id":"11111111111111111111111111111111","count":1,"digest":format!("{:X}",Sha256::digest(&definitions_body))})).unwrap()}
@@ -6121,7 +6149,7 @@ async fn native_options_group_case(
                                         assert_eq!(input[1].as_u64(),Some(1));let from=args["from"].as_i64().unwrap();let until=args["until"].as_i64().unwrap();serde_json::to_vec(&serde_json::json!({"dates":(from..=until).collect::<Vec<_>>()})).unwrap()
                                     };let offset=input[3].as_u64().unwrap() as usize;let end=(offset+4096).min(body.len());use sha2::{Digest,Sha256};let digest=format!("{:X}",Sha256::digest(&body));
                                     codec::encode(&rmpv::Value::Array(vec![input[0].clone(),(body.len() as u32).into(),(offset as u32).into(),digest.into(),rmpv::Value::Binary(body[offset..end].to_vec()),rmpv::Value::Nil])).unwrap()
-                                }else{assert!(fields[1].contains(".diagnostics."));assert_eq!(input.len(),10);use sha2::{Digest,Sha256};let digest=format!("{:X}",Sha256::digest(&bytes));
+                                }else{assert!(fields[1].contains(".diagnostics."));assert_eq!(input.len(),10);{let mut records=diagnostic_log.lock().unwrap();if records.len()==256{records.remove(0);}records.push(input[8].as_str().unwrap().to_owned());}use sha2::{Digest,Sha256};let digest=format!("{:X}",Sha256::digest(&bytes));
                                     codec::encode(&rmpv::Value::Array(vec![1.into(),digest.clone().into(),digest.into(),true.into(),rmpv::Value::Nil])).unwrap()};
                                 let (_,sid)=subscription.as_ref().unwrap();let header=format!("MSG {} {} {}\r\n",fields[2],sid,receipt.len());if write.write_all(header.as_bytes()).await.is_err(){break;}
                         if write.write_all(&receipt).await.is_err(){break;}
@@ -7132,8 +7160,8 @@ async fn native_options_group_case(
             .await
             .unwrap_or_else(|_| {
                 panic!(
-                    "Native background setup: {:?}",
-                    market.health(Lane::OptionsGlbx).status()
+                    "Native background setup: {:?}; diagnostics={:?}; accepted={}; closed={}",
+                    market.health(Lane::OptionsGlbx).status(),diagnostics.lock().unwrap(),fixture.accepted.load(Ordering::SeqCst),fixture.closed.load(Ordering::SeqCst)
                 )
             })
             .unwrap();
@@ -7208,10 +7236,25 @@ async fn native_options_group_case(
                     market.health(Lane::OptionsGlbx).status()
                 );
                 assert_eq!(fixture.accepted.load(Ordering::SeqCst), 2);
+                // A policy revision is fully resolved while the old source is
+                // live. The replacement must open only its final source, not a
+                // second temporary underlying-quote bootstrap.
+                update_policy.store(true, Ordering::SeqCst);
+                tokio::time::timeout(Duration::from_secs(36), async {
+                    loop {
+                        if market.publication_identity(Lane::OptionsGlbx).unwrap().generation != before.generation
+                            && market.health(Lane::OptionsGlbx).status().phase
+                                == ifm_market_data_native::runtime::recovery::Phase::Running
+                        { break; }
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                    }
+                }).await.expect("Resolved changed-policy replacement did not recover");
+                assert_eq!(fixture.accepted.load(Ordering::SeqCst), 3,
+                    "Changed-policy replacement discarded its resolved recipe and reopened quote bootstrap");
                 remove_policies.store(true, Ordering::SeqCst);
                 tokio::time::timeout(Duration::from_secs(36), async {
                     loop {
-                        if policy_calls.load(Ordering::SeqCst) >= 3
+                        if policy_calls.load(Ordering::SeqCst) >= 4
                             && market.options_current().is_none()
                             && market.health(Lane::OptionsGlbx).status().phase
                                 == ifm_market_data_native::runtime::recovery::Phase::Running
@@ -7225,7 +7268,7 @@ async fn native_options_group_case(
                 .expect("Native removed-policy dataset failed to retire to proven idle");
                 assert_eq!(
                     fixture.accepted.load(Ordering::SeqCst),
-                    2,
+                    3,
                     "Removing the final policy must not open an empty provider session"
                 );
                 fixture.await_closed().await;
@@ -7283,7 +7326,8 @@ async fn native_options_group_case(
                     .generation,
                 old.generation
             );
-            assert_eq!(fixture.accepted.load(Ordering::SeqCst), 4);
+            assert_eq!(fixture.accepted.load(Ordering::SeqCst), 3,
+                "Recovery must reopen the qualified option source directly, without another temporary underlying-quote session");
             assert_eq!(policy_calls.load(Ordering::SeqCst), 1);
             assert_eq!(definition_calls.load(Ordering::SeqCst), 1);
             assert_eq!(
@@ -7469,6 +7513,18 @@ async fn native_options_group_case(
                 .any(|id| id.as_str() == Some("trade")),
             "Optional no-candidate cache must not hide readiness of a fully monitored trade"
         );
+        // Trade monitoring can be verified before optional background cache
+        // composition finishes. Qualify those publications separately.
+        tokio::time::timeout(Duration::from_secs(6), async {
+            loop {
+                let complete = market.options_current().is_some_and(|view| {
+                    let caches=view.caches.lock().unwrap();
+                    caches.contains_key("complete-cache") && caches.contains_key("no-candidates")
+                });
+                if complete {break;}
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }).await.expect("Ready trade never produced its optional cache results");
         let published = market.options_current().unwrap();
         assert!(
             published
@@ -7670,7 +7726,7 @@ async fn native_options_group_case(
             3,
             "native immutable facts bypass the stalled external database during rebuild"
         );
-        assert_eq!(fixture.accepted.load(Ordering::SeqCst), 2);
+        assert_eq!(fixture.accepted.load(Ordering::SeqCst), 2, "Unexpected source replacement; health={:?}; diagnostics={:?}", market.health(Lane::OptionsGlbx).status(), diagnostics.lock().unwrap());
         if native_background {
             assert_eq!(
                 policy_calls.load(Ordering::SeqCst),

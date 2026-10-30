@@ -45,6 +45,26 @@ impl Current {
         if contract.is_empty() || contract.len() > 1024 {
             return Err("Invalid retained contract");
         }
+        if frame.kind == 4 {
+            // Official cleared-volume updates can refer to yesterday. They still
+            // stream to their dated consumers, but cannot replace today's catch-up
+            // slot. The active epoch's API ValueDate is the only selection authority.
+            let mut input = std::io::Cursor::new(&frame.payload);
+            let event = rmpv::decode::read_value_with_max_depth(&mut input, 16)
+                .map_err(|_| "Invalid retained session statistics")?;
+            let fields = event.as_array().filter(|v| v.len() == 9)
+                .ok_or("Invalid retained session statistics")?;
+            let statistics = fields[8].as_array().filter(|v| v.len() == 9)
+                .ok_or("Invalid retained session statistics snapshot")?;
+            if input.position() != frame.payload.len() as u64
+                || statistics[0].as_str() != Some(contract)
+            {
+                return Err("Invalid retained session statistics identity");
+            }
+            let date = statistics[1].as_i64().filter(|n| (0..=3_652_058).contains(n))
+                .ok_or("Invalid retained session statistics ValueDate")?;
+            if date != i64::from(frame.value_date) { return Ok(()); }
+        }
         let mut state = self
             .state
             .lock()

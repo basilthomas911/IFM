@@ -168,6 +168,24 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
         result.CoreReady.Should().Be(lifecycle == "Healthy");
     }
 
+    [Theory]
+    [InlineData(true,true)]
+    [InlineData(false,false)]
+    public void Native_readiness_exposes_real_transport_and_publication_state_without_subscription_counters(bool healthy,bool expected)
+    {
+        var date=new DateOnly(2026,10,30);
+        var backend=new TomasAI.IFM.Application.MarketData.Contracts.MarketDataBackendStatus(true,date,
+            [new("Futures","GLBX.MDP3",Guid.NewGuid(),Guid.NewGuid(),1,true,healthy,"Healthy",null,date)],
+            RecoveryOwnership:TomasAI.IFM.Application.MarketData.Contracts.MarketDataRecoveryOwnership.TokioDatasetOwner);
+        var result=TomasAI.IFM.Domain.MarketData.Feed.Query.Model.DatabentoQueryModel.MapReadiness(backend);
+        result.NativeDatasetOwnership.Should().BeTrue();
+        result.CoreReady.Should().Be(expected);
+        result.Feeds[0].ProducerAlive.Should().BeTrue();
+        result.Feeds[0].AggregationWorkerRunning.Should().Be(expected);
+        result.Feeds[0].ExpectedSubscriptions.Should().Be(0);
+        result.Feeds[0].ReceivedSubscriptions.Should().Be(0);
+    }
+
     static FuturesRolloverContractAssignment Assignment(DatabentoContractRole role, string id) => new()
     {
         ContractRole = role,

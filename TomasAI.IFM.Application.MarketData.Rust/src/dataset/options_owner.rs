@@ -76,6 +76,15 @@ fn next_validity_wakeup(next: &mut Option<tokio::time::Instant>, at: i64, until:
         *next = Some(next.map_or(expiry, |prior| prior.min(expiry)));
     }
 }
+// Cache construction can race the first quote/reference calculation after a
+// successful subscription rebuild. These typed financial-input results are not
+// provider/component failures. Retry only on existing source/calculation events;
+// malformed snapshots, changed generations and unknown errors still escalate.
+fn cache_waits_for_market_data(code: &str) -> bool {
+    matches!(code, "StaleData" | "QuoteUnavailable" | "UnderlyingQuoteUnavailable"
+        | "PricingContextUnavailable" | "SelectionCalculationUnavailable"
+        | "InvalidQuote" | "IncoherentQuotes")
+}
 // No eligible spread is a valid business result only when the complete captured
 // scope was actually valued. Missing/invalid inputs remain unavailable and are
 // not connection failure; they must never be converted to an empty success.
@@ -211,6 +220,24 @@ pub struct OptionsFactory {
     diagnostics: Arc<Diagnostics>,
     identity: Mutex<Option<Header>>,
     statistics: Arc<Mutex<LogicalStatistics>>,
+    // Detached qualified source recipe only. Never retain View/LiveData/tasks.
+    realized: Arc<Mutex<Option<Recipe>>>,
+}
+// Weak desired identity fences every command change, even if a caller reuses a
+// manifest revision. The resolved copy has no background owner or physical data.
+struct Recipe {
+    desired: std::sync::Weak<Intent>,
+    source: Arc<Intent>,
+    physical: Option<[u8;32]>,
+}
+impl Recipe {
+    fn matches(&self, desired: &Intent) -> bool {
+        let physical=desired.background.as_ref().map(|background|background.committed_book())
+            .transpose().and_then(|book|book.flatten().map(|book|book.physical_signature()).transpose());
+        self.desired.upgrade().is_some_and(|old| std::ptr::eq(old.as_ref(), desired))
+            && self.source.date == desired.date && self.source.revision == desired.revision
+            && physical.ok()==Some(self.physical)
+    }
 }
 impl OptionsFactory {
     /// Binds authoritative API time without owning a managed callback.
@@ -222,6 +249,7 @@ impl OptionsFactory {
             diagnostics: Arc::default(),
             identity: Mutex::new(None),
             statistics: Arc::default(),
+            realized: Arc::default(),
         }
     }
     /// Current copied/native numerical query data; no physical owner escapes.
@@ -280,6 +308,7 @@ struct Run {
     worker: [u8; 16],
     generation: [u8; 16],
     statistics: Arc<Mutex<LogicalStatistics>>,
+    realized: Arc<Mutex<Option<Recipe>>>,
 }
 impl LogicalStatistics {
     fn retain(
@@ -310,6 +339,9 @@ impl LogicalStatistics {
 }
 impl Factory for OptionsFactory {
     fn audit_workloads(&self, intent: &Self::Intent) -> Vec<String> {
+        let retained = self.realized.lock().ok();
+        let intent = retained.as_ref().and_then(|known| known.as_ref())
+            .filter(|known| known.matches(intent)).map_or(intent, |known| known.source.as_ref());
         let mut scopes: Vec<_> = intent
             .monitored
             .iter()
@@ -321,6 +353,11 @@ impl Factory for OptionsFactory {
             intent.caches.len(),
             intent.monitored.len()
         ));
+        if let Some(background) = &intent.background {
+            for monitor in background.monitors().into_iter().take(255 - scopes.len().min(255)) {
+                scopes.push(format!("monitor/{}/{}", monitor.scope, monitor.contract));
+            }
+        }
         scopes
     }
     fn audit_identity(&self) -> Option<crate::messaging::ordered::Header> {
@@ -413,6 +450,7 @@ impl Factory for OptionsFactory {
         let generation = rand::random::<u128>().max(1).to_le_bytes();
         if let Some(background) = &intent.background {
             background.bind_browser_generation(generation, reset_window_iv)?;
+            background.bind_setup_diagnostics(&self.diagnostics, worker, generation, intent.revision as u64)?;
         }
 
         *self
@@ -435,6 +473,7 @@ impl Factory for OptionsFactory {
             initial: deadline,
             diagnostics: self.diagnostics.clone(),
             statistics: self.statistics.clone(),
+            realized: self.realized.clone(),
             worker,
             generation,
         };
@@ -450,10 +489,42 @@ impl Factory for OptionsFactory {
     }
 }
 impl Run {
+    fn stage(&self, current: &mut String, message: &str) -> Result<(), String> {
+        *current = message.to_owned();
+        self.diagnostics.retain(super::live::Diagnostic {
+            worker: self.worker,
+            lane: Lane::OptionsGlbx,
+            attempt: self.intent.revision as u64,
+            observed: self.clock.utc_ticks().map_err(|_| "Native setup clock unavailable")?,
+            replaced: 0,
+            event: super::transport::Event::System {
+                code: u8::MAX,
+                message: format!("Native Options setup: {message}; generation={}; ValueDate={}; monitored={}; caches={}",
+                    crate::messaging::wire::guid(self.generation), self.intent.date,
+                    self.intent.monitored.len(), self.intent.caches.len()),
+            },
+        })
+    }
     async fn execute(self, stop: CancellationToken) {
         let mut setup = Some(self.initial);
-        let result = self.run(&stop, &mut setup).await;
+        // Logging starts before discovery. An unavailable sink never gates the
+        // resource task; its own copied queue and cancellation remain bounded.
+        let mut delivery = match diagnostic_delivery::Delivery::start(
+            self.diagnostics.clone(), self.intent.broker.clone(), self.intent.scope.clone(), self.parent.clone()) {
+            Ok(delivery) => delivery,
+            Err(error) => {
+                self.health.send_modify(|s| {s.failure=Some(error.into());s.deadline=setup;});
+                return;
+            }
+        };
+        let mut stage = String::from("starting reconstruction");
+        let result = self.run(&stop, &mut setup, delivery.changes(), &mut stage).await;
         if let Err(error) = result {
+            let error = format!("{error}; last native setup step: {stage}");
+            // Retain the copied failure before cancellation. A replacement's
+            // independent diagnostic sender can deliver it after this task exits.
+            let safe = error.replace(&self.intent.source.key, "[REDACTED]");
+            let _ = self.stage(&mut stage, &format!("Failed: {}", safe.chars().take(3000).collect::<String>()));
             let deadline = self
                 .retirement
                 .lock()
@@ -468,13 +539,27 @@ impl Run {
             });
             self.parent.cancellation().cancel();
         }
+        let _ = delivery.shutdown(Deadline::recovery()).await;
     }
     async fn run(
         &self,
         stop: &CancellationToken,
         setup: &mut Option<Deadline>,
+        mut logs: watch::Receiver<diagnostic_delivery::Status>,
+        stage: &mut String,
     ) -> Result<(), String> {
-        let wanted = if let Some(background) = &self.intent.background {
+        let retained = self.realized.lock()
+            .map_err(|_| "Native reconstruction recipe interrupted")?
+            .as_ref().filter(|known| known.matches(&self.intent))
+            .map(|known| known.source.clone());
+        // Reopen the exact qualified membership before background replanning.
+        // The recipe contains no quotes or physical generation; every task,
+        // subscription, reference context and output is recreated below.
+        let wanted = if let Some(retained) = retained {
+            self.stage(stage, "Reopening retained qualified subscriptions before background discovery")?;
+            retained
+        } else if let Some(background) = &self.intent.background {
+            self.stage(stage, "Resolving background and monitored subscription metadata")?;
             let Some(resolved) = background
                 .resolve(
                     self.intent.clone(),
@@ -509,6 +594,7 @@ impl Run {
                             .await?;
                         if business_ready {
                             self.health.send_replace(Readiness {
+                                setup_complete: true,
                                 proofs: vec![
                                     Proof::Transport,
                                     Proof::Reference,
@@ -573,6 +659,7 @@ impl Run {
             .transpose()?;
         let mut background_changes = background_refresh.as_ref().map(|refresh| refresh.changes());
         let intent = if let Some(bootstrap) = &wanted.reference_bootstrap {
+            self.stage(stage, "Loading immutable option reference recipes")?;
             let reviewed = bootstrap
                 .load(
                     &wanted.reviewed,
@@ -599,6 +686,7 @@ impl Run {
         } else {
             wanted.clone()
         };
+        self.stage(stage, "Preparing new-generation pricing contexts")?;
         let prepared = Box::pin(intent.reviewed.prepare(
             &intent.source.registrations,
             u128::from_le_bytes(self.generation),
@@ -674,13 +762,6 @@ impl Run {
             .with_option_pricing(engine.clone())?
             .with_diagnostics(self.diagnostics.clone(), self.worker)?;
         let data = Arc::new(data);
-        let mut diagnostic_delivery = diagnostic_delivery::Delivery::start(
-            data.diagnostics(),
-            intent.broker.clone(),
-            intent.scope.clone(),
-            self.parent.clone(),
-        )?;
-        let mut logs = diagnostic_delivery.changes();
         let mut source = intent.source.clone();
         if wanted.background.is_some() {
             // Reconstruct session volume and official OI using the same native
@@ -721,6 +802,7 @@ impl Run {
             }
         }
         source.evidence = Evidence::ControlOnly;
+        self.stage(stage, "Opening final option subscriptions and awaiting acknowledgements")?;
         data.start_in_parent(source, stop, initial, &self.parent)
             .await?;
         // Subscription setup is complete. Quotes do not own a recovery timer.
@@ -835,6 +917,15 @@ impl Run {
             cache_scopes: Arc::new(intent.caches.clone()),
             monitored: Arc::new(intent.monitored.clone()),
         }));
+        *self.realized.lock().map_err(|_| "Native reconstruction recipe interrupted")? = Some(Recipe {
+            // Preserve the pre-bootstrap recipe identity: feeding an already
+            // substituted calendar back into its raw-fact cache can force an
+            // unnecessary storage lookup during recovery.
+            desired: Arc::downgrade(&self.intent),
+            source: Arc::new(Intent { background: None, ..(*wanted).clone() }),
+            physical: initial_physical,
+        });
+        self.stage(stage, "Final source installed; waiting for component readiness and current-generation market data")?;
         let mut source = data.updates();
         let mut lifecycle = data
             .lifecycle(Lane::OptionsGlbx)?
@@ -886,7 +977,22 @@ impl Run {
                 ],*setup);
                 if let Some((error,deadline))=failure {
                     *self.retirement.lock().map_err(|_|"Native options retirement interrupted")?=Some(deadline);
-                    self.health.send_replace(Readiness{proofs:vec![],failure:Some(error.clone()),deadline:Some(deadline)});return Err(error);
+                    if error.contains("Native background policy/coverage changed") {
+                        // Refresh resolves new membership while the existing feed
+                        // is still live. Carry only that copied recipe across
+                        // retirement; do not reacquire its quiet underlying prices.
+                        let replacement = background.replacement.clone().map(|source| {
+                            let physical=self.intent.background.as_ref().map(|configuration|configuration.committed_book())
+                                .transpose()?.flatten().map(|book|book.physical_signature()).transpose()?;
+                            Ok::<_,String>(Recipe {
+                                desired:Arc::downgrade(&self.intent),
+                                source:Arc::new(Intent { background:None,..(*source).clone() }),
+                                physical,
+                            })
+                        }).transpose()?;
+                        *self.realized.lock().map_err(|_| "Native reconstruction recipe interrupted")? = replacement;
+                    }
+                    self.health.send_replace(Readiness{setup_complete:false,proofs:vec![],failure:Some(error.clone()),deadline:Some(deadline)});return Err(error);
                 }
                 if broker.stopped || io.terminal || !numerical.running || !reference.running || matches!(transport.phase,super::lanes::Phase::Failed|super::lanes::Phase::Stopped){return Err("Native options resource terminated before complete readiness".into());}
                 let budget=[*setup,transport.deadline,numerical.deadline,engine.reference_deadline()?,io.deadline,broker.pending_since.map(Deadline::recovery_from),cache_broker.deadline,background.deadline].into_iter().flatten().reduce(Deadline::earliest).unwrap_or_else(Deadline::recovery);
@@ -936,7 +1042,7 @@ impl Run {
                         let page=capture::Page{generation:self.generation,token:token.clone(),total:items.len(),instruments:items,continuation:None};
                         let snapshot=match capture::capture(request,vec![page],&self.clock,stop,budget).await {
                             Ok(snapshot)=>snapshot,
-                            Err(error) if error.code=="StaleData"=>{complete_choices=false;continue;},
+                            Err(error) if cache_waits_for_market_data(&error.code)=>{complete_choices=false;continue;},
                             Err(error)=>return Err(format!("Native cache capture failed: {}: {}; horizon={}; scope_chars={}; capture_age_ms={}",error.code,error.input,cache.horizon,cache.scope.encode_utf16().count(),self.clock.utc_ticks().unwrap_or(capture_at).saturating_sub(capture_at)/10_000)),
                         };
                         let snapshot=if let Some(ranking)=&cache.ranking {
@@ -971,9 +1077,10 @@ impl Run {
                     }
                     // Each lookup is complete independently. An explicitly known
                     // no-candidate result must not gate unrelated ready scopes.
+                    let complete=next.len()==intent.caches.len();
                     cache_port.submit(next.clone())?;
                     *cache_directory.lock().map_err(|_|"Native cache directory interrupted")?=next;
-                    cache_dirty=false;cache_evaluated=true;
+                    cache_dirty=false;cache_evaluated=complete;
                 }
                 let mut proofs=Vec::new();
                 if transport.phase==super::lanes::Phase::Running{proofs.push(Proof::Transport);}
@@ -996,8 +1103,12 @@ impl Run {
                 if ready&&!numerical.recovering{proofs.push(Proof::Pricing);}
                 if io.running&&outbox.retained_bytes()?==0{proofs.push(Proof::Persistence);}
                 let quotes_published=intent.monitored.is_empty() || qualified_threshold.is_some_and(|threshold|broker.flushed>=threshold);
-                let cache_published=intent.caches.is_empty() || cache_evaluated &&
-                    (cache_directory.lock().map_err(|_|"Native cache directory interrupted")?.is_empty() || cache_broker.published);
+                // Loaded-trade monitoring is certified by its own delivered
+                // current-generation leg quotes. Optional chain composition
+                // cannot block that proof. Background-only demand must have
+                // actual published results, never an empty pending directory.
+                let cache_published=intent.caches.is_empty() || !intent.monitored.is_empty()
+                    || cache_evaluated && cache_broker.published;
                 if broker.connected && cache_broker.connected && (quiet || quotes_published&&cache_published){proofs.push(Proof::Publication);}
                 if proofs.len()==5{
                     if !business_ready {business_ready=match &self.intent.background{Some(background)=>background.acknowledge_committed(self.parent.clone(),stop,if initial.remaining().is_zero(){Deadline::recovery()}else{initial},initial_physical).await?,None=>true};}
@@ -1006,7 +1117,12 @@ impl Run {
                 // Setup proof may have cleared its deadline in this iteration.
                 // Never retain that spent setup timer in a healthy notification.
                 let published_deadline=[*setup,transport.deadline,numerical.deadline,engine.reference_deadline()?,io.deadline,broker.pending_since.map(Deadline::recovery_from),cache_broker.deadline,background.deadline].into_iter().flatten().reduce(Deadline::earliest);
-                self.health.send_replace(Readiness{proofs,failure:None,deadline:published_deadline});
+                // These are component/setup facts, independent of whether an
+                // option currently has a quote or produces an executable plan.
+                let setup_complete=transport.phase==super::lanes::Phase::Running
+                    && broker.connected && cache_broker.connected && io.running
+                    && !reference.recovering && !numerical.recovering;
+                self.health.send_replace(Readiness{setup_complete,proofs,failure:None,deadline:published_deadline});
                 if drained==64 || dirty&&cursor!=0 {tokio::task::yield_now().await;continue;}
                 tokio::select!{biased;()=stop.cancelled()=>break,
                     ()=crate::runtime::availability::Availability::pending(validity_wakeup)=>{},
@@ -1040,6 +1156,7 @@ impl Run {
                 .lock()
                 .map_err(|_| "Native options retirement interrupted")? = Some(original);
             self.health.send_replace(Readiness {
+                setup_complete: false,
                 proofs: vec![],
                 failure: Some(error.clone()),
                 deadline: Some(original),
@@ -1061,11 +1178,10 @@ impl Run {
         // Attempt every independent cleanup, retaining errors instead of hiding
         // them behind a successful processing result or the first failed join.
         let cleanup_token = CancellationToken::new();
-        let (a, b, c, d, e, f) = tokio::join!(
+        let (a, b, c, e, f) = tokio::join!(
             evidence.shutdown(cleanup),
             actor.shutdown(cleanup),
             cache_writer.shutdown(cleanup),
-            diagnostic_delivery.shutdown(cleanup),
             references.stop(&cleanup_token, cleanup),
             pricing.stop(&cleanup_token, cleanup)
         );
@@ -1082,9 +1198,6 @@ impl Run {
         if let Err(error) = c {
             errors.push(format!("cache publisher cleanup: {error}"));
         }
-        if let Err(error) = d {
-            errors.push(format!("diagnostic cleanup: {error}"));
-        }
         if let Err(error) = e {
             errors.push(format!("reference cleanup: {error}"));
         }
@@ -1099,9 +1212,9 @@ impl Run {
     }
 }
 impl Resources for Group {
-    fn provider(&self) -> Option<crate::runtime::owner::ProviderUpdates> {
-        Some(self.parent.provider_state())
-    }
+    // Final-source lifecycle is reported through Readiness below. The parent
+    // also owns temporary/bootstrap readers, so its aggregate activity must
+    // never certify that this generation's option subscriptions are installed.
     fn cancel(&self, deadline: Deadline) {
         // Signal before optional diagnostics; lock contention cannot delay stop.
         self.parent.cancellation().cancel();
@@ -1282,6 +1395,15 @@ fn active_failure<const N: usize>(
 #[cfg(test)]
 mod failure_budget_tests {
     use super::*;
+    #[test]
+    fn known_pending_market_inputs_do_not_hide_structural_or_component_failures() {
+        for code in ["QuoteUnavailable", "UnderlyingQuoteUnavailable", "PricingContextUnavailable", "StaleData", "InvalidQuote", "IncoherentQuotes"] {
+            assert!(cache_waits_for_market_data(code), "{code}");
+        }
+        for code in ["SnapshotTimeout", "InvalidSnapshotRequest", "IncompleteChain", "ConflictingDefinition", "Recovering", "GreeksCalculationFailed", "UnknownFailure"] {
+            assert!(!cache_waits_for_market_data(code), "{code}");
+        }
+    }
     #[tokio::test(start_paused = true)]
     async fn unrelated_expired_output_does_not_expire_a_new_policy_fault() {
         let old = Deadline::recovery();

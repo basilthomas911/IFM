@@ -20,6 +20,7 @@ public sealed class NativeDatasetBackend : IAsyncDisposable
     readonly NativeColdBackend cold;
     readonly Lazy<bool> history;
     readonly object disposalGate=new();
+    readonly ILogger<NativeDatasetBackend> logger;
     Task? disposal;
     /// <summary>Command/query handle; it exposes no physical provider resource.</summary>
     public NativeMarketDataRuntime Runtime { get; }
@@ -36,9 +37,10 @@ public sealed class NativeDatasetBackend : IAsyncDisposable
     /// Configuration does not select this backend or alter the existing backend.</summary>
     public NativeDatasetBackend(NativeColdBackend cold, IConfiguration configuration,
         TimeProvider clock, IDatabentoContractRegistrationRegistry registrations,
-        DatabentoMarketDataRuntimeOptions options)
+        DatabentoMarketDataRuntimeOptions options,ILogger<NativeDatasetBackend>? logger=null)
     {
         this.configuration=configuration;this.registrations=registrations;this.options=options;this.cold=cold;
+        this.logger=logger??Microsoft.Extensions.Logging.Abstractions.NullLogger<NativeDatasetBackend>.Instance;
         Scope=configuration["MarketDataHost:Scope"]??"development";
         Broker=new(configuration["MarketDataHost:NatsUrl"]??"nats://127.0.0.1:4222",cold.Dns);
         Policy=new(UsTreasuryPublicationCalendar.Default2026,UsTreasuryCurve.ConversionPolicy,
@@ -93,10 +95,18 @@ public sealed class NativeDatasetBackend : IAsyncDisposable
     public async Task StartAsync(DateOnly date,NativeOwnedFuturesDemand[] demands,CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
+        var previous=Runtime.ReadDatasetOwnerBackendStatus(true).HostInstanceId;
+        var elapsed=System.Diagnostics.Stopwatch.StartNew();
+        logger.LogInformation("Market opening retiring native owner {PreviousOwner} for API ValueDate {ValueDate}; Host PID {ProcessId} remains running",previous,date,Environment.ProcessId);
+        // Rust owns cancellation, joined retirement and fresh session creation.
+        // This is an explicit opening command even when the old feeds still run.
+        await Runtime.ReinitializeDatasetOwnerAsync(date,token).ConfigureAwait(false);
+        logger.LogInformation("Market opening joined native owner {PreviousOwner}; fresh owner {Owner} admitted for API ValueDate {ValueDate} after {ElapsedMilliseconds} ms",previous,Runtime.ReadDatasetOwnerBackendStatus(true).HostInstanceId,date,elapsed.Elapsed.TotalMilliseconds);
         _=history.Value;
         Runtime.ConfigureDatasetOwnerBackground(date,date,Scope,OptionGateway,Broker,Policy,
             new(configuration["MarketDataHost:DeploymentProfile"]??options.FeedOptions.DeploymentProfile.ToString(),Committed:true));
         await session.StartAsync(date,date,demands,token).ConfigureAwait(false);
+        logger.LogInformation("Market opening native futures ready for API ValueDate {ValueDate} after {ElapsedMilliseconds} ms",date,elapsed.Elapsed.TotalMilliseconds);
     }
     /// <summary>Native cancellation and join, independent of every C# consumer.</summary>
     public Task StopAsync(CancellationToken token=default)

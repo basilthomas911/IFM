@@ -1,5 +1,16 @@
 # Native runtime and managed delivery foundation
 
+## Market opening replacement (2026-10-29)
+
+Owner capability `0x20000` exposes `ifm_market_data_owner_reinitialize_v1`.
+The date argument is API-supplied `YYYYMMDD`. The asynchronous control result
+confirms joined retirement of the previous session and installation of a fresh,
+date-fenced idle owner on the existing Tokio runtime. A failed join retains a
+closing owner and prevents overlapping replacement. C# cancellation stops its
+observation only; runtime shutdown remains able to cancel tracked native work.
+Cold-query configuration and durable audit records survive this live-session
+boundary. The API and Host processes remain running during market opening.
+
 This is phase-2 foundation work, not a complete `IMarketDataApi` implementation.
 Submitted operations cover Treasury conversion, all five futures-option pricing
 actions, and live dataset start/reset/stop. Status, source records, diagnostics and

@@ -12,7 +12,7 @@ internal static class DatabentoQueryModel
         TomasAI.IFM.Application.MarketData.Contracts.MarketDataBackendStatus backend)
     {
         var futures = backend.Datasets.Where(dataset => dataset.Role == "Futures").ToArray();
-        var ready = futures.Length > 0 && futures.All(dataset => dataset.Running && dataset.Lifecycle == "Healthy");
+        var ready = futures.Length > 0 && futures.All(dataset => dataset.Running && dataset.Healthy && dataset.Lifecycle == "Healthy");
         var resetting = futures.Any(dataset => dataset.Lifecycle is "Recovering" or "Resetting");
         var starting = futures.Any(dataset => dataset.Lifecycle == "Starting");
         var active = futures.Any(dataset => dataset.Running);
@@ -26,11 +26,14 @@ internal static class DatabentoQueryModel
         return new()
         {
             State = state.ToString(), DisplayHealth = health.ToString(), CoreReady = ready, ValueDate = backend.ValueDate,
+            NativeDatasetOwnership = backend.RecoveryOwnership == TomasAI.IFM.Application.MarketData.Contracts.MarketDataRecoveryOwnership.TokioDatasetOwner,
             NativeGeneration = futures.FirstOrDefault()?.GenerationId ?? Guid.Empty, ChangedOnUtc = DateTime.UtcNow,
             Reason = string.Join("; ", backend.Datasets.Where(dataset => dataset.Error is not null).Select(dataset => dataset.Dataset + ": " + dataset.Error)),
             Feeds = backend.Datasets.Select(dataset => new DatabentoFeedStatusReadModel
                 { Dataset = dataset.Dataset, FeedKind = dataset.Role, MajorStatus = dataset.Healthy ? "Healthy" : "Unavailable",
-                    NativeState = dataset.Lifecycle, Criticality = dataset.Role == "Options" ? "Optional" : "Core" }).ToArray()
+                    NativeState = dataset.Lifecycle, Criticality = dataset.Role == "Options" ? "Optional" : "Core",
+                    ProducerAlive = dataset.Running,
+                    AggregationWorkerRunning = dataset.Role == "Futures" && dataset.Running && dataset.Healthy }).ToArray()
         };
     }
 

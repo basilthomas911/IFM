@@ -5,11 +5,7 @@ impl Hub{
   let key=request.scope.key()?;
   if self.owner(&key).is_ok(){mark("already_open");self.activate(&key)?;return Ok("Trade activated".into())}
   let trade=measure("established_trade",api::established(backend,&registry,request.scope,&request.strategy,deadline)).await?;
-  let host_backend=if let Some(url)=crate::backend::configuration::value("IFM_UI_MARKETDATA_NATS_URL")?{
-   let mut settings=crate::backend::transport::Settings::from_env()?;settings.url=url;settings.request_timeout=backend.default_timeout();
-   measure("host_connection",tokio::time::timeout_at(deadline,Backend::connect(settings))).await.map_err(|_|"MarketData Host connection deadline expired")??
-  }else{backend.clone()};
-  let feed=Client::new(host_backend,&self.host_scope)?;
+  let feed=Client::new(backend.clone(),&self.host_scope)?;
   let data=Arc::new(Mutex::new(data::Monitor::new(request,trade,context.clone())?));let incarnation=data.lock().map_err(|_|"Monitor lock failed")?.incarnation;
   {let mut state=self.state.lock().map_err(|_|"Monitor lifetime lock failed")?;state.order.push(key.clone());state.owners.insert(key.clone(),Owner{feed,data:data.clone(),registry:registry.clone(),background:BTreeMap::new(),jobs:vec![]});state.active=Some(key.clone());}
   let mut guard=OpenGuard{hub:self.clone(),key:key.clone(),incarnation,armed:true};
@@ -24,9 +20,7 @@ impl Hub{
     let balance=measure("fund_balance",crate::services::financial::query(backend,&registry,&context,"GetAccountBalancesQuery",scope.portfolio,Some(scope.fund),rmpv::Value::Array(vec![]),crate::services::financial::AccessScope::MetricsReader,deadline)).await;
     if let Ok(read)=balance{if let Some(value)=read.value{let value=crate::services::parameters::document(&registry,"TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialBalanceSnapshot",&value,true)?;data.lock().map_err(|_|"Monitor lock failed")?.balance=value["AvailableCash"].clone();}}
     let count=data.lock().map_err(|_|"Monitor lock failed")?.history.rows().len();if count>0{measure("initial_position_ready",self.select_position(backend,&registry,&key,count-1,deadline)).await?;}else{self.refresh_chart(backend,&registry,&key,deadline).await?;}
-    if data.lock().map_err(|_|"Monitor lock failed")?.can_live(){
-     if measure("saved_live_feed_intent",self.feed(&key)?.invoke(Action::Load,scope,&context,uuid::Uuid::new_v4(),deadline)).await?{measure("restore_live_feed",self.set_live(backend,&registry,&key,true,&context,deadline)).await?;}
-    }
+
    }
    Ok::<_,String>(())
   }.await;
@@ -35,7 +29,8 @@ impl Hub{
    // be detached by a late reply belonging to this failed load.
    let same=self.owner(&key).ok().and_then(|owner|owner.lock().ok().map(|owner|owner.incarnation==incarnation)).unwrap_or(false);if same{self.close(&key)?;}return Err(error)
   }
-  guard.armed=false;crate::diagnostics::trade_load::measure_sync("publish_loaded_view",||self.publish())?;Ok("Trade loaded".into())
+  guard.armed=false;crate::diagnostics::trade_load::measure_sync("publish_loaded_view",||self.publish())?;
+  self.schedule_saved_feed(backend,&key)?;Ok("Trade loaded".into())
  }
  /// Start optional history work after publishing the core trade. Background
  /// requests use their own bounded read budget, not the completed UI command.
@@ -63,12 +58,18 @@ impl Hub{
   self.publish()
  }
  pub async fn set_live(&self,backend:&Backend,registry:&Registry,key:&str,enabled:bool,context:&BusinessContext,deadline:tokio::time::Instant)->Result<(),String>{
+  self.cancel_saved_feed(key)?;
+  self.connect_feed(backend,key,deadline).await?;
+  self.change_live(backend,registry,key,enabled,context,deadline,false).await
+ }
+ /// A saved-feed Load already reconciles subscriptions. Do not enable them a second time.
+ pub(super) async fn change_live(&self,backend:&Backend,registry:&Registry,key:&str,enabled:bool,context:&BusinessContext,deadline:tokio::time::Instant,reconciled:bool)->Result<(),String>{
   let owner=self.owner(key)?;let scope;let chart_needed;
-  {let mut state=owner.lock().map_err(|_|"Monitor lock failed")?;state.context=context.clone();if enabled&&!state.can_live(){return Err("Live feed is unavailable for this trade or API session".into())}if state.starting{return Err("A live-feed change is already running".into())}scope=state.scope;chart_needed=!(state.chart_loading&&state.plan_date==context.value_date);state.detail_generation+=1;state.observations_loading=false;state.context=context.clone();state.starting=true;state.collecting=enabled;if enabled{if state.plan_date!=context.value_date{state.chart=Json::Null;}state.plan_date=context.value_date;state.page=None;state.live_plans.clear();state.realtime=crate::state::monitor_cache::Realtime::new(scope,context.value_date,&state.trade)?;}}
+  {let mut state=owner.lock().map_err(|_|"Monitor lock failed")?;state.context=context.clone();if enabled&&!state.can_live(){return Err("Live feed is unavailable for this trade or API session".into())}if state.starting{return Err("A live-feed change is already running".into())}scope=state.scope;chart_needed=state.plan_date!=context.value_date||(state.chart.is_null()&&!state.chart_loading);state.detail_generation+=1;state.observations_loading=false;state.context=context.clone();state.starting=true;state.collecting=enabled;if enabled{if state.plan_date!=context.value_date{state.chart=Json::Null;}state.plan_date=context.value_date;state.live_plans.clear();state.realtime=crate::state::monitor_cache::Realtime::new(scope,context.value_date,&state.trade)?;}}
   let _guard=StartGuard{hub:self.clone(),data:owner.clone(),incarnation:owner.lock().map_err(|_|"Monitor lock failed")?.incarnation};
   self.publish()?;
   if enabled&&chart_needed{self.refresh_chart(backend,registry,key,deadline).await?;}
-  let result=measure("live_feed_reconcile",self.feed(key)?.invoke(if enabled{Action::Enable}else{Action::Disable},scope,context,uuid::Uuid::new_v4(),deadline)).await;
+  let result=if reconciled{Ok(true)}else{measure("live_feed_reconcile",self.feed(key)?.invoke(if enabled{Action::Enable}else{Action::Disable},scope,context,uuid::Uuid::new_v4(),deadline)).await};
   match result{
    Ok(true)=>{let mut state=owner.lock().map_err(|_|"Monitor lock failed")?;state.live=enabled;state.starting=false;state.collecting=enabled;state.status.clear();if !enabled{state.live_plans.clear();}},
    Ok(false)|Err(_)=>{let mut state=owner.lock().map_err(|_|"Monitor lock failed")?;state.starting=false;state.collecting=false;state.status=match result{Err(error)=>format!("Live-feed intent is unconfirmed: {error}"),_=>"Live-feed change was not acknowledged by the API".into()};let message=state.status.clone();drop(state);self.publish()?;return Err(message)},

@@ -27,6 +27,23 @@ public sealed record NativeRetiredEvidenceStatus(ulong RetainedGenerations,ulong
 public sealed partial class NativeMarketDataRuntime
 {
     static readonly JsonSerializerOptions OwnerJson = new(JsonSerializerDefaults.Web);
+    /// <summary>Requests a fully joined native opening epoch. Caller cancellation
+    /// stops observation only: it cannot abandon accepted native retirement halfway.</summary>
+    public Task ReinitializeDatasetOwnerAsync(DateOnly valueDate,CancellationToken cancellationToken=default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if(valueDate==default)throw new ArgumentOutOfRangeException(nameof(valueDate));
+        var call=library.OwnerReinitialize??throw new NotSupportedException("Native opening reinitialization is unavailable.");
+        lock(gate)
+        {
+            EnsureLiveAccess();var operation=checked(++nextOperation);
+            var request=new Pending{Control=new(TaskCreationOptions.RunContinuationsAsynchronously)};
+            pending.Add(operation,request);
+            var status=call(handle.Identity,operation,checked((uint)(valueDate.Year*10000+valueDate.Month*100+valueDate.Day)));
+            if(status!=0){pending.Remove(operation);NativeMarketDataLibrary.Check(status,"reinitialize native opening epoch");}
+            return request.Control.Task.WaitAsync(cancellationToken);
+        }
+    }
     /// <summary>True only when the package supplies the complete native owner command/query ABI.</summary>
     public bool SupportsDatasetOwner => (library.OwnerFeatures & 0x7fff) == 0x7fff && library.CreateOwner is not null && library.OwnerCatalog is not null
         && library.OwnerCapture is not null && library.OwnerRecoveryRequest is not null && library.OwnerStart is not null && library.OwnerReadSnapshot is not null && library.OwnerBackendStatus is not null && library.OwnerRetiredEvidence is not null && library.OwnerCommand is not null && library.OwnerFutures is not null && library.OwnerHealth is not null
@@ -35,8 +52,8 @@ public sealed partial class NativeMarketDataRuntime
     /// <summary>Native committed-journal realization, logical release and copied
     /// command results. This is a kernel capability, not Host acceptance status.</summary>
     public bool SupportsDatasetOwnerBusiness=>SupportsDatasetOwner&&(library.OwnerFeatures&0x8000)!=0&&library.OwnerCapture is not null;
-    /// <summary>Complete command-only owner including native browsing and saved statistics.</summary>
-    public bool SupportsDatasetOwnerComplete=>SupportsDatasetOwnerBusiness&&(library.OwnerFeatures&0x10000)!=0;
+    /// <summary>Complete command-only owner including native browsing, saved statistics and joined opening replacement.</summary>
+    public bool SupportsDatasetOwnerComplete=>SupportsDatasetOwnerBusiness&&(library.OwnerFeatures&0x30000)==0x30000&&library.OwnerReinitialize is not null;
 
 
     /// <summary>Observes native readiness through completion notification. No

@@ -12,7 +12,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 
 // Consume bytes produced by the Rust Book and Futures encoder, using the real
 // production formatter and accumulator rather than a second bar algorithm.
-var packets = JsonSerializer.Deserialize<string[]>(File.ReadAllText(args[0]))!;
+var input = JsonDocument.Parse(File.ReadAllText(args[0])).RootElement;
+var packets = (input.ValueKind == JsonValueKind.Array ? input : input.GetProperty("prices")).Deserialize<string[]>()!;
 var events = packets.Select(p => MessagePackBinarySerializer.Shared
     .Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(Convert.FromBase64String(p))!).ToArray();
 var date = new DateOnly(2026, 10, 27);
@@ -53,3 +54,31 @@ if (first.TradeCount != 3 || first.Volume != 6 || first.Open != 6000m || first.C
 var gap = Create(); gap.Accept(events[0]); gap.Accept(events[2]);
 if (gap.CloseThrough(end).Count != 0) throw new InvalidDataException("Actual gaps were hidden.");
 Console.WriteLine("PASS Rust executions -> C# MessagePack -> snapshot-ahead read mirror -> production bars: unchanged prices, duplicate suppression, exact OHLCV and genuine-gap rejection.");
+
+if (input.ValueKind == JsonValueKind.Object)
+{
+    // Native statistics must advance the actual API read mirror before each
+    // price observation, even when consecutive executions have the same price.
+    var statisticsPackets = input.GetProperty("statistics").Deserialize<string[]>()!;
+    using var volumeCache = new TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache();
+    var volumeMirror = new MarketDataReadMirror(volumeCache);
+    volumeMirror.Apply(new(new(true, date, [new("Futures", "GLBX.MDP3", worker, generation,
+        1, true, true, "Healthy", null, date)], Guid.NewGuid(), 1), [manifest], [], []));
+    for (var index = 0; index < statisticsPackets.Length; index++)
+    {
+        var bytes = Convert.FromBase64String(statisticsPackets[index]);
+        var statistics = MessagePackBinarySerializer.Shared.Deserialize<TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesSessionStatisticsUpdatedRealtimeEvent>(bytes)!;
+        var envelope = Frame(events[index], index * 2 + 1) with { Kind = DatasetPublicationKind.SessionStatistics, Payload = bytes };
+        if (!volumeMirror.Accept(envelope)) throw new InvalidDataException("Native statistics were rejected.");
+        // This legacy bool reports complete OHLC, while the out value also
+        // carries independently usable volume consumed by the EOD event handler.
+        var complete = volumeMirror.TryGetFuturesSessionStatistics("ES20261218", out var current);
+        if (complete != current.HasPriceStatistics || !current.HasVolume
+            || current.ValueDate != date || current.Volume != (index + 1) * (index + 2) / 2
+            || current.Volume != statistics.Statistics.Volume)
+            throw new InvalidDataException("Native cumulative volume failed API mirror publication.");
+        if (!volumeMirror.Accept(Frame(events[index], index * 2 + 2)))
+            throw new InvalidDataException("Price following its volume statistics was rejected.");
+    }
+    Console.WriteLine("PASS Rust session statistics -> actual C# formatter -> API mirror: exact cumulative volume 1,3,6, unchanged-price executions and price ordering.");
+}

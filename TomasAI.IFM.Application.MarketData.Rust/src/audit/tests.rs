@@ -214,7 +214,10 @@ async fn intentional_stop_is_interrupted_not_successful() {
 async fn healthy_idle_heartbeats_do_not_open_incidents() {
     let (health, mut receiver) = configured();
     let ticket = health.status().ticket;
+    health.prove(ticket, Proof::Retired);
     health.prove(ticket, Proof::Transport);
+    // Quiet quotes are valid only after actual final-source reconstruction.
+    assert!(health.complete_setup(ticket));
     for _ in 0..30 {
         tokio::time::advance(std::time::Duration::from_secs(30)).await;
         health.status();
@@ -743,4 +746,49 @@ async fn late_factory_identity_cannot_append_reset_success_after_terminal_failur
             .collect::<Vec<_>>(),
         ["Started", "ResetStarted", "Failed"]
     );
+}
+
+/// Pooled MessagePack-CSharp writers can divide the same bounded receipt at any
+/// byte boundary; segment boundaries need not coincide with MessagePack values.
+#[test]
+fn receipt_accepts_bounded_multiblock_success_and_reports_failure_details(){
+    use rmpv::Value;
+    fn chunks(parts:Vec<Vec<u8>>,lengths:Option<Vec<u64>>)->Vec<u8>{
+        let mut sizes=Vec::new();
+        for n in lengths.unwrap_or_else(||parts.iter().map(|b|b.len()as u64).collect()){
+            rmp::encode::write_uint(&mut sizes,n).unwrap();
+        }
+        let mut value=vec![Value::Ext(98,sizes)];
+        value.extend(parts.iter().map(|b|Value::Binary(lz4_flex::block::compress(b))));
+        codec::encode(&Value::Array(value)).unwrap()
+    }
+    let record=Record::new(payload(1,"Started")).unwrap();let valid=receipt(&record);
+    for cut in 1..valid.len(){assert!(record.acknowledge(&chunks(vec![valid[..cut].to_vec(),valid[cut..].to_vec()],None)).is_ok(),"split {cut}");}
+    assert!(record.acknowledge(&chunks(valid.chunks(32).map(|b|b.to_vec()).collect(),None)).is_ok());
+    for sizes in [vec![8192,1],vec![u64::MAX,1],vec![0,1],vec![1],vec![1,1,1]]{
+        assert!(record.acknowledge(&chunks(vec![vec![0],vec![0]],Some(sizes))).is_err());
+    }
+    let failure=Value::Array(vec![false.into(),5090.into(),"Rejected".into(),Value::Array(vec![Value::Nil,Value::Array((0..13).map(|n|match n{10=>"Missing predecessor".into(),12=>"Full server failure detail".into(),_=>Value::Nil}).collect())])]);
+    let failed=codec::encode(&failure).unwrap();
+    let error=record.acknowledge(&chunks(vec![failed[..8].to_vec(),failed[8..].to_vec()],None)).unwrap_err();
+    assert!(error.contains("Missing predecessor")&&error.contains("Full server failure detail"));
+    let bad=Value::Array(vec![Value::Ext(98,vec![1]),Value::Binary(vec![0xff])]);
+    assert!(record.acknowledge(&codec::encode(&bad).unwrap()).is_err());
+}
+
+/// Operational qualification against a captured C# reply; fixture bytes stay
+/// outside the repository because they contain real incident identities.
+#[test]
+#[ignore="Requires IFM_AUDIT_CAPTURE_REPLY and optional IFM_AUDIT_CAPTURE_PAYLOAD"]
+fn captured_csharp_reply_preserves_committed_acceptance_or_full_failure(){
+    let reply=std::fs::read(std::env::var("IFM_AUDIT_CAPTURE_REPLY").unwrap()).unwrap();
+    if let Ok(path)=std::env::var("IFM_AUDIT_CAPTURE_PAYLOAD"){
+        let record=Record::new(std::fs::read_to_string(path).unwrap()).unwrap();
+        record.acknowledge(&reply).unwrap();
+    }else{
+        let record=Record::new(payload(1,"Started")).unwrap();
+        let error=record.acknowledge(&reply).unwrap_err();
+        assert!(error.contains("Recovery sequence predecessor missing or conflicting"),"{error}");
+        assert!(error.contains("MarketDataFeedRecoveryState.Accept"),"{error}");
+    }
 }

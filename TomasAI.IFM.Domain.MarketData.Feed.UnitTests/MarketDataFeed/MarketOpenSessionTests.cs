@@ -9,6 +9,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed;
 public sealed class MarketOpenSessionTests
 {
     [Fact]
+    public void Opening_initializes_API_provider_before_capturing_command_date()
+    {
+        var dates=Substitute.For<IValueDateProvider,IMarketOpenValueDateInitializer>();
+        ((IMarketOpenValueDateInitializer)dates).InitializeMarketOpen().Returns(new DateOnly(2026,10,30));
+        dates.ValueDate.Returns(new DateOnly(2026,10,29));
+        var resolved=new StartMarketDataFeedCommand().ResolveSession(dates);
+        resolved.ValueDate.Should().Be(new DateOnly(2026,10,30));
+        ((IMarketOpenValueDateInitializer)dates).Received(1).InitializeMarketOpen();
+    }
+    [Fact]
     public async Task Feed_start_resolves_prepared_contracts_only_through_the_market_data_API()
     {
         var context = Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.Command.Actor.IMarketDataFeedCommandContext>();

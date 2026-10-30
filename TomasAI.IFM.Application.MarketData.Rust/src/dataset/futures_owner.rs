@@ -221,14 +221,14 @@ impl Factory for FuturesFactory {
                         .or_else(||publication.error.clone().filter(|_|publication.recovering||publication.terminal));
                     if failure.is_some() || matches!(transport.phase,super::lanes::Phase::Stopped|super::lanes::Phase::Failed) || publication.terminal {
                         if let Ok(mut saved)=retiring.lock(){*saved=Some(saved.map_or(budget,|d:Deadline|d.earliest(budget)));}
-                        status.send_replace(Readiness{proofs:vec![],failure:Some(failure.unwrap_or_else(||"Native futures resources stopped".into())),deadline:Some(budget)});
+                        status.send_replace(Readiness{setup_complete:false,proofs:vec![],failure:Some(failure.unwrap_or_else(||"Native futures resources stopped".into())),deadline:Some(budget)});
                         break;
                     }
                     let mut proofs=Vec::new();
                     if transport.phase==super::lanes::Phase::Running {proofs.push(Proof::Transport);}
                     if publication.running {proofs.push(Proof::Publication);}
-                    if transport.phase==super::lanes::Phase::Running && publication.running {setup=None;}
-                    status.send_replace(Readiness{proofs,failure:None,deadline:transport.deadline});
+                    if transport.phase==super::lanes::Phase::Running && publication.connected {setup=None;}
+                    status.send_replace(Readiness{setup_complete:transport.phase==super::lanes::Phase::Running && publication.connected,proofs,failure:None,deadline:transport.deadline});
                     tokio::select!{biased;()=stop.cancelled()=>break,
                         changed=lifecycle.changed()=>if changed.is_err(){return Err("Native futures source health closed".into());},
                         changed=logs.changed()=>if changed.is_err(){return Err("Native diagnostic health closed".into());},

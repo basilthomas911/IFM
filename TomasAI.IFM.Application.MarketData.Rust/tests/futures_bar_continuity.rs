@@ -11,7 +11,7 @@ use ifm_market_data_native::{
     messaging::{codec, futures::Futures},
 };
 
-fn events() -> Vec<String> {
+fn events() -> (Vec<String>, Vec<String>) {
     let date = time::Date::from_calendar_date(2026, time::Month::October, 27).unwrap();
     let mut book = Book::<()>::new(date, 7, 1).unwrap();
     book.register_with_tick_size(42, "ES20261218", Asset::Futures, 4, Some(250_000_000))
@@ -35,6 +35,7 @@ fn events() -> Vec<String> {
     )
     .unwrap();
     let mut result = Vec::new();
+    let mut volumes = Vec::new();
     // Two unchanged-price executions followed by a changed price. Repeating
     // each source row also checks that duplicate inputs do not create volume.
     for (index, price) in [6_000_000_000_000, 6_000_000_000_000, 6_000_250_000_000]
@@ -71,8 +72,14 @@ fn events() -> Vec<String> {
                     trade: None,
                 })
                 .unwrap();
-            assert_eq!(output.len(), usize::from(!duplicate));
-            for event in output {
+            assert_eq!(output.len(), if duplicate { 0 } else { 2 });
+            if !duplicate {
+                assert_eq!(output[0].kind, 4);
+                let statistics = output[0].value.as_array().unwrap()[8].as_array().unwrap();
+                assert_eq!(statistics[7].as_i64(), Some(((index + 1) * (index + 2) / 2) as i64));
+            }
+            volumes.extend(output.iter().filter(|event| event.kind == 4).map(|event| STANDARD.encode(codec::encode(&event.value).unwrap())));
+            for event in output.into_iter().filter(|event| event.kind == 3) {
                 assert_eq!(event.kind, 3);
                 let fields = event.value.as_array().unwrap();
                 let trade = fields[9].as_array().unwrap()[6].as_array().unwrap();
@@ -82,12 +89,14 @@ fn events() -> Vec<String> {
             }
         }
     }
-    result
+    (result, volumes)
 }
 
 #[test]
 fn unchanged_prices_preserve_every_execution_and_duplicates_emit_nothing() {
-    assert_eq!(events().len(), 3);
+    let (prices, volumes) = events();
+    assert_eq!(prices.len(), 3);
+    assert_eq!(volumes.len(), 3);
 }
 
 #[test]
@@ -95,7 +104,8 @@ fn unchanged_prices_preserve_every_execution_and_duplicates_emit_nothing() {
 fn native_wire_reaches_actual_csharp_bars_without_false_gaps_or_lost_volume() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let fixture = root.join("target/futures-bar-continuity.json");
-    std::fs::write(&fixture, serde_json::to_vec(&events()).unwrap()).unwrap();
+    let (prices, statistics) = events();
+    std::fs::write(&fixture, serde_json::to_vec(&serde_json::json!({"prices":prices,"statistics":statistics})).unwrap()).unwrap();
     let status = std::process::Command::new("dotnet")
         .args(["run", "--project"])
         .arg(root.join("qualification/FuturesBarBridge/FuturesBarBridge.csproj"))

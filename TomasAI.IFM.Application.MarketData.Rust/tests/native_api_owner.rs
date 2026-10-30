@@ -8,6 +8,28 @@ use ifm_market_data_native::{
 use std::{sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 #[tokio::test]
+async fn joined_opening_replaces_failed_and_stopped_epochs_without_restarting_root() {
+    let root=Arc::new(Owner::default());
+    let clock=Arc::new(Clock::new(0,false).unwrap());
+    let date=time::Date::from_calendar_date(2026,time::Month::October,29).unwrap();
+    let previous=MarketData::new_session(root.clone(),clock.clone(),date).unwrap();
+    let old_id=previous.backend_status(true).unwrap().as_array().unwrap()[3].clone();
+    previous.report_fault(Lane::OptionsGlbx,"opening qualification",Deadline::after(Duration::ZERO)).unwrap();
+    previous.shutdown(Deadline::recovery()).await.unwrap();
+    assert!(previous.validate_api_date(date).is_err(),"retired references cannot admit new demand");
+    for next in [date,date.next_day().unwrap()] {
+        let fresh=MarketData::new_session(root.clone(),clock.clone(),next).unwrap();
+        assert_ne!(fresh.backend_status(true).unwrap().as_array().unwrap()[3],old_id);
+        assert!(fresh.validate_api_date(next).is_ok());
+        assert!(fresh.validate_api_date(next.next_day().unwrap()).is_err());
+        assert!(fresh.failures().is_empty());
+        assert!(fresh.option_claims().is_none());
+        fresh.shutdown(Deadline::recovery()).await.unwrap();
+    }
+    root.stop().unwrap();
+    root.wait_idle(&CancellationToken::new(),Deadline::recovery()).await.unwrap();
+}
+#[tokio::test]
 async fn future_only_idle_owner_needs_no_option_reference_preparation_and_retains_failed_notifications_after_stop()
  {
     let root = Arc::new(Owner::default());

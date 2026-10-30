@@ -665,6 +665,8 @@ async fn run_lane<P>(
                                         replay.remove(&(databento::dbn::Schema::Trades as u16));
                                     } else if message.contains("statistics") {
                                         replay.remove(&(databento::dbn::Schema::Statistics as u16));
+                                    } else if message.contains("mbp-1") {
+                                        replay.remove(&(databento::dbn::Schema::Mbp1 as u16));
                                     }
                                     None
                                 }

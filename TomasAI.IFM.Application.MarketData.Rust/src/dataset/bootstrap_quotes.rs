@@ -57,12 +57,21 @@ impl Drop for Retirement {
 /// Invalid/duplicate dependencies, native source failure, cancellation/deadline,
 /// or retirement that did not finish under the same original dataset budget.
 pub async fn acquire(
-    mut source: Start,
+    source: Start,
     date: time::Date,
     clock: Arc<Clock>,
     parent: Arc<Child>,
     stop: &CancellationToken,
     deadline: Deadline,
+) -> Result<BTreeMap<String, Decimal>, String> {
+    acquire_with_progress(source,date,clock,parent,stop,deadline,|_|Ok(())).await
+}
+// The progress observer receives copied contract names only. It cannot own or
+// delay the source socket, and is called only when the missing set changes.
+pub(super) async fn acquire_with_progress(
+    mut source: Start, date: time::Date, clock: Arc<Clock>, parent: Arc<Child>,
+    stop: &CancellationToken, deadline: Deadline,
+    progress: impl Fn(&[String])->Result<(),String> + Send,
 ) -> Result<BTreeMap<String, Decimal>, String> {
     if source.plan.lane != Lane::OptionsGlbx
         || source.registrations.is_empty()
@@ -95,6 +104,7 @@ pub async fn acquire(
         let mut lifecycle = data
             .lifecycle(Lane::OptionsGlbx)?
             .ok_or("Native underlying lifecycle unavailable")?;
+        let mut previous_missing=None;
         loop {
             let status = lifecycle.borrow_and_update().clone();
             if matches!(
@@ -126,6 +136,8 @@ pub async fn acquire(
             if prices.len() == ids.len() {
                 return Ok(prices);
             }
+            let missing=ids.iter().filter(|id|!prices.contains_key(&id.contract)).map(|id|id.contract.clone()).collect::<Vec<_>>();
+            if previous_missing.as_ref()!=Some(&missing) {progress(&missing)?;previous_missing=Some(missing);}
             tokio::select! {
                 result=changed.changed()=>result.map_err(|_|"Native underlying observation closed")?,
                 result=lifecycle.changed()=>result.map_err(|_|"Native underlying lifecycle closed")?,

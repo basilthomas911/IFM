@@ -38,13 +38,13 @@ impl Monitor{
   if self.iron(){
    if self.live{if let Some(value)=&self.realtime.current{result.rows.push(row("realtime","0",display::document(value))?);}}
    for(index,value)in self.history.rows().into_iter().enumerate(){result.rows.push(row("position",&index.to_string(),value)?);}
-   let plans=if self.live{self.live_plans.values().rev().collect::<Vec<_>>()}else{self.page.as_ref().and_then(|page|page["Items"].as_array()).map(|rows|rows.iter().collect()).unwrap_or_default()};
+   let plans=if self.live&&!self.live_plans.is_empty(){self.live_plans.values().rev().collect::<Vec<_>>()}else{self.page.as_ref().and_then(|page|page["Items"].as_array()).map(|rows|rows.iter().collect()).unwrap_or_default()};
    for(index,plan)in plans.iter().enumerate(){let mut entry=row("plan",&index.to_string(),display::plan_history(plan))?;entry.fields.insert("actionDateTimeEastern".into(),display::action_time(plan)?);result.rows.push(entry);}
    result.rows.push(row("limits","0",json!({"orderId":self.scope.order,"tradeLimit":display::document(&self.limits),"fundBalance":self.balance}))?);
    result.rows.push(row("chart","0",json!({"chartEndUtc":self.chart["EndUtc"],"points":display::document(&self.chart["Points"])}))?);
-   let position=if self.live{self.realtime.current.as_ref().map(|v|&v["Position"])}else{self.selected.as_ref()};
+   let position=if self.live{self.realtime.current.as_ref().map(|v|&v["Position"]).or(self.selected.as_ref())}else{self.selected.as_ref()};
    result.rows.push(row("position-details","0",position.map(display::document).unwrap_or(Json::Null))?);
-   if !self.live{for(index,(key,value))in self.observations.iter().enumerate(){result.rows.push(row("observation",&index.to_string(),json!({"key":key,"value":display::document(value)}))?);}}
+   if !self.live||self.realtime.current.is_none(){for(index,(key,value))in self.observations.iter().enumerate(){result.rows.push(row("observation",&index.to_string(),json!({"key":key,"value":display::document(value)}))?);}}
   }
   let maximum=self.page.as_ref().map(|p|text(&p["MaximumRevision"])).unwrap_or("0".into());
   let latest=self.live_plans.keys().next_back().map(|(_,revision)|revision.to_string()).unwrap_or("0".into());

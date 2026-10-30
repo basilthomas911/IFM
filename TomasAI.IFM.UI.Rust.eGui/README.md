@@ -54,6 +54,12 @@ Request correlation does not bypass notification deduplication or retry writes.
 
 ### Application alert policy
 
+Runtime recovery dialogs have one current message, with no pending-dialog queue.
+A newer error, warning outcome or success outcome replaces the open message.
+Pressing OK dismisses that message; retained older publications cannot reopen it.
+Repeated backend RecordIds are deduplicated. Full recovery history remains in the
+server recovery audit and durable diagnostics, independently of this display slot.
+
 Global Application Error dialogs are reserved for confirmed terminal dataset/API
 recovery outcomes, the explicit two-minute dataset reset escalation, and failures
 that prevent UI startup (runtime, configuration, credentials, API business context
@@ -61,7 +67,7 @@ or compiled-contract metadata). The native dataset owner supplies recovery facts
 the UI does not infer fatality from a numeric error code or a NATS disconnect.
 
 Daily EMA/Bollinger refresh failures, stale-baseline warnings, calendar refresh
-failures, console setup/ACK retries, NATS warnings, malformed notifications, busy
+failures, NATS warnings, malformed notifications, busy
 or unavailable actions and recoverable controller failures remain visible in the
 status console and durable logs. They cannot replace, clear or increment an
 outstanding terminal dialog. Request-specific validation/submission failures stay
@@ -253,7 +259,16 @@ Core trade details, saved position history, risk limits and balances load first.
 The selected position is published immediately; chart history and saved-position
 plan/leg observations hydrate concurrently in the background. Their loading or
 error messages stay within the relevant section and never remove the loaded tab.
-Live-feed activation does not wait for historical chart reads. Each optional read
+Automatic saved-feed restoration is a separate second phase: it waits for the
+stored chart and selected-position reads to finish (or report their local errors),
+then checks/restores saved intent using the API-provided ValueDate. Host connection
+setup and subscription restoration never delay the completed trade-open command.
+A timeout or rejection leaves the tab, saved position, saved plans and chart visible,
+with the restoration failure shown in monitor status. A successful Load already
+reconciles subscriptions, so the UI does not send a duplicate Enable command.
+Stored values remain visible until authoritative live values replace them. Explicit
+Live Feed ON/OFF cancels the pending automatic task and takes precedence.
+Each optional read
 uses the backend's normal bounded request budget independently of the completed
 open command. Selecting another position, changing live mode or closing/reopening
 a tab fences late results; replacement jobs are cancelled. Live chart samples

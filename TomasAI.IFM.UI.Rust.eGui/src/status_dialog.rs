@@ -18,7 +18,7 @@ impl Severity {
         match self {Self::Error=>"Application Error",Self::Success=>"Recovery Completed",Self::Warning=>"Application Warning"}
     }
 }
-/// Immutable queued notification. Retained publications survive frame coalescing.
+/// Immutable notification for the single latest-dialog slot.
 #[derive(Clone, Debug)]
 pub struct Notice {
     /// UI-local monotonic sequence, independent of backend operation identity.

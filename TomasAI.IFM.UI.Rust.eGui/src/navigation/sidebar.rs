@@ -49,7 +49,7 @@ pub struct SidebarPublication {
     pub error: String,
     /// Monotonic error identity used to avoid redisplaying the same backend error.
     pub error_sequence: u64,
-    /// Retained explicit outcomes; copied in memory, never part of the old bridge wire contract.
+    /// Single latest explicit outcome; copied in memory, never part of the old bridge wire contract.
     #[serde(skip)]
     pub outcome_dialogs: Vec<crate::status_dialog::Notice>,
 }
@@ -90,14 +90,10 @@ pub struct SidebarView {
     pub drawn_status_rows: usize,
     /// Stable identity of the selected status-console row.
     pub selected_status_id: String,
-    /// Last backend error identity already processed by the view.
-    last_error_sequence: u64,
+    /// Highest notification sequence displayed or acknowledged; stale snapshots cannot reopen it.
+    last_dialog_sequence: u64,
     /// Optional currently displayed error-dialog text.
     error_dialog: Option<(String, crate::status_dialog::Severity)>,
-    /// Last outcome retained by the visible dialog queue.
-    last_outcome_sequence: u64,
-    /// Do not overwrite an unacknowledged failure with later success.
-    pending_dialogs: std::collections::VecDeque<(String, crate::status_dialog::Severity)>,
 }
 impl SidebarPublication {
     /// Borrow the latest published status message, or None when status history is empty.
@@ -107,6 +103,21 @@ impl SidebarPublication {
     }
 }
 impl SidebarView {
+    /// Keep one current notification. Newer outcomes replace the open dialog;
+    /// acknowledging it never reveals an older retained error or outcome.
+    fn observe_dialog(&mut self, snapshot: &SidebarPublication) {
+        let outcome = snapshot.outcome_dialogs.iter().max_by_key(|notice| notice.sequence);
+        let error_sequence = if snapshot.error.is_empty() { 0 } else { snapshot.error_sequence };
+        if let Some(notice) = outcome.filter(|notice| notice.sequence > error_sequence) {
+            if notice.sequence > self.last_dialog_sequence {
+                self.last_dialog_sequence = notice.sequence;
+                self.error_dialog = Some((notice.message.clone(), notice.severity));
+            }
+        } else if error_sequence > self.last_dialog_sequence {
+            self.last_dialog_sequence = error_sequence;
+            self.error_dialog = Some((snapshot.error.clone(), crate::status_dialog::Severity::Error));
+        }
+    }
     /// Render the economic-calendar tabs, filters, rows, and selected details; return the numeric action for a user query/selection.
     pub fn calendar(&mut self, ui: &mut egui::Ui, snapshot: &SidebarPublication) -> Option<u32> {
         let mut action = None;
@@ -300,18 +311,7 @@ impl SidebarView {
                 });
             },
         );
-        if snapshot.error_sequence > self.last_error_sequence && !snapshot.error.is_empty() {
-            self.last_error_sequence = snapshot.error_sequence;
-            self.pending_dialogs.push_back((snapshot.error.clone(), crate::status_dialog::Severity::Error));
-        }
-        for notice in &snapshot.outcome_dialogs {
-            if notice.sequence>self.last_outcome_sequence {
-                self.last_outcome_sequence=notice.sequence;
-                if self.pending_dialogs.len()==64 { self.pending_dialogs.pop_front(); }
-                self.pending_dialogs.push_back((notice.message.clone(),notice.severity));
-            }
-        }
-        if self.error_dialog.is_none() { self.error_dialog=self.pending_dialogs.pop_front(); }
+        self.observe_dialog(snapshot);
         if let Some((message,severity)) = self.error_dialog.clone() {
             egui::Modal::new(egui::Id::new("calendar-error-dialog")).show(ui.ctx(), |ui| {
                 if crate::status_dialog::body(ui,&message,severity).acknowledged { self.error_dialog=None; }
@@ -478,4 +478,31 @@ fn navigate(ui: &egui::Ui, selected: Option<usize>, count: usize, page: usize) -
             None
         }
     })
+}
+
+#[cfg(test)]
+mod latest_dialog_tests {
+    use super::*;
+    use crate::status_dialog::{Notice, Severity};
+
+    #[test]
+    fn latest_outcome_replaces_open_error_and_acknowledgement_has_no_backlog() {
+        let mut view = SidebarView::default();
+        let mut publication = SidebarPublication {error: "Resetting dataset".into(), error_sequence: 1, ..Default::default()};
+        view.observe_dialog(&publication);
+        assert_eq!(view.error_dialog.as_ref().unwrap().0, "Resetting dataset");
+        publication.outcome_dialogs = vec![Notice {sequence: 2, message: "Connection restored".into(), severity: Severity::Success}, Notice {sequence: 3, message: "Monitoring verified".into(), severity: Severity::Success}];
+        view.observe_dialog(&publication);
+        assert_eq!(view.error_dialog.as_ref().unwrap().0, "Monitoring verified");
+        view.error_dialog = None; // Same state transition as pressing OK.
+        view.observe_dialog(&publication);
+        assert!(view.error_dialog.is_none());
+        publication.outcome_dialogs.clear(); // Older coalesced publication cannot reopen the error.
+        view.observe_dialog(&publication);
+        assert!(view.error_dialog.is_none());
+        publication.error_sequence = 4;
+        publication.error = "New failure".into();
+        view.observe_dialog(&publication);
+        assert_eq!(view.error_dialog, Some(("New failure".into(), Severity::Error)));
+    }
 }

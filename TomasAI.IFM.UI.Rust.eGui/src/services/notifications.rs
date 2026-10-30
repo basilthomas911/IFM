@@ -245,7 +245,8 @@ impl Notifications {
         crate::diagnostics::errors::record("backend.recovery_outcome_received",Some(subject),Some(operation),&value.to_string());
         if self.seen.len()==1024{self.seen.pop_front();}self.seen.push_back(identity.clone());
         self.sequence+=1;
-        if self.publication.outcome_dialogs.len()==64{self.publication.outcome_dialogs.remove(0);}
+        // Display has one latest slot; durable recovery history remains in the audit log.
+        self.publication.outcome_dialogs.clear();
         self.publication.outcome_dialogs.push(crate::status_dialog::Notice{sequence:self.sequence,message:message.into(),severity});
         self.publication.status_rows.push(StatusRow{id:identity,time:at.with_timezone(&chrono_tz::America::New_York).format("%I:%M:%S%.3f %p").to_string(),message:message.into()});
         Ok(true)
