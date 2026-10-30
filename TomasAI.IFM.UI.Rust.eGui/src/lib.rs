@@ -44,6 +44,8 @@
 use crate::control_parity::BorderedTable as _;
 /// Consistent outcome dialogs with accessible vector status icons.
 pub mod status_dialog;
+/// Typed native presentation models, separate from configuration/log JSON.
+pub mod models;
 /// Native window identity uses the executable's Cargo package version at build time.
 pub const WINDOW_TITLE: &str = concat!("IFM - eGui ", env!("CARGO_PKG_VERSION"));
 

@@ -1,6 +1,6 @@
 //! Native background option discovery/planning. All storage facts are copied;
-//! temporary quote acquisition belongs to the options resource parent and shares
-//! its original deadline. No managed lease, context or renewal service is called.
+//! optional quote observation runs independently of monitored session startup.
+//! No managed lease, context or renewal service is called.
 use super::{
     live::Registration,
     options_owner::{CacheScope, Intent},
@@ -41,6 +41,8 @@ mod browser;
 mod committed_refresh;
 #[path = "background/statistics.rs"]
 pub mod statistics;
+#[path = "background/quotes.rs"]
+mod quotes;
 
 type FactCache = Arc<Mutex<Option<(time::Date, Arc<Facts>)>>>;
 type SetupDiagnostics = Arc<Mutex<Option<(Weak<super::live::Diagnostics>, [u8;16], [u8;16], u64)>>>;
@@ -66,6 +68,8 @@ pub struct Configuration {
     reference_cache: Arc<Mutex<Option<Arc<Bootstrap>>>>,
     refresh_incident: Arc<Mutex<Option<Deadline>>>,
     setup_diagnostics: SetupDiagnostics,
+    quotes: Arc<Mutex<quotes::State>>,
+    quote_changes: watch::Sender<u64>,
 }
 struct Facts {
     policies: Vec<Arc<crate::option_chain::strategy::Parameters>>,
@@ -106,6 +110,8 @@ impl Configuration {
             reference_cache: Arc::default(),
             refresh_incident: Arc::default(),
             setup_diagnostics: Arc::default(),
+            quotes: Arc::default(),
+            quote_changes: watch::channel(0).0,
         }
     }
     /// Replaces global reference policy while retaining only immutable raw facts
@@ -156,6 +162,8 @@ impl Configuration {
                 reference_cache: previous.reference_cache.clone(),
                 refresh_incident: previous.refresh_incident.clone(),
                 setup_diagnostics: previous.setup_diagnostics.clone(),
+                quotes: previous.quotes.clone(),
+                quote_changes: previous.quote_changes.clone(),
                 ..self.clone()
             };
             result.effective_scopes()?;
@@ -172,14 +180,19 @@ impl Configuration {
         Ok(())
     }
     fn waiting_underlyings(&self, contracts: &[String], clock: &Clock) -> Result<(),String> {
-        let binding=self.setup_diagnostics.lock().map_err(|_| "Native setup diagnostics interrupted")?.clone();
+        report_waiting(&self.setup_diagnostics,contracts,clock)
+    }
+}
+fn report_waiting(diagnostics: &SetupDiagnostics, contracts: &[String], clock: &Clock) -> Result<(),String> {
+        let binding=diagnostics.lock().map_err(|_| "Native setup diagnostics interrupted")?.clone();
         if let Some((sink,worker,generation,revision))=binding && let Some(sink)=sink.upgrade() {
-            let mut text=format!("Native Options bootstrap waiting for {} underlying quotes; generation={}; contracts=",contracts.len(),crate::messaging::wire::guid(generation));
+            let mut text=format!("Background option coverage pending for {} underlying quotes; monitored subscriptions are independent; generation={}; contracts=",contracts.len(),crate::messaging::wire::guid(generation));
             for contract in contracts {if text.len()+contract.len()+1>3800{text.push_str("[truncated]");break;}text.push_str(contract);text.push(',');}
             sink.retain(super::live::Diagnostic{worker,lane:Lane::OptionsGlbx,attempt:revision,observed:clock.utc_ticks().map_err(|_|"Native setup clock unavailable")?,replaced:0,event:super::transport::Event::System{code:u8::MAX,message:text}})?;
         }
         Ok(())
-    }
+}
+impl Configuration {
     async fn source_facts(
         &self,
         date: time::Date,
@@ -263,12 +276,12 @@ impl Configuration {
             .map_err(|_| "Native background refresh status interrupted")? = None;
         Ok(facts)
     }
-    /// Resolves published policies, grouped complete definitions, exact underlying
-    /// prices and all ranked cache memberships under one dataset-owned budget.
-    /// Returns idle when no policy/workload is desired, never an invented price.
+    /// Resolves monitored legs and currently available background coverage.
+    /// Missing underlying prices start an optional observer and leave only their
+    /// coverage groups pending. They never delay monitored subscription setup.
     ///
     /// # Errors
-    /// Source/metadata conflict, missing live inputs, capacity, cancellation or
+    /// Source/metadata conflict, capacity, cancellation or
     /// original deadline expiry. The dataset supervisor owns retry/escalation.
     pub async fn resolve(
         &self,
@@ -419,9 +432,9 @@ impl Configuration {
             if missing.len() > 64 {
                 return Err("Native background underlying capacity exceeded".into());
             }
-            let symbols = missing.iter().map(|r| r.source.clone()).collect::<Vec<_>>();
+            let symbols = underlyings.values().map(|r| r.source.clone()).collect::<Vec<_>>();
             let mut source = base.source.clone();
-            source.registrations = missing;
+            source.registrations = underlyings.values().cloned().collect();
             // A clean opening has no previous book. Recover the latest quote
             // from this API-selected trading session instead of requiring a new
             // change in a quiet deferred future. This temporary source publishes
@@ -439,18 +452,15 @@ impl Configuration {
                     })
                     .collect(),
             };
-            prices.extend(
-                super::bootstrap_quotes::acquire_with_progress(
-                    source,
-                    base.date,
-                    clock.clone(),
-                    parent.clone(),
-                    stop,
-                    deadline,
-                    |missing| self.waiting_underlyings(missing, &clock),
-                )
-                .await?,
-            );
+            let diagnostics=self.setup_diagnostics.clone();
+            let diagnostic_clock=clock.clone();
+            prices.extend(self.quotes.lock().map_err(|_|"Background observer state interrupted")?.prices(
+                source,base.date,clock.clone(),parent.clone(),
+                move |missing| report_waiting(&diagnostics,missing,&diagnostic_clock),
+                self.quote_changes.clone(),
+            )?);
+            let missing=underlyings.values().filter(|row|!prices.contains_key(&row.contract)).map(|row|row.contract.clone()).collect::<Vec<_>>();
+            self.waiting_underlyings(&missing,&clock)?;
         }
         // Quiet quote acquisition is not a recovery incident. Subsequent finite
         // reference/planning work has its own bounded attempt after data arrives.
@@ -500,10 +510,11 @@ impl Configuration {
                 continue;
             };
             let timezone = first.timezone();
-            let initial = forward
-                .get(policy.root())
-                .copied()
-                .ok_or("CoverageInputsUnavailable")?;
+            let Some(initial) = forward.get(policy.root()).copied() else {
+                // Coverage remains pending for this root. Known monitored legs
+                // and other roots continue independently.
+                continue;
+            };
             // Only fresh qualified calculations from the current native physical
             // source contribute observed IV. Recovery starts from 20%; retained
             // native envelopes preserve previously acquired coverage safely.
@@ -541,7 +552,7 @@ impl Configuration {
                 .transpose()?
                 .flatten()
                 .unwrap_or(0.20);
-            let planned = self.planner.plan(
+            let planned = self.planner.plan_available(
                 policy,
                 base.date,
                 &definitions,
@@ -637,6 +648,29 @@ impl Configuration {
             full.extend(futures_util::future::try_join_all(requests).await?);
         }
         let mut selected = full;
+        // A missing/stale price pauses replanning; it must not unsubscribe
+        // already acquired coverage. Retain only current-source background
+        // contracts, never removed policies or released monitored legs.
+        if let Some(view)=&current {
+            let allowed=models.iter().map(|model|model.coverage_definition().map(|d|d.contract.to_owned())).collect::<Result<BTreeSet<_>,_>>()?;
+            let retained=self.reference_cache.lock().map_err(|_|"Native background reference cache interrupted")?.clone();
+            let mut kept=BTreeSet::new();
+            for definition in view.definitions.iter().filter(|d|!view.monitored.contains(&d.instrument)) {
+                let contract=definition.blueprint.contract.contract();
+                if !allowed.contains(contract) {continue;}
+                if let Some(model)=retained.as_ref().map(|cache|cache.option_model(contract)).transpose()?.flatten()
+                    && !prices.contains_key(model.underlying_source()?.2) {
+                    kept.insert(contract.to_owned());
+                    if !selected.iter().any(|known|known.convention().is_ok_and(|c|c.contract()==contract)) {selected.push(model);}
+                }
+            }
+            for old in view.cache_scopes.iter() {
+                let contracts=old.contracts.intersection(&kept).cloned().collect::<BTreeSet<_>>();
+                if contracts.is_empty() {continue;}
+                if let Some(cache)=caches.get_mut(&old.scope) {cache.contracts.extend(contracts);}
+                else {caches.insert(old.scope.clone(),CacheScope {contracts,..old.clone()});}
+            }
+        }
         selected.extend(monitored_models);
         self.finish(base, selected, caches, monitored)
     }
@@ -850,15 +884,25 @@ impl Configuration {
                 let mut committed=config.committed.as_ref().map(|directory|directory.changes());
                 let health=config.market.upgrade().map(|market|market.health(Lane::OptionsGlbx));
                 let mut health_changes=health.as_ref().map(|health|health.subscribe());
+                let mut quote_changes=config.quote_changes.subscribe();
+                quote_changes.mark_changed();
                 // Unrelated health traffic must not renew a maintenance sleep.
                 let mut maintenance_at=tokio::time::Instant::now()+period;
                 loop {
-                    let maintenance=tokio::select!{biased;
+                    let event=tokio::select!{biased;
                         ()=stopping.cancelled()=>return Ok(()),
-                        ()=tokio::time::sleep_until(maintenance_at)=>true,
-                        ()=async{match &mut committed{Some(changes)=>{let _=changes.changed().await;},None=>std::future::pending().await}}=>false,
-                        ()=async{match &mut health_changes{Some(changes)=>{let _=changes.changed().await;},None=>std::future::pending().await}}=>false,
+                        ()=tokio::time::sleep_until(maintenance_at)=>0,
+                        ()=async{match &mut committed{Some(changes)=>{let _=changes.changed().await;},None=>std::future::pending().await}}=>1,
+                        ()=async{match &mut health_changes{Some(changes)=>{let _=changes.changed().await;},None=>std::future::pending().await}}=>2,
+                        result=quote_changes.changed()=>{result.map_err(|_|"Background quote observation ended")?;3},
                     };
+                    let maintenance=event==0;
+                    if event==3 {
+                        // Coalesce market ticks; metadata IO and replanning never
+                        // run once per quote or hold the provider writer.
+                        tokio::select! {biased;()=stopping.cancelled()=>return Ok(()),()=tokio::time::sleep(Duration::from_secs(1))=>{}}
+                        quote_changes.borrow_and_update();
+                    }
                     if maintenance {maintenance_at=tokio::time::Instant::now()+period;}
                     let pending=config.committed.as_ref().map(|directory|directory.pending_deadline()).transpose()?.flatten();
                     let deadline=pending.unwrap_or_else(Deadline::recovery);
@@ -873,7 +917,7 @@ impl Configuration {
                                 if !config.refresh_committed_in_place(task_parent.clone(),&stopping,deadline,physical,ready).await?{changed=true;}
                             }
                         }
-                        if !maintenance && !changed{return Ok(true);}
+                        if !maintenance && !changed && event!=3{return Ok(true);}
                         let facts=config.source_facts(date,task_parent.clone(),&stopping,deadline,maintenance).await?;
                         changed |= facts.fingerprint()?!=initial;
                         if !config.refresh_browsers(date,task_parent.clone(),&stopping,deadline).await? {changed=true;}

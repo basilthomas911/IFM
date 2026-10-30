@@ -827,11 +827,7 @@ impl TradeWorkspace {
         let limit = one(&display, "limits");
         let loss = number(&limit["tradeLimit"], "maxLossLimit").map(|value| -value.abs());
         let win = number(&limit["tradeLimit"], "maxProfitLimit").map(f64::abs);
-        let chart = one(&display, "chart");
-        let mut end = chart["chartEndUtc"]
-            .as_str()
-            .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
-            .map(|at| at.timestamp_millis() as f64 / 1000.);
+        let mut end = display.chart_end_utc_seconds;
         if monitor_flag(s, "live") {
             let realtime = one(&display, "realtime");
             let clock_id = egui::Id::new((

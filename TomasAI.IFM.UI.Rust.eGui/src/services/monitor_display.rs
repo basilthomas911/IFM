@@ -40,11 +40,12 @@ pub fn plan_history(plan:&Json)->Json{
  let mut result=document(plan);if let Some(root)=result.as_object_mut(){root.remove("position");root.remove("parameters");}
  if let Some(detail)=result["ironCondorTradePlanSnapshot"].as_object_mut(){for key in ["position","legs","legacyLegs","strategyRiskParameterSet"]{detail.remove(key);}}result
 }
+/// Eastern time only, matching the status console's 12-hour millisecond display.
 pub fn action_time(plan:&Json)->Result<String,String>{
  let value=plan["IronCondorTradePlanSnapshot"].get("ActionDateTime").filter(|v|!v.is_null()).unwrap_or(&plan["CalculatedAtUtc"]);
  let text=value.as_str().ok_or("Missing Trade Plan action time")?;if text.starts_with("0001-"){return Ok(String::new())}
  let utc=chrono::DateTime::parse_from_rfc3339(text).map_err(|_|"Invalid Trade Plan action time")?;
- Ok(utc.with_timezone(&chrono_tz::America::New_York).format("%Y-%m-%d %H:%M:%S%.3f").to_string())
+ Ok(utc.with_timezone(&chrono_tz::America::New_York).format("%I:%M:%S%.3f %p").to_string())
 }
 
 /// The hybrid's enum-name projection uses Enum.ToString even for an unnamed

@@ -22,6 +22,8 @@ impl Default for Hub{fn default()->Self{
 }}
 fn text(value:&Json)->String{value.as_str().map(str::to_string).unwrap_or_else(||if value.is_null(){String::new()}else{value.to_string()})}
 fn row(kind:&str,key:&str,value:Json)->Result<ContractRow,String>{Ok(ContractRow{id:format!("{kind}:{key}"),fields:BTreeMap::from([("kind".into(),kind.into())]),data:Some(crate::wire::encode_value(&value)?.into())})}
+/// Typed native records bypass the JSON compatibility adapter entirely.
+fn typed_row<T:serde::Serialize>(kind:&str,key:&str,value:&T)->Result<ContractRow,String>{Ok(ContractRow{id:format!("{kind}:{key}"),fields:BTreeMap::from([("kind".into(),kind.into())]),data:Some(crate::wire::encode(value)?.into())})}
 impl Hub{
  pub fn with_host_scope(scope:&str)->Result<Self,String>{if scope.is_empty()||!scope.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'){return Err("Invalid MarketData Host deployment scope".into())}Ok(Self{host_scope:scope.into(),..Default::default()})}
  fn feed(&self,key:&str)->Result<Client,String>{self.state.lock().map_err(|_|"Monitor lifetime lock failed")?.owners.get(key).map(|owner|owner.feed.clone()).ok_or("The trade tab is no longer open".into())}

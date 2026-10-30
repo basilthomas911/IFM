@@ -69,9 +69,30 @@ pub async fn acquire(
 // The progress observer receives copied contract names only. It cannot own or
 // delay the source socket, and is called only when the missing set changes.
 pub(super) async fn acquire_with_progress(
+    source: Start, date: time::Date, clock: Arc<Clock>, parent: Arc<Child>,
+    stop: &CancellationToken, deadline: Deadline,
+    progress: impl Fn(&[String])->Result<(),String> + Send,
+) -> Result<BTreeMap<String, Decimal>, String> {
+    collect(source,date,clock,parent,stop,deadline,progress,|_|Ok(()),true).await
+}
+/// Observe qualified startup dependencies continuously without gating a dataset.
+/// Snapshots contain source timestamps so callers revalidate freshness on use.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn observe(
+    source: Start, date: time::Date, clock: Arc<Clock>, parent: Arc<Child>,
+    stop: &CancellationToken, deadline: Deadline,
+    progress: impl Fn(&[String])->Result<(),String> + Send,
+    snapshot: impl Fn(BTreeMap<String, Tick<QuoteValue>>)->Result<(),String> + Send,
+) -> Result<BTreeMap<String, Decimal>, String> {
+    collect(source,date,clock,parent,stop,deadline,progress,snapshot,false).await
+}
+#[allow(clippy::too_many_arguments)]
+async fn collect(
     mut source: Start, date: time::Date, clock: Arc<Clock>, parent: Arc<Child>,
     stop: &CancellationToken, deadline: Deadline,
     progress: impl Fn(&[String])->Result<(),String> + Send,
+    snapshot: impl Fn(BTreeMap<String, Tick<QuoteValue>>)->Result<(),String> + Send,
+    finish_when_complete: bool,
 ) -> Result<BTreeMap<String, Decimal>, String> {
     if source.plan.lane != Lane::OptionsGlbx
         || source.registrations.is_empty()
@@ -123,17 +144,18 @@ pub(super) async fn acquire_with_progress(
                 .queries(Lane::OptionsGlbx)?
                 .ok_or("Native underlying query unavailable")?;
             let mut prices = BTreeMap::new();
+            let mut quotes = BTreeMap::new();
             for id in &ids {
-                if let Some(price) = queries
-                    .raw_prices(id.instrument)?
-                    .and_then(|p| p.quote)
-                    .and_then(|q| midpoint(q, now))
+                let quote = queries.raw_prices(id.instrument)?.and_then(|p| p.quote);
+                if let Some(quote) = quote { quotes.insert(id.contract.clone(), quote); }
+                if let Some(price) = quote.and_then(|q| midpoint(q, now))
                     && prices.insert(id.contract.clone(), price).is_some()
                 {
                     return Err("Duplicate native underlying identity".into());
                 }
             }
-            if prices.len() == ids.len() {
+            snapshot(quotes)?;
+            if finish_when_complete && prices.len() == ids.len() {
                 return Ok(prices);
             }
             let missing=ids.iter().filter(|id|!prices.contains_key(&id.contract)).map(|id|id.contract.clone()).collect::<Vec<_>>();

@@ -5839,6 +5839,14 @@ async fn native_background_published_policy_owns_its_quotes_plan_and_cached_reco
     native_options_group_case(false, true, true, true, true, false, false, 0).await;
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_background_missing_quotes_leave_dataset_setup_ready_and_cancel_without_recovery() {
+    native_options_group_case(false,true,true,true,true,false,false,11).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_background_missing_other_underlying_does_not_delay_monitored_option_quotes() {
+    native_options_group_case(false,true,true,true,true,false,false,12).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn native_background_refresh_does_not_reset_unchanged_sources_and_retires_removed_policy() {
     native_options_group_case(false, true, true, true, true, true, false, 0).await;
 }
@@ -5967,7 +5975,7 @@ async fn native_options_group_case(
         panic!()
     };
     fields[4] = 43.into();
-    let fixture = Fixture::new(if populated_background {
+    let fixture = Fixture::new(if discovery_mode==11 {Mode::QuotesAckOnly} else if discovery_mode==12 {Mode::PricingTradeAt(at as u64*100)} else if populated_background {
         Mode::PricingTradeReplayAt(at as u64 * 100)
     } else {Mode::PricingTradeAt(at as u64 * 100)}).await;
     let stop = CancellationToken::new();
@@ -6085,7 +6093,12 @@ async fn native_options_group_case(
 
     let journal_source = Arc::new(std::sync::Mutex::new(journal_body.clone()));
     let current_journal = journal_source.clone();
-    let definitions_body = serde_json::to_vec(&serde_json::json!([raw_model.clone()])).unwrap();
+    let mut background_model=raw_model.clone();
+    if discovery_mode==12 {
+        background_model[0]="ES20261110C6100".into();background_model[16]=45.into();
+        background_model[33]="ES20270319".into();background_model[43]=44.into();
+    }
+    let definitions_body = serde_json::to_vec(&serde_json::json!([background_model])).unwrap();
     let definition_calls = Arc::new(AtomicUsize::new(0));
     let definition_count = definition_calls.clone();
     let reference_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -6351,7 +6364,7 @@ async fn native_options_group_case(
         )
         .unwrap(),
     );
-    if stage_reference && !canonical_monitor && discovery_mode == 0 {
+    if stage_reference && !canonical_monitor && matches!(discovery_mode,0|12) {
         bootstrap.register_option_model(staging_model).unwrap();
     }
     let mut intent = Arc::new(Intent {
@@ -6432,7 +6445,7 @@ async fn native_options_group_case(
                 configuration.monitored_only()
             } else if discovery_mode == 7 {
                 configuration.monitored_only().with_committed().unwrap()
-            } else if discovery_mode != 0 {
+            } else if discovery_mode != 0 && !matches!(discovery_mode,11|12) {
                 let mut candidate = serde_json::json!([
                     raw_model[0],
                     raw_model[29],
@@ -6463,7 +6476,7 @@ async fn native_options_group_case(
                 configuration
             };
             Arc::get_mut(&mut intent).unwrap().background = Some(Arc::new(configuration));
-            if canonical_monitor || discovery_mode != 0 {
+            if canonical_monitor || discovery_mode != 0 && discovery_mode != 12 {
                 let input = Arc::get_mut(&mut intent).unwrap();
                 Arc::make_mut(&mut input.reviewed).definitions.clear();
                 input.source.registrations.clear();
@@ -6831,7 +6844,7 @@ async fn native_options_group_case(
             fixture.stop().await;
             return;
         }
-        if discovery_mode != 0 {
+        if discovery_mode != 0 && !matches!(discovery_mode,11|12) {
             tokio::time::timeout(
                 Duration::from_secs(6),
                 market.wait_ready(Lane::OptionsGlbx, false),
@@ -7152,6 +7165,47 @@ async fn native_options_group_case(
             fixture.stop().await;
             return;
         }
+        if discovery_mode==12 {
+            market.option_claims().unwrap().configure_and_acquire(111,"monitored-with-pending-background",Scope {
+                options:[43].into_iter().collect(),monitored:[43].into_iter().collect(),caches:vec![],
+            },Lifetime::Durable).unwrap();
+            tokio::time::timeout(Duration::from_secs(6),market.wait_ready(Lane::OptionsGlbx,true)).await.unwrap().unwrap();
+            let view=market.options_current().expect("Monitored source blocked by unrelated background quote");
+            assert!(view.queries.raw_prices(43).unwrap().unwrap().quote.is_some());
+            assert!(view.cache_scopes.is_empty(),"Missing background underlying produced cache coverage");
+            let generation=view.header.generation;
+            tokio::time::sleep(Duration::from_millis(1200)).await;
+            assert_eq!(market.options_current().unwrap().header.generation,generation,"Missing background prices replaced a monitored feed");
+            assert!(!sibling.cancellation().is_cancelled());
+            market.stop_feeds().unwrap();market.wait_feeds_stopped().await.unwrap();
+            market.shutdown(Deadline::recovery()).await.unwrap();
+            drop(sibling);root.stop().unwrap();root.wait_idle(&CancellationToken::new(),Deadline::recovery()).await.unwrap();
+            assert!(root.disposable().unwrap());fixture.await_closed().await;
+            stop.cancel();server.await.unwrap();http_server.await.unwrap();fixture.stop().await;
+            return;
+        }
+        if discovery_mode==11 {
+            tokio::time::timeout(Duration::from_secs(6),market.wait_ready(Lane::OptionsGlbx,true)).await.unwrap().unwrap();
+            tokio::time::timeout(Duration::from_secs(3),async {
+                while fixture.accepted.load(Ordering::SeqCst)==0 {tokio::task::yield_now().await;}
+            }).await.unwrap();
+            let identity=market.publication_identity(Lane::OptionsGlbx).unwrap();
+            // Cross the actual dataset recovery deadline with live heartbeats
+            // and no underlying prices. This must remain business unavailability.
+            tokio::time::sleep(Duration::from_secs(125)).await;
+            assert!(market.options_current().is_none(),"Missing prices must not fabricate a background cache");
+            let status=market.health(Lane::OptionsGlbx).status();
+            assert_eq!(status.phase,ifm_market_data_native::runtime::recovery::Phase::Running,"{status:?}");
+            assert_eq!(market.publication_identity(Lane::OptionsGlbx).unwrap().generation,identity.generation);
+            assert_eq!(fixture.accepted.load(Ordering::SeqCst),1,"Quiet optional prices restarted a provider");
+            assert!(!sibling.cancellation().is_cancelled());
+            market.stop_feeds().unwrap();market.wait_feeds_stopped().await.unwrap();
+            market.shutdown(Deadline::recovery()).await.unwrap();
+            drop(sibling);root.stop().unwrap();root.wait_idle(&CancellationToken::new(),Deadline::recovery()).await.unwrap();
+            assert!(root.disposable().unwrap());fixture.await_closed().await;
+            stop.cancel();server.await.unwrap();http_server.await.unwrap();fixture.stop().await;
+            return;
+        }
         if populated_background {
             tokio::time::timeout(
                 Duration::from_secs(6),
@@ -7165,7 +7219,9 @@ async fn native_options_group_case(
                 )
             })
             .unwrap();
-            assert!(market.options_current().is_some());
+            tokio::time::timeout(Duration::from_secs(6),async {
+                while market.options_current().is_none() {tokio::task::yield_now().await;}
+            }).await.expect("Available background coverage never became active");
             // This fixture has only one call, so there is no executable condor.
             // Fully priced no-candidate output must be explicit and must not
             // cause the availability watchdog to rebuild a healthy dataset.

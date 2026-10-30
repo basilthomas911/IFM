@@ -5,13 +5,13 @@ pub(super) struct Monitor{
  pub history:History,pub realtime:Realtime,pub selected:Option<Json>,pub observations:BTreeMap<String,Json>,pub limits:Json,pub balance:Json,
  pub live:bool,pub collecting:bool,pub starting:bool,pub market_stopped:bool,pub cleanup_unconfirmed:bool,pub status:String,pub last_feed_at:Option<chrono::DateTime<chrono::Utc>>,
  pub detail_generation:u64,pub chart_generation:u64,pub chart_loading:bool,pub observations_loading:bool,pub observations_error:String,
- pub plan_date:chrono::NaiveDate,pub page:Option<Json>,pub live_plans:BTreeMap<(i64,i64),Json>,pub chart:Json,pub chart_error:String,pub plan_error:String,
+ pub plan_date:chrono::NaiveDate,pub page:Option<Json>,pub live_plans:BTreeMap<(i64,i64),Json>,pub chart:Option<crate::models::trade_chart::TradeChartSeries>,pub chart_error:String,pub plan_error:String,
 }
 fn flag(value:bool)->String{if value{"True"}else{"False"}.into()}
 impl Monitor{
  pub fn new(request:OpenRequest,trade:Json,context:BusinessContext)->Result<Self,String>{
   let realtime=Realtime::new(request.scope,context.value_date,&trade)?;let history=History::new(trade.clone(),request.trade_type.clone());
-  Ok(Self{incarnation:uuid::Uuid::new_v4(),scope:request.scope,trade,trade_type:request.trade_type,trade_action:request.trade_action,fund_name:request.fund_name,plan_date:context.value_date,context,history,realtime,detail_generation:0,chart_generation:0,chart_loading:false,observations_loading:false,observations_error:String::new(),selected:None,observations:BTreeMap::new(),limits:Json::Null,balance:Json::Null,live:false,collecting:false,starting:false,market_stopped:false,cleanup_unconfirmed:false,status:String::new(),last_feed_at:None,page:None,live_plans:BTreeMap::new(),chart:Json::Null,chart_error:String::new(),plan_error:String::new()})
+  Ok(Self{incarnation:uuid::Uuid::new_v4(),scope:request.scope,trade,trade_type:request.trade_type,trade_action:request.trade_action,fund_name:request.fund_name,plan_date:context.value_date,context,history,realtime,detail_generation:0,chart_generation:0,chart_loading:false,observations_loading:false,observations_error:String::new(),selected:None,observations:BTreeMap::new(),limits:Json::Null,balance:Json::Null,live:false,collecting:false,starting:false,market_stopped:false,cleanup_unconfirmed:false,status:String::new(),last_feed_at:None,page:None,live_plans:BTreeMap::new(),chart:None,chart_error:String::new(),plan_error:String::new()})
  }
  pub fn iron(&self)->bool{self.trade["StrategyKind"]=="IronCondor"}
  pub fn can_live(&self)->bool{self.iron()&&!self.starting&&!self.market_stopped&&!self.cleanup_unconfirmed&&self.trade["Status"]=="Open"&&(self.context.market_state==2||self.context.allow_development_emulator)}
@@ -41,7 +41,7 @@ impl Monitor{
    let plans=if self.live&&!self.live_plans.is_empty(){self.live_plans.values().rev().collect::<Vec<_>>()}else{self.page.as_ref().and_then(|page|page["Items"].as_array()).map(|rows|rows.iter().collect()).unwrap_or_default()};
    for(index,plan)in plans.iter().enumerate(){let mut entry=row("plan",&index.to_string(),display::plan_history(plan))?;entry.fields.insert("actionDateTimeEastern".into(),display::action_time(plan)?);result.rows.push(entry);}
    result.rows.push(row("limits","0",json!({"orderId":self.scope.order,"tradeLimit":display::document(&self.limits),"fundBalance":self.balance}))?);
-   result.rows.push(row("chart","0",json!({"chartEndUtc":self.chart["EndUtc"],"points":display::document(&self.chart["Points"])}))?);
+   result.rows.push(typed_row("chart","0",&crate::models::trade_chart::TradeChartRow::from(self.chart.as_ref()))?);
    let position=if self.live{self.realtime.current.as_ref().map(|v|&v["Position"]).or(self.selected.as_ref())}else{self.selected.as_ref()};
    result.rows.push(row("position-details","0",position.map(display::document).unwrap_or(Json::Null))?);
    if !self.live||self.realtime.current.is_none(){for(index,(key,value))in self.observations.iter().enumerate(){result.rows.push(row("observation",&index.to_string(),json!({"key":key,"value":display::document(value)}))?);}}

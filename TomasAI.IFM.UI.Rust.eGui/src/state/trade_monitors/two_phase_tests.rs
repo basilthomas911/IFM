@@ -10,7 +10,7 @@ fn stored()->data::Monitor{
  let request=OpenRequest{scope,strategy:"IronCondor".into(),trade_type:"ShortIronCondor".into(),trade_action:"Sell".into(),fund_name:"Fixture".into()};
  let mut state=data::Monitor::new(request,fixture("monitor-trade","TomasAI.IFM.Domain.Trade.Shared.EstablishedTradeDefinition"),context).unwrap();
  let positions=fixture("monitor-positions","TomasAI.IFM.Domain.Trade.Shared.StrategyPositionSnapshot[]");state.selected=Some(positions[1].clone());
- state.page=Some(json!({"Items":[fixture("monitor-plan","TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot")],"MaximumRevision":7,"Offset":0,"TotalCount":1}));state.chart=json!({"Points":[],"EndUtc":"2026-10-26T12:30:00Z"});state
+ state.page=Some(json!({"Items":[fixture("monitor-plan","TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot")],"MaximumRevision":7,"Offset":0,"TotalCount":1}));state.chart=Some(crate::models::trade_chart::TradeChartSeries{end_utc:"2026-10-26T12:30:00Z".into(),..Default::default()});state
 }
 fn document(state:&data::Monitor,kind:&str)->Json{
  let mut result=ContractResult::default();state.append(&mut result).unwrap();crate::wire::decode(result.rows.iter().find(|r|r.fields["kind"]==kind).unwrap().data.as_ref().unwrap()).unwrap()

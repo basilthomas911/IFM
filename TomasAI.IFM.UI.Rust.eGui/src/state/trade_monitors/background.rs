@@ -84,7 +84,7 @@ impl Hub {
                 if let Ok(current)=hub.owner(&key_owned){if Arc::ptr_eq(&current,&data){
                     let changed={let mut state=data.lock().map_err(|_|())?;
                         if state.incarnation!=incarnation||state.plan_date!=date||state.chart_generation!=generation{false}
-                        else{state.chart_loading=false;match result{Ok(chart)=>{state.chart=chart;state.chart_error.clear()},Err(error)=>state.chart_error=error}true}};
+                        else{state.chart_loading=false;match result{Ok(chart)=>{state.chart=Some(chart);state.chart_error.clear()},Err(error)=>state.chart_error=error}true}};
                     if changed{let _=hub.publish();}
                 }}
             } outcome

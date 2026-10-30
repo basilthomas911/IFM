@@ -17,6 +17,42 @@ fn fixtures() -> serde_json::Value {
     .unwrap()
 }
 #[test]
+fn background_coverage_plans_ready_underlyings_without_waiting_for_missing_prices() {
+    use std::collections::BTreeMap;
+    let cases=fixtures(); let case=&cases[0];
+    let bytes=STANDARD.decode(case["parameters"].as_str().unwrap()).unwrap();
+    let params=Parameters::new(rmpv::decode::read_value(&mut bytes.as_slice()).unwrap()).unwrap();
+    let definitions=case["rows"].as_array().unwrap().iter().map(|row|Definition {
+        contract:row["contract"].as_str().unwrap(),root:row["root"].as_str().unwrap(),
+        underlying:row["underlying"].as_str().unwrap(),strike:decimal::parse(row["strike"].as_str().unwrap()).unwrap(),
+        expiration:row["expiration"].as_u64(),
+    }).collect::<Vec<_>>();
+    let date=time::Date::from_julian_day(case["date"].as_i64().unwrap() as i32+1721426).unwrap();
+    let forward=decimal::parse(case["steps"][0]["forward"].as_str().unwrap()).unwrap();
+    let planner=Planner::default();
+    let run=|prices:&BTreeMap<String,_>,partial:bool| {
+        let zone=Zone::new(case["zone"].as_str().unwrap()).unwrap();
+        if partial {planner.plan_available(&params,date,&definitions,true,forward,case["iv"].as_f64().unwrap(),zone,Some(prices),&CancellationToken::new(),Deadline::recovery()).unwrap()}
+        else {planner.plan(&params,date,&definitions,true,forward,case["iv"].as_f64().unwrap(),zone,Some(prices),&CancellationToken::new(),Deadline::recovery()).unwrap()}
+    };
+    let mut prices=BTreeMap::new();
+    assert!(run(&prices,true).universes.is_empty());
+    for underlying in ["ES20261218","ES20270319"] {
+        prices.clear();prices.insert(underlying.into(),forward);
+        let partial=run(&prices,true);
+        assert_eq!(partial.reason,"");
+        assert!(!partial.universes.is_empty(),"Ready underlying was blocked: {underlying}");
+        assert!(partial.universes.iter().all(|u|u.underlying==underlying));
+        assert_eq!(run(&prices,false).reason,"CoverageInputsUnavailable","Complete-scope contract must remain unchanged");
+    }
+    prices.insert("ES20261218".into(),forward);
+    let complete=run(&prices,false);let partial=run(&prices,true);
+    assert_eq!(partial.reason,complete.reason);
+    assert_eq!(partial.universes.iter().map(|u|(&u.scope,&u.contracts)).collect::<Vec<_>>(),complete.universes.iter().map(|u|(&u.scope,&u.contracts)).collect::<Vec<_>>());
+    prices.insert("ES20270319".into(),decimal::parse("0").unwrap());
+    assert!(run(&prices,true).universes.iter().all(|u|u.underlying=="ES20261218"));
+}
+#[test]
 fn all_current_csharp_universe_memberships_scope_ids_and_failure_modes_match() {
     let cases = fixtures();
     assert_eq!(cases.as_array().unwrap().len(), 21);

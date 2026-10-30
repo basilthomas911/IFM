@@ -610,6 +610,18 @@ impl Run {
                     }
                     let state = changes.borrow_and_update().clone();
                     if let Some(error) = state.error {
+                        // Pending background coverage can become ready while
+                        // there is no physical option session yet. Carry its
+                        // resolved recipe across the idle-to-active handoff;
+                        // never restart quote acquisition from an empty snapshot.
+                        if let Some(source)=state.replacement {
+                            let physical=background.committed_book()?.map(|book|book.physical_signature()).transpose()?;
+                            *self.realized.lock().map_err(|_|"Native reconstruction recipe interrupted")?=Some(Recipe {
+                                desired:Arc::downgrade(&self.intent),
+                                source:Arc::new(Intent {background:None,..(*source).clone()}),
+                                physical,
+                            });
+                        }
                         *self
                             .retirement
                             .lock()

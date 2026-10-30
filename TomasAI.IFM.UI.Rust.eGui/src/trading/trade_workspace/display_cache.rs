@@ -67,6 +67,8 @@ pub(super) struct TradeDisplayData {
     pub chart_points: Vec<[f64; 2]>,
     /// Cached recent forward-spread x/y points decoded from the dedicated chart row.
     pub forward_chart_points: Vec<[f64; 2]>,
+    /// Backend chart window end decoded once by the typed chart-row model.
+    pub chart_end_utc_seconds: Option<f64>,
 }
 
 impl TradeDisplayData {
@@ -91,6 +93,15 @@ impl TradeDisplayData {
             ]
             .contains(&kind.as_str())
             {
+                continue;
+            }
+            if kind == "chart" {
+                let chart = row.data.as_ref()
+                    .map(|bytes| crate::models::trade_chart::PreparedTradeChart::from_messagepack(bytes))
+                    .and_then(Result::ok).unwrap_or_default();
+                model.chart_end_utc_seconds = chart.end_utc_seconds;
+                model.chart_points = chart.net;
+                model.forward_chart_points = chart.forward;
                 continue;
             }
             let mut value = data(row);
@@ -130,37 +141,6 @@ impl TradeDisplayData {
                 }
                 model.has_action_reason |= !plan["actionReason"].is_null();
                 model.plans.push(plan);
-            }
-            if kind == "chart" {
-                if let Some(points) = value["points"].as_array() {
-                    for point in points {
-                        if let (Some(price), Some(at)) = (
-                            point["netSpread"].as_f64().or_else(|| {
-                                point["netSpread"]
-                                    .as_str()
-                                    .and_then(|value| value.parse().ok())
-                            }),
-                            point["atUtc"].as_str(),
-                        ) {
-                            if let Ok(at) = chrono::DateTime::parse_from_rfc3339(at) {
-                                model
-                                    .chart_points
-                                    .push([at.timestamp_millis() as f64 / 1000., price]);
-                                if let Some(forward) =
-                                    point["forwardSpread"].as_f64().or_else(|| {
-                                        point["forwardSpread"]
-                                            .as_str()
-                                            .and_then(|value| value.parse().ok())
-                                    })
-                                {
-                                    model
-                                        .forward_chart_points
-                                        .push([at.timestamp_millis() as f64 / 1000., forward]);
-                                }
-                            }
-                        }
-                    }
-                }
             }
             model.groups.entry(kind.clone()).or_default().push(value);
         }

@@ -310,3 +310,69 @@ Intake hands bounded latest snapshots to a separate GUI relay, so painting canno
 block console reception. Repeated sidebar snapshots coalesce before GUI delivery.
 Warnings occupy one replaceable row and cannot evict recovery deduplication identities.
 Only an actual disconnected-to-connected transition initiates connection refresh work.
+
+### Typed presentation models and repeatable CPU benchmarks
+
+The migration starts with the live trade path, followed by the remaining screens.
+MessagePack remains the backend transport. Concrete Rust records replace generic
+JSON trees in controllers/publications/rendering; financial calculations remain
+on the backend. Configuration and readable diagnostic logs remain JSON.
+
+The first converted slice is spread-chart history: `TradeChartSeries` decodes the
+actual backend array contract, the monitor retains that typed series, and
+`TradeChartRow`/`PreparedTradeChart` replace generic JSON chart publication and
+plot preparation. Existing decimal text, timestamps, six-hour bounds, 100,000-point
+capacity, ordering and invalid-cell display behavior are covered by parity tests.
+The source wire slots are checked against the exported C# contract schema. Current
+chart rows use MessagePack directly; no JSON fallback was added to this path.
+
+This does **not** finish the live-trade migration. Next are typed plan/realtime
+records and identity/revision fences, stored position history, live Greeks/P&L
+display inputs and native per-trade publications. After those pass parity and
+performance gates, migrate market outlook, operations/actor health, strategy,
+portfolio, reference editors and the remaining native controllers. Arbitrary
+property-inspection trees require an explicit typed inspection schema, rather
+than renaming a generic JSON map. Do not claim the entire UI is typed while these
+paths still retain `serde_json::Value`.
+
+Criterion 0.8.2 is pinned as a development-only dependency. From this directory:
+
+```powershell
+# Run once before a model change, preserving the original named baseline.
+cargo bench --locked --profile development --bench ui_models -- --save-baseline before_typed_structs
+# Compare subsequent runs of the same production benchmark IDs/profile.
+cargo bench --locked --profile development --bench ui_models -- --baseline before_typed_structs
+# Compare the frozen previous chart algorithm and the current typed path together.
+cargo bench --locked --profile development --bench ui_models -- ui_models/chart_decode
+```
+
+The backend-to-display cases use committed synthetic C# plan/realtime fixtures.
+Publication preparation covers 1 and 100 plan rows, with a fresh publication each
+iteration so `OnceLock` cache hits cannot hide conversion costs. Chart comparisons
+use identical 100/10,000-point MessagePack inputs and assert identical prepared
+coordinates before measuring. The old chart implementation exists only in test/
+benchmark support, not in the executable's production path.
+
+Keep machine, toolchain, profile, fixtures and benchmark settings constant. The
+initial run uses 30 samples, a one-second warmup and at least three seconds of
+measurement. Criterion writes estimates/confidence intervals under `target/criterion`.
+These isolate CPU conversion/preparation costs: network, database, GPU rendering
+and registry initialization are excluded. They do not prove faster cold trade
+loading or live-feed latency. Keep end-to-end load diagnostics and UI parity tests
+as separate acceptance gates. See the [Criterion documentation](https://docs.rs/criterion/0.8.2/criterion/).
+
+Initial comparison on 2026-10-30 (Windows, rustc 1.97.1, `development` profile):
+
+| Chart points | Previous JSON mean | Typed mean | Ratio |
+| --- | --- | --- | --- |
+| 100 | 134.64 microseconds | 48.27 microseconds | 2.79x |
+| 10,000 | 23.868 milliseconds | 4.584 milliseconds | 5.21x |
+
+The first untagged-enum prototype regressed the small case. The final decoder
+uses direct Serde visitors, avoiding buffering/retrying each cell and point.
+The numbers above are means from the final same-input comparison, not overall UI
+speedups. Raw estimates and 95% confidence intervals are retained locally in
+`.artifacts/ui-typed-models-20261030/chart-comparison.json`; Criterion's native
+baseline is `typed_chart_v2`. Preserve these records instead of rerunning the
+"before" command over an existing baseline. Full plan/realtime conversion is
+still pending, so no corresponding typed speedup is claimed yet.

@@ -1,0 +1,21 @@
+{
+  "controls": [{"verb":"TradeWorkspaceMode","value":"ResetEmptyCommands"}],
+  "steps": [
+    {"action":"wait","name":"Stop Market Feeds"},
+    {"action":"invoke","name":"Trade Orders","type":"Button","enabled":true},
+    {"action":"wait","name":"Trade Order Editor","type":"Window"},
+    {"action":"invoke","name":"Add Trade...","type":"Button","enabled":true,"scope":"Trade Order Editor"},
+    {"action":"wait","name":"Save","type":"Button","enabled":true,"scope":"Add Trade"},
+    {"action":"snapshot","name":"first-trade-draft","scope":"Add Trade"},
+    {"action":"invoke","name":"Save","type":"Button","enabled":true,"scope":"Add Trade"},
+    {"action":"absent","name":"Add Trade","type":"Window"},
+    {"action":"snapshot","name":"first-trade-saved","scope":"Trade Order Editor"},
+    {"action":"invoke","name":"Add Trade...","type":"Button","enabled":true,"scope":"Trade Order Editor"},
+    {"action":"wait","name":"Save","type":"Button","enabled":true,"scope":"Add Trade"},
+    {"action":"snapshot","name":"second-trade-draft","scope":"Add Trade"},
+    {"action":"invoke","name":"Save","type":"Button","enabled":true,"scope":"Add Trade"},
+    {"action":"absent","name":"Add Trade","type":"Window"},
+    {"action":"snapshot","name":"second-trade-saved","scope":"Trade Order Editor"},
+    {"action":"close"}
+  ]
+}

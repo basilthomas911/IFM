@@ -43,7 +43,7 @@ impl Hub{
    if state.live||state.starting{return Err("Position selection is unavailable while live".into())}
    let selected=state.history.saved(index).ok_or("Select a saved position")?;
    let date=crate::backend::date_input::parse(selected["ValueDate"].as_str().ok_or("Missing saved position date")?)?;
-   if state.plan_date!=date{state.chart=Json::Null;}state.plan_date=date;
+   if state.plan_date!=date{state.chart=None;}state.plan_date=date;
    state.detail_generation+=1;state.selected=Some(selected);state.observations.clear();state.page=None;
    state.observations_loading=true;state.observations_error.clear();
   }
@@ -65,7 +65,7 @@ impl Hub{
  /// A saved-feed Load already reconciles subscriptions. Do not enable them a second time.
  pub(super) async fn change_live(&self,backend:&Backend,registry:&Registry,key:&str,enabled:bool,context:&BusinessContext,deadline:tokio::time::Instant,reconciled:bool)->Result<(),String>{
   let owner=self.owner(key)?;let scope;let chart_needed;
-  {let mut state=owner.lock().map_err(|_|"Monitor lock failed")?;state.context=context.clone();if enabled&&!state.can_live(){return Err("Live feed is unavailable for this trade or API session".into())}if state.starting{return Err("A live-feed change is already running".into())}scope=state.scope;chart_needed=state.plan_date!=context.value_date||(state.chart.is_null()&&!state.chart_loading);state.detail_generation+=1;state.observations_loading=false;state.context=context.clone();state.starting=true;state.collecting=enabled;if enabled{if state.plan_date!=context.value_date{state.chart=Json::Null;}state.plan_date=context.value_date;state.live_plans.clear();state.realtime=crate::state::monitor_cache::Realtime::new(scope,context.value_date,&state.trade)?;}}
+  {let mut state=owner.lock().map_err(|_|"Monitor lock failed")?;state.context=context.clone();if enabled&&!state.can_live(){return Err("Live feed is unavailable for this trade or API session".into())}if state.starting{return Err("A live-feed change is already running".into())}scope=state.scope;chart_needed=state.plan_date!=context.value_date||(state.chart.is_none()&&!state.chart_loading);state.detail_generation+=1;state.observations_loading=false;state.context=context.clone();state.starting=true;state.collecting=enabled;if enabled{if state.plan_date!=context.value_date{state.chart=None;}state.plan_date=context.value_date;state.live_plans.clear();state.realtime=crate::state::monitor_cache::Realtime::new(scope,context.value_date,&state.trade)?;}}
   let _guard=StartGuard{hub:self.clone(),data:owner.clone(),incarnation:owner.lock().map_err(|_|"Monitor lock failed")?.incarnation};
   self.publish()?;
   if enabled&&chart_needed{self.refresh_chart(backend,registry,key,deadline).await?;}

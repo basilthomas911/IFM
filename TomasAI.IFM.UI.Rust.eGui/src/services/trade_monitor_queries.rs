@@ -15,13 +15,17 @@ impl Scope{
  pub fn position(self,strategy:&str)->Result<(String,Json),String>{let purpose=match strategy{"IronCondor"|"VerticalSpread"=>"strategy-position","FuturesOutright"=>"futures-position",_=>return Err("Unsupported established strategy".into())};let key=self.key()?;let id=super::order_submission::stable(&[purpose,&key]);Ok((format!("{key}.{}",id.simple()),json!({"Trade":self.document(),"PositionId":id.to_string()})))}
  pub fn matches(self,id:&Json)->bool{id==&self.document()}
 }
-async fn query(backend:&Backend,registry:&Registry,kind:&str,result:&str,key:&str,mut fields:BTreeMap<String,Value>,deadline:tokio::time::Instant)->Result<Json,String>{
+async fn query_response(backend:&Backend,registry:&Registry,kind:&str,key:&str,mut fields:BTreeMap<String,Value>,deadline:tokio::time::Instant)->Result<Value,String>{
  let allowed=[format!("{ROOT}.Futures.Option.GetIronCondorOptionTradeQuery"),format!("{ROOT}.Futures.Option.GetVerticalSpreadOptionTradeQuery"),format!("{ROOT}.Futures.GetFuturesTradeQuery"),format!("{ROOT}.Futures.Option.Position.GetIronCondorOptionTradePositionHistoryQuery"),format!("{ROOT}.Trade.Realtime.GetTradeRealtimeSnapshotQuery"),format!("{ROOT}.Queries.GetTradeLimitQuery"),format!("{ROOT}.Trade.Position.Plan.GetCurrentIronCondorTradePlanQuery"),format!("{ROOT}.Trade.Position.Plan.GetIronCondorTradePlanHistoryQuery"),format!("{ROOT}.Trade.Position.Plan.GetIronCondorTradePlanChartQuery"),"TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries.GetLastFuturesOptionTickDataQuery".into()];
  if !allowed.iter().any(|value|value==kind){return Err("Unsupported monitor query".into())}
  let route=if kind.ends_with(".GetIronCondorOptionTradePositionHistoryQuery"){("FuturesOptionTradePositionQuery","GetIronCondorOptionTradePositionHistory")}else{registry.route(kind)?};
  let subject=ActorSubject::query(route.0,route.1,key);
  fields.insert("Subject".into(),subject.wire());fields.entry("EntityId".into()).or_insert_with(||Value::Array(vec![0.into(),Value::Array(vec!["none".into()])]));
  let response=backend.request_until(&subject,&registry.encode(kind,&fields)?,deadline,None).await?;
+ Ok(response)
+}
+async fn query(backend:&Backend,registry:&Registry,kind:&str,result:&str,key:&str,fields:BTreeMap<String,Value>,deadline:tokio::time::Instant)->Result<Json,String>{
+ let response=query_response(backend,registry,kind,key,fields,deadline).await?;
  super::monitor_display::named(registry,result,service_result(&response)?)
 }
 pub async fn established(backend:&Backend,registry:&Registry,scope:Scope,strategy:&str,deadline:tokio::time::Instant)->Result<Json,String>{
@@ -50,14 +54,10 @@ pub async fn plan_page(backend:&Backend,registry:&Registry,scope:Scope,date:chro
  let rows=result["Items"].as_array().filter(|v|v.len()<=size as usize).ok_or("Invalid Trade Plan history page")?;
  if rows.iter().any(|row|row["Position"]["Id"]!=id||row["ValueDate"]!=date.to_string())||maximum.is_some_and(|n|result["MaximumRevision"]!=n)||result["Offset"]!=offset{return Err("Trade Plan page crossed its requested scope or revision cut".into())}Ok(result)
 }
-pub async fn chart(backend:&Backend,registry:&Registry,scope:Scope,date:chrono::NaiveDate,deadline:tokio::time::Instant)->Result<Json,String>{
- let(key,plan,_)=plan_scope(registry,scope,date)?;let result=query(backend,registry,&format!("{ROOT}.Trade.Position.Plan.GetIronCondorTradePlanChartQuery"),&format!("{ROOT}.Trade.Position.Plan.StrategyTradePlanChartSeries"),&key,BTreeMap::from([("PlanId".into(),plan)]),deadline).await?;
- let points=result["Points"].as_array().filter(|v|v.len()<=100000).ok_or("Invalid bounded chart history")?;
- let instant=|v:&Json|v.as_str().and_then(|s|chrono::DateTime::parse_from_rfc3339(s).ok()).map(|v|v.to_utc()).ok_or("Invalid chart timestamp");
- let start=instant(&result["StartUtc"])?;let end=instant(&result["EndUtc"])?;
- if end<start||end-start>chrono::Duration::hours(6){return Err("Chart history crossed its six-hour backend window".into())}
- let mut previous=None;for point in points{let at=instant(&point["AtUtc"])?;if at<start||at>end||previous.is_some_and(|p|at<p){return Err("Chart points crossed or reordered the backend window".into())}previous=Some(at);}
- Ok(result)
+pub async fn chart(backend:&Backend,registry:&Registry,scope:Scope,date:chrono::NaiveDate,deadline:tokio::time::Instant)->Result<crate::models::trade_chart::TradeChartSeries,String>{
+ let(key,plan,_)=plan_scope(registry,scope,date)?;
+ let result=query_response(backend,registry,&format!("{ROOT}.Trade.Position.Plan.GetIronCondorTradePlanChartQuery"),&key,BTreeMap::from([("PlanId".into(),plan)]),deadline).await?;
+ crate::models::trade_chart::TradeChartSeries::from_backend(service_result(&result)?)
 }
 pub async fn limits(backend:&Backend,registry:&Registry,scope:Scope,deadline:tokio::time::Instant)->Result<Json,String>{
  // The managed query constructor rebuilds its typed parameter from TradeId.

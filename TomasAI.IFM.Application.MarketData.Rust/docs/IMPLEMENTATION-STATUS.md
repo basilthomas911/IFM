@@ -1,5 +1,26 @@
 # Implementation and lifecycle qualification status
 
+## 2026-10-30: background coverage no longer waits in options startup
+
+Missing underlying quotes are observed by a separate, cancellable native worker.
+Monitored option subscriptions resolve without awaiting that worker. Background
+planning admits independently priced underlying groups and leaves missing groups
+pending; the explicit complete-chain planner keeps its existing failure contract.
+Timestamp validation remains mandatory. Previously acquired background contracts
+are retained while their underlying price is unavailable, subject to current
+source membership. Provider setup failures retry within the optional observer;
+quiet market data does not create a dataset recovery deadline.
+
+Availability changes wake coalesced background planning; ordinary price drift
+uses the existing maintenance cadence. Idle-to-active coverage carries its
+resolved reconstruction recipe across the supervisor handoff.
+
+Limitation: provider subscription membership is still immutable. An actual change
+in selected contracts uses the existing controlled physical-session replacement.
+This is not an implementation of incremental subscribe/unsubscribe on a live
+socket. Live deployment and provider qualification are separate from isolated
+native tests.
+
 Date: 2026-10-27
 
 Status: **DBNMETA-001 addressed for live/historical/file metadata paths by bounded streaming.

@@ -167,6 +167,7 @@ impl TradeController {
                         &context,
                         &order,
                         self.prepared_trade.ok_or("Open Add Trade first")?,
+                        self.data.trades.is_empty(),
                         trade_type,
                         &contract,
                         effective,

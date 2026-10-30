@@ -12,7 +12,7 @@ async fn monitor_queries_and_feed_intent_use_exact_identity_api_dates_and_existi
  assert_eq!(api::current_plan(&b,&r,scope,context.value_date,deadline()).await.unwrap().unwrap()["PlanRevision"],7);
  let page=api::plan_page(&b,&r,scope,context.value_date,0,100,None,deadline()).await.unwrap();assert_eq!(page["MaximumRevision"],7);
  assert!(api::plan_page(&b,&r,scope,context.value_date,0,100,Some(7),deadline()).await.is_ok());
- let chart=api::chart(&b,&r,scope,context.value_date,deadline()).await.unwrap();assert_eq!(chart["Points"][0]["NetSpread"],"-15");
+ let chart=api::chart(&b,&r,scope,context.value_date,deadline()).await.unwrap();assert_eq!(chart.points[0].net_spread,"-15");
  let client=Client::new(b.clone(),"nativecompat").unwrap();assert!(!client.invoke(Action::Load,scope,&context,uuid::Uuid::new_v4(),deadline()).await.unwrap());assert!(client.invoke(Action::Enable,scope,&context,uuid::Uuid::new_v4(),deadline()).await.unwrap());assert!(client.invoke(Action::Load,scope,&context,uuid::Uuid::new_v4(),deadline()).await.unwrap());assert!(client.invoke(Action::Disable,scope,&context,uuid::Uuid::new_v4(),deadline()).await.unwrap());assert!(!client.invoke(Action::Load,scope,&context,uuid::Uuid::new_v4(),deadline()).await.unwrap());
  control(&b,"MonitorMode","WrongScope".into()).await;assert!(api::established(&b,&r,scope,"IronCondor",deadline()).await.is_err());
  control(&b,"MonitorMode","WrongCut".into()).await;assert!(api::plan_page(&b,&r,scope,context.value_date,0,100,Some(7),deadline()).await.is_err());

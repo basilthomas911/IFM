@@ -94,6 +94,8 @@ pub struct SidebarView {
     last_dialog_sequence: u64,
     /// Optional currently displayed error-dialog text.
     error_dialog: Option<(String, crate::status_dialog::Severity)>,
+    /// Monotonic expiry for warnings and successes; errors require acknowledgement.
+    notification_expires_at: Option<std::time::Instant>,
 }
 impl SidebarPublication {
     /// Borrow the latest published status message, or None when status history is empty.
@@ -106,16 +108,28 @@ impl SidebarView {
     /// Keep one current notification. Newer outcomes replace the open dialog;
     /// acknowledging it never reveals an older retained error or outcome.
     fn observe_dialog(&mut self, snapshot: &SidebarPublication) {
+        self.observe_dialog_at(snapshot, std::time::Instant::now());
+    }
+    /// Starts expiry only for a new non-error identity. Keeping the sequence after
+    /// dismissal prevents an unchanged publication from reopening the notification.
+    fn observe_dialog_at(&mut self, snapshot: &SidebarPublication, now: std::time::Instant) {
         let outcome = snapshot.outcome_dialogs.iter().max_by_key(|notice| notice.sequence);
         let error_sequence = if snapshot.error.is_empty() { 0 } else { snapshot.error_sequence };
         if let Some(notice) = outcome.filter(|notice| notice.sequence > error_sequence) {
             if notice.sequence > self.last_dialog_sequence {
                 self.last_dialog_sequence = notice.sequence;
                 self.error_dialog = Some((notice.message.clone(), notice.severity));
+                self.notification_expires_at = (notice.severity != crate::status_dialog::Severity::Error)
+                    .then_some(now + std::time::Duration::from_secs(10));
             }
         } else if error_sequence > self.last_dialog_sequence {
             self.last_dialog_sequence = error_sequence;
             self.error_dialog = Some((snapshot.error.clone(), crate::status_dialog::Severity::Error));
+            self.notification_expires_at = None;
+        }
+        if self.notification_expires_at.is_some_and(|deadline| now >= deadline) {
+            self.error_dialog = None;
+            self.notification_expires_at = None;
         }
     }
     /// Render the economic-calendar tabs, filters, rows, and selected details; return the numeric action for a user query/selection.
@@ -312,9 +326,16 @@ impl SidebarView {
             },
         );
         self.observe_dialog(snapshot);
+        if let Some(deadline) = self.notification_expires_at {
+            // Wake an otherwise idle UI at expiry; no polling or backend timer.
+            ui.ctx().request_repaint_after(deadline.saturating_duration_since(std::time::Instant::now()));
+        }
         if let Some((message,severity)) = self.error_dialog.clone() {
             egui::Modal::new(egui::Id::new("calendar-error-dialog")).show(ui.ctx(), |ui| {
-                if crate::status_dialog::body(ui,&message,severity).acknowledged { self.error_dialog=None; }
+                if crate::status_dialog::body(ui,&message,severity).acknowledged {
+                    self.error_dialog=None;
+                    self.notification_expires_at=None;
+                }
             });
         }
         action
@@ -484,6 +505,65 @@ fn navigate(ui: &egui::Ui, selected: Option<usize>, count: usize, page: usize) -
 mod latest_dialog_tests {
     use super::*;
     use crate::status_dialog::{Notice, Severity};
+
+    fn notice(sequence: u64, severity: Severity) -> SidebarPublication {
+        SidebarPublication {outcome_dialogs: vec![Notice {sequence, message: format!("Notice {sequence}"), severity}], ..Default::default()}
+    }
+
+    #[test]
+    fn warnings_and_successes_close_at_ten_seconds_without_reopening() {
+        for severity in [Severity::Warning, Severity::Success] {
+            let mut view = SidebarView::default();
+            let publication = notice(1, severity);
+            let start = std::time::Instant::now();
+            view.observe_dialog_at(&publication, start);
+            view.observe_dialog_at(&publication, start + std::time::Duration::from_millis(9999));
+            assert!(view.error_dialog.is_some());
+            view.observe_dialog_at(&publication, start + std::time::Duration::from_secs(10));
+            assert!(view.error_dialog.is_none());
+            assert!(view.notification_expires_at.is_none());
+            view.observe_dialog_at(&publication, start + std::time::Duration::from_secs(20));
+            assert!(view.error_dialog.is_none());
+        }
+    }
+
+    #[test]
+    fn replacement_notifications_receive_their_own_full_ten_seconds() {
+        for severity in [Severity::Warning, Severity::Success] {
+            let mut view = SidebarView::default();
+            let start = std::time::Instant::now();
+            view.observe_dialog_at(&notice(1, Severity::Warning), start);
+            let replacement = notice(2, severity);
+            view.observe_dialog_at(&replacement, start + std::time::Duration::from_secs(9));
+            view.observe_dialog_at(&replacement, start + std::time::Duration::from_secs(10));
+            assert_eq!(view.error_dialog.as_ref().unwrap().0, "Notice 2");
+            view.observe_dialog_at(&replacement, start + std::time::Duration::from_secs(19));
+            assert!(view.error_dialog.is_none());
+            view.observe_dialog_at(&notice(1, Severity::Warning), start + std::time::Duration::from_secs(20));
+            assert!(view.error_dialog.is_none());
+        }
+    }
+
+    #[test]
+    fn notification_timer_cannot_close_a_replacement_error() {
+        for severity in [Severity::Warning, Severity::Success] {
+            let mut view = SidebarView::default();
+            let start = std::time::Instant::now();
+            view.observe_dialog_at(&notice(1, severity), start);
+            let replacement = notice(2, Severity::Error);
+            view.observe_dialog_at(&replacement, start + std::time::Duration::from_secs(9));
+            view.observe_dialog_at(&replacement, start + std::time::Duration::from_secs(60));
+            assert_eq!(view.error_dialog, Some(("Notice 2".into(), Severity::Error)));
+            assert!(view.notification_expires_at.is_none());
+        }
+        let mut view = SidebarView::default();
+        let start = std::time::Instant::now();
+        view.observe_dialog_at(&notice(1, Severity::Success), start);
+        let failure = SidebarPublication {error: "Fatal".into(), error_sequence: 2, ..Default::default()};
+        view.observe_dialog_at(&failure, start + std::time::Duration::from_secs(9));
+        view.observe_dialog_at(&failure, start + std::time::Duration::from_secs(60));
+        assert_eq!(view.error_dialog, Some(("Fatal".into(), Severity::Error)));
+    }
 
     #[test]
     fn latest_outcome_replaces_open_error_and_acknowledgement_has_no_backlog() {

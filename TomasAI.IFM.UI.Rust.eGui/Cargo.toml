@@ -27,7 +27,12 @@ default = ["desktop"]
 desktop = []
 visual-tests = []
 [dev-dependencies]
+criterion = { version = "=0.8.2", default-features = false, features = ["cargo_bench_support"] }
 egui_kittest = { version = "=0.32.3", features = ["wgpu", "snapshot"] }
+
+[[bench]]
+name = "ui_models"
+harness = false
 
 [[bin]]
 name = "ifm-ui-egui"

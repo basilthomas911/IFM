@@ -392,7 +392,7 @@ impl TradeWorkspace {
             .resizable(false)
             .fixed_size(match kind.as_str() {
                 "create-order" => egui::vec2(721., 350.) / scale,
-                "create-trade" => egui::vec2(621., 382.) / scale,
+                "create-trade" => egui::vec2(621., 310.) / scale,
                 _ => egui::vec2(420., 180.),
             })
             .anchor(

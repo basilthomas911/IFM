@@ -905,7 +905,11 @@ impl TradeWorkspace {
             );
         }
         for (i, label) in labels.iter().enumerate() {
-            let y = if order { 12. } else { 2. } + i as f32 * row_height;
+            if !order && label.is_empty() {
+                continue;
+            }
+            let row = if !order && i > 4 { i - 1 } else { i };
+            let y = if order { 12. } else { 2. } + row as f32 * row_height;
             at(
                 ui,
                 rect(o, p, label_x, y, value_x - label_x - 8., 26.),
@@ -1093,7 +1097,7 @@ impl TradeWorkspace {
             });
         }
         let mut action = None;
-        let y = if order { 307. } else { 336. };
+        let y = if order { 307. } else { 272. };
         let x = if order { 547. } else { 239. };
         for (label, offset) in [("Save", 0.), ("Cancel", 85.)] {
             let r = rect(o, p, x + offset, y, 77., 30.);
@@ -1125,10 +1129,16 @@ impl TradeWorkspace {
                 });
             }
         }
-        ui.allocate_space(egui::vec2(
-            ui.available_width(),
-            if order { 350. } else { 382. } / p,
-        ));
+        if order {
+            ui.allocate_space(egui::vec2(ui.available_width(), 350. / p));
+        } else {
+            // The positioned controls already advance the cursor. Reserve the
+            // dialog bounds from its origin instead of adding another full height.
+            ui.allocate_rect(
+                egui::Rect::from_min_size(o, egui::vec2(621., 310.) / p),
+                egui::Sense::hover(),
+            );
+        }
         action
     }
 }
