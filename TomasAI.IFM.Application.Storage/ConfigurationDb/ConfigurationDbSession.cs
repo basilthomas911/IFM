@@ -1,3 +1,4 @@
+using TomasAI.IFM.Framework.Storage.Postgres;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
@@ -9,7 +10,7 @@ internal sealed class ConfigurationDbSession(NpgsqlConnection connection,NpgsqlT
     NpgsqlCommand Command(string sql,object?[] values)
     {
         var command=new NpgsqlCommand(sql,connection,transaction) { CommandTimeout = 0 };
-        foreach(var value in values) command.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Create(value));
+        foreach(var value in values) PostgresValueBinding.AddParameter(command, value);
         return command;
     }
     public async Task<int> ExecuteAsync(string sql,object?[] parameters,CancellationToken token, PostgresQueryTimeout? timeout = null)

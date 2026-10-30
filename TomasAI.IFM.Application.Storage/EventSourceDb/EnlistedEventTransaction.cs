@@ -1,8 +1,9 @@
+using TomasAI.IFM.Framework.Storage.Postgres;
 
 using TomasAI.IFM.Application.Storage.EventSourceDb.Diagnostics;
 using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using Npgsql;
-using NpgsqlTypes;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
@@ -119,7 +120,7 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
             ?? await ScalarAsync(EventSourceDbSql.InsertEventNameId, [identity.EventName, identity.EventTypeName], cancellationToken).ConfigureAwait(false))!;
         using var serializeTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.serialize");
         var payloadBytes = eventLogCodec.Serialize(domainEvent);
-        var payload = new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Bytea, Value = payloadBytes };
+        var payload = BindValues.Bytea(payloadBytes);
         serializeTrace?.SetTag("event.payload.bytes", payloadBytes.Length);
         serializeTrace?.Stop();
         using var insertTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.insert");
@@ -149,7 +150,7 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
     {
         var command = new NpgsqlCommand(eventLogSqlLayout.Resolve(sql), connection, transaction) { CommandTimeout = 0 };
         foreach (var parameter in parameters)
-            command.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Create(parameter));
+            PostgresValueBinding.AddParameter(command, parameter);
         return command;
     }
 

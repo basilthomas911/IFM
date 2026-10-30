@@ -2,7 +2,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Threading.Channels;
 using Npgsql;
-using NpgsqlTypes;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -266,7 +266,6 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
         return _connection;
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql documents Array and Range as modifiers that must be combined with the element type using bitwise OR; these values describe PostgreSQL parameter types.")]
     static async Task<Dictionary<long, long>> LockStreamsAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -282,7 +281,7 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
             FOR UPDATE;
             """);
         await using var commandDisposal = command.ConfigureAwait(false);
-        EventLogAppenderSupport.Add(command, ids, NpgsqlDbType.Array | NpgsqlDbType.Bigint);
+        EventLogAppenderSupport.Add(command, ids);
         var current = new Dictionary<long, long>(ids.Length);
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await using var readerDisposal = reader.ConfigureAwait(false);
@@ -316,7 +315,6 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
         return planned;
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql documents Array and Range as modifiers that must be combined with the element type using bitwise OR; these values describe PostgreSQL parameter types.")]
     static async Task UpdateStreamVersionsAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -331,8 +329,8 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
             WHERE stream.EventStreamId = updates.EventStreamId;
             """);
         await using var commandDisposal = command.ConfigureAwait(false);
-        EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Key).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Bigint);
-        EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Value).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Bigint);
+        EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Key).ToArray());
+        EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Value).ToArray());
         if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != ordered.Length)
             throw new InvalidOperationException("Not every event stream version was reserved.");
     }
@@ -347,7 +345,7 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
         var command = EventLogAppenderSupport.Command(connection, transaction,
             "SELECT nextval('public.event_log_eventversion_seq') FROM generate_series(1, $1);");
         await using var commandDisposal = command.ConfigureAwait(false);
-        EventLogAppenderSupport.Add(command, count, NpgsqlDbType.Integer);
+        EventLogAppenderSupport.Add(command, BindValues.Integer(count));
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await using var readerDisposal = reader.ConfigureAwait(false);
         foreach (var request in planned)
@@ -377,14 +375,9 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
                 var source = request.Pending.Request;
                 var entry = source.Events[index];
                 var assignment = request.Assignments[index];
-                await importer.StartRowAsync(cancellationToken).ConfigureAwait(false);
-                await importer.WriteAsync(source.EventStreamId, NpgsqlDbType.Bigint, cancellationToken).ConfigureAwait(false);
-                await importer.WriteAsync(entry.EventNameId, NpgsqlDbType.Integer, cancellationToken).ConfigureAwait(false);
-                await importer.WriteAsync(assignment.EventVersion, NpgsqlDbType.Bigint, cancellationToken).ConfigureAwait(false);
-                await importer.WriteAsync(assignment.StreamVersion, NpgsqlDbType.Bigint, cancellationToken).ConfigureAwait(false);
-                await importer.WriteAsync(entry.Payload, NpgsqlDbType.Bytea, cancellationToken).ConfigureAwait(false);
-                await importer.WriteAsync(source.CommandId, NpgsqlDbType.Uuid, cancellationToken).ConfigureAwait(false);
-                await importer.WriteAsync($"{source.EventTimestampUtc:o}", NpgsqlDbType.Text, cancellationToken).ConfigureAwait(false);
+                await PostgresValueBinding.WriteRowAsync(importer,
+                    [source.EventStreamId, entry.EventNameId, assignment.EventVersion, assignment.StreamVersion,
+                     entry.Payload, source.CommandId, $"{source.EventTimestampUtc:o}"], cancellationToken).ConfigureAwait(false);
             }
         }
         await importer.CompleteAsync(cancellationToken).ConfigureAwait(false);

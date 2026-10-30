@@ -155,7 +155,7 @@ internal static class SecuritiesDbContextExtensions
             var parameters = context.ToInsertParameters(futuresContract);
             context.EnsureDistinctFuturesContractWrites([futuresContract]);
             List<object> queuedCommands = context.OtherProjectionKeys(futuresContract).Select(key => db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractBySymbolV3 : SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
-                .SetParameters(new DeleteFuturesContractBySymbolV3(key.Symbol, key.Rollover, key.OnTheRun, key.LastTradeDate, key.ContractId) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesContractBySymbolV3(key.Symbol, key.Rollover, key.OnTheRun, key.LastTradeDate, key.ContractId))
                 .QueueCommand()).ToList();
             queuedCommands.AddRange([db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContract)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.InsertFuturesContract : SecuritiesDbCql.InsertFuturesContract)
                 .SetParameters(parameters)
@@ -186,7 +186,7 @@ internal static class SecuritiesDbContextExtensions
             if (string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
             {
                 var commands = futuresContracts.SelectMany(context.OtherProjectionKeys).Select(key => db.Use("NativeSecurities.DeletePreviousSymbolKey", SecuritiesDbSql.DeleteFuturesContractBySymbolV3)
-                .SetParameters(new DeleteFuturesContractBySymbolV3(key.Symbol, key.Rollover, key.OnTheRun, key.LastTradeDate, key.ContractId) { PostgreSql = true })
+                .SetParameters(new DeleteFuturesContractBySymbolV3(key.Symbol, key.Rollover, key.OnTheRun, key.LastTradeDate, key.ContractId))
                 .QueueCommand()).ToList();
                 commands.Add(db.Use("NativeSecurities.InsertContracts", SecuritiesDbSql.InsertFuturesContract)
                 .SetParameters(futuresContracts.Select(context.ToInsertParameters))
@@ -209,7 +209,7 @@ internal static class SecuritiesDbContextExtensions
             {
                 targetMutationSubmissionStarted = true;
                 await (db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractBySymbolV3 : SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
-                .SetParameters(futuresContracts.SelectMany(context.OtherProjectionKeys).Select(key => new DeleteFuturesContractBySymbolV3(key.Symbol, key.Rollover, key.OnTheRun, key.LastTradeDate, key.ContractId) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }))
+                .SetParameters(futuresContracts.SelectMany(context.OtherProjectionKeys).Select(key => new DeleteFuturesContractBySymbolV3(key.Symbol, key.Rollover, key.OnTheRun, key.LastTradeDate, key.ContractId)))
                 .ExecuteCommandAsync())
                 .ConfigureAwait(false);
                 await (db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContract)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.InsertFuturesContract : SecuritiesDbCql.InsertFuturesContract)
@@ -266,14 +266,14 @@ internal static class SecuritiesDbContextExtensions
                 if (!string.Equals(originalContract.ContractId, futuresContract.ContractId, StringComparison.Ordinal) || !string.Equals(originalContract.Symbol, futuresContract.Symbol, StringComparison.Ordinal) || originalContract.LastTradeDate != futuresContract.LastTradeDate)
                 {
                     queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractById)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractById : SecuritiesDbCql.DeleteFuturesContractById)
-                .SetParameters(new DeleteFuturesContractById(originalContract.ContractId, originalContract.Symbol, originalContract.LastTradeDate) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesContractById(originalContract.ContractId, originalContract.Symbol, originalContract.LastTradeDate))
                 .QueueCommand());
                 }
         
                 if (originalProjectionKey != replacementProjectionKey)
                 {
                     queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractBySymbolV3 : SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
-                .SetParameters(new DeleteFuturesContractBySymbolV3(originalContract.Symbol, originalContract.Rollover, originalContract.OnTheRun, originalContract.LastTradeDate, originalContract.ContractId) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesContractBySymbolV3(originalContract.Symbol, originalContract.Rollover, originalContract.OnTheRun, originalContract.LastTradeDate, originalContract.ContractId))
                 .QueueCommand());
                 }
             }
@@ -282,7 +282,7 @@ internal static class SecuritiesDbContextExtensions
                 if (!string.Equals(e.ContractId, futuresContract.ContractId, StringComparison.Ordinal) || !string.Equals(e.Symbol, futuresContract.Symbol, StringComparison.Ordinal) || e.MaturityDate != futuresContract.LastTradeDate)
                 {
                     queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractById)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractById : SecuritiesDbCql.DeleteFuturesContractById)
-                .SetParameters(new DeleteFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate))
                 .QueueCommand());
                 }
         
@@ -305,7 +305,7 @@ internal static class SecuritiesDbContextExtensions
                         if (candidate == replacementProjectionKey)
                             continue;
                         queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractBySymbolV3 : SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
-                .SetParameters(new DeleteFuturesContractBySymbolV3(candidate.Symbol, candidate.Rollover, candidate.OnTheRun, candidate.LastTradeDate, candidate.ContractId) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesContractBySymbolV3(candidate.Symbol, candidate.Rollover, candidate.OnTheRun, candidate.LastTradeDate, candidate.ContractId))
                 .QueueCommand());
                     }
             }
@@ -337,7 +337,7 @@ internal static class SecuritiesDbContextExtensions
             ArgumentNullException.ThrowIfNull(e);
             var db = context.DbFactory.SecuritiesDb;
             List<object> queuedCommands = [db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractById)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractById : SecuritiesDbCql.DeleteFuturesContractById)
-                .SetParameters(new DeleteFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate))
                 .QueueCommand(), ];
             foreach (var rollover in new[]
             {
@@ -355,7 +355,7 @@ internal static class SecuritiesDbContextExtensions
                 )
                 {
                     queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractBySymbolV3 : SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
-                .SetParameters(new DeleteFuturesContractBySymbolV3(e.Symbol, rollover, onTheRun, e.MaturityDate, e.ContractId) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesContractBySymbolV3(e.Symbol, rollover, onTheRun, e.MaturityDate, e.ContractId))
                 .QueueCommand());
                 }
         
@@ -380,7 +380,7 @@ internal static class SecuritiesDbContextExtensions
         {
             ArgumentNullException.ThrowIfNull(e);
             return await (context.DbFactory.SecuritiesDb.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractById)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesContractById : SecuritiesDbCql.GetFuturesContractById)
-                .SetParameters(new GetFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new GetFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate))
                 .ExecuteSingleAsync(SecuritiesDbContext.MapToFuturesContract!))
                 .ConfigureAwait(false);
         }
@@ -394,7 +394,7 @@ internal static class SecuritiesDbContextExtensions
         {
             ArgumentNullException.ThrowIfNull(e);
             return await (context.DbFactory.SecuritiesDb.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractById)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesContractById : SecuritiesDbCql.GetFuturesContractById)
-                .SetParameters(new GetFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new GetFuturesContractById(e.ContractId, e.Symbol, e.MaturityDate))
                 .ExecuteSingleAsync(SecuritiesDbContext.MapToFuturesContract!, cancellationToken))
                 .ConfigureAwait(false);
         }
@@ -511,17 +511,17 @@ internal static class SecuritiesDbContextExtensions
                 if (originalProjectionKey != replacementProjectionKey)
                 {
                     queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContractById)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesOptionContractById : SecuritiesDbCql.DeleteFuturesOptionContractById)
-                .SetParameters(new DeleteFuturesOptionContractById(originalContract.ContractId, originalContract.ContractMonth, originalContract.Symbol, originalContract.OptionType, originalContract.StrikePrice) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesOptionContractById(originalContract.ContractId, originalContract.ContractMonth, originalContract.Symbol, originalContract.OptionType, originalContract.StrikePrice))
                 .QueueCommand());
                     queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesOptionContractBySymbolV2 : SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2)
-                .SetParameters(new DeleteFuturesOptionContractBySymbolV2(originalContract.Symbol, originalContract.ContractMonth, originalContract.OptionType, originalContract.StrikePrice, originalContract.ContractId) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesOptionContractBySymbolV2(originalContract.Symbol, originalContract.ContractMonth, originalContract.OptionType, originalContract.StrikePrice, originalContract.ContractId))
                 .QueueCommand());
                 }
             }
             else if (!string.Equals(originalContractId, futuresOptionContract.ContractId, StringComparison.Ordinal))
             {
                 queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContract)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesOptionContract : SecuritiesDbCql.DeleteFuturesOptionContract)
-                .SetParameters(new DeleteFuturesOptionContract(originalContractId) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesOptionContract(originalContractId))
                 .QueueCommand());
             }
         
@@ -545,7 +545,7 @@ internal static class SecuritiesDbContextExtensions
             if (contractIds.Count == 0)
                 return[];
             return await (context.DbFactory.SecuritiesDb.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContractsByIds)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesOptionContractsByIds : SecuritiesDbCql.GetFuturesOptionContractsByIds)
-                .SetParameters(new GetFuturesOptionContractsByIds(contractIds) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new GetFuturesOptionContractsByIds(contractIds))
                 .ExecuteQueryAsync(SecuritiesDbContext.MapToFuturesOptionContract!))
                 .ConfigureAwait(false);
         }
@@ -559,7 +559,7 @@ internal static class SecuritiesDbContextExtensions
             if (contractIds.Count == 0)
                 return[];
             return await (context.DbFactory.SecuritiesDb.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContractsByIds)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesOptionContractsByIds : SecuritiesDbCql.GetFuturesOptionContractsByIds)
-                .SetParameters(new GetFuturesOptionContractsByIds(contractIds) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new GetFuturesOptionContractsByIds(contractIds))
                 .ExecuteQueryAsync(SecuritiesDbContext.MapToFuturesOptionContract!, cancellationToken))
                 .ConfigureAwait(false);
         }
@@ -614,13 +614,13 @@ internal static class SecuritiesDbContextExtensions
             var db = context.DbFactory.SecuritiesDb;
             var published = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiryCalendarState)}",
                 string.Equals(context.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.GetOptionContractExpiryCalendarState : SecuritiesDbCql.GetOptionContractExpiryCalendarState)
-                .SetParameters(new GetOptionContractExpiryCalendarState(identity.Symbol) { PostgreSql = string.Equals(context.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                .SetParameters(new GetOptionContractExpiryCalendarState(identity.Symbol))
                 .ExecuteSingleAsync(SecuritiesDbContext.MapToOptionExpiryCalendarState!, cancellationToken)
                 .ConfigureAwait(false);
             if (published is null || expiry < published.CoverageFrom || expiry > published.CoverageThrough) return null;
             var definitions = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetCachedOptionContractDefinitions)}",
                 string.Equals(context.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.GetCachedOptionContractDefinitions : SecuritiesDbCql.GetCachedOptionContractDefinitions)
-                .SetParameters(new GetCachedOptionContractDefinitions(identity.Symbol, published.Generation, expiry) { PostgreSql = string.Equals(context.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                .SetParameters(new GetCachedOptionContractDefinitions(identity.Symbol, published.Generation, expiry))
                 .ExecuteQueryAsync(SecuritiesDbContext.MapToCachedOptionContractDefinition!, cancellationToken)
                 .ConfigureAwait(false);
             var exact = definitions.Where(row => string.Equals(row?.Definition.ContractId,contractId,StringComparison.Ordinal))
@@ -718,7 +718,7 @@ internal static class SecuritiesDbContextExtensions
                 contract.ContractMonth,
                 contract.StrikePrice,
                 contract.OptionType,
-                ReferencePayloadCodec.Write(contract)) { PostgreSql = string.Equals(context.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) };
+                ReferencePayloadCodec.Write(contract));
 
         /// <summary>
         /// Performs the ToInsertParameters Securities persistence helper operation.
@@ -738,7 +738,7 @@ internal static class SecuritiesDbContextExtensions
                 contract.LastTradeDate,
                 contract.OnTheRun,
                 contract.Rollover,
-                ReferencePayloadCodec.Write(contract)) { PostgreSql = string.Equals(context.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) };
+                ReferencePayloadCodec.Write(contract));
 
         /// <summary>
         /// Performs the EnsureDistinctFuturesContractWrites Securities persistence helper operation.
@@ -1365,7 +1365,7 @@ internal static class SecuritiesDbContextExtensions
             CancellationToken cancellationToken = default)
             => [.. (await (context.DbFactory.SecuritiesDb
                 .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractsBySymbol)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesContractsBySymbol : SecuritiesDbCql.GetFuturesContractsBySymbol)
-                .SetParameters(new GetFuturesContractsBySymbol(symbol) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new GetFuturesContractsBySymbol(symbol))
                 .ExecuteQueryAsync(SecuritiesDbContext.MapToFuturesContract!, cancellationToken))
                 .ConfigureAwait(false))];
 
@@ -1378,7 +1378,7 @@ internal static class SecuritiesDbContextExtensions
             CancellationToken cancellationToken = default)
             => [.. (await (context.DbFactory.SecuritiesDb
                 .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContractsBySymbol)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesOptionContractsBySymbol : SecuritiesDbCql.GetFuturesOptionContractsBySymbol)
-                .SetParameters(new GetFuturesOptionContractsBySymbol(symbol) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new GetFuturesOptionContractsBySymbol(symbol))
                 .ExecuteQueryAsync(SecuritiesDbContext.MapToFuturesOptionContract!, cancellationToken))
                 .ConfigureAwait(false))];
 
@@ -1403,7 +1403,7 @@ internal static class SecuritiesDbContextExtensions
                 cancellationToken.ThrowIfCancellationRequested();
                 targetMutationSubmissionStarted = true;
                 await (db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractBySymbolV3Partition : SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)
-                    .SetParameters(new DeleteFuturesContractBySymbolV3Partition(symbol) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                    .SetParameters(new DeleteFuturesContractBySymbolV3Partition(symbol))
                     .ExecuteCommandAsync(CancellationToken.None))
                 .ConfigureAwait(false);
 
@@ -1473,7 +1473,7 @@ internal static class SecuritiesDbContextExtensions
                 cancellationToken.ThrowIfCancellationRequested();
                 targetMutationSubmissionStarted = true;
                 await (db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesOptionContractBySymbolV2Partition : SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition)
-                    .SetParameters(new DeleteFuturesOptionContractBySymbolV2Partition(symbol) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                    .SetParameters(new DeleteFuturesOptionContractBySymbolV2Partition(symbol))
                     .ExecuteCommandAsync(CancellationToken.None))
                 .ConfigureAwait(false);
 
@@ -1840,7 +1840,7 @@ internal static class SecuritiesDbContextExtensions
                 queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractBySymbolV3 : SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
                     .SetParameters(new DeleteFuturesContractBySymbolV3(
                         current.Symbol, current.Rollover, current.OnTheRun,
-                        current.LastTradeDate, current.ContractId) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                        current.LastTradeDate, current.ContractId))
                     .QueueCommand());
                 var retired = current with { OnTheRun = false, Rollover = false };
                 var retiredInsert = context.ToInsertParameters(retired);
@@ -1859,7 +1859,7 @@ internal static class SecuritiesDbContextExtensions
                     db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractBySymbolV3 : SecuritiesDbCql.DeleteFuturesContractBySymbolV3)
                         .SetParameters(new DeleteFuturesContractBySymbolV3(
                             key.Symbol, key.Rollover, key.OnTheRun,
-                            key.LastTradeDate, key.ContractId) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                            key.LastTradeDate, key.ContractId))
                         .QueueCommand()));
                 queuedCommands.Add(db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContract)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.InsertFuturesContract : SecuritiesDbCql.InsertFuturesContract)
                     .SetParameters(insert)
@@ -1874,7 +1874,7 @@ internal static class SecuritiesDbContextExtensions
                     rollover.NextRolloverDate.Value,
                     rollover.UpdatedOn.Value,
                     rollover.UpdatedBy,
-                    symbol) { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                    symbol))
                 .QueueCommand());
 
             await (context.ExecuteProjectionMutationAsync(

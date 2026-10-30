@@ -41,12 +41,12 @@ public static class MarketDataRecoveryLog
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connectionString);
         await connection.OpenAsync(token).ConfigureAwait(false);
         await using var command = new NpgsqlCommand(InsertSql, connection) { CommandTimeout = 120 };
-        command.Parameters.AddWithValue("record",fact.RecordId); command.Parameters.AddWithValue("operation",fact.OperationId);
-        command.Parameters.AddWithValue("sequence",fact.Sequence); command.Parameters.AddWithValue("date",fact.ValueDate);
-        command.Parameters.AddWithValue("role",fact.Role); command.Parameters.AddWithValue("dataset",fact.Dataset);
-        command.Parameters.AddWithValue("kind",fact.Kind); command.Parameters.AddWithValue("occurred",fact.OccurredAtUtc);
-        command.Parameters.AddWithValue("received",source.ReceivedOn); command.Parameters.AddWithValue("digest",source.Digest);
-        command.Parameters.AddWithValue("payload",source.Payload); command.Parameters.AddWithValue("event",source.EventId);
+        PostgresValueBinding.AddNamedParameter(command, "record", fact.RecordId); PostgresValueBinding.AddNamedParameter(command, "operation", fact.OperationId);
+        PostgresValueBinding.AddNamedParameter(command, "sequence", fact.Sequence); PostgresValueBinding.AddNamedParameter(command, "date", fact.ValueDate);
+        PostgresValueBinding.AddNamedParameter(command, "role", fact.Role); PostgresValueBinding.AddNamedParameter(command, "dataset", fact.Dataset);
+        PostgresValueBinding.AddNamedParameter(command, "kind", fact.Kind); PostgresValueBinding.AddNamedParameter(command, "occurred", fact.OccurredAtUtc);
+        PostgresValueBinding.AddNamedParameter(command, "received", source.ReceivedOn); PostgresValueBinding.AddNamedParameter(command, "digest", source.Digest);
+        PostgresValueBinding.AddNamedParameter(command, "payload", source.Payload); PostgresValueBinding.AddNamedParameter(command, "event", source.EventId);
         if (await command.ExecuteScalarAsync(token).ConfigureAwait(false) is null)
             throw new InvalidDataException("Recovery projection RecordId/digest conflict.");
     }
@@ -63,10 +63,10 @@ public static class MarketDataRecoveryLog
             WHERE value_date=@date AND (@dataset IS NULL OR dataset=@dataset) AND (@operation IS NULL OR operation_id=@operation)
             ORDER BY operation_id,sequence LIMIT @limit
             """, connection) { CommandTimeout=120 };
-        command.Parameters.AddWithValue("date",valueDate);
-        command.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Named("dataset",TomasAI.IFM.Shared.Storage.BindValues.Text(dataset)));
-        command.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Named("operation",TomasAI.IFM.Shared.Storage.BindValues.Uuid(operationId)));
-        command.Parameters.AddWithValue("limit",limit);
+        PostgresValueBinding.AddNamedParameter(command, "date", valueDate);
+        PostgresValueBinding.AddNamedParameter(command, "dataset",TomasAI.IFM.Shared.Storage.BindValues.Text(dataset));
+        PostgresValueBinding.AddNamedParameter(command, "operation",TomasAI.IFM.Shared.Storage.BindValues.Uuid(operationId));
+        PostgresValueBinding.AddNamedParameter(command, "limit", limit);
         var rows = new List<string>();
         await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
         while (await reader.ReadAsync(token).ConfigureAwait(false)) rows.Add(reader.GetString(0));

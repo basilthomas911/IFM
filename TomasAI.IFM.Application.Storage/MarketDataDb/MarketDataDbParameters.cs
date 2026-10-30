@@ -119,15 +119,13 @@ internal readonly record struct CompositionPreparationParameters(object[] Values
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteEconomicCalendarV2(string countryCode, int monthBucket, DateTime eventDate, string eventName) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(countryCode),
         Integer(monthBucket),
         TimestampTz(eventDate),
         Text(eventName)
-    } : new object?[] { countryCode, monthBucket, eventDate, eventName };
+    };
 }
 
 
@@ -135,89 +133,75 @@ internal readonly record struct DeleteEconomicCalendarV2(string countryCode, int
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteFuturesAdxSignal(string contractId, string timePeriod, int periodLength, DateOnly valueDate) : IBindValue
 {
-    /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
         Integer(periodLength),
         Date(valueDate)
-    } : new object?[] { contractId, timePeriod, periodLength, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteFuturesAtrSignal(string contractId, string timePeriod, int periodLength, DateOnly valueDate) : IBindValue
 {
-    /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
         Integer(periodLength),
         Date(valueDate)
-    } : new object?[] { contractId, timePeriod, periodLength, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteFuturesBarData(string contractId, string symbol, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(symbol),
         Date(valueDate)
-    } : new object?[] { contractId, symbol, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteFuturesClosingPrice(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate)
-    } : new object?[] { contractId, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate)) : new object?[] { contractId, valueDate };
+    public object Bind() => Values(Text(contractId), Date(valueDate));
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteFuturesEodDataByMonth(int yearMonth, DateOnly valueDate, string contractId) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Integer(yearMonth), Date(valueDate), Text(contractId)) : new object?[] { yearMonth, valueDate, contractId };
+    public object Bind() => Values(Integer(yearMonth), Date(valueDate), Text(contractId));
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteFuturesItiSignal(string contractId, DateOnly valueDate, string timePeriod) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Text(timePeriod)
-    } : new object?[] { contractId, valueDate, timePeriod };
+    };
 }
 
 
@@ -255,13 +239,11 @@ internal readonly record struct DeleteFuturesOptionTickData(string contractId, D
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteFuturesOptionTickPriceData(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate)
-    } : new object?[] { contractId, valueDate };
+    };
 }
 
 
@@ -300,50 +282,43 @@ internal readonly record struct DeleteMarketDataProjectionScopeMutationV3(
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteMarketHoliday(string currencyType, DateOnly holidayDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(currencyType),
         Date(holidayDate)
-    } : new object?[] { currencyType, holidayDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteMarketHolidays(string currencyType) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(currencyType)
-    } : new object?[] { currencyType };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteRateOfReturn(string symbol, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(symbol),
         Date(valueDate)
-    } : new object?[] { symbol, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteTradeLiveFeed(int orderId, int tradeId) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Integer(orderId),
         Integer(tradeId)
-    } : new object?[] { orderId, tradeId };
+    };
 }
 
 
@@ -357,23 +332,21 @@ internal readonly record struct DeleteVixFuturesContractIndex(int bucket, string
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteVixFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate)
-    } : new object?[] { contractId, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteYieldCurveRate(DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Date(valueDate)
-    } : new object?[] { valueDate };
+    };
 }
 
 
@@ -400,8 +373,7 @@ internal readonly record struct DownloadLogParameters(
     string PayloadSha256,
     DateTime ProjectedAtUtc) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(Dataset),
         Text(Provider),
@@ -422,27 +394,6 @@ internal readonly record struct DownloadLogParameters(
         Text(ErrorMessage),
         Text(PayloadSha256),
         TimestampTz(ProjectedAtUtc)
-    } : new object?[]
-    {
-        Dataset,
-        Provider,
-        Scope,
-        ValueDate,
-        RequestedAtUtc,
-        ImportCommandId,
-        LogCommandId,
-        SourceTerminalEventId,
-        SchemaVersion,
-        Status,
-        StartedAtUtc,
-        FinishedAtUtc,
-        ElapsedMilliseconds,
-        DownloadedRecordCount,
-        PersistedRecordCount,
-        ErrorCode,
-        ErrorMessage,
-        PayloadSha256,
-        ProjectedAtUtc
     };
 }
 
@@ -459,18 +410,11 @@ internal readonly record struct DownloadLogReadParameters(
     int RowLimit,
     bool Exact = false) : IBindValue
 {
-    public bool PostgreSql { get; init; }
     public object Bind()
     {
-        if (PostgreSql)
-        {
-            if (Exact) return new object?[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),TimestampTz(RequestedAtUtc),Uuid(ImportCommandId) };
-            if (ImportCommandId == Guid.Empty) return new object?[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),Integer(RowLimit) };
-            return new object?[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),TimestampTz(RequestedAtUtc),Uuid(ImportCommandId),Integer(RowLimit) };
-        }
-        if (Exact) return new object[] { Dataset, Provider, Scope, ValueDate, RequestedAtUtc, ImportCommandId };
-        if (ImportCommandId == Guid.Empty) return new object[] { Dataset, Provider, Scope, ValueDate, RowLimit };
-        return new object[] { Dataset, Provider, Scope, ValueDate, RequestedAtUtc, ImportCommandId, RowLimit };
+        if (Exact) return new object?[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),TimestampTz(RequestedAtUtc),Uuid(ImportCommandId) };
+        if (ImportCommandId == Guid.Empty) return new object?[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),Integer(RowLimit) };
+        return new object?[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),TimestampTz(RequestedAtUtc),Uuid(ImportCommandId),Integer(RowLimit) };
     }
 }
 
@@ -534,172 +478,148 @@ internal readonly record struct GetCurrentFuturesEodDataByMonth(int yearMonth, D
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetEconomicCalendarCountryCodes(int lookupId) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Integer(lookupId)
-    } : new object?[] { lookupId };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetEconomicCalendars(string countryCode, int monthBucket, DateTime startDate, DateTime endDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(countryCode),
         Integer(monthBucket),
         TimestampTz(startDate),
         TimestampTz(endDate)
-    } : new object?[] { countryCode, monthBucket, startDate, endDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetEconomicCalendarV2ById(string countryCode, int monthBucket, DateTime eventDate, string eventName) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(countryCode),
         Integer(monthBucket),
         TimestampTz(eventDate),
         Text(eventName)
-    } : new object?[] { countryCode, monthBucket, eventDate, eventName };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetEconomicCalendarV2CommandId(string countryCode, int monthBucket, DateTime eventDate, string eventName) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(countryCode),
         Integer(monthBucket),
         TimestampTz(eventDate),
         Text(eventName)
-    } : new object?[] { countryCode, monthBucket, eventDate, eventName };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesBarData(string contractId, string symbol, DateOnly valueDate, DateTime startDate, DateTime endDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(symbol),
         Date(valueDate),
         TimestampTz(startDate),
         TimestampTz(endDate)
-    } : new object?[] { contractId, symbol, valueDate, startDate, endDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesBarDataCount(string contractId, string symbol, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(symbol),
         Date(valueDate)
-    } : new object?[] { contractId, symbol, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesClosingPrice(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate)
-    } : new object?[] { contractId, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesDataId(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate)) : new object?[] { contractId, valueDate };
+    public object Bind() => Values(Text(contractId), Date(valueDate));
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesEodClosingPrices(string contractId, DateOnly startDate, DateOnly endDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(startDate),
         Date(endDate)
-    } : new object?[] { contractId, startDate, endDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate)) : new object?[] { contractId, valueDate };
+    public object Bind() => Values(Text(contractId), Date(valueDate));
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesEodDataByDateRange(string contractId, DateOnly startDate, DateOnly endDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Date(startDate), Date(endDate)) : new object?[] { contractId, startDate, endDate };
+    public object Bind() => Values(Text(contractId), Date(startDate), Date(endDate));
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesIntraDayData(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate)) : new object?[] { contractId, valueDate };
+    public object Bind() => Values(Text(contractId), Date(valueDate));
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesItiSignalContractIdsByDate(DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Date(valueDate)
-    } : new object?[] { valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesItiSignals(string contractId, DateOnly valueDate, string timePeriod) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Text(timePeriod)
-    } : new object?[] { contractId, valueDate, timePeriod };
+    };
 }
 
 
@@ -734,39 +654,33 @@ internal readonly record struct GetFuturesItiSignalsByTrendModeMonth(string cont
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesItiSignalsCanonicalByContract(string contractId) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId)
-    } : new object?[] { contractId };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesItiSignalsCanonicalByContractDay(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate)
-    } : new object?[] { contractId, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesItiTimeFrameState(string contractId, string timePeriod, DateOnly calendarBucketStart) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
         Date(calendarBucketStart)
-    } : new object?[] { contractId, timePeriod, calendarBucketStart };
+    };
 }
 
 
@@ -774,13 +688,12 @@ internal readonly record struct GetFuturesItiTimeFrameState(string contractId, s
 internal readonly record struct GetFuturesOptionChainQuoteData(
     string underlyingContractId, DateOnly expiryDate, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(underlyingContractId),
         Date(expiryDate),
         Date(valueDate)
-    } : new object?[] { underlyingContractId, expiryDate, valueDate };
+    };
 }
 
 
@@ -800,14 +713,12 @@ internal readonly record struct GetFuturesOptionTickData(string contractId, Date
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesOptionTickPriceData(string contractId, DateOnly valueDate, long tickId) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Bigint(tickId)
-    } : new object?[] { contractId, valueDate, tickId };
+    };
 }
 
 
@@ -815,9 +726,7 @@ internal readonly record struct GetFuturesOptionTickPriceData(string contractId,
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesRsiSignalsForTrend(string contractId, string timePeriod, int periodLength, DateOnly valueDate, TimeOnly startTime, TimeOnly endTime) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -825,7 +734,7 @@ internal readonly record struct GetFuturesRsiSignalsForTrend(string contractId, 
         Date(valueDate),
         Time(startTime ),
         Time(endTime )
-    } : new object?[] { contractId, timePeriod, periodLength, valueDate, startTime, endTime };
+    };
 }
 
 
@@ -854,12 +763,10 @@ internal readonly record struct GetFuturesTickHLVData(string contractId, DateOnl
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesTradeSignalIdByValueDate(string scope) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(scope)
-    } : new object?[] { scope };
+    };
 }
 
 
@@ -868,98 +775,82 @@ internal readonly record struct GetFuturesVwapSignalHistory(
     string contractId, DateOnly valueDate, string configurationId) : IBindValue
 {
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
-    public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Text(configurationId)
-    } : new object[] { contractId, valueDate, configurationId };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesAdxDailySignal(string contractId, string timePeriod, int periodLength) : IBindValue
 {
-    /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
         Integer(periodLength)
-    } : new object?[] { contractId, timePeriod, periodLength };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesAdxSignal(string contractId, string timePeriod, int periodLength, DateOnly valueDate) : IBindValue
 {
-    /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
         Integer(periodLength),
         Date(valueDate)
-    } : new object?[] { contractId, timePeriod, periodLength, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesAtrDailySignal(string contractId, string timePeriod, int periodLength) : IBindValue
 {
-    /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
         Integer(periodLength)
-    } : new object?[] { contractId, timePeriod, periodLength };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesAtrSignal(string contractId, string timePeriod, int periodLength, DateOnly valueDate) : IBindValue
 {
-    /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
         Integer(periodLength),
         Date(valueDate)
-    } : new object?[] { contractId, timePeriod, periodLength, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesBarData(string contractId, string symbol, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(symbol),
         Date(valueDate)
-    } : new object?[] { contractId, symbol, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate)) : new object?[] { contractId, valueDate };
+    public object Bind() => Values(Text(contractId), Date(valueDate));
 }
 
 
@@ -973,14 +864,12 @@ internal readonly record struct GetLastFuturesItiSignal(string contractId, DateO
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesItiSignalByTimePeriod(string contractId, DateOnly valueDate, string timePeriod) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Text(timePeriod)
-    } : new object?[] { contractId, valueDate, timePeriod };
+    };
 }
 
 
@@ -1020,17 +909,14 @@ internal readonly record struct GetLastFuturesMacdDailySignal(
     int fastEmaPeriod,
     int slowEmaPeriod) : IBindValue
 {
-    /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
         Integer(signalEmaPeriod),
         Integer(fastEmaPeriod),
         Integer(slowEmaPeriod)
-    } : new object?[] { contractId, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod };
+    };
 }
 
 
@@ -1043,10 +929,7 @@ internal readonly record struct GetLastFuturesMacdSignal(
     int slowEmaPeriod,
     DateOnly valueDate) : IBindValue
 {
-    /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -1054,7 +937,7 @@ internal readonly record struct GetLastFuturesMacdSignal(
         Integer(fastEmaPeriod),
         Integer(slowEmaPeriod),
         Date(valueDate)
-    } : new object?[] { contractId, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, valueDate };
+    };
 }
 
 
@@ -1076,42 +959,36 @@ internal readonly record struct GetLastFuturesOptionTickDataId(string contractId
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesOptionTickPriceData(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate)
-    } : new object?[] { contractId, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesRsiDailySignal(string contractId, string timePeriod, int periodLength) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
         Integer(periodLength)
-    } : new object?[] { contractId, timePeriod, periodLength };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesRsiSignal(string contractId, string timePeriod, int periodLength, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
         Integer(periodLength),
         Date(valueDate)
-    } : new object?[] { contractId, timePeriod, periodLength, valueDate };
+    };
 }
 
 
@@ -1122,8 +999,7 @@ internal readonly record struct GetLastFuturesTdiSignal(
     string configurationId,
     DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Text(timePeriod), Text(configurationId), Date(valueDate)) : new object?[] { contractId, timePeriod, configurationId, valueDate };
+    public object Bind() => Values(Text(contractId), Text(timePeriod), Text(configurationId), Date(valueDate));
 }
 
 
@@ -1144,63 +1020,54 @@ internal readonly record struct GetLastFuturesTickDataByTickTime(string contract
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesTradeSignal(string scope) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(scope)
-    } : new object?[] { scope };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesTradeSignalById(string contractId, DateOnly valueDate, string timePeriod) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Text(timePeriod)
-    } : new object?[] { contractId, valueDate, timePeriod };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastFuturesTradeSignalBySymbol(List<string> contractIds, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql requires its Array type marker combined with the element type.")]
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         TextArray([.. contractIds] ),
         Date(valueDate)
-    } : new object?[] { contractIds, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastRateOfReturn(string symbol) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(symbol)
-    } : new object?[] { symbol };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetLastVixFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate)
-    } : new object?[] { contractId, valueDate };
+    };
 }
 
 
@@ -1214,18 +1081,14 @@ internal readonly record struct GetLatestFuturesRegimeSignal(
     DateTime marketDataAsOf) : IBindValue
 {
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
-    public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(seriesKey),
         Text(timePeriod),
         Text(configurationId),
         Integer(yearMonth),
         TimestampTz(marketDataAsOf)
-    } : new object[]
-    {
-        seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf
     };
 }
 
@@ -1236,14 +1099,13 @@ internal readonly record struct GetLatestFuturesVwapSignal(
     string contractId, DateOnly valueDate, string configurationId) : IBindValue
 {
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
-    public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Text(configurationId)
-    } : new object[] { contractId, valueDate, configurationId };
+    };
 }
 
 
@@ -1252,13 +1114,11 @@ internal readonly record struct GetLatestFuturesVwapSignal(
 internal readonly record struct GetLatestFuturesVxTermStructureSignal(
     DateOnly valueDate, string configurationId) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Date(valueDate),
         Text(configurationId)
-    } : new object[] { valueDate, configurationId };
+    };
 }
 
 
@@ -1302,26 +1162,22 @@ internal readonly record struct GetMarketDataProjectionState(string projectionNa
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetMarketHolidays(string currencyType) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(currencyType)
-    } : new object?[] { currencyType };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetMarketHolidaysByDateRange(string currencyType, DateOnly startDate, DateOnly endDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(currencyType),
         Date(startDate),
         Date(endDate)
-    } : new object?[] { currencyType, startDate, endDate };
+    };
 }
 
 
@@ -1331,13 +1187,11 @@ internal readonly record struct GetMarketOutlookSnapshot(
     string contractId,
     DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate)
-    } : new object?[] { contractId, valueDate };
+    };
 }
 
 
@@ -1368,13 +1222,11 @@ internal readonly record struct GetMinFuturesTickDataTickId(string contractId, D
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetTradeLiveFeed(int orderId, int tradeId) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Integer(orderId),
         Integer(tradeId)
-    } : new object?[] { orderId, tradeId };
+    };
 }
 
 
@@ -1388,12 +1240,11 @@ internal readonly record struct GetVixFuturesContractIds(int bucket) : IBindValu
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetVixFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate)
-    } : new object?[] { contractId, valueDate };
+    };
 }
 
 
@@ -1407,55 +1258,49 @@ internal readonly record struct GetVixFuturesEodDataThroughDate(string contractI
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetYesterdaysFuturesClosingPrice(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate)
-    } : new object?[] { contractId, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetYesterdaysFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate)) : new object?[] { contractId, valueDate };
+    public object Bind() => Values(Text(contractId), Date(valueDate));
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetYieldCurveRate(DateOnly valueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Date(valueDate)
-    } : new object?[] { valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetYieldCurveRates(DateOnly startDate, DateOnly endDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Date(startDate),
         Date(endDate)
-    } : new object?[] { startDate, endDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetYieldCurveRateYears(int lookupId) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Integer(lookupId)
-    } : new object?[] { lookupId };
+    };
 }
 
 
@@ -1463,8 +1308,7 @@ internal readonly record struct GetYieldCurveRateYears(int lookupId) : IBindValu
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct HistoricalObservationParameter(FuturesTradeSessionBarReadModel Value) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(Value.MarketSeriesIdentity.Format()),
         Text(Value.TimeFrame.ToString()),
@@ -1491,15 +1335,6 @@ internal readonly record struct HistoricalObservationParameter(FuturesTradeSessi
         Text(Value.CalculationVersion),
         Boolean(Value.IsComplete),
         Boolean(Value.IsValid)
-    } : new object?[]
-    {
-        Value.MarketSeriesIdentity.Format(), Value.TimeFrame.ToString(), checked(Value.ValueDate.Year * 100 + Value.ValueDate.Month),
-        Value.IntervalEndUtc.UtcDateTime, Value.ObservationId.Value, Value.ContractId, Value.ValueDate,
-        Value.IntervalStartUtc.UtcDateTime, Value.IntervalEndUtc.UtcDateTime, Value.Open, Value.High,
-        Value.Low, Value.Close, Value.Volume, Value.TradeCount, Value.PriceVolumeSum,
-        Value.FirstSourceSequence, Value.LastSourceSequence, Value.FirstMarketEventUtc.UtcDateTime,
-        Value.LastMarketEventUtc.UtcDateTime, Value.CalculatedAtUtc.UtcDateTime,
-        (int)Value.SchemaVersion, Value.CalculationVersion, Value.IsComplete, Value.IsValid
     };
 }
 
@@ -1508,13 +1343,12 @@ internal readonly record struct HistoricalObservationParameter(FuturesTradeSessi
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct HistoricalRawEodKey(string SeriesKey, int YearMonth, DateOnly ValueDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(SeriesKey),
         Integer(YearMonth),
         Date(ValueDate)
-    } : new object?[] { SeriesKey, YearMonth, ValueDate };
+    };
 }
 
 
@@ -1522,8 +1356,7 @@ internal readonly record struct HistoricalRawEodKey(string SeriesKey, int YearMo
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct HistoricalRawEodParameter(FuturesEodObservationReadModel Value) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(Value.MarketSeriesIdentity.Format()),
         Integer(checked(Value.ValueDate.Year * 100 + Value.ValueDate.Month)),
@@ -1546,14 +1379,6 @@ internal readonly record struct HistoricalRawEodParameter(FuturesEodObservationR
         Integer((int)Value.SchemaVersion),
         Boolean(Value.IsComplete),
         Boolean(Value.IsValid)
-    } : new object?[]
-    {
-        Value.MarketSeriesIdentity.Format(), checked(Value.ValueDate.Year * 100 + Value.ValueDate.Month), Value.ValueDate, Value.ContractId,
-        Value.SessionStartUtc.UtcDateTime, Value.SessionEndUtc.UtcDateTime, Value.Open, Value.High,
-        Value.Low, Value.Close, Value.Volume, Value.TradeCount, Value.PriceVolumeSum,
-        Value.ObservationId.Value, Value.FirstSourceSequence, Value.LastSourceSequence,
-        Value.FirstMarketEventUtc.UtcDateTime, Value.LastMarketEventUtc.UtcDateTime,
-        (int)Value.SchemaVersion, Value.IsComplete, Value.IsValid
     };
 }
 
@@ -1566,36 +1391,31 @@ internal readonly record struct HistoricalRawEodRangeKey(
     DateOnly StartDate,
     DateOnly EndDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(SeriesKey),
         Integer(YearMonth),
         Date(StartDate),
         Date(EndDate)
-    } : new object?[] { SeriesKey, YearMonth, StartDate, EndDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertEconomicCalendarCountryCode(int lookupId, string countryCode) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Integer(lookupId),
         Text(countryCode)
-    } : new object?[] { lookupId, countryCode };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertEconomicCalendarV2(string countryCode, int monthBucket, DateTime eventDate, string eventName, string? actual, string? forecast, string? prior, string? impact, string? unit, string? change, string? changePercentage, DateTime createdOn, string createdBy, Guid commandId) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(countryCode),
         Integer(monthBucket),
@@ -1611,49 +1431,50 @@ internal readonly record struct InsertEconomicCalendarV2(string countryCode, int
         TimestampTz(createdOn),
         Text(createdBy),
         Uuid(commandId)
-    } : new object?[] { countryCode, monthBucket, eventDate, eventName, actual, forecast, prior, impact, unit, change, changePercentage, createdOn, createdBy, commandId };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesAdxSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double plusDI, double minusDI, double adxValue, string adx, string adxStrength, string? configurationId, Guid? observationId, DateTime? marketDataAsOf, long? sourceSequence, string? calculationVersion, string? calculationMethod, int? schemaVersion, bool? isValid, bool isWarm = false) : IBindValue
 {
-    /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
-    public bool PostgreSql { get; init; }
+    /// <summary>The extended projection persists warm state; the legacy projection has nineteen fields.</summary>
+    public bool IncludeWarmState { get; init; }
 
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind()
     {
-        Text(contractId),
-        Date(valueDate),
-        Text(timePeriod),
-        Integer(periodLength),
-        Time(timestamp ),
-        Numeric(futuresPrice ),
-        Double(plusDI),
-        Double(minusDI),
-        Double(adxValue),
-        Text(adx),
-        Text(adxStrength),
-        Text(configurationId),
-        Uuid(observationId),
-        TimestampTz(marketDataAsOf),
-        Bigint(sourceSequence),
-        Text(calculationVersion),
-        Text(calculationMethod),
-        Integer(schemaVersion),
-        Boolean(isValid),
-        Boolean(isWarm)
-    } : new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, plusDI, minusDI, adxValue, adx, adxStrength, configurationId, observationId, marketDataAsOf, sourceSequence, calculationVersion, calculationMethod, schemaVersion, isValid };
+        object?[] values =
+        {
+            Text(contractId),
+            Date(valueDate),
+            Text(timePeriod),
+            Integer(periodLength),
+            Time(timestamp ),
+            Numeric(futuresPrice ),
+            Double(plusDI),
+            Double(minusDI),
+            Double(adxValue),
+            Text(adx),
+            Text(adxStrength),
+            Text(configurationId),
+            Uuid(observationId),
+            TimestampTz(marketDataAsOf),
+            Bigint(sourceSequence),
+            Text(calculationVersion),
+            Text(calculationMethod),
+            Integer(schemaVersion),
+            Boolean(isValid),
+            Boolean(isWarm)
+        };
+        return IncludeWarmState ? values : values[..^1];
+    }
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesAtrSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double atrValue, double trueRange, string atr, string atrStrength, string? configurationId, Guid? observationId, DateTime? marketDataAsOf, long? sourceSequence, string? calculationVersion, string? calculationMethod, int? schemaVersion, bool? isValid, double? previousAtrValue, double? atrBaseline, double? atrRatio, bool isWarm) : IBindValue
 {
-    /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -1677,16 +1498,14 @@ internal readonly record struct InsertFuturesAtrSignal(string contractId, DateOn
         Double(atrBaseline),
         Double(atrRatio),
         Boolean(isWarm)
-    } : new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, atrValue, trueRange, atr, atrStrength, configurationId, observationId, marketDataAsOf, sourceSequence, calculationVersion, calculationMethod, schemaVersion, isValid, previousAtrValue, atrBaseline, atrRatio, isWarm };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesBarData(string contractId, string symbol, DateOnly valueDate, DateTime barDate, string barRateType, decimal barValue, double upTrendTrigger, double downTrendTrigger) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(symbol),
@@ -1696,7 +1515,7 @@ internal readonly record struct InsertFuturesBarData(string contractId, string s
         Numeric(barValue ),
         Double(upTrendTrigger),
         Double(downTrendTrigger)
-    } : new object?[] { contractId, symbol, valueDate, barDate, barRateType, barValue, upTrendTrigger, downTrendTrigger };
+    };
 }
 
 
@@ -1713,9 +1532,8 @@ internal readonly record struct InsertFuturesBollingerBandSignal(
     string calculationVersion, string calculationMethod, bool isValid) : IBindValue
 {
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
-    public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(seriesKey),
         Text(timePeriod),
@@ -1747,13 +1565,6 @@ internal readonly record struct InsertFuturesBollingerBandSignal(
         Text(calculationVersion),
         Text(calculationMethod),
         Boolean(isValid)
-    } : new object?[]
-    {
-        seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
-        contractId, valueDate, price, ema10Center, standardDeviation10, upper10, lower10,
-        width10, position10, ema20Center, standardDeviation20, upper20, lower20, width20,
-        position20, width20Baseline, width20Ratio, isWarm, sourceSequence, calculatedAt,
-        schemaVersion, calculationVersion, calculationMethod, isValid
     };
 }
 
@@ -1761,16 +1572,14 @@ internal readonly record struct InsertFuturesBollingerBandSignal(
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesClosingPrice(string contractId, DateOnly valueDate, decimal closingPrice, DateTime createdOn, string createdBy) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Numeric(closingPrice ),
         TimestampTz(createdOn),
         Text(createdBy)
-    } : new object?[] { contractId, valueDate, closingPrice, createdOn, createdBy };
+    };
 }
 
 
@@ -1786,9 +1595,8 @@ internal readonly record struct InsertFuturesEmaSignal(
     string calculationVersion, string calculationMethod, bool isValid) : IBindValue
 {
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
-    public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(seriesKey),
         Text(timePeriod),
@@ -1818,13 +1626,6 @@ internal readonly record struct InsertFuturesEmaSignal(
         Text(calculationVersion),
         Text(calculationMethod),
         Boolean(isValid)
-    } : new object?[]
-    {
-        seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
-        contractId, valueDate, price, ema10, previousEma10, ema10Slope,
-        ema20, previousEma20, ema20Slope, ema50, previousEma50, ema50Slope,
-        ema200, previousEma200, ema200Slope, isWarm, sourceSequence, calculatedAt,
-        schemaVersion, calculationVersion, calculationMethod, isValid
     };
 }
 
@@ -1832,41 +1633,35 @@ internal readonly record struct InsertFuturesEmaSignal(
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesEodData(string contractId, DateOnly valueDate, string symbol, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, long volume, double dailyPercentChange, double dailyStdDev, double dailyStdDevAmount, double upperBand, double mean, double lowerBand, string marketDirection, string marketVolatility, string priceDirection, string priceVolatility, double marketDirectionIndicator, int windowSize, decimal fiftyDMA, decimal twoHundredDMA) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate), Text(symbol), Numeric(openPrice ), Numeric(highPrice ), Numeric(lowPrice ), Numeric(closePrice ), Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize), Numeric(fiftyDMA ), Numeric(twoHundredDMA )) : new object?[] { contractId, valueDate, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize, fiftyDMA, twoHundredDMA };
+    public object Bind() => Values(Text(contractId), Date(valueDate), Text(symbol), Numeric(openPrice ), Numeric(highPrice ), Numeric(lowPrice ), Numeric(closePrice ), Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize), Numeric(fiftyDMA ), Numeric(twoHundredDMA ));
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesEodDataByMonth(int yearMonth, string contractId, DateOnly valueDate, string symbol, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, long volume, double dailyPercentChange, double dailyStdDev, double dailyStdDevAmount, double upperBand, double mean, double lowerBand, string marketDirection, string marketVolatility, string priceDirection, string priceVolatility, double marketDirectionIndicator, int windowSize, decimal fiftyDMA, decimal twoHundredDMA) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Integer(yearMonth), Text(contractId), Date(valueDate), Text(symbol), Numeric(openPrice ), Numeric(highPrice ), Numeric(lowPrice ), Numeric(closePrice ), Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize), Numeric(fiftyDMA ), Numeric(twoHundredDMA )) : new object?[] { yearMonth, contractId, valueDate, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize, fiftyDMA, twoHundredDMA };
+    public object Bind() => Values(Integer(yearMonth), Text(contractId), Date(valueDate), Text(symbol), Numeric(openPrice ), Numeric(highPrice ), Numeric(lowPrice ), Numeric(closePrice ), Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize), Numeric(fiftyDMA ), Numeric(twoHundredDMA ));
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesEodDataIndex(DateOnly valueDate, string contractId) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Date(valueDate), Text(contractId)) : new object?[] { valueDate, contractId };
+    public object Bind() => Values(Date(valueDate), Text(contractId));
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesIntraDayData(string contractId, DateOnly valueDate, long sequenceId, string symbol, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, long volume, double dailyPercentChange, double dailyStdDev, double dailyStdDevAmount, double upperBand, double mean, double lowerBand, string marketDirection, string marketVolatility, string priceDirection, string priceVolatility, double marketDirectionIndicator, int windowSize) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate), Bigint(sequenceId), Text(symbol), Numeric(openPrice ), Numeric(highPrice ), Numeric(lowPrice ), Numeric(closePrice ), Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize)) : new object?[] { contractId, valueDate, sequenceId, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize };
+    public object Bind() => Values(Text(contractId), Date(valueDate), Bigint(sequenceId), Text(symbol), Numeric(openPrice ), Numeric(highPrice ), Numeric(lowPrice ), Numeric(closePrice ), Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize));
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesItiSignal(string contractId, DateOnly valueDate, string timePeriod, long sequenceId, DateTime intrinsicTime, int intrinsicTimeGroupId, double intrinsicTimeLength, double intrinsicPrice, string intrinsicTimeTrend, string intrinsicTimeMode, double trendPrice, double trendExtreme, double trendReversal, double trendDelta, double targetDelta, double lambda, int tradingDays, double threshold, double upTrendTrigger, double downTrendTrigger, string tradeState, double bandLevel, double reversalLevel) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -1891,7 +1686,7 @@ internal readonly record struct InsertFuturesItiSignal(string contractId, DateOn
         Text(tradeState),
         Double(bandLevel),
         Double(reversalLevel)
-    } : new object?[] { contractId, valueDate, timePeriod, sequenceId, intrinsicTime, intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice, intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme, trendReversal, trendDelta, targetDelta, lambda, tradingDays, threshold, upTrendTrigger, downTrendTrigger, tradeState, bandLevel, reversalLevel };
+    };
 }
 
 
@@ -1941,10 +1736,7 @@ internal readonly record struct InsertFuturesMacdSignal(
     bool isWarm,
     int observationCount) : IBindValue
 {
-    /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -1971,16 +1763,14 @@ internal readonly record struct InsertFuturesMacdSignal(
         Boolean(isValid),
         Boolean(isWarm),
         Integer(observationCount)
-    } : new object?[] { contractId, valueDate, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, timestamp, futuresPrice, fastEma, slowEma, macdLine, signalLine, histogram, macd, macdStrength, configurationId, observationId, marketDataAsOf, sourceSequence, calculationVersion, calculationMethod, schemaVersion, isValid, isWarm, observationCount };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesOptionTickData(string contractId, DateOnly valueDate, long tickId, TimeOnly tickTime, double optionPrice, double bidPrice, double askPrice, int bidSize, int askSize, double impliedVolatility, double underlyingPrice, double delta, double gamma, double vega, double theta, double rho) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -1998,7 +1788,7 @@ internal readonly record struct InsertFuturesOptionTickData(string contractId, D
         Double(vega),
         Double(theta),
         Double(rho)
-    } : new object?[] { contractId, valueDate, tickId, tickTime, optionPrice, bidPrice, askPrice, bidSize, askSize, impliedVolatility, underlyingPrice, delta, gamma, vega, theta, rho };
+    };
 }
 
 
@@ -2006,9 +1796,7 @@ internal readonly record struct InsertFuturesOptionTickData(string contractId, D
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesRsiSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal price, decimal priceChange, decimal priceGain, decimal priceLoss, decimal averagePriceGain, decimal averagePriceLoss, double rs, double rsi, double rsiAverage, double rsiSlope, long sourceSequence, DateTime sourceEventTimestamp, string? configurationId, Guid? observationId, DateTime? marketDataAsOf, string? calculationVersion, string? calculationMethod, int? schemaVersion, bool? isValid, double? previousRsi, double? regimeSlope, bool isWarm) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -2037,7 +1825,7 @@ internal readonly record struct InsertFuturesRsiSignal(string contractId, DateOn
         Double(previousRsi),
         Double(regimeSlope),
         Boolean(isWarm)
-    } : new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, price, priceChange, priceGain, priceLoss, averagePriceGain, averagePriceLoss, rs, rsi, rsiAverage, rsiSlope, sourceSequence, sourceEventTimestamp, configurationId, observationId, marketDataAsOf, calculationVersion, calculationMethod, schemaVersion, isValid, previousRsi, regimeSlope, isWarm };
+    };
 }
 
 
@@ -2071,15 +1859,7 @@ internal readonly record struct InsertFuturesTdiSignal(
     long sourceSequence,
     DateTime sourceEventTimestamp) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Text(timePeriod), Text(configurationId), Date(valueDate), Time(timestamp ), Integer(schemaVersion), Integer(rsiPeriod), Integer(priceLinePeriod), Integer(signalLinePeriod), Integer(marketBasePeriod), Integer(volatilityBandPeriod), Double(volatilityBandDeviation), Numeric(price ), Double(rsi), Double(priceLine), Double(signalLine), Double(marketBaseLine), Double(upperVolatilityBand), Double(lowerVolatilityBand), Double(bandWidth), Double(priceSignalDivergence), Text(crossType), Text(marketState), Text(trendDirection), Text(trendStrength), Bigint(sourceSequence), TimestampTz(sourceEventTimestamp)) : new object?[]
-    {
-        contractId, timePeriod, configurationId, valueDate, timestamp, schemaVersion,
-        rsiPeriod, priceLinePeriod, signalLinePeriod, marketBasePeriod, volatilityBandPeriod,
-        volatilityBandDeviation, price, rsi, priceLine, signalLine, marketBaseLine,
-        upperVolatilityBand, lowerVolatilityBand, bandWidth, priceSignalDivergence,
-        crossType, marketState, trendDirection, trendStrength, sourceSequence, sourceEventTimestamp
-    };
+    public object Bind() => Values(Text(contractId), Text(timePeriod), Text(configurationId), Date(valueDate), Time(timestamp ), Integer(schemaVersion), Integer(rsiPeriod), Integer(priceLinePeriod), Integer(signalLinePeriod), Integer(marketBasePeriod), Integer(volatilityBandPeriod), Double(volatilityBandDeviation), Numeric(price ), Double(rsi), Double(priceLine), Double(signalLine), Double(marketBaseLine), Double(upperVolatilityBand), Double(lowerVolatilityBand), Double(bandWidth), Double(priceSignalDivergence), Text(crossType), Text(marketState), Text(trendDirection), Text(trendStrength), Bigint(sourceSequence), TimestampTz(sourceEventTimestamp));
 }
 
 
@@ -2101,9 +1881,7 @@ internal readonly record struct InsertFuturesTickDataByTime(string contractId, D
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesTradeSignal(string contractId, DateOnly valueDate, string timePeriod, long sequenceId, TimeOnly timestamp, double mean, double stdDev, double futuresPrice, double priceChangePercent, double fundRiskPercent, double rsi, double rsiSlope, string trendType, string trendStrength, string tradeSignal, string tdi, string tdiStrength, double mdi, string mdiTrend, double mdiUpTrendLimit, double mdiDownTrendLimit, double upTrendingTrigger, double downTrendingTrigger, double entryTrigger, double exitTrigger, double trendDelta, double trendExtreme, double trendReversal, decimal fiftyDma, decimal twoHundredDma, string tradeExecuteState) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -2136,16 +1914,14 @@ internal readonly record struct InsertFuturesTradeSignal(string contractId, Date
         Numeric(fiftyDma ),
         Numeric(twoHundredDma ),
         Text(tradeExecuteState)
-    } : new object?[] { contractId, valueDate, timePeriod, sequenceId, timestamp, mean, stdDev, futuresPrice, priceChangePercent, fundRiskPercent, rsi, rsiSlope, trendType, trendStrength, tradeSignal, tdi, tdiStrength, mdi, mdiTrend, mdiUpTrendLimit, mdiDownTrendLimit, upTrendingTrigger, downTrendingTrigger, entryTrigger, exitTrigger, trendDelta, trendExtreme, trendReversal, fiftyDma, twoHundredDma, tradeExecuteState };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesTradeSignalIndex(string scope, string entryId, long sequenceId, string contractId, DateOnly valueDate, string timePeriod) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(scope),
         Text(entryId),
@@ -2153,22 +1929,20 @@ internal readonly record struct InsertFuturesTradeSignalIndex(string scope, stri
         Text(contractId),
         Date(valueDate),
         Text(timePeriod)
-    } : new object?[] { scope, entryId, sequenceId, contractId, valueDate, timePeriod };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertFuturesTradeSignalQuarantine(string fingerprint, string sourcePayload, string reason, DateTime quarantinedOn) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(fingerprint),
         Text(sourcePayload),
         Text(reason),
         TimestampTz(quarantinedOn)
-    } : new object?[] { fingerprint, sourcePayload, reason, quarantinedOn };
+    };
 }
 
 
@@ -2184,9 +1958,8 @@ internal readonly record struct InsertFuturesVwapSignal(
     string calculationMethod, int schemaVersion, string calculationVersion) : IBindValue
 {
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
-    public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -2212,13 +1985,6 @@ internal readonly record struct InsertFuturesVwapSignal(
         Text(calculationMethod),
         Integer(schemaVersion),
         Text(calculationVersion)
-    } : new object?[]
-    {
-        contractId, valueDate, configurationId, asOfUtc, lastTradeOrdinal,
-        sessionStartUtc, sessionEndUtc, cumulativePriceVolume, cumulativeVolume,
-        eligibleTradeCount, rejectedTradeCount, lastPrice, vwap, priceMinusVwap,
-        priceToVwapPercent, lastTradeSourceSequence, streamEpochId, isWarm, isValid,
-        invalidReason, isTickExact, calculationMethod, schemaVersion, calculationVersion
     };
 }
 
@@ -2236,9 +2002,7 @@ internal readonly record struct InsertFuturesVxTermStructureSignal(
     DateTime backSourceTimestamp, bool isWarm, bool isValid,
     int schemaVersion, string calculationVersion) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Date(valueDate),
         Text(configurationId),
@@ -2263,14 +2027,6 @@ internal readonly record struct InsertFuturesVxTermStructureSignal(
         Boolean(isValid),
         Integer(schemaVersion),
         Text(calculationVersion)
-    } : new object?[]
-    {
-        valueDate, configurationId, calculatedAt, frontSourceSequence,
-        backSourceSequence, frontContractId, frontExpiry, frontPrice,
-        backContractId, backExpiry, backPrice, frontBackSpread, frontBackRatio,
-        termStructurePercent, termStructureState, priorFrontBackRatio,
-        priorTermStructurePercent, frontSourceTimestamp, backSourceTimestamp,
-        isWarm, isValid, schemaVersion, calculationVersion
     };
 }
 
@@ -2303,27 +2059,24 @@ internal readonly record struct InsertMarketDataProjectionScopeMutationV3(
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertMarketHoliday(string currencyType, DateOnly holidayDate, string description) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(currencyType),
         Date(holidayDate),
         Text(description)
-    } : new object?[] { currencyType, holidayDate, description };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertRateOfReturn(string symbol, DateOnly valueDate, double rateOfReturn) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(symbol),
         Date(valueDate),
         Double(rateOfReturn)
-    } : new object?[] { symbol, valueDate, rateOfReturn };
+    };
 }
 
 
@@ -2358,14 +2111,12 @@ internal readonly record struct InsertTickTradeData(object?[] Values) : IBindVal
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertTradeLiveFeed(int orderId, int tradeId, string tradeLiveFeedState) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Integer(orderId),
         Integer(tradeId),
         Text(tradeLiveFeedState)
-    } : new object?[] { orderId, tradeId, tradeLiveFeedState };
+    };
 }
 
 
@@ -2386,8 +2137,7 @@ internal readonly record struct InsertVixFuturesEodData(
     decimal closePrice,
     long volume) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -2396,15 +2146,14 @@ internal readonly record struct InsertVixFuturesEodData(
         Numeric(lowPrice ),
         Numeric(closePrice ),
         Bigint(volume)
-    } : new object?[] { contractId, valueDate, openPrice, highPrice, lowPrice, closePrice, volume };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertYieldCurveRate(int id, DateOnly valueDate, double oneMonth, double twoMonth, double threeMonth, double sixMonth, double oneYear, double twoYear, double threeYear, double fiveYear, double sevenYear, double tenYear, double twentyYear, double thirtyYear) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Integer(id),
         Date(valueDate),
@@ -2420,19 +2169,18 @@ internal readonly record struct InsertYieldCurveRate(int id, DateOnly valueDate,
         Double(tenYear),
         Double(twentyYear),
         Double(thirtyYear)
-    } : new object?[] { id, valueDate, oneMonth, twoMonth, threeMonth, sixMonth, oneYear, twoYear, threeYear, fiveYear, sevenYear, tenYear, twentyYear, thirtyYear };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertYieldCurveRateYear(int lookupId, int rateYear) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Integer(lookupId),
         Integer(rateYear)
-    } : new object?[] { lookupId, rateYear };
+    };
 }
 
 
@@ -2466,8 +2214,7 @@ internal readonly record struct OptionTradeEvidenceParameters(object[] Items) : 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct OptionVolatilityParameters(object?[] Items) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Items.Select(ToParameter).ToArray() : Items;
+    public object Bind() => Items.Select(ToParameter).ToArray();
     static object ToParameter(object? value) => value switch
     {
         string text => Text(text), int number => Integer(number), long number => Bigint(number),
@@ -2564,8 +2311,7 @@ internal readonly record struct UpdateFuturesEodSessionStatistics(
 internal readonly record struct UpdateOptionChainGreeks(string underlyingContractId, DateOnly expiryDate,
     FuturesOptionTickDataV2ReadModel tick) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Double(tick.ImpliedVolatility),
         Double(tick.UnderlyingPrice),
@@ -2579,9 +2325,7 @@ internal readonly record struct UpdateOptionChainGreeks(string underlyingContrac
         Date(tick.ValueDate),
         Text(tick.ContractId),
         Bigint(tick.TickId)
-    } : new object?[] { tick.ImpliedVolatility, tick.UnderlyingPrice, tick.Delta,
-        tick.Gamma, tick.Vega, tick.Theta, tick.Rho, underlyingContractId, expiryDate,
-        tick.ValueDate, tick.ContractId, tick.TickId };
+    };
 }
 
 
@@ -2599,8 +2343,7 @@ internal readonly record struct UpdateOptionChainStatisticsParameters(
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct UpdateVixFuturesEodData(string contractId, DateOnly valueDate, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, long volume) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Numeric(openPrice ),
         Numeric(highPrice ),
@@ -2609,16 +2352,14 @@ internal readonly record struct UpdateVixFuturesEodData(string contractId, DateO
         Bigint(volume),
         Text(contractId),
         Date(valueDate)
-    } : new object?[] { openPrice, highPrice, lowPrice, closePrice, volume, contractId, valueDate };
+    };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct UpsertFuturesItiTimeFrameState(string contractId, string timePeriod, DateOnly calendarBucketStart, DateOnly timeFrameStartValueDate, DateOnly valueDate, long sequenceId, DateTime intrinsicTime, int intrinsicTimeGroupId, double intrinsicTimeLength, double intrinsicPrice, string intrinsicTimeTrend, string intrinsicTimeMode, double trendPrice, double trendExtreme, double trendReversal, double trendDelta, double targetDelta, double lambda, int tradingDays, double threshold, double upTrendTrigger, double downTrendTrigger, string tradeState, double bandAnchorPrice, double bandPercentage, double bandSize, double bandLevel, double reversalLevel) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -2648,7 +2389,7 @@ internal readonly record struct UpsertFuturesItiTimeFrameState(string contractId
         Double(bandSize),
         Double(bandLevel),
         Double(reversalLevel)
-    } : new object?[] { contractId, timePeriod, calendarBucketStart, timeFrameStartValueDate, valueDate, sequenceId, intrinsicTime, intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice, intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme, trendReversal, trendDelta, targetDelta, lambda, tradingDays, threshold, upTrendTrigger, downTrendTrigger, tradeState, bandAnchorPrice, bandPercentage, bandSize, bandLevel, reversalLevel };
+    };
 }
 
 
@@ -2656,8 +2397,7 @@ internal readonly record struct UpsertFuturesItiTimeFrameState(string contractId
 internal readonly record struct UpsertFuturesOptionChainQuoteData(
     string underlyingContractId, DateOnly expiryDate, FuturesOptionTickDataV2ReadModel tick) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(underlyingContractId),
         Date(expiryDate),
@@ -2677,10 +2417,7 @@ internal readonly record struct UpsertFuturesOptionChainQuoteData(
         Double(tick.Vega),
         Double(tick.Theta),
         Double(tick.Rho)
-    } : new object?[] { underlyingContractId, expiryDate, tick.ValueDate,
-        tick.ContractId, tick.TickId, tick.TickTime, tick.OptionPrice, tick.BidPrice,
-        tick.AskPrice, tick.BidSize, tick.AskSize, tick.ImpliedVolatility,
-        tick.UnderlyingPrice, tick.Delta, tick.Gamma, tick.Vega, tick.Theta, tick.Rho };
+    };
 }
 
 
@@ -2696,9 +2433,7 @@ internal readonly record struct UpsertMarketOutlookSnapshot(
     string missingInputs,
     byte[] snapshot) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    public object Bind() => PostgreSql ? new object?[]
+    public object Bind() => new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -2708,9 +2443,6 @@ internal readonly record struct UpsertMarketOutlookSnapshot(
         Bytea(futuresTradeSignal),
         Text(missingInputs),
         Bytea(snapshot)
-    } : new object?[]
-    {
-        contractId, valueDate, revision, updatedOn, eodData, futuresTradeSignal, missingInputs, snapshot
     };
 }
 
@@ -2735,18 +2467,18 @@ internal readonly record struct UpsertMarketOutlookWorkingState(
 
 /// <summary>Binds an exact workflow/input revision preparation lookup.</summary>
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct NativeCompositionReadParameters(Guid WorkflowId, long InputRevision, bool PostgreSql) : IBindValue
+internal readonly record struct NativeCompositionReadParameters(Guid WorkflowId, long InputRevision) : IBindValue
 {
-    public object Bind() => PostgreSql ? Values(Uuid(WorkflowId), Bigint(InputRevision)) : new object[] { WorkflowId, InputRevision };
+    public object Bind() => Values(Uuid(WorkflowId), Bigint(InputRevision));
 }
 
 
 
 /// <summary>Binds an immutable accepted composition preparation.</summary>
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct NativeCompositionWriteParameters(Guid WorkflowId, long InputRevision, byte[] Payload, bool PostgreSql) : IBindValue
+internal readonly record struct NativeCompositionWriteParameters(Guid WorkflowId, long InputRevision, byte[] Payload) : IBindValue
 {
-    public object Bind() => PostgreSql ? Values(Uuid(WorkflowId), Bigint(InputRevision), Bytea(Payload)) : new object[] { WorkflowId, InputRevision, Payload };
+    public object Bind() => Values(Uuid(WorkflowId), Bigint(InputRevision), Bytea(Payload));
 }
 
 
@@ -2755,7 +2487,6 @@ internal readonly record struct NativeCompositionWriteParameters(Guid WorkflowId
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct NativeItiDayMode(string contractId, DateOnly valueDate, string mode, long afterSequenceId) : IBindValue
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql array parameters require the Array marker combined with the element type.")]
     public object Bind() => new object?[] { Text(contractId), Date(valueDate), Text(mode), Bigint(afterSequenceId) };
 }
 
@@ -2773,7 +2504,6 @@ internal readonly record struct NativeItiDeleteState(string contractId, string t
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct NativeItiLatestTrendMode(string contractId, DateOnly valueDate, string trend, string mode) : IBindValue
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql array parameters require the Array marker combined with the element type.")]
     public object Bind() => new object?[] { Text(contractId), Date(valueDate), Text(trend), Text(mode) };
 }
 
@@ -2783,7 +2513,6 @@ internal readonly record struct NativeItiLatestTrendMode(string contractId, Date
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct NativeItiRange(IReadOnlyCollection<string> contractIds, DateOnly startDate, DateOnly endDate) : IBindValue
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql array parameters require the Array marker combined with the element type.")]
     public object Bind() => new object?[] { TextArray([.. contractIds] ), Date(startDate), Date(endDate) };
 }
 
@@ -2814,18 +2543,18 @@ internal readonly record struct NativeOptionChainVersionReadParameters(Guid SetI
 
 /// <summary>Binds an immutable provider-evidence lookup without object-array type inference.</summary>
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct NativeOptionEvidenceReadParameters(string ContractId, DateOnly ValueDate, string SourceId, bool PostgreSql) : IBindValue
+internal readonly record struct NativeOptionEvidenceReadParameters(string ContractId, DateOnly ValueDate, string SourceId) : IBindValue
 {
-    public object Bind() => PostgreSql ? Values(Text(ContractId), Date(ValueDate), Text(SourceId)) : new object[] { ContractId, ValueDate, SourceId };
+    public object Bind() => Values(Text(ContractId), Date(ValueDate), Text(SourceId));
 }
 
 
 
 /// <summary>Binds the complete immutable evidence identity, digest and accepted payload.</summary>
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct NativeOptionEvidenceWriteParameters(string ContractId, DateOnly ValueDate, string SourceId, string Digest, byte[] Payload, bool PostgreSql) : IBindValue
+internal readonly record struct NativeOptionEvidenceWriteParameters(string ContractId, DateOnly ValueDate, string SourceId, string Digest, byte[] Payload) : IBindValue
 {
-    public object Bind() => PostgreSql ? Values(Text(ContractId), Date(ValueDate), Text(SourceId), Text(Digest), Bytea(Payload)) : new object[] { ContractId, ValueDate, SourceId, Digest, Payload };
+    public object Bind() => Values(Text(ContractId), Date(ValueDate), Text(SourceId), Text(Digest), Bytea(Payload));
 }
 
 

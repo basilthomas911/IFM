@@ -76,7 +76,7 @@ internal static class ScheduledTaskDbContextExtensions
         internal void BindScheduledTaskParameters(object? [] values)
         {
             foreach (var value in values)
-                command.Parameters.Add(value);
+                PostgresValueBinding.AddParameter(command, value);
         }
     }
 }

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Framework.Storage.Postgres;
 using System.Text.Json;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Framework.Storage;
@@ -259,7 +260,7 @@ internal static class ConfigurationDbContextExtensions
         {
             var command = new NpgsqlCommand(sql, c, tx);
             if (parameters?.Bind()is object?[] values)
-                command.Parameters.AddRange(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.CreateMany(values));
+                PostgresValueBinding.AddParameters(command, values);
             return command;
         }
 

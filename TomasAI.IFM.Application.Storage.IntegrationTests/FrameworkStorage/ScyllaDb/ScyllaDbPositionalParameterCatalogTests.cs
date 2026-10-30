@@ -37,7 +37,7 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
         };
 
     [Theory]
-    [InlineData("ReferenceDb", "ReferenceDbCql")]
+    // ReferenceDb is PostgreSQL-only now; its CQL catalog was removed during migration.
     [InlineData("SecuritiesDb", "SecuritiesDbCql")]
     [InlineData("MarketDataDb", "MarketDataDbCql")]
     public void EveryScyllaParameterCatalogBinding_MatchesCqlMarkerOrder(
@@ -94,6 +94,12 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
         var valuesByName = constructorParameters
             .Select((parameter, index) => (parameter.Name!, Value: arguments[index]))
             .ToDictionary(entry => entry.Item1, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
+        foreach (var argument in arguments.Where(value => value is not null && value is not string && value is not IEnumerable))
+        {
+            foreach (var property in argument!.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                         .Where(property => property.CanRead && property.GetIndexParameters().Length == 0))
+                valuesByName.TryAdd(property.Name, property.GetValue(argument));
+        }
 
         var instance = Assert.IsAssignableFrom<IBindValue>(constructor.Invoke(arguments));
         var actual = Assert.IsType<object?[]>(instance.Bind());
@@ -107,7 +113,12 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
             var parameterName = ParameterAliases.GetValueOrDefault(aliasKey, marker);
             valuesByName.TryGetValue(parameterName, out var expected);
 
-            Assert.True(Equals(expected, actual[index]),
+            var value = actual[index] is BindParameter metadata ? metadata.Value : actual[index];
+            var equal = expected is IEnumerable expectedItems && expected is not string
+                && value is IEnumerable actualItems && value is not string
+                ? expectedItems.Cast<object?>().SequenceEqual(actualItems.Cast<object?>())
+                : Equals(expected, value);
+            Assert.True(equal,
                 $"{bindType.Name} value {index} for :{marker} was '{actual[index]}' instead of '{expected}'.");
         }
     }
@@ -143,7 +154,16 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
         if (typeof(IEnumerable).IsAssignableFrom(type))
             return Activator.CreateInstance(type);
 
-        return Activator.CreateInstance(type)
+        var instance = Activator.CreateInstance(type)
             ?? throw new InvalidOperationException($"Cannot create a sentinel for {parameterType}.");
+        foreach (var property in type.GetProperties().Where(property => property.CanWrite))
+        {
+            var propertyType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+            if (propertyType.IsPrimitive || propertyType.IsEnum || propertyType == typeof(string)
+                || propertyType == typeof(decimal) || propertyType == typeof(Guid)
+                || propertyType == typeof(DateOnly) || propertyType == typeof(DateTime) || propertyType == typeof(TimeOnly))
+                property.SetValue(instance, CreateSentinel(property.PropertyType, index++));
+        }
+        return instance;
     }
 }

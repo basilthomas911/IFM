@@ -6,8 +6,5 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetFuturesContractsByIds(ICollection<string> contractIds, string symbol) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql array parameters require the Array marker combined with their element type.")]
-    public object Bind() => PostgreSql ? new object?[] { TextArray([.. contractIds] ), Text(symbol) } : new object?[] { contractIds, symbol };
+    public object Bind() => new object?[] { TextArray([.. contractIds] ), Text(symbol) };
 }

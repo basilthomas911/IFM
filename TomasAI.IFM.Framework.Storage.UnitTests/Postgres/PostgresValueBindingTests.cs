@@ -1,4 +1,5 @@
 using System.Data;
+using Npgsql;
 using NpgsqlTypes;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.Storage;
@@ -8,6 +9,50 @@ namespace TomasAI.IFM.Framework.Storage.UnitTests.Postgres;
 
 public class PostgresValueBindingTests
 {
+    [Fact]
+    public void Existing_command_binds_neutral_values_in_order_without_sharing_parameters()
+    {
+        using var first = new NpgsqlCommand();
+        using var second = new NpgsqlCommand();
+        object?[] values = [BindValues.Text(null), 42L, new byte[] { 1, 2 }, Array.Empty<string>()];
+        PostgresValueBinding.AddParameters(first, values);
+        PostgresValueBinding.AddParameters(second, values);
+        Assert.Equal(4, first.Parameters.Count);
+        Assert.Equal(DBNull.Value, first.Parameters[0].Value);
+        Assert.Equal(NpgsqlDbType.Text, first.Parameters[0].NpgsqlDbType);
+        Assert.Equal(42L, first.Parameters[1].Value);
+        Assert.Equal(NpgsqlDbType.Bytea, first.Parameters[2].NpgsqlDbType);
+        Assert.Equal(NpgsqlDbType.Array | NpgsqlDbType.Text, first.Parameters[3].NpgsqlDbType);
+        Assert.NotSame(first.Parameters[0], second.Parameters[0]);
+        Assert.IsType<BindParameter>(values[0]);
+    }
+
+    [Fact]
+    public void Named_parameters_and_bulk_audit_arrays_preserve_types()
+    {
+        using var command = new NpgsqlCommand();
+        PostgresValueBinding.AddNamedParameter(command, "operation", BindValues.Uuid(null));
+        Assert.Equal("operation", command.Parameters[0].ParameterName);
+        Assert.Equal(NpgsqlDbType.Uuid, command.Parameters[0].NpgsqlDbType);
+        object?[] arrays = [Array.Empty<byte[]>(), Array.Empty<short>(), Array.Empty<Guid>(), Array.Empty<long>()];
+        PostgresValueBinding.AddParameters(command, arrays);
+        Assert.Equal(NpgsqlDbType.Array | NpgsqlDbType.Bytea, command.Parameters[1].NpgsqlDbType);
+        Assert.Equal(NpgsqlDbType.Array | NpgsqlDbType.Smallint, command.Parameters[2].NpgsqlDbType);
+        Assert.Equal(NpgsqlDbType.Array | NpgsqlDbType.Uuid, command.Parameters[3].NpgsqlDbType);
+        Assert.Equal(NpgsqlDbType.Array | NpgsqlDbType.Bigint, command.Parameters[4].NpgsqlDbType);
+    }
+
+    [Fact]
+    public void Single_array_value_is_not_expanded_into_multiple_parameters()
+    {
+        using var command = new NpgsqlCommand();
+        PostgresValueBinding.AddParameter(command, new[] { "ES", "NQ" });
+        PostgresValueBinding.AddParameter(command, null);
+        Assert.Equal(2, command.Parameters.Count);
+        Assert.Equal(new[] { "ES", "NQ" }, command.Parameters[0].Value);
+        Assert.Equal(DBNull.Value, command.Parameters[1].Value);
+    }
+
     [Fact]
     public void Scylla_keeps_ordinary_values_and_unwraps_neutral_metadata()
     {
@@ -39,5 +84,18 @@ public class PostgresValueBindingTests
     {
         var value = BindValues.Integer(4);
         Assert.NotSame(PostgresValueBinding.Create(value), PostgresValueBinding.Create(value));
+    }
+
+    [Fact]
+    public void Wall_clock_and_absolute_timestamps_remain_distinct_including_nulls()
+    {
+        var wallClock = new DateTime(2026, 10, 30, 12, 0, 0, DateTimeKind.Unspecified);
+        var utc = DateTime.SpecifyKind(wallClock, DateTimeKind.Utc);
+        Assert.Equal(NpgsqlDbType.Timestamp, PostgresValueBinding.Create(BindValues.Timestamp(wallClock)).NpgsqlDbType);
+        Assert.Equal(NpgsqlDbType.Timestamp, PostgresValueBinding.Create(BindValues.Timestamp(null)).NpgsqlDbType);
+        Assert.Equal(NpgsqlDbType.TimestampTz, PostgresValueBinding.Create(BindValues.TimestampTz(null)).NpgsqlDbType);
+        Assert.Equal(NpgsqlDbType.Timestamp, PostgresValueBinding.Create(wallClock).NpgsqlDbType);
+        Assert.Equal(NpgsqlDbType.TimestampTz, PostgresValueBinding.Create(utc).NpgsqlDbType);
+        Assert.Throws<ArgumentException>(() => BindValues.TimestampTz(wallClock));
     }
 }

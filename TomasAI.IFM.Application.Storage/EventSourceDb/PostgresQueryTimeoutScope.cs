@@ -1,3 +1,4 @@
+using TomasAI.IFM.Framework.Storage.Postgres;
 using Npgsql;
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -17,8 +18,8 @@ internal sealed class PostgresQueryTimeoutScope(NpgsqlConnection connection, Npg
         await using var configure = new NpgsqlCommand(
             "SELECT set_config('statement_timeout',$1,true), set_config('lock_timeout',$2,true);", connection, transaction)
             { CommandTimeout = 0 };
-        configure.Parameters.AddWithValue(checked((int)Math.Ceiling(selected.StatementTimeout.TotalMilliseconds)).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        configure.Parameters.AddWithValue(checked((int)Math.Ceiling((selected.LockTimeout ?? selected.StatementTimeout).TotalMilliseconds)).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        PostgresValueBinding.AddParameter(configure, checked((int)Math.Ceiling(selected.StatementTimeout.TotalMilliseconds)).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        PostgresValueBinding.AddParameter(configure, checked((int)Math.Ceiling((selected.LockTimeout ?? selected.StatementTimeout).TotalMilliseconds)).ToString(System.Globalization.CultureInfo.InvariantCulture));
         await configure.ExecuteNonQueryAsync(token).ConfigureAwait(false);
         activeTimeout = selected;
     }

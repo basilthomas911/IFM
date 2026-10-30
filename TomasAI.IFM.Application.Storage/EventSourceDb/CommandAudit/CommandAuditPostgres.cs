@@ -1,13 +1,13 @@
+using TomasAI.IFM.Framework.Storage.Postgres;
 using System.Security.Cryptography;
 using Npgsql;
-using NpgsqlTypes;
+using TomasAI.IFM.Shared.Storage;
 
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 
 internal static class CommandAuditPostgres
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql documents Array and Range as modifiers that must be combined with the element type using bitwise OR; these values describe PostgreSQL parameter types.")]
     internal static async Task<CommandAuditWriteResult[]> ReserveAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -18,17 +18,17 @@ internal static class CommandAuditPostgres
             EventSourceDbSql.InsertCommandLogMessagePackWindow, connection, transaction)
         { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
         await using var commandDisposal = command.ConfigureAwait(false);
-        Add(command, envelopes.Select(static item => item.CommandId).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Uuid);
-        Add(command, envelopes.Select(static item => item.StreamId).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);
-        Add(command, envelopes.Select(static item => item.ActorName).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);
-        Add(command, envelopes.Select(static item => item.CommandName).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);
-        Add(command, envelopes.Select(static item => $"{item.CommandTimestampUtc:o}").ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);
-        Add(command, Enumerable.Repeat(CommandStatus.InProgress.ToString(), envelopes.Count).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);
-        Add(command, Enumerable.Repeat(string.Empty, envelopes.Count).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);
-        Add(command, envelopes.Select(static item => item.Payload.Bytes).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Bytea);
-        Add(command, envelopes.Select(static item => (short)item.Payload.Format).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Smallint);
-        Add(command, envelopes.Select(static item => item.Payload.Version).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Integer);
-        Add(command, envelopes.Select(static item => item.Payload.Sha256).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Bytea);
+        Add(command, envelopes.Select(static item => item.CommandId).ToArray());
+        Add(command, envelopes.Select(static item => item.StreamId).ToArray());
+        Add(command, envelopes.Select(static item => item.ActorName).ToArray());
+        Add(command, envelopes.Select(static item => item.CommandName).ToArray());
+        Add(command, envelopes.Select(static item => $"{item.CommandTimestampUtc:o}").ToArray());
+        Add(command, Enumerable.Repeat(CommandStatus.InProgress.ToString(), envelopes.Count).ToArray());
+        Add(command, Enumerable.Repeat(string.Empty, envelopes.Count).ToArray());
+        Add(command, envelopes.Select(static item => item.Payload.Bytes).ToArray());
+        Add(command, envelopes.Select(static item => (short)item.Payload.Format).ToArray());
+        Add(command, envelopes.Select(static item => item.Payload.Version).ToArray());
+        Add(command, envelopes.Select(static item => item.Payload.Sha256).ToArray());
 
         var results = new CommandAuditWriteResult[envelopes.Count];
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -72,7 +72,7 @@ internal static class CommandAuditPostgres
     {
         var read = new NpgsqlCommand("SELECT commandpayload,commandpayloadformat,commandpayloadversion,commandpayloadsha256 FROM command_log WHERE commandid=$1", connection, transaction) { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
         await using var readDisposal = read.ConfigureAwait(false);
-        read.Parameters.AddWithValue(candidate.CommandId);
+        PostgresValueBinding.AddParameter(read, candidate.CommandId);
         var reader = await read.ExecuteReaderAsync(token).ConfigureAwait(false);
         await using var readerDisposal = reader.ConfigureAwait(false);
         if (!await reader.ReadAsync(token).ConfigureAwait(false) || Enumerable.Range(0, 4).Any(reader.IsDBNull)) return false;
@@ -88,6 +88,6 @@ internal static class CommandAuditPostgres
             && CryptographicOperations.FixedTimeEquals(codec.Serialize(retry.ForRetryIdentity()).Sha256, candidate.RetrySha256);
     }
 
-    static void Add(NpgsqlCommand command, object value, NpgsqlDbType type)
-        => command.Parameters.Add(new NpgsqlParameter { Value = value, NpgsqlDbType = type });
+    static void Add(NpgsqlCommand command, object value)
+        => PostgresValueBinding.AddParameter(command, value);
 }

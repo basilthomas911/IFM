@@ -46,7 +46,7 @@ public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEv
         await db.OpenAsync(cancellationToken).ConfigureAwait(false);
         var command = new NpgsqlCommand("UPDATE business_subscription_projection_receipt SET handoff_completed=true WHERE event_id=$1;", db) { CommandTimeout = 10 };
         await using var commandDisposal = command.ConfigureAwait(false);
-        command.Parameters.Add(new NpgsqlParameter { Value = eventId });
+        PostgresValueBinding.AddParameter(command, eventId);
         if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
             throw new InvalidDataException("Committed handoff receipt is missing.");
     }
@@ -62,7 +62,7 @@ public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEv
         await db.OpenAsync(cancellationToken).ConfigureAwait(false);
         var command = new NpgsqlCommand(sql, db) { CommandTimeout = 10 };
         await using var commandDisposal = command.ConfigureAwait(false);
-        foreach (var arg in arguments) command.Parameters.Add(new NpgsqlParameter { Value = arg });
+        foreach (var arg in arguments) PostgresValueBinding.AddParameter(command, arg);
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await using var readerDisposal = reader.ConfigureAwait(false);
         var result = new List<EventLogReadModel>();
@@ -86,12 +86,12 @@ public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEv
         await using var transactionDisposal = transaction.ConfigureAwait(false);
         using (var issue = new NpgsqlCommand("INSERT INTO business_subscription_projection_issue(event_id,reason_code,detail) VALUES($1,$2,$3) ON CONFLICT DO NOTHING;", db, transaction) { CommandTimeout = 10 })
         {
-            issue.Parameters.Add(new NpgsqlParameter { Value = eventId }); issue.Parameters.Add(new NpgsqlParameter { Value = reasonCode }); issue.Parameters.Add(new NpgsqlParameter { Value = detail });
+            PostgresValueBinding.AddParameter(issue, eventId); PostgresValueBinding.AddParameter(issue, reasonCode); PostgresValueBinding.AddParameter(issue, detail);
             await issue.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
         using (var receipt = new NpgsqlCommand("INSERT INTO business_subscription_projection_receipt(event_id) VALUES($1) ON CONFLICT DO NOTHING;", db, transaction) { CommandTimeout = 10 })
         {
-            receipt.Parameters.Add(new NpgsqlParameter { Value = eventId });
+            PostgresValueBinding.AddParameter(receipt, eventId);
             await receipt.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -103,7 +103,7 @@ public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEv
         await db.OpenAsync(cancellationToken).ConfigureAwait(false);
         var command = new NpgsqlCommand("INSERT INTO business_subscription_projection_receipt(event_id) VALUES($1) ON CONFLICT DO NOTHING;", db) { CommandTimeout = 10 };
         await using var commandDisposal = command.ConfigureAwait(false);
-        command.Parameters.Add(new NpgsqlParameter { Value = eventId });
+        PostgresValueBinding.AddParameter(command, eventId);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

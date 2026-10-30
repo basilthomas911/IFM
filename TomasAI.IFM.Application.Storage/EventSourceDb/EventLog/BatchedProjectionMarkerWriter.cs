@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Npgsql;
-using NpgsqlTypes;
+using TomasAI.IFM.Shared.Storage;
 
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
@@ -43,7 +43,6 @@ internal static class BatchedProjectionMarkerWriter
         SELECT count(*) FROM inserted;
         """;
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql documents Array and Range as modifiers that must be combined with the element type using bitwise OR; these values describe PostgreSQL parameter types.")]
     internal static async Task InsertAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
         IReadOnlyList<ProjectionMarker> markers, string sql, CancellationToken cancellationToken)
     {
@@ -63,12 +62,12 @@ internal static class BatchedProjectionMarkerWriter
         var now = DateTime.UtcNow;
         var command = EventLogAppenderSupport.Command(connection, transaction, sql);
         await using var commandDisposal = command.ConfigureAwait(false);
-        EventLogAppenderSupport.Add(command, ids, NpgsqlDbType.Array | NpgsqlDbType.Bigint);
-        EventLogAppenderSupport.Add(command, actors, NpgsqlDbType.Array | NpgsqlDbType.Text);
-        EventLogAppenderSupport.Add(command, projectors, NpgsqlDbType.Array | NpgsqlDbType.Text);
-        EventLogAppenderSupport.Add(command, stages, NpgsqlDbType.Array | NpgsqlDbType.Text);
-        EventLogAppenderSupport.Add(command, $"{now:o}", NpgsqlDbType.Text);
-        EventLogAppenderSupport.Add(command, now, NpgsqlDbType.TimestampTz);
+        EventLogAppenderSupport.Add(command, ids);
+        EventLogAppenderSupport.Add(command, actors);
+        EventLogAppenderSupport.Add(command, projectors);
+        EventLogAppenderSupport.Add(command, stages);
+        EventLogAppenderSupport.Add(command, BindValues.Text($"{now:o}"));
+        EventLogAppenderSupport.Add(command, BindValues.TimestampTz(now));
         var inserted = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         if (inserted is not long count || count != markers.Count)
             throw new InvalidOperationException("Not every required durable projection marker was persisted.");

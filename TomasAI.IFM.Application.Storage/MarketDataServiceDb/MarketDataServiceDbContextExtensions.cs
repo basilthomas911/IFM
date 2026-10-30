@@ -7,7 +7,6 @@ using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
-using TomasAI.IFM.Shared.Storage;
 using static TomasAI.IFM.Shared.Storage.BindValues;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb;
@@ -280,7 +279,7 @@ internal static class MarketDataServiceDbContextExtensions
             // command methods. Keep these transactional reads on this repository's owned transaction.
             // Do not use CommandBehavior.CloseConnection: only the transaction owner can close it.
             commandContext.SetCommand(ambient);
-            ambient.Parameters.AddRange(parameters);
+            PostgresValueBinding.AddParameters(ambient, parameters);
             var reader = await ambient.ExecuteReaderAsync(cancellationToken)
                 .ConfigureAwait(false);
         await using var readerDisposal = reader.ConfigureAwait(false);

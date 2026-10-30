@@ -1,7 +1,7 @@
 using System.Data;
 using System.Diagnostics;
 using Npgsql;
-using NpgsqlTypes;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -187,7 +187,7 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
                 connection, transaction, _expectedInsertSql);
         await using var expectedCommandDisposal = expectedCommand.ConfigureAwait(false);
             AddInsertParameters(expectedCommand, request, entry);
-            EventLogAppenderSupport.Add(expectedCommand, expectedStreamVersion.Value, NpgsqlDbType.Bigint);
+            EventLogAppenderSupport.Add(expectedCommand, BindValues.Bigint(expectedStreamVersion.Value));
             var scalar = await expectedCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
             if (scalar is not long eventVersion)
                 throw new ConcurrencyException(
@@ -213,11 +213,11 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
         PreparedEventLogRequest request,
         PreparedEventLogEntry entry)
     {
-        EventLogAppenderSupport.Add(command, request.EventStreamId, NpgsqlDbType.Bigint);
-        EventLogAppenderSupport.Add(command, entry.EventNameId, NpgsqlDbType.Integer);
-        EventLogAppenderSupport.Add(command, entry.Payload, NpgsqlDbType.Bytea);
-        EventLogAppenderSupport.Add(command, request.CommandId, NpgsqlDbType.Uuid);
-        EventLogAppenderSupport.Add(command, $"{request.EventTimestampUtc:o}", NpgsqlDbType.Text);
+        EventLogAppenderSupport.Add(command, BindValues.Bigint(request.EventStreamId));
+        EventLogAppenderSupport.Add(command, BindValues.Integer(entry.EventNameId));
+        EventLogAppenderSupport.Add(command, BindValues.Bytea(entry.Payload));
+        EventLogAppenderSupport.Add(command, BindValues.Uuid(request.CommandId));
+        EventLogAppenderSupport.Add(command, BindValues.Text($"{request.EventTimestampUtc:o}"));
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

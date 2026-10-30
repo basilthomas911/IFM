@@ -30,8 +30,8 @@ public static class BindValues
     public static object Smallint(byte? value) => Create(value, DbType.Int16);
     public static object Boolean(bool value) => Create(value, DbType.Boolean);
     public static object Boolean(bool? value) => Create(value, DbType.Boolean);
-    public static object Timestamp(DateTime value) => Create(value, DbType.DateTime);
-    public static object Timestamp(DateTime? value) => Create(value, DbType.DateTime);
+    public static object Timestamp(DateTime value) => Create(value, DbType.DateTime2);
+    public static object Timestamp(DateTime? value) => Create(value, DbType.DateTime2);
     public static object TimestampTz(DateTime value) => Create(RequireUtc(value), DbType.DateTimeOffset);
     public static object TimestampTz(DateTime? value)
         => Create<DateTime?>(value.HasValue ? RequireUtc(value.Value) : null, DbType.DateTimeOffset);

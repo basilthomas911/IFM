@@ -69,7 +69,8 @@ public sealed class MarkerProjectorFixture : IAsyncLifetime
         using (var count = new NpgsqlCommand("""
             SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND tablename='event_log'
             """, db))
-            Assert.Equal(4L, (long)count.ExecuteScalar()!);
+            // The current schema includes the stream/name/version recovery lookup index.
+            Assert.Equal(5L, (long)count.ExecuteScalar()!);
         using var ddl = new NpgsqlCommand("""
             CREATE TABLE marker_probe_receipt(projector text NOT NULL,eventid bigint NOT NULL,
                 messageid text NOT NULL,PRIMARY KEY(projector,eventid));

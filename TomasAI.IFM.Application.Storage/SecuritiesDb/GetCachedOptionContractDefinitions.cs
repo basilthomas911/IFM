@@ -8,6 +8,5 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 internal readonly record struct GetCachedOptionContractDefinitions(
     string symbol, Guid generation, DateOnly expiryDate) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(symbol),Uuid(generation),Date(expiryDate)) : new object?[] { symbol, generation, expiryDate };
+    public object Bind() => Values(Text(symbol),Uuid(generation),Date(expiryDate));
 }

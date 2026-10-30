@@ -1,6 +1,7 @@
+using TomasAI.IFM.Framework.Storage.Postgres;
 using System.Diagnostics;
 using Npgsql;
-using NpgsqlTypes;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -56,8 +57,8 @@ internal static class EventLogAppenderSupport
     internal static NpgsqlCommand Command(NpgsqlConnection connection, NpgsqlTransaction? transaction, string sql)
         => new(sql, connection, transaction) { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
 
-    internal static void Add(NpgsqlCommand command, object value, NpgsqlDbType type)
-        => command.Parameters.Add(new NpgsqlParameter { Value = value, NpgsqlDbType = type });
+    internal static void Add(NpgsqlCommand command, object value)
+        => PostgresValueBinding.AddParameter(command, value);
 
     internal static async Task InsertProjectionMarkerAsync(
         NpgsqlConnection connection,
@@ -71,17 +72,17 @@ internal static class EventLogAppenderSupport
         var now = DateTime.UtcNow;
         var command = Command(connection, transaction, sql ?? EventSourceDbSql.TryCreateEventProjectorExecutionState);
         await using var commandDisposal = command.ConfigureAwait(false);
-        Add(command, eventId, NpgsqlDbType.Bigint);
-        Add(command, requirement.ActorName, NpgsqlDbType.Text);
-        Add(command, requirement.ProjectorName, NpgsqlDbType.Text);
-        Add(command, false, NpgsqlDbType.Boolean);
-        Add(command, 0, NpgsqlDbType.Integer);
-        Add(command, "Processing", NpgsqlDbType.Text);
-        Add(command, requirement.InitialStage.ToString(), NpgsqlDbType.Text);
-        Add(command, string.Empty, NpgsqlDbType.Text);
-        Add(command, $"{now:o}", NpgsqlDbType.Text);
-        Add(command, $"{now:o}", NpgsqlDbType.Text);
-        Add(command, now, NpgsqlDbType.TimestampTz);
+        Add(command, BindValues.Bigint(eventId));
+        Add(command, BindValues.Text(requirement.ActorName));
+        Add(command, BindValues.Text(requirement.ProjectorName));
+        Add(command, BindValues.Boolean(false));
+        Add(command, BindValues.Integer(0));
+        Add(command, BindValues.Text("Processing"));
+        Add(command, BindValues.Text(requirement.InitialStage.ToString()));
+        Add(command, BindValues.Text(string.Empty));
+        Add(command, BindValues.Text($"{now:o}"));
+        Add(command, BindValues.Text($"{now:o}"));
+        Add(command, BindValues.TimestampTz(now));
         if (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null)
             throw new InvalidOperationException("The required durable projection marker was not persisted.");
         EventLogPersistenceMetrics.ProjectionMarkersWritten(1, started);

@@ -62,9 +62,9 @@ LIMIT 1;
        createdBy AS "CreatedBy",
        updatedOn AS "UpdatedOn",
        updatedBy AS "UpdatedBy"
-FROM option_trade
-WHERE orderId = :orderId 
-and tradeId = :tradeId
+FROM trade.option_trade
+WHERE orderId = $1
+and tradeId = $2
 """;
     public const string GetOptionTrades = """
         SELECT orderId AS "OrderId",

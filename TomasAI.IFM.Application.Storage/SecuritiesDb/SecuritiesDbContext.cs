@@ -332,7 +332,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
             {
                 await (db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContractBySymbolV3Partition : SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)
                     .SetParameters(futuresContractSymbols.Select(symbol =>
-                        new DeleteFuturesContractBySymbolV3Partition(symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }))
+                        new DeleteFuturesContractBySymbolV3Partition(symbol)))
                     .ExecuteCommandAsync(cancellationToken))
                 .ConfigureAwait(false);
             }
@@ -340,7 +340,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
             {
                 await (db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesOptionContractBySymbolV2Partition : SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition)
                     .SetParameters(futuresOptionContractSymbols.Select(symbol =>
-                        new DeleteFuturesOptionContractBySymbolV2Partition(symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }))
+                        new DeleteFuturesOptionContractBySymbolV2Partition(symbol)))
                     .ExecuteCommandAsync(cancellationToken))
                 .ConfigureAwait(false);
             }
@@ -497,13 +497,13 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     {
         var db = DbFactory.SecuritiesDb;
         var contracts = await (db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContract)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesContract : SecuritiesDbCql.GetFuturesContract)
-            .SetParameters(new GetFuturesContract(contractId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .SetParameters(new GetFuturesContract(contractId))
             .ExecuteQueryAsync(MapToFuturesContract!))
                 .ConfigureAwait(false);
         List<object> queuedCommands =
         [
             db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContract)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesContract : SecuritiesDbCql.DeleteFuturesContract)
-                .SetParameters(new DeleteFuturesContract(contractId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesContract(contractId))
                 .QueueCommand()
         ];
         queuedCommands.AddRange(contracts.Select(contract =>
@@ -513,7 +513,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
                     contract.Rollover,
                     contract.OnTheRun,
                     contract.LastTradeDate,
-                    contract.ContractId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                    contract.ContractId))
                 .QueueCommand()));
         await (this.ExecuteProjectionMutationAsync(
             db,
@@ -560,7 +560,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
             FuturesContractSymbolProjection,
             symbol,
             () => db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOnTheRunFuturesContract)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetOnTheRunFuturesContract : SecuritiesDbCql.GetOnTheRunFuturesContract)
-                .SetParameters(new GetOnTheRunFuturesContract(symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new GetOnTheRunFuturesContract(symbol))
                 .ExecuteSingleAsync(MapToFuturesContract!),
             async () => (await (this.LoadAndPopulateFuturesContractsBySymbolAsync(symbol))
                 .ConfigureAwait(false))
@@ -579,7 +579,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
             symbol,
             cancellationToken,
             token => db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOnTheRunFuturesContract)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetOnTheRunFuturesContract : SecuritiesDbCql.GetOnTheRunFuturesContract)
-                .SetParameters(new GetOnTheRunFuturesContract(symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new GetOnTheRunFuturesContract(symbol))
                 .ExecuteSingleAsync(MapToFuturesContract!, token),
             async token => (await (this.LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token))
                 .ConfigureAwait(false))
@@ -599,7 +599,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
             FuturesContractSymbolProjection,
             symbol,
             () => db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetRolloverFuturesContracts)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetRolloverFuturesContracts : SecuritiesDbCql.GetRolloverFuturesContracts)
-                .SetParameters(new GetRolloverFuturesContracts(symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new GetRolloverFuturesContracts(symbol))
                 .ExecuteQueryAsync(MapToFuturesContract!),
             async () => (await (this.LoadAndPopulateFuturesContractsBySymbolAsync(symbol))
                 .ConfigureAwait(false))
@@ -619,7 +619,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
             symbol,
             cancellationToken,
             token => db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetRolloverFuturesContracts)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetRolloverFuturesContracts : SecuritiesDbCql.GetRolloverFuturesContracts)
-                .SetParameters(new GetRolloverFuturesContracts(symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new GetRolloverFuturesContracts(symbol))
                 .ExecuteQueryAsync(MapToFuturesContract!, token),
             async token => (await (this.LoadAndPopulateFuturesContractsBySymbolAsync(symbol, token))
                 .ConfigureAwait(false))
@@ -644,7 +644,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     {
         var contracts = await (DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContract)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesContract : SecuritiesDbCql.GetFuturesContract)
-            .SetParameters(new GetFuturesContract(contractId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .SetParameters(new GetFuturesContract(contractId))
             .ExecuteQueryAsync(MapToFuturesContract!))
                 .ConfigureAwait(false);
         return contracts.Count switch
@@ -662,7 +662,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     {
         var contracts = await (DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContract)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesContract : SecuritiesDbCql.GetFuturesContract)
-            .SetParameters(new GetFuturesContract(contractId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .SetParameters(new GetFuturesContract(contractId))
             .ExecuteQueryAsync(MapToFuturesContract!, cancellationToken))
                 .ConfigureAwait(false);
         return contracts.Count switch
@@ -744,18 +744,18 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     {
         var db = DbFactory.SecuritiesDb;
         var contracts = await (db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContract)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesOptionContract : SecuritiesDbCql.GetFuturesOptionContract)
-            .SetParameters(new GetFuturesOptionContract(contractId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .SetParameters(new GetFuturesOptionContract(contractId))
             .ExecuteQueryAsync(MapToFuturesOptionContract!))
                 .ConfigureAwait(false);
         List<object> queuedCommands =
         [
             db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContract)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesOptionContract : SecuritiesDbCql.DeleteFuturesOptionContract)
-                .SetParameters(new DeleteFuturesOptionContract(contractId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesOptionContract(contractId))
                 .QueueCommand()
         ];
         queuedCommands.AddRange(contracts.Select(contract =>
             db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.DeleteFuturesOptionContractBySymbolV2 : SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2)
-                .SetParameters(new DeleteFuturesOptionContractBySymbolV2(contract.Symbol, contract.ContractMonth, contract.OptionType, contract.StrikePrice, contract.ContractId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .SetParameters(new DeleteFuturesOptionContractBySymbolV2(contract.Symbol, contract.ContractMonth, contract.OptionType, contract.StrikePrice, contract.ContractId))
                 .QueueCommand()));
         await (this.ExecuteProjectionMutationAsync(
             db,
@@ -783,7 +783,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     {
         var contracts = await (DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContract)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesOptionContract : SecuritiesDbCql.GetFuturesOptionContract)
-            .SetParameters(new GetFuturesOptionContract(contractId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .SetParameters(new GetFuturesOptionContract(contractId))
             .ExecuteQueryAsync(MapToFuturesOptionContract!, cancellationToken))
                 .ConfigureAwait(false);
         return contracts.Count switch
@@ -865,7 +865,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     public async Task<ICollection<FuturesContractV3ReadModel>> GetFuturesContractsByIdsAsync(ICollection<string> contractIds, string symbol)
         => await (DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractsByIds)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesContractsByIds : SecuritiesDbCql.GetFuturesContractsByIds)
-            .SetParameters(new GetFuturesContractsByIds(contractIds, symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .SetParameters(new GetFuturesContractsByIds(contractIds, symbol))
             .ExecuteQueryAsync(MapToFuturesContract!))
                 .ConfigureAwait(false);
 
@@ -875,7 +875,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         CancellationToken cancellationToken)
         => await (DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractsByIds)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesContractsByIds : SecuritiesDbCql.GetFuturesContractsByIds)
-            .SetParameters(new GetFuturesContractsByIds(contractIds, symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .SetParameters(new GetFuturesContractsByIds(contractIds, symbol))
             .ExecuteQueryAsync(MapToFuturesContract!, cancellationToken))
                 .ConfigureAwait(false);
 
@@ -925,7 +925,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
             await (DbFactory.SecuritiesDb
                 .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractRolloverIfMissing)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.InsertFuturesContractRolloverIfMissing : SecuritiesDbCql.InsertFuturesContractRolloverIfMissing)
                 .SetParameters(new InsertFuturesContractRolloverIfMissing(
-                    symbol!, createdOnUtc, createdBy) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                    symbol!, createdOnUtc, createdBy))
                 .ExecuteCommandAsync(cancellationToken))
                 .ConfigureAwait(false);
         }
@@ -938,7 +938,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         symbol = this.ValidateAndNormalizeSymbol(symbol);
         return await (DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesContractRollover)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesContractRollover : SecuritiesDbCql.GetFuturesContractRollover)
-            .SetParameters(new GetFuturesContractRollover(symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .SetParameters(new GetFuturesContractRollover(symbol))
             .ExecuteSingleAsync(MapToFuturesContractRollover!, cancellationToken))
                 .ConfigureAwait(false);
     }
@@ -1011,7 +1011,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
 
         var page = await db
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetFuturesOptionContractsBySymbol)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? SecuritiesDbSql.GetFuturesOptionContractsBySymbol : SecuritiesDbCql.GetFuturesOptionContractsBySymbol)
-            .SetParameters(new GetFuturesOptionContractsBySymbol(request.Symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .SetParameters(new GetFuturesOptionContractsBySymbol(request.Symbol))
             .ExecutePageAsync(MapToFuturesOptionContract!, request.PageSize, cursor?.State, cancellationToken)
             .ConfigureAwait(false);
         if (!await this.IsProjectionReadStampCurrentAsync(db, stamp.Value, cancellationToken)
@@ -1068,7 +1068,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         var state = await (db
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiryCalendarState)}",
                 string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.GetOptionContractExpiryCalendarState : SecuritiesDbCql.GetOptionContractExpiryCalendarState)
-            .SetParameters(new GetOptionContractExpiryCalendarState(symbol) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+            .SetParameters(new GetOptionContractExpiryCalendarState(symbol))
             .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, cancellationToken))
                 .ConfigureAwait(false);
         if (state is null || fromExpiry > state.CoverageThrough || throughExpiry < state.CoverageFrom)
@@ -1081,7 +1081,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiries)}",
                 string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.GetOptionContractExpiries : SecuritiesDbCql.GetOptionContractExpiries)
             .SetParameters(new GetOptionContractExpiries(symbol, state.Generation, effectiveFromExpiry,
-                state.CoverageThrough) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                state.CoverageThrough))
             .ExecuteQueryAsync(MapToOptionContractExpiry!, cancellationToken))
                 .ConfigureAwait(false)).ToArray();
         var nearestAfter = rows.Where(row => row.ExpiryDate > effectiveThroughExpiry)
@@ -1100,7 +1100,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         var db = DbFactory.SecuritiesDb;
         var state = await (db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiryCalendarState)}",
                 string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.GetOptionContractExpiryCalendarState : SecuritiesDbCql.GetOptionContractExpiryCalendarState)
-            .SetParameters(new GetOptionContractExpiryCalendarState(symbol) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+            .SetParameters(new GetOptionContractExpiryCalendarState(symbol))
             .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, cancellationToken))
                 .ConfigureAwait(false);
         if (state is null || expiryDate < state.CoverageFrom || expiryDate > state.CoverageThrough) return [];
@@ -1109,7 +1109,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         var rows = await definitionPartitions.GetAsync((symbol, state.Generation, expiryDate), async token =>
             (await (db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetCachedOptionContractDefinitions)}",
                 string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.GetCachedOptionContractDefinitions : SecuritiesDbCql.GetCachedOptionContractDefinitions)
-                .SetParameters(new GetCachedOptionContractDefinitions(symbol, state.Generation, expiryDate) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                .SetParameters(new GetCachedOptionContractDefinitions(symbol, state.Generation, expiryDate))
                 .ExecuteQueryAsync(MapToCachedOptionContractDefinition!, token))
                 .ConfigureAwait(false)).ToArray(), cancellationToken)
             .ConfigureAwait(false) ?? [];
@@ -1149,7 +1149,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         var previous = await (db
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiryCalendarState)}",
                 string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.GetOptionContractExpiryCalendarState : SecuritiesDbCql.GetOptionContractExpiryCalendarState)
-            .SetParameters(new GetOptionContractExpiryCalendarState(symbol) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+            .SetParameters(new GetOptionContractExpiryCalendarState(symbol))
             .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, cancellationToken))
                 .ConfigureAwait(false);
         var definitionCommands = definitions

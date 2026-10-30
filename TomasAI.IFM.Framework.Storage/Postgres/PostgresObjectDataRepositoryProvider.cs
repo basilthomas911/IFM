@@ -452,7 +452,7 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         }
     }
     /// <summary>
-    /// Validates and returns an already-created positional parameter array.
+    /// Converts positional C# values and neutral type hints into provider-owned parameters.
     /// </summary>
     /// <param name="value">provider bind payload</param>
     /// <returns></returns>

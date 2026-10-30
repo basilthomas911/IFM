@@ -26,6 +26,24 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
 public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
 {
     [Fact]
+    public async Task Stored_option_trade_lookup_binds_ordinary_values_and_filters_both_keys()
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaSql.Create, [], ct));
+        var settings = new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection, fixture.Connection, "System.Data.Postgres");
+        var context = new TradeDbContext(settings, Mock.Of<IDbContextFactory>(), Mock.Of<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+        var orderId = Random.Shared.Next(60_000_000, 70_000_000);
+        const int tradeId = 7;
+        Assert.Null(await context.GetOptionTradeAsync(orderId, tradeId));
+        Assert.Null(await context.GetOptionTradeAsync(orderId, tradeId, System.Threading.CancellationToken.None));
+        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(
+            "INSERT INTO trade.option_trade (orderid,tradeid) VALUES ($1,$2),($1,$3)", [orderId, tradeId, tradeId + 1], ct));
+        var ids = await context.Use("StoredTrade.BindingRegression", TradeDbSql.GetOptionTrade)
+            .SetParameters(new GetOptionTrade(orderId, tradeId))
+            .ExecuteQueryAsync(row => (Order: row.GetInt(0), Trade: row.GetInt(1)));
+        Assert.Equal((orderId, tradeId), Assert.Single(ids));
+    }
+
+    [Fact]
     public async Task Position_history_persists_currency_without_requiring_a_trade_plan()
     {
         await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaSql.Create, [], ct));

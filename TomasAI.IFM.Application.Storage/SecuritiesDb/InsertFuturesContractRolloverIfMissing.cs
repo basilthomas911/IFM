@@ -10,6 +10,5 @@ internal readonly record struct InsertFuturesContractRolloverIfMissing(
     DateTime createdOn,
     string createdBy) : IBindValue
 {
-    public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new object?[] { Text(symbol), TimestampTz(createdOn), Text(createdBy) } : new object?[] { symbol, createdOn, createdBy };
+    public object Bind() => new object?[] { Text(symbol), TimestampTz(createdOn), Text(createdBy) };
 }
