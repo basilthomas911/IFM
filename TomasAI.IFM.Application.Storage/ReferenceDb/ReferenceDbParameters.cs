@@ -1,10 +1,9 @@
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
-using Npgsql;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.ReferenceDb;
-internal readonly record struct ReferenceParameters(NpgsqlParameter[] Values) : IBindValue
+internal readonly record struct ReferenceParameters(object?[] Values) : IBindValue
 {
     public object Bind() => Values;
 }
@@ -12,7 +11,7 @@ internal readonly record struct ReferenceParameters(NpgsqlParameter[] Values) : 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct DeleteMDIForwardLossRatio(string trendDirection, string tradeType) : IBindValue
 {
-    public object Bind() => new NpgsqlParameter[]
+    public object Bind() => new object?[]
     {
         Text(trendDirection),
         Text(tradeType)
@@ -34,7 +33,7 @@ internal readonly record struct GetLookupTypeById(string lookupTypeName, int ord
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetMDIForwardLossRatios(string trendDirection, string tradeType) : IBindValue
 {
-    public object Bind() => new NpgsqlParameter[]
+    public object Bind() => new object?[]
     {
         Text(trendDirection),
         Text(tradeType)
@@ -50,7 +49,7 @@ internal readonly record struct GetTradeStrategyFamilies(string catalog) : IBind
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertMDIForwardLossRatio(int mdi, string trendDirection, string tradeType, double forwardLossRatio, string createdBy, DateTime? createdOn, string updatedBy, DateTime? updatedOn) : IBindValue
 {
-    public object Bind() => new NpgsqlParameter[]
+    public object Bind() => new object?[]
     {
         Integer(mdi),
         Text(trendDirection),

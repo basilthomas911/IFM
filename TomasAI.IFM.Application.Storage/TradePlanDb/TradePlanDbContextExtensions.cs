@@ -92,7 +92,7 @@ internal static class TradePlanDbContextExtensions
             """, connection);
         foreach (var value in new object[] { position.Trade.PortfolioId,position.Trade.FundId,position.Trade.OrderId,
             position.Trade.TradeId,position.PositionId,firstValueDate,lastValueDate,startUtc,endUtc })
-            command.Parameters.Add(new NpgsqlParameter { Value = value });
+            command.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Create(value));
         var points = new List<StrategyTradePlanChartPoint>();
         await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
         while (await reader.ReadAsync(token).ConfigureAwait(false))
@@ -114,8 +114,8 @@ internal static class TradePlanDbContextExtensions
         await using var transaction = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, token).ConfigureAwait(false);
         object?[] scope = [position.Trade.PortfolioId, position.Trade.FundId, position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date];
         await using var count = new NpgsqlCommand($"SELECT count(*),coalesce(max(planRevision),0),max(calculatedAtUtc) FROM {table} WHERE {filter}", connection, transaction);
-        foreach (var value in scope) count.Parameters.Add(new NpgsqlParameter { Value = value! });
-        count.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Bigint, Value = (object?)maximumRevision ?? DBNull.Value });
+        foreach (var value in scope) count.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Create(value));
+        count.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Create(TomasAI.IFM.Shared.Storage.BindValues.Bigint(maximumRevision)));
         long total, anchor;
         DateTime? chartEnd;
         await using (var reader = await count.ExecuteReaderAsync(token).ConfigureAwait(false))
@@ -125,8 +125,8 @@ internal static class TradePlanDbContextExtensions
             chartEnd = reader.IsDBNull(2) ? null : reader.GetDateTime(2);
         }
         await using var command = new NpgsqlCommand($"SELECT payload FROM {table} WHERE {filter} ORDER BY planRevision DESC OFFSET $8 LIMIT $9", connection, transaction);
-        foreach (var value in scope) command.Parameters.Add(new NpgsqlParameter { Value = value! });
-        foreach (var value in new object[] { anchor, offset, size }) command.Parameters.Add(new NpgsqlParameter { Value = value });
+        foreach (var value in scope) command.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Create(value));
+        foreach (var value in new object[] { anchor, offset, size }) command.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Create(value));
         var items = new List<StrategyTradePlanSnapshot>(size);
         await using (var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false))
             while (await reader.ReadAsync(token).ConfigureAwait(false))
@@ -143,8 +143,8 @@ internal static class TradePlanDbContextExtensions
                 // Latest price-only sample per UTC minute (at most 361 buckets across six hours).
                 // No historical position/leg payload is fetched for the chart.
                 await using var chart = new NpgsqlCommand($"SELECT DISTINCT ON (date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01')) calculatedAtUtc,combinedSpreadPrice,CASE WHEN calculationVersion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedForwardPrice ELSE combinedForwardPrice END FROM {table} WHERE {filter} AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9 AND combinedSpreadPrice IS NOT NULL ORDER BY date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC", connection, transaction);
-                foreach (var value in scope) chart.Parameters.Add(new NpgsqlParameter { Value = value! });
-                foreach (var value in new object[] { anchor, end.AddHours(-6), end }) chart.Parameters.Add(new NpgsqlParameter { Value = value });
+                foreach (var value in scope) chart.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Create(value));
+                foreach (var value in new object[] { anchor, end.AddHours(-6), end }) chart.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Create(value));
                 await using var reader = await chart.ExecuteReaderAsync(token).ConfigureAwait(false);
                 while (await reader.ReadAsync(token).ConfigureAwait(false)) samples.Add(new(reader.GetDateTime(0),reader.GetDecimal(1)) { ForwardSpread = reader.IsDBNull(2) ? null : reader.GetDecimal(2) });
                 return new TradePlanChartCache.Series(end, samples.ToArray());
@@ -208,7 +208,7 @@ internal static class TradePlanDbContextExtensions
             .ConfigureAwait(false);
         var command = new NpgsqlCommand(sql, connection);
         await using var commandDisposal = command.ConfigureAwait(false);
-        foreach (var value in values) command.Parameters.Add(new NpgsqlParameter { Value = value ?? DBNull.Value });
+        foreach (var value in values) command.Parameters.Add(value);
         var reader = await command.ExecuteReaderAsync(token)
             .ConfigureAwait(false);
         await using var readerDisposal = reader.ConfigureAwait(false);

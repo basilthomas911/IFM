@@ -1,4 +1,4 @@
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 using Microsoft.Extensions.Hosting;
 using MessagePack;
 using Microsoft.Extensions.Logging;

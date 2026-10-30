@@ -45,9 +45,9 @@ internal static class SecuritiesDbContextExtensions
         
             await context.RemoveFuturesContractAsync(transaction, originalContractId ?? contract.ContractId, token)
                 .ConfigureAwait(false);
-            await transaction.ExecuteAsync(SecuritiesDbSql.InsertFuturesContract, (Npgsql.NpgsqlParameter[])parameters.Bind(), token)
+            await transaction.ExecuteAsync(SecuritiesDbSql.InsertFuturesContract, (object?[])parameters.Bind(), token)
                 .ConfigureAwait(false);
-            await transaction.ExecuteAsync(SecuritiesDbSql.InsertFuturesContractBySymbolV3, (Npgsql.NpgsqlParameter[])parameters.Bind(), token)
+            await transaction.ExecuteAsync(SecuritiesDbSql.InsertFuturesContractBySymbolV3, (object?[])parameters.Bind(), token)
                 .ConfigureAwait(false);
         }
 
@@ -71,9 +71,9 @@ internal static class SecuritiesDbContextExtensions
         
             await context.RemoveOptionContractAsync(transaction, originalContractId ?? contract.ContractId, token)
                 .ConfigureAwait(false);
-            await transaction.ExecuteAsync(SecuritiesDbSql.InsertFuturesOptionContract, (Npgsql.NpgsqlParameter[])parameters.Bind(), token)
+            await transaction.ExecuteAsync(SecuritiesDbSql.InsertFuturesOptionContract, (object?[])parameters.Bind(), token)
                 .ConfigureAwait(false);
-            await transaction.ExecuteAsync(SecuritiesDbSql.InsertFuturesOptionContractBySymbolV2, (Npgsql.NpgsqlParameter[])parameters.Bind(), token)
+            await transaction.ExecuteAsync(SecuritiesDbSql.InsertFuturesOptionContractBySymbolV2, (object?[])parameters.Bind(), token)
                 .ConfigureAwait(false);
         }
 

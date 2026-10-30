@@ -280,6 +280,9 @@ impl Delivery {
             Err(error) => return Some(error),
         };
         let mut submitted = 0u64;
+        // At most one source record is assembled ahead of broker admission.
+        // A full broker queue pauses this consumer, never the provider reader.
+        let mut waiting = std::collections::VecDeque::<(Frame, u128)>::new();
         let mut first_current: Option<(u128, u64)> = None;
         loop {
             if stop.is_cancelled() {
@@ -364,7 +367,32 @@ impl Delivery {
             }
             let mut drained = 0;
             if health.connected {
-                for _ in 0..64 {
+                'drain: for _ in 0..64 {
+                    // Retry the detached record before consuming another. The
+                    // upstream quote FIFO stays bounded by evicting old quotes;
+                    // executions and replay checkpoints are never discarded.
+                    while let Some((frame, physical)) = waiting.front() {
+                        if data.generation(config.lane).ok().flatten() != Some(*physical) {
+                            waiting.pop_front();
+                            continue;
+                        }
+                        match publisher.try_publish(frame) {
+                            Ok(()) => {
+                                submitted = submitted.saturating_add(1);
+                                if first_current.is_none_or(|(old, _)| old != *physical) {
+                                    first_current = Some((*physical, submitted));
+                                }
+                                waiting.pop_front();
+                            }
+                            Err(error @ ("Native publication queue unavailable" | "Native publication byte capacity exceeded")) => {
+                                match frame.encode() {
+                                    Ok(bytes) if bytes.len() <= config.bytes => break 'drain,
+                                    _ => return Some(error.into()),
+                                }
+                            }
+                            Err(error) => return Some(error.into()),
+                        }
+                    }
                     let next =
                         match data.consume_output(config.lane, |value| Ok(Some(value.clone()))) {
                             Ok(value) => value,
@@ -414,17 +442,11 @@ impl Delivery {
                         {
                             return Some(error.into());
                         }
-                        if let Err(error) = publisher.try_publish(&frame) {
-                            return Some(error.into());
-                        }
-                        submitted = submitted.saturating_add(1);
-                        if first_current.is_none_or(|(physical, _)| physical != next.generation) {
-                            first_current = Some((next.generation, submitted));
-                        }
+                        waiting.push_back((frame, next.generation));
                     }
                 }
             }
-            if drained == 64 {
+            if drained == 64 || drained != 0 && !waiting.is_empty() {
                 tokio::task::yield_now().await;
                 continue;
             }

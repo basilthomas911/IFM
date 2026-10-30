@@ -1554,6 +1554,17 @@ public static class TradeDbContextExtensions
             ArgumentNullException.ThrowIfNull(db);
             ArgumentNullException.ThrowIfNull(position);
             var id = position.Id.Trade;
+            // Legacy source events retain points at wire key 18. Persist the
+            // separately named currency amount without changing source evidence.
+            if (position.OpeningCommission is null || position.OpeningValueDate is null || position.ContractCashMultiplier is null)
+            {
+                var definition = await db.ScalarAsync(TradeDbSql.HelperStatement32,
+                    [id.PortfolioId, id.FundId, id.OrderId, id.TradeId], token).ConfigureAwait(false);
+                if (definition is byte[] bytes)
+                    position = StrategyPositionCurrencyPnl.Apply(position,
+                        MessagePackBinarySerializer.Shared.Deserialize<EstablishedTradeDefinition>(bytes));
+            }
+            else position = StrategyPositionCurrencyPnl.Apply(position);
             var payload = MessagePackBinarySerializer.Shared.Serialize(position);
             var applied = await (db.ScalarAsync(TradeDbSql.HelperStatement17, [id.PortfolioId, id.FundId, id.OrderId, id.TradeId, position.Id.PositionId, position.StrategyKind.ToString(), position.PositionSequence, position.RouteGeneration, position.IsOpen, position.AsOfUtc, payload], token))
             .ConfigureAwait(false);

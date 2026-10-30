@@ -350,7 +350,7 @@ internal readonly record struct GetMarketConditionHistory(int FundId, string Ins
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetNativeTradeOrder(int PortfolioId, int FundId, int OrderId) : IBindValue
 {
-    public object Bind() => TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter.Values(TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter.Integer(PortfolioId), TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter.Integer(FundId), TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter.Integer(OrderId));
+    public object Bind() => TomasAI.IFM.Shared.Storage.BindValues.Values(TomasAI.IFM.Shared.Storage.BindValues.Integer(PortfolioId), TomasAI.IFM.Shared.Storage.BindValues.Integer(FundId), TomasAI.IFM.Shared.Storage.BindValues.Integer(OrderId));
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]

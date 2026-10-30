@@ -1,6 +1,6 @@
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 
@@ -83,8 +83,8 @@ internal readonly record struct GetEventLogFromSnapshotLastNRange(
 {
     public object Bind() => Values(
         Bigint(eventStreamId),
-        new Npgsql.NpgsqlParameter<int[]> { TypedValue = snapshotEventNameId },
-        new Npgsql.NpgsqlParameter<int[]> { TypedValue = rangeEventNameId },
+        snapshotEventNameId,
+        rangeEventNameId,
         Integer(lastNRange));
     public GetEventLogFromSnapshotLastNRange(long stream, int snapshot, int range, int count) : this(stream, [snapshot], [range], count) { }
 }
@@ -103,7 +103,7 @@ internal readonly record struct GetEventLogLastNRangeByEventName(
 {
     public object Bind() => Values(
         Bigint(eventStreamId),
-        new Npgsql.NpgsqlParameter<int[]> { TypedValue = eventNameId },
+        eventNameId,
         Integer(lastNRange));
     public GetEventLogLastNRangeByEventName(long stream, int name, int count) : this(stream, [name], count) { }
 }
@@ -173,13 +173,13 @@ internal readonly record struct GetEventStreamId(string eventStream) : IBindValu
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct GetMaxEventVersion(long eventStreamId, int[] snapshotEventNameId) : IBindValue
 {
-    public object Bind() => Values(Bigint(eventStreamId), new Npgsql.NpgsqlParameter<int[]> { TypedValue = snapshotEventNameId });
+    public object Bind() => Values(Bigint(eventStreamId), snapshotEventNameId);
     public GetMaxEventVersion(long stream, int snapshot) : this(stream, [snapshot]) { }
 }
 
 internal readonly record struct GetCompatibleEventNameIds(string name, string[] identities) : IBindValue
 {
-    public object Bind() => Values(Text(name), new Npgsql.NpgsqlParameter<string[]> { TypedValue = identities });
+    public object Bind() => Values(Text(name), identities);
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
@@ -436,7 +436,7 @@ internal readonly record struct TryTerminalizeEventProjectorExecutionWithOutbox(
 {
     public object Bind()
     {
-        var values = (Npgsql.NpgsqlParameter[])Transition.Bind();
+        var values = (object?[])Transition.Bind();
         return Values(
             [.. values,
              Text(effectKind),
@@ -496,7 +496,7 @@ internal readonly record struct TryTransitionEventProjectorExecutionWithOutbox(
 {
     public object Bind()
     {
-        var values = (Npgsql.NpgsqlParameter[])Transition.Bind();
+        var values = (object?[])Transition.Bind();
         return Values(
             [.. values,
              Text(effectKind),

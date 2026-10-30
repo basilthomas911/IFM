@@ -1,7 +1,7 @@
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 
 namespace TomasAI.IFM.Application.Storage;
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]

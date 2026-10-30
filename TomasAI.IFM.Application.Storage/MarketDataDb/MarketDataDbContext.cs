@@ -2843,7 +2843,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
             outcome.Status.ToString(), outcome.StartedAtUtc, outcome.FinishedAtUtc, outcome.ElapsedMilliseconds,
             outcome.DownloadedRecordCount, outcome.PersistedRecordCount, outcome.ErrorCode, outcome.ErrorMessage,
             payloadSha256, DateTime.UtcNow) { PostgreSql = true };
-        await transaction.ExecuteAsync(MarketDataDbSql.DownloadLogInsert,(Npgsql.NpgsqlParameter[])parameters.Bind(),cancellationToken)
+        await transaction.ExecuteAsync(MarketDataDbSql.DownloadLogInsert,(object?[])parameters.Bind(),cancellationToken)
                 .ConfigureAwait(false);
     }
 
@@ -3222,7 +3222,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
             await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
                 .ExecuteOnceAsync(async (transaction,token) =>
                 {
-                    await transaction.ExecuteAsync(MarketDataDbSql.DeleteEconomicCalendarV2,(Npgsql.NpgsqlParameter[])new DeleteEconomicCalendarV2(id.CountryCode,MarketDataDbContextExtensions.EconomicCalendarMonthBucket(date),date,id.EventName) { PostgreSql = true }.Bind(),token)
+                    await transaction.ExecuteAsync(MarketDataDbSql.DeleteEconomicCalendarV2,(object?[])new DeleteEconomicCalendarV2(id.CountryCode,MarketDataDbContextExtensions.EconomicCalendarMonthBucket(date),date,id.EventName) { PostgreSql = true }.Bind(),token)
                 .ConfigureAwait(false);
                     await MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,[economicCalendar],ImportDuplicatePolicy.Overwrite,Guid.Empty,token)
                 .ConfigureAwait(false);

@@ -35,7 +35,7 @@ public sealed class StrategyPositionActorStateMachine
         }
 
         _orderedLegIds = _legs.Keys.Order().ToArray();
-        Current = Build(new StrategyPositionId(trade.Id, positionId), trade.StrategyKind, StrategyPositionPhase.Open, 1, 1, openedAtUtc, true, 0);
+        Current = StrategyPositionCurrencyPnl.Apply(Build(new StrategyPositionId(trade.Id, positionId), trade.StrategyKind, StrategyPositionPhase.Open, 1, 1, openedAtUtc, true, 0), trade);
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
     }
 
@@ -167,6 +167,7 @@ public sealed class StrategyPositionActorStateMachine
         {
             ClosingFills = accepted.ClosingFills
         };
+        Current = StrategyPositionCurrencyPnl.Apply(Current);
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
     }
 
@@ -241,7 +242,7 @@ public sealed class StrategyPositionActorStateMachine
             true => Current!.DailyOpeningPnl,
             _ => Current is null ? 0 : Current.RealizedPnl + Current.UnrealizedPnl
         });
-        return new StrategyPositionSnapshot
+        return StrategyPositionCurrencyPnl.Apply(new StrategyPositionSnapshot
         {
             Id = id,
             StrategyKind = strategy,
@@ -260,10 +261,12 @@ public sealed class StrategyPositionActorStateMachine
             LastMarketObservationUtc = phase == StrategyPositionPhase.MarkToMarket ? asOfUtc : Current?.LastMarketObservationUtc ?? asOfUtc,
             CloseBoundaryUtc = phase == StrategyPositionPhase.EndOfDay ? asOfUtc : null,
             DailyOpeningPnl = openingPnl,
-            DailyPnl = realizedPnl + (isOpen ? pnl : 0) - openingPnl,
+            DailyPnlPoints = realizedPnl + (isOpen ? pnl : 0) - openingPnl,
             HistoryAsOfUtc = reuseDailyRow ? Current!.HistoryAsOfUtc : asOfUtc,
-            HistoryPositionSequence = reuseDailyRow ? Current!.HistoryPositionSequence : sequence
-        };
+            HistoryPositionSequence = reuseDailyRow ? Current!.HistoryPositionSequence : sequence,
+            OpeningCommission = Current?.OpeningCommission, OpeningValueDate = Current?.OpeningValueDate,
+            ContractCashMultiplier = Current?.ContractCashMultiplier
+        });
     }
 
     decimal CalculatePnl() => _legs.Values.Sum(static leg => (leg.CurrentPrice - leg.OpeningPrice) * leg.SignedQuantity);

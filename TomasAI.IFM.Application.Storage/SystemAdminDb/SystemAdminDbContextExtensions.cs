@@ -1,4 +1,3 @@
-using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -199,7 +198,7 @@ internal static class SystemAdminDbContextExtensions
     extension(IEnlistedPostgresTransaction transaction)
     {
         /// <summary>Converts typed positional bindings for an enlisted transaction.</summary>
-        internal object? [] BindBackupParameters(IBindValue values) => values.Bind()is NpgsqlParameter[] parameters ? parameters : throw new InvalidDataException("Typed backup parameters are required.");
+        internal object? [] BindBackupParameters(IBindValue values) => values.Bind()is object?[] parameters ? parameters : throw new InvalidDataException("Typed backup parameters are required.");
         /// <summary>Writes supplied projection rows and their idempotency receipt without owning commit.</summary>
         internal async Task<EventProjectionApplyOutcome> ProjectBackupSnapshotAsync(string projectorName, DatabaseBackupProjectionSnapshot snapshot, CancellationToken token)
         {

@@ -1,10 +1,9 @@
 using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using System.Text.Json;
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.Serialization;
-using Npgsql;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;

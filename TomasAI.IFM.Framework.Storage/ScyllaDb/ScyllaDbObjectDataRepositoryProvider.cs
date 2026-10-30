@@ -112,6 +112,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// Binds positional values directly to the prepared statement. ScyllaDB parameter catalogs emit
     /// <see cref="object"/> arrays in CQL marker order, avoiding reflection and property-map allocation.
     /// </summary>
+    internal static object? UnwrapValue(object? value) => value is BindParameter neutral ? neutral.Value : value;
+
     static BoundStatement Bind(ISession session, PreparedStatement statement, object? parameterValue)
     {
         if (parameterValue is null)
@@ -121,6 +123,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             var ownedValues = owned.TakeValues();
             for (var index = 0; index < ownedValues.Length; index++)
             {
+                ownedValues[index] = UnwrapValue(ownedValues[index]);
                 if (ownedValues[index] is IScyllaPreparedBindValue prepared)
                     ownedValues[index] = prepared.Resolve(session, statement);
                 else if (ownedValues[index] is IScyllaUdtValue udt)
@@ -133,6 +136,12 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             object?[]? resolved = null;
             for (var index = 0; index < values.Length; index++)
             {
+                if (values[index] is BindParameter neutral)
+                {
+                    resolved ??= (object?[])values.Clone();
+                    resolved[index] = neutral.Value;
+                    continue;
+                }
                 if (values[index] is IScyllaPreparedBindValue prepared)
                 {
                     resolved ??= (object?[])values.Clone();

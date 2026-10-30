@@ -8,7 +8,7 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.Storage;
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 
@@ -268,7 +268,7 @@ internal static class MarketDataServiceDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<T?> ReadDurableSingleAsync<T>(MarketDataServiceTransactionRepository repository, string commandName, string sql,
-            NpgsqlParameter[] parameters, Func<IObjectDataRecord, T> map, CancellationToken cancellationToken) where T : class
+            object?[] parameters, Func<IObjectDataRecord, T> map, CancellationToken cancellationToken) where T : class
         {
             using var commandContext = repository.Use(commandName, sql)
                 .SetParameters(new DurableSubscriptionParameters(parameters));
@@ -330,7 +330,7 @@ internal static class MarketDataServiceDbContextExtensions
         /// <param name="expectedRowVersion">The optimistic-concurrency row version.</param>
         /// <returns>The ordered PostgreSQL parameters.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal Npgsql.NpgsqlParameter[] BindAssignment(long expectedRowVersion) => Values(
+        internal object?[] BindAssignment(long expectedRowVersion) => Values(
             Text(assignment.ContractRole.ToString()),
             Text(assignment.RootSymbol),
             Text(assignment.ContractId),

@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.St
 /// <param name = "factory">Creates the command-owned position state.</param><param name = "database">The source event store.</param>
 /// <param name = "actors">The actor transport.</param><param name = "projector">Independent history and financial projection.</param>
 /// <param name = "logger">Structured persistence and publication diagnostics.</param>
-public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFactory factory, IEventSourceActorDbContext database, IActorService actors, IEventProjector<FuturesIronCondorTradePositionCommandActor> projector, ILogger<IronCondorPositionStateRepository> logger, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(factory, database, actors, logger), IResidentEventSourceActorStateRepository<IronCondorPositionCommandState>
+public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFactory factory, IEventSourceActorDbContext database, IActorService actors, IEventProjector<FuturesIronCondorTradePositionCommandActor> projector, ILogger<IronCondorPositionStateRepository> logger, IPostgresEventTransaction? transactions = null, IDbContextFactory? databases = null) : BaseEventSourceActorRepository(factory, database, actors, logger), IResidentEventSourceActorStateRepository<IronCondorPositionCommandState>
 {
     /// <summary>Loads the committed position state and stream version.</summary>
     /// <param name = "command">The position command whose source stream is loaded.</param><returns>The restored position state.</returns>
@@ -30,6 +30,11 @@ public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFact
         try
         {
             var state = await LoadStateFromSnapshotAsync<IronCondorPositionCommandState, IronCondorPositionChangedEvent>(command, cancellationToken).ConfigureAwait(false);
+            if (databases is not null && state.Current is { OpeningCommission: null } position)
+            {
+                var trade = await databases.TradeDb.GetEstablishedTradeAsync(position.Id.Trade, cancellationToken).ConfigureAwait(false);
+                if (trade is not null) state.RestoreCurrencyEvidence(trade);
+            }
             // Position changes replace the complete position, but monitoring limits live in
             // a separate event which can precede the latest position snapshot.
             if (state.TradeLimits is null)

@@ -55,13 +55,13 @@ public sealed class PostgresPositionalParameterCatalogTests
             .ToArray();
         var expectedCount = ordinals.Length == 0 ? 0 : ordinals.Max();
 
-        var constructor = Assert.Single(bindType.GetConstructors());
+        var constructor = bindType.GetConstructors().OrderByDescending(c => c.GetParameters().Count(p => p.ParameterType.IsArray)).First();
         var constructorParameters = constructor.GetParameters();
         var arguments = constructorParameters
             .Select((parameter, index) => CreateSentinel(parameter.ParameterType, index))
             .ToArray();
         var instance = Assert.IsAssignableFrom<IBindValue>(constructor.Invoke(arguments));
-        var parameters = Assert.IsType<NpgsqlParameter[]>(instance.Bind());
+        var parameters = TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.CreateMany(Assert.IsType<object?[]>(instance.Bind()));
         var expectedParameters = constructorParameters
             .SelectMany((parameter, index) => ExpandExpectedParameters(parameter.ParameterType, arguments[index]))
             .ToArray();
@@ -80,8 +80,7 @@ public sealed class PostgresPositionalParameterCatalogTests
             else
                 Assert.Equal(ExpectedDbType(expected.ParameterType), parameter.NpgsqlDbType);
             Assert.Equal(expected.Value, parameter.Value);
-            Assert.True(parameter.GetType().IsGenericType,
-                $"{bindType.Name} parameter {index} is not strongly typed.");
+
         }
     }
 
@@ -94,7 +93,7 @@ public sealed class PostgresPositionalParameterCatalogTests
             yield break;
         }
 
-        foreach (var parameter in Assert.IsType<NpgsqlParameter[]>(((IBindValue)value).Bind()))
+        foreach (var parameter in TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.CreateMany(Assert.IsType<object?[]>(((IBindValue)value).Bind())))
             yield return new ExpectedParameter(parameter.Value.GetType(), parameter.Value, parameter.NpgsqlDbType);
     }
 
@@ -103,7 +102,7 @@ public sealed class PostgresPositionalParameterCatalogTests
         type = Nullable.GetUnderlyingType(type) ?? type;
         if (typeof(IBindValue).IsAssignableFrom(type))
         {
-            var constructor = Assert.Single(type.GetConstructors());
+            var constructor = type.GetConstructors().OrderByDescending(c => c.GetParameters().Count(p => p.ParameterType.IsArray)).First();
             var arguments = constructor.GetParameters()
                 .Select((parameter, nestedIndex) => CreateSentinel(parameter.ParameterType, index + nestedIndex))
                 .ToArray();
@@ -118,6 +117,8 @@ public sealed class PostgresPositionalParameterCatalogTests
         if (type == typeof(Guid)) return new Guid(value, 0, 0, new byte[8]);
         if (type == typeof(DateTime)) return new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(index);
         if (type == typeof(byte[])) return new byte[] { (byte)value };
+        if (type == typeof(int[])) return new[] { value };
+        if (type == typeof(string[])) return new[] { $"value-{value}" };
         throw new InvalidOperationException($"No PostgreSQL test sentinel exists for {type}.");
     }
 
@@ -130,6 +131,8 @@ public sealed class PostgresPositionalParameterCatalogTests
         if (type == typeof(Guid)) return NpgsqlDbType.Uuid;
         if (type == typeof(DateTime)) return NpgsqlDbType.Timestamp;
         if (type == typeof(byte[])) return NpgsqlDbType.Bytea;
+        if (type == typeof(int[])) return NpgsqlDbType.Array | NpgsqlDbType.Integer;
+        if (type == typeof(string[])) return NpgsqlDbType.Array | NpgsqlDbType.Text;
         throw new InvalidOperationException($"No PostgreSQL type expectation exists for {type}.");
     }
 

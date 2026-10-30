@@ -441,8 +441,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             StrategyPositionPhase.Close => TradeStatus.Close, _ => TradeStatus.IntraDay };
         return new TradeHistoryReadModel(EstablishedTrade!.Id.OrderId, EstablishedTrade.Id.TradeId, _fundOrderTrade.TradeType,
             value.ValueDate, value.DaysToExpiry, status, value.Commission, value.NetPrice,
-            _savedCurrencySnapshots.TryGetValue(value.ValueDate, out var currency) && currency.DailyPnl is { } daily
-                ? daily : position.DailyPnl);
+            position.DailyPnl);
     }
 
     /// <summary>Replaces one dated row, preserving every other historical row and its display payload.</summary>
@@ -478,7 +477,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         ArgumentNullException.ThrowIfNull(trade);
         var value = trade.OpeningHistoryValuation ?? throw new InvalidOperationException("Backend opening history valuation is unavailable.");
         return new TradeHistoryReadModel(trade.Id.OrderId, trade.Id.TradeId, tradeType,
-            value.ValueDate, value.DaysToExpiry, TradeStatus.Open, value.Commission, value.NetPrice, 0m);
+            value.ValueDate, value.DaysToExpiry, TradeStatus.Open, value.Commission, value.NetPrice,
+            trade.OpeningPositionSnapshot?.DailyPnl);
     }
 
     public IAppRoot AppRoot => _appRoot;
@@ -1319,7 +1319,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     public decimal GetEodTradePnl() => _optionTrade.TradePositions is not null ? _optionTrade.TradePositions.GetEodTradePnl() : 0;
     /// <summary>Gets the P&amp;L represented by the loaded trade-history rows.</summary>
     /// <returns>The aggregate trade-history P&amp;L.</returns>
-    public decimal GetTradePnl() => _tradeHistory is null ? 0 : _tradeHistory.Sum(e => e.TradePnl);
+    public decimal GetTradePnl() => _tradeHistory is null ? 0 : _tradeHistory.Sum(e =>
+        e.TradePnl ?? throw new InvalidOperationException("Currency P&L is unavailable for a trade-history row."));
 
     /// <summary>
     /// reload current iron condor trade when data has been changed within trade

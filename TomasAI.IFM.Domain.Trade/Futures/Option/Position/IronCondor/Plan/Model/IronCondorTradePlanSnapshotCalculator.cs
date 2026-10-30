@@ -51,7 +51,7 @@ public sealed partial class IronCondorTradePlanSnapshotCalculator
         var actualDailyCommission = (openingDate == position.ValueDate ? trade.OpeningCommission : 0) + position.ClosingFills.Where(fill => FuturesTradingValueDate.TryGet(new DateTimeOffset(fill.FilledAtUtc), out var date) && date == position.ValueDate).Sum(fill => fill.Commission);
         return new()
         {
-            DailyPnl = position.DailyPnl * multiplier - actualDailyCommission,
+            DailyPnl = position.DailyPnlPoints * multiplier - actualDailyCommission,
             DailyLossLimit = policy.DailyLossLimit,
             ContractMultiplier = multiplier,
             Currency = contracts[0].Currency,
@@ -178,7 +178,7 @@ public sealed partial class IronCondorTradePlanSnapshotCalculator
         if (inputs.ContractMultiplier is> 0)
             inputs = inputs with
             {
-                DailyPnl = position.DailyPnl * inputs.ContractMultiplier.Value - inputs.ActualDailyCommission
+                DailyPnl = position.DailyPnlPoints * inputs.ContractMultiplier.Value - inputs.ActualDailyCommission
             };
         var reasons = new List<string>(inputs.UnavailableReasons);
         if (inputs.ValueDate != plan.ValueDate || inputs.RouteGeneration != position.RouteGeneration || observations.Any(l => !position.Legs.Any(p => p.TradeLegId == l.TradeLegId && string.Equals(p.ContractId, l.ContractId, StringComparison.Ordinal) && p.SignedQuantity == l.SignedQuantity)))

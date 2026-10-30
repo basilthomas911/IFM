@@ -98,7 +98,7 @@ public sealed class LedgerFinancialProjection(IPostgresEventTransaction transact
     }
 
     /// <summary>Canonical UTC JSON prevents event-codec timestamp normalization from changing reconstructed payloads.</summary>
-    internal static System.Data.Common.DbParameter PayloadJson<T>(T value) => PostgresValues.Jsonb(JsonConvert.SerializeObject(value, new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.Utc }));
+    internal static object PayloadJson<T>(T value) => TomasAI.IFM.Shared.Storage.BindValues.Json(JsonConvert.SerializeObject(value, new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.Utc }));
 
     internal static async Task ApplyEffectsAsync(EnlistedEventTransaction db, int portfolioId, AcceptedLedgerPosting fact, CancellationToken ct)
     {

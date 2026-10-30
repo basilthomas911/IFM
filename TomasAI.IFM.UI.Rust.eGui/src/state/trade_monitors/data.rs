@@ -27,7 +27,6 @@ impl Monitor{
  pub fn position(&mut self,value:Json)->bool{if self.scope.position("IronCondor").map_or(true,|(_,id)|value["Id"]!=id){return false}let changed=self.history.remember(value.clone());if changed&&!self.live&&value["Phase"]=="EndOfDay"{self.detail_generation+=1;self.observations_loading=false;self.selected=Some(value);}changed}
  pub fn plan(&mut self,value:Json)->bool{
   if self.scope.position("IronCondor").map_or(true,|(_,id)|value["Position"]["Id"]!=id)||value["ValueDate"]!=self.context.value_date.to_string(){return false}
-  self.history.plan(&value);
   if !(self.live||self.collecting){return false}
   let Some(key)=value["Position"]["RouteGeneration"].as_i64().zip(value["PlanRevision"].as_i64())else{return false};
   if self.live_plans.get(&key)==Some(&value){return false}

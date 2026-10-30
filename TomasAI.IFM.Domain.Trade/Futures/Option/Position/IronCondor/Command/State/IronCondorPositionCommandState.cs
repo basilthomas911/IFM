@@ -10,6 +10,12 @@ public sealed class IronCondorPositionCommandState : BaseEventSourceActorState<I
     public override ActorThreadId Id { get; set; } = default!;
     public StrategyPositionSnapshot? PositionSnapshot { get; private set; }
     public StrategyPositionSnapshot? Current => PositionSnapshot;
+    /// <summary>Enriches restored legacy point evidence before admitting new currency-valued marks.</summary>
+    public void RestoreCurrencyEvidence(EstablishedTradeDefinition trade)
+    {
+        if (PositionSnapshot is not null)
+            PositionSnapshot = StrategyPositionCurrencyPnl.Apply(PositionSnapshot, trade);
+    }
     public TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel? TradeLimits { get; private set; }
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the limit snapshot array populated from accepted source events.")]
     public TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel[] SpreadLimits { get; private set; } = [];

@@ -32,9 +32,9 @@ impl Realtime{
   self.current=Some(snapshot);true
  }
 }
-pub struct History{trade:Json,trade_type:String,positions:BTreeMap<(String,String),Json>,insertion:BTreeMap<(String,String),usize>,currency:BTreeMap<String,Json>}
+pub struct History{trade:Json,trade_type:String,positions:BTreeMap<(String,String),Json>,insertion:BTreeMap<(String,String),usize>}
 impl History{
- pub fn new(trade:Json,trade_type:String)->Self{Self{trade,trade_type,positions:BTreeMap::new(),insertion:BTreeMap::new(),currency:BTreeMap::new()}}
+ pub fn new(trade:Json,trade_type:String)->Self{Self{trade,trade_type,positions:BTreeMap::new(),insertion:BTreeMap::new()}}
  pub fn remember(&mut self,position:Json)->bool{
   if position["HistoryValuation"].is_null()||position["Id"]["Trade"]!=self.trade["Id"]{return false}
   let Some(date)=position["HistoryValuation"]["ValueDate"].as_str().filter(|s|*s!="0001-01-01")else{return false};
@@ -48,14 +48,13 @@ impl History{
   let next=self.insertion.len();self.insertion.entry(key.clone()).or_insert(next);
   self.positions.insert(key,position);true
  }
- pub fn plan(&mut self,plan:&Json){if let(Some(date),Some(daily))=(plan["ValueDate"].as_str(),plan["IronCondorTradePlanSnapshot"].get("DailyPnl")){if !daily.is_null(){self.currency.insert(date.into(),daily.clone());}}}
  pub fn positions(&self)->Vec<Json>{let mut rows=self.positions.values().filter(|row|row["Phase"]!="Open"&&!row["HistoryValuation"].is_null()).cloned().collect::<Vec<_>>();rows.sort_by(|a,b|a["HistoryValuation"]["ValueDate"].as_str().cmp(&b["HistoryValuation"]["ValueDate"].as_str()).then_with(||history_time(a).cmp(&history_time(b)).then_with(||{let key=|row:&Json|(row["HistoryValuation"]["ValueDate"].as_str().unwrap_or_default().to_string(),if row["Phase"]=="EndOfDay"{"MarkToMarket"}else{row["Phase"].as_str().unwrap_or_default()}.to_string());self.insertion.get(&key(a)).cmp(&self.insertion.get(&key(b)))})));rows}
  pub fn saved(&self,index:usize)->Option<Json>{if index==0{self.trade.get("OpeningPositionSnapshot").filter(|v|!v.is_null()).cloned()}else{self.positions().get(index-1).cloned()}}
  pub fn rows(&self)->Vec<Json>{
   let opening=&self.trade["OpeningHistoryValuation"];if opening.is_null()||!self.trade["Legs"].as_array().is_some_and(|legs|legs.iter().any(|leg|!leg["Expiry"].is_null())){return vec![]}
   let row=|value:&Json,status:&str,pnl:&Json|{let id=&self.trade["Id"];json!({"orderId":id["OrderId"],"tradeId":id["TradeId"],"tradeType":self.trade_type,"valueDate":value["ValueDate"],"daysToExpiry":value["DaysToExpiry"],"tradeStatus":status,"commission":value["Commission"],"netSpread":value["NetPrice"],"tradePnl":pnl,"isValid":true})};
-  let mut rows=vec![row(opening,"Open",&json!("0"))];
-  for position in self.positions(){let value=&position["HistoryValuation"];let status=match position["Phase"].as_str(){Some("EndOfDay")=>"EndOfDay",Some("Close")=>"Close",_=>"IntraDay"};let pnl=self.currency.get(value["ValueDate"].as_str().unwrap_or_default()).unwrap_or(&position["DailyPnl"]);rows.push(row(value,status,pnl));}rows
+  let mut rows=vec![row(opening,"Open",&self.trade["OpeningPositionSnapshot"]["DailyPnl"])];
+  for position in self.positions(){let value=&position["HistoryValuation"];let status=match position["Phase"].as_str(){Some("EndOfDay")=>"EndOfDay",Some("Close")=>"Close",_=>"IntraDay"};let pnl=&position["DailyPnl"];rows.push(row(value,status,pnl));}rows
  }
 }
 

@@ -1,5 +1,6 @@
-//! Bounded delivery after native accumulation. Only options quotes are replaceable;
-//! authoritative records retain their ordering and fail visibly on exhaustion.
+//! Bounded delivery after native accumulation. Futures quotes evict the oldest
+//! quote on overflow; options keep their latest quote per instrument. Trades and
+//! control records retain their own ordered capacity and fail visibly on exhaustion.
 use super::live::{Output, OutputSource};
 use super::records::Observation;
 use std::collections::{BTreeMap, VecDeque};
@@ -16,6 +17,7 @@ struct Slot {
 }
 pub(super) struct LaneOutput {
     authoritative: VecDeque<Pending>,
+    ordered_quotes: VecDeque<Pending>,
     indices: BTreeMap<u32, usize>,
     quotes: Vec<Slot>,
     head: Option<usize>,
@@ -26,6 +28,7 @@ impl LaneOutput {
     pub(super) fn new() -> Self {
         Self {
             authoritative: VecDeque::new(),
+            ordered_quotes: VecDeque::new(),
             indices: BTreeMap::new(),
             quotes: Vec::new(),
             head: None,
@@ -46,6 +49,7 @@ impl LaneOutput {
     }
     pub(super) fn clear(&mut self) {
         self.authoritative.clear();
+        self.ordered_quotes.clear();
         for slot in &mut self.quotes {
             *slot = Slot::default();
         }
@@ -73,13 +77,14 @@ impl LaneOutput {
         self.quotes[index].next = None;
     }
     pub(super) fn push_back(&mut self, value: Output) -> Result<(), String> {
+        let is_quote = matches!(value.source, OutputSource::Observation(Observation::Quote(_)));
         let index = match value.source {
             OutputSource::Observation(Observation::Quote(quote)) => {
                 self.indices.get(&quote.header.instrument).copied()
             }
             _ => None,
         };
-        if index.is_none() && self.available() == 0 {
+        if !is_quote && self.available() == 0 {
             return Err("Authoritative application output capacity exhausted".into());
         }
         let serial = self
@@ -100,37 +105,42 @@ impl LaneOutput {
             }
             self.tail = Some(index);
             self.quotes[index].value = Some(pending);
+        } else if is_quote {
+            // Keep the freshest bounded quote history without ever waiting for
+            // publication or consuming the capacity reserved for executions.
+            if self.ordered_quotes.len() == 8192 {
+                self.ordered_quotes.pop_front();
+            }
+            self.ordered_quotes.push_back(pending);
         } else {
             self.authoritative.push_back(pending);
         }
         Ok(())
     }
+    fn next_kind(&self) -> Option<u8> {
+        [
+            self.authoritative.front().map(|p| (p.serial, 0)),
+            self.ordered_quotes.front().map(|p| (p.serial, 1)),
+            self.head.and_then(|head| self.quotes[head].value.as_ref()).map(|p| (p.serial, 2)),
+        ].into_iter().flatten().min_by_key(|(serial, _)| *serial).map(|(_, kind)| kind)
+    }
     pub(super) fn pop_front(&mut self) -> Option<Output> {
-        if let Some(head) = self.head {
-            let quote = self.quotes[head].value.as_ref()?;
-            if self
-                .authoritative
-                .front()
-                .is_none_or(|first| quote.serial < first.serial)
-            {
+        match self.next_kind()? {
+            0 => self.authoritative.pop_front().map(|p| p.value),
+            1 => self.ordered_quotes.pop_front().map(|p| p.value),
+            _ => {
+                let head = self.head?;
                 self.detach(head);
-                return self.quotes[head].value.take().map(|pending| pending.value);
+                self.quotes[head].value.take().map(|p| p.value)
             }
         }
-        self.authoritative.pop_front().map(|pending| pending.value)
     }
     pub(super) fn front(&self) -> Option<&Output> {
-        if let Some(head) = self.head {
-            let quote = self.quotes[head].value.as_ref()?;
-            if self
-                .authoritative
-                .front()
-                .is_none_or(|first| quote.serial < first.serial)
-            {
-                return Some(&quote.value);
-            }
+        match self.next_kind()? {
+            0 => self.authoritative.front().map(|p| &p.value),
+            1 => self.ordered_quotes.front().map(|p| &p.value),
+            _ => self.quotes[self.head?].value.as_ref().map(|p| &p.value),
         }
-        self.authoritative.front().map(|pending| &pending.value)
     }
 }
 
@@ -199,17 +209,46 @@ mod tests {
         assert_eq!(queue.available(), 8192);
     }
     #[test]
+    fn futures_quote_overflow_evicts_only_oldest_quotes_and_preserves_controls() {
+        let mut queue = LaneOutput::new();
+        queue.push_back(output(0, 0, false)).unwrap();
+        for sequence in 1..=20_000 {
+            queue.push_back(output(1, sequence, true)).unwrap();
+        }
+        queue.push_back(output(0, 20_001, false)).unwrap();
+        assert!(matches!(queue.pop_front().unwrap().source, OutputSource::ReplayComplete(0)));
+        for expected in 20_000 - 8192 + 1..=20_000 {
+            for source in [queue.front().unwrap().source, queue.pop_front().unwrap().source] {
+                match source {
+                    OutputSource::Observation(Observation::Quote(q)) => assert_eq!(q.header.sequence, expected),
+                    _ => panic!("Quote overflow displaced a control record"),
+                }
+            }
+        }
+        assert!(matches!(queue.pop_front().unwrap().source, OutputSource::ReplayComplete(20_001)));
+        assert!(queue.pop_front().is_none());
+        // Even exhausted authoritative capacity must not reject incoming quotes.
+        for sequence in 0..8192 {
+            queue.push_back(output(0, sequence, false)).unwrap();
+        }
+        for sequence in 0..20_000 {
+            queue.push_back(output(1, sequence, true)).unwrap();
+        }
+        assert!(queue.push_back(output(0, 8192, false)).is_err());
+        queue.clear();
+        assert!(queue.front().is_none());
+        assert_eq!(queue.available(), 8192);
+    }
+    #[test]
     fn authoritative_capacity_reset_and_futures_fifo() {
         let mut queue = LaneOutput::new();
         for seq in 0..8192 {
-            queue.push_back(output(1, seq, true)).unwrap();
+            queue.push_back(output(1, seq, false)).unwrap();
         }
-        assert!(queue.push_back(output(1, 8192, true)).is_err());
+        assert!(queue.push_back(output(1, 8192, false)).is_err());
         for seq in 0..8192 {
             match queue.pop_front().unwrap().source {
-                OutputSource::Observation(Observation::Quote(q)) => {
-                    assert_eq!(q.header.sequence, seq)
-                }
+                OutputSource::ReplayComplete(sequence) => assert_eq!(sequence, seq),
                 _ => panic!("wrong source"),
             }
         }

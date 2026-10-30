@@ -165534,7 +165534,7 @@
         "type": "System.Decimal"
       },
       {
-        "name": "DailyPnl",
+        "name": "DailyPnlPoints",
         "index": 18,
         "mapKey": null,
         "type": "System.Decimal"
@@ -165556,6 +165556,30 @@
         "index": 21,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionHistoryValuation"
+      },
+      {
+        "name": "DailyPnl",
+        "index": 22,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Decimal]"
+      },
+      {
+        "name": "ContractCashMultiplier",
+        "index": 23,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Decimal]"
+      },
+      {
+        "name": "OpeningCommission",
+        "index": 24,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Decimal]"
+      },
+      {
+        "name": "OpeningValueDate",
+        "index": 25,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.DateOnly]"
       }
     ],
     "actor": null,
@@ -176434,7 +176458,7 @@
         "name": "TradePnl",
         "index": 8,
         "mapKey": null,
-        "type": "System.Decimal"
+        "type": "System.Nullable\u00601[System.Decimal]"
       }
     ],
     "actor": null,

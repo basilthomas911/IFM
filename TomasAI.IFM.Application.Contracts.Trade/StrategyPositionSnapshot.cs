@@ -33,14 +33,19 @@ public sealed record StrategyPositionSnapshot
     [Key(16)] public DateTime? CloseBoundaryUtc { get; init; }
     /// <summary>Gets cumulative realized plus unrealized PnL at the start of this value date.</summary>
     [Key(17)] public decimal DailyOpeningPnl { get; init; }
-    /// <summary>Gets daily PnL: current cumulative PnL minus the prior finalized cumulative mark.</summary>
-    [Key(18)] public decimal DailyPnl { get; init; }
+    /// <summary>Quantity-weighted daily price-point change. Key 18 preserves legacy source events; this is not currency PnL.</summary>
+    [Key(18)] public decimal DailyPnlPoints { get; init; }
     /// <summary>Gets the stable timestamp of this history row; daily MTM and EOD share the same row.</summary>
     [Key(19)] public DateTime HistoryAsOfUtc { get; init; }
     /// <summary>Gets the stable history-row sequence; current-position sequence advances independently.</summary>
     [Key(20)] public long HistoryPositionSequence { get; init; }
     /// <summary>Backend-valued history display; absent on old stored events until query enrichment.</summary>
     [Key(21)] public StrategyPositionHistoryValuation? HistoryValuation { get; init; }
+    /// <summary>Daily PnL in account currency, net of actual daily commissions. Null means currency evidence is unavailable.</summary>
+    [Key(22)] public decimal? DailyPnl { get; init; }
+    [Key(23)] public decimal? ContractCashMultiplier { get; init; }
+    [Key(24)] public decimal? OpeningCommission { get; init; }
+    [Key(25)] public DateOnly? OpeningValueDate { get; init; }
 
 }
 

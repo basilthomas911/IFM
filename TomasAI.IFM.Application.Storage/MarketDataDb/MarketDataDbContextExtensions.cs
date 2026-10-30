@@ -1,4 +1,4 @@
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 using TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
@@ -8,7 +8,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using System.Collections.Immutable;
-using Npgsql;
 using MessagePack;
 
 
@@ -2069,16 +2068,16 @@ public static class MarketDataDbContextExtensions
                 .ConfigureAwait(false);
                 if (policy == ImportDuplicatePolicy.Reject)
                 {
-                    var owners = await transaction.QueryAsync(MarketDataDbSql.GetEconomicCalendarV2CommandId, (NpgsqlParameter[])new GetEconomicCalendarV2CommandId(row.CountryCode,month,date,row.EventName) { PostgreSql = true }.Bind(),reader => reader.IsDBNull(0) ? Guid.Empty : reader.GetGuid(0),token)
+                    var owners = await transaction.QueryAsync(MarketDataDbSql.GetEconomicCalendarV2CommandId, (object?[])new GetEconomicCalendarV2CommandId(row.CountryCode,month,date,row.EventName) { PostgreSql = true }.Bind(),reader => reader.IsDBNull(0) ? Guid.Empty : reader.GetGuid(0),token)
                 .ConfigureAwait(false);
                     if (owners.Count != 0 && owners[0] != commandId)
                         throw new MarketDataImportDuplicateException("Economic-calendar event is owned by another import command.");
                 }
                 var values = new InsertEconomicCalendarV2(row.CountryCode,month,date,row.EventName,row.Actual,row.Forecast,row.Prior,row.Impact,row.Unit,row.Change,row.ChangePercentage,
                     MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(row.CreatedOn),row.CreatedBy,commandId) { PostgreSql = true };
-                await transaction.ExecuteAsync(MarketDataDbSql.InsertEconomicCalendarV2,(NpgsqlParameter[])values.Bind(),token)
+                await transaction.ExecuteAsync(MarketDataDbSql.InsertEconomicCalendarV2,(object?[])values.Bind(),token)
                 .ConfigureAwait(false);
-                await transaction.ExecuteAsync(MarketDataDbSql.InsertEconomicCalendarCountryCode, (NpgsqlParameter[])new InsertEconomicCalendarCountryCode(MarketDataDbContext.EconomicCalendarLookupId,row.CountryCode) { PostgreSql = true }.Bind(),token)
+                await transaction.ExecuteAsync(MarketDataDbSql.InsertEconomicCalendarCountryCode, (object?[])new InsertEconomicCalendarCountryCode(MarketDataDbContext.EconomicCalendarLookupId,row.CountryCode) { PostgreSql = true }.Bind(),token)
                 .ConfigureAwait(false);
             }
         }
@@ -2160,9 +2159,9 @@ public static class MarketDataDbContextExtensions
                 }
                 var values = new InsertYieldCurveRate(1,row.ValueDate,row.OneMonth,row.TwoMonth,row.ThreeMonth,row.SixMonth,row.OneYear,
                     row.TwoYear,row.ThreeYear,row.FiveYear,row.SevenYear,row.TenYear,row.TwentyYear,row.ThirtyYear) { PostgreSql = true };
-                await transaction.ExecuteAsync(MarketDataDbSql.InsertYieldCurveRate,(NpgsqlParameter[])values.Bind(),token)
+                await transaction.ExecuteAsync(MarketDataDbSql.InsertYieldCurveRate,(object?[])values.Bind(),token)
                 .ConfigureAwait(false);
-                await transaction.ExecuteAsync(MarketDataDbSql.InsertYieldCurveRateByDate,(NpgsqlParameter[])values.Bind(),token)
+                await transaction.ExecuteAsync(MarketDataDbSql.InsertYieldCurveRateByDate,(object?[])values.Bind(),token)
                 .ConfigureAwait(false);
                 await transaction.ExecuteAsync(MarketDataDbSql.InsertYieldCurveRateYear,[Integer(1),Integer(row.ValueDate.Year)],token)
                 .ConfigureAwait(false);
@@ -2297,7 +2296,7 @@ public static class MarketDataDbContextExtensions
                 if (cursor is null || !string.Equals(cursor.Fingerprint,fingerprint,StringComparison.Ordinal) || cursor.Metric != metric)
                     throw new ArgumentException("Volatility history cursor belongs to a different query.",nameof(request));
             }
-            List<NpgsqlParameter> values = [Text(request.Scope.Environment),Text(request.Scope.Series.SeriesId),Text(request.Scope.Series.MethodologyVersion)];
+            List<object?> values = [Text(request.Scope.Environment),Text(request.Scope.Series.SeriesId),Text(request.Scope.Series.MethodologyVersion)];
             if (metric) values.Add(Text(request.Scope.MetricPolicyVersion));
             values.AddRange([Integer(request.Bucket.Value),Date(request.FromValueDate),Date(request.ToValueDate),Text(request.SamplingSlot),TimestampTz(request.Mode == VolatilityHistoricalMode.AsKnown ? request.KnownAtUtc!.Value.UtcDateTime : null),Date(cursor?.Date),Text(cursor?.Slot),Integer(request.PageSize + 1)]);
             // Table and column fragments are fixed by the repository, never supplied by the caller.
@@ -2341,7 +2340,7 @@ public static class MarketDataDbContextExtensions
                 {
                     quarantined++;
                     var values = new InsertFuturesTradeSignalQuarantine(MarketDataDbContextExtensions.Fingerprint(payload),payload,parsed.Error ?? "Malformed identity",DateTime.UtcNow) { PostgreSql = true };
-                    await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalQuarantine,(NpgsqlParameter[])values.Bind(),token)
+                    await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalQuarantine,(object?[])values.Bind(),token)
                 .ConfigureAwait(false);
                     continue;
                 }
@@ -2355,7 +2354,7 @@ public static class MarketDataDbContextExtensions
             var indexes = latest.Values.Select(row => new InsertFuturesTradeSignalIndex($"latest:{row.TimePeriod}","latest",row.SequenceId,row.ContractId,row.ValueDate,row.TimePeriod) { PostgreSql = true })
                 .Concat(daily.Values.Select(row => new InsertFuturesTradeSignalIndex($"date:{row.TimePeriod}:{row.ValueDate.DayNumber}",row.ContractId,row.SequenceId,row.ContractId,row.ValueDate,row.TimePeriod) { PostgreSql = true })).ToArray();
             foreach (var index in indexes)
-                await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalIndex,(NpgsqlParameter[])index.Bind(),token)
+                await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalIndex,(object?[])index.Bind(),token)
                 .ConfigureAwait(false);
             return new(payloads.Count,valid,quarantined,indexes.Length);
         }
@@ -2367,7 +2366,7 @@ public static class MarketDataDbContextExtensions
         public async Task PersistTradeLiveFeedAsync(TradeLiveFeedTurnedOnEvent source,CancellationToken token)
         {
             var parameters = new InsertTradeLiveFeed(source.OrderId,source.TradeId,TradeLiveFeedStateType.On.ToStringFast()) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertTradeLiveFeed,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertTradeLiveFeed,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2378,7 +2377,7 @@ public static class MarketDataDbContextExtensions
         public async Task DeleteTradeLiveFeedAsync(TradeLiveFeedTurnedOffEvent source,CancellationToken token)
         {
             var parameters = new DeleteTradeLiveFeed(source.OrderId,source.TradeId) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.DeleteTradeLiveFeed,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.DeleteTradeLiveFeed,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2390,7 +2389,7 @@ public static class MarketDataDbContextExtensions
         {
             var value = source.RawObservation ?? throw new InvalidOperationException("This older EOD source lacks accepted session facts; use a verified baseline.");
             var parameters = new HistoricalRawEodParameter(value) { PostgreSql = true };
-            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertRawEod,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertRawEod,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2402,7 +2401,7 @@ public static class MarketDataDbContextExtensions
         {
             var value = source.AcceptedSnapshot ?? throw new InvalidOperationException("This older VX source lacks accepted replacement facts; use a verified baseline.");
             var parameters = new InsertVixFuturesEodData(value.ContractId,value.ValueDate,value.OpenPrice,value.HighPrice,value.LowPrice,value.ClosePrice,value.Volume) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertVixFuturesEodData,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertVixFuturesEodData,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2414,7 +2413,7 @@ public static class MarketDataDbContextExtensions
         {
             var value = source.FuturesBarData;
             var parameters = new InsertFuturesBarData(value.ContractId,value.Symbol,value.ValueDate,value.BarDate,value.BarRateType.ToStringFast(),value.BarValue,value.UpTrendTrigger,value.DownTrendTrigger) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesBarData,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesBarData,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2426,7 +2425,7 @@ public static class MarketDataDbContextExtensions
         {
             var value = source.BarDataId;
             var parameters = new DeleteFuturesBarData(value.ContractId,value.Symbol,value.ValueDate) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.DeleteFuturesBarData,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.DeleteFuturesBarData,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2438,11 +2437,11 @@ public static class MarketDataDbContextExtensions
         public async Task PersistSessionBarFactsAsync(FuturesTradeSessionBarReadModel bar, FuturesEodObservationReadModel? eod, CancellationToken token)
         {
             var parameters = new HistoricalObservationParameter(bar) { PostgreSql = true };
-            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertObservation,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertObservation,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
             if (eod is null) return;
             var raw = new HistoricalRawEodParameter(eod) { PostgreSql = true };
-            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertRawEod,(Npgsql.NpgsqlParameter[])raw.Bind(),token)
+            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertRawEod,(object?[])raw.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2454,7 +2453,7 @@ public static class MarketDataDbContextExtensions
         {
             var closing = new InsertFuturesClosingPrice(accepted.FuturesClosingPriceId.ContractId, accepted.FuturesClosingPriceId.ValueDate,
                 accepted.ClosingPrice, accepted.CreatedOn, accepted.CreatedBy) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesClosingPrice,(Npgsql.NpgsqlParameter[])closing.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesClosingPrice,(object?[])closing.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2471,7 +2470,7 @@ public static class MarketDataDbContextExtensions
                 MessagePackSerializer.Serialize(snapshot.FuturesEodData,MarketDataDbContext.MarketOutlookSerializerOptions,cancellationToken:token),
                 snapshot.FuturesTradeSignal is null ? null : MessagePackSerializer.Serialize(snapshot.FuturesTradeSignal,MarketDataDbContext.MarketOutlookSerializerOptions,cancellationToken:token),
                 snapshot.MissingInputs,MessagePackSerializer.Serialize(snapshot,MarketDataDbContext.MarketOutlookSerializerOptions,cancellationToken:token)) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.UpsertMarketOutlookSnapshot,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.UpsertMarketOutlookSnapshot,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2483,7 +2482,7 @@ public static class MarketDataDbContextExtensions
         {
             ArgumentNullException.ThrowIfNull(futuresAdxSignal);
             var parameters = new InsertFuturesAdxSignal(contractId: futuresAdxSignal.ContractId, valueDate: futuresAdxSignal.ValueDate, timePeriod: futuresAdxSignal.TimePeriod.ToStringFast(), periodLength: futuresAdxSignal.PeriodLength, timestamp: futuresAdxSignal.Timestamp, futuresPrice: futuresAdxSignal.FuturesPrice, plusDI: futuresAdxSignal.PlusDI, minusDI: futuresAdxSignal.MinusDI, adxValue: futuresAdxSignal.AdxValue, adx: futuresAdxSignal.ADX.ToStringFast(), adxStrength: futuresAdxSignal.ADXStrength.ToStringFast(), configurationId: futuresAdxSignal.Metadata?.CalculationConfigurationId, observationId: futuresAdxSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresAdxSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresAdxSignal.Metadata?.SourceSequence, calculationVersion: futuresAdxSignal.Metadata?.CalculationVersion, calculationMethod: futuresAdxSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresAdxSignal.Metadata is { } metadata ? metadata.SchemaVersion : null, isValid: futuresAdxSignal.Metadata?.IsValid, isWarm: futuresAdxSignal.IsWarm) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesAdxSignal,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesAdxSignal,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2495,7 +2494,7 @@ public static class MarketDataDbContextExtensions
         {
             ArgumentNullException.ThrowIfNull(futuresAtrSignal);
             var parameters = new InsertFuturesAtrSignal(contractId: futuresAtrSignal.ContractId, valueDate: futuresAtrSignal.ValueDate, timePeriod: futuresAtrSignal.TimePeriod.ToStringFast(), periodLength: futuresAtrSignal.PeriodLength, timestamp: futuresAtrSignal.Timestamp, futuresPrice: futuresAtrSignal.FuturesPrice, atrValue: futuresAtrSignal.AtrValue, trueRange: futuresAtrSignal.TrueRange, atr: futuresAtrSignal.ATR.ToStringFast(), atrStrength: futuresAtrSignal.ATRStrength.ToStringFast(), configurationId: futuresAtrSignal.Metadata?.CalculationConfigurationId, observationId: futuresAtrSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresAtrSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresAtrSignal.Metadata?.SourceSequence, calculationVersion: futuresAtrSignal.Metadata?.CalculationVersion, calculationMethod: futuresAtrSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresAtrSignal.Metadata is { } atrMetadata ? atrMetadata.SchemaVersion : null, isValid: futuresAtrSignal.Metadata?.IsValid, previousAtrValue: futuresAtrSignal.PreviousAtrValue, atrBaseline: futuresAtrSignal.AtrBaseline, atrRatio: futuresAtrSignal.AtrRatio, isWarm: futuresAtrSignal.IsWarm) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesAtrSignal,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesAtrSignal,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2507,7 +2506,7 @@ public static class MarketDataDbContextExtensions
         {
             ArgumentNullException.ThrowIfNull(futuresMacdSignal);
             var parameters = new InsertFuturesMacdSignal(contractId: futuresMacdSignal.ContractId, valueDate: futuresMacdSignal.ValueDate, timePeriod: futuresMacdSignal.TimePeriod.ToStringFast(), signalEmaPeriod: futuresMacdSignal.SignalEmaPeriod, fastEmaPeriod: futuresMacdSignal.FastEmaPeriod, slowEmaPeriod: futuresMacdSignal.SlowEmaPeriod, timestamp: futuresMacdSignal.Timestamp, futuresPrice: futuresMacdSignal.FuturesPrice, fastEma: futuresMacdSignal.FastEma, slowEma: futuresMacdSignal.SlowEma, macdLine: futuresMacdSignal.MacdLine, signalLine: futuresMacdSignal.SignalLine, histogram: futuresMacdSignal.Histogram, macd: futuresMacdSignal.MACD.ToStringFast(), macdStrength: futuresMacdSignal.MACDStrength.ToStringFast(), configurationId: futuresMacdSignal.Metadata?.CalculationConfigurationId, observationId: futuresMacdSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresMacdSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresMacdSignal.Metadata?.SourceSequence, calculationVersion: futuresMacdSignal.Metadata?.CalculationVersion, calculationMethod: futuresMacdSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresMacdSignal.Metadata is { } macdMetadata ? macdMetadata.SchemaVersion : null, isValid: futuresMacdSignal.Metadata?.IsValid, isWarm: futuresMacdSignal.IsWarm, observationCount: futuresMacdSignal.ObservationCount) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesMacdSignal,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesMacdSignal,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2519,7 +2518,7 @@ public static class MarketDataDbContextExtensions
         {
             ArgumentNullException.ThrowIfNull(e);
             var parameters = new InsertFuturesRsiSignal(e.ContractId, e.ValueDate, e.TimePeriod.ToStringFast(), e.PeriodLength, e.Timestamp, e.Price, e.PriceChange, e.PriceGain, e.PriceLoss, e.AveragePriceGain, e.AveragePriceLoss, e.RS, e.RSI, e.RSIAverage, e.RSISlope, e.SourceSequence, e.SourceEventTimestamp, e.Metadata?.CalculationConfigurationId, e.Metadata?.ObservationId.Value, e.Metadata?.MarketDataAsOfUtc.UtcDateTime, e.Metadata?.CalculationVersion, e.Metadata?.CalculationMethod.ToString(), e.Metadata is { } rsiMetadata ? rsiMetadata.SchemaVersion : null, e.Metadata?.IsValid, e.PreviousRsi, e.RegimeSlope, e.IsWarm) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesRsiSignal,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesRsiSignal,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2531,7 +2530,7 @@ public static class MarketDataDbContextExtensions
         {
             ArgumentNullException.ThrowIfNull(futuresTdiSignal);
             var parameters = new InsertFuturesTdiSignal(contractId: futuresTdiSignal.ContractId, timePeriod: futuresTdiSignal.TimePeriod.ToStringFast(), configurationId: futuresTdiSignal.ConfigurationId, valueDate: futuresTdiSignal.ValueDate, timestamp: futuresTdiSignal.Timestamp, schemaVersion: futuresTdiSignal.SchemaVersion, rsiPeriod: futuresTdiSignal.RsiPeriod, priceLinePeriod: futuresTdiSignal.PriceLinePeriod, signalLinePeriod: futuresTdiSignal.SignalLinePeriod, marketBasePeriod: futuresTdiSignal.MarketBasePeriod, volatilityBandPeriod: futuresTdiSignal.VolatilityBandPeriod, volatilityBandDeviation: futuresTdiSignal.VolatilityBandDeviation, price: futuresTdiSignal.Price, rsi: futuresTdiSignal.Rsi, priceLine: futuresTdiSignal.PriceLine, signalLine: futuresTdiSignal.SignalLine, marketBaseLine: futuresTdiSignal.MarketBaseLine, upperVolatilityBand: futuresTdiSignal.UpperVolatilityBand, lowerVolatilityBand: futuresTdiSignal.LowerVolatilityBand, bandWidth: futuresTdiSignal.BandWidth, priceSignalDivergence: futuresTdiSignal.PriceSignalDivergence, crossType: futuresTdiSignal.Cross.ToString(), marketState: futuresTdiSignal.MarketState.ToString(), trendDirection: futuresTdiSignal.TDI.ToStringFast(), trendStrength: futuresTdiSignal.TDIStrength.ToStringFast(), sourceSequence: futuresTdiSignal.SourceSequence, sourceEventTimestamp: futuresTdiSignal.SourceEventTimestamp) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTdiSignal,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTdiSignal,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2544,7 +2543,7 @@ public static class MarketDataDbContextExtensions
             ArgumentNullException.ThrowIfNull(signal);
             var metadata = signal.Metadata;
             var parameters = new InsertFuturesEmaSignal(metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(), metadata.CalculationConfigurationId, MarketDataDbContextExtensions.Bucket(metadata.ValueDate), metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value, metadata.ContractId, metadata.ValueDate, signal.Price, signal.Ema10, signal.PreviousEma10, signal.Ema10Slope, signal.Ema20, signal.PreviousEma20, signal.Ema20Slope, signal.Ema50, signal.PreviousEma50, signal.Ema50Slope, signal.Ema200, signal.PreviousEma200, signal.Ema200Slope, signal.IsWarm, metadata.SourceSequence, metadata.CalculatedAtUtc.UtcDateTime, metadata.SchemaVersion, metadata.CalculationVersion, metadata.CalculationMethod.ToString(), metadata.IsValid) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesEmaSignal,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesEmaSignal,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2557,7 +2556,7 @@ public static class MarketDataDbContextExtensions
             ArgumentNullException.ThrowIfNull(signal);
             var metadata = signal.Metadata;
             var parameters = new InsertFuturesBollingerBandSignal(metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(), metadata.CalculationConfigurationId, MarketDataDbContextExtensions.Bucket(metadata.ValueDate), metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value, metadata.ContractId, metadata.ValueDate, signal.Price, signal.Ema10Center, signal.StandardDeviation10, signal.Upper10, signal.Lower10, signal.Width10, signal.Position10, signal.Ema20Center, signal.StandardDeviation20, signal.Upper20, signal.Lower20, signal.Width20, signal.Position20, signal.Width20Baseline, signal.Width20Ratio, signal.IsWarm, metadata.SourceSequence, metadata.CalculatedAtUtc.UtcDateTime, metadata.SchemaVersion, metadata.CalculationVersion, metadata.CalculationMethod.ToString(), metadata.IsValid) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesBollingerBandSignal,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesBollingerBandSignal,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2569,7 +2568,7 @@ public static class MarketDataDbContextExtensions
         {
             ArgumentNullException.ThrowIfNull(signal);
             var parameters = new InsertFuturesVwapSignal(signal.ContractId, signal.ValueDate, signal.ConfigurationId, signal.AsOfUtc.UtcDateTime, signal.LastTradeOrdinal, signal.SessionStartUtc.UtcDateTime, signal.SessionEndUtc.UtcDateTime, signal.CumulativePriceVolume, signal.CumulativeVolume, signal.EligibleTradeCount, signal.RejectedTradeCount, signal.LastPrice, signal.Vwap, signal.PriceMinusVwap, signal.PriceToVwapPercent, signal.LastTradeSourceSequence, signal.StreamEpochId, signal.IsWarm, signal.IsValid, signal.InvalidReason.ToString(), signal.IsTickExact, signal.CalculationMethod.ToString(), signal.SchemaVersion, signal.CalculationVersion) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesVwapSignal,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesVwapSignal,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2581,7 +2580,7 @@ public static class MarketDataDbContextExtensions
         {
             ArgumentNullException.ThrowIfNull(signal);
             var parameters = new InsertFuturesVxTermStructureSignal(signal.ValueDate, signal.ConfigurationId, signal.CalculatedAtUtc.UtcDateTime, signal.FrontSourceSequence, signal.BackSourceSequence, signal.FrontVxContractId, signal.FrontExpiry, signal.FrontVxPrice, signal.BackVxContractId, signal.BackExpiry, signal.BackVxPrice, signal.FrontBackSpread, signal.FrontBackRatio, signal.TermStructurePercent, signal.TermStructureState.ToString(), signal.PriorFrontBackRatio, signal.PriorTermStructurePercent, signal.FrontSourceTimestampUtc.UtcDateTime, signal.BackSourceTimestampUtc.UtcDateTime, signal.IsWarm, signal.IsValid, signal.SchemaVersion, signal.CalculationVersion) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesVxTermStructureSignal,(Npgsql.NpgsqlParameter[])parameters.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesVxTermStructureSignal,(object?[])parameters.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2597,13 +2596,13 @@ public static class MarketDataDbContextExtensions
             var sequenceId = eventId;
             var timePeriod = FuturesTradeSignalV2ReadModel.TimePeriod.ToStringFast();
             var parameters0 = new InsertFuturesTradeSignal(contractId: FuturesTradeSignalV2ReadModel.ContractId, valueDate: FuturesTradeSignalV2ReadModel.ValueDate, timePeriod, sequenceId, timestamp: FuturesTradeSignalV2ReadModel.Timestamp, mean: FuturesTradeSignalV2ReadModel.Mean, stdDev: FuturesTradeSignalV2ReadModel.StdDev, futuresPrice: FuturesTradeSignalV2ReadModel.FuturesPrice, priceChangePercent: FuturesTradeSignalV2ReadModel.PriceChangePercent, fundRiskPercent: FuturesTradeSignalV2ReadModel.FundRiskPercent, rsi: FuturesTradeSignalV2ReadModel.RSI, rsiSlope: FuturesTradeSignalV2ReadModel.RSISlope, trendType: FuturesTradeSignalV2ReadModel.TrendType.ToStringFast(), trendStrength: FuturesTradeSignalV2ReadModel.TrendStrength.ToStringFast(), tradeSignal: FuturesTradeSignalV2ReadModel.TradeSignal.ToStringFast(), tdi: FuturesTradeSignalV2ReadModel.TDI.ToStringFast(), tdiStrength: FuturesTradeSignalV2ReadModel.TDIStrength.ToStringFast(), mdi: FuturesTradeSignalV2ReadModel.MDI, mdiTrend: FuturesTradeSignalV2ReadModel.MDITrend.ToStringFast(), mdiUpTrendLimit: FuturesTradeSignalV2ReadModel.MDIUpTrendLimit, mdiDownTrendLimit: FuturesTradeSignalV2ReadModel.MDIDownTrendLimit, upTrendingTrigger: FuturesTradeSignalV2ReadModel.UpTrendingTrigger, downTrendingTrigger: FuturesTradeSignalV2ReadModel.DownTrendingTrigger, entryTrigger: FuturesTradeSignalV2ReadModel.EntryTrigger, exitTrigger: FuturesTradeSignalV2ReadModel.ExitTrigger, trendDelta: FuturesTradeSignalV2ReadModel.TrendDelta, trendExtreme: FuturesTradeSignalV2ReadModel.TrendExtreme, trendReversal: FuturesTradeSignalV2ReadModel.TrendReversal, fiftyDma: FuturesTradeSignalV2ReadModel.FiftyDMA, twoHundredDma: FuturesTradeSignalV2ReadModel.TwoHundredDMA, tradeExecuteState: FuturesTradeSignalV2ReadModel.TradeExecuteState.ToStringFast()) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignal,(Npgsql.NpgsqlParameter[])parameters0.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignal,(object?[])parameters0.Bind(),token)
                 .ConfigureAwait(false);
             var parameters1 = new InsertFuturesTradeSignalIndex($"latest:{timePeriod}", "latest", sequenceId, FuturesTradeSignalV2ReadModel.ContractId, FuturesTradeSignalV2ReadModel.ValueDate, timePeriod) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalIndex,(Npgsql.NpgsqlParameter[])parameters1.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalIndex,(object?[])parameters1.Bind(),token)
                 .ConfigureAwait(false);
             var parameters2 = new InsertFuturesTradeSignalIndex($"date:{timePeriod}:{FuturesTradeSignalV2ReadModel.ValueDate.DayNumber}", FuturesTradeSignalV2ReadModel.ContractId, sequenceId, FuturesTradeSignalV2ReadModel.ContractId, FuturesTradeSignalV2ReadModel.ValueDate, timePeriod) { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalIndex,(Npgsql.NpgsqlParameter[])parameters2.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalIndex,(object?[])parameters2.Bind(),token)
                 .ConfigureAwait(false);
         }
 
@@ -2619,17 +2618,17 @@ public static class MarketDataDbContextExtensions
             var sequenceId = signal.SequenceId > 0 ? signal.SequenceId : eventId;
             var canonical = MarketDataDbContextExtensions.CreateFuturesItiSignalParameters(signal,sequenceId) with { PostgreSql = true };
             var latest = MarketDataDbContextExtensions.CreateFuturesItiTimeFrameStateParameters(signal,sequenceId) with { PostgreSql = true };
-            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesItiSignal,(Npgsql.NpgsqlParameter[])canonical.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesItiSignal,(object?[])canonical.Bind(),token)
                 .ConfigureAwait(false);
-            await transaction.ExecuteAsync(MarketDataDbSql.UpsertFuturesItiTimeFrameState,(Npgsql.NpgsqlParameter[])latest.Bind(),token)
+            await transaction.ExecuteAsync(MarketDataDbSql.UpsertFuturesItiTimeFrameState,(object?[])latest.Bind(),token)
                 .ConfigureAwait(false);
         }
 
         /// <summary>Binds immutable volatility evidence values to PostgreSQL parameters.</summary>
         /// <param name="items">The ordered database values.</param>
         /// <returns>The typed PostgreSQL parameters.</returns>
-        internal NpgsqlParameter[] BindOptionVolatilityValues(params object?[] items)
-            => (NpgsqlParameter[])new OptionVolatilityParameters(items) { PostgreSql = true }.Bind();
+        internal object?[] BindOptionVolatilityValues(params object?[] items)
+            => (object?[])new OptionVolatilityParameters(items) { PostgreSql = true }.Bind();
     }
 }
 

@@ -1,4 +1,4 @@
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
@@ -11,5 +11,5 @@ internal readonly record struct InsertFuturesContractRolloverIfMissing(
     string createdBy) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new Npgsql.NpgsqlParameter[] { Text(symbol), TimestampTz(createdOn), Text(createdBy) } : new object?[] { symbol, createdOn, createdBy };
+    public object Bind() => PostgreSql ? new object?[] { Text(symbol), TimestampTz(createdOn), Text(createdBy) } : new object?[] { symbol, createdOn, createdBy };
 }

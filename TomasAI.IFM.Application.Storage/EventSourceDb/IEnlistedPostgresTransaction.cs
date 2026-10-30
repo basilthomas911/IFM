@@ -1,4 +1,3 @@
-using Npgsql;
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 

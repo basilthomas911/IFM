@@ -1,10 +1,9 @@
 using System.Text.Json;
-using Npgsql;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 
@@ -42,7 +41,7 @@ internal readonly record struct DeleteParameter(DatabentoContractRole Role, long
 
 /// <summary>Ordered PostgreSQL bindings for DurableSubscriptionParameters.</summary>
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct DurableSubscriptionParameters(NpgsqlParameter[] Items) : IBindValue
+internal readonly record struct DurableSubscriptionParameters(object?[] Items) : IBindValue
 {
     /// <summary>Gets the ordered values for the SQL operation.</summary>
     public object Bind() => Items;

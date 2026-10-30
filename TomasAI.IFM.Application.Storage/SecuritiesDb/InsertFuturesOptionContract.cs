@@ -1,6 +1,4 @@
-using Npgsql;
-using NpgsqlTypes;
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
@@ -11,5 +9,5 @@ internal readonly record struct InsertFuturesOptionContract(string contractId, s
     public bool PostgreSql { get; init; }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql array parameters require the Array marker combined with their element type.")]
-    public object Bind() => PostgreSql ? new NpgsqlParameter[] { Text(contractId), Text(description), Text(symbol), Text(localSymbol), Text(securityType), Text(currency), Text(exchange), Text(multiplier), Date(contractMonth), Double(strikePrice), Text(optionType), Bytea(referencePayload) } : new object?[] { contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, contractMonth, strikePrice, optionType, referencePayload };
+    public object Bind() => PostgreSql ? new object?[] { Text(contractId), Text(description), Text(symbol), Text(localSymbol), Text(securityType), Text(currency), Text(exchange), Text(multiplier), Date(contractMonth), Double(strikePrice), Text(optionType), Bytea(referencePayload) } : new object?[] { contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, contractMonth, strikePrice, optionType, referencePayload };
 }

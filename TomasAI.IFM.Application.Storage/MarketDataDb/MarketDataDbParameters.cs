@@ -1,8 +1,6 @@
 using System.Text.Json;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
-using Npgsql;
-using NpgsqlTypes;
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
@@ -123,7 +121,7 @@ internal readonly record struct DeleteEconomicCalendarV2(string countryCode, int
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(countryCode),
         Integer(monthBucket),
@@ -140,7 +138,7 @@ internal readonly record struct DeleteFuturesAdxSignal(string contractId, string
     /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -156,7 +154,7 @@ internal readonly record struct DeleteFuturesAtrSignal(string contractId, string
     /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -171,7 +169,7 @@ internal readonly record struct DeleteFuturesBarData(string contractId, string s
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(symbol),
@@ -185,7 +183,7 @@ internal readonly record struct DeleteFuturesClosingPrice(string contractId, Dat
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate)
@@ -214,7 +212,7 @@ internal readonly record struct DeleteFuturesItiSignal(string contractId, DateOn
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -259,7 +257,7 @@ internal readonly record struct DeleteFuturesOptionTickPriceData(string contract
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate)
@@ -304,7 +302,7 @@ internal readonly record struct DeleteMarketHoliday(string currencyType, DateOnl
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(currencyType),
         Date(holidayDate)
@@ -317,7 +315,7 @@ internal readonly record struct DeleteMarketHolidays(string currencyType) : IBin
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(currencyType)
     } : new object?[] { currencyType };
@@ -328,7 +326,7 @@ internal readonly record struct DeleteMarketHolidays(string currencyType) : IBin
 internal readonly record struct DeleteRateOfReturn(string symbol, DateOnly valueDate) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(symbol),
         Date(valueDate)
@@ -341,7 +339,7 @@ internal readonly record struct DeleteTradeLiveFeed(int orderId, int tradeId) : 
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Integer(orderId),
         Integer(tradeId)
@@ -360,7 +358,7 @@ internal readonly record struct DeleteVixFuturesContractIndex(int bucket, string
 internal readonly record struct DeleteVixFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate)
@@ -372,7 +370,7 @@ internal readonly record struct DeleteVixFuturesEodData(string contractId, DateO
 internal readonly record struct DeleteYieldCurveRate(DateOnly valueDate) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Date(valueDate)
     } : new object?[] { valueDate };
@@ -403,7 +401,7 @@ internal readonly record struct DownloadLogParameters(
     DateTime ProjectedAtUtc) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(Dataset),
         Text(Provider),
@@ -466,9 +464,9 @@ internal readonly record struct DownloadLogReadParameters(
     {
         if (PostgreSql)
         {
-            if (Exact) return new NpgsqlParameter[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),TimestampTz(RequestedAtUtc),Uuid(ImportCommandId) };
-            if (ImportCommandId == Guid.Empty) return new NpgsqlParameter[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),Integer(RowLimit) };
-            return new NpgsqlParameter[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),TimestampTz(RequestedAtUtc),Uuid(ImportCommandId),Integer(RowLimit) };
+            if (Exact) return new object?[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),TimestampTz(RequestedAtUtc),Uuid(ImportCommandId) };
+            if (ImportCommandId == Guid.Empty) return new object?[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),Integer(RowLimit) };
+            return new object?[] { Text(Dataset),Text(Provider),Text(Scope),Date(ValueDate),TimestampTz(RequestedAtUtc),Uuid(ImportCommandId),Integer(RowLimit) };
         }
         if (Exact) return new object[] { Dataset, Provider, Scope, ValueDate, RequestedAtUtc, ImportCommandId };
         if (ImportCommandId == Guid.Empty) return new object[] { Dataset, Provider, Scope, ValueDate, RowLimit };
@@ -538,7 +536,7 @@ internal readonly record struct GetEconomicCalendarCountryCodes(int lookupId) : 
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Integer(lookupId)
     } : new object?[] { lookupId };
@@ -550,7 +548,7 @@ internal readonly record struct GetEconomicCalendars(string countryCode, int mon
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(countryCode),
         Integer(monthBucket),
@@ -565,7 +563,7 @@ internal readonly record struct GetEconomicCalendarV2ById(string countryCode, in
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(countryCode),
         Integer(monthBucket),
@@ -580,7 +578,7 @@ internal readonly record struct GetEconomicCalendarV2CommandId(string countryCod
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(countryCode),
         Integer(monthBucket),
@@ -595,7 +593,7 @@ internal readonly record struct GetFuturesBarData(string contractId, string symb
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(symbol),
@@ -611,7 +609,7 @@ internal readonly record struct GetFuturesBarDataCount(string contractId, string
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(symbol),
@@ -625,7 +623,7 @@ internal readonly record struct GetFuturesClosingPrice(string contractId, DateOn
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate)
@@ -646,7 +644,7 @@ internal readonly record struct GetFuturesEodClosingPrices(string contractId, Da
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(startDate),
@@ -684,7 +682,7 @@ internal readonly record struct GetFuturesItiSignalContractIdsByDate(DateOnly va
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Date(valueDate)
     } : new object?[] { valueDate };
@@ -696,7 +694,7 @@ internal readonly record struct GetFuturesItiSignals(string contractId, DateOnly
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -738,7 +736,7 @@ internal readonly record struct GetFuturesItiSignalsCanonicalByContract(string c
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId)
     } : new object?[] { contractId };
@@ -750,7 +748,7 @@ internal readonly record struct GetFuturesItiSignalsCanonicalByContractDay(strin
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate)
@@ -763,7 +761,7 @@ internal readonly record struct GetFuturesItiTimeFrameState(string contractId, s
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -777,7 +775,7 @@ internal readonly record struct GetFuturesOptionChainQuoteData(
     string underlyingContractId, DateOnly expiryDate, DateOnly valueDate) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(underlyingContractId),
         Date(expiryDate),
@@ -804,7 +802,7 @@ internal readonly record struct GetFuturesOptionTickPriceData(string contractId,
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -819,14 +817,14 @@ internal readonly record struct GetFuturesRsiSignalsForTrend(string contractId, 
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
         Integer(periodLength),
         Date(valueDate),
-        new NpgsqlParameter<TimeOnly> { NpgsqlDbType = NpgsqlDbType.Time, TypedValue = startTime },
-        new NpgsqlParameter<TimeOnly> { NpgsqlDbType = NpgsqlDbType.Time, TypedValue = endTime }
+        Time(startTime ),
+        Time(endTime )
     } : new object?[] { contractId, timePeriod, periodLength, valueDate, startTime, endTime };
 }
 
@@ -858,7 +856,7 @@ internal readonly record struct GetFuturesTradeSignalIdByValueDate(string scope)
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(scope)
     } : new object?[] { scope };
@@ -872,7 +870,7 @@ internal readonly record struct GetFuturesVwapSignalHistory(
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -887,7 +885,7 @@ internal readonly record struct GetLastFuturesAdxDailySignal(string contractId, 
     /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -902,7 +900,7 @@ internal readonly record struct GetLastFuturesAdxSignal(string contractId, strin
     /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -918,7 +916,7 @@ internal readonly record struct GetLastFuturesAtrDailySignal(string contractId, 
     /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -933,7 +931,7 @@ internal readonly record struct GetLastFuturesAtrSignal(string contractId, strin
     /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -948,7 +946,7 @@ internal readonly record struct GetLastFuturesBarData(string contractId, string 
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(symbol),
@@ -977,7 +975,7 @@ internal readonly record struct GetLastFuturesItiSignalByTimePeriod(string contr
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -1025,7 +1023,7 @@ internal readonly record struct GetLastFuturesMacdDailySignal(
     /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -1048,7 +1046,7 @@ internal readonly record struct GetLastFuturesMacdSignal(
     /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -1080,7 +1078,7 @@ internal readonly record struct GetLastFuturesOptionTickPriceData(string contrac
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate)
@@ -1093,7 +1091,7 @@ internal readonly record struct GetLastFuturesRsiDailySignal(string contractId, 
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -1107,7 +1105,7 @@ internal readonly record struct GetLastFuturesRsiSignal(string contractId, strin
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -1148,7 +1146,7 @@ internal readonly record struct GetLastFuturesTradeSignal(string scope) : IBindV
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(scope)
     } : new object?[] { scope };
@@ -1160,7 +1158,7 @@ internal readonly record struct GetLastFuturesTradeSignalById(string contractId,
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -1175,9 +1173,9 @@ internal readonly record struct GetLastFuturesTradeSignalBySymbol(List<string> c
     public bool PostgreSql { get; init; }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql requires its Array type marker combined with the element type.")]
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
-        new NpgsqlParameter<string[]> { NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Text, TypedValue = [.. contractIds] },
+        TextArray([.. contractIds] ),
         Date(valueDate)
     } : new object?[] { contractIds, valueDate };
 }
@@ -1187,7 +1185,7 @@ internal readonly record struct GetLastFuturesTradeSignalBySymbol(List<string> c
 internal readonly record struct GetLastRateOfReturn(string symbol) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(symbol)
     } : new object?[] { symbol };
@@ -1198,7 +1196,7 @@ internal readonly record struct GetLastRateOfReturn(string symbol) : IBindValue
 internal readonly record struct GetLastVixFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate)
@@ -1218,7 +1216,7 @@ internal readonly record struct GetLatestFuturesRegimeSignal(
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(seriesKey),
         Text(timePeriod),
@@ -1240,7 +1238,7 @@ internal readonly record struct GetLatestFuturesVwapSignal(
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -1256,7 +1254,7 @@ internal readonly record struct GetLatestFuturesVxTermStructureSignal(
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Date(valueDate),
         Text(configurationId)
@@ -1306,7 +1304,7 @@ internal readonly record struct GetMarketHolidays(string currencyType) : IBindVa
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(currencyType)
     } : new object?[] { currencyType };
@@ -1318,7 +1316,7 @@ internal readonly record struct GetMarketHolidaysByDateRange(string currencyType
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(currencyType),
         Date(startDate),
@@ -1335,7 +1333,7 @@ internal readonly record struct GetMarketOutlookSnapshot(
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate)
@@ -1372,7 +1370,7 @@ internal readonly record struct GetTradeLiveFeed(int orderId, int tradeId) : IBi
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Integer(orderId),
         Integer(tradeId)
@@ -1391,7 +1389,7 @@ internal readonly record struct GetVixFuturesContractIds(int bucket) : IBindValu
 internal readonly record struct GetVixFuturesEodData(string contractId, DateOnly valueDate) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate)
@@ -1411,7 +1409,7 @@ internal readonly record struct GetYesterdaysFuturesClosingPrice(string contract
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate)
@@ -1431,7 +1429,7 @@ internal readonly record struct GetYesterdaysFuturesEodData(string contractId, D
 internal readonly record struct GetYieldCurveRate(DateOnly valueDate) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Date(valueDate)
     } : new object?[] { valueDate };
@@ -1442,7 +1440,7 @@ internal readonly record struct GetYieldCurveRate(DateOnly valueDate) : IBindVal
 internal readonly record struct GetYieldCurveRates(DateOnly startDate, DateOnly endDate) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Date(startDate),
         Date(endDate)
@@ -1454,7 +1452,7 @@ internal readonly record struct GetYieldCurveRates(DateOnly startDate, DateOnly 
 internal readonly record struct GetYieldCurveRateYears(int lookupId) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Integer(lookupId)
     } : new object?[] { lookupId };
@@ -1466,7 +1464,7 @@ internal readonly record struct GetYieldCurveRateYears(int lookupId) : IBindValu
 internal readonly record struct HistoricalObservationParameter(FuturesTradeSessionBarReadModel Value) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(Value.MarketSeriesIdentity.Format()),
         Text(Value.TimeFrame.ToString()),
@@ -1477,13 +1475,13 @@ internal readonly record struct HistoricalObservationParameter(FuturesTradeSessi
         Date(Value.ValueDate),
         TimestampTz(Value.IntervalStartUtc.UtcDateTime),
         TimestampTz(Value.IntervalEndUtc.UtcDateTime),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.Open },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.High },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.Low },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.Close },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.Volume },
+        Numeric(Value.Open ),
+        Numeric(Value.High ),
+        Numeric(Value.Low ),
+        Numeric(Value.Close ),
+        Numeric(Value.Volume ),
         Bigint(Value.TradeCount),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.PriceVolumeSum },
+        Numeric(Value.PriceVolumeSum ),
         Bigint(Value.FirstSourceSequence),
         Bigint(Value.LastSourceSequence),
         TimestampTz(Value.FirstMarketEventUtc.UtcDateTime),
@@ -1511,7 +1509,7 @@ internal readonly record struct HistoricalObservationParameter(FuturesTradeSessi
 internal readonly record struct HistoricalRawEodKey(string SeriesKey, int YearMonth, DateOnly ValueDate) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(SeriesKey),
         Integer(YearMonth),
@@ -1525,7 +1523,7 @@ internal readonly record struct HistoricalRawEodKey(string SeriesKey, int YearMo
 internal readonly record struct HistoricalRawEodParameter(FuturesEodObservationReadModel Value) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(Value.MarketSeriesIdentity.Format()),
         Integer(checked(Value.ValueDate.Year * 100 + Value.ValueDate.Month)),
@@ -1533,13 +1531,13 @@ internal readonly record struct HistoricalRawEodParameter(FuturesEodObservationR
         Text(Value.ContractId),
         TimestampTz(Value.SessionStartUtc.UtcDateTime),
         TimestampTz(Value.SessionEndUtc.UtcDateTime),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.Open },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.High },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.Low },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.Close },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.Volume },
+        Numeric(Value.Open ),
+        Numeric(Value.High ),
+        Numeric(Value.Low ),
+        Numeric(Value.Close ),
+        Numeric(Value.Volume ),
         Bigint(Value.TradeCount),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = Value.PriceVolumeSum },
+        Numeric(Value.PriceVolumeSum ),
         Uuid(Value.ObservationId.Value),
         Bigint(Value.FirstSourceSequence),
         Bigint(Value.LastSourceSequence),
@@ -1569,7 +1567,7 @@ internal readonly record struct HistoricalRawEodRangeKey(
     DateOnly EndDate) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(SeriesKey),
         Integer(YearMonth),
@@ -1584,7 +1582,7 @@ internal readonly record struct InsertEconomicCalendarCountryCode(int lookupId, 
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Integer(lookupId),
         Text(countryCode)
@@ -1597,7 +1595,7 @@ internal readonly record struct InsertEconomicCalendarV2(string countryCode, int
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(countryCode),
         Integer(monthBucket),
@@ -1623,14 +1621,14 @@ internal readonly record struct InsertFuturesAdxSignal(string contractId, DateOn
     /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Text(timePeriod),
         Integer(periodLength),
-        new NpgsqlParameter<TimeOnly> { NpgsqlDbType = NpgsqlDbType.Time, TypedValue = timestamp },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = futuresPrice },
+        Time(timestamp ),
+        Numeric(futuresPrice ),
         Double(plusDI),
         Double(minusDI),
         Double(adxValue),
@@ -1655,14 +1653,14 @@ internal readonly record struct InsertFuturesAtrSignal(string contractId, DateOn
     /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Text(timePeriod),
         Integer(periodLength),
-        new NpgsqlParameter<TimeOnly> { NpgsqlDbType = NpgsqlDbType.Time, TypedValue = timestamp },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = futuresPrice },
+        Time(timestamp ),
+        Numeric(futuresPrice ),
         Double(atrValue),
         Double(trueRange),
         Text(atr),
@@ -1688,14 +1686,14 @@ internal readonly record struct InsertFuturesBarData(string contractId, string s
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(symbol),
         Date(valueDate),
         TimestampTz(barDate),
         Text(barRateType),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = barValue },
+        Numeric(barValue ),
         Double(upTrendTrigger),
         Double(downTrendTrigger)
     } : new object?[] { contractId, symbol, valueDate, barDate, barRateType, barValue, upTrendTrigger, downTrendTrigger };
@@ -1717,7 +1715,7 @@ internal readonly record struct InsertFuturesBollingerBandSignal(
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(seriesKey),
         Text(timePeriod),
@@ -1727,21 +1725,21 @@ internal readonly record struct InsertFuturesBollingerBandSignal(
         Uuid(observationId),
         Text(contractId),
         Date(valueDate),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = price },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = ema10Center },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = standardDeviation10 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = upper10 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = lower10 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = width10 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = position10 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = ema20Center },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = standardDeviation20 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = upper20 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = lower20 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = width20 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = position20 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = width20Baseline },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = width20Ratio },
+        Numeric(price ),
+        Numeric(ema10Center ),
+        Numeric(standardDeviation10 ),
+        Numeric(upper10 ),
+        Numeric(lower10 ),
+        Numeric(width10 ),
+        Numeric(position10 ),
+        Numeric(ema20Center ),
+        Numeric(standardDeviation20 ),
+        Numeric(upper20 ),
+        Numeric(lower20 ),
+        Numeric(width20 ),
+        Numeric(position20 ),
+        Numeric(width20Baseline ),
+        Numeric(width20Ratio ),
         Boolean(isWarm),
         Bigint(sourceSequence),
         TimestampTz(calculatedAt),
@@ -1765,11 +1763,11 @@ internal readonly record struct InsertFuturesClosingPrice(string contractId, Dat
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = closingPrice },
+        Numeric(closingPrice ),
         TimestampTz(createdOn),
         Text(createdBy)
     } : new object?[] { contractId, valueDate, closingPrice, createdOn, createdBy };
@@ -1790,7 +1788,7 @@ internal readonly record struct InsertFuturesEmaSignal(
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(seriesKey),
         Text(timePeriod),
@@ -1800,19 +1798,19 @@ internal readonly record struct InsertFuturesEmaSignal(
         Uuid(observationId),
         Text(contractId),
         Date(valueDate),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = price },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = ema10 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = previousEma10 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = ema10Slope },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = ema20 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = previousEma20 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = ema20Slope },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = ema50 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = previousEma50 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = ema50Slope },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = ema200 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = previousEma200 },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = ema200Slope },
+        Numeric(price ),
+        Numeric(ema10 ),
+        Numeric(previousEma10 ),
+        Numeric(ema10Slope ),
+        Numeric(ema20 ),
+        Numeric(previousEma20 ),
+        Numeric(ema20Slope ),
+        Numeric(ema50 ),
+        Numeric(previousEma50 ),
+        Numeric(ema50Slope ),
+        Numeric(ema200 ),
+        Numeric(previousEma200 ),
+        Numeric(ema200Slope ),
         Boolean(isWarm),
         Bigint(sourceSequence),
         TimestampTz(calculatedAt),
@@ -1835,7 +1833,7 @@ internal readonly record struct InsertFuturesEmaSignal(
 internal readonly record struct InsertFuturesEodData(string contractId, DateOnly valueDate, string symbol, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, long volume, double dailyPercentChange, double dailyStdDev, double dailyStdDevAmount, double upperBand, double mean, double lowerBand, string marketDirection, string marketVolatility, string priceDirection, string priceVolatility, double marketDirectionIndicator, int windowSize, decimal fiftyDMA, decimal twoHundredDMA) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate), Text(symbol), new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = openPrice }, new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = highPrice }, new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = lowPrice }, new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = closePrice }, Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize), new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = fiftyDMA }, new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = twoHundredDMA }) : new object?[] { contractId, valueDate, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize, fiftyDMA, twoHundredDMA };
+    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate), Text(symbol), Numeric(openPrice ), Numeric(highPrice ), Numeric(lowPrice ), Numeric(closePrice ), Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize), Numeric(fiftyDMA ), Numeric(twoHundredDMA )) : new object?[] { contractId, valueDate, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize, fiftyDMA, twoHundredDMA };
 }
 
 
@@ -1843,7 +1841,7 @@ internal readonly record struct InsertFuturesEodData(string contractId, DateOnly
 internal readonly record struct InsertFuturesEodDataByMonth(int yearMonth, string contractId, DateOnly valueDate, string symbol, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, long volume, double dailyPercentChange, double dailyStdDev, double dailyStdDevAmount, double upperBand, double mean, double lowerBand, string marketDirection, string marketVolatility, string priceDirection, string priceVolatility, double marketDirectionIndicator, int windowSize, decimal fiftyDMA, decimal twoHundredDMA) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Integer(yearMonth), Text(contractId), Date(valueDate), Text(symbol), new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = openPrice }, new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = highPrice }, new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = lowPrice }, new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = closePrice }, Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize), new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = fiftyDMA }, new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = twoHundredDMA }) : new object?[] { yearMonth, contractId, valueDate, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize, fiftyDMA, twoHundredDMA };
+    public object Bind() => PostgreSql ? Values(Integer(yearMonth), Text(contractId), Date(valueDate), Text(symbol), Numeric(openPrice ), Numeric(highPrice ), Numeric(lowPrice ), Numeric(closePrice ), Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize), Numeric(fiftyDMA ), Numeric(twoHundredDMA )) : new object?[] { yearMonth, contractId, valueDate, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize, fiftyDMA, twoHundredDMA };
 }
 
 
@@ -1859,7 +1857,7 @@ internal readonly record struct InsertFuturesEodDataIndex(DateOnly valueDate, st
 internal readonly record struct InsertFuturesIntraDayData(string contractId, DateOnly valueDate, long sequenceId, string symbol, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, long volume, double dailyPercentChange, double dailyStdDev, double dailyStdDevAmount, double upperBand, double mean, double lowerBand, string marketDirection, string marketVolatility, string priceDirection, string priceVolatility, double marketDirectionIndicator, int windowSize) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate), Bigint(sequenceId), Text(symbol), new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = openPrice }, new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = highPrice }, new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = lowPrice }, new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = closePrice }, Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize)) : new object?[] { contractId, valueDate, sequenceId, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize };
+    public object Bind() => PostgreSql ? Values(Text(contractId), Date(valueDate), Bigint(sequenceId), Text(symbol), Numeric(openPrice ), Numeric(highPrice ), Numeric(lowPrice ), Numeric(closePrice ), Bigint(volume), Double(dailyPercentChange), Double(dailyStdDev), Double(dailyStdDevAmount), Double(upperBand), Double(mean), Double(lowerBand), Text(marketDirection), Text(marketVolatility), Text(priceDirection), Text(priceVolatility), Double(marketDirectionIndicator), Integer(windowSize)) : new object?[] { contractId, valueDate, sequenceId, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize };
 }
 
 
@@ -1868,7 +1866,7 @@ internal readonly record struct InsertFuturesItiSignal(string contractId, DateOn
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -1946,7 +1944,7 @@ internal readonly record struct InsertFuturesMacdSignal(
     /// <summary>Selects typed native PostgreSQL parameters during provider migration.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -1954,8 +1952,8 @@ internal readonly record struct InsertFuturesMacdSignal(
         Integer(signalEmaPeriod),
         Integer(fastEmaPeriod),
         Integer(slowEmaPeriod),
-        new NpgsqlParameter<TimeOnly> { NpgsqlDbType = NpgsqlDbType.Time, TypedValue = timestamp },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = futuresPrice },
+        Time(timestamp ),
+        Numeric(futuresPrice ),
         Double(fastEma),
         Double(slowEma),
         Double(macdLine),
@@ -1982,12 +1980,12 @@ internal readonly record struct InsertFuturesOptionTickData(string contractId, D
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Bigint(tickId),
-        new NpgsqlParameter<TimeOnly> { NpgsqlDbType = NpgsqlDbType.Time, TypedValue = tickTime },
+        Time(tickTime ),
         Double(optionPrice),
         Double(bidPrice),
         Double(askPrice),
@@ -2010,19 +2008,19 @@ internal readonly record struct InsertFuturesRsiSignal(string contractId, DateOn
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Text(timePeriod),
         Integer(periodLength),
-        new NpgsqlParameter<TimeOnly> { NpgsqlDbType = NpgsqlDbType.Time, TypedValue = timestamp },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = price },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = priceChange },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = priceGain },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = priceLoss },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = averagePriceGain },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = averagePriceLoss },
+        Time(timestamp ),
+        Numeric(price ),
+        Numeric(priceChange ),
+        Numeric(priceGain ),
+        Numeric(priceLoss ),
+        Numeric(averagePriceGain ),
+        Numeric(averagePriceLoss ),
         Double(rs),
         Double(rsi),
         Double(rsiAverage),
@@ -2074,7 +2072,7 @@ internal readonly record struct InsertFuturesTdiSignal(
     DateTime sourceEventTimestamp) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? Values(Text(contractId), Text(timePeriod), Text(configurationId), Date(valueDate), new NpgsqlParameter<TimeOnly> { NpgsqlDbType = NpgsqlDbType.Time, TypedValue = timestamp }, Integer(schemaVersion), Integer(rsiPeriod), Integer(priceLinePeriod), Integer(signalLinePeriod), Integer(marketBasePeriod), Integer(volatilityBandPeriod), Double(volatilityBandDeviation), new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = price }, Double(rsi), Double(priceLine), Double(signalLine), Double(marketBaseLine), Double(upperVolatilityBand), Double(lowerVolatilityBand), Double(bandWidth), Double(priceSignalDivergence), Text(crossType), Text(marketState), Text(trendDirection), Text(trendStrength), Bigint(sourceSequence), TimestampTz(sourceEventTimestamp)) : new object?[]
+    public object Bind() => PostgreSql ? Values(Text(contractId), Text(timePeriod), Text(configurationId), Date(valueDate), Time(timestamp ), Integer(schemaVersion), Integer(rsiPeriod), Integer(priceLinePeriod), Integer(signalLinePeriod), Integer(marketBasePeriod), Integer(volatilityBandPeriod), Double(volatilityBandDeviation), Numeric(price ), Double(rsi), Double(priceLine), Double(signalLine), Double(marketBaseLine), Double(upperVolatilityBand), Double(lowerVolatilityBand), Double(bandWidth), Double(priceSignalDivergence), Text(crossType), Text(marketState), Text(trendDirection), Text(trendStrength), Bigint(sourceSequence), TimestampTz(sourceEventTimestamp)) : new object?[]
     {
         contractId, timePeriod, configurationId, valueDate, timestamp, schemaVersion,
         rsiPeriod, priceLinePeriod, signalLinePeriod, marketBasePeriod, volatilityBandPeriod,
@@ -2105,13 +2103,13 @@ internal readonly record struct InsertFuturesTradeSignal(string contractId, Date
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
         Text(timePeriod),
         Bigint(sequenceId),
-        new NpgsqlParameter<TimeOnly> { NpgsqlDbType = NpgsqlDbType.Time, TypedValue = timestamp },
+        Time(timestamp ),
         Double(mean),
         Double(stdDev),
         Double(futuresPrice),
@@ -2135,8 +2133,8 @@ internal readonly record struct InsertFuturesTradeSignal(string contractId, Date
         Double(trendDelta),
         Double(trendExtreme),
         Double(trendReversal),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = fiftyDma },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = twoHundredDma },
+        Numeric(fiftyDma ),
+        Numeric(twoHundredDma ),
         Text(tradeExecuteState)
     } : new object?[] { contractId, valueDate, timePeriod, sequenceId, timestamp, mean, stdDev, futuresPrice, priceChangePercent, fundRiskPercent, rsi, rsiSlope, trendType, trendStrength, tradeSignal, tdi, tdiStrength, mdi, mdiTrend, mdiUpTrendLimit, mdiDownTrendLimit, upTrendingTrigger, downTrendingTrigger, entryTrigger, exitTrigger, trendDelta, trendExtreme, trendReversal, fiftyDma, twoHundredDma, tradeExecuteState };
 }
@@ -2147,7 +2145,7 @@ internal readonly record struct InsertFuturesTradeSignalIndex(string scope, stri
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(scope),
         Text(entryId),
@@ -2164,7 +2162,7 @@ internal readonly record struct InsertFuturesTradeSignalQuarantine(string finger
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(fingerprint),
         Text(sourcePayload),
@@ -2188,7 +2186,7 @@ internal readonly record struct InsertFuturesVwapSignal(
     /// <summary>Selects native typed parameters for the PostgreSQL provider.</summary>
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -2197,14 +2195,14 @@ internal readonly record struct InsertFuturesVwapSignal(
         Bigint(lastTradeOrdinal),
         TimestampTz(sessionStartUtc),
         TimestampTz(sessionEndUtc),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = cumulativePriceVolume },
+        Numeric(cumulativePriceVolume ),
         Bigint(cumulativeVolume),
         Bigint(eligibleTradeCount),
         Bigint(rejectedTradeCount),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = lastPrice },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = vwap },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = priceMinusVwap },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = priceToVwapPercent },
+        Numeric(lastPrice ),
+        Numeric(vwap ),
+        Numeric(priceMinusVwap ),
+        Numeric(priceToVwapPercent ),
         Bigint(lastTradeSourceSequence),
         Uuid(streamEpochId),
         Boolean(isWarm),
@@ -2240,7 +2238,7 @@ internal readonly record struct InsertFuturesVxTermStructureSignal(
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Date(valueDate),
         Text(configurationId),
@@ -2249,16 +2247,16 @@ internal readonly record struct InsertFuturesVxTermStructureSignal(
         Bigint(backSourceSequence),
         Text(frontContractId),
         Date(frontExpiry),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = frontPrice },
+        Numeric(frontPrice ),
         Text(backContractId),
         Date(backExpiry),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = backPrice },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = frontBackSpread },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = frontBackRatio },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = termStructurePercent },
+        Numeric(backPrice ),
+        Numeric(frontBackSpread ),
+        Numeric(frontBackRatio ),
+        Numeric(termStructurePercent ),
         Text(termStructureState),
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = priorFrontBackRatio },
-        new NpgsqlParameter<decimal?> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = priorTermStructurePercent },
+        Numeric(priorFrontBackRatio ),
+        Numeric(priorTermStructurePercent ),
         TimestampTz(frontSourceTimestamp),
         TimestampTz(backSourceTimestamp),
         Boolean(isWarm),
@@ -2307,7 +2305,7 @@ internal readonly record struct InsertMarketHoliday(string currencyType, DateOnl
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(currencyType),
         Date(holidayDate),
@@ -2320,7 +2318,7 @@ internal readonly record struct InsertMarketHoliday(string currencyType, DateOnl
 internal readonly record struct InsertRateOfReturn(string symbol, DateOnly valueDate, double rateOfReturn) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(symbol),
         Date(valueDate),
@@ -2362,7 +2360,7 @@ internal readonly record struct InsertTradeLiveFeed(int orderId, int tradeId, st
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Integer(orderId),
         Integer(tradeId),
@@ -2389,14 +2387,14 @@ internal readonly record struct InsertVixFuturesEodData(
     long volume) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = openPrice },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = highPrice },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = lowPrice },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = closePrice },
+        Numeric(openPrice ),
+        Numeric(highPrice ),
+        Numeric(lowPrice ),
+        Numeric(closePrice ),
         Bigint(volume)
     } : new object?[] { contractId, valueDate, openPrice, highPrice, lowPrice, closePrice, volume };
 }
@@ -2406,7 +2404,7 @@ internal readonly record struct InsertVixFuturesEodData(
 internal readonly record struct InsertYieldCurveRate(int id, DateOnly valueDate, double oneMonth, double twoMonth, double threeMonth, double sixMonth, double oneYear, double twoYear, double threeYear, double fiveYear, double sevenYear, double tenYear, double twentyYear, double thirtyYear) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Integer(id),
         Date(valueDate),
@@ -2430,7 +2428,7 @@ internal readonly record struct InsertYieldCurveRate(int id, DateOnly valueDate,
 internal readonly record struct InsertYieldCurveRateYear(int lookupId, int rateYear) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Integer(lookupId),
         Integer(rateYear)
@@ -2470,7 +2468,7 @@ internal readonly record struct OptionVolatilityParameters(object?[] Items) : IB
 {
     public bool PostgreSql { get; init; }
     public object Bind() => PostgreSql ? Items.Select(ToParameter).ToArray() : Items;
-    static NpgsqlParameter ToParameter(object? value) => value switch
+    static object ToParameter(object? value) => value switch
     {
         string text => Text(text), int number => Integer(number), long number => Bigint(number),
         DateOnly date => Date(date), DateTime timestamp => TimestampTz(timestamp), byte[] payload => Bytea(payload),
@@ -2567,7 +2565,7 @@ internal readonly record struct UpdateOptionChainGreeks(string underlyingContrac
     FuturesOptionTickDataV2ReadModel tick) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Double(tick.ImpliedVolatility),
         Double(tick.UnderlyingPrice),
@@ -2602,12 +2600,12 @@ internal readonly record struct UpdateOptionChainStatisticsParameters(
 internal readonly record struct UpdateVixFuturesEodData(string contractId, DateOnly valueDate, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, long volume) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = openPrice },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = highPrice },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = lowPrice },
-        new NpgsqlParameter<decimal> { NpgsqlDbType = NpgsqlDbType.Numeric, TypedValue = closePrice },
+        Numeric(openPrice ),
+        Numeric(highPrice ),
+        Numeric(lowPrice ),
+        Numeric(closePrice ),
         Bigint(volume),
         Text(contractId),
         Date(valueDate)
@@ -2620,7 +2618,7 @@ internal readonly record struct UpsertFuturesItiTimeFrameState(string contractId
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Text(timePeriod),
@@ -2659,14 +2657,14 @@ internal readonly record struct UpsertFuturesOptionChainQuoteData(
     string underlyingContractId, DateOnly expiryDate, FuturesOptionTickDataV2ReadModel tick) : IBindValue
 {
     public bool PostgreSql { get; init; }
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(underlyingContractId),
         Date(expiryDate),
         Date(tick.ValueDate),
         Text(tick.ContractId),
         Bigint(tick.TickId),
-        new NpgsqlParameter<TimeOnly> { NpgsqlDbType = NpgsqlDbType.Time, TypedValue = tick.TickTime },
+        Time(tick.TickTime ),
         Double(tick.OptionPrice),
         Double(tick.BidPrice),
         Double(tick.AskPrice),
@@ -2700,7 +2698,7 @@ internal readonly record struct UpsertMarketOutlookSnapshot(
 {
     public bool PostgreSql { get; init; }
 
-    public object Bind() => PostgreSql ? new NpgsqlParameter[]
+    public object Bind() => PostgreSql ? new object?[]
     {
         Text(contractId),
         Date(valueDate),
@@ -2758,7 +2756,7 @@ internal readonly record struct NativeCompositionWriteParameters(Guid WorkflowId
 internal readonly record struct NativeItiDayMode(string contractId, DateOnly valueDate, string mode, long afterSequenceId) : IBindValue
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql array parameters require the Array marker combined with the element type.")]
-    public object Bind() => new NpgsqlParameter[] { Text(contractId), Date(valueDate), Text(mode), Bigint(afterSequenceId) };
+    public object Bind() => new object?[] { Text(contractId), Date(valueDate), Text(mode), Bigint(afterSequenceId) };
 }
 
 
@@ -2766,7 +2764,7 @@ internal readonly record struct NativeItiDayMode(string contractId, DateOnly val
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct NativeItiDeleteState(string contractId, string timePeriod, DateOnly bucketStart, DateOnly valueDate) : IBindValue
 {
-    public object Bind() => new NpgsqlParameter[] { Text(contractId), Text(timePeriod), Date(bucketStart), Date(valueDate) };
+    public object Bind() => new object?[] { Text(contractId), Text(timePeriod), Date(bucketStart), Date(valueDate) };
 }
 
 
@@ -2776,7 +2774,7 @@ internal readonly record struct NativeItiDeleteState(string contractId, string t
 internal readonly record struct NativeItiLatestTrendMode(string contractId, DateOnly valueDate, string trend, string mode) : IBindValue
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql array parameters require the Array marker combined with the element type.")]
-    public object Bind() => new NpgsqlParameter[] { Text(contractId), Date(valueDate), Text(trend), Text(mode) };
+    public object Bind() => new object?[] { Text(contractId), Date(valueDate), Text(trend), Text(mode) };
 }
 
 
@@ -2786,14 +2784,14 @@ internal readonly record struct NativeItiLatestTrendMode(string contractId, Date
 internal readonly record struct NativeItiRange(IReadOnlyCollection<string> contractIds, DateOnly startDate, DateOnly endDate) : IBindValue
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql array parameters require the Array marker combined with the element type.")]
-    public object Bind() => new NpgsqlParameter[] { new NpgsqlParameter<string[]> { NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Text, TypedValue = [.. contractIds] }, Date(startDate), Date(endDate) };
+    public object Bind() => new object?[] { TextArray([.. contractIds] ), Date(startDate), Date(endDate) };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct NativeMarketDateRangeParameter(DateOnly StartDate, DateOnly EndDate) : IBindValue
 {
-    public object Bind() => new NpgsqlParameter[] { Date(StartDate),Date(EndDate) };
+    public object Bind() => new object?[] { Date(StartDate),Date(EndDate) };
 }
 
 
@@ -2834,7 +2832,7 @@ internal readonly record struct NativeOptionEvidenceWriteParameters(string Contr
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct NativeVixDateParameter(DateOnly ValueDate) : IBindValue
 {
-    public object Bind() => new NpgsqlParameter[] { Date(ValueDate) };
+    public object Bind() => new object?[] { Date(ValueDate) };
 }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]

@@ -46,7 +46,7 @@ public sealed class StrategyPositionDailyLifecycleTests
         Assert.True(machine.UpdateLeg(legId, 13, 3, new DateTime(2026,10,7,22,0,0,DateTimeKind.Utc), 1).Accepted);
         Assert.Equal(new DateOnly(2026,10,8), machine.Current!.ValueDate);
         Assert.Equal(3m, machine.Current.UnrealizedPnl);
-        Assert.Equal(1m, machine.Current.DailyPnl);
+        Assert.Equal(1m, machine.Current.DailyPnlPoints);
         Assert.NotEqual(first.HistoryAsOfUtc, machine.Current.HistoryAsOfUtc);
         Assert.Equal(StrategyPositionPhase.EndOfDay, sealedPosition.Phase);
     }
@@ -84,6 +84,6 @@ public sealed class StrategyPositionDailyLifecycleTests
         Assert.True(machine.EndOfDay(new DateOnly(2026,10,8), new DateTime(2026,10,8,21,0,0,DateTimeKind.Utc)).Accepted);
         Assert.Equal(opened, machine.Current!.LastMarketObservationUtc);
         Assert.Equal(new DateOnly(2026,10,8), machine.Current.ValueDate);
-        Assert.Equal(0, machine.Current.DailyPnl);
+        Assert.Equal(0, machine.Current.DailyPnlPoints);
     }
 }

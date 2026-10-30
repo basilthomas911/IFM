@@ -64,8 +64,8 @@ public static class MarketDataRecoveryLog
             ORDER BY operation_id,sequence LIMIT @limit
             """, connection) { CommandTimeout=120 };
         command.Parameters.AddWithValue("date",valueDate);
-        command.Parameters.Add(new NpgsqlParameter("dataset",NpgsqlTypes.NpgsqlDbType.Text) { Value=(object?)dataset??DBNull.Value });
-        command.Parameters.Add(new NpgsqlParameter("operation",NpgsqlTypes.NpgsqlDbType.Uuid) { Value=(object?)operationId??DBNull.Value });
+        command.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Named("dataset",TomasAI.IFM.Shared.Storage.BindValues.Text(dataset)));
+        command.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Named("operation",TomasAI.IFM.Shared.Storage.BindValues.Uuid(operationId)));
         command.Parameters.AddWithValue("limit",limit);
         var rows = new List<string>();
         await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);

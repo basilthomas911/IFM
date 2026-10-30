@@ -460,11 +460,11 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
     {
         if (value is null)
             return null;
-        if (value is NpgsqlParameter[] parameters)
-            return parameters;
+        if (value is object?[] parameters)
+            return PostgresValueBinding.CreateMany(parameters);
 
         throw new StorageException(
-            $"{ProviderTypeName}.GetParameterArray: expected an NpgsqlParameter[] positional payload but received '{value.GetType()}'.");
+            $"{ProviderTypeName}.GetParameterArray: expected an object[] positional payload but received '{value.GetType()}'.");
     }
 
     static Task PrepareParameterizedCommandAsync(

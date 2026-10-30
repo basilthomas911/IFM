@@ -1,8 +1,6 @@
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using System.Text.Json;
-using Npgsql;
-using NpgsqlTypes;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -170,8 +168,8 @@ public static class PortfolioDbContextExtensions
             var flattened = values.SelectMany(value => value is object?[] nested ? nested : [value]);
             var parameters = flattened
                 .Select(value => value is PortfolioJson json
-                    ? new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Jsonb, Value = json.Value }
-                    : new NpgsqlParameter { Value = value ?? DBNull.Value })
+                    ? BindValues.Json(json.Value)
+                    : value)
                 .ToArray();
             return new(parameters);
         }
@@ -305,7 +303,7 @@ public static class PortfolioDbContextExtensions
         }
 
         private Task<int> WritePortfolioValuesAsync(string sql,CancellationToken token,params object?[] values)
-            => transaction.ExecuteAsync(sql,(Npgsql.NpgsqlParameter[])values.ToPortfolioParameters().Bind(),token);
+            => transaction.ExecuteAsync(sql,(object?[])values.ToPortfolioParameters().Bind(),token);
     }
     extension(PortfolioProjectionFacts facts)
     {

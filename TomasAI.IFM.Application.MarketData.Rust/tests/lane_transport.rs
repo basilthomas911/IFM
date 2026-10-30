@@ -56,6 +56,7 @@ enum Mode {
     ErrorBatch,
     Replay,
     ReplayFlood,
+    ReplayLiveQuoteFlood,
     Flood,
 }
 
@@ -622,6 +623,7 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
     if matches!(
         mode,
         Mode::FuturesQuotes
+            | Mode::ReplayLiveQuoteFlood
             | Mode::QuotesAckOnly
             | Mode::Pricing
             | Mode::PricingAt(_, _)
@@ -729,6 +731,7 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
         if matches!(
             mode,
             Mode::FuturesQuotes
+            | Mode::ReplayLiveQuoteFlood
                 | Mode::QuotesAckOnly
                 | Mode::Pricing
                 | Mode::PricingAt(_, _)
@@ -983,7 +986,24 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
                 }
             }
         }
-        if matches!(mode, Mode::Replay | Mode::ReplayFlood) {
+        if matches!(mode, Mode::ReplayLiveQuoteFlood) {
+            let mut quote = databento::dbn::Mbp1Msg::default();
+            quote.hd.instrument_id = 42;
+            quote.hd.publisher_id = 3;
+            quote.levels[0].bid_px = 6_100_000_000_000;
+            quote.levels[0].ask_px = 6_100_500_000_000;
+            quote.levels[0].bid_sz = 10;
+            quote.levels[0].ask_sz = 10;
+            // Live quotes can arrive while the trades subscription is replaying.
+            // No consumer may drain these before the replay-complete marker.
+            for sequence in 1..=20_000 {
+                quote.sequence = sequence;
+                quote.hd.ts_event = u64::from(sequence) + 200;
+                quote.ts_recv = quote.hd.ts_event + 1;
+                if records.encode(&quote).await.is_err() { return; }
+            }
+        }
+        if matches!(mode, Mode::Replay | Mode::ReplayFlood | Mode::ReplayLiveQuoteFlood) {
             if matches!(mode, Mode::ReplayFlood) {
                 for sequence in 8..20_008 {
                     trade.sequence = sequence;
@@ -1033,6 +1053,7 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
         mode,
         Mode::HealthyHeartbeat
             | Mode::FuturesQuotes
+            | Mode::ReplayLiveQuoteFlood
             | Mode::AckOnly
             | Mode::QuotesAckOnly
             | Mode::Pricing
@@ -2751,7 +2772,9 @@ async fn native_futures_delivery_integration(failure_mode: u8) {
             generation: [2; 16],
             revision: 1,
             control_only: false,
-            queue: 2,
+            // One source trade produces statistics plus execution. A single
+            // broker slot must throttle delivery without resetting the source.
+            queue: 1,
             bytes: 8192,
         },
         parent.clone(),
@@ -4157,6 +4180,10 @@ async fn live_replay_finishes_native_volume_without_exposing_historical_last_pri
     // managed drain until startup completes, exactly as a real epoch bootstrap.
     verify_live_replay(Mode::ReplayFlood, 80_004, 20_008).await;
 }
+#[tokio::test]
+async fn live_quotes_during_replay_evict_oldest_without_restarting_source() {
+    verify_live_replay(Mode::ReplayLiveQuoteFlood, 4, 8).await;
+}
 async fn verify_live_replay(mode: Mode, replay_volume: i64, live_sequence: i64) {
     use ifm_market_data_native::{
         dataset::live::{Evidence, LiveData, Registration, Start},
@@ -4176,6 +4203,12 @@ async fn verify_live_replay(mode: Mode, replay_volume: i64, live_sequence: i64) 
     .unwrap();
     let mut replay = plan(Lane::FuturesGlbx);
     replay.subscriptions[0].replay_start_ns = Some(0);
+    if matches!(mode, Mode::ReplayLiveQuoteFlood) {
+        replay.subscriptions.push(SubscriptionSpec {
+            symbols: vec!["ESZ6".into()], symbology: SType::RawSymbol,
+            schema: Schema::Mbp1, replay_start_ns: None,
+        });
+    }
     data.start(
         Start {
             plan: replay,
@@ -4198,6 +4231,18 @@ async fn verify_live_replay(mode: Mode, replay_volume: i64, live_sequence: i64) 
     )
     .await
     .unwrap();
+    // A live quote can qualify readiness before the post-replay trade has been
+    // read. Wait for that independent observation before checking its checkpoint.
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            if data.reader(Lane::FuturesGlbx, "ES20261218").unwrap()
+                .and_then(|reader| reader.trade().unwrap())
+                .is_some_and(|trade| trade.sequence == live_sequence) {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    }).await.unwrap();
     let trade = data
         .reader(Lane::FuturesGlbx, "ES20261218")
         .unwrap()
@@ -4228,17 +4273,40 @@ async fn verify_live_replay(mode: Mode, replay_volume: i64, live_sequence: i64) 
         state: Default::default(),
         trade: None,
     };
-    let mut publications: [_; 4] = std::array::from_fn(|_| empty.clone());
-    assert_eq!(data.drain_output(&mut publications).unwrap(), 2);
+    let startup_quote = if matches!(mode, Mode::ReplayLiveQuoteFlood) { 8192 } else { 0 };
+    let mut publications = vec![empty; (startup_quote + 2).max(4)];
+    if startup_quote != 0 {
+        assert_eq!(fixture.accepted.load(Ordering::SeqCst), 1, "Startup quote flood restarted the provider");
+        assert_eq!(data.status(Lane::FuturesGlbx).unwrap().unwrap().phase, Phase::Running);
+    }
+    assert_eq!(data.drain_output(&mut publications).unwrap(), 2 + startup_quote);
+    if startup_quote != 0 {
+        match publications[0].source {
+            OutputSource::Observation(Observation::Quote(q)) => assert_eq!(q.header.sequence, 20_000 - 8192 + 1),
+            _ => panic!("Startup must evict the oldest excess quotes"),
+        }
+    }
+    if startup_quote != 0 {
+        for (offset, output) in publications[..startup_quote].iter().enumerate() {
+            match output.source {
+                OutputSource::Observation(Observation::Quote(q)) => assert_eq!(q.header.sequence, (20_000 - 8192 + 1 + offset) as u32),
+                _ => panic!("Quote FIFO changed retained order"),
+            }
+        }
+    }
+    let publications = &publications[startup_quote..];
     assert!(matches!(
         publications[0].source,
         OutputSource::ReplayComplete(42)
     ));
     let completed = publications[0].state;
-    assert!(
-        completed.market.is_none(),
-        "Replay must not manufacture a live price"
-    );
+    if startup_quote == 0 {
+        assert!(completed.market.is_none(), "Replay must not manufacture a live price");
+    } else {
+        let market = completed.market.unwrap();
+        assert_eq!(market.quote.unwrap().sequence, 20_000);
+        assert!(market.trade.is_none(), "Historical replay must not create a live trade");
+    }
     assert_eq!(completed.session.unwrap().volume, replay_volume);
     assert!(completed.vwap.unwrap().replay_complete);
     assert_eq!(completed.vwap.unwrap().volume, replay_volume);
@@ -4256,7 +4324,7 @@ async fn verify_live_replay(mode: Mode, replay_volume: i64, live_sequence: i64) 
     let wire =
         ifm_market_data_native::ffi::publication::NativePublication::from_state(wire, completed);
     assert_eq!(wire.update, 5);
-    assert_eq!(wire.flags & 1, 0);
+    assert_eq!(wire.flags & 1, u32::from(startup_quote != 0));
     assert_ne!(wire.flags & 8, 0);
     assert_ne!(wire.flags & 16, 0);
     data.stop(

@@ -356,7 +356,7 @@
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerManualTradeOrderViewModel.cs:149",
       "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerTradeInitializationQuery.cs:26",
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:856"
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:857"
     ],
     "nativeOwner": "services/broker_reads.rs; state/trades.rs",
     "status": "Implemented; see native contract/controller tests"
@@ -1462,8 +1462,8 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1707",
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1710"
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1708",
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1711"
     ],
     "nativeOwner": "services/trade_monitor_queries.rs; state/trade_monitors/mod.rs",
     "status": "Implemented; see native contract/controller tests"
@@ -8638,7 +8638,7 @@
       "TomasAI.IFM.UI.Net.ViewModels/Portfolio/FundFinancialViewModel.cs:34",
       "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerTradeInitializationQuery.cs:23",
       "TomasAI.IFM.UI.Net.ViewModels/Trade/EndOfDayProcessViewModel.cs:206",
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:647",
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:648",
       "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1259",
       "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:328"
     ],
@@ -9513,7 +9513,7 @@
     "subjects": [],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerManualTradeOrderViewModel.cs:202",
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:1372",
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:1373",
       "TomasAI.IFM.UI.Net.ViewModels/Trade/TradeOrderEditorViewModel.cs:457"
     ],
     "nativeOwner": "services/portfolio_commands.rs; state/portfolio.rs; state/trades.rs",
@@ -10064,7 +10064,7 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:798"
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:799"
     ],
     "nativeOwner": "services/portfolio.rs; state/portfolio.rs; state/trades.rs",
     "status": "Implemented; see native contract/controller tests"
@@ -10253,7 +10253,7 @@
     "subjects": [],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.ViewModels/Portfolio/PortfolioAdministrationViewModel.cs:118",
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:803"
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:804"
     ],
     "nativeOwner": "services/portfolio.rs; state/portfolio.rs; state/trades.rs",
     "status": "Implemented; see native contract/controller tests"
@@ -10417,7 +10417,7 @@
     "subjects": [],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerTradeInitializationQuery.cs:27",
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:1360"
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:1361"
     ],
     "nativeOwner": "services/portfolio.rs; state/portfolio.rs; state/trades.rs",
     "status": "Implemented; see native contract/controller tests"
@@ -10559,7 +10559,7 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:1414",
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:1415",
       "TomasAI.IFM.UI.Net.ViewModels/Trade/TradeOrderEditorViewModel.cs:434",
       "TomasAI.IFM.UI.Net.ViewModels/Trade/TradeOrderEditorViewModel.cs:534"
     ],

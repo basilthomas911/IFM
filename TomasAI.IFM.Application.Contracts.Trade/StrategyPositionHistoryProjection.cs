@@ -31,6 +31,7 @@ public static class StrategyPositionHistoryProjection
         ArgumentNullException.ThrowIfNull(position); ArgumentNullException.ThrowIfNull(trade);
         if (position.Id.Trade != trade.Id || position.StrategyKind != TradeStrategyKind.Unknown && position.StrategyKind != trade.StrategyKind)
             throw new ArgumentException("Position and established trade identities must match.");
+        position = StrategyPositionCurrencyPnl.Apply(position, trade);
         if (trade.MaturityDate is not { } expiry) return position;
         var date = position.ValueDate != default ? position.ValueDate
             : TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetOperational(new DateTimeOffset(DateTime.SpecifyKind(position.AsOfUtc, DateTimeKind.Utc)));

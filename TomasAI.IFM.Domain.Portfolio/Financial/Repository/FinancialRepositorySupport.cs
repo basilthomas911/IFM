@@ -91,7 +91,7 @@ internal static class FinancialRepositorySupport
         return eventVersion;
     }
 
-    internal static System.Data.Common.DbParameter Json<T>(T value) => PostgresValues.Jsonb(JsonConvert.SerializeObject(value));
+    internal static object Json<T>(T value) => TomasAI.IFM.Shared.Storage.BindValues.Json(JsonConvert.SerializeObject(value));
     internal static T Decode<T>(string value) => JsonConvert.DeserializeObject<T>(value) ?? throw new InvalidDataException($"Invalid stored {typeof(T).Name}.");
     internal static void Require(bool condition, int code, string message)
     { if (!condition) throw new FinancialOperationException(code, message); }

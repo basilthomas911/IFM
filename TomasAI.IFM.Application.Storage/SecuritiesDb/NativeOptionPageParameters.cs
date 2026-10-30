@@ -1,5 +1,4 @@
-using Npgsql;
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
@@ -9,5 +8,5 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 internal readonly record struct NativeOptionPageParameters(string Symbol, DateOnly? Month, string? OptionType,
     double? Strike, string? ContractId, int Limit) : IBindValue
 {
-    public object Bind() => new NpgsqlParameter[] { Text(Symbol), Date(Month), Text(OptionType), Double(Strike), Text(ContractId), Integer(Limit) };
+    public object Bind() => new object?[] { Text(Symbol), Date(Month), Text(OptionType), Double(Strike), Text(ContractId), Integer(Limit) };
 }

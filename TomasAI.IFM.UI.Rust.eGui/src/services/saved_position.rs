@@ -18,9 +18,8 @@ pub fn enrich(saved: &Json, current: &Json) -> Option<Json> {
     {
         return None;
     }
-    if current["PositionSequence"].as_i64()? >= saved["PositionSequence"].as_i64()? {
-        return Some(current.clone());
-    }
+    // A plan may be newer than a sealed history row. It can enrich matching
+    // observations, but cannot replace that row's lifecycle or currency P&L.
     let before = saved["Legs"].as_array()?;
     let latest = current["Legs"].as_array()?;
     if before.len() != latest.len() {
@@ -61,7 +60,7 @@ pub fn enrich(saved: &Json, current: &Json) -> Option<Json> {
             }) {
             tick["PricingInputs"]["Multiplier"].clone()
         } else {
-            Json::Null
+            leg["CashMultiplier"].clone()
         };
         legs.push(next);
     }

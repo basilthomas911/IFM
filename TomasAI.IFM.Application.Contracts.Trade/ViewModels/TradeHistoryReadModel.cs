@@ -48,7 +48,7 @@ public record TradeHistoryReadModel
 
     /// <summary>Trade profit and loss at the time of the snapshot.</summary>
     [Key(8)]
-    public decimal TradePnl { get; init; }
+    public decimal? TradePnl { get; init; }
 
     /// <summary>Parameterless constructor for serializers.</summary>
     public TradeHistoryReadModel() { }
@@ -74,7 +74,7 @@ public record TradeHistoryReadModel
         TradeStatus tradeStatus,
         decimal? commission,
         decimal netSpread,
-        decimal tradePnl)
+        decimal? tradePnl)
     {
         OrderId = orderId;
         TradeId = tradeId;

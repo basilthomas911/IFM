@@ -27,7 +27,12 @@ public static class StrategyTradePlanQueryExecution
         var result = await dbFactory.TradePlanDb.DbReader.GetCurrentAsync(positionId, strategy, valueDate, cancellationToken).ConfigureAwait(false);
         if (result is not null && strategy == TradeStrategyKind.IronCondor) {
             var trade = await dbFactory.TradeDb.GetEstablishedTradeAsync(positionId.Trade, cancellationToken).ConfigureAwait(false);
-            if (trade is not null) result = result with { Position = StrategyPositionHistoryProjection.EnrichPosition(result.Position, trade) };
+            if (trade is not null) {
+                var position = result.Position;
+                if (position.ContractCashMultiplier is null && result.IronCondorTradePlanSnapshot?.ContractMultiplier is > 0)
+                    position = position with { ContractCashMultiplier = result.IronCondorTradePlanSnapshot.ContractMultiplier };
+                result = result with { Position = StrategyPositionHistoryProjection.EnrichPosition(position, trade) };
+            }
         }
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<StrategyTradePlanSnapshot?>(result)).ConfigureAwait(false);
     }

@@ -258,12 +258,12 @@ internal static class ConfigurationDbContextExtensions
         internal NpgsqlCommand Command(NpgsqlConnection c, NpgsqlTransaction? tx, string sql, IBindValue? parameters = null)
         {
             var command = new NpgsqlCommand(sql, c, tx);
-            if (parameters?.Bind()is NpgsqlParameter[] values)
-                command.Parameters.AddRange(values);
+            if (parameters?.Bind()is object?[] values)
+                command.Parameters.AddRange(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.CreateMany(values));
             return command;
         }
 
-        internal object?[] BindProjection(IBindValue? values) => values?.Bind() is NpgsqlParameter[] parameters ? parameters : [];
+        internal object?[] BindProjection(IBindValue? values) => values?.Bind() is object?[] parameters ? parameters : [];
     }
 
     extension(VolatilitySeriesDefinition definition)

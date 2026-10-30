@@ -150,7 +150,7 @@ public sealed class IronCondorMonitoringSnapshotTests
     public void Forward_price_failure_keeps_current_plan_values_and_persists_zero_price_with_error()
     {
         const string error = "IronCondorForwardPrice.EXECUTION.FAILED; Invalid option valuation";
-        var calculated = Plan with { Position = Plan.Position with { DailyPnl = 2m } };
+        var calculated = Plan with { Position = Plan.Position with { DailyPnlPoints = 2m } };
         var command = new UpdateIronCondorTradePlanCommand {
             Position = calculated.Position, UseForwardPriceFunction = true, ForwardPriceFailure = error,
             IronCondorTradePlanInputs = new() { DailyRiskInputs = new() { ContractMultiplier = 50m, Currency = "CAD" } } };

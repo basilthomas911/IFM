@@ -122,9 +122,9 @@ impl Hub {
                 if let Ok(current)=hub.owner(&key_owned){if Arc::ptr_eq(&current,&data){
                     let changed={let mut state=data.lock().map_err(|_|())?;
                         if state.incarnation!=incarnation||state.detail_generation!=generation||state.plan_date!=date||state.live||state.starting{false}
-                        else{state.observations_loading=false;match result{Ok((selected,plan,observations,page))=>{
+                        else{state.observations_loading=false;match result{Ok((selected,_plan,observations,page))=>{
                             match page{Ok(page)=>{state.page=Some(page);state.plan_error.clear()},Err(error)=>state.plan_error=error}
-                            if let Some(plan)=plan{state.history.plan(&plan);}state.selected=Some(selected);state.observations=observations;state.observations_error.clear();
+                            state.selected=Some(selected);state.observations=observations;state.observations_error.clear();
                         },Err(error)=>state.observations_error=error}true}};
                     if changed{let _=hub.publish();}
                 }}

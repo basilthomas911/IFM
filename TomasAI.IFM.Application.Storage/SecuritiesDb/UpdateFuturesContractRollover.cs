@@ -1,6 +1,4 @@
-using Npgsql;
-using NpgsqlTypes;
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
@@ -17,6 +15,6 @@ internal readonly record struct UpdateFuturesContractRollover(
     public bool PostgreSql { get; init; }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql array parameters require the Array marker combined with their element type.")]
-    public object Bind() => PostgreSql ? new NpgsqlParameter[] { Text(contractId), Date(nextRolloverDate), TimestampTz(updatedOn), Text(updatedBy), Text(symbol) } : new object?[]
+    public object Bind() => PostgreSql ? new object?[] { Text(contractId), Date(nextRolloverDate), TimestampTz(updatedOn), Text(updatedBy), Text(symbol) } : new object?[]
         { contractId, nextRolloverDate, updatedOn, updatedBy, symbol };
 }

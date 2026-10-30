@@ -460,7 +460,8 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             List<TradeHistoryReadModel> history = [];
             await _appRoot.Services.TradeQueries.ExecuteObservableAsync(
                 async model => history = await model.GetTradeHistoryAsync(_ironCondorTrade.OrderId));
-            return history.Where(entry => entry.TradeStatus == TradeStatus.IntraDay).Sum(entry => entry.TradePnl);
+            return history.Where(entry => entry.TradeStatus == TradeStatus.IntraDay)
+                .Sum(entry => entry.TradePnl ?? throw new InvalidOperationException("Currency P&L is unavailable for a trade-history row."));
         }
         catch (UiServiceOperationException exception)
         {

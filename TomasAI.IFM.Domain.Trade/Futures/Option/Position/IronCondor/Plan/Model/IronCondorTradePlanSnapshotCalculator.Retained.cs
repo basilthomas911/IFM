@@ -23,7 +23,7 @@ public sealed partial class IronCondorTradePlanSnapshotCalculator
             Legs = observations, ValueDate = position.ValueDate, PositionSequence = position.PositionSequence,
             RouteGeneration = position.RouteGeneration, ContractMultiplier = multiplier,
             Currency = currencies.Length == 1 && metadata.All(item => item is not null) ? currencies[0] : null,
-            DailyPnl = multiplier is > 0 ? position.DailyPnl * multiplier - previous.ActualDailyCommission : null,
+            DailyPnl = multiplier is > 0 ? position.DailyPnlPoints * multiplier - previous.ActualDailyCommission : null,
             DailyLossLimit = policy?.DailyLossLimit, UnderlyingPrice = underlying,
             ScenarioHorizonSeconds = policy?.ScenarioHorizonSeconds, ScenarioVolatilityShift = policy?.ScenarioVolatilityShiftPercentagePoints,
             EstimatedExitCommission = policy is null ? null : position.Legs.Sum(leg => Math.Abs(leg.SignedQuantity)) * policy.ExitCommissionPerContract,

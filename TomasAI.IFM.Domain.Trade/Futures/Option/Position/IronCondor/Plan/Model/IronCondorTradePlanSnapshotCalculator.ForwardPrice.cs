@@ -50,7 +50,7 @@ public sealed partial class IronCondorTradePlanSnapshotCalculator
                 risk = IronCondorForwardPriceCalculation.CalculateRisk(completed, entryCreditPoints.Value, -limits.MaxLoss);
         }
         var multiplierForCurrent = risk?.IronCondorForwardPrice.ContractMultiplier ?? daily.ContractMultiplier;
-        var dailyPnl = multiplierForCurrent is > 0 ? position.DailyPnl * multiplierForCurrent - daily.ActualDailyCommission : null;
+        var dailyPnl = multiplierForCurrent is > 0 ? position.DailyPnlPoints * multiplierForCurrent - daily.ActualDailyCommission : null;
         var currentValue = position.Legs.Sum(l => l.CurrentPrice * l.SignedQuantity) * multiplierForCurrent;
         var q = quantity ?? 1;
         decimal Spread(byte right) => position.Legs.Where(l => l.PutCall == right).Sum(l => l.CurrentPrice * l.SignedQuantity) / q;

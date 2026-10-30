@@ -86,10 +86,10 @@ internal static class TradeRealtimeSnapshotCalculations
             netVega = complete ? vega : null, netTheta = complete ? theta : null, netRho = complete ? rho : null;
         if (summary.UnderlyingPrice != underlying || summary.NetDelta != netDelta || summary.NetGamma != netGamma
             || summary.NetVega != netVega || summary.NetTheta != netTheta || summary.NetRho != netRho
-            || summary.PositionValue != positionValue || summary.DailyPnlPoints != snapshot.Position?.DailyPnl)
+            || summary.PositionValue != positionValue || summary.DailyPnlPoints != snapshot.Position?.DailyPnlPoints)
             summary = summary with { UnderlyingPrice = underlying, NetDelta = netDelta, NetGamma = netGamma,
                 NetVega = netVega, NetTheta = netTheta, NetRho = netRho,
-                PositionValue = positionValue, DailyPnlPoints = snapshot.Position?.DailyPnl };
+                PositionValue = positionValue, DailyPnlPoints = snapshot.Position?.DailyPnlPoints };
         ImmutableArray<TradeSpreadRealtimeSnapshot>.Builder? changedSpreads = null;
         if (!planCurrent)
             for (var i = 0; i < snapshot.Spreads.Length; i++)

@@ -121,7 +121,7 @@ public sealed class IronCondorForwardPriceValuationScenarioTests(ITestOutputHelp
         var position = new StrategyPositionSnapshot { Id = StrategyPositionId.Create(new TradeEntityId(1,2,3,700001),TradeStrategyKind.IronCondor),
             StrategyKind = TradeStrategyKind.IronCondor,Phase = StrategyPositionPhase.MarkToMarket,Legs = legs,
             ValueDate = date,AsOfUtc = CurrentAt,PositionSequence = 1,RouteGeneration = 1,IsOpen = true,
-            MarketValue = -currentCost*Quantity,UnrealizedPnl = cumulative,DailyOpeningPnl = openingPnl,DailyPnl = dailyPnl };
+            MarketValue = -currentCost*Quantity,UnrealizedPnl = cumulative,DailyOpeningPnl = openingPnl,DailyPnlPoints = dailyPnl };
         var id = new SessionId(position.Id,date);
         var request = new CalculateIronCondorForwardPriceCommand { CommandId=Guid.NewGuid(),SourceEventId=Guid.NewGuid(),
             EntityId=id,Position=position,RequestedAtUtc=CurrentAt,

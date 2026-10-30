@@ -9,7 +9,7 @@ internal sealed class ConfigurationDbSession(NpgsqlConnection connection,NpgsqlT
     NpgsqlCommand Command(string sql,object?[] values)
     {
         var command=new NpgsqlCommand(sql,connection,transaction) { CommandTimeout = 0 };
-        foreach(var value in values) command.Parameters.Add(value is NpgsqlParameter parameter?parameter:new NpgsqlParameter{Value=value??DBNull.Value});
+        foreach(var value in values) command.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Create(value));
         return command;
     }
     public async Task<int> ExecuteAsync(string sql,object?[] parameters,CancellationToken token, PostgresQueryTimeout? timeout = null)

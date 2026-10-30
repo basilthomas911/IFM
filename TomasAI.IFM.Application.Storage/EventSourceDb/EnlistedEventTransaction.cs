@@ -149,7 +149,7 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
     {
         var command = new NpgsqlCommand(eventLogSqlLayout.Resolve(sql), connection, transaction) { CommandTimeout = 0 };
         foreach (var parameter in parameters)
-            command.Parameters.Add(parameter is NpgsqlParameter typed ? typed : new NpgsqlParameter { Value = parameter ?? DBNull.Value });
+            command.Parameters.Add(TomasAI.IFM.Framework.Storage.Postgres.PostgresValueBinding.Create(parameter));
         return command;
     }
 

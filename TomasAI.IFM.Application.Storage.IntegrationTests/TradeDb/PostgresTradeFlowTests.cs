@@ -26,6 +26,34 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
 public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
 {
     [Fact]
+    public async Task Position_history_persists_currency_without_requiring_a_trade_plan()
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaSql.Create, [], ct));
+        var id = new TradeEntityId(Random.Shared.Next(60_000_000, 70_000_000), 1, 1, 1);
+        var at = new DateTime(2026, 10, 16, 14, 0, 0, DateTimeKind.Utc);
+        var leg = Guid.NewGuid();
+        var trade = new EstablishedTradeDefinition { Id = id, EstablishedAtUtc = at, OpeningCommission = 2.60m,
+            Legs = [new() { TradeLegId = leg, ContractId = "currency-test", CashMultiplier = 50, SignedQuantity = -2 }] };
+        var position = new StrategyPositionSnapshot { Id = new(id, Guid.NewGuid()), ValueDate = new(2026, 10, 16),
+            Phase = StrategyPositionPhase.EndOfDay, PositionSequence = 1, RouteGeneration = 1, AsOfUtc = at,
+            DailyPnlPoints = .60m, Legs = [new() { TradeLegId = leg, ContractId = "currency-test", SignedQuantity = -2 }] };
+        await fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+        {
+            await db.ExecuteAsync("INSERT INTO trade.established_trade(portfolioid,fundid,orderid,tradeid,payload) VALUES($1,$2,$3,$4,$5);",
+                [id.PortfolioId,id.FundId,id.OrderId,id.TradeId,MessagePackBinarySerializer.Shared.Serialize(trade)], ct);
+            await TradeDbContextExtensions.TradeFlowProjectPositionAsync(db, position, ct);
+            return true;
+        });
+        var payload = await fixture.Transactions.ExecuteAsync((db, ct) => db.ScalarAsync(
+            "SELECT payload FROM trade.strategy_position_history WHERE positionid=$1;", [position.Id.PositionId], ct));
+        var stored = MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>((byte[])payload!);
+        stored.DailyPnl.Should().Be(27.40m);
+        stored.DailyPnlPoints.Should().Be(.60m);
+        stored.ContractCashMultiplier.Should().Be(50m);
+        StrategyPositionCurrencyPnl.Apply(stored, trade).DailyPnl.Should().Be(27.40m);
+    }
+
+    [Fact]
     public async Task Order_lifecycle_advances_within_one_definition_revision_and_conflicting_terms_roll_back()
     {
         await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaSql.Create, [], ct));

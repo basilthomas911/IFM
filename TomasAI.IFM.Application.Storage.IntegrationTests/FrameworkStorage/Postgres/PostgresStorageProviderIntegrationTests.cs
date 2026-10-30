@@ -7,7 +7,7 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Exceptions;
 using Xunit;
-using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
+using static TomasAI.IFM.Shared.Storage.BindValues;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.Postgres;
 
@@ -57,6 +57,31 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         WHERE eventstreamid = $1
         ORDER BY eventversion;
         """;
+
+    [Fact]
+    public Task Neutral_values_preserve_json_null_numeric_dates_binary_and_arrays()
+    {
+        var scope = PostgresEventSourceTestData.Scope(1);
+        return fixture.RunIsolatedAsync(scope, async repository =>
+        {
+            var result = await repository.UseTest("""
+                SELECT ($1::jsonb ->> 'value' = '12'
+                  AND $2::bigint IS NULL AND $3::numeric = 1.25
+                  AND $4::date = DATE '2026-10-30'
+                  AND $5::timestamptz = TIMESTAMPTZ '2026-10-30 21:00:00+00'
+                  AND $6::bytea = decode('0102', 'hex')
+                  AND $7::text[] = ARRAY['ES','NQ']
+                  AND $8::money = 1.25::numeric::money)::integer;
+                """).SetParameters(new NeutralValues()).ExecuteScalarAsync(static row => row.GetInt(0));
+            Assert.Equal(1, result);
+        });
+    }
+    readonly record struct NeutralValues : IBindValue
+    {
+        public object Bind() => new object?[] { Json("{\"value\":12}"), Bigint((long?)null), 1.25m,
+            new DateOnly(2026,10,30), new DateTime(2026,10,30,21,0,0,DateTimeKind.Utc),
+            new byte[] { 1,2 }, new[] { "ES", "NQ" }, Money(1.25m) };
+    }
 
     [Fact]
     public Task ExecuteCommandAsync_WithoutParameters_ExecutesTextCommand()
@@ -688,12 +713,12 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
 
     readonly record struct InsertEventStreamBindValue(int EventStreamId, string EventStream) : IBindValue
     {
-        public object Bind() => Values(Integer(EventStreamId), Text(EventStream));
+        public object Bind() => new object[] { EventStreamId, EventStream };
     }
 
     readonly record struct EventStreamParameters(int EventStreamId, string EventStream) : IBindValue
     {
-        public object Bind() => Values(Integer(EventStreamId), Text(EventStream));
+        public object Bind() => new object[] { EventStreamId, EventStream };
     }
     readonly record struct UpdateEventStreamParameters(string EventStream, int EventStreamId) : IBindValue
     {
@@ -701,7 +726,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
     }
     readonly record struct EventStreamLookup(int EventStreamId) : IBindValue
     {
-        public object Bind() => Values(Integer(EventStreamId));
+        public object Bind() => new object[] { EventStreamId };
     }
     readonly record struct BulkStreamPattern(string Pattern) : IBindValue
     {

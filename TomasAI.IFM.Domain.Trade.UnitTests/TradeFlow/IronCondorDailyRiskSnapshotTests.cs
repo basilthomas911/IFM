@@ -41,7 +41,7 @@ public sealed class IronCondorDailyRiskSnapshotTests
     public void New_position_marks_rebind_daily_pnl_and_leg_marks_without_reusing_old_pnl()
     {
         var (plan, inputs) = Capture();
-        var position = plan.Position with { PositionSequence = 2, DailyPnl = -12,
+        var position = plan.Position with { PositionSequence = 2, DailyPnlPoints = -12,
             Legs = plan.Position.Legs.Select(leg => leg with { CurrentPrice = 12 }).ToArray() };
         var snapshot = new IronCondorTradePlanSnapshotCalculator().Create(plan with { Position = position }, Guid.NewGuid(), plan.ValueDate, null, inputs);
         snapshot.IsComplete.Should().BeTrue();
@@ -75,7 +75,7 @@ public sealed class IronCondorDailyRiskSnapshotTests
         snapshot.DailyLoss.Should().BeLessThan(snapshot.DailyLossLimit!.Value);
         snapshot.ForwardLossRatio.Should().BeGreaterThan(1);
         snapshot.ExitRecommended.Should().BeTrue();
-        var profit = calculator.Create(plan with { Position = plan.Position with { DailyPnl = 1 } }, Guid.NewGuid(), null, null, inputs);
+        var profit = calculator.Create(plan with { Position = plan.Position with { DailyPnlPoints = 1 } }, Guid.NewGuid(), null, null, inputs);
         profit.ForwardLossRatio.Should().BeGreaterThan(0);
         profit.ExitRecommended.Should().BeFalse();
     }
@@ -263,7 +263,7 @@ public sealed class IronCondorDailyRiskSnapshotTests
             inputs with { ContractMultiplier = 1, ActualDailyCommission = 2.60m });
         result.ContractMultiplier.Should().Be(50);
         result.CurrentPositionValue.Should().Be(plan.Position.Legs.Sum(leg => leg.CurrentPrice * leg.SignedQuantity * 50));
-        result.DailyPnl.Should().Be(plan.Position.DailyPnl * 50 - 2.60m);
+        result.DailyPnl.Should().Be(plan.Position.DailyPnlPoints * 50 - 2.60m);
     }
 
     [Fact]
@@ -314,7 +314,7 @@ public sealed class IronCondorDailyRiskSnapshotTests
         var trade = new EstablishedTradeDefinition { Id = tradeId, StrategyKind = TradeStrategyKind.IronCondor,
             EstablishedAtUtc = At, Legs = legs };
         var position = new StrategyPositionSnapshot { Id = new(tradeId, Guid.NewGuid()), StrategyKind = TradeStrategyKind.IronCondor,
-            ValueDate = DateOnly.FromDateTime(At), DailyPnl = -8 * quantity, AsOfUtc = At, PositionSequence = 1,
+            ValueDate = DateOnly.FromDateTime(At), DailyPnlPoints = -8 * quantity, AsOfUtc = At, PositionSequence = 1,
             RouteGeneration = 1, IsOpen = true, Legs = legs.Select(leg => new StrategyPositionLeg {
                 TradeLegId = leg.TradeLegId, ContractId = leg.ContractId, SignedQuantity = leg.SignedQuantity,
                 CurrentPrice = 10, OpeningPrice = 10, LastPriceAtUtc = At }).ToArray() };

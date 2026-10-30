@@ -22,7 +22,7 @@ public static class IronCondorForwardPriceTestScenario
         var position = new StrategyPositionSnapshot {
             Id = StrategyPositionId.Create(new TradeEntityId(1,2,3,Random.Shared.Next(1000000,9000000)), TradeStrategyKind.IronCondor),
             StrategyKind = TradeStrategyKind.IronCondor, ValueDate = date, PositionSequence = 1, RouteGeneration = 1,
-            IsOpen = true, AsOfUtc = now, DailyPnl = 2, UnrealizedPnl = 2,
+            IsOpen = true, AsOfUtc = now, DailyPnlPoints = 2, UnrealizedPnl = 2,
             Legs = legs.Select(l => new StrategyPositionLeg { TradeLegId = l.TradeLegId, ContractId = l.ContractId,
                 PutCall = (byte)(l.IsCall ? 1 : 2), SignedQuantity = l.SignedQuantity, OpeningPrice = l.MarkPrice,
                 CurrentPrice = l.MarkPrice, LastPriceAtUtc = now, AssetFamily = TradeAssetFamily.FuturesOption }).ToArray() };

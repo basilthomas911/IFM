@@ -1,11 +1,10 @@
-using Npgsql;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioDb;
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct PortfolioParameters(NpgsqlParameter[] Values) : IBindValue
+internal readonly record struct PortfolioParameters(object?[] Values) : IBindValue
 {
     public object Bind() => Values;
 }
