@@ -1,5 +1,9 @@
 //! Native parameter catalogue and detached working copies. A save is reconciled
 //! against event-stream state rather than waiting for list projection visibility.
+use crate::models::{
+    backend_document::BackendDocument, trade_contracts::ParameterComponentSummary,
+    wire_types::FromBackend,
+};
 use crate::{
     backend::{schema::Registry, transport::Backend},
     contract_editor::{ContractPublication, ContractResult, ContractRow},
@@ -60,7 +64,7 @@ fn parameter_identity(registry: &Registry, wire: &Value) -> Result<(uuid::Uuid, 
 }
 #[derive(Default)]
 pub struct ParameterController {
-    components: Vec<Json>,
+    components: Vec<ParameterComponentSummary>,
     versions: Vec<Value>,
     component: String,
     selected: Option<Value>,
@@ -471,7 +475,10 @@ impl ParameterController {
         Ok(())
     }
     fn result(&mut self, registry: &Registry) -> Result<ContractResult, String> {
-        self.document("components", &json!(self.components))?;
+        self.documents.insert(
+            "components".into(),
+            crate::wire::encode(&BackendDocument(&self.components))?.into(),
+        );
         let selected = self
             .selected
             .as_ref()
@@ -798,12 +805,12 @@ impl ParameterController {
                     .ok_or("Invalid parameter catalogue")?;
                 self.components = rows
                     .iter()
-                    .map(|v| model(registry, "ParameterComponentSummary", v))
+                    .map(ParameterComponentSummary::from_backend)
                     .collect::<Result<_, _>>()?;
                 self.component = self
                     .components
                     .first()
-                    .and_then(|v| v["ComponentCode"].as_str())
+                    .and_then(|v| v.component_code.as_deref())
                     .unwrap_or_default()
                     .into();
                 self.load_versions(backend, registry, deadline).await?;
@@ -812,7 +819,7 @@ impl ParameterController {
                 if !self
                     .components
                     .iter()
-                    .any(|v| v["ComponentCode"] == f(intent, "component"))
+                    .any(|v| v.component_code.as_deref() == Some(f(intent, "component")))
                 {
                     return Err("Unknown parameter component".into());
                 }
@@ -848,9 +855,12 @@ impl ParameterController {
                 let component = self
                     .components
                     .iter()
-                    .find(|v| v["ComponentCode"] == self.component && v["CanEdit"] == true)
+                    .find(|v| {
+                        v.component_code.as_deref() == Some(self.component.as_str())
+                            && v.can_edit == Some(true)
+                    })
                     .ok_or("This component is read-only")?;
-                let name = component["Name"].as_str().unwrap_or_default().to_string();
+                let name = component.name.clone().unwrap_or_default();
                 let horizon = f(intent, "horizon");
                 if !matches!(horizon, "Daily" | "Weekly" | "Monthly") {
                     return Err("Unsupported horizon".into());
@@ -1156,10 +1166,23 @@ impl ParameterController {
                     deadline,
                 )
                 .await?;
-                self.document(
-                    key,
-                    &api::document(registry, &api::kind(result), &wire, true)?,
-                )?;
+                use crate::models::trade_contracts::{
+                    ParameterSignalMonitoringSnapshot, ParameterSignalStartupPlan,
+                    ParameterSignalStartupReport,
+                };
+                let bytes = match result {
+                    "ParameterSignalStartupPlan" => crate::wire::encode(&BackendDocument(
+                        &ParameterSignalStartupPlan::from_backend(&wire)?,
+                    ))?,
+                    "ParameterSignalStartupReport" => crate::wire::encode(&BackendDocument(
+                        &ParameterSignalStartupReport::from_backend(&wire)?,
+                    ))?,
+                    "ParameterSignalMonitoringSnapshot" => crate::wire::encode(&BackendDocument(
+                        &ParameterSignalMonitoringSnapshot::from_backend(&wire)?,
+                    ))?,
+                    _ => return Err("Unsupported parameter report".into()),
+                };
+                self.documents.insert(key.into(), bytes.into());
             }
             "startup-runs" => {
                 let mut fields = BTreeMap::new();
@@ -1527,7 +1550,11 @@ impl ParameterController {
             generation: self.generation,
             // Match the existing editor's completed state label; retain the
             // specific diagnostic for failed or uncertain operations.
-            status: if outcome.state == "Completed" { "Completed".into() } else { outcome.message.clone() },
+            status: if outcome.state == "Completed" {
+                "Completed".into()
+            } else {
+                outcome.message.clone()
+            },
             result: self.result(registry)?,
             outcomes: vec![outcome],
             ..Default::default()

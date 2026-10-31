@@ -18,7 +18,10 @@ fn run_receipts_match_unchanged_hybrid_without_recomputing_outcomes() {
     let wire = codec::decode(&read("scheduled-run.wire.msgpack")).unwrap();
     let golden: serde_json::Value =
         serde_json::from_slice(&read("scheduled-run-display.json")).unwrap();
-    assert_eq!(run_document(&registry, &wire).unwrap(), golden);
+    assert_eq!(
+        serde_json::to_value(run_document(&registry, &wire).unwrap()).unwrap(),
+        golden
+    );
 }
 #[test]
 fn schedule_draft_matches_typed_backend_contract_and_rejects_bad_input() {

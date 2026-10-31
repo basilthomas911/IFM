@@ -69,3 +69,77 @@ fn portfolio_create_identity_matches_managed_idempotent_api() {
         assert_eq!(fields, expected, "{name} fields");
     }
 }
+
+#[test]
+fn typed_fund_selection_preserves_utf16_order_versions_and_state_filter() {
+    use ifm_ui_egui::{
+        backend::schema::Registry,
+        services::parameters::overlay_type,
+        state::portfolio_data::{PortfolioData, kind},
+    };
+    use std::collections::BTreeMap;
+    let registry = Registry::compiled().unwrap();
+    let original =
+        codec::decode(include_bytes!("fixtures/backend/portfolio-fund.msgpack")).unwrap();
+    let kind = kind("FundMandateReadModel");
+    let rows = [
+        "\u{c4}",
+        "\u{df}",
+        "ss",
+        "\u{1f600}",
+        "\u{e000}",
+        "alpha",
+        "ALPHA",
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, name)| {
+        overlay_type(
+            &registry,
+            &kind,
+            &original,
+            &BTreeMap::from([
+                ("Name".into(), name.into()),
+                ("FundMandateVersion".into(), ((index % 3 + 1) as i64).into()),
+            ]),
+        )
+        .unwrap()
+    })
+    .collect::<Vec<_>>();
+    let mut expected = rows
+        .iter()
+        .map(|row| (registry.project(&kind, row).unwrap(), row.clone()))
+        .collect::<Vec<_>>();
+    // Frozen previous comparison; managed labels use uppercase UTF-16 ordering.
+    expected.sort_by(|(a, _), (b, _)| {
+        a["Name"]
+            .as_str()
+            .unwrap()
+            .to_uppercase()
+            .encode_utf16()
+            .cmp(b["Name"].as_str().unwrap().to_uppercase().encode_utf16())
+            .then_with(|| {
+                b["FundMandateVersion"]
+                    .as_i64()
+                    .cmp(&a["FundMandateVersion"].as_i64())
+            })
+    });
+    let mut data = PortfolioData {
+        funds: rows,
+        fund: Some(original),
+        ..Default::default()
+    };
+    assert_eq!(
+        data.visible_funds(&registry).unwrap(),
+        expected
+            .into_iter()
+            .map(|(_, wire)| wire)
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        !data.is_current_fund(&registry).unwrap(),
+        "a newer mandate must supersede the selected version"
+    );
+    data.fund_filter = Some("a different operating state".into());
+    assert!(data.visible_funds(&registry).unwrap().is_empty());
+}

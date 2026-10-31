@@ -8,13 +8,24 @@ use crate::services::{
 pub(super) fn input(
     key: &str,
     caption: &str,
-    value: impl Into<Json>,
+    value: impl crate::models::portfolio::FieldText,
     kind: &str,
     enabled: bool,
-    choices: Option<Vec<Json>>,
-) -> Json {
-    let value = value.into();
-    json!({"key":key,"caption":caption,"value":text(&value),"kind":kind,"enabled":enabled,"choices":choices,"minimum":0,"maximum":1000000000000f64,"decimals":2})
+    choices: Option<Vec<Choice>>,
+) -> Field {
+    let value = value.field_text();
+    Field {
+        key: (key).to_string(),
+        caption: (caption).to_string(),
+        value: value,
+        kind: (kind).to_string(),
+        enabled: enabled,
+        choices: choices,
+        minimum: (0) as _,
+        maximum: (1000000000000f64) as _,
+        decimals: (2) as usize,
+        ..Default::default()
+    }
 }
 pub(super) fn editor(
     key: &str,
@@ -22,17 +33,34 @@ pub(super) fn editor(
     width: i32,
     height: i32,
     caption: i32,
-    fields: Vec<Json>,
+    fields: Vec<Field>,
     save: &str,
-) -> Json {
-    json!({"key":key,"title":title,"width":width,"height":height,"captionWidth":caption,"fields":fields,"buttons":[save,"Cancel"],"status":"","grids":null,"buttonEnabled":null})
+) -> Dialog {
+    Dialog {
+        key: (key).to_string(),
+        title: (title).to_string(),
+        width: (width) as _,
+        height: (height) as _,
+        caption_width: (caption) as _,
+        fields: fields,
+        buttons: vec![(save).to_string(), "Cancel".into()],
+        status: "".into(),
+        grids: None,
+        button_enabled: None,
+        ..Default::default()
+    }
 }
-pub(super) fn enum_choices(registry: &Registry, kind: &str) -> Result<Vec<Json>, String> {
+pub(super) fn enum_choices(registry: &Registry, kind: &str) -> Result<Vec<Choice>, String> {
     Ok(registry
         .enum_names(kind)?
         .into_iter()
         .filter(|name| name != "Unknown")
-        .map(|name| json!({"value":name,"label":name,"enabled":true}))
+        .map(|name| Choice {
+            value: (name).to_string(),
+            label: (name).to_string(),
+            enabled: true,
+            ..Default::default()
+        })
         .collect())
 }
 pub(super) fn defaults(name: &str) -> Result<Value, String> {
@@ -62,7 +90,11 @@ impl PortfolioController {
         }
         if view == "risk-policy" {
             self.load_policies(backend, registry, deadline).await?;
-            self.dialogs.push(json!({"key":"risk-policy","status":""}));
+            self.dialogs.push(Dialog {
+                key: "risk-policy".into(),
+                status: "".into(),
+                ..Default::default()
+            });
             return Ok("Risk policies loaded".into());
         }
         if view == "risk-history" {
@@ -343,15 +375,15 @@ impl PortfolioController {
                 .retry_fund_attachment(backend, registry, intent, deadline)
                 .await;
         }
-        if self.dialogs.last().is_some_and(|d| d["key"] == "posting") {
+        if self.dialogs.last().is_some_and(|d| d.key == "posting") {
             return self
                 .post_or_reconcile(backend, registry, intent, deadline)
                 .await;
         }
         if self.dialogs.last().is_some_and(|d| {
             matches!(
-                d["key"].as_str(),
-                Some("setup" | "authority" | "account-version" | "rule-version")
+                d.key.as_str(),
+                "setup" | "authority" | "account-version" | "rule-version"
             )
         }) {
             let mut input = intent.clone();
@@ -363,7 +395,7 @@ impl PortfolioController {
         let view = self
             .dialogs
             .last()
-            .and_then(|d| d["key"].as_str())
+            .map(|d| d.key.as_str())
             .ok_or("No editor is open")?
             .to_string();
         let context = BusinessContext::load(backend).await?;

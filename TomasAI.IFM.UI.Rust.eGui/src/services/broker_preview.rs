@@ -1,8 +1,8 @@
 //! Provisional draft economics come exclusively from TradeOrderQuery. Input
 //! revisions fence late responses; none of these totals authorizes execution.
 use crate::backend::{contracts::*, schema::Registry, transport::Backend};
+use crate::models::{trade_contracts::TradeOrderPreview, wire_types::FromBackend};
 use rmpv::Value;
-use serde_json::Value as Json;
 use std::collections::BTreeMap;
 const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared.Order";
 #[derive(Clone, Debug)]
@@ -65,7 +65,7 @@ impl Preview {
         entered_price: Option<&ExactDecimal>,
         underlying_reference: Option<&ExactDecimal>,
         deadline: tokio::time::Instant,
-    ) -> Result<Json, String> {
+    ) -> Result<TradeOrderPreview, String> {
         if !(1..=100000).contains(&quantity) || legs.len() > 4 {
             return Err("Preview quantity or leg count is outside supported bounds".into());
         }
@@ -122,11 +122,8 @@ impl Preview {
         let reply = backend
             .request_until(&subject, &body, deadline, None)
             .await?;
-        let result = registry.project(
-            &format!("{ROOT}.TradeOrderPreview"),
-            service_result(&reply)?,
-        )?;
-        if result["InputRevision"] != self.revision {
+        let result = TradeOrderPreview::from_backend(service_result(&reply)?)?;
+        if result.input_revision != Some(self.revision) {
             return Err("Trade preview response does not match the current draft revision".into());
         }
         Ok(result)

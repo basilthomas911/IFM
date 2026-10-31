@@ -22,12 +22,12 @@ impl PortfolioController {
         if self
             .dialogs
             .iter()
-            .any(|d| !matches!(d["key"].as_str(), Some("financials" | "risk-history")))
+            .any(|d| !matches!(d.key.as_str(), "financials" | "risk-history"))
         {
             return Err("Close the Fund editor before changing its view".into());
         }
         self.dialogs
-            .retain(|d| !matches!(d["key"].as_str(), Some("financials" | "risk-history")));
+            .retain(|d| !matches!(d.key.as_str(), "financials" | "risk-history"));
         self.inline_fund_view = Some(view.into());
         if self.data.fund.is_none() {
             return Ok("No Fund selected".into());
@@ -45,19 +45,21 @@ impl PortfolioController {
         self.risk_cursor = None;
         self.risk_rows.clear();
         let dialog = self.dialogs.last_mut().ok_or("Open Risk History")?;
-        for input in dialog["fields"]
-            .as_array_mut()
-            .ok_or("Invalid risk fields")?
-        {
-            if input["key"] == "date" {
-                input["value"] = date.to_string().into();
+        for input in dialog.fields.iter_mut() {
+            if input.key == "date" {
+                input.value = date.to_string().into();
             }
-            if matches!(input["key"].as_str(), Some("decision" | "evidence")) {
-                input["value"] = "".into();
+            if matches!(input.key.as_str(), "decision" | "evidence") {
+                input.value = "".into();
             }
         }
-        dialog["grids"][0]["rows"] = json!([]);
-        dialog["buttonEnabled"] = json!({"Refresh":true,"Next page":false});
+        dialog.grids.as_mut().ok_or("Missing risk history grid")?[0]
+            .rows
+            .clear();
+        dialog.button_enabled = Some(BTreeMap::from([
+            ("Refresh".into(), true),
+            ("Next page".into(), false),
+        ]));
         Ok("Risk history date changed; refresh to load".into())
     }
     pub(super) async fn risk_grid_action(
@@ -109,17 +111,14 @@ impl PortfolioController {
         let dialog = self
             .dialogs
             .iter_mut()
-            .find(|d| d["key"] == "risk-history")
+            .find(|d| d.key == "risk-history")
             .ok_or("Open Risk History")?;
-        for input in dialog["fields"]
-            .as_array_mut()
-            .ok_or("Invalid risk fields")?
-        {
-            if input["key"] == "decision" {
-                input["value"] = decision.clone().into();
+        for input in dialog.fields.iter_mut() {
+            if input.key == "decision" {
+                input.value = decision.clone().into();
             }
-            if input["key"] == "evidence" {
-                input["value"] = evidence.clone().into();
+            if input.key == "evidence" {
+                input.value = evidence.clone().into();
             }
         }
         Ok("Risk evidence loaded".into())
@@ -199,8 +198,63 @@ impl PortfolioController {
         if next && cursor.is_some() && cursor == self.risk_cursor {
             return Err("Risk history cursor did not advance".into());
         }
-        let dialog = json!({"key":"risk-history","title":format!("Risk history - Portfolio {portfolio}, Fund {fund}"),"width":1300,"height":850,"captionWidth":160,"fields":[input("date","Evaluation date (UTC)",date.to_string(),"date",true,None),input("decision","Decision and sizing","","multiline",false,None),input("evidence","Evidence","","multiline",false,None)],"buttons":["Refresh","Next page"],"status":if rows.is_empty(){"No projected Risk history for this UTC date."}else{"Double-click an invocation to refresh its details and current authority."},"grids":[grid("risk-history",["EvaluatedAtUtc","Horizon","Variant","Outcome","Units","Reason","OrderId","WorkflowId","InvocationId"].map(str::to_string).to_vec(),display_rows,None)],"buttonEnabled":{"Refresh":true,"Next page":cursor.is_some()}});
-        if let Some(index) = self.dialogs.iter().position(|d| d["key"] == "risk-history") {
+        let dialog = Dialog {
+            key: "risk-history".into(),
+            title: (format!("Risk history - Portfolio {portfolio}, Fund {fund}")).to_string(),
+            width: (1300) as _,
+            height: (850) as _,
+            caption_width: (160) as _,
+            fields: vec![
+                input(
+                    "date",
+                    "Evaluation date (UTC)",
+                    date.to_string(),
+                    "date",
+                    true,
+                    None,
+                ),
+                input(
+                    "decision",
+                    "Decision and sizing",
+                    "",
+                    "multiline",
+                    false,
+                    None,
+                ),
+                input("evidence", "Evidence", "", "multiline", false, None),
+            ],
+            buttons: vec!["Refresh".into(), "Next page".into()],
+            status: (if rows.is_empty() {
+                "No projected Risk history for this UTC date."
+            } else {
+                "Double-click an invocation to refresh its details and current authority."
+            })
+            .to_string(),
+            grids: Some(vec![grid(
+                "risk-history",
+                [
+                    "EvaluatedAtUtc",
+                    "Horizon",
+                    "Variant",
+                    "Outcome",
+                    "Units",
+                    "Reason",
+                    "OrderId",
+                    "WorkflowId",
+                    "InvocationId",
+                ]
+                .map(str::to_string)
+                .to_vec(),
+                display_rows,
+                None,
+            )]),
+            button_enabled: Some(BTreeMap::from([
+                ("Refresh".into(), true),
+                ("Next page".into(), cursor.is_some()),
+            ])),
+            ..Default::default()
+        };
+        if let Some(index) = self.dialogs.iter().position(|d| d.key == "risk-history") {
             self.dialogs[index] = dialog;
         } else {
             self.dialogs.push(dialog);

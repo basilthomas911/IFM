@@ -7,7 +7,7 @@ async fn control(b:&Backend,verb:&str,value:Value)->Value{service_result(&b.requ
 async fn broker_order_commands_and_ui_keep_current_scope_and_uncertain_receipts(){
  let b=Backend::connect(Settings{url:std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),credentials_file:None,token:None,request_timeout:Duration::from_millis(400)}).await.unwrap();let r=Registry::compiled().unwrap();let context=BusinessContext::load(&b).await.unwrap();
  for(verb,name)in[("TradeWorkspaceMode","ComposeFutures"),("BrokerInitMode","Normal"),("BrokerReadMode","Working"),("OptionChainMode","ComposeFutures")]{control(&b,verb,name.into()).await;}
- let scope=Scope{portfolio:1,fund:2,order:123};let order=broker_reads::orders(&b,&r,scope,tokio::time::Instant::now()+Duration::from_secs(1)).await.unwrap().remove(0);let key=broker_reads::identity(&order["Id"]).unwrap();
+ let scope=Scope{portfolio:1,fund:2,order:123};let order=broker_reads::orders(&b,&r,scope,tokio::time::Instant::now()+Duration::from_secs(1)).await.unwrap().remove(0);let key=broker_reads::typed_identity(order.id.as_ref().unwrap()).unwrap();
  let deadline=||tokio::time::Instant::now()+Duration::from_millis(250);
  for mode in ["Normal","EventBeforeAck","WrongReceipt","WrongEvent","LostAck","Reject"]{
   control(&b,"BrokerOrderMutationMode",mode.into()).await;

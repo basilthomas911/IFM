@@ -20,9 +20,12 @@ fn golden(name: &str) -> Value {
 fn backup_projections_and_configured_sets_match_hybrid() {
     let registry = Registry::compiled().unwrap();
     assert_eq!(
-        operation_document(
-            &registry,
-            &codec::decode(&read("backup-operation.wire.msgpack")).unwrap()
+        serde_json::to_value(
+            operation_document(
+                &registry,
+                &codec::decode(&read("backup-operation.wire.msgpack")).unwrap()
+            )
+            .unwrap()
         )
         .unwrap(),
         golden("backup-operation-display.json")
@@ -32,9 +35,12 @@ fn backup_projections_and_configured_sets_match_hybrid() {
         &codec::decode(&read("backup-policy.wire.msgpack")).unwrap(),
     )
     .unwrap();
-    assert_eq!(policy, golden("backup-policy-display.json"));
     assert_eq!(
-        editor,
+        serde_json::to_value(policy).unwrap(),
+        golden("backup-policy-display.json")
+    );
+    assert_eq!(
+        serde_json::to_value(editor).unwrap(),
         json!({"rpoMinutes":"15","rtoMinutes":"90","maximumVerificationHours":"24"})
     );
     let setup = registry
@@ -46,11 +52,36 @@ fn backup_projections_and_configured_sets_match_hybrid() {
     let sets = configured_sets(
         "LocalWorkstation",
         vec![
-            json!({"id":"postgres-main","source":"LocalWorkstation","engines":["PostgreSql"],"enabled":true,"policyRevision":7}),
+            serde_json::from_value(json!({"id":"postgres-main","source":"LocalWorkstation","engines":["PostgreSql"],"enabled":true,"policyRevision":7})).unwrap(),
         ],
         &setup["BackupHostSettings"],
     );
     assert_eq!(json!(sets), golden("backup-configured-display.json"));
+}
+#[test]
+fn typed_backup_projection_preserves_unknown_enums_absent_lineage_and_exact_offsets() {
+    let registry = Registry::compiled().unwrap();
+    let mut wire = codec::decode(&read("backup-operation.wire.msgpack")).unwrap();
+    let rmpv::Value::Array(fields) = &mut wire else {
+        panic!("Expected record")
+    };
+    fields[6] = rmpv::Value::from(654i64);
+    fields[10] = rmpv::Value::Nil;
+    fields[12] = rmpv::Value::Nil;
+    fields[13] = rmpv::Value::from(987i64);
+    let actual = serde_json::to_value(operation_document(&registry, &wire).unwrap()).unwrap();
+    let mut expected = golden("backup-operation-display.json");
+    expected["outcome"] = json!(654);
+    expected["completedUtc"] = Value::Null;
+    expected["engine"] = json!(987);
+    expected["requestedMode"] = json!("Full");
+    expected["resolvedMode"] = json!("None");
+    assert_eq!(actual, expected);
+    let rmpv::Value::Array(fields) = &mut wire else {
+        panic!("Expected record")
+    };
+    fields[7] = "invalid progress".into();
+    assert!(operation_document(&registry, &wire).is_err());
 }
 #[test]
 fn backup_routes_and_commands_are_closed_and_preserve_clr_defaults() {

@@ -15,87 +15,13 @@
 //! immediate-mode layout feedback that could grow the dialog on pointer movement.
 
 //! Portfolio administration surfaces; business commands remain in the managed service adapter.
-use crate::contract_editor::{ContractPublication, ContractRow};
+use crate::contract_editor::ContractPublication;
 use crate::control_parity::{BorderedTable as _, FilledGrid as _};
 use crate::presentation::{self, TradingLabelUi as _};
 use eframe::egui;
-use serde::Deserialize;
 use std::collections::BTreeMap;
 
-/// Managed field-choice value, display label, and selection eligibility.
-#[derive(Default, Clone, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct Choice {
-    /// Stable choice value submitted to the managed field contract when selected.
-    value: String,
-    /// Human-readable caption for this identity/value.
-    label: String,
-    /// Published control/action eligibility; local pending state can further restrict it.
-    enabled: bool,
-}
-/// Managed property editor definition. Kind chooses the widget; numeric bounds/decimals and choices come from the managed form contract.
-#[derive(Default, Clone, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct Field {
-    /// Stable managed property key used to namespace the local draft and submit edits.
-    key: String,
-    /// Managed field caption displayed beside its value editor.
-    caption: String,
-    /// Published or edited display value; formatting/validation belongs to its managed field contract.
-    value: String,
-    /// Managed field-kind discriminator selecting the editor widget/representation.
-    kind: String,
-    /// Published control/action eligibility; local pending state can further restrict it.
-    enabled: bool,
-    /// Published permitted values for the field/editor.
-    choices: Option<Vec<Choice>>,
-    /// Smallest value accepted by this managed numeric editor definition.
-    minimum: f64,
-    /// Largest value accepted by this managed numeric editor definition.
-    maximum: f64,
-    /// Configured number of decimal places for a numeric editor.
-    decimals: usize,
-}
-/// Managed grid definition: ordered columns, stable rows, selection, and editability.
-#[derive(Default, Clone, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct Grid {
-    /// Stable managed grid key used for widget IDs, selection, and grid actions.
-    key: String,
-    /// Ordered column definitions or captured column-rule positions for this grid.
-    columns: Vec<String>,
-    /// Rows supplied by the enclosing publication/model; they are not fetched during drawing.
-    rows: Vec<ContractRow>,
-    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
-    selected: Option<String>,
-    /// Whether the managed contract allows local cell editing.
-    editable: bool,
-}
-/// Managed form definition with reference dimensions, fields, grids, buttons, and eligibility.
-#[derive(Default, Clone, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct Dialog {
-    /// Stable managed dialog key used for local draft namespaces and action routing.
-    key: String,
-    /// Published form/window/section title.
-    title: String,
-    /// Reference control width in egui logical points unless the platform structure specifies pixels.
-    width: f32,
-    /// Reference control height in egui logical points.
-    height: f32,
-    /// Reference label width used to align managed form fields.
-    caption_width: f32,
-    /// Ordered typed property editors supplied by the managed form definition.
-    fields: Vec<Field>,
-    /// Ordered managed action captions exposed by the dialog.
-    buttons: Vec<String>,
-    /// Display-ready status supplied by the managed projection or current view state.
-    status: String,
-    /// Managed grid definitions displayed by this form.
-    grids: Option<Vec<Grid>>,
-    /// Managed action eligibility keyed by the original action caption.
-    button_enabled: Option<BTreeMap<String, bool>>,
-}
+use crate::models::portfolio::{Dialog, Document, Field, Grid};
 impl Dialog {
     /// Transaction feedback uses the administration status line rather than a second line in the editor.
     fn has_inline_status(&self) -> bool {
@@ -134,24 +60,6 @@ impl Dialog {
         )
     }
 }
-/// Portfolio administration projection, including optional embedded policy and child dialogs.
-#[derive(Default, Clone, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct Document {
-    /// Managed grid definitions displayed by this form.
-    grids: Vec<Grid>,
-    /// Backend action eligibility indexed by the original administration action captions.
-    enabled: BTreeMap<String, bool>,
-    /// Managed view context/eligibility values indexed by stable keys.
-    context: BTreeMap<String, String>,
-    /// Ordered managed child dialogs to render above administration.
-    dialogs: Vec<Dialog>,
-    /// Optional embedded Risk Policy dialog definition.
-    policy: Option<Dialog>,
-    /// Selected Funds subtab content, rendered inside administration rather than as a modal.
-    fund_view: Option<Dialog>,
-}
-
 /// Native portfolio/fund administration state with local drafts, pending request, tabs, and control geometry.
 #[derive(Default)]
 pub struct PortfolioManager {

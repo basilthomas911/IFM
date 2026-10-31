@@ -26,7 +26,8 @@ fn all_manual_roles_match_unchanged_managed_normalizer() {
         };
         let mut d = Draft::default();
         d.manual = true;
-        d.accept(chain(), &settings).unwrap();
+        d.accept(serde_json::from_value(chain()).unwrap(), &settings)
+            .unwrap();
         for leg in case["input"].as_array().unwrap() {
             d.select(
                 leg["id"].as_str().unwrap(),
@@ -63,7 +64,8 @@ fn automatic_selection_keeps_price_for_same_identity_and_preserves_raw_authority
         editable: true,
     };
     let mut d = Draft::default();
-    d.accept(chain(), &settings).unwrap();
+    d.accept(serde_json::from_value(chain()).unwrap(), &settings)
+        .unwrap();
     assert_eq!(d.legs.len(), 4);
     assert_eq!(
         d.legs.iter().map(|l| l.role.as_str()).collect::<Vec<_>>(),
@@ -72,7 +74,8 @@ fn automatic_selection_keeps_price_for_same_identity_and_preserves_raw_authority
     d.entered_price = Some(ExactDecimal::parse("-3.25").unwrap());
     let mut update = chain();
     update["Contracts"][0]["Bid"] = json!("0.00");
-    d.accept(update, &settings).unwrap();
+    d.accept(serde_json::from_value(update).unwrap(), &settings)
+        .unwrap();
     assert_eq!(d.entered_price.as_ref().unwrap().as_str(), "-3.25");
     // Raw missing contracts are not restored from the display cache or selected
     // simply because a previously displayed quote remains visible.
@@ -81,19 +84,17 @@ fn automatic_selection_keeps_price_for_same_identity_and_preserves_raw_authority
         .as_array_mut()
         .unwrap()
         .retain(|r| r["ContractId"] != "C-HIGH");
-    d.accept(missing, &settings).unwrap();
+    d.accept(serde_json::from_value(missing).unwrap(), &settings)
+        .unwrap();
     assert_eq!(d.legs.len(), 2);
     assert!(d.entered_price.is_none());
+    assert_eq!(d.raw.as_ref().unwrap().contracts.as_ref().unwrap().len(), 3);
     assert_eq!(
-        d.raw.as_ref().unwrap()["Contracts"]
-            .as_array()
+        d.display
+            .as_ref()
             .unwrap()
-            .len(),
-        3
-    );
-    assert_eq!(
-        d.display.as_ref().unwrap()["Contracts"]
-            .as_array()
+            .contracts
+            .as_ref()
             .unwrap()
             .len(),
         4

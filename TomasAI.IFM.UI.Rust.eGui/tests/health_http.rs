@@ -1,4 +1,6 @@
-use ifm_ui_egui::{backend::health_http::HealthClient, state::operations_health::project};
+use ifm_ui_egui::{
+    backend::health_http::HealthClient, state::operations_health::project as project_typed,
+};
 use serde_json::json;
 use std::{
     io::{Read, Write},
@@ -84,20 +86,113 @@ fn operations_projection_uses_api_time_and_reports_bad_or_stale_health_as_unknow
     assert!(project(&invalid, now).is_err());
 }
 
-
 #[tokio::test]
-async fn operational_clock_comes_from_api_headers_not_market_or_workstation_time(){
- let body=r#"{"schemaVersion":1,"revision":1,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Inactive","sessionState":"Closed","valueDate":null,"stages":[{"stage":"Actor routing/API","status":"Green","required":true,"reasonCode":"Healthy","reason":"Available while market closed"}],"datasets":[]}"#;
- let client=HealthClient::new().unwrap();
- for (header,expected) in [("X-IFM-Server-Utc: 2000-01-03T12:30:00Z\r\n","ok"),("Date: Mon, 03 Jan 2000 12:30:00 GMT\r\n","ok"),("X-IFM-Server-Utc: 2000-01-03T12:31:00Z\r\n","stale"),("","missing"),("X-IFM-Server-Utc: invalid\r\n","invalid")]{
-  let raw=format!("HTTP/1.1 200 OK\r\n{header}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
-  let(url,worker)=server(raw.into_bytes(),Duration::ZERO);
-  let result=client.get_observation(&url,4096,tokio::time::Instant::now()+Duration::from_secs(2)).await;
-  if expected=="invalid"{assert!(result.err().unwrap().contains("clock header"));}
-  else{let read=result.unwrap();if expected=="missing"{assert!(read.server_utc.is_none());}else{
-   let projected=project(&read.value,read.server_utc.unwrap());
-   if expected=="stale"{assert!(projected.err().unwrap().contains("stale"));}
-   else{let projected=projected.unwrap();assert_eq!(projected.context["status"],"Inactive");assert_eq!(projected.rows.len(),1);assert_eq!(projected.rows[0].fields["Status"],"Green");}
-  }}worker.join().unwrap();
- }
+async fn operational_clock_comes_from_api_headers_not_market_or_workstation_time() {
+    let body = r#"{"schemaVersion":1,"revision":1,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Inactive","sessionState":"Closed","valueDate":null,"stages":[{"stage":"Actor routing/API","status":"Green","required":true,"reasonCode":"Healthy","reason":"Available while market closed"}],"datasets":[]}"#;
+    let client = HealthClient::new().unwrap();
+    for (header, expected) in [
+        ("X-IFM-Server-Utc: 2000-01-03T12:30:00Z\r\n", "ok"),
+        ("Date: Mon, 03 Jan 2000 12:30:00 GMT\r\n", "ok"),
+        ("X-IFM-Server-Utc: 2000-01-03T12:31:00Z\r\n", "stale"),
+        ("", "missing"),
+        ("X-IFM-Server-Utc: invalid\r\n", "invalid"),
+    ] {
+        let raw = format!(
+            "HTTP/1.1 200 OK\r\n{header}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let (url, worker) = server(raw.into_bytes(), Duration::ZERO);
+        let result = client
+            .get_observation(
+                &url,
+                4096,
+                tokio::time::Instant::now() + Duration::from_secs(2),
+            )
+            .await;
+        if expected == "invalid" {
+            assert!(result.err().unwrap().contains("clock header"));
+        } else {
+            let read = result.unwrap();
+            if expected == "missing" {
+                assert!(read.server_utc.is_none());
+            } else {
+                let projected = project(&read.value, read.server_utc.unwrap());
+                if expected == "stale" {
+                    assert!(projected.err().unwrap().contains("stale"));
+                } else {
+                    let projected = projected.unwrap();
+                    assert_eq!(projected.context["status"], "Inactive");
+                    assert_eq!(projected.rows.len(), 1);
+                    assert_eq!(projected.rows[0].fields["Status"], "Green");
+                }
+            }
+        }
+        worker.join().unwrap();
+    }
+}
+
+fn project(
+    value: &serde_json::Value,
+    as_of: chrono::DateTime<chrono::Utc>,
+) -> Result<ifm_ui_egui::contract_editor::ContractResult, String> {
+    project_typed(
+        &serde_json::from_value(value.clone()).map_err(|error| error.to_string())?,
+        as_of,
+    )
+}
+
+#[path = "support/operations_health_baseline.rs"]
+mod baseline;
+#[test]
+fn typed_health_preserves_dataset_counters_and_display_fields() {
+    let input = json!({"schemaVersion":1,"revision":42,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Yellow","sessionState":"LiveTrading","valueDate":"2000-01-03","rejectedStaleGenerationPublications":0,"stages":[],
+      "datasets":[{"dataset":"GLBX.MDP3","status":"Yellow","reason":"Awaiting verification","processId":123,"generationId":"11112233-4455-6677-8899-aabbccddeeff","running":true,"healthy":false,
+        "recordsConsumed":18446744073709551615u64,"recordsProduced":18446744073709551615u64,"ringUsed":0,"ringCapacity":128,
+        "channelBatchCount":1,"channelBatchCapacity":4,"recordsStarted":10,"recordsCompleted":9,"processReplacementLatched":false,
+        "lastHealthyUtc":"2000-01-03T12:29:59Z","incidentAge":"1.02:03:04.0050000"}]});
+    let now = chrono::DateTime::parse_from_rfc3339("2000-01-03T12:30:00Z")
+        .unwrap()
+        .to_utc();
+    let before = baseline::project(&input, now).unwrap();
+    let typed = serde_json::from_slice::<
+        ifm_ui_egui::models::operations_health::MarketDataOperationsHealthSnapshot,
+    >(&serde_json::to_vec(&input).unwrap())
+    .unwrap();
+    let after = project_typed(&typed, now).unwrap();
+    assert_eq!(before.context, after.context);
+    assert_eq!(before.rows.len(), after.rows.len());
+    for (a, b) in before.rows.iter().zip(&after.rows) {
+        assert_eq!(a.id, b.id);
+        assert_eq!(a.fields, b.fields);
+    }
+    assert_eq!(
+        after.rows[0].fields["NativeConsumedProduced"],
+        "18446744073709551615/18446744073709551615"
+    );
+}
+#[tokio::test]
+async fn typed_health_transport_preserves_depth_bounds_without_a_json_tree() {
+    use ifm_ui_egui::models::operations_health::MarketDataOperationsHealthSnapshot;
+    let client = HealthClient::new().unwrap();
+    for depth in [19, 20, 21] {
+        let body = format!(
+            "{{\"revision\":42,\"future\":{}0{}}}",
+            "[".repeat(depth),
+            "]".repeat(depth)
+        );
+        let (url, worker) = server(response("200 OK", &body), Duration::ZERO);
+        let result = client
+            .get_typed_observation::<MarketDataOperationsHealthSnapshot>(
+                &url,
+                4096,
+                tokio::time::Instant::now() + Duration::from_secs(2),
+            )
+            .await;
+        if depth == 19 {
+            assert_eq!(result.unwrap().value.revision, Some(42));
+        } else {
+            assert!(result.err().unwrap().contains("nesting bound"));
+        }
+        worker.join().unwrap();
+    }
 }

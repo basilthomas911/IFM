@@ -11,7 +11,7 @@ use crate::{Catalog, DetailsView, Snapshot, strings};
 use eframe::egui;
 use serde::Deserialize;
 /// One backend workflow execution row with its actor pipeline and selection action.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowRow {
     /// Stable identity used to correlate selection, rows, or commands.
@@ -37,7 +37,7 @@ pub struct WorkflowRow {
     pub actors: Vec<WorkflowActor>,
 }
 /// Published actor-stage result used to paint the pipeline indicator.
-#[derive(Clone, Debug, serde::Deserialize)]
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct WorkflowActor {
     /// Published or edited display name.
     pub name: String,
@@ -48,7 +48,7 @@ pub struct WorkflowActor {
     pub state: String,
 }
 /// Published ITI point with UTC time, optional market-time coordinate, direction, and tooltip.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphPoint {
     /// Stable published identity used to link chart signals and workflow rows.
@@ -66,7 +66,7 @@ pub struct GraphPoint {
     pub tooltip: String,
 }
 /// Published workflow-summary section and its backend state/explanation.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, serde::Serialize)]
 pub struct SummarySection {
     /// Published form/window/section title.
     pub title: String,

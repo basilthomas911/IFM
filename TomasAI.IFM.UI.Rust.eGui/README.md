@@ -326,14 +326,42 @@ capacity, ordering and invalid-cell display behavior are covered by parity tests
 The source wire slots are checked against the exported C# contract schema. Current
 chart rows use MessagePack directly; no JSON fallback was added to this path.
 
-This does **not** finish the live-trade migration. Next are typed plan/realtime
-records and identity/revision fences, stored position history, live Greeks/P&L
-display inputs and native per-trade publications. After those pass parity and
-performance gates, migrate market outlook, operations/actor health, strategy,
-portfolio, reference editors and the remaining native controllers. Arbitrary
-property-inspection trees require an explicit typed inspection schema, rather
-than renaming a generic JSON map. Do not claim the entire UI is typed while these
-paths still retain `serde_json::Value`.
+The subsequent native paths now use concrete records for established trades,
+plans, realtime updates, position history, monitor publications, market outlook,
+market bars, operations/actor health, workflow rows, and strategy/risk inspection
+results. Backend slot/type parity, missing values, revision fences, exact decimal
+text and UTC precision remain covered by managed fixtures. Optional large trade
+payloads use boxed records; prepared plan grids share immutable plan snapshots.
+The previous-plan display fallback borrows numeric cells rather than cloning a
+full plan during painting. Strategy inspection retains frozen wire bytes and
+constructs its concrete inspection tree only when requested.
+
+Portfolio dialog, field, choice, grid and document producers share the renderer's
+typed records. Selection/filter/scope checks read a small concrete selection
+record instead of projecting the entire backend DTO into JSON. Editable backend
+wire records retain unknown slots so UI edits cannot discard server fields.
+
+Backup operations, policies, health and setup documents; scheduler run and preview
+documents; parameter component catalogues; and broker/composer initialization,
+quotes, previews, orders, executions, fills, confirmation and EOD presentation now
+use declared records. Broker, backup and scheduler renderers cache their typed
+display data by the native publication token and generation. Broker acknowledgement
+polling converts an immutable accepted receipt once, then compares typed identities. Monitor
+publications retain string enum labels even for unnamed numeric values; broker
+publications retain their original numeric representation. Sealed quote-input
+JSON keeps the original sorted key order so canonical request text is unchanged.
+
+The generated trade/market/portfolio/parameter/scheduler adapters cover 219 concrete
+contract types and 1,631 pinned C# fields; actor-health adapters cover another 12
+records and 149 fields. Regeneration checks reject metadata drift. Retained raw
+backend wire records remain available for lossless edits and sealed commands.
+
+JSON remains at explicit boundaries: arbitrary parameter configuration/editing and
+its schema-driven inspection, canonical identities and hashes, immutable command/
+journal receipts, HTTP transport decoding, and readable diagnostics. This is not
+a claim that every JSON use in the application has been removed. Frozen monitor
+projection algorithms now exist only in test/benchmark support; production monitor
+and broker views do not retain JSON business-data trees.
 
 Criterion 0.8.2 is pinned as a development-only dependency. From this directory:
 
@@ -375,4 +403,100 @@ speedups. Raw estimates and 95% confidence intervals are retained locally in
 `.artifacts/ui-typed-models-20261030/chart-comparison.json`; Criterion's native
 baseline is `typed_chart_v2`. Preserve these records instead of rerunning the
 "before" command over an existing baseline. Full plan/realtime conversion is
-still pending, so no corresponding typed speedup is claimed yet.
+now covered by the production benchmark IDs below; preserve each original named baseline when comparing subsequent slices.
+
+
+Additional same-process before/after comparisons freeze the original managed-fixture
+projection in `tests/support/*_baseline.rs`. Each checks equivalent display output
+outside its timed loop. Run individual slices without other compilers/benchmarks:
+
+```powershell
+cargo bench --locked --profile development --bench ui_models -- ui_models/operations_health
+cargo bench --locked --profile development --bench ui_models -- ui_models/actor_health
+cargo bench --locked --profile development --bench ui_models -- ui_models/outlook
+cargo bench --locked --profile development --bench ui_models -- ui_models/market_history
+cargo bench --locked --profile development --bench ui_models -- ui_models/strategy
+cargo bench --locked --profile development --bench ui_models -- ui_models/risk_inspection
+cargo bench --locked --profile development --bench ui_models -- ui_models/database_backup
+cargo bench --locked --profile development --bench ui_models -- ui_models/option_chain
+cargo bench --locked --profile development --bench ui_models -- ui_models/scheduler
+cargo bench --locked --profile development --bench ui_models -- ui_models/eod
+# CPU publication and egui pointer-frame timing; ignored in normal test runs.
+$env:IFM_PORTFOLIO_BENCHMARK = "portfolio-timings.json"
+cargo test --locked --profile development --test portfolio_timing benchmark_portfolio_publication -- --ignored --exact --nocapture --test-threads=1
+$env:IFM_TRADE_FRAME_BENCHMARK = "trade-frame-timings.json"
+cargo test --locked --profile development --test trade_blotter benchmark_trade_view_mouse_frames -- --ignored --exact --nocapture --test-threads=1
+```
+
+The portfolio case measures `PortfolioController::result` with the same committed
+managed portfolio/fund fixtures and 1/100 displayed fund rows, including document
+encoding. Frame cases separately report preparation, the first prepared frame,
+and 60 pointer frames after warmup at 100/1,000/10,000 sparse plans. Alternate
+preserved original/refactored binaries repeatedly to reduce workstation drift;
+report preparation and p50/p95 frame latency separately. These CPU frame timings
+exclude a real window, GPU presentation, live market traffic and broker latency.
+
+The timing summary tool reads retained estimates without modifying any Criterion
+baseline. It records the estimator (slope, or mean when no slope is available),
+confidence intervals, estimate-file timestamps and fixture hashes. Supply both
+portfolio timing files to require equivalent publication fields before reporting
+their speedup; integral dimension values may differ only in numeric width.
+
+```powershell
+python tools/summarize_ui_model_timings.py --baseline before_remaining_typed_20261030_run1 --output timing-comparison.json --portfolio-before portfolio-before.json --portfolio-after portfolio-after.json
+```
+
+
+Option-chain cases use 100/1,000 identical synthetic contract identities derived
+from the committed managed fixture. Both algorithms decode the incoming snapshot,
+retain missing display quotes and publish the market document; raw selection
+authority stays separate. Scheduler and EOD cases compare their original document
+constructors with the concrete outputs. Every pair checks equivalent output before
+timing. These measurements do not represent broker/network latency or trading
+throughput.
+
+Validation for the remaining typed migration (2026-10-30 local run) includes the
+297-test native gate, targeted generic-layout and dispatcher-stack regression
+checks, all 55 isolated C#/NATS backend scenarios, and the bounded console-intake
+test. The unchanged managed stores reopened both native financial journals and
+217 operation journals. Generator checks verify 219 trade-related records and 12
+actor-health records; the ownership audit verifies all 79 original hybrid hashes.
+These checks use synthetic managed fixtures and an isolated emulator profile.
+
+Final remaining-refactor measurements (2026-10-31 UTC / 2026-10-30–31 Toronto,
+same Windows/rustc 1.97.1 development profile) are summarized below. Plan,
+realtime and plan-publication cases use the preserved original named baseline;
+other Criterion pairs run the frozen previous algorithm beside the typed path.
+
+| CPU case | Before | After | Speedup |
+| --- | ---: | ---: | ---: |
+| Plan projection | 285.54 us | 55.28 us | 5.17x |
+| Realtime projection | 304.17 us | 79.80 us | 3.81x |
+| Prepare 100 plan publications | 4.959 ms | 1.416 ms | 3.50x |
+| Option chain, 1,000 contracts | 85.667 ms | 8.078 ms | 10.61x |
+| Strategy inspection | 2.125 ms | 0.806 ms | 2.64x |
+| Actor health | 245.24 us | 121.66 us | 2.02x |
+| Scheduler document | 26.51 us | 12.00 us | 2.21x |
+| EOD document | 2.986 us | 0.670 us | 4.46x |
+| Portfolio publication, 1 fund (p50) | 0.529 ms | 0.265 ms | 2.00x |
+| Portfolio publication, 100 funds (p50) | 18.002 ms | 10.665 ms | 1.69x |
+
+Frame and portfolio figures are medians of five alternating original/refactored
+pairs. Portfolio publication fields match; 100-fund p95 fell from 19.328 ms to
+11.822 ms. Pointer-frame results are mixed and do not establish a general paint
+speedup:
+
+| Sparse plans | Preparation p50 before/after (ms) | Pointer p50 before/after (ms) | Pointer p95 before/after (ms) | First prepared frame before/after (ms) |
+| ---: | ---: | ---: | ---: | ---: |
+| 100 | 0.235 / 0.146 | 3.695 / 3.493 | 4.387 / 4.040 | 3.312 / 3.481 |
+| 1,000 | 2.390 / 1.050 | 3.198 / 3.495 | 3.746 / 4.718 | 3.673 / 3.574 |
+| 10,000 | 26.258 / 11.271 | 3.977 / 4.077 | 4.400 / 4.657 | 4.503 / 4.912 |
+
+Local evidence is retained under `.artifacts/egui-typed-remaining-20261030/`:
+`timings-final.json` contains 18 Criterion comparisons, confidence intervals,
+fixture/source hashes and portfolio parity; `frames-final-summary.json` contains
+frame medians; per-run files and executable hashes preserve the alternating
+comparison. The immutable original baseline is
+`before_remaining_typed_20261030_run1`; the final named baseline is
+`typed_remaining_final_20261030`. These are CPU fixture measurements, excluding
+live broker/network latency and GPU presentation.

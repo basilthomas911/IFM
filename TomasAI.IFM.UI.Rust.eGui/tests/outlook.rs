@@ -14,17 +14,14 @@ fn read(name: &str) -> Vec<u8> {
 }
 #[test]
 fn native_outlook_matches_unchanged_hybrid_cells_colors_warming_and_stale_status() {
-    let registry = Registry::compiled().unwrap();
     let cases: Value = serde_json::from_slice(&read("outlook-display.json")).unwrap();
     for case in cases.as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
         let wire = codec::decode(&read(&format!("{name}.msgpack"))).unwrap();
-        let source = registry
-            .project(
-                "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.MarketOutlookReadModel",
-                &wire,
-            )
-            .unwrap();
+        use ifm_ui_egui::models::{
+            trade_contracts::MarketOutlookReadModel, wire_types::FromBackend,
+        };
+        let source = MarketOutlookReadModel::from_backend(&wire).unwrap();
         let now = chrono::DateTime::parse_from_rfc3339(case["now"].as_str().unwrap())
             .unwrap()
             .to_utc();

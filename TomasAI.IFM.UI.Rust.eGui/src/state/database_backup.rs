@@ -2,6 +2,10 @@
 //! edits; history and output paging never submit an operation. Each action has
 //! one absolute deadline, and ambiguous writes cannot be automatically replayed.
 use crate::{
+    backend::contract_view::Field,
+    models::{backup::*, wire_types::FromBackend},
+};
+use crate::{
     backend::{contracts::*, schema::Registry, transport::Backend},
     contract_editor::{ContractPublication, ContractResult},
     services::{business_context::BusinessContext, database_backup as api},
@@ -12,10 +16,10 @@ use std::collections::BTreeMap;
 fn f<'a>(intent: &'a Json, key: &str) -> &'a str {
     intent["fields"][key].as_str().unwrap_or_default().trim()
 }
-fn s<'a>(row: &'a Json, key: &str) -> &'a str {
-    row[key].as_str().unwrap_or_default()
+fn s<'a>(row: &'a (impl TextFields + ?Sized), key: &str) -> &'a str {
+    row.string(key)
 }
-fn created(row: &Json) -> Option<chrono::DateTime<chrono::FixedOffset>> {
+fn created(row: &Operation) -> Option<chrono::DateTime<chrono::FixedOffset>> {
     chrono::DateTime::parse_from_rfc3339(s(row, "createdUtc")).ok()
 }
 fn member(wire: &Value, index: usize) -> Result<&Value, String> {
@@ -23,43 +27,141 @@ fn member(wire: &Value, index: usize) -> Result<&Value, String> {
         .and_then(|v| v.get(index))
         .ok_or("Incomplete backup payload".into())
 }
-fn offset(wire: &Value, index: usize) -> Result<Json, String> {
-    let v = member(wire, index)?;
-    Ok(if v.is_nil() {
-        Json::Null
+fn offset(wire: &Value, index: usize) -> Result<Option<String>, String> {
+    let value = member(wire, index)?;
+    if value.is_nil() {
+        Ok(None)
     } else {
-        json!(reference_offset(v)?)
-    })
+        reference_offset(value).map(Some)
+    }
 }
 fn project(registry: &Registry, name: &str, wire: &Value) -> Result<Json, String> {
     registry.project(&api::kind("ReadModels", name), wire)
 }
-pub fn operation_document(registry: &Registry, wire: &Value) -> Result<Json, String> {
-    let row = project(registry, "DatabaseBackupOperationReadModel", wire)?;
-    let lineage = &row["BackupLineage"];
-    let engine = match s(lineage, "NativeKind") {
-        "PostgreSqlBase" | "PostgreSqlIncremental" => json!("PostgreSql"),
-        "ScyllaManagerSnapshot" | "ScyllaManagerDeduplicatedSnapshot" => json!("ScyllaDb"),
-        _ => row["Engine"].clone(),
-    };
-    Ok(
-        json!({"operationId":row["OperationId"]["Value"],"protectionSet":row["ProtectionSetId"]["Value"],"source":row["Source"],"phase":row["Phase"],"outcome":row["Outcome"],"progressPercent":row["ProgressPercent"],"safeDiagnosticReference":row["SafeDiagnosticReference"],"requestedMode":if lineage.is_null(){json!("Full")}else{lineage["RequestedMode"].clone()},"resolvedMode":if lineage.is_null(){json!("None")}else{lineage["ResolvedMode"].clone()},"createdUtc":offset(wire,9)?,"completedUtc":offset(wire,10)?,"backupSetId":row["BackupSetId"].get("Value").cloned().unwrap_or(Json::Null),"kind":row["Kind"],"engine":engine}),
-    )
+fn scalar<T: FromBackend>(value: Field<'_>) -> Result<Option<T>, String> {
+    Option::<T>::from_backend(value.value)
 }
-fn protection_document(registry: &Registry, wire: &Value) -> Result<Json, String> {
-    let row = project(registry, "DatabaseProtectionSetReadModel", wire)?;
-    Ok(
-        json!({"id":row["ProtectionSetId"]["Value"],"source":row["Source"],"engines":row["Engines"],"enabled":row["Enabled"],"policyRevision":row["PolicyRevision"]}),
-    )
-}
-fn restore_document(registry: &Registry, wire: &Value) -> Result<Json, String> {
-    if wire.is_nil() {
-        return Ok(Json::Null);
+fn label(value: Field<'_>) -> Result<Option<Label>, String> {
+    if value.is_nil() {
+        return Ok(None);
     }
-    let row = project(registry, "DatabaseRestorePointReadModel", wire)?;
-    Ok(
-        json!({"restorePointId":row["RestorePointId"]["Value"],"recoveryPointUtc":offset(wire,4)?,"verificationLevel":row["VerificationLevel"],"verifiedUtc":offset(wire,6)?,"restoreTestedUtc":offset(wire,7)?,"eligible":row["Eligible"]}),
-    )
+    let number = value.integer().ok_or("Invalid backup enum")?;
+    let text = value.registry.enum_name(value.kind, number)?;
+    Ok(Some(if text == number.to_string() {
+        Label::Number(number)
+    } else {
+        Label::Text(text)
+    }))
+}
+fn labels(value: Field<'_>) -> Result<Option<Vec<Label>>, String> {
+    if value.is_nil() {
+        return Ok(None);
+    }
+    value
+        .items(100_000)?
+        .into_iter()
+        .map(|value| label(value)?.ok_or("Missing backup enum".into()))
+        .collect::<Result<Vec<_>, String>>()
+        .map(Some)
+}
+pub fn operation_document(registry: &Registry, wire: &Value) -> Result<Operation, String> {
+    let kind = api::kind("ReadModels", "DatabaseBackupOperationReadModel");
+    let row = Field::new(registry, &kind, wire);
+    let lineage = row.field("BackupLineage")?;
+    let engine = match label(lineage.field("NativeKind")?)?
+        .as_ref()
+        .and_then(Label::text)
+    {
+        Some("PostgreSqlBase" | "PostgreSqlIncremental") => Some(Label::Text("PostgreSql".into())),
+        Some("ScyllaManagerSnapshot" | "ScyllaManagerDeduplicatedSnapshot") => {
+            Some(Label::Text("ScyllaDb".into()))
+        }
+        _ => label(row.field("Engine")?)?,
+    };
+    Ok(Operation {
+        operation_id: scalar(row.path(&["OperationId", "Value"])?)?,
+        protection_set: scalar(row.path(&["ProtectionSetId", "Value"])?)?,
+        source: label(row.field("Source")?)?,
+        phase: label(row.field("Phase")?)?,
+        outcome: label(row.field("Outcome")?)?,
+        progress_percent: scalar(row.field("ProgressPercent")?)?,
+        safe_diagnostic_reference: scalar(row.field("SafeDiagnosticReference")?)?,
+        requested_mode: if lineage.is_nil() {
+            Some(Label::Text("Full".into()))
+        } else {
+            label(lineage.field("RequestedMode")?)?
+        },
+        resolved_mode: if lineage.is_nil() {
+            Some(Label::Text("None".into()))
+        } else {
+            label(lineage.field("ResolvedMode")?)?
+        },
+        created_utc: offset(wire, 9)?,
+        completed_utc: offset(wire, 10)?,
+        backup_set_id: scalar(row.path(&["BackupSetId", "Value"])?)?,
+        kind: label(row.field("Kind")?)?,
+        engine,
+    })
+}
+fn protection_document(registry: &Registry, wire: &Value) -> Result<ProtectionSet, String> {
+    let kind = api::kind("ReadModels", "DatabaseProtectionSetReadModel");
+    let row = Field::new(registry, &kind, wire);
+    Ok(ProtectionSet {
+        id: scalar(row.path(&["ProtectionSetId", "Value"])?)?,
+        source: label(row.field("Source")?)?,
+        engines: labels(row.field("Engines")?)?,
+        enabled: scalar(row.field("Enabled")?)?,
+        policy_revision: scalar(row.field("PolicyRevision")?)?,
+    })
+}
+fn restore_document(registry: &Registry, wire: &Value) -> Result<Option<RestorePoint>, String> {
+    if wire.is_nil() {
+        return Ok(None);
+    }
+    let kind = api::kind("ReadModels", "DatabaseRestorePointReadModel");
+    let row = Field::new(registry, &kind, wire);
+    Ok(Some(RestorePoint {
+        restore_point_id: scalar(row.path(&["RestorePointId", "Value"])?)?,
+        recovery_point_utc: offset(wire, 4)?,
+        verification_level: label(row.field("VerificationLevel")?)?,
+        verified_utc: offset(wire, 6)?,
+        restore_tested_utc: offset(wire, 7)?,
+        eligible: scalar(row.field("Eligible")?)?,
+    }))
+}
+fn setup_document(registry: &Registry, wire: &Value) -> Result<Setup, String> {
+    let kind = api::kind("ReadModels", "DatabaseBackupSetupReadModel");
+    let row = Field::new(registry, &kind, wire);
+    let settings = row.field("BackupHostSettings")?;
+    let mut backup_host_settings = BTreeMap::new();
+    if !settings.is_nil() {
+        for (key, value) in settings
+            .value
+            .as_map()
+            .filter(|map| map.len() <= 100_000)
+            .ok_or("Invalid backup host settings")?
+        {
+            backup_host_settings.insert(
+                key.as_str().ok_or("Invalid backup setting key")?.into(),
+                value.as_str().ok_or("Invalid backup setting value")?.into(),
+            );
+        }
+    }
+    Ok(Setup {
+        backup_host_settings,
+        available: scalar(row.field("Available")?)?,
+    })
+}
+fn health_document(registry: &Registry, wire: &Value) -> Result<Health, String> {
+    let kind = api::kind("ReadModels", "DatabaseBackupHealthReadModel");
+    let row = Field::new(registry, &kind, wire);
+    Ok(Health {
+        host_id: scalar(row.path(&["HostId", "Value"])?)?,
+        ready: scalar(row.field("Ready")?)?,
+        capability: label(row.field("CapabilityState")?)?,
+        observed_utc: offset(wire, 5)?,
+        diagnostic: scalar(row.field("SafeDiagnosticReference")?)?,
+    })
 }
 fn list(wire: &Value, max: usize) -> Result<&Vec<Value>, String> {
     wire.as_array()
@@ -68,7 +170,11 @@ fn list(wire: &Value, max: usize) -> Result<&Vec<Value>, String> {
 }
 /// Build the same configured sets as the hybrid API service, including disabled
 /// persisted sets which no longer occur in host configuration.
-pub fn configured_sets(source: &str, persisted: Vec<Json>, settings: &Json) -> Vec<Json> {
+pub fn configured_sets(
+    source: &str,
+    persisted: Vec<ProtectionSet>,
+    settings: &impl TextFields,
+) -> Vec<ProtectionSet> {
     let flag = |key: &str| s(settings, key).eq_ignore_ascii_case("true");
     let enabled = flag("Enabled") && (source != "AwsCloud" || flag("AcceptBackupRequests"));
     let mut sets = vec![];
@@ -88,14 +194,20 @@ pub fn configured_sets(source: &str, persisted: Vec<Json>, settings: &Json) -> V
             let revision = persisted
                 .iter()
                 .find(|v| s(v, "id") == id)
-                .map(|v| v["policyRevision"].clone())
-                .unwrap_or(json!(0));
-            sets.push(json!({"id":id,"source":source,"engines":[engine],"enabled":enabled&&(source=="AwsCloud"||flag(capability)),"policyRevision":revision}));
+                .map(|v| v.policy_revision)
+                .unwrap_or(Some(0));
+            sets.push(ProtectionSet {
+                id: Some(id.into()),
+                source: Some(Label::Text(source.into())),
+                engines: Some(vec![Label::Text(engine.into())]),
+                enabled: Some(enabled && (source == "AwsCloud" || flag(capability))),
+                policy_revision: revision,
+            });
         }
     }
     for mut row in persisted {
-        if !sets.iter().any(|v| v["id"] == row["id"]) {
-            row["enabled"] = json!(false);
+        if !sets.iter().any(|v| v.id == row.id) {
+            row.enabled = Some(false);
             sets.push(row);
         }
     }
@@ -105,10 +217,10 @@ pub fn configured_sets(source: &str, persisted: Vec<Json>, settings: &Json) -> V
 pub struct BackupController {
     source: String,
     status: String,
-    dashboard: Json,
-    setup: Json,
-    health: Vec<Json>,
-    history: BTreeMap<String, BTreeMap<String, Json>>,
+    dashboard: Dashboard,
+    setup: Setup,
+    health: Vec<Health>,
+    history: BTreeMap<String, BTreeMap<String, Operation>>,
     cursors: BTreeMap<String, String>,
     policies: BTreeMap<String, Value>,
     selected: Option<(String, String)>,
@@ -181,7 +293,7 @@ impl BackupController {
             .iter()
             .map(|v| protection_document(registry, v))
             .collect::<Result<Vec<_>, _>>()?;
-        sets.retain(|v| v["source"] == self.source);
+        sets.retain(|v| s(v, "source") == self.source);
         let setup = self
             .query(
                 backend,
@@ -193,17 +305,22 @@ impl BackupController {
                 deadline,
             )
             .await;
-        match setup.and_then(|v| project(registry, "DatabaseBackupSetupReadModel", &v)) {
+        match setup.and_then(|v| setup_document(registry, &v)) {
             Ok(v) => {
-                self.setup = json!({"backupHostSettings":v["BackupHostSettings"],"available":v["Available"]});
-                if v["Available"] == true {
-                    sets = configured_sets(&self.source, sets, &v["BackupHostSettings"]);
+                self.setup = v;
+                if self.setup.available == Some(true) {
+                    sets = configured_sets(&self.source, sets, &self.setup.backup_host_settings);
                 }
             }
-            Err(e) => self.setup = json!({"backupHostSettings":{"Status":e},"available":false}),
+            Err(e) => {
+                self.setup = Setup {
+                    backup_host_settings: BTreeMap::from([("Status".into(), e)]),
+                    available: Some(false),
+                }
+            }
         }
         let chosen = if selected.is_empty() {
-            sets.iter().find(|v| v["enabled"] == true)
+            sets.iter().find(|v| v.enabled == Some(true))
         } else {
             sets.iter().find(|v| s(v, "id") == selected)
         };
@@ -226,10 +343,10 @@ impl BackupController {
                     .await
                 {
                     Ok(v) => restore_document(registry, &v)?,
-                    Err(_) => Json::Null,
+                    Err(_) => None,
                 }
             } else {
-                Json::Null
+                None
             };
             latest.push(value);
         }
@@ -237,9 +354,15 @@ impl BackupController {
             .iter()
             .map(|v| operation_document(registry, v))
             .collect::<Result<Vec<_>, _>>()?;
-        operations.retain(|v| v["source"] == self.source);
+        operations.retain(|v| s(v, "source") == self.source);
         operations.sort_by_key(|v| std::cmp::Reverse(created(v)));
-        self.dashboard = json!({"source":self.source,"protectionSets":sets,"recentOperations":operations,"latestVerified":latest[0],"latestRestoreTested":latest[1]});
+        self.dashboard = Dashboard {
+            source: self.source.clone(),
+            protection_sets: sets,
+            recent_operations: operations,
+            latest_verified: latest.remove(0),
+            latest_restore_tested: latest.remove(0),
+        };
         Ok(())
     }
     async fn history_page(
@@ -276,7 +399,7 @@ impl BackupController {
         let mut page = vec![];
         for wire in rows {
             let mut row = operation_document(registry, wire)?;
-            if row["source"] != source {
+            if s(&row, "source") != source {
                 return Err("Backup history crossed source".into());
             }
             let id = uuid::Uuid::parse_str(s(&row, "operationId"))
@@ -284,16 +407,16 @@ impl BackupController {
             if id.is_nil() || !ids.insert(id) {
                 return Err("Duplicate or empty backup operation".into());
             }
-            if row["engine"] == "None" {
+            if s(&row, "engine") == "None" {
                 for (key, engine) in [
                     ("PostgreSqlProtectionSets", "PostgreSql"),
                     ("ScyllaProtectionSets", "ScyllaDb"),
                 ] {
-                    if s(&self.setup["backupHostSettings"], key)
+                    if s(&self.setup.backup_host_settings, key)
                         .split(',')
                         .any(|v| v == s(&row, "protectionSet"))
                     {
-                        row["engine"] = json!(engine);
+                        row.engine = Some(Label::Text(engine.into()));
                         break;
                     }
                 }
@@ -353,19 +476,29 @@ impl BackupController {
                 deadline,
             )
             .await?;
-        let row = project(registry, "DatabaseBackupLogReadModel", &wire)?;
-        let next = row["NextOutputOffset"]
-            .as_i64()
+        let log_kind = api::kind("ReadModels", "DatabaseBackupLogReadModel");
+        let row = Field::new(registry, &log_kind, &wire);
+        let ended = row.field("EndOfOutput")?.value.as_bool() == Some(true);
+        let next = row
+            .field("NextOutputOffset")?
+            .integer()
             .filter(|v| *v >= self.offset)
             .ok_or("Backup output offset regressed")?;
-        if row["EndOfOutput"] != true && next == self.offset {
+        if !ended && next == self.offset {
             return Err("Backup output did not advance".into());
         }
         let mut text = String::new();
         let mut revision = self.phase;
         for phase in list(member(&wire, 0)?, 100)? {
-            let row = project(registry, "DatabaseBackupPhaseReadModel", phase)?;
-            let r = row["Revision"].as_i64().ok_or("Invalid phase revision")?;
+            let phase_kind = api::kind("ReadModels", "DatabaseBackupPhaseReadModel");
+            let row = Field::new(registry, &phase_kind, phase);
+            let r = row
+                .field("Revision")?
+                .integer()
+                .ok_or("Invalid phase revision")?;
+            let phase_label = label(row.field("Phase")?)?;
+            let outcome_label = label(row.field("Outcome")?)?;
+            let progress = scalar::<i32>(row.field("ProgressPercent")?)?;
             if r <= revision {
                 return Err("Backup phases did not advance".into());
             }
@@ -373,15 +506,24 @@ impl BackupController {
             text.push_str(&format!(
                 "{} {} {}% {}\r\n",
                 reference_offset(member(phase, 1)?)?,
-                s(&row, "Phase"),
-                row["ProgressPercent"],
-                s(&row, "Outcome")
+                phase_label
+                    .as_ref()
+                    .and_then(Label::text)
+                    .unwrap_or_default(),
+                progress
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "null".into()),
+                outcome_label
+                    .as_ref()
+                    .and_then(Label::text)
+                    .unwrap_or_default()
             ));
         }
         if text.is_empty() {
             text.push_str("\r\n");
         }
-        text.push_str(s(&row, "Output"));
+        let output = scalar::<String>(row.field("Output")?)?;
+        text.push_str(output.as_deref().unwrap_or_default());
         self.output.push_str(&text);
         // Drop old display text on UTF-8 character boundaries, never a partial
         // codepoint; the server cursor, not retained text length, owns paging.
@@ -399,7 +541,7 @@ impl BackupController {
         }
         self.offset = next;
         self.phase = revision;
-        self.ended = row["EndOfOutput"] == true;
+        self.ended = ended;
         Ok(())
     }
     async fn refresh(
@@ -424,7 +566,10 @@ impl BackupController {
             .await
         {
             Ok(v) => {
-                self.health=list(&v,200)?.iter().map(|wire|{let row=project(registry,"DatabaseBackupHealthReadModel",wire)?;Ok(json!({"hostId":row["HostId"]["Value"],"ready":row["Ready"],"capability":row["CapabilityState"],"observedUtc":offset(wire,5)?,"diagnostic":row["SafeDiagnosticReference"]}))}).collect::<Result<_,String>>()?;
+                self.health = list(&v, 200)?
+                    .iter()
+                    .map(|wire| health_document(registry, wire))
+                    .collect::<Result<_, String>>()?;
             }
             Err(e) => {
                 self.health.clear();
@@ -469,7 +614,7 @@ impl BackupController {
         self.generation += 1;
         self.publication(registry, "", "", "").ok()
     }
-    fn find_operation(&self, intent: &Json) -> Result<Json, String> {
+    fn find_operation(&self, intent: &Json) -> Result<Operation, String> {
         let source = f(intent, "operationSource");
         let id = f(intent, "operationId");
         let mut matches = self
@@ -511,28 +656,33 @@ impl BackupController {
         ]);
         let mut history = BTreeMap::new();
         for (source, rows) in &self.history {
-            let mut rows: Vec<_> = rows.values().cloned().collect();
+            let mut rows: Vec<_> = rows.values().collect();
             rows.sort_by_key(|v| std::cmp::Reverse(created(v)));
             history.insert(source, rows);
         }
         let (policy, editor) = if let Some(wire) = self.policies.get(&self.source) {
-            policy_document(registry, wire)?
+            let (policy, editor) = policy_document(registry, wire)?;
+            (Some(policy), editor)
         } else {
-            (Json::Null, json!({}))
+            (None, PolicyEditor::default())
         };
-        for (key, value) in [
-            ("dashboard", self.dashboard.clone()),
-            ("setup", self.setup.clone()),
-            ("health", json!(self.health)),
-            ("history", json!(history)),
-            ("continuations", json!(self.cursors)),
-            ("policy", policy),
-            ("policyEditor", editor),
-        ] {
+        fn add<T: serde::Serialize>(
+            result: &mut ContractResult,
+            key: &str,
+            value: &T,
+        ) -> Result<(), String> {
             result
                 .documents
-                .insert(key.into(), crate::wire::encode_value(&value)?.into());
+                .insert(key.into(), crate::wire::encode(value)?.into());
+            Ok(())
         }
+        add(&mut result, "dashboard", &self.dashboard)?;
+        add(&mut result, "setup", &self.setup)?;
+        add(&mut result, "health", &self.health)?;
+        add(&mut result, "history", &history)?;
+        add(&mut result, "continuations", &self.cursors)?;
+        add(&mut result, "policy", &policy)?;
+        add(&mut result, "policyEditor", &editor)?;
         Ok(ContractPublication {
             schema: 1,
             generation: self.generation,
@@ -664,12 +814,12 @@ impl BackupController {
                     return Err("Select between one and 32 protection sets".into());
                 }
                 for set in sets {
-                    let row = self.dashboard["protectionSets"]
-                        .as_array()
-                        .and_then(|v| {
-                            v.iter().find(|v| {
-                                s(v, "id") == set && v["source"] == source && v["enabled"] == true
-                            })
+                    let row = self
+                        .dashboard
+                        .protection_sets
+                        .iter()
+                        .find(|v| {
+                            s(v, "id") == set && s(v, "source") == source && v.enabled == Some(true)
                         })
                         .ok_or("Select an enabled protection set")?;
                     writes.push((
@@ -683,10 +833,7 @@ impl BackupController {
                             ("ProtectionSetId".into(), api::wrapper(set)),
                             (
                                 "ExpectedPolicyRevision".into(),
-                                row["policyRevision"]
-                                    .as_i64()
-                                    .ok_or("Invalid policy revision")?
-                                    .into(),
+                                row.policy_revision.ok_or("Invalid policy revision")?.into(),
                             ),
                             (
                                 "RequestedBackupMode".into(),
@@ -716,7 +863,10 @@ impl BackupController {
             }
             "backup-cancel" => {
                 let row = self.find_operation(intent)?;
-                if row["source"] != source || row["kind"] != "Backup" || row["outcome"] != "None" {
+                if s(&row, "source") != source
+                    || s(&row, "kind") != "Backup"
+                    || s(&row, "outcome") != "None"
+                {
                     return Err("Select a running backup for this source".into());
                 }
                 let id = uuid::Uuid::parse_str(s(&row, "operationId"))
@@ -738,17 +888,15 @@ impl BackupController {
                 self.status = "Cancellation accepted; awaiting terminal status.".into();
             }
             "backup-restore" => {
-                let set = self.dashboard["protectionSets"]
-                    .as_array()
-                    .and_then(|v| {
-                        v.iter().find(|v| {
-                            s(v, "id") == f(intent, "protectionSet") && v["source"] == source
-                        })
-                    })
+                let set = self
+                    .dashboard
+                    .protection_sets
+                    .iter()
+                    .find(|v| s(v, "id") == f(intent, "protectionSet") && s(v, "source") == source)
                     .ok_or("Select a known protection set")?;
                 let target = f(intent, "targetProfile");
                 let validation = f(intent, "validationProfile");
-                writes.push(("RequestDatabaseRestoreDrillCommand".into(),request,BTreeMap::from([("ProtectionSetId".into(),api::wrapper(f(intent,"protectionSet"))),("RestorePointId".into(),api::wrapper(f(intent,"restorePoint"))),("ExpectedPolicyRevision".into(),set["policyRevision"].as_i64().ok_or("Invalid policy revision")?.into()),("DisposableTargetProfile".into(),target.into()),("ValidationProfile".into(),validation.into()),("FreshTarget".into(),registry.value_from_json(&api::kind("Contracts","DatabaseFreshTargetDescriptor"),&json!({"Profile":target,"LogicalTarget":validation,"RecoveryTargetUtc":null,"PreferredReplicaId":null}))?),("RestoreClass".into(),registry.value_from_json(&api::kind("Contracts","DatabaseRestoreClass"),&json!("Drill"))?)])));
+                writes.push(("RequestDatabaseRestoreDrillCommand".into(),request,BTreeMap::from([("ProtectionSetId".into(),api::wrapper(f(intent,"protectionSet"))),("RestorePointId".into(),api::wrapper(f(intent,"restorePoint"))),("ExpectedPolicyRevision".into(),set.policy_revision.ok_or("Invalid policy revision")?.into()),("DisposableTargetProfile".into(),target.into()),("ValidationProfile".into(),validation.into()),("FreshTarget".into(),registry.value_from_json(&api::kind("Contracts","DatabaseFreshTargetDescriptor"),&json!({"Profile":target,"LogicalTarget":validation,"RecoveryTargetUtc":null,"PreferredReplicaId":null}))?),("RestoreClass".into(),registry.value_from_json(&api::kind("Contracts","DatabaseRestoreClass"),&json!("Drill"))?)])));
                 self.status = "Restore drill accepted; awaiting completion.".into();
             }
             "backup-policy-save" => {
@@ -955,21 +1103,53 @@ impl BackupController {
 }
 /// TimeSpan ticks remain exact on the wire. This display mirrors the hybrid
 /// policy model while editable durations are converted only when saved.
-pub fn policy_document(registry: &Registry, wire: &Value) -> Result<(Json, Json), String> {
-    let row = project(registry, "DatabaseBackupPolicyReadModel", wire)?;
-    let d = &row["Definition"];
-    let rpo = d["RecoveryObjectives"]["RecoveryPointObjective"]
-        .as_i64()
-        .ok_or("Invalid RPO ticks")?;
-    let rto = d["RecoveryObjectives"]["RecoveryTimeObjective"]
-        .as_i64()
-        .ok_or("Invalid RTO ticks")?;
-    let age = d["Verification"]["MaximumVerificationAge"]
-        .as_i64()
-        .ok_or("Invalid verification ticks")?;
+pub fn policy_document(
+    registry: &Registry,
+    wire: &Value,
+) -> Result<(Policy, PolicyEditor), String> {
+    let kind = api::kind("ReadModels", "DatabaseBackupPolicyReadModel");
+    let row = Field::new(registry, &kind, wire);
+    let definition = row.field("Definition")?;
+    let ticks = |path: &[&str], error: &str| -> Result<i64, String> {
+        definition.path(path)?.integer().ok_or(error.into())
+    };
+    let rpo = ticks(
+        &["RecoveryObjectives", "RecoveryPointObjective"],
+        "Invalid RPO ticks",
+    )?;
+    let rto = ticks(
+        &["RecoveryObjectives", "RecoveryTimeObjective"],
+        "Invalid RTO ticks",
+    )?;
+    let age = ticks(
+        &["Verification", "MaximumVerificationAge"],
+        "Invalid verification ticks",
+    )?;
     Ok((
-        json!({"id":row["PolicyId"]["Value"],"revision":row["Revision"],"enforced":row["Enforced"],"enabledSources":d["EnabledSources"],"protectionSets":d["ProtectedSets"].as_array().ok_or("Invalid policy sets")?.iter().map(|v|v["Value"].clone()).collect::<Vec<_>>(),"rpo":timespan(rpo),"rto":timespan(rto),"daily":d["Retention"]["DailyCount"],"weekly":d["Retention"]["WeeklyCount"],"monthly":d["Retention"]["MonthlyCount"],"verificationLevels":d["Verification"]["Levels"],"maximumVerificationAge":timespan(age)}),
-        json!({"rpoMinutes":(rpo as f64/600_000_000.0).to_string(),"rtoMinutes":(rto as f64/600_000_000.0).to_string(),"maximumVerificationHours":(age as f64/36_000_000_000.0).to_string()}),
+        Policy {
+            id: scalar(row.path(&["PolicyId", "Value"])?)?,
+            revision: scalar(row.field("Revision")?)?,
+            enforced: scalar(row.field("Enforced")?)?,
+            enabled_sources: labels(definition.field("EnabledSources")?)?,
+            protection_sets: definition
+                .field("ProtectedSets")?
+                .items(100_000)?
+                .into_iter()
+                .map(|value| scalar(value.field("Value")?))
+                .collect::<Result<_, String>>()?,
+            rpo: timespan(rpo),
+            rto: timespan(rto),
+            daily: scalar(definition.path(&["Retention", "DailyCount"])?)?,
+            weekly: scalar(definition.path(&["Retention", "WeeklyCount"])?)?,
+            monthly: scalar(definition.path(&["Retention", "MonthlyCount"])?)?,
+            verification_levels: labels(definition.path(&["Verification", "Levels"])?)?,
+            maximum_verification_age: timespan(age),
+        },
+        PolicyEditor {
+            rpo_minutes: Some((rpo as f64 / 600_000_000.0).to_string()),
+            rto_minutes: Some((rto as f64 / 600_000_000.0).to_string()),
+            maximum_verification_hours: Some((age as f64 / 36_000_000_000.0).to_string()),
+        },
     ))
 }
 fn timespan(ticks: i64) -> String {

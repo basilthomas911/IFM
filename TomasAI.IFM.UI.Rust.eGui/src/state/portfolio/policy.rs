@@ -222,7 +222,7 @@ impl PortfolioController {
         if self
             .dialogs
             .last()
-            .is_some_and(|d| d["key"] == "discard-policy")
+            .is_some_and(|d| d.key == "discard-policy")
         {
             if !matches!(action, "Yes" | "No") {
                 return Err("Confirm or cancel discarding the policy working copy".into());

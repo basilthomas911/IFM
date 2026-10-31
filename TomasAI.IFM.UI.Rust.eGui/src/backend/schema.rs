@@ -79,6 +79,62 @@ impl Registry {
                 .collect(),
         })
     }
+    /// Borrow one declared wire member without projecting or cloning its payload.
+    pub fn wire_field<'a>(
+        &self,
+        kind: &str,
+        name: &str,
+        wire: &'a Value,
+    ) -> Result<&'a Value, String> {
+        // Closed generic records share their definition's positional layout.
+        // Reading a slot does not require substituting its declared value type.
+        let schema = self
+            .schemas
+            .get(kind)
+            .or_else(|| {
+                let (base, args) = generic(kind)?;
+                self.schemas
+                    .get(base)
+                    .filter(|schema| schema.generic_parameters.len() == args.len())
+            })
+            .ok_or_else(|| format!("Unknown contract {kind}"))?;
+        let member = schema
+            .members
+            .iter()
+            .find(|member| member.name == name)
+            .ok_or_else(|| format!("Missing field {kind}.{name}"))?;
+        if let Some(index) = member.index {
+            wire.as_array().and_then(|fields| fields.get(index))
+        } else {
+            wire.as_map().and_then(|fields| {
+                fields
+                    .iter()
+                    .find(|(key, _)| key.as_str() == member.map_key.as_deref())
+                    .map(|(_, value)| value)
+            })
+        }
+        .ok_or_else(|| format!("Missing wire field {kind}.{name}"))
+    }
+    pub fn field_kind(&self, kind: &str, name: &str) -> Result<&str, String> {
+        self.schemas
+            .get(kind)
+            .and_then(|schema| schema.members.iter().find(|member| member.name == name))
+            .map(|member| member.kind.as_str())
+            .ok_or_else(|| format!("Missing field {kind}.{name}"))
+    }
+    pub fn enum_name(&self, kind: &str, value: i64) -> Result<String, String> {
+        let values = self
+            .schemas
+            .get(kind)
+            .filter(|schema| schema.is_enum)
+            .and_then(|schema| schema.enum_values.as_ref())
+            .ok_or_else(|| format!("Unknown enum {kind}"))?;
+        Ok(values
+            .iter()
+            .find(|entry| entry.value == value)
+            .map(|entry| entry.name.clone())
+            .unwrap_or_else(|| value.to_string()))
+    }
     pub fn enum_names(&self, kind: &str) -> Result<Vec<String>, String> {
         self.schemas
             .get(kind)

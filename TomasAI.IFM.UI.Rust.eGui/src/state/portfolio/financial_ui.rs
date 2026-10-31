@@ -30,7 +30,7 @@ pub(super) fn typed_grid(
     key: &str,
     name: &str,
     values: &[Value],
-) -> Result<Json, String> {
+) -> Result<Grid, String> {
     let kind = fk(name);
     let columns = display::field_names(&kind)?;
     let mut rows = vec![];
@@ -314,8 +314,74 @@ impl PortfolioController {
                 None,
             ),
         ];
-        let dialog = json!({"key":"financials","title":format!("{} — Financials",text(&fund["Name"])),"width":1150,"height":700,"captionWidth":170,"fields":[input("cash","Available Cash:",if balance.is_some(){format!("{} USD",amount(&row["AvailableCash"]) ?)}else{"unavailable".into()},"label",false,None),input("pendingWithdrawals","Pending Withdrawals:",if balance.is_some(){format!("{} USD",amount(&row["PendingWithdrawals"]) ?)}else{"unavailable".into()},"label",false,None),input("financialState","",if balance.is_some(){text(&row["OperatingState"])}else{"Unavailable".into()},"label",false,None)],"buttons":["Next transactions","Next reservations","Transaction","Ledger","Close"],"status":state.message,"grids":grids,"buttonEnabled":{"Next transactions":next(state.transactions.as_ref()),"Next reservations":next(state.reservations.as_ref()),"Transaction":balance.is_some(),"Ledger":true}});
-        if let Some(index) = self.dialogs.iter().position(|d| d["key"] == "financials") {
+        let dialog = Dialog {
+            key: "financials".into(),
+            title: (format!("{} — Financials", text(&fund["Name"]))).to_string(),
+            width: (1150) as _,
+            height: (700) as _,
+            caption_width: (170) as _,
+            fields: vec![
+                input(
+                    "cash",
+                    "Available Cash:",
+                    if balance.is_some() {
+                        format!("{} USD", amount(&row["AvailableCash"])?)
+                    } else {
+                        "unavailable".into()
+                    },
+                    "label",
+                    false,
+                    None,
+                ),
+                input(
+                    "pendingWithdrawals",
+                    "Pending Withdrawals:",
+                    if balance.is_some() {
+                        format!("{} USD", amount(&row["PendingWithdrawals"])?)
+                    } else {
+                        "unavailable".into()
+                    },
+                    "label",
+                    false,
+                    None,
+                ),
+                input(
+                    "financialState",
+                    "",
+                    if balance.is_some() {
+                        text(&row["OperatingState"])
+                    } else {
+                        "Unavailable".into()
+                    },
+                    "label",
+                    false,
+                    None,
+                ),
+            ],
+            buttons: vec![
+                "Next transactions".into(),
+                "Next reservations".into(),
+                "Transaction".into(),
+                "Ledger".into(),
+                "Close".into(),
+            ],
+            status: (state.message).to_string(),
+            grids: Some(grids),
+            button_enabled: Some(BTreeMap::from([
+                (
+                    "Next transactions".into(),
+                    next(state.transactions.as_ref()),
+                ),
+                (
+                    "Next reservations".into(),
+                    next(state.reservations.as_ref()),
+                ),
+                ("Transaction".into(), balance.is_some()),
+                ("Ledger".into(), true),
+            ])),
+            ..Default::default()
+        };
+        if let Some(index) = self.dialogs.iter().position(|d| d.key == "financials") {
             self.dialogs[index] = dialog;
         } else {
             self.dialogs.push(dialog);
@@ -329,11 +395,7 @@ impl PortfolioController {
         intent: &Json,
         deadline: tokio::time::Instant,
     ) -> Result<String, String> {
-        if self
-            .dialogs
-            .last()
-            .is_some_and(|d| d["key"] == "risk-history")
-        {
+        if self.dialogs.last().is_some_and(|d| d.key == "risk-history") {
             self.risk_date = Some(crate::backend::date_input::parse(field(intent, "date"))?);
             return self
                 .open_risk_history(
@@ -346,15 +408,15 @@ impl PortfolioController {
         }
         if self.dialogs.last().is_some_and(|d| {
             matches!(
-                d["key"].as_str(),
-                Some("ledger" | "setup" | "authority" | "account-version" | "rule-version")
+                d.key.as_str(),
+                "ledger" | "setup" | "authority" | "account-version" | "rule-version"
             )
         }) {
             return self
                 .ledger_action(backend, registry, intent, deadline)
                 .await;
         }
-        if self.dialogs.last().is_some_and(|d| d["key"] == "posting")
+        if self.dialogs.last().is_some_and(|d| d.key == "posting")
             && matches!(field(intent, "action"), "Post" | "Check outcome")
         {
             return self
@@ -391,11 +453,7 @@ impl PortfolioController {
             }
             "Close" => {
                 self.dialogs.pop();
-                if self
-                    .dialogs
-                    .last()
-                    .is_some_and(|d| d["key"] == "financials")
-                {
+                if self.dialogs.last().is_some_and(|d| d.key == "financials") {
                     self.refresh_financial_journals(registry).await?;
                 }
                 Ok("Financial dialog closed".into())

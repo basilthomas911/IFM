@@ -70,11 +70,13 @@ impl TradeController {
         if action == "eod-load" {
             let date = crate::backend::date_input::parse(field(intent, "eodDate"))?;
             if session.pending && date != session.date {
-                return Err("An unconfirmed EOD command must retain its original value date".into());
+                return Err(
+                    "An unconfirmed EOD command must retain its original value date".into(),
+                );
             }
             if date != session.date {
                 session.date = date;
-                session.display = Json::Null;
+                session.display = None;
                 session.completed = false;
             }
             session.reference = field(intent, "reference").trim().into();

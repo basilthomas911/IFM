@@ -1,5 +1,6 @@
 //! Strategy parameter-set editing, comparison, and activation previews. Field paths retain identity across nested component editors; numeric text buffers preserve incomplete edits until managed validation.
 
+use crate::models::trade_contracts::ParameterComponentSummary;
 use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
@@ -63,7 +64,7 @@ pub struct ParameterSets {
     /// Local interval definitions from the parameter-set draft.
     pub intervals: Value,
     /// Published/editable nested parameter component definitions.
-    components: Value,
+    components: Vec<ParameterComponentSummary>,
     /// Currently selected parameter component key.
     component: String,
     /// Pending local confirmation action/dialog key.
@@ -123,11 +124,9 @@ impl ParameterSets {
             editing: self.editing,
             changing: self.changing,
             ready,
-            add: self.components.as_array().is_some_and(|items| {
-                items.iter().any(|item| {
-                    item["ComponentCode"] == self.component
-                        && item["CanEdit"].as_bool() == Some(true)
-                })
+            add: self.components.iter().any(|item| {
+                item.component_code.as_deref() == Some(self.component.as_str())
+                    && item.can_edit == Some(true)
             }),
             change: self.selected.is_some()
                 && s.result.context.get("canEdit").is_some_and(|x| x == "True"),
@@ -193,7 +192,7 @@ impl ParameterSets {
                 self.selected = context.get("selectedId").filter(|x| !x.is_empty()).cloned();
             }
             self.component = context.get("component").cloned().unwrap_or_default();
-            self.components = parse(&s.result, "components");
+            self.components = s.result.document("components").unwrap_or_default();
             if !keep_draft {
                 self.numeric_text.clear();
                 self.fields = s.result.document("fields").unwrap_or_default();
@@ -298,18 +297,21 @@ impl ParameterSets {
                 if reference {
                     crate::reference::header(ui, "Parameter Set");
                     let list_height = ((ui.available_height() - 30.) * 0.45).max(40.);
-                    if let Some(components) = self.components.as_array() {
+                    {
+                        let components = &self.components;
                         let mut areas: Vec<_> = components
                             .iter()
-                            .filter_map(|item| item["AreaCode"].as_str())
+                            .filter_map(|item| item.area_code.as_deref())
                             .collect();
                         areas.sort();
                         areas.dedup();
                         if !areas.contains(&self.area.as_str()) {
                             self.area = components
                                 .iter()
-                                .find(|item| item["ComponentCode"] == self.component)
-                                .and_then(|item| item["AreaCode"].as_str())
+                                .find(|item| {
+                                    item.component_code.as_deref() == Some(self.component.as_str())
+                                })
+                                .and_then(|item| item.area_code.as_deref())
                                 .or_else(|| areas.first().copied())
                                 .unwrap_or("")
                                 .into();
@@ -323,8 +325,8 @@ impl ParameterSets {
                                 for area in areas {
                                     let label = components
                                         .iter()
-                                        .find(|item| item["AreaCode"] == area)
-                                        .and_then(|item| item["AreaName"].as_str())
+                                        .find(|item| item.area_code.as_deref() == Some(area))
+                                        .and_then(|item| item.area_name.as_deref())
                                         .unwrap_or(area);
                                     if ui
                                         .add_enabled(
@@ -346,12 +348,13 @@ impl ParameterSets {
                                         .clicked()
                                     {
                                         self.area = area.into();
-                                        if let Some(item) =
-                                            components.iter().find(|item| item["AreaCode"] == area)
+                                        if let Some(item) = components
+                                            .iter()
+                                            .find(|item| item.area_code.as_deref() == Some(area))
                                         {
                                             extra.insert(
                                                 "component".into(),
-                                                item["ComponentCode"].as_str().unwrap_or("").into(),
+                                                item.component_code.as_deref().unwrap_or("").into(),
                                             );
                                             action = Some("component");
                                         }
@@ -360,20 +363,19 @@ impl ParameterSets {
                             });
                         let title = components
                             .iter()
-                            .find(|item| item["AreaCode"] == self.area)
-                            .and_then(|item| item["AreaName"].as_str())
+                            .find(|item| item.area_code.as_deref() == Some(self.area.as_str()))
+                            .and_then(|item| item.area_name.as_deref())
                             .unwrap_or("");
                         crate::reference::header(ui, title);
                         egui::ScrollArea::vertical()
                             .id_salt("reference-parameter-components")
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
-                                for item in components
-                                    .iter()
-                                    .filter(|item| item["AreaCode"] == self.area)
-                                {
-                                    let code = item["ComponentCode"].as_str().unwrap_or("");
-                                    let label = item["Name"].as_str().unwrap_or(code);
+                                for item in components.iter().filter(|item| {
+                                    item.area_code.as_deref() == Some(self.area.as_str())
+                                }) {
+                                    let code = item.component_code.as_deref().unwrap_or("");
+                                    let label = item.name.as_deref().unwrap_or(code);
                                     if ui
                                         .add_enabled(
                                             enabled && !self.editing,
@@ -400,10 +402,11 @@ impl ParameterSets {
                             });
                     }
                 } else {
-                    if let Some(components) = self.components.as_array() {
+                    {
+                        let components = &self.components;
                         let mut areas = components
                             .iter()
-                            .filter_map(|x| x.get("AreaCode").and_then(Value::as_str))
+                            .filter_map(|x| x.area_code.as_deref())
                             .collect::<Vec<_>>();
                         areas.sort();
                         areas.dedup();
@@ -414,25 +417,28 @@ impl ParameterSets {
                                 for area in areas {
                                     let label = components
                                         .iter()
-                                        .find(|x| x["AreaCode"] == area)
-                                        .and_then(|x| x["AreaName"].as_str())
+                                        .find(|x| x.area_code.as_deref() == Some(area))
+                                        .and_then(|x| x.area_name.as_deref())
                                         .unwrap_or(area);
                                     egui::CollapsingHeader::new(label)
                                         .id_salt(area)
                                         .default_open(true)
                                         .show(ui, |ui| {
-                                            for component in
-                                                components.iter().filter(|x| x["AreaCode"] == area)
+                                            for component in components
+                                                .iter()
+                                                .filter(|x| x.area_code.as_deref() == Some(area))
                                             {
-                                                let code = component["ComponentCode"]
-                                                    .as_str()
+                                                let code = component
+                                                    .component_code
+                                                    .as_deref()
                                                     .unwrap_or("");
                                                 if ui
                                                     .add_enabled(
                                                         enabled && !self.editing,
                                                         egui::Button::new(
-                                                            component["Name"]
-                                                                .as_str()
+                                                            component
+                                                                .name
+                                                                .as_deref()
                                                                 .unwrap_or(code),
                                                         )
                                                         .selected(self.component == code),
@@ -488,13 +494,9 @@ impl ParameterSets {
                     });
                 let title = self
                     .components
-                    .as_array()
-                    .and_then(|items| {
-                        items
-                            .iter()
-                            .find(|item| item["ComponentCode"] == self.component)
-                    })
-                    .and_then(|item| item["Name"].as_str())
+                    .iter()
+                    .find(|item| item.component_code.as_deref() == Some(self.component.as_str()))
+                    .and_then(|item| item.name.as_deref())
                     .unwrap_or("");
                 crate::reference::header(ui, title);
                 egui::ScrollArea::vertical()

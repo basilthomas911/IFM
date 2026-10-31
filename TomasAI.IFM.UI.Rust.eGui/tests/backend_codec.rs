@@ -208,3 +208,40 @@ fn compiled_name_keyed_models_unions_and_closed_generics_are_projected() {
             .is_err()
     );
 }
+
+#[test]
+fn consuming_service_result_keeps_payload_and_error_semantics_with_extra_slots() {
+    let payload = Value::Array(vec!["opaque position evidence".into(), i64::MAX.into()]);
+    for tail in [vec![], vec!["future envelope slot".into()]] {
+        let mut fields = vec![true.into(), Value::Nil, Value::Nil, payload.clone()];
+        fields.extend(tail);
+        assert_eq!(into_service_result(Value::Array(fields)).unwrap(), payload);
+    }
+    for invalid in [
+        Value::Nil,
+        Value::Array(vec![]),
+        Value::Array(vec![Value::Nil, Value::Nil, Value::Nil, Value::Nil]),
+        Value::Array(vec![false.into(), 9101.into(), "denied".into(), payload]),
+    ] {
+        assert_eq!(
+            into_service_result(invalid.clone()).unwrap_err(),
+            service_result(&invalid).unwrap_err()
+        );
+    }
+}
+
+#[test]
+fn borrowed_wire_fields_resolve_closed_generic_layouts() {
+    let registry = ifm_ui_egui::backend::schema::Registry::compiled().unwrap();
+    let kind = "TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioPage`1[TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioReadModel]";
+    let wire = Value::Array(vec![Value::Array(vec![]), Value::Nil, 100.into()]);
+    let named = registry.project(kind, &wire).unwrap();
+    assert_eq!(
+        registry
+            .wire_field(kind, "PageSize", &wire)
+            .unwrap()
+            .as_i64(),
+        named["PageSize"].as_i64()
+    );
+    assert!(registry.wire_field(kind, "NotAField", &wire).is_err());
+}

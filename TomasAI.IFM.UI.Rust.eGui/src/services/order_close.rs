@@ -2,7 +2,13 @@
 //! Every contract, remaining signed quantity and original leg identity must agree.
 use super::{parameters, trade_monitor_queries::Scope};
 use crate::backend::{contracts::*, schema::Registry, transport::Backend};
+use crate::models::{trade_contracts::StrategyPositionSnapshot, wire_types::FromBackend};
 use rmpv::Value;
+/// Validated concrete position together with its immutable original wire record.
+pub struct CurrentPosition {
+    pub snapshot: StrategyPositionSnapshot,
+    pub wire: Value,
+}
 use serde_json::json;
 use std::collections::BTreeMap;
 const TRADE: &str = "TomasAI.IFM.Domain.Trade.Shared";
@@ -13,8 +19,8 @@ pub async fn current(
     primary: Scope,
     strategy: &str,
     deadline: tokio::time::Instant,
-) -> Result<serde_json::Value, String> {
-    let (key, id) = primary.position(strategy)?;
+) -> Result<CurrentPosition, String> {
+    let (key, id) = primary.typed_position(strategy)?;
     let (actor, verb, kind) = match strategy {
         "IronCondor" => (
             "FuturesOptionTradePositionQuery",
@@ -42,25 +48,25 @@ pub async fn current(
                 "EntityId".into(),
                 Value::Array(vec![0.into(), Value::Array(vec!["none".into()])]),
             ),
-            (
-                "PositionId".into(),
-                parameters::from_document(registry, &format!("{TRADE}.StrategyPositionId"), &id)?,
-            ),
+            ("PositionId".into(), primary.position_wire(strategy)?),
         ]),
     )?;
     let reply = backend
         .request_until(&subject, &body, deadline, None)
         .await?;
-    let position = parameters::document(
-        registry,
-        &format!("{TRADE}.StrategyPositionSnapshot"),
-        service_result(&reply)?,
-        true,
-    )?;
-    if position["Id"] != id || position["StrategyKind"] != strategy {
+    let wire = into_service_result(reply)?;
+    let snapshot = StrategyPositionSnapshot::from_backend(&wire)?;
+    if snapshot.id.as_ref() != Some(&id)
+        || snapshot
+            .strategy_kind
+            .as_ref()
+            .map(|value| value.label())
+            .as_deref()
+            != Some(strategy)
+    {
         return Err("The target opening position is unavailable, changed or invalid".into());
     }
-    Ok(position)
+    Ok(CurrentPosition { snapshot, wire })
 }
 pub async fn candidate(
     backend: &Backend,
@@ -70,7 +76,13 @@ pub async fn candidate(
     prepared: &Value,
     deadline: tokio::time::Instant,
 ) -> Result<Value, String> {
-    let position = current(backend, registry, primary, strategy, deadline).await?;
+    let read = current(backend, registry, primary, strategy, deadline).await?;
+    let position = parameters::document(
+        registry,
+        &format!("{TRADE}.StrategyPositionSnapshot"),
+        &read.wire,
+        true,
+    )?;
     let (_, id) = primary.position(strategy)?;
     if position["IsOpen"] != true {
         return Err("The target opening position is already closed".into());

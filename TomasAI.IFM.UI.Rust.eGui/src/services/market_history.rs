@@ -1,12 +1,16 @@
 //! Read-only market history adapters. The API owns valuation, indicators and the
 //! clock. Floating point conversion here is only for plotting published prices.
+use crate::models::{
+    cells::{Cell, Cells},
+    trade_contracts::{FuturesBarDataReadModel, FuturesBbSignalReadModel, MarketOutlookReadModel},
+    wire_types::FromBackend,
+};
 use crate::{
     backend::{contracts::*, schema::Registry, transport::Backend},
     market_charts::{ChartSeries, ChartSnapshot},
     services::{actor_requests, business_context::BusinessContext},
 };
 use chrono::{DateTime, NaiveDate, Utc};
-use serde_json::Value as Json;
 use std::collections::BTreeMap;
 
 /// The copied charts label Unix coordinates directly. Match the hybrid's Eastern
@@ -18,29 +22,25 @@ pub fn market_seconds(time: DateTime<Utc>) -> f64 {
         .timestamp_millis() as f64
         / 1000.0
 }
-fn time(value: &Json) -> Result<DateTime<Utc>, String> {
+fn time(value: &Cell<'_>) -> Result<DateTime<Utc>, String> {
     let text = value.as_str().ok_or("Missing history timestamp")?;
     DateTime::parse_from_rfc3339(text)
         .map(|t| t.with_timezone(&Utc))
         .map_err(|_| "Invalid history timestamp".into())
 }
-fn day(value: &Json) -> Result<NaiveDate, String> {
+fn day(value: &Cell<'_>) -> Result<NaiveDate, String> {
     NaiveDate::parse_from_str(value.as_str().ok_or("Missing history date")?, "%Y-%m-%d")
         .map_err(|_| "Invalid history date".into())
 }
-fn number(value: &Json) -> Result<f64, String> {
-    value
-        .as_f64()
-        .or_else(|| value.as_str().and_then(|s| s.parse().ok()))
-        .filter(|v| v.is_finite())
-        .ok_or("Invalid plotted price".into())
+fn number(value: &Cell<'_>) -> Result<f64, String> {
+    value.number().ok_or("Invalid plotted price".into())
 }
-fn rows(value: &Json) -> Result<&Vec<Json>, String> {
-    let values = value.as_array().ok_or("History reply is not an array")?;
-    if values.len() > 100_000 {
-        return Err("History exceeds the display bound".into());
+fn rows<T>(source: &[T]) -> Result<&[T], String> {
+    if source.len() > 100_000 {
+        Err("History exceeds the display bound".into())
+    } else {
+        Ok(source)
     }
-    Ok(values)
 }
 fn series(name: &str, color: &str, points: Vec<[f64; 2]>) -> ChartSeries {
     ChartSeries {
@@ -55,21 +55,27 @@ pub fn bars(
     symbol: &str,
     start: DateTime<Utc>,
     end: DateTime<Utc>,
-    source: &Json,
+    source: &[FuturesBarDataReadModel],
 ) -> Result<ChartSnapshot, String> {
     if start > end {
         return Err("Invalid history window".into());
     }
     let mut bars = Vec::new();
     for row in rows(source)? {
-        if row["BarRateType"] != "FifteenSeconds" {
+        if row
+            .bar_rate_type
+            .as_ref()
+            .map(|value| value.label())
+            .as_deref()
+            != Some("FifteenSeconds")
+        {
             continue;
         }
-        let stamp = time(&row["BarDate"])?;
+        let stamp = time(&row.cell("BarDate"))?;
         if stamp < start || stamp > end {
             continue;
         }
-        bars.push((stamp, number(&row["BarValue"])?, row));
+        bars.push((stamp, number(&row.cell("BarValue"))?, row));
     }
     bars.sort_by_key(|b| b.0);
     let mut points: Vec<_> = bars.iter().map(|b| [market_seconds(b.0), b.1]).collect();
@@ -85,8 +91,8 @@ pub fn bars(
     )];
     if symbol == "ES" {
         if let Some(last) = bars.last() {
-            let up = number(&last.2["UpTrendTrigger"])?;
-            let down = number(&last.2["DownTrendTrigger"])?;
+            let up = number(&last.2.cell("UpTrendTrigger"))?;
+            let down = number(&last.2.cell("DownTrendTrigger"))?;
             output.push(series(
                 "Upper Trigger",
                 "Lime",
@@ -122,20 +128,31 @@ pub fn bars(
 
 /// Select the newest valid Daily observation per date. Nullable band values stay
 /// absent; a warming indicator must never be rendered as an invented zero.
-pub fn bands(date: NaiveDate, source: &Json) -> Result<ChartSnapshot, String> {
-    let mut selected: BTreeMap<NaiveDate, (DateTime<Utc>, &Json)> = BTreeMap::new();
+pub fn bands(
+    date: NaiveDate,
+    source: &[FuturesBbSignalReadModel],
+) -> Result<ChartSnapshot, String> {
+    let mut selected: BTreeMap<NaiveDate, (DateTime<Utc>, &FuturesBbSignalReadModel)> =
+        BTreeMap::new();
     for row in rows(source)? {
-        let metadata = &row["Metadata"];
+        let metadata = row.metadata.as_ref();
         // TimeFrame is an ignored C# convenience property; its serialized owner
         // is SignalKey, not Metadata itself.
-        if metadata["SignalKey"]["TimeFrame"] != "Daily" || metadata["IsValid"] != true {
+        if metadata
+            .and_then(|value| value.signal_key.as_ref())
+            .and_then(|value| value.time_frame.as_ref())
+            .map(|value| value.label())
+            .as_deref()
+            != Some("Daily")
+            || metadata.and_then(|value| value.is_valid) != Some(true)
+        {
             continue;
         }
-        let value_date = day(&metadata["ValueDate"])?;
+        let value_date = day(&metadata.cell("ValueDate"))?;
         if value_date > date {
             continue;
         }
-        let observed = time(&metadata["MarketDataAsOfUtc"])?;
+        let observed = time(&metadata.cell("MarketDataAsOfUtc"))?;
         if selected.get(&value_date).is_none_or(|old| observed > old.0) {
             selected.insert(value_date, (observed, row));
         }
@@ -155,10 +172,10 @@ pub fn bands(date: NaiveDate, source: &Json) -> Result<ChartSnapshot, String> {
     ] {
         let mut points = Vec::new();
         for (day, (_, row)) in &selected {
-            if row[key].is_null() && key != "Price" {
+            if row.cell(key).is_missing() && key != "Price" {
                 continue;
             }
-            let price = number(&row[key])?;
+            let price = number(&row.cell(key))?;
             values.push(price);
             points.push([coordinate(**day), price]);
         }
@@ -225,14 +242,16 @@ pub async fn current_contract(
         BTreeMap::from([("Symbol".into(), symbol.into())]),
     )
     .await?;
-    let value = registry.project(
+    let value = super::strategy::member(
+        registry,
         "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel",
         &wire,
+        "ContractId",
     )?;
-    value["ContractId"]
+    value
         .as_str()
-        .filter(|s| !s.is_empty())
-        .map(str::to_string)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
         .ok_or("Current futures contract unavailable".into())
 }
 async fn load_bars(
@@ -269,10 +288,7 @@ async fn load_bars(
         symbol,
         start,
         end,
-        &registry.project(
-            "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesBarDataReadModel[]",
-            &wire,
-        )?,
+        &Vec::<FuturesBarDataReadModel>::from_backend(&wire)?,
     )
 }
 async fn load_bands(
@@ -293,10 +309,7 @@ async fn load_bands(
         ]),
     )
     .await?;
-    let mut source = registry.project(
-        &format!("{root}FuturesBbSignal.FuturesBbSignalReadModel[]"),
-        &wire,
-    )?;
+    let mut source = Vec::<FuturesBbSignalReadModel>::from_backend(&wire)?;
     // The current provisional Daily point is provided by Analytics, never
     // recomputed in the frontend. Failure to fetch it keeps committed history.
     if let Ok(contract) = current_contract(backend, registry, "ES").await {
@@ -312,15 +325,9 @@ async fn load_bands(
         )
         .await
         {
-            let value = registry.project(
-                &format!("{root}ViewModels.MarketOutlookReadModel"),
-                &outlook,
-            )?;
-            if !value["FuturesBbSignal"].is_null() {
-                source
-                    .as_array_mut()
-                    .ok_or("Invalid band history")?
-                    .push(value["FuturesBbSignal"].clone());
+            let value = MarketOutlookReadModel::from_backend(&outlook)?;
+            if let Some(value) = value.futures_bb_signal {
+                source.push(value);
             }
         }
     }

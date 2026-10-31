@@ -1,12 +1,14 @@
 //! EOD is an explicit operator action against one established position. All
 //! money is returned by backend queries. A lost command reply is reconciled by
 //! querying the same position, never by allocating another lifecycle command.
-use super::{
-    business_context::BusinessContext, financial, parameters, trade_monitor_queries::Scope,
-};
+use super::{business_context::BusinessContext, financial, trade_monitor_queries::Scope};
 use crate::backend::{contracts::*, schema::Registry, transport::Backend};
+use crate::models::{
+    eod::{EodDocument, EodInputs},
+    trade_contracts::{FinancialBalanceSnapshot, FuturesEodDataV2ReadModel, TradeEndOfDayDisplay},
+    wire_types::FromBackend,
+};
 use rmpv::Value;
-use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
 const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared";
 pub struct Session {
@@ -15,7 +17,7 @@ pub struct Session {
     pub contract: String,
     pub date: chrono::NaiveDate,
     pub reference: String,
-    pub display: Json,
+    pub display: Option<EodInputs>,
     pub pending: bool,
     pub completed: bool,
 }
@@ -36,24 +38,22 @@ impl Session {
             contract,
             date,
             reference: String::new(),
-            display: Json::Null,
+            display: None,
             pending: false,
             completed: false,
         })
     }
-    pub fn document(&self) -> Json {
-        let mut value = self.display.clone();
-        if !value.is_object() {
-            value = json!({});
+    pub fn document(&self) -> EodDocument {
+        EodDocument {
+            portfolio_id: Some(self.scope.portfolio),
+            fund_id: Some(self.scope.fund),
+            order_id: Some(self.scope.order),
+            trade_id: Some(self.scope.trade),
+            value_date: self.date.to_string(),
+            reference: self.reference.clone(),
+            can_run: self.display.is_some() && !self.pending && !self.completed,
+            inputs: self.display.clone(),
         }
-        value["portfolioId"] = self.scope.portfolio.into();
-        value["fundId"] = self.scope.fund.into();
-        value["orderId"] = self.scope.order.into();
-        value["tradeId"] = self.scope.trade.into();
-        value["valueDate"] = self.date.to_string().into();
-        value["reference"] = self.reference.clone().into();
-        value["canRun"] = (!self.display.is_null() && !self.pending && !self.completed).into();
-        value
     }
     pub async fn load(
         &mut self,
@@ -62,11 +62,21 @@ impl Session {
         context: &BusinessContext,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
-        let position =
-            super::order_close::current(b, r, self.scope, &self.strategy, deadline).await?;
+        let read = super::order_close::current(b, r, self.scope, &self.strategy, deadline).await?;
+        let position = &read.snapshot;
+        let value_date = self.date.to_string();
         if self.pending {
-            if position["Phase"] == "EndOfDay"
-                && position["LatestSealedValueDate"] == self.date.to_string()
+            if position
+                .phase
+                .as_ref()
+                .map(|value| value.label())
+                .as_deref()
+                == Some("EndOfDay")
+                && position
+                    .latest_sealed_value_date
+                    .as_ref()
+                    .map(|value| value.as_str())
+                    == Some(value_date.as_str())
             {
                 self.pending = false;
                 self.completed = true;
@@ -89,13 +99,10 @@ impl Session {
             ]),
         )?;
         let reply = b.request_until(&subject, &body, deadline, None).await?;
-        let market = parameters::document(
-            r,
-            "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesEodDataV2ReadModel",
-            service_result(&reply)?,
-            true,
-        )?;
-        if market["ContractId"] != self.contract || market["ValueDate"] != self.date.to_string() {
+        let market = FuturesEodDataV2ReadModel::from_backend(service_result(&reply)?)?;
+        if market.contract_id.as_deref() != Some(self.contract.as_str())
+            || market.value_date.as_ref().map(|value| value.as_str()) != Some(value_date.as_str())
+        {
             return Err("EOD market data crossed its requested contract/date".into());
         }
         let balance = financial::query(
@@ -112,12 +119,7 @@ impl Session {
         .await?
         .value
         .ok_or("Fund balance was not found")?;
-        let balance = parameters::document(
-            r,
-            "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialBalanceSnapshot",
-            &balance,
-            true,
-        )?;
+        let balance = FinancialBalanceSnapshot::from_backend(&balance)?;
         let subject = ActorSubject::query("TradeOrderQuery", "GetTradeEndOfDayDisplay", "none");
         let body = r.encode(
             &format!("{ROOT}.Order.GetTradeEndOfDayDisplayQuery"),
@@ -129,28 +131,49 @@ impl Session {
                 ),
                 (
                     "Request".into(),
-                    parameters::from_document(
-                        r,
+                    r.encode(
                         &format!("{ROOT}.Order.TradeEndOfDayDisplayRequest"),
-                        &json!({"Position":position,"AvailableCash":balance["AvailableCash"]}),
+                        &BTreeMap::from([
+                            ("Position".into(), read.wire),
+                            (
+                                "AvailableCash".into(),
+                                balance
+                                    .available_cash
+                                    .map(|value| Value::from(value.0))
+                                    .unwrap_or(Value::Nil),
+                            ),
+                        ]),
                     )?,
                 ),
             ]),
         )?;
         let reply = b.request_until(&subject, &body, deadline, None).await?;
-        let amounts = parameters::document(
-            r,
-            &format!("{ROOT}.Order.TradeEndOfDayDisplay"),
-            service_result(&reply)?,
-            true,
-        )?;
-        if amounts["PositionId"] != position["Id"]
-            || amounts["PositionSequence"] != position["PositionSequence"]
+        let amounts = TradeEndOfDayDisplay::from_backend(service_result(&reply)?)?;
+        if amounts.position_id != position.id
+            || amounts.position_sequence != position.position_sequence
         {
             return Err("EOD display returned different position evidence".into());
         }
-        self.completed = position["Phase"] == "EndOfDay";
-        self.display = json!({"openPrice":market["OpenPrice"],"highPrice":market["HighPrice"],"lowPrice":market["LowPrice"],"closePrice":market["ClosePrice"],"volume":market["Volume"],"tradePnl":amounts["TradePnl"],"fundBalance":amounts["FundBalance"],"lastStatusMessage":format!("End-of-day inputs loaded for {} on {}.",self.scope.position(&self.strategy)?.0,self.date)});
+        self.completed = position
+            .phase
+            .as_ref()
+            .map(|value| value.label())
+            .as_deref()
+            == Some("EndOfDay");
+        self.display = Some(EodInputs {
+            open_price: market.open_price,
+            high_price: market.high_price,
+            low_price: market.low_price,
+            close_price: market.close_price,
+            volume: market.volume,
+            trade_pnl: amounts.trade_pnl,
+            fund_balance: amounts.fund_balance,
+            last_status_message: format!(
+                "End-of-day inputs loaded for {} on {}.",
+                self.scope.typed_position(&self.strategy)?.0,
+                self.date
+            ),
+        });
         Ok(())
     }
     pub async fn run(
@@ -160,10 +183,10 @@ impl Session {
         context: &BusinessContext,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
-        if self.display.is_null() || self.completed || self.pending {
+        if self.display.is_none() || self.completed || self.pending {
             return Err("Load unprocessed EOD inputs before running".into());
         }
-        let (key, id) = self.scope.position(&self.strategy)?;
+        let (key, _) = self.scope.typed_position(&self.strategy)?;
         let (actor, verb, namespace) = match self.strategy.as_str() {
             "IronCondor" => (
                 "FuturesIronCondorTradePositionCommand",
@@ -202,10 +225,7 @@ impl Session {
                 ("Subject".into(), subject.wire()),
                 ("CommandId".into(), command.to_string().into()),
                 ("PostEvents".into(), true.into()),
-                (
-                    "EntityId".into(),
-                    parameters::from_document(r, &format!("{ROOT}.StrategyPositionId"), &id)?,
-                ),
+                ("EntityId".into(), self.scope.position_wire(&self.strategy)?),
                 ("ValueDate".into(), date_only_wire(self.date)),
                 ("EffectiveAtUtc".into(), timestamp_wire(effective)),
             ]),
@@ -233,7 +253,9 @@ impl Session {
                 "OutcomeUnknown: EOD acknowledgement did not confirm a sealed position".into(),
             );
         }
-        self.display["lastStatusMessage"] = "End-of-day processing completed.".into();
+        if let Some(display) = &mut self.display {
+            display.last_status_message = "End-of-day processing completed.".into();
+        }
         Ok(())
     }
 }

@@ -12,11 +12,30 @@ impl TradeWorkspace {
     ) -> Option<&'static str> {
         let p = ui.ctx().pixels_per_point();
         let display = self.display_cache.as_ref().unwrap().model.clone();
-        let mut tabs = display.values("workspace-tab").to_vec();
+        let mut tabs: Vec<_> = display
+            .values("workspace-tab")
+            .iter()
+            .filter_map(crate::models::trade_presentation::TradeDisplayRow::tab)
+            .cloned()
+            .collect();
         // Older publications and offline layout fixtures contain the active document only.
         if tabs.is_empty() {
-            if let Some(trade) = display.values("established").first() {
-                tabs.push(serde_json::json!({"key":trade["id"].to_string(),"title":format!("{}:{}",text(&trade["id"],"orderId"),text(&trade["id"],"tradeId")),"active":true}));
+            if let Some(trade) = display
+                .values("established")
+                .iter()
+                .find_map(crate::models::trade_presentation::TradeDisplayRow::established)
+            {
+                let id = trade.id.as_ref();
+                tabs.push(crate::models::trade_presentation::WorkspaceTabRow {
+                    key: format!("{:?}", trade.id),
+                    title: format!(
+                        "{}:{}",
+                        id.and_then(|id| id.order_id).unwrap_or_default(),
+                        id.and_then(|id| id.trade_id).unwrap_or_default()
+                    ),
+                    kind: "trade".into(),
+                    active: true,
+                });
             }
         }
         let mut action = None;
@@ -35,9 +54,9 @@ impl TradeWorkspace {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.;
                         for tab in tabs {
-                            let key = text(&tab, "key");
-                            let title = text(&tab, "title");
-                            let active = tab["active"] == true;
+                            let key = tab.key;
+                            let title = tab.title;
+                            let active = tab.active;
                             let font = egui::TextStyle::Button.resolve(ui.style());
                             let width = (ui
                                 .painter()

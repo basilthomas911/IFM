@@ -32,7 +32,7 @@ impl TradeController {
             .portfolio
             .and_then(|v| i32::try_from(v).ok())
             .ok_or("Missing Portfolio scope")?;
-        let mut operation = if composer.trade["PrimaryTrade"] == false {
+        let mut operation = if composer.trade.primary_trade == Some(false) {
             let primaries = self
                 .data
                 .trades
@@ -122,7 +122,7 @@ impl TradeController {
                 let operation = self.submission_operations.get_mut(&id.to_string()).unwrap();
                 operation.confirmed = true;
                 if let Some(composer) = self.composer.as_mut() {
-                    composer.accept_submission(operation.accepted.clone(), &message);
+                    composer.accept_submission(operation.accepted.clone(), &message)?;
                 }
                 if self
                     .submission_operations
@@ -180,7 +180,7 @@ impl TradeController {
                         .await
                         .map_err(|e| format!("{message}; journal update failed: {e}"))?;
                     if let Some(composer) = self.composer.as_mut() {
-                        composer.mark_submission_unknown(operation.accepted.clone(), &message);
+                        composer.mark_submission_unknown(operation.accepted.clone(), &message)?;
                     }
                     Err(message)
                 } else {
@@ -261,7 +261,7 @@ impl TradeController {
             operation.confirmed = true;
             store::save(operation, 2, "Submission reconciled").await?;
             if let Some(composer) = self.composer.as_mut() {
-                composer.accept_submission(operation.accepted.clone(), "Submission reconciled");
+                composer.accept_submission(operation.accepted.clone(), "Submission reconciled")?;
             }
             if let Some((_, outcome)) = self.receipts.get_mut(&id) {
                 outcome.state = "Completed".into();

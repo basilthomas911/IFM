@@ -1,5 +1,6 @@
 //! Native Portfolio workspace owner. Display documents use copied screen
 //! contracts; immutable backend DTOs and revisions remain separate from cells.
+use crate::models::portfolio::{Choice, Dialog, Document, Field, Grid};
 use crate::{
     backend::{contracts::*, schema::Registry, transport::Backend},
     contract_editor::{ContractPublication, ContractResult},
@@ -35,7 +36,7 @@ pub struct PortfolioController {
     requires_reload: bool,
     write_in_flight: bool,
     accepted_write: bool,
-    dialogs: Vec<Json>,
+    dialogs: Vec<Dialog>,
     editing: Option<(String, Value)>,
     edit_key: Option<uuid::Uuid>,
     selections: Option<crate::services::fund_selections::Selections>,
@@ -75,11 +76,31 @@ fn text(value: &Json) -> String {
         }
     })
 }
-fn cell_row(id: impl Into<String>, fields: BTreeMap<String, String>) -> Json {
-    json!({"id":id.into(),"fields":fields,"data":null})
+fn cell_row(
+    id: impl Into<String>,
+    fields: BTreeMap<String, String>,
+) -> crate::contract_editor::ContractRow {
+    crate::contract_editor::ContractRow {
+        id: id.into(),
+        fields: fields,
+        data: None,
+        ..Default::default()
+    }
 }
-fn grid(key: &str, columns: Vec<String>, rows: Vec<Json>, selected: Option<String>) -> Json {
-    json!({"key":key,"columns":columns,"rows":rows,"selected":selected,"editable":false})
+fn grid(
+    key: &str,
+    columns: Vec<String>,
+    rows: Vec<crate::contract_editor::ContractRow>,
+    selected: Option<String>,
+) -> Grid {
+    Grid {
+        key: (key).to_string(),
+        columns: (columns).into_iter().map(|v| v.to_string()).collect(),
+        rows: rows,
+        selected: selected,
+        editable: false,
+        ..Default::default()
+    }
 }
 impl PortfolioController {
     /// Isolated qualification can supply a journal directory without touching
@@ -263,7 +284,7 @@ impl PortfolioController {
             && self
                 .dialogs
                 .iter()
-                .any(|d| !matches!(d["key"].as_str(), Some("financials" | "risk-history")))
+                .any(|d| !matches!(d.key.as_str(), "financials" | "risk-history"))
         {
             return Err("Close the current editor before changing the Portfolio or Fund".into());
         }
@@ -274,22 +295,18 @@ impl PortfolioController {
                     .await;
             }
             "portfolio-choice" => {
-                if self
-                    .dialogs
-                    .last()
-                    .is_some_and(|d| d["key"] == "risk-history")
-                {
+                if self.dialogs.last().is_some_and(|d| d.key == "risk-history") {
                     return self.choose_risk_date(intent);
                 }
-                if self.dialogs.last().is_some_and(|d| d["key"] == "posting") {
+                if self.dialogs.last().is_some_and(|d| d.key == "posting") {
                     return self
                         .choose_posting(backend, registry, intent, deadline)
                         .await;
                 }
                 if self.dialogs.last().is_some_and(|d| {
                     matches!(
-                        d["key"].as_str(),
-                        Some("ledger" | "setup" | "authority" | "account-version" | "rule-version")
+                        d.key.as_str(),
+                        "ledger" | "setup" | "authority" | "account-version" | "rule-version"
                     )
                 }) {
                     return self.choose_ledger(intent).await;
@@ -310,22 +327,34 @@ impl PortfolioController {
                 return self.save_editor(backend, registry, intent, deadline).await;
             }
             "portfolio-cancel" => {
-                if self
-                    .dialogs
-                    .last()
-                    .is_some_and(|d| d["key"] == "risk-policy")
+                if self.dialogs.last().is_some_and(|d| d.key == "risk-policy")
                     && self.editing_policy.is_some()
                     && field(intent, "dirty").eq_ignore_ascii_case("true")
                 {
                     self.policy_dirty = true;
-                    self.dialogs.push(json!({"key":"discard-policy","title":"Unsaved Risk Policy","width":440,"height":180,"captionWidth":0,"fields":[editors::input("warning","","Discard unsaved Risk Policy changes?","label",false,None)],"buttons":["Yes","No"],"status":"","grids":null,"buttonEnabled":null}));
+                    self.dialogs.push(Dialog {
+                        key: "discard-policy".into(),
+                        title: "Unsaved Risk Policy".into(),
+                        width: (440) as _,
+                        height: (180) as _,
+                        caption_width: (0) as _,
+                        fields: vec![editors::input(
+                            "warning",
+                            "",
+                            "Discard unsaved Risk Policy changes?",
+                            "label",
+                            false,
+                            None,
+                        )],
+                        buttons: vec!["Yes".into(), "No".into()],
+                        status: "".into(),
+                        grids: None,
+                        button_enabled: None,
+                        ..Default::default()
+                    });
                     return Ok("Confirm discarding the policy working copy".into());
                 }
-                if self
-                    .dialogs
-                    .last()
-                    .is_some_and(|d| d["key"] == "risk-policy")
-                {
+                if self.dialogs.last().is_some_and(|d| d.key == "risk-policy") {
                     self.editing_policy = None;
                     self.policy_key = None;
                     self.policy_dirty = false;
@@ -333,11 +362,7 @@ impl PortfolioController {
                 self.dialogs.pop();
                 self.editing = None;
                 self.edit_key = None;
-                if self
-                    .dialogs
-                    .last()
-                    .is_some_and(|d| d["key"] == "financials")
-                {
+                if self.dialogs.last().is_some_and(|d| d.key == "financials") {
                     self.refresh_financial_journals(registry).await?;
                 }
                 return Ok("Editor closed".into());
@@ -505,7 +530,7 @@ impl PortfolioController {
         ) {
             if let Some(view) = self.inline_fund_view.clone() {
                 self.dialogs
-                    .retain(|d| !matches!(d["key"].as_str(), Some("financials" | "risk-history")));
+                    .retain(|d| !matches!(d.key.as_str(), "financials" | "risk-history"));
                 if self.data.fund.is_some() {
                     self.show_inline_fund_view(backend, registry, &view, deadline)
                         .await?;
@@ -523,37 +548,37 @@ impl PortfolioController {
         registry: &Registry,
         key: &str,
         name: &str,
-        values: &[Value],
+        values: &[impl std::borrow::Borrow<Value>],
         columns: Option<Vec<String>>,
         selected: Option<String>,
-        ids: impl Fn(&Json, usize) -> Result<String, String>,
-    ) -> Result<Json, String> {
+        ids: impl Fn(&Value, usize) -> Result<String, String>,
+    ) -> Result<Grid, String> {
         let kind = kind(name);
+        use crate::{backend::contract_view::Field, models::wire_types::FromBackend};
+        let parent_name = if key == "funds" {
+            self.data
+                .portfolio
+                .as_ref()
+                .map(|wire| {
+                    let kind = crate::state::portfolio_data::kind("PortfolioReadModel");
+                    let name = Field::new(registry, &kind, wire).field("Name")?;
+                    Option::<String>::from_backend(name.value).map(Option::unwrap_or_default)
+                })
+                .transpose()?
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
         let mut rows = vec![];
         for (index, value) in values.iter().enumerate() {
-            let row = registry.project(&kind, value)?;
+            let value = value.borrow();
             let mut fields: BTreeMap<_, _> = display::fields(registry, &kind, value)?
                 .into_iter()
                 .collect();
             if key == "funds" {
-                let parent = self
-                    .data
-                    .portfolio
-                    .as_ref()
-                    .map(|v| {
-                        registry
-                            .project(&crate::state::portfolio_data::kind("PortfolioReadModel"), v)
-                    })
-                    .transpose()?;
-                fields.insert(
-                    "Portfolio".into(),
-                    parent
-                        .as_ref()
-                        .map(|v| text(&v["Name"]))
-                        .unwrap_or_default(),
-                );
+                fields.insert("Portfolio".into(), parent_name.clone());
             }
-            rows.push(cell_row(ids(&row, index)?, fields));
+            rows.push(cell_row(ids(value, index)?, fields));
         }
         Ok(grid(
             key,
@@ -568,7 +593,7 @@ impl PortfolioController {
         key: &str,
         name: &str,
         value: Option<&Value>,
-    ) -> Result<Json, String> {
+    ) -> Result<Grid, String> {
         let rows = if let Some(value) = value {
             display::fields(registry, &kind(name), value)?
                 .into_iter()
@@ -590,7 +615,7 @@ impl PortfolioController {
             None,
         ))
     }
-    fn fund_summary(&self, registry: &Registry, parent: &Json) -> Result<Json, String> {
+    fn fund_summary(&self, registry: &Registry, parent: &Json) -> Result<Grid, String> {
         let Some(fund) = &self.data.fund else {
             return Ok(grid(
                 "fund",
@@ -720,7 +745,7 @@ impl PortfolioController {
             ("Risk Envelope...", f && current),
             ("Trade Assignment...", f && current),
         ]);
-        let visible = self.data.visible_funds(registry)?;
+        let visible = self.data.visible_fund_refs(registry)?;
         let grids = vec![
             self.row_grid(
                 registry,
@@ -733,7 +758,12 @@ impl PortfolioController {
                 } else {
                     None
                 },
-                |row, _| Ok(text(&row["PortfolioId"])),
+                |row, _| {
+                    let kind = kind("PortfolioReadModel");
+                    crate::backend::contract_view::Field::new(registry, &kind, row)
+                        .field("PortfolioId")?
+                        .text()
+                },
             )?,
             self.row_grid(
                 registry,
@@ -753,7 +783,7 @@ impl PortfolioController {
                     .collect(),
                 ),
                 if f { Some(fund_key(&fund)?) } else { None },
-                |row, _| fund_key(row),
+                |row, _| crate::state::portfolio_data::fund_key_wire(registry, row),
             )?,
             self.fund_summary(registry, &parent)?,
             self.details_grid(
@@ -784,13 +814,10 @@ impl PortfolioController {
             None
         };
         let mut dialogs = self.dialogs.clone();
-        if let Some(index) = dialogs.iter().position(|d| d["key"] == "risk-policy") {
+        if let Some(index) = dialogs.iter().position(|d| d.key == "risk-policy") {
             let mut modal = self.policy_document(registry, &parent)?;
-            modal["buttons"]
-                .as_array_mut()
-                .ok_or("Invalid policy buttons")?
-                .retain(|v| v != "Change Policy...");
-            modal["status"] = format!(
+            modal.buttons.retain(|v| v != "Change Policy...");
+            modal.status = format!(
                 "Portfolio {} — {}; Active policy: {} v{}",
                 text(&parent["PortfolioId"]),
                 text(&parent["Name"]),
@@ -798,24 +825,32 @@ impl PortfolioController {
                 text(&parent["ActivePolicyVersion"])
             )
             .into();
-            if self.dialogs[index]["status"]
-                .as_str()
-                .is_some_and(|s| !s.is_empty())
-            {
-                modal["status"] = self.dialogs[index]["status"].clone();
+            if !self.dialogs[index].status.is_empty() {
+                modal.status = self.dialogs[index].status.clone();
             }
             dialogs[index] = modal;
         }
         let fund_view = self
             .inline_fund_view
             .as_ref()
-            .and_then(|key| dialogs.iter().find(|d| d["key"] == *key))
+            .and_then(|key| dialogs.iter().find(|d| d.key == *key))
             .cloned();
         if let Some(key) = &self.inline_fund_view {
-            dialogs.retain(|d| d["key"] != *key);
+            dialogs.retain(|d| d.key != *key);
         }
-        let document = json!({"grids":grids,"enabled":enabled,"context":context,"dialogs":dialogs,"policy":policy,"fundView":fund_view});
-        let bytes = crate::wire::encode_value(&document).map_err(|e| e.to_string())?;
+        let document = Document {
+            grids: grids,
+            enabled: enabled
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+            context: context.clone(),
+            dialogs: dialogs,
+            policy: policy,
+            fund_view: fund_view,
+            ..Default::default()
+        };
+        let bytes = crate::wire::encode(&document).map_err(|e| e.to_string())?;
         Ok(ContractResult {
             view: "portfolio".into(),
             context,
@@ -823,7 +858,7 @@ impl PortfolioController {
             ..Default::default()
         })
     }
-    fn policy_document(&self, registry: &Registry, parent: &Json) -> Result<Json, String> {
+    fn policy_document(&self, registry: &Registry, parent: &Json) -> Result<Dialog, String> {
         let selected = self
             .policies
             .iter()
@@ -859,7 +894,38 @@ impl PortfolioController {
             .unwrap_or_default()
             .into_iter()
             .collect::<BTreeMap<_, _>>();
-        let fields=[("Name","Name"),("BaseCurrency","Base Currency"),("CapitalBase","Capital Base"),("ProtectedReserve","Protected Reserve"),("MaximumDeployableCapital","Deployable Capital"),("MaximumRiskPerTrade","Risk Per Trade"),("MaximumAggregateRisk","Aggregate Risk"),("MaximumMargin","Maximum Margin"),("MaximumGrossNotional","Gross Notional"),("MaximumOpenPositions","Open Positions"),("MaximumDrawdownAmount","Drawdown")].into_iter().map(|(key,caption)|json!({"key":key,"caption":caption,"value":values.get(key).cloned().unwrap_or_default(),"kind":if matches!(key,"Name"|"BaseCurrency"){"text"}else{"number"},"enabled":editing&&key!="BaseCurrency","choices":null,"minimum":0,"maximum":1000000000000f64,"decimals":2})).collect::<Vec<_>>();
+        let fields = [
+            ("Name", "Name"),
+            ("BaseCurrency", "Base Currency"),
+            ("CapitalBase", "Capital Base"),
+            ("ProtectedReserve", "Protected Reserve"),
+            ("MaximumDeployableCapital", "Deployable Capital"),
+            ("MaximumRiskPerTrade", "Risk Per Trade"),
+            ("MaximumAggregateRisk", "Aggregate Risk"),
+            ("MaximumMargin", "Maximum Margin"),
+            ("MaximumGrossNotional", "Gross Notional"),
+            ("MaximumOpenPositions", "Open Positions"),
+            ("MaximumDrawdownAmount", "Drawdown"),
+        ]
+        .into_iter()
+        .map(|(key, caption)| Field {
+            key: (key).to_string(),
+            caption: (caption).to_string(),
+            value: (values.get(key).cloned().unwrap_or_default()).to_string(),
+            kind: (if matches!(key, "Name" | "BaseCurrency") {
+                "text"
+            } else {
+                "number"
+            })
+            .to_string(),
+            enabled: editing && key != "BaseCurrency",
+            choices: None,
+            minimum: (0) as _,
+            maximum: (1000000000000f64) as _,
+            decimals: (2) as usize,
+            ..Default::default()
+        })
+        .collect::<Vec<_>>();
         let selected_json = selected
             .map(|v| registry.project(&kind("PortfolioFinancialPolicyReadModel"), v))
             .transpose()?
@@ -882,8 +948,20 @@ impl PortfolioController {
             |row, _| {
                 Ok(format!(
                     "{}@{}",
-                    text(&row["PolicyId"]),
-                    text(&row["PolicyVersion"])
+                    crate::backend::contract_view::Field::new(
+                        registry,
+                        &kind("PortfolioFinancialPolicyReadModel"),
+                        row
+                    )
+                    .field("PolicyId")?
+                    .text()?,
+                    crate::backend::contract_view::Field::new(
+                        registry,
+                        &kind("PortfolioFinancialPolicyReadModel"),
+                        row
+                    )
+                    .field("PolicyVersion")?
+                    .text()?
                 ))
             },
         )?;
@@ -935,11 +1013,39 @@ impl PortfolioController {
             }
         }
         let mut limits = grid("family-limits", limit_columns, limit_rows, None);
-        limits["editable"] = json!(editing);
+        limits.editable = editing;
         let draft = selected_json["OperatingState"] == "Draft";
-        Ok(
-            json!({"key":"risk-policy","title":"Portfolio Risk Policy","width":1260,"height":820,"captionWidth":170,"fields":fields,"buttons":["New Policy","Change Policy...","New Version","Save","Cancel","Activate && Assign","Retire","Delete Draft"],"status":"","grids":[policy_grid,limits],"buttonEnabled":{"New Policy":!editing,"Change Policy...":!editing&&selected.is_some(),"New Version":!editing&&selected.is_some(),"Save":editing,"Cancel":editing,"Activate && Assign":!editing&&draft,"Retire":!editing&&selected.is_some(),"Delete Draft":!editing&&draft}}),
-        )
+        Ok(Dialog {
+            key: "risk-policy".into(),
+            title: "Portfolio Risk Policy".into(),
+            width: (1260) as _,
+            height: (820) as _,
+            caption_width: (170) as _,
+            fields: fields,
+            buttons: vec![
+                "New Policy".into(),
+                "Change Policy...".into(),
+                "New Version".into(),
+                "Save".into(),
+                "Cancel".into(),
+                "Activate && Assign".into(),
+                "Retire".into(),
+                "Delete Draft".into(),
+            ],
+            status: "".into(),
+            grids: Some(vec![policy_grid, limits]),
+            button_enabled: Some(BTreeMap::from([
+                ("New Policy".into(), !editing),
+                ("Change Policy...".into(), !editing && selected.is_some()),
+                ("New Version".into(), !editing && selected.is_some()),
+                ("Save".into(), editing),
+                ("Cancel".into(), editing),
+                ("Activate && Assign".into(), !editing && draft),
+                ("Retire".into(), !editing && selected.is_some()),
+                ("Delete Draft".into(), !editing && draft),
+            ])),
+            ..Default::default()
+        })
     }
     pub async fn execute(
         &mut self,
@@ -1030,7 +1136,7 @@ impl PortfolioController {
                 Err(message) => {
                     self.message = message.clone();
                     if let Some(dialog) = self.dialogs.last_mut() {
-                        dialog["status"] = message.clone().into();
+                        dialog.status = message.clone().into();
                     }
                     EditorOutcome {
                         request_id: key.clone(),

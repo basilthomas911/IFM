@@ -81,7 +81,11 @@ impl TradeController {
             let display = utc_roundtrip(local.and_utc())
                 .trim_end_matches('Z')
                 .to_string();
-            self.order_draft = Some(json!({"orderId":0,"orderDate":display,"orderStatus":"Open"}));
+            self.order_draft = Some(crate::models::broker_presentation::OrderDraftDisplay {
+                order_id: 0,
+                order_date: display,
+                order_status: "Open".into(),
+            });
             self.data.context = Some(context);
             return Ok("New order editor opened".into());
         }

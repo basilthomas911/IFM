@@ -3,7 +3,6 @@
 use crate::backend::{contracts::*, schema::Registry};
 use rmpv::Value;
 use serde::Deserialize;
-use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
 pub const VIEW: &str = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView";
 pub const SIGNAL: &str =
@@ -15,143 +14,22 @@ const STAGES: [(&str, &str, &str); 5] = [
     ("OrderComposition", "order-composition", "Order Composition"),
     ("RiskManagement", "risk-management", "Risk Management"),
 ];
-fn text<'a>(row: &'a Json, key: &str) -> &'a str {
-    row[key].as_str().unwrap_or_default()
+use crate::models::{strategy::WorkflowHeader, trade_contracts::FuturesItiSignalV2ReadModel};
+use crate::{Node, Property, Snapshot};
+pub fn signal_identity(signal: &FuturesItiSignalV2ReadModel) -> Result<String, String> {
+    crate::models::strategy::signal_identity(signal)
 }
-fn time(value: &Json) -> Result<chrono::DateTime<chrono::Utc>, String> {
-    chrono::DateTime::parse_from_rfc3339(value.as_str().ok_or("Missing workflow timestamp")?)
-        .map(|v| v.to_utc())
-        .map_err(|_| "Invalid workflow timestamp".into())
+pub fn row(
+    registry: &Registry,
+    wire: &Value,
+    action: u32,
+) -> Result<crate::strategy_workspace::WorkflowRow, String> {
+    WorkflowHeader::from_backend(registry, wire)?.row(action)
 }
-fn time_text(value: &Json) -> Result<String, String> {
-    Ok(utc_roundtrip(time(value)?))
-}
-fn uuid_n(value: &Json) -> Result<String, String> {
-    uuid::Uuid::parse_str(value.as_str().ok_or("Missing workflow identity")?)
-        .map(|v| v.simple().to_string())
+fn uuid_n(value: &str) -> Result<String, String> {
+    uuid::Uuid::parse_str(value)
+        .map(|value| value.simple().to_string())
         .map_err(|_| "Invalid workflow identity".into())
-}
-fn amount(value: &Json) -> Result<f64, String> {
-    value
-        .as_f64()
-        .filter(|v| v.is_finite())
-        .ok_or("Invalid workflow display number".into())
-}
-pub fn signal_identity(signal: &Json) -> Result<String, String> {
-    let at = time(&signal["IntrinsicTime"])?;
-    let ticks = at.timestamp() as i128 * 10_000_000
-        + at.timestamp_subsec_nanos() as i128 / 100
-        + 621_355_968_000_000_000i128;
-    let mut values = vec![
-        text(signal, "ContractId").into(),
-        text(signal, "ValueDate").into(),
-        text(signal, "TimePeriod").into(),
-        ticks.to_string(),
-        text(signal, "IntrinsicTimeMode").into(),
-        text(signal, "IntrinsicTimeTrend").into(),
-    ];
-    for name in [
-        "IntrinsicPrice",
-        "IntrinsicTimeGroupId",
-        "IntrinsicTimeLength",
-        "TrendPrice",
-        "TrendExtreme",
-        "TrendReversal",
-        "TrendDelta",
-        "TargetDelta",
-        "Threshold",
-        "UpTrendTrigger",
-        "DownTrendTrigger",
-        "BandLevel",
-        "ReversalLevel",
-    ] {
-        values.push(if let Some(v) = signal[name].as_i64() {
-            v.to_string()
-        } else {
-            amount(&signal[name])?.to_string()
-        });
-    }
-    values.push(text(signal, "TradeState").into());
-    Ok(values.join("|"))
-}
-pub fn row(registry: &Registry, wire: &Value, action: u32) -> Result<Json, String> {
-    let view = registry.project(VIEW, wire)?;
-    let signal = &view["TriggerEvent"]["FuturesItiSignal"];
-    let frame = text(&view["EntityId"]["ItiSignalEntityId"], "TimePeriod");
-    let occurred = if time(&view["TriggerEvent"]["CreatedOn"])?.year() == 1 {
-        time(&view["StartedAtUtc"])?
-    } else {
-        time(&view["TriggerEvent"]["CreatedOn"])?
-    };
-    use chrono::Datelike;
-    let local = occurred.with_timezone(&chrono_tz::America::New_York);
-    let occurred = if frame == "Daily" {
-        local.format("%I:%M:%S%.3f %p")
-    } else {
-        local.format("%d-%b-%Y %I:%M:%S%.3f %p")
-    }
-    .to_string();
-    let status = text(&view, "Status");
-    let outcome = text(&view, "Outcome");
-    let resolved = if outcome != "None" {
-        outcome
-    } else {
-        match status {
-            "Failed" => "PipelineFailed",
-            "TimedOut" => "TimedOut",
-            "Cancelled" => "Cancelled",
-            _ => "None",
-        }
-    };
-    let end = if status == "Started" {
-        "In Progress"
-    } else {
-        match resolved {
-            "Completed" => "Approved",
-            "NoTrade" => "No Trade",
-            "PipelineFailed" => "Pipeline Failed",
-            "InvalidResult" => "Invalid Result",
-            "TimedOut" => "Timed Out",
-            "Cancelled" => "Cancelled",
-            "ConsistencyFault" => "Consistency Fault",
-            _ => "Unknown",
-        }
-    };
-    let mut actors = vec![];
-    for ((key, _, name), short) in STAGES.iter().zip(["RD", "MC", "TS", "OC", "RM"]) {
-        let stage = &view[*key];
-        let processing = text(stage, "ProcessingStatus");
-        let decision = text(stage, "ContinuationDecision");
-        if processing == "NotStarted" {
-            continue;
-        }
-        let display = match (processing, decision) {
-            ("Processing", _) => "Processing",
-            ("Completed", "Proceed") => "Continued",
-            ("Completed", "Stop") => "Stopped",
-            ("Completed", _) => "Processing",
-            _ => "Stopped",
-        };
-        let mut accessible = format!("{name}: {processing}; continuation {decision}");
-        for (key, label) in [("CompletedAtUtc", "completed"), ("FailedAtUtc", "failed")] {
-            if !stage[key].is_null() {
-                accessible.push_str(&format!("; {label} {}", time_text(&stage[key])?));
-            }
-        }
-        if !stage["Failure"].is_null() {
-            let failure = &stage["Failure"];
-            accessible.push_str(&format!(
-                "; {} {}: {}",
-                text(failure, "ErrorType"),
-                failure["ErrorCode"],
-                text(failure, "ErrorMessage")
-            ));
-        }
-        actors.push(json!({"name":short,"value":accessible,"state":display}));
-    }
-    Ok(
-        json!({"id":uuid_n(&view["WorkflowId"]["Value"])?,"action":action,"triggerIdentity":signal_identity(signal)?,"occurredOn":occurred,"signal":signal["IntrinsicTimeMode"],"trend":signal["IntrinsicTimeTrend"],"futuresPrice":format!("{:.2}",amount(&signal["IntrinsicPrice"])?),"outcome":outcome,"endState":end,"actors":actors}),
-    )
 }
 #[derive(Deserialize)]
 struct DisplayShape {
@@ -256,9 +134,12 @@ fn simple(kind: &str, wire: &Value, registry: &Registry) -> Result<String, Strin
         return Ok("null".into());
     }
     if kind == "TomasAI.IFM.Domain.Trade.Shared.StrategyWorkflowId" {
-        return uuid_n(&registry.project(kind, wire)?["Value"]);
+        return uuid_n(
+            member(registry, kind, wire, "Value")?
+                .as_str()
+                .ok_or("Missing workflow identity")?,
+        );
     }
-    let value = registry.project(kind, wire)?;
     Ok(match kind {
         "System.DateTime" => utc_roundtrip(timestamp(wire)?),
         "System.DateOnly" => date_only(wire)?.format("%m/%d/%Y").to_string(),
@@ -271,13 +152,23 @@ fn simple(kind: &str, wire: &Value, registry: &Registry) -> Result<String, Strin
             "False"
         }
         .into(),
-        "System.Single" | "System.Double" => amount(&value)?.to_string(),
-        _ => value
+        "System.Single" | "System.Double" => wire
+            .as_f64()
+            .filter(|v| v.is_finite())
+            .ok_or("Invalid workflow display number")?
+            .to_string(),
+        _ if registry.describe(kind).is_ok_and(|shape| shape.is_enum) => {
+            registry.enum_name(kind, wire.as_i64().ok_or("Invalid workflow enum")?)?
+        }
+        _ => wire
             .as_str()
-            .map(str::to_string)
-            .unwrap_or_else(|| value.to_string()),
+            .map(str::to_owned)
+            .or_else(|| wire.as_i64().map(|value| value.to_string()))
+            .or_else(|| wire.as_u64().map(|value| value.to_string()))
+            .ok_or_else(|| format!("Invalid scalar evidence {kind}"))?,
     })
 }
+
 fn member(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<Value, String> {
     if let Value::Map(entries) = wire {
         return entries
@@ -302,20 +193,25 @@ fn derived(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<
         && name == "IsValid"
     {
         // Published DTO display getter; command authorization stays on the backend.
-        let row = registry.project(kind, wire)?;
-        let key = &row["CatalogDeployment"];
-        let valid = if key.is_null() {
-            row["TradeStrategyFamilyId"].as_i64().is_some_and(|v| v > 0)
-                && row["DefinitionVersion"].as_i64().is_some_and(|v| v > 0)
+        let key = member(registry, kind, wire, "CatalogDeployment")?;
+        let family = member(registry, kind, wire, "TradeStrategyFamilyId")?.as_i64();
+        let version = member(registry, kind, wire, "DefinitionVersion")?.as_i64();
+        let valid = if key.is_nil() {
+            family.is_some_and(|value| value > 0) && version.is_some_and(|value| value > 0)
         } else {
-            key["Kind"] == "Deployment"
-                && key["Version"].as_i64().is_some_and(|v| v > 0)
-                && key["Id"]
+            let kind = registry.field_kind(kind, "CatalogDeployment")?;
+            let deployment =
+                registry.enum_value(registry.field_kind(kind, "Kind")?, "Deployment")?;
+            member(registry, kind, &key, "Kind")?.as_i64() == Some(deployment)
+                && member(registry, kind, &key, "Version")?
+                    .as_i64()
+                    .is_some_and(|value| value > 0)
+                && member(registry, kind, &key, "Id")?
                     .as_str()
-                    .and_then(|v| uuid::Uuid::parse_str(v).ok())
-                    .is_some_and(|v| !v.is_nil())
-                && row["TradeStrategyFamilyId"] == 0
-                && row["DefinitionVersion"] == 0
+                    .and_then(|value| uuid::Uuid::parse_str(value).ok())
+                    .is_some_and(|value| !value.is_nil())
+                && family == Some(0)
+                && version == Some(0)
         };
         return Ok(valid.into());
     }
@@ -390,13 +286,13 @@ fn derived(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<
             } else {
                 member(registry, kind, wire, "Subject")?
             };
-            let row =
-                registry.project("TomasAI.IFM.Shared.EventModelActor.ActorSubject", &subject)?;
+            use crate::models::{cells::Cells, wire_types::FromBackend};
+            let row = crate::models::trade_contracts::ActorSubject::from_backend(&subject)?;
             Ok(format!(
                 "{}.{}.{}",
-                text(&row, "ActorType"),
-                text(&row, "Name"),
-                text(&row, "EntityId")
+                row.cell("ActorType").text(),
+                row.cell("Name").text(),
+                row.cell("EntityId").text()
             )
             .into())
         }
@@ -577,11 +473,14 @@ fn node(
     depth: usize,
     budget: &mut usize,
     root: bool,
-) -> Result<Json, String> {
+) -> Result<Node, String> {
     if *budget == 0 || depth > 12 {
-        return Ok(
-            json!({"id":id,"label":format!("{label} (display limit)"),"properties":[],"children":[]}),
-        );
+        return Ok(Node {
+            id: id.into(),
+            label: format!("{label} (display limit)"),
+            properties: vec![],
+            children: vec![],
+        });
     }
     *budget -= 1;
     let kind = kind
@@ -591,13 +490,25 @@ fn node(
     let mut rows = vec![];
     let mut children = vec![];
     if wire.is_nil() {
-        rows.push(json!({"name":"Value","value":"Unavailable"}));
+        rows.push(Property {
+            name: "Value".into(),
+            value: "Unavailable".into(),
+        });
     } else if kind == "System.ReadOnlyMemory`1[System.Byte]" {
         let count = wire.as_slice().map(|v| v.len()).unwrap_or_default();
-        rows.push(json!({"name":"Length","value":count.to_string()}));
-        rows.push(json!({"name":"IsEmpty","value":if count==0{"True"}else{"False"}}));
+        rows.push(Property {
+            name: "Length".into(),
+            value: count.to_string(),
+        });
+        rows.push(Property {
+            name: "IsEmpty".into(),
+            value: if count == 0 { "True" } else { "False" }.into(),
+        });
     } else if scalar(kind, registry) {
-        rows.push(json!({"name":"Value","value":simple(kind,wire,registry)?}));
+        rows.push(Property {
+            name: "Value".into(),
+            value: simple(kind, wire, registry)?,
+        });
     } else if let Some(inner) = kind.strip_suffix("[]").or_else(|| {
         kind.strip_prefix("System.Collections.Immutable.ImmutableArray`1[")
             .and_then(|v| v.strip_suffix(']'))
@@ -611,7 +522,10 @@ fn node(
         };
         for (index, value) in values.iter().enumerate() {
             if index >= 200 || *budget == 0 {
-                rows.push(json!({"name":"Display limit","value":"Additional items omitted"}));
+                rows.push(Property {
+                    name: "Display limit".into(),
+                    value: "Additional items omitted".into(),
+                });
                 break;
             }
             children.push(node(
@@ -678,7 +592,10 @@ fn node(
             let value = match value {
                 Ok(value) => value,
                 Err(error) => {
-                    rows.push(json!({"name":p.label,"value":format!("Unavailable: {error}")}));
+                    rows.push(Property {
+                        name: p.label.clone(),
+                        value: format!("Unavailable: {error}"),
+                    });
                     continue;
                 }
             };
@@ -699,7 +616,10 @@ fn node(
                     .map(|s| s.name.clone())
                     .unwrap_or_else(|| child_kind.rsplit('.').next().unwrap_or(child_kind).into())
             };
-            rows.push(json!({"name":p.label,"value":display}));
+            rows.push(Property {
+                name: p.label.clone(),
+                value: display,
+            });
             if !value.is_nil() && !scalar(child_kind, registry) && *budget > 0 {
                 children.push(node(
                     registry,
@@ -715,12 +635,17 @@ fn node(
             }
         }
     }
-    Ok(json!({"id":id,"label":label,"properties":rows,"children":children}))
+    Ok(Node {
+        id: id.into(),
+        label: label.into(),
+        properties: rows,
+        children,
+    })
 }
-pub fn details(registry: &Registry, wire: &Value) -> Result<Json, String> {
+pub fn details(registry: &Registry, wire: &Value) -> Result<Snapshot, String> {
     let shapes = display_shapes()?;
-    let view = registry.project(VIEW, wire)?;
-    let prefix = uuid_n(&view["WorkflowId"]["Value"])?;
+    let view = WorkflowHeader::from_backend(registry, wire)?;
+    let prefix = view.id.clone();
     let mut budget = 10000;
     let workflow = node(
         registry,
@@ -749,59 +674,20 @@ pub fn details(registry: &Registry, wire: &Value) -> Result<Json, String> {
     for (key, path, title) in STAGES {
         stages.push(node(registry,&shapes,"TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyWorkflowStageState",&member(registry,VIEW,wire,key)?,&format!("{prefix}/pipeline/{path}"),title,0,&mut budget,false)?);
     }
-    Ok(
-        json!({"workflowId":prefix,"revision":view["WorkflowRevision"],"roots":[workflow,signal,{"id":format!("{prefix}/pipeline"),"label":"Workflow Pipeline","properties":[],"children":stages}],"header":header(&view)?}),
-    )
-}
-pub fn header(view: &Json) -> Result<String, String> {
-    let entity = &view["EntityId"];
-    let iti = &entity["ItiSignalEntityId"];
-    let day = chrono::NaiveDate::parse_from_str(text(iti, "ValueDate"), "%Y-%m-%d")
-        .map_err(|_| "Invalid workflow entity date")?;
-    let mut out = "=== WORKFLOW ===\r\n".to_string();
-    let entity = format!(
-        "{}.{}.{}.{}",
-        text(entity, "WorkflowDefinitionId"),
-        text(iti, "ContractId"),
-        day.format("%Y%m%d"),
-        text(iti, "TimePeriod")
-    );
-    for (label, value) in [
-        ("Workflow ID", view["WorkflowId"]["Value"].clone()),
-        ("Workflow entity", json!(entity)),
-        ("Trigger event ID", view["TriggerEventId"].clone()),
-        ("Correlation ID", view["CorrelationId"].clone()),
-        ("Causation ID", view["CausationId"].clone()),
-        (
-            "Definition",
-            view["EntityId"]["WorkflowDefinitionId"].clone(),
-        ),
-        (
-            "Definition version",
-            view["WorkflowDefinitionVersion"].clone(),
-        ),
-        ("Revision", view["WorkflowRevision"].clone()),
-        ("Machine status", view["Status"].clone()),
-        ("Business outcome", view["Outcome"].clone()),
-        ("Current stage", view["CurrentStage"].clone()),
-        ("Stop reason", view["StopReasonCode"].clone()),
-        ("Started UTC", view["StartedAtUtc"].clone()),
-        ("Updated UTC", view["UpdatedAtUtc"].clone()),
-        ("Expires UTC", view["ExpiresAtUtc"].clone()),
-        ("Terminal UTC", view["TerminalAtUtc"].clone()),
-    ] {
-        let display = if value.is_null() || value.as_str().is_some_and(|v| v.trim().is_empty()) {
-            "None".into()
-        } else if label.ends_with("UTC") {
-            time_text(&value)?
-        } else {
-            value
-                .as_str()
-                .map(str::to_string)
-                .unwrap_or_else(|| value.to_string())
-        };
-        out.push_str(&format!("{label}: {display}\r\n"));
-    }
-    out.push_str("\r\n");
-    Ok(out)
+    Ok(Snapshot {
+        workflow_id: prefix.clone(),
+        revision: view.revision,
+        roots: vec![
+            workflow,
+            signal,
+            Node {
+                id: format!("{prefix}/pipeline"),
+                label: "Workflow Pipeline".into(),
+                properties: vec![],
+                children: stages,
+            },
+        ],
+        header: view.header(),
+        ..Default::default()
+    })
 }

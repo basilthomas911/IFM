@@ -12,10 +12,25 @@ fn snapshot() -> ContractPublication {
         serde_json::json!({"id":"order:27","fields":{"kind":"order","data":"{\"orderId\":27}"}}),
     ];
     rows.push(serde_json::json!({"id":"trade:1","fields":{"kind":"trade","data":"{\"index\":0,\"tradeId\":1,\"tradeState\":\"NewTrade\"}"}}));
-    rows.push(serde_json::json!({"id":"market:0","fields":{"kind":"market","data":serde_json::json!({"windowMethod":"Frozen emulator preview","underlyingPrice":100,"contracts":[{"contractId":"SC","isCall":true,"strike":110,"bid":2,"ask":2.4,"delta":0.16}]}).to_string()}}));
+    rows.push(serde_json::json!({"id":"market:0","fields":{"kind":"market","data":serde_json::json!({"windowMethod":"Frozen emulator preview","underlyingPrice":"100","contracts":[{"contractId":"SC","isCall":true,"strike":"110","bid":"2","ask":"2.4","delta":0.16}]}).to_string()}}));
     serde_json::from_value(serde_json::json!({"schema":1,"generation":3,"busy":false,"status":"Completed","outcomes":[],"result":{"view":"trade-orders","rows":rows,"choices":{"portfolio":["Development"],"fund":["Test Fund"],"expiry":["2026-11-20","2026-12-18"]},"hasMore":false,"context":{"orderId":"27","tradeId":"1","tradeState":"NewTrade","valueDate":"2026-10-14","expiry":"2026-11-20","editable":"True","compositionType":"ShortIronCondor","brokerMode":"Emulator","quantity":"1","price":"-3.20","previewKey":"SC","canPlaceOrder":"True"}}})).unwrap()
 }
 fn harness() -> Harness<'static, State> {
+    harness_with_market(true)
+}
+fn harness_with_market(managed_decimal_text: bool) -> Harness<'static, State> {
+    let mut initial = snapshot();
+    if !managed_decimal_text {
+        // Keep the frozen before executable's inactive market setup identical
+        // for the established-plan frame comparison.
+        let row = initial
+            .result
+            .rows
+            .iter_mut()
+            .find(|r| r.id == "market:0")
+            .unwrap();
+        row.fields.insert("data".into(),serde_json::json!({"windowMethod":"Frozen emulator preview","underlyingPrice":100,"contracts":[{"contractId":"SC","isCall":true,"strike":110,"bid":2,"ask":2.4,"delta":0.16}]}).to_string());
+    }
     let mut view = TradeWorkspace::default();
     view.open = true;
     let mut h = Harness::new_state(
@@ -97,7 +112,7 @@ fn harness() -> Harness<'static, State> {
         },
         State {
             view,
-            snapshot: snapshot(),
+            snapshot: initial,
             requests: vec![],
             fail_load: false,
         },
@@ -310,11 +325,11 @@ fn working_order_mutations_target_the_selected_broker_identity() {
     for (kind, value) in [
         (
             "broker-order",
-            serde_json::json!({"id":{"componentId":"component"},"status":"Working","currentSignedNetDebitLimit":-3.2,"order":{"components":[{"strategyKind":"IronCondor"}]}}),
+            serde_json::json!({"id":{"componentId":"component"},"status":"Working","currentSignedNetDebitLimit":"-3.2","order":{"components":[{"strategyKind":"IronCondor"}]}}),
         ),
         (
             "broker-mutation",
-            serde_json::json!({"canMutate":true,"minimum":-10,"maximum":0,"tick":0.05}),
+            serde_json::json!({"canMutate":true,"minimum":"-10","maximum":"0","tick":"0.05"}),
         ),
     ] {
         h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({"id":format!("{kind}:owner"),"fields":{"kind":kind,"data":value.to_string()}})).unwrap());
@@ -517,7 +532,7 @@ fn confirmation_waits_for_broker_result_and_rejection_closes_before_error() {
     let mut h = harness();
     let confirmation = serde_json::json!({"id":"test-confirmation","submitting":true,
         "order":{"orderQuantity":1},"legs":[{"side":"Sell","role":"Short Put",
-        "contractId":"ES-VERY-LONG-CONTRACT-IDENTIFIER-20261120-P-6000","legCommission":0.65}]})
+        "contractId":"ES-VERY-LONG-CONTRACT-IDENTIFIER-20261120-P-6000","legCommission":"0.65"}]})
     .to_string();
     h.state_mut().snapshot.result.documents.insert(
         "confirmation".into(),
@@ -527,6 +542,7 @@ fn confirmation_waits_for_broker_result_and_rejection_closes_before_error() {
         .unwrap()
         .into(),
     );
+    h.state_mut().snapshot.invalidate_render_cache();
     h.run();
     assert!(
         h.query_by_label("Submitting ? awaiting broker acceptance?")
@@ -568,6 +584,7 @@ fn confirmation_waits_for_broker_result_and_rejection_closes_before_error() {
         .result
         .documents
         .remove("confirmation");
+    h.state_mut().snapshot.invalidate_render_cache();
     h.run();
     assert!(
         h.query_by_label("Submitting ? awaiting broker acceptance?")
@@ -585,13 +602,13 @@ fn confirmation_leg_rows_follow_broker_trade_display_order() {
     for (index, contract) in ["HIGH-CALL", "LOW-PUT"].iter().enumerate() {
         h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({
             "id":format!("leg:{index}"),"fields":{"kind":"leg","data":serde_json::json!({
-                "contractId":contract,"role":"Selected","strike":if index==0 {110} else {90},"isCall":index==0
+                "contractId":contract,"role":"Selected","strike":if index==0 {"110"} else {"90"},"isCall":index==0
             }).to_string()}
         })).unwrap());
     }
     let confirmation = serde_json::json!({"id":"ordered-legs","order":{"orderQuantity":1},"legs":[
-        {"contractId":"LOW-PUT","role":"Short Put","side":"Sell","legCommission":0.65},
-        {"contractId":"HIGH-CALL","role":"Short Call","side":"Sell","legCommission":0.65}
+        {"contractId":"LOW-PUT","role":"Short Put","side":"Sell","legCommission":"0.65"},
+        {"contractId":"HIGH-CALL","role":"Short Call","side":"Sell","legCommission":"0.65"}
     ]});
     h.state_mut().snapshot.result.documents.insert(
         "confirmation".into(),
@@ -599,6 +616,7 @@ fn confirmation_leg_rows_follow_broker_trade_display_order() {
             .unwrap()
             .into(),
     );
+    h.state_mut().snapshot.invalidate_render_cache();
     h.run();
     let high = h
         .get_by_label("HIGH-CALL")
@@ -630,11 +648,12 @@ fn broker_leg_delta_precision_and_grid_bounds_survive_value_updates() {
         let leg = h.state_mut().snapshot.result.rows.last_mut().unwrap();
         leg.data = Some(
             ifm_ui_egui::wire::encode_value(&serde_json::json!({
-                "contractId":contract,"role":"Short Call","delta":delta,"bid":2.0,"ask":2.4
+                "contractId":contract,"role":"Short Call","delta":delta,"bid":"2.0","ask":"2.4"
             }))
             .unwrap()
             .into(),
         );
+        h.state_mut().snapshot.invalidate_render_cache();
     };
     publish(&mut h, 0.16, "ES-CALL");
     h.get_by_label("Broker Trade").click();
@@ -704,25 +723,25 @@ fn established_iron_condor_dashboard_displays_saved_limits_and_leg_marks() {
     for (kind, value) in [
         (
             "established",
-            serde_json::json!({"id":{"orderId":27,"tradeId":1},"status":"Open","openingValue":-3.2,"establishedAtUtc":"2026-10-14T14:30:00Z","legs":[
-            {"tradeLegId":"sp","contractId":"SAVED-PUT","putCall":2,"strike":90,"signedQuantity":-1,"cashMultiplier":50,"expiry":"2026-11-20"},
-            {"tradeLegId":"lp","contractId":"LONG-PUT","putCall":2,"strike":85,"signedQuantity":1,"cashMultiplier":50,"expiry":"2026-11-20"}]}),
+            serde_json::json!({"id":{"orderId":27,"tradeId":1},"status":"Open","openingValue":"-3.2","establishedAtUtc":"2026-10-14T14:30:00Z","legs":[
+            {"tradeLegId":"sp","contractId":"SAVED-PUT","putCall":2,"strike":"90","signedQuantity":-1,"cashMultiplier":"50","expiry":"2026-11-20"},
+            {"tradeLegId":"lp","contractId":"LONG-PUT","putCall":2,"strike":"85","signedQuantity":1,"cashMultiplier":"50","expiry":"2026-11-20"}]}),
         ),
         (
             "position",
-            serde_json::json!({"orderId":27,"tradeId":1,"tradeType":"ShortIronCondor","valueDate":"2026-10-14","tradeStatus":"Open","netSpread":-3.2,"tradePnl":12.5}),
+            serde_json::json!({"orderId":27,"tradeId":1,"tradeType":"ShortIronCondor","valueDate":"2026-10-14","tradeStatus":"Open","netSpread":"-3.2","tradePnl":"12.5"}),
         ),
         (
             "limits",
-            serde_json::json!({"orderId":27,"tradeLimit":{"riskMargin":38.55,"maxProfit":11.45,"maxLoss":-38.55}}),
+            serde_json::json!({"orderId":27,"tradeLimit":{"riskMargin":"38.55","maxProfit":"11.45","maxLoss":"-38.55"}}),
         ),
         (
             "position-details",
-            serde_json::json!({"valueDate":"2026-10-14","legs":[{"tradeLegId":"sp","signedQuantity":-1,"openingPrice":2.5,"currentPrice":2.3},{"tradeLegId":"lp","signedQuantity":1,"openingPrice":0.5,"currentPrice":0.4}]}),
+            serde_json::json!({"valueDate":"2026-10-14","legs":[{"tradeLegId":"sp","signedQuantity":-1,"openingPrice":"2.5","currentPrice":"2.3"},{"tradeLegId":"lp","signedQuantity":1,"openingPrice":"0.5","currentPrice":"0.4"}]}),
         ),
         (
             "plan",
-            serde_json::json!({"valueDate":"2026-10-14","calculatedAtUtc":"2026-10-14T15:00:00Z","state":"Hold","action":"Monitor","explanation":"Saved plan evidence","totalPnl":12.5}),
+            serde_json::json!({"valueDate":"2026-10-14","calculatedAtUtc":"2026-10-14T15:00:00Z","state":"Hold","action":"Monitor","explanation":"Saved plan evidence","totalPnl":"12.5"}),
         ),
     ] {
         h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({"id":format!("{kind}:0"),"fields":{"kind":kind,"data":value.to_string()}})).unwrap());
@@ -772,7 +791,7 @@ fn established_iron_condor_dashboard_displays_saved_limits_and_leg_marks() {
 }
 
 fn loaded_tabs_harness() -> Harness<'static, State> {
-    let mut h = harness();
+    let mut h = harness_with_market(false);
     h.state_mut()
         .snapshot
         .result
@@ -1028,7 +1047,7 @@ fn live_plan_publications_update_the_grid_without_a_user_refresh() {
         .insert("live".into(), "True".into());
     let requests_before = h.state().requests.len();
     for revision in [1, 2] {
-        let value = serde_json::json!({"planRevision":revision,"valueDate":"2026-10-16","ironCondorTradePlanSnapshot":{"actionDateTime":"2026-10-16T15:00:00Z","sequenceId":revision,"dailyPnl":revision as f64*1.25,"isComplete":true,"actionType":"Monitor","actionReason":format!("Incoming live plan {revision}")}});
+        let value = serde_json::json!({"planRevision":revision,"valueDate":"2026-10-16","ironCondorTradePlanSnapshot":{"actionDateTime":"2026-10-16T15:00:00Z","sequenceId":revision,"dailyPnl":format!("{}",revision as f64*1.25),"calculationStatus":"Complete","isComplete":true,"actionType":"Monitor","actionReason":format!("Incoming live plan {revision}")}});
         let row=serde_json::from_value(serde_json::json!({"id":format!("plan:{revision}"),"fields":{"kind":"plan","data":value.to_string(),"actionDateTimeEastern":format!("2026-10-16 11:00:0{revision}.123")}})).unwrap();
         h.state_mut().snapshot.result.rows.insert(0, row);
         h.state_mut().snapshot.generation += 1;

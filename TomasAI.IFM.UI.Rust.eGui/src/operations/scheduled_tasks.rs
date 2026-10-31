@@ -7,6 +7,7 @@ use crate::{
 use eframe::egui;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+use std::sync::{Arc, Weak};
 /// Published scheduled-task execution status and timestamps.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,6 +34,14 @@ pub fn status_color(status: &str) -> egui::Color32 {
         "Failed" | "Uncertain" | "Rejected" => egui::Color32::RED,
         _ => egui::Color32::GRAY,
     }
+}
+#[derive(Default)]
+struct ScheduledDocuments {
+    runs: Vec<Run>,
+    histories: BTreeMap<String, Vec<Run>>,
+    fires: BTreeMap<String, String>,
+    preview: Option<crate::models::scheduled::Preview>,
+    preview_text: String,
 }
 /// Schedule editor, weekday/time draft, run selection, and preview/confirmation state.
 pub struct ScheduledTasks {
@@ -68,6 +77,7 @@ pub struct ScheduledTasks {
     last_action: String,
     /// Safe administrative failure shown in the persistent status line.
     last_error: String,
+    cache: Option<(u64, Weak<()>, Arc<ScheduledDocuments>)>,
 }
 impl Default for ScheduledTasks {
     /// Construct the view's initial filters, selection, and draft settings without issuing backend commands.
@@ -89,6 +99,7 @@ impl Default for ScheduledTasks {
             new: false,
             last_action: String::new(),
             last_error: String::new(),
+            cache: None,
         }
     }
 }
@@ -113,6 +124,30 @@ fn defaults() -> BTreeMap<String, String> {
     )
 }
 impl ScheduledTasks {
+    fn documents(&mut self, s: &ContractPublication) -> Arc<ScheduledDocuments> {
+        if let Some((generation, token, docs)) = &self.cache {
+            if *generation == s.generation
+                && token
+                    .upgrade()
+                    .is_some_and(|token| Arc::ptr_eq(&token, &s.render_token))
+            {
+                return docs.clone();
+            }
+        }
+        let preview: Option<crate::models::scheduled::Preview> = s.result.document("preview");
+        let docs = Arc::new(ScheduledDocuments {
+            runs: s.result.document("runs").unwrap_or_default(),
+            histories: s.result.document("histories").unwrap_or_default(),
+            fires: s.result.document("nextFires").unwrap_or_default(),
+            preview_text: preview
+                .as_ref()
+                .and_then(|v| serde_json::to_string_pretty(v).ok())
+                .unwrap_or_default(),
+            preview,
+        });
+        self.cache = Some((s.generation, Arc::downgrade(&s.render_token), docs.clone()));
+        docs
+    }
     /// Copy the hour/minute/weekday controls into the scheduler draft's daily recurrence fields.
     pub fn apply_daily_time(&mut self) {
         let days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
@@ -212,6 +247,7 @@ impl ScheduledTasks {
                 self.pending = None;
             }
         }
+        let documents = self.documents(s);
         let idle = live && !s.busy && self.pending.is_none();
         let target_ok = matching
             && self.target
@@ -441,18 +477,18 @@ impl ScheduledTasks {
                                 }
                                 ui.end_row();
                             });
-                        if let Some(v) = s
-                            .result
-                            .document::<serde_json::Value>("preview")
+                        if let Some(v) = documents
+                            .preview
+                            .as_ref()
                             .filter(|_| self.preview_fields == self.draft)
                         {
                             {
-                                ui.trading_caption(c.text(if v["valid"].as_bool() == Some(true) {
+                                ui.trading_caption(c.text(if v.valid == Some(true) {
                                     strings::SCHEDULE_PREVIEW_VALID
                                 } else {
                                     strings::SCHEDULE_PREVIEW_INVALID
                                 }));
-                                ui.monospace(serde_json::to_string_pretty(&v).unwrap_or_default());
+                                ui.monospace(&documents.preview_text);
                             }
                         }
                     });
@@ -512,11 +548,9 @@ impl ScheduledTasks {
                         }
                     });
                 }
-                let runs: Vec<Run> = s.result.document("runs").unwrap_or_default();
-                let histories: BTreeMap<String, Vec<Run>> =
-                    s.result.document("histories").unwrap_or_default();
-                let fires: BTreeMap<String, String> =
-                    s.result.document("nextFires").unwrap_or_default();
+                let runs = &documents.runs;
+                let histories = &documents.histories;
+                let fires = &documents.fires;
                 let content_size = ui.available_size();
                 let tree_width =
                     (content_size.x - 5.0) * crate::presentation::SCHEDULE_LOG_TREE_RATIO;
@@ -533,7 +567,7 @@ impl ScheduledTasks {
                         }).id_salt(&row.id).icon(move |ui,_open,response|{ui.painter().circle_filled(response.rect.center(),4.,root_color);}).show(ui,|ui| {
        if !manager&&ui.add_enabled(idle&&target_ok,egui::Button::new(c.text(strings::SCHEDULE_HISTORY))).clicked(){self.selected=Some(row.id.clone());action=Some("history");}
        if histories.contains_key(&row.id) || s.result.context.get("historySchedule")==Some(&row.id){
-        let mut groups:BTreeMap<String,BTreeMap<String,BTreeMap<String,Vec<&Run>>>>=BTreeMap::new();for r in histories.get(&row.id).unwrap_or(&runs) {if r.intended_fire_time_utc.len()>=10 {groups.entry(r.intended_fire_time_utc[..4].into()).or_default().entry(r.intended_fire_time_utc[5..7].into()).or_default().entry(r.intended_fire_time_utc[8..10].into()).or_default().push(r);}}
+        let mut groups:BTreeMap<String,BTreeMap<String,BTreeMap<String,Vec<&Run>>>>=BTreeMap::new();for r in histories.get(&row.id).unwrap_or(runs) {if r.intended_fire_time_utc.len()>=10 {groups.entry(r.intended_fire_time_utc[..4].into()).or_default().entry(r.intended_fire_time_utc[5..7].into()).or_default().entry(r.intended_fire_time_utc[8..10].into()).or_default().push(r);}}
         for (year,months) in groups {egui::CollapsingHeader::new(&year).id_salt((&row.id,&year)).show(ui,|ui| {for (month,days) in months {egui::CollapsingHeader::new(&month).id_salt((&row.id,&year,&month)).show(ui,|ui|{for (day,items) in days {egui::CollapsingHeader::new(&day).id_salt((&row.id,&year,&month,&day)).show(ui,|ui| {for r in items {let label=format!("{} | {} {} | {} {} | {}",name,c.text(strings::SCHEDULE_SCHEDULED),r.intended_fire_time_utc,c.text(strings::SCHEDULE_RAN),r.started_at_utc.as_deref().unwrap_or("-"),r.status);ui.horizontal(|ui|{let (rect,_)=ui.allocate_exact_size(egui::vec2(10.,10.),egui::Sense::hover());ui.painter().circle_filled(rect.center(),4.,status_color(&r.status));if ui.add_enabled(idle&&target_ok,egui::Button::new(label).selected(self.selected_run.as_ref()==Some(&r.id))).clicked(){self.selected=Some(row.id.clone());self.draft=row.fields.clone();self.selected_run=Some(r.id.clone());action=Some("output");}});}});}});}});}
        }
       });}if runs.is_empty(){ui.trading_caption(c.text(strings::SCHEDULE_NO_RUNS));}

@@ -8,22 +8,82 @@ use std::collections::BTreeMap;
 pub fn kind(name: &str) -> String {
     format!("{}.ViewModels.{name}", api::ROOT)
 }
-fn model(registry: &Registry, name: &str, wire: &Value) -> Result<Json, String> {
-    registry.project(&kind(name), wire)
+#[derive(Clone, Default)]
+struct Selection {
+    portfolio_id: Option<i64>,
+    fund_id: Option<i64>,
+    fund_mandate_version: Option<i64>,
+    name: Option<String>,
+    operating_state: Option<String>,
 }
-pub fn fund_key(row: &Json) -> Result<String, String> {
+fn model(registry: &Registry, name: &str, wire: &Value) -> Result<Selection, String> {
+    if !wire.is_array() {
+        return Err("Expected Portfolio selection record".into());
+    }
+    let kind = kind(name);
+    let get = |name| registry.wire_field(&kind, name, wire).ok();
+    use crate::models::wire_types::FromBackend;
+    let integer = |name| {
+        get(name)
+            .map(Option::<i64>::from_backend)
+            .unwrap_or(Ok(None))
+    };
+    let text = |name| {
+        get(name)
+            .map(Option::<String>::from_backend)
+            .unwrap_or(Ok(None))
+    };
+    let state = match get("OperatingState") {
+        None | Some(Value::Nil) => None,
+        Some(value) => {
+            let number = value.as_i64().ok_or("Invalid Portfolio operating state")?;
+            let state_kind = registry.field_kind(&kind, "OperatingState")?;
+            let label = registry.enum_name(state_kind, number)?;
+            (label != number.to_string()).then_some(label)
+        }
+    };
+    Ok(Selection {
+        portfolio_id: integer("PortfolioId")?,
+        fund_id: integer("FundId")?,
+        fund_mandate_version: integer("FundMandateVersion")?,
+        name: text("Name")?,
+        operating_state: state,
+    })
+}
+fn fund_key_parts(
+    name: Option<&str>,
+    version: Option<i64>,
+    state: Option<&str>,
+) -> Result<String, String> {
+    // This tiny canonical JSON array is the existing managed selection identity.
+    // It is a protocol boundary, never a retained presentation document.
     crate::backend::identity::canonical_json(&serde_json::json!([
-        row["Name"].as_str().ok_or("Missing Fund name")?.to_string(),
-        row["FundMandateVersion"]
-            .as_i64()
-            .filter(|v| *v > 0)
+        name.ok_or("Missing Fund name")?,
+        version
+            .filter(|value| *value > 0)
             .ok_or("Invalid Fund mandate version")?
             .to_string(),
-        row["OperatingState"]
-            .as_str()
-            .ok_or("Invalid Fund state")?
-            .to_string(),
+        state.ok_or("Invalid Fund state")?,
     ]))
+}
+impl Selection {
+    fn fund_key(&self) -> Result<String, String> {
+        fund_key_parts(
+            self.name.as_deref(),
+            self.fund_mandate_version,
+            self.operating_state.as_deref(),
+        )
+    }
+}
+pub(crate) fn fund_key_wire(registry: &Registry, wire: &Value) -> Result<String, String> {
+    model(registry, "FundMandateReadModel", wire)?.fund_key()
+}
+pub fn fund_key(row: &Json) -> Result<String, String> {
+    fund_key_parts(
+        row["Name"].as_str(),
+        row["FundMandateVersion"].as_i64(),
+        row["OperatingState"].as_str(),
+    )
 }
 #[derive(Clone, Default)]
 pub struct PortfolioData {
@@ -43,34 +103,38 @@ pub struct PortfolioData {
 }
 impl PortfolioData {
     pub fn visible_funds(&self, registry: &Registry) -> Result<Vec<Value>, String> {
+        Ok(self
+            .visible_fund_refs(registry)?
+            .into_iter()
+            .cloned()
+            .collect())
+    }
+    pub(crate) fn visible_fund_refs<'a>(
+        &'a self,
+        registry: &Registry,
+    ) -> Result<Vec<&'a Value>, String> {
         let mut rows = self
             .funds
             .iter()
-            .map(|v| Ok((model(registry, "FundMandateReadModel", v)?, v.clone())))
+            .map(|wire| Ok((model(registry, "FundMandateReadModel", wire)?, wire)))
             .collect::<Result<Vec<_>, String>>()?;
         rows.retain(|(row, _)| {
             self.fund_filter
                 .as_ref()
-                .is_none_or(|filter| row["OperatingState"] == *filter)
+                .is_none_or(|filter| row.operating_state.as_deref() == Some(filter.as_str()))
         });
-        rows.sort_by(|(a, _), (b, _)| {
-            a["Name"]
-                .as_str()
-                .unwrap_or_default()
-                .to_uppercase()
-                .encode_utf16()
-                .cmp(
-                    b["Name"]
-                        .as_str()
-                        .unwrap_or_default()
-                        .to_uppercase()
-                        .encode_utf16(),
-                )
-                .then_with(|| {
-                    b["FundMandateVersion"]
-                        .as_i64()
-                        .cmp(&a["FundMandateVersion"].as_i64())
-                })
+        // Preserve the managed uppercase UTF-16 ordering and descending versions;
+        // calculate the collation key once rather than on every comparison.
+        rows.sort_by_cached_key(|(row, _)| {
+            (
+                row.name
+                    .as_deref()
+                    .unwrap_or_default()
+                    .to_uppercase()
+                    .encode_utf16()
+                    .collect::<Vec<_>>(),
+                std::cmp::Reverse(row.fund_mandate_version),
+            )
         });
         Ok(rows.into_iter().map(|(_, wire)| wire).collect())
     }
@@ -81,8 +145,8 @@ impl PortfolioData {
         let selected = model(registry, "FundMandateReadModel", selected)?;
         for wire in &self.funds {
             let row = model(registry, "FundMandateReadModel", wire)?;
-            if row["FundId"] == selected["FundId"]
-                && row["FundMandateVersion"].as_i64() > selected["FundMandateVersion"].as_i64()
+            if row.fund_id == selected.fund_id
+                && row.fund_mandate_version > selected.fund_mandate_version
             {
                 return Ok(false);
             }
@@ -108,8 +172,8 @@ impl PortfolioData {
     ) -> Result<Vec<Value>, String> {
         let value = api::query(backend, registry, context, name, key, fields, deadline).await?;
         let page_kind = format!("{}.ServiceApi.PortfolioPage`1[{}]", api::ROOT, kind(item));
-        let page = registry.project(&page_kind, &value)?;
-        if page["PageSize"] != 100 {
+        let page = registry.wire_field(&page_kind, "PageSize", &value)?;
+        if page.as_i64() != Some(100) {
             return Err("Portfolio page size differs from request".into());
         }
         value
@@ -149,20 +213,16 @@ impl PortfolioData {
             deadline,
         )
         .await?;
-        let row = registry.project(
-            &format!("{}.ServiceApi.PortfolioAggregateRevision", api::ROOT),
-            &wire,
-        )?;
-        if row["PortfolioId"] != portfolio
-            || fund
-                .map(|id| row["FundId"] != id)
-                .unwrap_or(!row["FundId"].is_null())
+        let kind = format!("{}.ServiceApi.PortfolioAggregateRevision", api::ROOT);
+        let row = crate::backend::contract_view::Field::new(registry, &kind, &wire);
+        if row.field("PortfolioId")?.integer() != Some(portfolio as i64)
+            || row.field("FundId")?.integer() != fund.map(i64::from)
         {
             return Err("Portfolio revision crossed selection scope".into());
         }
-        row["Revision"]
-            .as_i64()
-            .filter(|v| *v > 0)
+        row.field("Revision")?
+            .integer()
+            .filter(|value| *value > 0)
             .ok_or("Portfolio revision is unavailable".into())
     }
     pub async fn refresh(
@@ -203,11 +263,11 @@ impl PortfolioData {
         let mut seen = std::collections::BTreeSet::new();
         for wire in &rows {
             let row = model(registry, "PortfolioReadModel", wire)?;
-            let id = row["PortfolioId"]
-                .as_i64()
+            let id = row
+                .portfolio_id
                 .filter(|v| *v > 0)
                 .ok_or("Invalid Portfolio identity")?;
-            if row["OperatingState"] != filter || !seen.insert(id) {
+            if row.operating_state.as_deref() != Some(filter) || !seen.insert(id) {
                 return Err("Portfolio page has a duplicate identity or wrong state".into());
             }
         }
@@ -217,7 +277,7 @@ impl PortfolioData {
                 model(registry, "PortfolioReadModel", v).is_ok_and(|row| {
                     previous
                         .as_ref()
-                        .is_some_and(|p| row["PortfolioId"] == p["PortfolioId"])
+                        .is_some_and(|p| row.portfolio_id == p.portfolio_id)
                 })
             })
             .or(rows.first())
@@ -253,7 +313,8 @@ impl PortfolioData {
             .portfolios
             .iter()
             .find(|v| {
-                model(registry, "PortfolioReadModel", v).is_ok_and(|row| row["PortfolioId"] == id)
+                model(registry, "PortfolioReadModel", v)
+                    .is_ok_and(|row| row.portfolio_id == Some(id as i64))
             })
             .cloned()
             .ok_or("Select a current Portfolio row")?;
@@ -272,12 +333,8 @@ impl PortfolioData {
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
         let row = model(registry, "PortfolioReadModel", &selected)?;
-        let id = i32::try_from(
-            row["PortfolioId"]
-                .as_i64()
-                .ok_or("Missing Portfolio identity")?,
-        )
-        .map_err(|_| "Portfolio identity overflow")?;
+        let id = i32::try_from(row.portfolio_id.ok_or("Missing Portfolio identity")?)
+            .map_err(|_| "Portfolio identity overflow")?;
         let context = self.context.as_ref().ok_or("Load API context first")?;
         let funds = Self::page(
             backend,
@@ -298,11 +355,8 @@ impl PortfolioData {
         let mut identities = std::collections::BTreeSet::new();
         for wire in &funds {
             let fund = model(registry, "FundMandateReadModel", wire)?;
-            if fund["PortfolioId"] != id
-                || !identities.insert((
-                    fund["FundId"].to_string(),
-                    fund["FundMandateVersion"].to_string(),
-                ))
+            if fund.portfolio_id != Some(id as i64)
+                || !identities.insert((fund.fund_id, fund.fund_mandate_version))
             {
                 return Err("Fund page crossed Portfolio scope or repeated a version".into());
             }
@@ -311,7 +365,7 @@ impl PortfolioData {
         let previous = self
             .fund
             .as_ref()
-            .map(|v| model(registry, "FundMandateReadModel", v).and_then(|v| fund_key(&v)))
+            .map(|v| model(registry, "FundMandateReadModel", v).and_then(|v| v.fund_key()))
             .transpose()?;
         self.portfolio = Some(selected);
         self.portfolio_revision = revision;
@@ -322,7 +376,7 @@ impl PortfolioData {
             .iter()
             .find(|v| {
                 model(registry, "FundMandateReadModel", v)
-                    .and_then(|v| fund_key(&v))
+                    .and_then(|v| v.fund_key())
                     .is_ok_and(|id| Some(id) == previous)
             })
             .or(visible.first())
@@ -347,7 +401,7 @@ impl PortfolioData {
             .into_iter()
             .find(|v| {
                 model(registry, "FundMandateReadModel", v)
-                    .and_then(|v| fund_key(&v))
+                    .and_then(|v| v.fund_key())
                     .is_ok_and(|v| v == key)
             })
             .ok_or("Select a current Fund row")?;
@@ -368,16 +422,12 @@ impl PortfolioData {
         let row = model(registry, "FundMandateReadModel", &selected)?;
         let portfolio = self.portfolio.as_ref().ok_or("Select a Portfolio")?;
         let parent = model(registry, "PortfolioReadModel", portfolio)?;
-        if row["PortfolioId"] != parent["PortfolioId"] {
+        if row.portfolio_id != parent.portfolio_id {
             return Err("Fund does not belong to selected Portfolio".into());
         }
-        let pid = i32::try_from(
-            row["PortfolioId"]
-                .as_i64()
-                .ok_or("Invalid Portfolio identity")?,
-        )
-        .map_err(|_| "Portfolio identity overflow")?;
-        let fid = i32::try_from(row["FundId"].as_i64().ok_or("Invalid Fund identity")?)
+        let pid = i32::try_from(row.portfolio_id.ok_or("Invalid Portfolio identity")?)
+            .map_err(|_| "Portfolio identity overflow")?;
+        let fid = i32::try_from(row.fund_id.ok_or("Invalid Fund identity")?)
             .map_err(|_| "Fund identity overflow")?;
         let context = self.context.as_ref().ok_or("Load API context")?;
         let key = format!("{pid}.{fid}");
@@ -417,7 +467,7 @@ impl PortfolioData {
         ] {
             if !value.is_nil() {
                 let row = model(registry, name, value)?;
-                if row["PortfolioId"] != pid || row["FundId"] != fid {
+                if row.portfolio_id != Some(pid as i64) || row.fund_id != Some(fid as i64) {
                     return Err("Fund configuration crossed selection scope".into());
                 }
             }
@@ -425,8 +475,7 @@ impl PortfolioData {
         let mut fields = fields;
         fields.insert(
             "MandateVersion".into(),
-            row["FundMandateVersion"]
-                .as_i64()
+            row.fund_mandate_version
                 .filter(|v| *v > 0)
                 .ok_or("Invalid Fund version")?
                 .into(),
@@ -448,9 +497,9 @@ impl PortfolioData {
             .ok_or("Invalid Fund assignment list")?;
         for value in &assignments {
             let value = model(registry, "FundTradeTemplateAssignmentReadModel", value)?;
-            if value["PortfolioId"] != pid
-                || value["FundId"] != fid
-                || value["FundMandateVersion"] != row["FundMandateVersion"]
+            if value.portfolio_id != Some(pid as i64)
+                || value.fund_id != Some(fid as i64)
+                || value.fund_mandate_version != row.fund_mandate_version
             {
                 return Err("Fund assignment crossed selection scope or mandate version".into());
             }

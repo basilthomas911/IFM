@@ -1,5 +1,8 @@
 #[path = "support/chart_model_baseline.rs"]
 mod baseline;
+#[allow(dead_code)]
+#[path = "support/monitor_display_baseline.rs"]
+mod monitor_display;
 use ifm_ui_egui::models::trade_chart::{TradeChartRow, TradeChartSeries};
 use ifm_ui_egui::{models::trade_chart::PreparedTradeChart, wire};
 use serde_json::json;
@@ -47,13 +50,14 @@ fn backend_typed_series_preserves_exact_decimal_text_and_existing_projection() {
         typed.points[1].forward_spread.as_deref(),
         Some("13.456789012345678901")
     );
-    let named = ifm_ui_egui::services::monitor_display::named(
+    let named = monitor_display::named(
         &registry,
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanChartSeries",
         &source,
     )
     .unwrap();
-    let expected = json!({"chartEndUtc":named["EndUtc"],"points":ifm_ui_egui::services::monitor_display::document(&named["Points"])});
+    let expected =
+        json!({"chartEndUtc":named["EndUtc"],"points":monitor_display::document(&named["Points"])});
     let wire = wire::encode(&TradeChartRow::from(Some(&typed))).unwrap();
     let actual: serde_json::Value = wire::decode(&wire).unwrap();
     assert_eq!(actual, expected);

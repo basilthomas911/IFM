@@ -7,8 +7,13 @@ use crate::services::{business_context::BusinessContext, financial, financial_co
 fn fk(name: &str) -> String {
     format!("{}.{name}", financial::ROOT)
 }
-fn choice(value: impl Into<Json>, label: impl Into<String>) -> Json {
-    json!({"value":value.into(),"label":label.into(),"enabled":true})
+fn choice(value: impl crate::models::portfolio::FieldText, label: impl Into<String>) -> Choice {
+    Choice {
+        value: value.field_text(),
+        label: label.into(),
+        enabled: true,
+        ..Default::default()
+    }
 }
 fn member(registry: &Registry, kind: &str, value: &Value, name: &str) -> Result<Value, String> {
     crate::services::strategy::member(registry, &fk(kind), value, name)
@@ -256,25 +261,22 @@ impl PortfolioController {
             _ => "Check outcome",
         };
         let dialog = self.dialogs.last_mut().ok_or("Ledger editor closed")?;
-        for field in dialog["fields"]
-            .as_array_mut()
-            .ok_or("Invalid ledger fields")?
-        {
-            field["enabled"] = false.into();
+        for field in dialog.fields.iter_mut() {
+            field.enabled = false;
         }
-        for button in dialog["buttons"]
-            .as_array_mut()
-            .ok_or("Invalid ledger buttons")?
-        {
+        for button in dialog.buttons.iter_mut() {
             if matches!(
                 button.as_str(),
-                Some("Post" | "Save" | "Review and save" | "Check outcome" | "Saved" | "Expired")
+                "Post" | "Save" | "Review and save" | "Check outcome" | "Saved" | "Expired"
             ) {
                 *button = title.into();
             }
         }
-        dialog["buttonEnabled"] = json!({(title):matches!(phase,0|1),"Close":true});
-        dialog["status"] = pending["Message"].clone();
+        dialog.button_enabled = Some(BTreeMap::from([
+            ((title).to_string(), matches!(phase, 0 | 1)),
+            ("Close".into(), true),
+        ]));
+        dialog.status = text(&pending["Message"]);
         Ok(())
     }
     pub(super) async fn submit_configuration(
@@ -321,22 +323,16 @@ impl PortfolioController {
         let key = self
             .dialogs
             .last()
-            .map(|d| text(&d["key"]))
+            .map(|d| d.key.clone())
             .ok_or("Open ledger administration")?;
         let action = field(intent, "action");
         // Keep form values for error review; no field can replace the retained
         // operation's bytes once preparation has created that operation identity.
         if let Some(fields) = intent["fields"].as_object() {
             if let Some(dialog) = self.dialogs.last_mut() {
-                for input in dialog["fields"]
-                    .as_array_mut()
-                    .ok_or("Invalid ledger fields")?
-                {
-                    if let Some(value) = fields
-                        .get(input["key"].as_str().unwrap_or_default())
-                        .and_then(Json::as_str)
-                    {
-                        input["value"] = value.into();
+                for input in dialog.fields.iter_mut() {
+                    if let Some(value) = fields.get(input.key.as_str()).and_then(Json::as_str) {
+                        input.value = value.into();
                     }
                 }
             }
@@ -469,11 +465,12 @@ impl PortfolioController {
                 self.dialogs.pop();
                 self.open_ledger(backend, registry, deadline).await?;
                 if let Some(dialog) = self.dialogs.last_mut() {
-                    dialog["status"] = self
-                        .pending_configuration
-                        .as_ref()
-                        .ok_or("Missing configuration receipt")?["Message"]
-                        .clone();
+                    dialog.status = text(
+                        &self
+                            .pending_configuration
+                            .as_ref()
+                            .ok_or("Missing configuration receipt")?["Message"],
+                    );
                 }
             }
             return Ok("Configuration outcome updated".into());
@@ -563,7 +560,23 @@ impl PortfolioController {
                         None,
                     ),
                 ];
-                self.put_ledger_dialog(json!({"key":"setup","title":"Development ledger setup","width":850,"height":660,"captionWidth":145,"fields":fields,"buttons":["Prepare","Save","Close"],"status":"","grids":null,"buttonEnabled":{"Save":false,"Prepare":!accounts.is_empty(),"Close":true}}));
+                self.put_ledger_dialog(Dialog {
+                    key: "setup".into(),
+                    title: "Development ledger setup".into(),
+                    width: (850) as _,
+                    height: (660) as _,
+                    caption_width: (145) as _,
+                    fields: fields,
+                    buttons: vec!["Prepare".into(), "Save".into(), "Close".into()],
+                    status: "".into(),
+                    grids: None,
+                    button_enabled: Some(BTreeMap::from([
+                        ("Save".into(), false),
+                        ("Prepare".into(), !accounts.is_empty()),
+                        ("Close".into(), true),
+                    ])),
+                    ..Default::default()
+                });
                 self.data.context = Some(context);
                 Ok("Book preparation opened".into())
             }
@@ -582,7 +595,25 @@ impl PortfolioController {
                     input("reason", "Reason", "", "multiline", true, None),
                     input("review", "", "", "review", false, None),
                 ];
-                self.put_ledger_dialog(json!({"key":"authority","title":"Portfolio financial authority","width":900,"height":660,"captionWidth":145,"fields":fields,"buttons":["Prepare","Save","Close"],"status":"Prepare to review current policy, mandate, envelope and deployment limits.","grids":null,"buttonEnabled":{"Save":false,"Prepare":true,"Close":true}}));
+                self.put_ledger_dialog(Dialog {
+                    key: "authority".into(),
+                    title: "Portfolio financial authority".into(),
+                    width: (900) as _,
+                    height: (660) as _,
+                    caption_width: (145) as _,
+                    fields: fields,
+                    buttons: vec!["Prepare".into(), "Save".into(), "Close".into()],
+                    status:
+                        "Prepare to review current policy, mandate, envelope and deployment limits."
+                            .into(),
+                    grids: None,
+                    button_enabled: Some(BTreeMap::from([
+                        ("Save".into(), false),
+                        ("Prepare".into(), true),
+                        ("Close".into(), true),
+                    ])),
+                    ..Default::default()
+                });
                 Ok("Authority preparation opened".into())
             }
             _ => Err("Unsupported ledger editor".into()),
@@ -595,18 +626,12 @@ impl PortfolioController {
         let key = self
             .dialogs
             .last()
-            .map(|d| text(&d["key"]))
+            .map(|d| d.key.clone())
             .ok_or("Open a ledger editor")?;
         if let Some(dialog) = self.dialogs.last_mut() {
-            for field in dialog["fields"]
-                .as_array_mut()
-                .ok_or("Invalid ledger fields")?
-            {
-                if let Some(value) = fields
-                    .get(field["key"].as_str().unwrap_or_default())
-                    .and_then(Json::as_str)
-                {
-                    field["value"] = value.into();
+            for field in dialog.fields.iter_mut() {
+                if let Some(value) = fields.get(field.key.as_str()).and_then(Json::as_str) {
+                    field.value = value.into();
                 }
             }
         }
@@ -620,31 +645,33 @@ impl PortfolioController {
             }
             let dialog = self.dialogs.last_mut().ok_or("Ledger editor closed")?;
             if key == "authority" {
-                for field in dialog["fields"]
-                    .as_array_mut()
-                    .ok_or("Invalid authority fields")?
-                {
-                    if field["key"] == "review" {
-                        field["value"] = "".into();
+                for field in dialog.fields.iter_mut() {
+                    if field.key == "review" {
+                        field.value = "".into();
                     }
                 }
             }
-            dialog["buttonEnabled"] = json!({"Save":false,"Prepare":true,"Close":true});
+            dialog.button_enabled = Some(BTreeMap::from([
+                ("Save".into(), false),
+                ("Prepare".into(), true),
+                ("Close".into(), true),
+            ]));
         }
         Ok("Ledger selection updated".into())
     }
     fn ledger_review(&mut self, review: String) -> Result<(), String> {
         let dialog = self.dialogs.last_mut().ok_or("Ledger editor closed")?;
-        for field in dialog["fields"]
-            .as_array_mut()
-            .ok_or("Invalid ledger fields")?
-        {
-            if field["key"] == "review" {
-                field["value"] = review.clone().into();
+        for field in dialog.fields.iter_mut() {
+            if field.key == "review" {
+                field.value = review.clone().into();
             }
         }
-        dialog["buttonEnabled"] = json!({"Save":true,"Prepare":true,"Close":true});
-        dialog["status"] =
+        dialog.button_enabled = Some(BTreeMap::from([
+            ("Save".into(), true),
+            ("Prepare".into(), true),
+            ("Close".into(), true),
+        ]));
+        dialog.status =
             "Review the prepared configuration and enter an audit reason before saving.".into();
         Ok(())
     }
@@ -660,7 +687,7 @@ impl PortfolioController {
         let key = self
             .dialogs
             .last()
-            .map(|d| text(&d["key"]))
+            .map(|d| d.key.clone())
             .ok_or("Open a ledger preparation editor")?;
         if key == "setup" {
             let start = chrono::NaiveDate::parse_from_str(field(intent, "start"), "%Y-%m-%d")
@@ -848,8 +875,8 @@ impl PortfolioController {
         )
         .map_err(|_| "Portfolio identity overflow".into())
     }
-    fn put_ledger_dialog(&mut self, dialog: Json) {
-        if let Some(index) = self.dialogs.iter().position(|d| d["key"] == dialog["key"]) {
+    fn put_ledger_dialog(&mut self, dialog: Dialog) {
+        if let Some(index) = self.dialogs.iter().position(|d| d.key == dialog.key) {
             self.dialogs[index] = dialog;
         } else {
             self.dialogs.push(dialog);
@@ -1169,9 +1196,37 @@ impl PortfolioController {
                 }
             )
         };
-        let mut dialog = json!({"key":"ledger","title":"Portfolio ledger administration","width":1120,"height":710,"captionWidth":95,"fields":fields,"buttons":if config.is_none(){vec!["Set up book","Refresh","Close"]}else{vec!["Apply","Refresh","Close"]},"status":status,"grids":grids,"buttonEnabled":null});
+        let mut dialog = Dialog {
+            key: "ledger".into(),
+            title: "Portfolio ledger administration".into(),
+            width: (1120) as _,
+            height: (710) as _,
+            caption_width: (95) as _,
+            fields: fields,
+            buttons: (if config.is_none() {
+                vec!["Set up book", "Refresh", "Close"]
+            } else {
+                vec!["Apply", "Refresh", "Close"]
+            })
+            .into_iter()
+            .map(|v| v.to_string())
+            .collect(),
+            status: (status).to_string(),
+            grids: Some(grids),
+            button_enabled: None,
+            ..Default::default()
+        };
         if config.is_none() {
-            dialog["buttonEnabled"] = json!({"Set up book":!pending.iter().any(|p|matches!(p["Phase"].as_i64(),Some(0|1))),"Refresh":true,"Close":true});
+            dialog.button_enabled = Some(BTreeMap::from([
+                (
+                    "Set up book".into(),
+                    !pending
+                        .iter()
+                        .any(|p| matches!(p["Phase"].as_i64(), Some(0 | 1))),
+                ),
+                ("Refresh".into(), true),
+                ("Close".into(), true),
+            ]));
         }
         self.pending_configurations = pending;
         self.ledger_configuration = Some(read);
@@ -1183,15 +1238,15 @@ impl PortfolioController {
             .as_ref()
             .is_some_and(|p| matches!(p["Phase"].as_i64(), Some(0 | 1)))
         {
-            if let Some(dialog) = self.dialogs.iter_mut().find(|d| d["key"] == "ledger") {
-                for field in dialog["fields"]
-                    .as_array_mut()
-                    .ok_or("Invalid ledger fields")?
-                {
-                    field["enabled"] = false.into();
+            if let Some(dialog) = self.dialogs.iter_mut().find(|d| d.key == "ledger") {
+                for field in dialog.fields.iter_mut() {
+                    field.enabled = false;
                 }
-                dialog["buttons"] = json!(["Check outcome", "Refresh", "Close"]);
-                dialog["status"] = self.pending_configuration.as_ref().unwrap()["Message"].clone();
+                dialog.buttons = ["Check outcome", "Refresh", "Close"]
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect();
+                dialog.status = text(&self.pending_configuration.as_ref().unwrap()["Message"]);
             }
         }
         Ok("Ledger configuration loaded".into())
@@ -1204,18 +1259,16 @@ impl PortfolioController {
         let dialog = self
             .dialogs
             .iter_mut()
-            .find(|d| d["key"] == "ledger")
+            .find(|d| d.key == "ledger")
             .ok_or("Open ledger administration")?;
-        let fields = dialog["fields"]
-            .as_array_mut()
-            .ok_or("Invalid ledger fields")?;
+        let fields = &mut dialog.fields;
         let control = fields
             .iter()
-            .find(|f| f["key"] == "control")
-            .map(|f| text(&f["value"]))
+            .find(|f| f.key == "control")
+            .map(|f| f.value.clone())
             .unwrap_or_default();
         for field in fields {
-            let enabled = match field["key"].as_str().unwrap_or_default() {
+            let enabled = match field.key.as_str() {
                 "period" => matches!(control.as_str(), "ClosePeriod" | "ReopenPeriod"),
                 "start" | "end" => control == "OpenPeriod",
                 "account" => matches!(control.as_str(), "RetireAccount" | "AddAccountVersion"),
@@ -1225,7 +1278,7 @@ impl PortfolioController {
                 ),
                 _ => true,
             };
-            field["enabled"] = (configured && enabled).into();
+            field.enabled = (configured && enabled).into();
         }
         Ok(())
     }

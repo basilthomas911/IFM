@@ -5,36 +5,28 @@ use super::{
     option_selection::{self, Contract},
 };
 use crate::backend::contracts::ExactDecimal;
-use serde_json::Value as Json;
+use crate::models::{
+    cells::Cells,
+    trade_contracts::{EvaluatedOptionChainReadModel, EvaluatedOptionContractReadModel},
+    wire_types::OffsetText,
+};
+use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub struct Selected {
     pub quote: broker_preview::Leg,
     pub role: String,
-    pub quote_at: Json,
+    pub quote_at: Option<OffsetText>,
     pub frozen: bool,
 }
 impl Selected {
     fn from_contract(
-        row: &Json,
+        row: &EvaluatedOptionContractReadModel,
         role: &str,
         multiplier: &ExactDecimal,
         frozen: bool,
     ) -> Result<Self, String> {
         let c = Contract::from_backend(row)?;
-        let decimal = |key: &str| -> Result<Option<ExactDecimal>, String> {
-            if row[key].is_null() {
-                Ok(None)
-            } else {
-                ExactDecimal::parse(
-                    &row[key]
-                        .as_str()
-                        .map(str::to_string)
-                        .unwrap_or_else(|| row[key].to_string()),
-                )
-                .map(Some)
-            }
-        };
         Ok(Self {
             quote: broker_preview::Leg {
                 contract: c.id,
@@ -42,22 +34,22 @@ impl Selected {
                 strike: Some(c.strike),
                 is_call: c.is_call,
                 is_future: false,
-                bid: decimal("Bid")?,
-                ask: decimal("Ask")?,
+                bid: decimal(row, "Bid")?,
+                ask: decimal(row, "Ask")?,
                 delta: c.delta,
-                vega: row["Vega"].as_f64(),
+                vega: row.vega,
                 multiplier: Some(multiplier.clone()),
             },
             role: role.into(),
-            quote_at: row["QuoteAtUtc"].clone(),
+            quote_at: row.quote_at_utc.clone(),
             frozen,
         })
     }
 }
 #[derive(Default)]
 pub struct Draft {
-    pub raw: Option<Json>,
-    pub display: Option<Json>,
+    pub raw: Option<Arc<EvaluatedOptionChainReadModel>>,
+    pub display: Option<Arc<EvaluatedOptionChainReadModel>>,
     pub legs: Vec<Selected>,
     pub entered_price: Option<ExactDecimal>,
     pub manual: bool,
@@ -73,17 +65,12 @@ pub struct Settings<'a> {
     pub development: bool,
     pub editable: bool,
 }
-fn decimal(row: &Json, key: &str) -> Result<Option<ExactDecimal>, String> {
-    if row[key].is_null() {
+fn decimal(row: &impl Cells, key: &str) -> Result<Option<ExactDecimal>, String> {
+    let value = row.cell(key);
+    if value.is_missing() {
         return Ok(None);
     }
-    ExactDecimal::parse(
-        &row[key]
-            .as_str()
-            .map(str::to_string)
-            .unwrap_or_else(|| row[key].to_string()),
-    )
-    .map(Some)
+    ExactDecimal::parse(&value.text()).map(Some)
 }
 /// Delta targets are the hybrid's decimal percent divided by 100, then cast to
 /// double. Round scale 29/30 ties to even before the conversion, as .NET does.
@@ -160,17 +147,34 @@ pub(crate) fn validate(settings: &Settings) -> Result<(), String> {
     Ok(())
 }
 impl Draft {
-    pub fn accept(&mut self, incoming: Json, settings: &Settings) -> Result<(), String> {
+    pub fn accept(
+        &mut self,
+        incoming: EvaluatedOptionChainReadModel,
+        settings: &Settings,
+    ) -> Result<(), String> {
         validate(settings)?;
-        let rows = incoming["Contracts"]
-            .as_array()
+        let incoming = Arc::new(incoming);
+        let rows = incoming
+            .contracts
+            .as_ref()
             .ok_or("Missing raw option contracts")?;
         let contracts = rows
             .iter()
             .map(Contract::from_backend)
             .collect::<Result<Vec<_>, _>>()?;
-        let underlying = decimal(&incoming, "UnderlyingPrice")?;
-        let display = option_chain::merge_display(self.display.as_ref(), &incoming)?;
+        let underlying = decimal(incoming.as_ref(), "UnderlyingPrice")?;
+        let display = if self
+            .display
+            .as_deref()
+            .is_none_or(|previous| !option_chain::same_display_scope(previous, &incoming))
+        {
+            incoming.clone()
+        } else {
+            Arc::new(option_chain::merge_display(
+                self.display.as_deref(),
+                &incoming,
+            )?)
+        };
         let mut next = vec![];
         if !self.manual && settings.editable {
             for is_call in [true, false] {
@@ -193,8 +197,9 @@ impl Draft {
                 };
                 let frozen = !settings.live
                     && settings.development
-                    && incoming["WindowMethod"]
-                        .as_str()
+                    && incoming
+                        .window_method
+                        .as_deref()
                         .unwrap_or_default()
                         .starts_with("Frozen emulator preview");
                 let side: Vec<_> = contracts
@@ -223,7 +228,7 @@ impl Draft {
                     ] {
                         let row = rows
                             .iter()
-                            .find(|r| r["ContractId"].as_str() == Some(id))
+                            .find(|r| r.contract_id.as_deref() == Some(id.as_str()))
                             .ok_or("Selected contract is missing")?;
                         next.push(Selected::from_contract(
                             row,
@@ -246,7 +251,10 @@ impl Draft {
         } else {
             for leg in &self.legs {
                 next.push(
-                    if let Some(row) = rows.iter().find(|r| r["ContractId"] == leg.quote.contract) {
+                    if let Some(row) = rows
+                        .iter()
+                        .find(|r| r.contract_id.as_deref() == Some(leg.quote.contract.as_str()))
+                    {
                         Selected::from_contract(
                             row,
                             &leg.role,
@@ -285,8 +293,8 @@ impl Draft {
         let row = self
             .raw
             .as_ref()
-            .and_then(|r| r["Contracts"].as_array())
-            .and_then(|r| r.iter().find(|r| r["ContractId"] == id))
+            .and_then(|r| r.contracts.as_ref())
+            .and_then(|r| r.iter().find(|r| r.contract_id.as_deref() == Some(id)))
             .ok_or("Reload option chains")?;
         let c = Contract::from_backend(row)?;
         if c.is_call != role.ends_with('C')

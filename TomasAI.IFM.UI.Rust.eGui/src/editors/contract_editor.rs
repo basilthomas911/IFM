@@ -17,7 +17,7 @@ use eframe::egui;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 /// Stable row identity, display fields, and optional typed MessagePack row payload.
-#[derive(Clone, Default, Deserialize)]
+#[derive(Clone, Default, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContractRow {
     /// Stable identity used to correlate selection, rows, or commands.

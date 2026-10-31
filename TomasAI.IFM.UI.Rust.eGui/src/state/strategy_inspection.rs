@@ -1,18 +1,20 @@
 //! Single-owner read-only inspection state. Failed queries retain the last
 //! successful page, while request receipts distinguish failure from an empty page.
+use crate::backend::contract_view::Field;
 use crate::{
     backend::{contracts::*, schema::Registry, transport::Backend},
+    lookup_editor::EditorOutcome,
     services::{inspection_queries as api, strategy_display},
-    strategy_inspection::InspectionPublication,
+    strategy_inspection::{InspectionPublication, InspectionResult, InspectionRow},
 };
 use rmpv::Value;
-use serde_json::{Value as Json, json};
+use serde_json::Value as Json;
 use std::collections::BTreeMap;
 #[derive(Default)]
 pub struct InspectionController {
     generation: u64,
-    result: Json,
-    receipts: BTreeMap<String, (Json, Json)>,
+    result: Option<InspectionResult>,
+    receipts: BTreeMap<String, (Json, EditorOutcome)>,
 }
 fn field<'a>(input: &'a Json, key: &str) -> &'a str {
     input["fields"][key].as_str().unwrap_or_default().trim()
@@ -30,20 +32,6 @@ fn number(input: &Json, key: &str) -> Result<i32, String> {
         .filter(|v| *v > 0)
         .ok_or(format!("Enter a positive {key}"))
 }
-fn stamp(value: &Json) -> Result<String, String> {
-    chrono::DateTime::parse_from_rfc3339(value.as_str().ok_or("Missing inspection timestamp")?)
-        .map(|v| v.format("%Y-%m-%d %H:%M:%S").to_string())
-        .map_err(|_| "Invalid inspection timestamp".into())
-}
-fn t(value: &Json) -> String {
-    value.as_str().map(str::to_string).unwrap_or_else(|| {
-        if value.is_null() {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    })
-}
 impl InspectionController {
     async fn read(
         &self,
@@ -51,7 +39,7 @@ impl InspectionController {
         registry: &Registry,
         input: &Json,
         deadline: tokio::time::Instant,
-    ) -> Result<Json, String> {
+    ) -> Result<InspectionResult, String> {
         let view = input["view"].as_str().ok_or("Missing inspection view")?;
         let action = input["intent"]
             .as_str()
@@ -109,7 +97,7 @@ impl InspectionController {
                         "{}.Events.MarketConditionAssessmentCompletedEvent",
                         api::ROOT
                     );
-                    let projected = registry.project(&event_kind, event)?;
+                    let projected = Field::new(registry, &event_kind, event);
                     let envelope = super::super::services::strategy::member(
                         registry,
                         &event_kind,
@@ -117,26 +105,38 @@ impl InspectionController {
                         "Result",
                     )?;
                     let result = assessment(registry, &envelope)?;
-                    let id = t(&projected["WorkflowId"]["Value"]);
+                    let id = projected.path(&["WorkflowId", "Value"])?.text()?;
                     uuid::Uuid::parse_str(&id)
                         .map_err(|_| "Invalid assessment workflow identity")?;
-                    if result["MarketProfileId"] != profile
-                        || result["InstrumentRoot"] != "ES"
-                        || result["TargetHorizon"] != horizon
-                        || result["WorkflowId"] != projected["WorkflowId"]
+                    if result.profile != profile
+                        || result.instrument != "ES"
+                        || result.horizon != horizon
+                        || result.workflow != id
                     {
                         return Err("Assessment history crossed requested scope".into());
                     }
-                    rows.push(json!({"id":id.replace('-',""),"label":format!("{} {} {} {}",stamp(&result["EvaluatedAtUtc"])?,t(&result["TargetHorizon"]),t(&result["Assessment"]["Availability"]),t(&result["Assessment"]["ConditionType"])),"fields":{"workflow":id}}));
+                    rows.push(InspectionRow {
+                        id: id.replace('-', ""),
+                        label: format!(
+                            "{} {} {} {}",
+                            result.evaluated.format("%Y-%m-%d %H:%M:%S"),
+                            result.horizon,
+                            result.availability,
+                            result.condition
+                        ),
+                        fields: BTreeMap::from([("workflow".into(), id)]),
+                    });
                 }
-                return Ok(
-                    json!({"view":view,"rows":rows,"detail":null,"decision":"","evidence":"","pagingState":null,"context":null}),
-                );
+                return Ok(InspectionResult {
+                    view: view.into(),
+                    rows,
+                    ..Default::default()
+                });
             }
             let id = identity(input, "workflow")?;
             let wire = api::workflow(backend, registry, id, deadline).await?;
-            let row = registry.project(strategy_display::VIEW, &wire)?;
-            if !row["AssessmentBinding"].is_null() {
+            let row = Field::new(registry, strategy_display::VIEW, &wire);
+            if !row.field("AssessmentBinding")?.is_nil() {
                 // The existing screen reads the projection alongside the accepted complete
                 // workflow. It never upgrades projection evidence into workflow authority.
                 let _projection = api::query(
@@ -154,23 +154,39 @@ impl InspectionController {
                 .await?;
             }
             let mut detail = strategy_display::details(registry, &wire)?;
-            for (key, value) in [
-                ("schema", json!(1)),
-                ("epoch", json!(uuid::Uuid::new_v4().to_string())),
-                ("generation", json!(self.generation + 1)),
-                ("mode", json!("Live")),
-            ] {
-                detail[key] = value;
-            }
-            let candidate = &row["OrderComposition"]["Result"]["CompositionResult"]["Candidate"];
-            let context = if row["CurrentStage"] == "RiskManagement" && !candidate.is_null() {
-                json!({"portfolio":t(&candidate["PortfolioId"]),"fund":t(&candidate["FundId"]),"workflow":id.to_string(),"invocation":row["RiskExecution"]["CommandId"].as_str().map(str::to_string).unwrap_or_else(||t(&row["CausationId"]))})
-            } else {
-                Json::Null
-            };
-            return Ok(
-                json!({"view":view,"rows":[],"detail":detail,"decision":"","evidence":"","pagingState":null,"context":context}),
-            );
+            detail.schema = 1;
+            detail.epoch = uuid::Uuid::new_v4().to_string();
+            detail.generation = self.generation + 1;
+            detail.mode = "Live".into();
+            let candidate = row.path(&[
+                "OrderComposition",
+                "Result",
+                "CompositionResult",
+                "Candidate",
+            ])?;
+            let context =
+                if row.field("CurrentStage")?.text()? == "RiskManagement" && !candidate.is_nil() {
+                    Some(BTreeMap::from([
+                        ("portfolio".into(), candidate.field("PortfolioId")?.text()?),
+                        ("fund".into(), candidate.field("FundId")?.text()?),
+                        ("workflow".into(), id.to_string()),
+                        (
+                            "invocation".into(),
+                            row.path(&["RiskExecution", "CommandId"])?
+                                .string()
+                                .map(str::to_owned)
+                                .unwrap_or(row.field("CausationId")?.text()?),
+                        ),
+                    ]))
+                } else {
+                    None
+                };
+            return Ok(InspectionResult {
+                view: view.into(),
+                detail: Some(detail),
+                context,
+                ..Default::default()
+            });
         }
         if matches!(action, "history" | "next") {
             let date = if field(input, "date").is_empty() {
@@ -208,32 +224,50 @@ impl InspectionController {
                 deadline,
             )
             .await?;
-            let page = registry.project(
-                &format!("{}.RiskManagement.RiskHistoryPage", api::ROOT),
-                &wire,
-            )?;
+            let page_kind = format!("{}.RiskManagement.RiskHistoryPage", api::ROOT);
+            let page = Field::new(registry, &page_kind, &wire);
             let mut rows = vec![];
-            for row in page["Items"]
-                .as_array()
-                .filter(|v| v.len() <= 25)
-                .ok_or("Invalid risk history page")?
-            {
-                if row["PortfolioId"] != portfolio
-                    || row["FundId"] != fund
-                    || row["ValueDate"] != date.to_string()
+            for row in page.field("Items")?.items(25)? {
+                if row.field("PortfolioId")?.integer() != Some(portfolio as i64)
+                    || row.field("FundId")?.integer() != Some(fund as i64)
+                    || row.field("ValueDate")?.text()? != date.to_string()
                 {
                     return Err(
                         "Risk history crossed requested portfolio, fund or value date".into(),
                     );
                 }
-                rows.push(json!({"id":row["InvocationId"],"label":format!("{} {} {} {} {} {}",stamp(&row["EvaluatedAtUtc"])?,t(&row["Horizon"]),t(&row["Variant"]),t(&row["Outcome"]),t(&row["Units"]),t(&row["Reason"])),"fields":{"workflow":row["WorkflowId"],"invocation":row["InvocationId"]}}));
+                rows.push(InspectionRow {
+                    id: row.field("InvocationId")?.text()?,
+                    label: format!(
+                        "{} {} {} {} {} {}",
+                        row.field("EvaluatedAtUtc")?
+                            .utc()?
+                            .ok_or("Missing inspection timestamp")?
+                            .format("%Y-%m-%d %H:%M:%S"),
+                        row.field("Horizon")?.text()?,
+                        row.field("Variant")?.text()?,
+                        row.field("Outcome")?.text()?,
+                        row.field("Units")?.text()?,
+                        row.field("Reason")?.text()?
+                    ),
+                    fields: BTreeMap::from([
+                        ("workflow".into(), row.field("WorkflowId")?.text()?),
+                        ("invocation".into(), row.field("InvocationId")?.text()?),
+                    ]),
+                });
             }
-            if action == "next" && page["PagingState"].as_str() == Some(field(input, "cursor")) {
+            if action == "next"
+                && page.field("PagingState")?.string() == Some(field(input, "cursor"))
+            {
                 return Err("Risk history cursor did not advance".into());
             }
-            return Ok(
-                json!({"view":view,"rows":rows,"detail":null,"decision":"","evidence":"","pagingState":page["PagingState"],"context":{"date":date.to_string()}}),
-            );
+            return Ok(InspectionResult {
+                view: view.into(),
+                rows,
+                paging_state: page.field("PagingState")?.string().map(str::to_owned),
+                context: Some(BTreeMap::from([("date".into(), date.to_string())])),
+                ..Default::default()
+            });
         }
         let workflow = identity(input, "workflow")?;
         let invocation = identity(input, "invocation")?;
@@ -254,15 +288,22 @@ impl InspectionController {
         )
         .await?;
         let kind = format!("{}.RiskManagement.RiskObservation", api::ROOT);
-        let row = registry.project(&kind, &wire)?;
-        if row["Snapshot"]["WorkflowDefinition"]["WorkflowId"]["Value"] != workflow.to_string() {
+        let row = Field::new(registry, &kind, &wire);
+        if row
+            .path(&["Snapshot", "WorkflowDefinition", "WorkflowId", "Value"])?
+            .string()
+            != Some(workflow.to_string().as_str())
+        {
             return Err("Risk observation crossed workflow identity".into());
         }
         let decision = crate::services::inspection_display::risk(registry, &wire)?;
         let evidence = strategy_display::evidence(registry, &kind, &wire)?;
-        Ok(
-            json!({"view":view,"rows":[],"detail":null,"decision":decision,"evidence":evidence,"pagingState":null,"context":null}),
-        )
+        Ok(InspectionResult {
+            view: view.into(),
+            decision,
+            evidence,
+            ..Default::default()
+        })
     }
     pub async fn execute(
         &mut self,
@@ -302,14 +343,28 @@ impl InspectionController {
                     .and_then(|v| v);
             let outcome = match result {
                 Ok(mut loaded) => {
-                    if input["intent"] == "open" && loaded["view"] == self.result["view"] {
-                        loaded["rows"] = self.result["rows"].clone();
-                        loaded["pagingState"] = self.result["pagingState"].clone();
+                    if input["intent"] == "open" {
+                        if let Some(previous) = self
+                            .result
+                            .as_ref()
+                            .filter(|previous| previous.view == loaded.view)
+                        {
+                            loaded.rows = previous.rows.clone();
+                            loaded.paging_state = previous.paging_state.clone();
+                        }
                     }
-                    self.result = loaded;
-                    json!({"requestId":key,"state":"Completed","message":"Loaded"})
+                    self.result = Some(loaded);
+                    EditorOutcome {
+                        request_id: key.clone(),
+                        state: "Completed".into(),
+                        message: "Loaded".into(),
+                    }
                 }
-                Err(error) => json!({"requestId":key,"state":"Failed","message":error}),
+                Err(error) => EditorOutcome {
+                    request_id: key.clone(),
+                    state: "Failed".into(),
+                    message: error,
+                },
             };
             if self.receipts.len() >= 64 {
                 if let Some(old) = self.receipts.keys().next().cloned() {
@@ -320,12 +375,18 @@ impl InspectionController {
             outcome
         };
         self.generation += 1;
-        let result = if self.result.is_null() {
-            json!({"view":input["view"],"rows":[],"detail":null,"decision":"","evidence":"","pagingState":null,"context":null})
-        } else {
-            self.result.clone()
-        };
-        serde_json::from_value(json!({"schema":1,"generation":self.generation,"status":outcome["message"],"busy":false,"result":result,"outcomes":[outcome]})).map_err(|e|e.to_string())
+        let result = self.result.clone().unwrap_or_else(|| InspectionResult {
+            view: input["view"].as_str().unwrap_or_default().into(),
+            ..Default::default()
+        });
+        Ok(InspectionPublication {
+            schema: 1,
+            generation: self.generation,
+            status: outcome.message.clone(),
+            busy: false,
+            result,
+            outcomes: vec![outcome],
+        })
     }
 }
 fn identity_request(input: &Json) -> Result<uuid::Uuid, String> {
@@ -334,28 +395,56 @@ fn identity_request(input: &Json) -> Result<uuid::Uuid, String> {
         .filter(|v| !v.is_nil())
         .ok_or("Invalid inspection request identity".into())
 }
-fn assessment(registry: &Registry, envelope: &Value) -> Result<Json, String> {
+struct AssessmentHeader {
+    profile: String,
+    instrument: String,
+    horizon: String,
+    workflow: String,
+    evaluated: chrono::DateTime<chrono::Utc>,
+    availability: String,
+    condition: String,
+}
+fn assessment(registry: &Registry, envelope: &Value) -> Result<AssessmentHeader, String> {
     let kind = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope";
-    let row = registry.project(kind, envelope)?;
-    if row["ResultType"] != "MarketConditionAssessmentResult" || row["SchemaVersion"] != 1 {
+    let envelope = Field::new(registry, kind, envelope);
+    if envelope.field("ResultType")?.text()? != "MarketConditionAssessmentResult"
+        || envelope.field("SchemaVersion")?.integer() != Some(1)
+    {
         return Err("Invalid assessment result envelope".into());
     }
-    let typed = crate::services::strategy::member(registry, kind, envelope, "AssessmentResult")?;
-    let typed = if typed.is_nil() {
-        let payload = crate::services::strategy::member(registry, kind, envelope, "Payload")?;
-        crate::backend::codec::decode(payload.as_slice().ok_or("Missing assessment payload")?)?
+    let typed = envelope.field("AssessmentResult")?;
+    let payload;
+    let result_kind = format!(
+        "{}.MarketCondition.Assessment.MarketConditionAssessmentResult",
+        api::ROOT
+    );
+    let result = if typed.is_nil() {
+        payload = crate::backend::codec::decode(
+            envelope
+                .field("Payload")?
+                .value
+                .as_slice()
+                .ok_or("Missing assessment payload")?,
+        )?;
+        Field::new(registry, &result_kind, &payload)
     } else {
         typed
     };
-    let result = registry.project(
-        &format!(
-            "{}.MarketCondition.Assessment.MarketConditionAssessmentResult",
-            api::ROOT
-        ),
-        &typed,
-    )?;
-    if result["ResultId"] != row["ResultId"] || result["EvaluatedAtUtc"] != row["ProducedAtUtc"] {
+    if result.field("ResultId")?.string() != envelope.field("ResultId")?.string()
+        || result.field("EvaluatedAtUtc")?.utc()? != envelope.field("ProducedAtUtc")?.utc()?
+    {
         return Err("Assessment result identity or timestamp mismatch".into());
     }
-    Ok(result)
+    Ok(AssessmentHeader {
+        profile: result.field("MarketProfileId")?.text()?,
+        instrument: result.field("InstrumentRoot")?.text()?,
+        horizon: result.field("TargetHorizon")?.text()?,
+        workflow: result.path(&["WorkflowId", "Value"])?.text()?,
+        evaluated: result
+            .field("EvaluatedAtUtc")?
+            .utc()?
+            .ok_or("Missing inspection timestamp")?,
+        availability: result.path(&["Assessment", "Availability"])?.text()?,
+        condition: result.path(&["Assessment", "ConditionType"])?.text()?,
+    })
 }

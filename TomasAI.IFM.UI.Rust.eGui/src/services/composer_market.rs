@@ -3,6 +3,7 @@
 //! pricing engine, global subscription stop or guessed parameter fallback.
 use super::{business_context::BusinessContext, option_chain, option_draft, parameters};
 use crate::backend::{contracts::*, schema::Registry, transport::Backend};
+use crate::models::trade_contracts::{FuturesContractV3ReadModel, OptionContractExpiryReadModel};
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
 
@@ -123,10 +124,10 @@ pub fn applied_defaults(
 pub struct Market {
     pub lease: option_chain::Lease,
     pub draft: option_draft::Draft,
-    pub expirations: Vec<Json>,
+    pub expirations: Vec<OptionContractExpiryReadModel>,
     pub expiry: chrono::NaiveDate,
     pub defaults: Option<Defaults>,
-    pub underlying: Json,
+    pub underlying: FuturesContractV3ReadModel,
     pub strategy: String,
     pub live: bool,
     pub editable: bool,
@@ -135,7 +136,7 @@ pub struct Market {
 }
 impl Market {
     pub fn new(
-        underlying: Json,
+        underlying: FuturesContractV3ReadModel,
         strategy: String,
         context: &BusinessContext,
         editable: bool,
@@ -178,15 +179,20 @@ impl Market {
                 .filter(|r| r.len() <= 20)
                 .ok_or("Invalid applied startup runs")?,
             &self.strategy,
-            self.underlying["Symbol"]
-                .as_str()
+            self.underlying
+                .symbol
+                .as_deref()
                 .ok_or("Missing underlying symbol")?,
         )?;
-        self.status=if self.defaults.is_none(){"No applied startup defaults are available for this strategy".into()}else{String::new()};
+        self.status = if self.defaults.is_none() {
+            "No applied startup defaults are available for this strategy".into()
+        } else {
+            String::new()
+        };
         self.expirations = option_chain::expirations(
             backend,
             registry,
-            self.underlying["Symbol"].as_str().unwrap(),
+            self.underlying.symbol.as_deref().unwrap(),
             context.value_date,
             through,
             requested,
@@ -195,7 +201,11 @@ impl Market {
         .await?;
         if let Some(first) = self.expirations.first() {
             self.expiry = crate::backend::date_input::parse(
-                first["ExpiryDate"].as_str().ok_or("Missing expiry")?,
+                first
+                    .expiry_date
+                    .as_ref()
+                    .map(|value| value.as_str())
+                    .ok_or("Missing expiry")?,
             )?;
             self.refresh(backend, registry, deadline).await?;
         }
@@ -210,13 +220,22 @@ impl Market {
         // Preserve the hybrid's initial 16/50 display inputs when configuration
         // is missing, but never enable automatic selection or order entry from
         // these placeholders. The raw market grid is still useful read-only.
-        let placeholder=Defaults{call_delta:ExactDecimal::parse("16")?,put_delta:ExactDecimal::parse("16")?,call_width:ExactDecimal::parse("50")?,put_width:ExactDecimal::parse("50")?};
-        let defaults=self.defaults.as_ref().unwrap_or(&placeholder);
-        let contract = self.underlying["ContractId"]
-            .as_str()
+        let placeholder = Defaults {
+            call_delta: ExactDecimal::parse("16")?,
+            put_delta: ExactDecimal::parse("16")?,
+            call_width: ExactDecimal::parse("50")?,
+            put_width: ExactDecimal::parse("50")?,
+        };
+        let defaults = self.defaults.as_ref().unwrap_or(&placeholder);
+        let contract = self
+            .underlying
+            .contract_id
+            .as_deref()
             .ok_or("Missing underlying identity")?;
-        let symbol = self.underlying["Symbol"]
-            .as_str()
+        let symbol = self
+            .underlying
+            .symbol
+            .as_deref()
             .ok_or("Missing underlying symbol")?;
         let width = if super::option_selection::compare(&defaults.call_width, &defaults.put_width)
             .is_ge()
@@ -228,8 +247,11 @@ impl Market {
         let roots: std::collections::BTreeSet<_> = self
             .expirations
             .iter()
-            .filter(|r| r["ExpiryDate"] == self.expiry.to_string())
-            .filter_map(|r| r["ProviderRoot"].as_str().map(str::to_string))
+            .filter(|r| {
+                r.expiry_date.as_ref().map(|value| value.as_str())
+                    == Some(self.expiry.to_string().as_str())
+            })
+            .filter_map(|r| r.provider_root.clone())
             .collect();
         let spec = option_chain::Specification {
             contract: contract.into(),
@@ -246,7 +268,12 @@ impl Market {
             frozen: !self.live && self.development,
         };
         let incoming = self.lease.load(backend, registry, spec, deadline).await?;
-        let multiplier = number(&self.underlying, "Multiplier")?;
+        let multiplier = ExactDecimal::parse(
+            self.underlying
+                .multiplier
+                .as_deref()
+                .ok_or("Missing underlying multiplier")?,
+        )?;
         self.draft.accept(
             incoming,
             &option_draft::Settings {
@@ -275,8 +302,18 @@ impl Market {
         if !self.editable {
             return Err("Market selection is read-only".into());
         }
-        if self.defaults.is_none(){return Err("Applied startup defaults are unavailable; configure them and reopen the Blotter".into());}
-        let multiplier = number(&self.underlying, "Multiplier")?;
+        if self.defaults.is_none() {
+            return Err(
+                "Applied startup defaults are unavailable; configure them and reopen the Blotter"
+                    .into(),
+            );
+        }
+        let multiplier = ExactDecimal::parse(
+            self.underlying
+                .multiplier
+                .as_deref()
+                .ok_or("Missing underlying multiplier")?,
+        )?;
         option_draft::validate(&option_draft::Settings {
             strategy: &self.strategy,
             call_delta: &defaults.call_delta,
@@ -288,11 +325,9 @@ impl Market {
             development: self.development,
             editable: self.editable,
         })?;
-        if !self
-            .expirations
-            .iter()
-            .any(|r| r["ExpiryDate"] == expiry.to_string())
-        {
+        if !self.expirations.iter().any(|r| {
+            r.expiry_date.as_ref().map(|value| value.as_str()) == Some(expiry.to_string().as_str())
+        }) {
             return Err("Select an available expiry".into());
         }
         if live

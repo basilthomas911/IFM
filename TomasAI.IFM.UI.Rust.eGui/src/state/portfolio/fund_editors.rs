@@ -82,8 +82,13 @@ fn csv(row: &Json, name: &str) -> Result<String, String> {
         .collect::<Vec<_>>()
         .join(","))
 }
-fn choice(value: &str, label: &str, enabled: bool) -> Json {
-    json!({"value":value,"label":label,"enabled":enabled})
+fn choice(value: &str, label: &str, enabled: bool) -> Choice {
+    Choice {
+        value: (value).to_string(),
+        label: (label).to_string(),
+        enabled: enabled,
+        ..Default::default()
+    }
 }
 fn deployment_label(registry: &Registry, deployment: &Json) -> Result<String, String> {
     let enum_name = |kind: &str, value: &Json| -> Result<String, String> {
@@ -114,11 +119,11 @@ fn deployment_label(registry: &Registry, deployment: &Json) -> Result<String, St
         )?
     ))
 }
-fn number(key: &str, caption: &str, value: Json, min: f64, max: f64, decimals: u8) -> Json {
+fn number(key: &str, caption: &str, value: Json, min: f64, max: f64, decimals: u8) -> Field {
     let mut field = input(key, caption, value, "number", true, None);
-    field["minimum"] = min.into();
-    field["maximum"] = max.into();
-    field["decimals"] = decimals.into();
+    field.minimum = min;
+    field.maximum = max;
+    field.decimals = decimals as usize;
     field
 }
 impl PortfolioController {
@@ -483,7 +488,10 @@ impl PortfolioController {
                 self.attachment_rejected = !error.starts_with("OutcomeUnknown:");
                 self.requires_reload = true;
                 if let Some(dialog) = self.dialogs.last_mut() {
-                    dialog["buttons"] = json!(["Retry attachment"]);
+                    dialog.buttons = ["Retry attachment"]
+                        .into_iter()
+                        .map(str::to_string)
+                        .collect();
                 }
                 return Err(format!(
                     "OutcomeUnknown: Fund mandate was created, but attachment needs reconciliation: {error}"
@@ -510,7 +518,7 @@ impl PortfolioController {
         view: &str,
         context: &BusinessContext,
         deadline: tokio::time::Instant,
-    ) -> Result<Json, String> {
+    ) -> Result<Dialog, String> {
         let parent = registry.project(
             &kind("PortfolioReadModel"),
             self.data.portfolio.as_ref().ok_or("Select a Portfolio")?,
@@ -666,11 +674,11 @@ impl PortfolioController {
                 }
                 let selections = self.selections.as_ref().ok_or("Missing Fund choices")?;
                 let multi =
-                    |key: &str, caption: &str, mut choices: Vec<Json>| -> Result<Json, String> {
+                    |key: &str, caption: &str, mut choices: Vec<Choice>| -> Result<Field, String> {
                         let values = row[key].as_array().ok_or("Invalid Fund choices")?;
                         for value in values {
                             let text = text(value);
-                            if !choices.iter().any(|c| c["value"] == text) {
+                            if !choices.iter().any(|c| c.value == text) {
                                 choices.push(choice(&text, &format!("Unavailable: {text}"), false));
                             }
                         }
@@ -1090,16 +1098,9 @@ impl PortfolioController {
                     "Save",
                 );
                 if choices.len() == 1 {
-                    self.populate_assignment(
-                        registry,
-                        &fund,
-                        &mut dialog,
-                        choices[0]["value"]
-                            .as_str()
-                            .ok_or("Invalid deployment choice")?,
-                    )?;
+                    self.populate_assignment(registry, &fund, &mut dialog, &choices[0].value)?;
                 } else if choices.is_empty() {
-                    dialog["status"]="No active catalog family is permitted by this Fund. Update its mandate before assigning a strategy.".into();
+                    dialog.status="No active catalog family is permitted by this Fund. Update its mandate before assigning a strategy.".into();
                 }
                 self.editing = Some((
                     "FundTradeTemplateAssignmentReadModel".into(),
@@ -1114,7 +1115,7 @@ impl PortfolioController {
         &self,
         registry: &Registry,
         fund: &Json,
-        dialog: &mut Json,
+        dialog: &mut Dialog,
         key: &str,
     ) -> Result<(), String> {
         let d = self
@@ -1217,16 +1218,13 @@ impl PortfolioController {
             "TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogLifecycleStatus",
             "Published",
         )?;
-        for field in dialog["fields"]
-            .as_array_mut()
-            .ok_or("Invalid assignment dialog")?
-        {
-            let key = field["key"].as_str().unwrap_or_default().to_string();
+        for field in dialog.fields.iter_mut() {
+            let key = field.key.as_str().to_string();
             if let Some(value) = values.get(key.as_str()) {
-                field["value"] = value.clone().into();
+                field.value = value.clone();
             }
             if key == "Enabled" {
-                field["enabled"] =
+                field.enabled =
                     (d["Status"] == published && !hint.is_null() && !composition.is_null()).into();
             }
         }
@@ -1241,7 +1239,7 @@ impl PortfolioController {
             .dialogs
             .last()
             .cloned()
-            .filter(|d| d["key"] == "assignment")
+            .filter(|d| d.key == "assignment")
             .ok_or("Open an assignment editor")?;
         let fund = registry.project(
             &kind("FundMandateReadModel"),
@@ -1358,14 +1356,13 @@ impl PortfolioController {
             .dialogs
             .last()
             .cloned()
-            .filter(|d| d["key"] == "assignment")
+            .filter(|d| d.key == "assignment")
             .ok_or("Open an assignment editor")?;
         self.populate_assignment(registry, fund, &mut dialog, field(intent, "deployment"))?;
-        let values = dialog["fields"]
-            .as_array()
-            .ok_or("Invalid assignment fields")?
+        let values = dialog
+            .fields
             .iter()
-            .map(|f| (text(&f["key"]), text(&f["value"])))
+            .map(|f| (f.key.clone(), f.value.clone()))
             .collect::<BTreeMap<_, _>>();
         let deployment = self
             .deployments
@@ -1381,11 +1378,10 @@ impl PortfolioController {
             _ => return Err("Enter True or False for Enabled".into()),
         };
         if enabled
-            && !dialog["fields"]
-                .as_array()
-                .unwrap()
+            && !dialog
+                .fields
                 .iter()
-                .any(|f| f["key"] == "Enabled" && f["enabled"] == true)
+                .any(|f| f.key == "Enabled" && f.enabled == true)
         {
             return Err("Only a published deployment with selection and composition parameters can be enabled".into());
         }

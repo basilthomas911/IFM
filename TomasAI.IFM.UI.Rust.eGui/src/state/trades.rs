@@ -1,5 +1,6 @@
 //! Native trade workspace owner. Rendering receives immutable display rows;
 //! backend DTOs, selected scope and correlated operation receipts stay here.
+use crate::models::cells::Cells;
 use crate::{
     backend::{contracts::*, schema::Registry, transport::Backend},
     contract_editor::{ContractPublication, ContractResult, ContractRow},
@@ -10,31 +11,31 @@ use crate::{
 use rmpv::Value;
 use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
-mod mutations;
-mod composer;
 mod account;
 mod broker_mutations;
-mod submissions;
+mod composer;
 mod eod;
+mod mutations;
+mod submissions;
 #[derive(Default)]
 pub struct TradeController {
     pub data: TradeData,
-    pub monitors:crate::state::trade_monitors::Hub,
-    eod:Option<crate::services::trade_eod::Session>,
+    pub monitors: crate::state::trade_monitors::Hub,
+    eod: Option<crate::services::trade_eod::Session>,
     generation: u64,
     receipts: BTreeMap<String, (Json, EditorOutcome)>,
     message: String,
-    order_draft: Option<Json>,
+    order_draft: Option<crate::models::broker_presentation::OrderDraftDisplay>,
     prepared_trade: Option<i32>,
     pending_manual: Option<crate::services::manual_orders::Operation>,
     manual_request: Option<String>,
     confirmed_write: bool,
     reconciled: Vec<EditorOutcome>,
     composer: Option<composer::Composer>,
-    submission_operations:BTreeMap<String,crate::services::order_submission::Operation>,
-    submissions_loaded:bool,
-    order_operations: BTreeMap<String,crate::services::broker_order_commands::Operation>,
-    account_operations: BTreeMap<String,crate::services::broker_account_commands::Operation>,
+    submission_operations: BTreeMap<String, crate::services::order_submission::Operation>,
+    submissions_loaded: bool,
+    order_operations: BTreeMap<String, crate::services::broker_order_commands::Operation>,
+    account_operations: BTreeMap<String, crate::services::broker_account_commands::Operation>,
 }
 fn field<'a>(intent: &'a Json, key: &str) -> &'a str {
     intent["fields"][key].as_str().unwrap_or_default()
@@ -67,11 +68,29 @@ fn selected(
         .map(Some)
         .ok_or("Selected trade workspace identity is no longer available".into())
 }
-fn row(kind: &str, id: impl std::fmt::Display, value: Json) -> Result<ContractRow, String> {
+fn selected_typed<T: crate::models::wire_types::FromBackend + crate::models::cells::Cells>(
+    rows: &[Value],
+    key: &str,
+    id: Option<i64>,
+) -> Result<Option<T>, String> {
+    let Some(id) = id else { return Ok(None) };
+    for wire in rows {
+        let row = T::from_backend(wire)?;
+        if row.cell(key).as_i64() == Some(id) {
+            return Ok(Some(row));
+        }
+    }
+    Err("Selected trade workspace identity is no longer available".into())
+}
+fn typed_row(
+    kind: &str,
+    id: impl std::fmt::Display,
+    value: &impl serde::Serialize,
+) -> Result<ContractRow, String> {
     Ok(ContractRow {
         id: format!("{kind}:{id}"),
         fields: BTreeMap::from([("kind".into(), kind.into())]),
-        data: Some(crate::wire::encode_value(&value)?.into()),
+        data: Some(crate::wire::encode(value)?.into()),
     })
 }
 fn choice_index(intent: &Json, length: usize) -> Result<usize, String> {
@@ -97,15 +116,35 @@ impl TradeController {
     /// Release this UI's preview owner without disabling any saved trade feed.
     /// Shutdown callers supply a short operational budget; failed cleanup never
     /// discards a retained owner while the workspace remains open.
-    pub async fn release_preview(&mut self,backend:&Backend,registry:&Registry,deadline:tokio::time::Instant)->Result<(),String>{
-        if let Some(composer)=self.composer.as_mut(){composer.close(backend,registry,deadline).await?;}
-        self.composer=None;Ok(())
+    pub async fn release_preview(
+        &mut self,
+        backend: &Backend,
+        registry: &Registry,
+        deadline: tokio::time::Instant,
+    ) -> Result<(), String> {
+        if let Some(composer) = self.composer.as_mut() {
+            composer.close(backend, registry, deadline).await?;
+        }
+        self.composer = None;
+        Ok(())
     }
-    async fn apply(&mut self,backend:&Backend,registry:&Registry,intent:&Json,deadline:tokio::time::Instant)->Result<String,String> {
-        if intent["intent"]=="load-trade" {
-            let selection=json!({"portfolio":self.data.portfolio,"fund":self.data.fund,"order":self.data.order,"trade":self.data.trade});
-            crate::diagnostics::trade_load::run(selection,self.apply_inner(backend,registry,intent,deadline)).await
-        } else { self.apply_inner(backend,registry,intent,deadline).await }
+    async fn apply(
+        &mut self,
+        backend: &Backend,
+        registry: &Registry,
+        intent: &Json,
+        deadline: tokio::time::Instant,
+    ) -> Result<String, String> {
+        if intent["intent"] == "load-trade" {
+            let selection = json!({"portfolio":self.data.portfolio,"fund":self.data.fund,"order":self.data.order,"trade":self.data.trade});
+            crate::diagnostics::trade_load::run(
+                selection,
+                self.apply_inner(backend, registry, intent, deadline),
+            )
+            .await
+        } else {
+            self.apply_inner(backend, registry, intent, deadline).await
+        }
     }
     async fn apply_inner(
         &mut self,
@@ -118,29 +157,158 @@ impl TradeController {
         if action != "load" && intent["expectedGeneration"].as_u64() != Some(self.generation) {
             return Err("Trade workspace changed; review the current selection".into());
         }
-        if matches!(action,"eod-open"|"eod-load"|"eod-run"){let result=self.eod_action(backend,registry,intent,deadline).await;if result.is_ok(){self.message.clear();}return result;}
-        if matches!(action,"load-trade"|"activate-trade"|"close-trade"|"position"|"plans-page"|"live-on"|"live-off"){
-            let context=crate::diagnostics::trade_load::measure("business_context",BusinessContext::load(backend)).await?;self.data.context=Some(context.clone());
-            let result=if action=="load-trade"{
-                if intent["originalId"].as_str()!=self.data.order.map(|id|id.to_string()).as_deref(){return Err("Order selection changed".into())}
-                let trade=selected(registry,"FundOrderTradeProjectionReadModel",&self.data.trades,"TradeId",self.data.trade)?.ok_or("Select an established trade")?;
-                if !["Open","Closed"].contains(&trade["TradeState"].as_str().unwrap_or_default()){return Err("Only an established Open or Closed trade can be loaded".into())}
-                let number=|name:&str|trade[name].as_i64().and_then(|n|i32::try_from(n).ok()).filter(|n|*n>0).ok_or("The setup has no established execution identity");
-                let scope=crate::services::trade_monitor_queries::Scope{portfolio:self.data.portfolio.and_then(|n|i32::try_from(n).ok()).ok_or("Missing Portfolio")?,fund:self.data.fund.and_then(|n|i32::try_from(n).ok()).ok_or("Missing Fund")?,order:number("ExecutionOrderId")?,trade:number("ExecutionTradeId")?};
-                let trade_type=text(&trade["TradeType"]);let strategy=if trade_type.ends_with("IronCondor"){"IronCondor"}else if trade_type=="FuturesOutright"{"FuturesOutright"}else{"VerticalSpread"};
-                let fund=selected(registry,"FundMandateReadModel",&self.data.funds,"FundId",self.data.fund)?.ok_or("Missing Fund")?;
-                if let Some(composer)=self.composer.as_mut(){crate::diagnostics::trade_load::measure("close_composer",composer.close(backend,registry,deadline)).await?;}self.composer=None;
-                self.monitors.open(backend,std::sync::Arc::new(crate::diagnostics::trade_load::measure_sync("compile_contract_registry",Registry::compiled)?),crate::state::trade_monitors::OpenRequest{scope,strategy:strategy.into(),trade_type,trade_action:text(&trade["TradeAction"]),fund_name:text(&fund["Name"])},context,deadline).await
-            }else{self.monitors.execute(backend,registry,intent,&context,deadline).await};
-            if result.is_ok(){self.message.clear();}return result;
+        if matches!(action, "eod-open" | "eod-load" | "eod-run") {
+            let result = self.eod_action(backend, registry, intent, deadline).await;
+            if result.is_ok() {
+                self.message.clear();
+            }
+            return result;
         }
-        if matches!(action,"load"|"portfolio"|"fund"|"order"|"trade"|"close") {
-            if let Some(composer)=self.composer.as_mut(){composer.close(backend,registry,deadline).await?;}
-            self.composer=None;
+        if matches!(
+            action,
+            "load-trade"
+                | "activate-trade"
+                | "close-trade"
+                | "position"
+                | "plans-page"
+                | "live-on"
+                | "live-off"
+        ) {
+            let context = crate::diagnostics::trade_load::measure(
+                "business_context",
+                BusinessContext::load(backend),
+            )
+            .await?;
+            self.data.context = Some(context.clone());
+            let result = if action == "load-trade" {
+                if intent["originalId"].as_str()
+                    != self.data.order.map(|id| id.to_string()).as_deref()
+                {
+                    return Err("Order selection changed".into());
+                }
+                let trade = selected(
+                    registry,
+                    "FundOrderTradeProjectionReadModel",
+                    &self.data.trades,
+                    "TradeId",
+                    self.data.trade,
+                )?
+                .ok_or("Select an established trade")?;
+                if !["Open", "Closed"].contains(&trade["TradeState"].as_str().unwrap_or_default()) {
+                    return Err("Only an established Open or Closed trade can be loaded".into());
+                }
+                let number = |name: &str| {
+                    trade[name]
+                        .as_i64()
+                        .and_then(|n| i32::try_from(n).ok())
+                        .filter(|n| *n > 0)
+                        .ok_or("The setup has no established execution identity")
+                };
+                let scope = crate::services::trade_monitor_queries::Scope {
+                    portfolio: self
+                        .data
+                        .portfolio
+                        .and_then(|n| i32::try_from(n).ok())
+                        .ok_or("Missing Portfolio")?,
+                    fund: self
+                        .data
+                        .fund
+                        .and_then(|n| i32::try_from(n).ok())
+                        .ok_or("Missing Fund")?,
+                    order: number("ExecutionOrderId")?,
+                    trade: number("ExecutionTradeId")?,
+                };
+                let trade_type = text(&trade["TradeType"]);
+                let strategy = if trade_type.ends_with("IronCondor") {
+                    "IronCondor"
+                } else if trade_type == "FuturesOutright" {
+                    "FuturesOutright"
+                } else {
+                    "VerticalSpread"
+                };
+                let fund = selected(
+                    registry,
+                    "FundMandateReadModel",
+                    &self.data.funds,
+                    "FundId",
+                    self.data.fund,
+                )?
+                .ok_or("Missing Fund")?;
+                if let Some(composer) = self.composer.as_mut() {
+                    crate::diagnostics::trade_load::measure(
+                        "close_composer",
+                        composer.close(backend, registry, deadline),
+                    )
+                    .await?;
+                }
+                self.composer = None;
+                self.monitors
+                    .open(
+                        backend,
+                        std::sync::Arc::new(crate::diagnostics::trade_load::measure_sync(
+                            "compile_contract_registry",
+                            Registry::compiled,
+                        )?),
+                        crate::state::trade_monitors::OpenRequest {
+                            scope,
+                            strategy: strategy.into(),
+                            trade_type,
+                            trade_action: text(&trade["TradeAction"]),
+                            fund_name: text(&fund["Name"]),
+                        },
+                        context,
+                        deadline,
+                    )
+                    .await
+            } else {
+                self.monitors
+                    .execute(backend, registry, intent, &context, deadline)
+                    .await
+            };
+            if result.is_ok() {
+                self.message.clear();
+            }
+            return result;
         }
-        if matches!(action,"confirm-order"|"cancel-order-confirmation"|"compose"|"preview-draft"|"refresh-chain"|"clear-staged"|"chain"|"select-leg"|"remove-leg"|"account"|"qualification-report"|"qualification-submit"|"qualification-accept"|"qualification-revoke"|"qualification-hold"|"qualification-release"|"qualification-resync"|"submit-order"|"refresh-execution"|"update-limit"|"cancel-unfilled") {
-            let result=self.composer_action(backend,registry,intent,deadline).await;
-            if result.is_ok(){self.message.clear();}
+        if matches!(
+            action,
+            "load" | "portfolio" | "fund" | "order" | "trade" | "close"
+        ) {
+            if let Some(composer) = self.composer.as_mut() {
+                composer.close(backend, registry, deadline).await?;
+            }
+            self.composer = None;
+        }
+        if matches!(
+            action,
+            "confirm-order"
+                | "cancel-order-confirmation"
+                | "compose"
+                | "preview-draft"
+                | "refresh-chain"
+                | "clear-staged"
+                | "chain"
+                | "select-leg"
+                | "remove-leg"
+                | "account"
+                | "qualification-report"
+                | "qualification-submit"
+                | "qualification-accept"
+                | "qualification-revoke"
+                | "qualification-hold"
+                | "qualification-release"
+                | "qualification-resync"
+                | "submit-order"
+                | "refresh-execution"
+                | "update-limit"
+                | "cancel-unfilled"
+        ) {
+            let result = self
+                .composer_action(backend, registry, intent, deadline)
+                .await;
+            if result.is_ok() {
+                self.message.clear();
+            }
             return result;
         }
         if matches!(
@@ -285,53 +453,82 @@ impl TradeController {
             .map(str::to_string)
             .to_vec(),
         );
+        use crate::models::{
+            broker_presentation::{OrderDisplay, SetupTradeDisplay},
+            trade_contracts::{FundOrderProjectionReadModel, FundOrderTradeProjectionReadModel},
+            wire_types::FromBackend,
+        };
         for wire in &data.orders {
-            let order = model(registry, "FundOrderProjectionReadModel", wire)?;
+            let order = FundOrderProjectionReadModel::from_backend(wire)?;
             let at = chrono::DateTime::parse_from_rfc3339(
-                order["CreatedOnUtc"]
-                    .as_str()
-                    .ok_or("Missing order timestamp")?,
+                order
+                    .created_on_utc
+                    .as_ref()
+                    .ok_or("Missing order timestamp")?
+                    .as_str(),
             )
             .map_err(|_| "Invalid order timestamp")?
             .to_utc();
             let date = crate::backend::time_zone::local_date("America/New_York", at)?;
-            result.rows.push(row("order",text(&order["OrderId"]),json!({"orderId":order["OrderId"],"status":order["Status"],"createdOnUtc":date.format("%Y-%b-%d").to_string(),"operatorReference":order["OperatorReference"],"source":if order["Origin"]=="ManualUi"{"Manual"}else{"Strategy Workflow"}}))?);
+            result.rows.push(typed_row(
+                "order",
+                order.order_id.ok_or("Missing order identity")?,
+                &OrderDisplay {
+                    order_id: order.order_id,
+                    status: order.status.clone(),
+                    created_on_utc: Some(date.format("%Y-%b-%d").to_string()),
+                    operator_reference: order.operator_reference.clone(),
+                    source: Some(
+                        if order.origin
+                            == Some(crate::models::trade_contracts::CompositionOrigin::ManualUi)
+                        {
+                            "Manual"
+                        } else {
+                            "Strategy Workflow"
+                        }
+                        .into(),
+                    ),
+                },
+            )?);
         }
         let mut primary = None;
         for (index, wire) in data.trades.iter().enumerate() {
-            let trade = model(registry, "FundOrderTradeProjectionReadModel", wire)?;
-            if trade["PrimaryTrade"] == true && primary.is_none() {
+            let trade = FundOrderTradeProjectionReadModel::from_backend(wire)?;
+            if trade.primary_trade == Some(true) && primary.is_none() {
                 primary = Some(trade.clone());
             }
-            result.rows.push(row("trade",text(&trade["TradeId"]),json!({"index":index,"tradeId":trade["TradeId"],"tradeType":trade["TradeType"],"effectiveDate":trade["RequestedTradeDate"],"tradeDate":trade["TradeDate"],"maturityDate":trade["MaturityDate"],"tradeState":trade["TradeState"],"tradeAction":trade["TradeAction"],"baseContractId":trade["BaseContractId"]}))?);
+            result.rows.push(typed_row(
+                "trade",
+                trade.trade_id.ok_or("Missing trade identity")?,
+                &SetupTradeDisplay {
+                    index,
+                    trade_id: trade.trade_id,
+                    trade_type: trade.trade_type.clone(),
+                    effective_date: trade.requested_trade_date.clone(),
+                    trade_date: trade.trade_date.clone(),
+                    maturity_date: trade.maturity_date.clone(),
+                    trade_state: trade.trade_state.clone(),
+                    trade_action: trade.trade_action.clone(),
+                    base_contract_id: trade.base_contract_id.clone(),
+                },
+            )?);
         }
         if let Some(draft) = &self.order_draft {
-            result.rows.push(row("order-draft", "0", draft.clone())?);
+            result.rows.push(typed_row("order-draft", "0", draft)?);
         }
-        let order = selected(
-            registry,
-            "FundOrderProjectionReadModel",
+        let order = selected_typed::<crate::models::trade_contracts::FundOrderProjectionReadModel>(
             &data.orders,
             "OrderId",
             data.order,
-        )?
-        .unwrap_or(Json::Null);
-        let trade = selected(
-            registry,
-            "FundOrderTradeProjectionReadModel",
-            &data.trades,
-            "TradeId",
-            data.trade,
-        )?
-        .unwrap_or(Json::Null);
-        let fund = selected(
-            registry,
-            "FundMandateReadModel",
+        )?;
+        let trade = selected_typed::<
+            crate::models::trade_contracts::FundOrderTradeProjectionReadModel,
+        >(&data.trades, "TradeId", data.trade)?;
+        let fund = selected_typed::<crate::models::trade_contracts::FundMandateReadModel>(
             &data.funds,
             "FundId",
             data.fund,
-        )?
-        .unwrap_or(Json::Null);
+        )?;
         let index =
             |name: &str, rows: &[Value], key: &str, id: Option<i64>| -> Result<String, String> {
                 let Some(id) = id else { return Ok("-1".into()) };
@@ -341,7 +538,7 @@ impl TradeController {
                     .map(|v| v.to_string())
                     .unwrap_or("-1".into()))
             };
-        let mutable = order["Status"] == "Draft";
+        let mutable = order.as_ref().and_then(|o| o.status.as_deref()) == Some("Draft");
         let development =
             std::env::var("DOTNET_ENVIRONMENT").unwrap_or("Development".into()) == "Development";
         let can_enter = data.context.as_ref().is_some_and(|context| {
@@ -369,7 +566,7 @@ impl TradeController {
                 "tradeId",
                 data.trade.map(|v| v.to_string()).unwrap_or_default(),
             ),
-            ("tradeState", text(&trade["TradeState"])),
+            ("tradeState", trade.cell("TradeState").text()),
             (
                 "valueDate",
                 data.context
@@ -407,33 +604,33 @@ impl TradeController {
                 "closingType",
                 primary
                     .as_ref()
-                    .map(|v| closing(v["TradeType"].as_str().unwrap_or_default()).to_string())
+                    .map(|v| closing(v.trade_type.as_deref().unwrap_or_default()).to_string())
                     .unwrap_or_default(),
             ),
             (
                 "closingContract",
                 primary
                     .as_ref()
-                    .map(|v| text(&v["BaseContractId"]))
+                    .map(|v| v.cell("BaseContractId").text())
                     .unwrap_or_default(),
             ),
-            ("fundName", text(&fund["Name"])),
-            ("compositionType", text(&trade["TradeType"])),
-            ("tradeAction", text(&trade["TradeAction"])),
+            ("fundName", fund.cell("Name").text()),
+            ("compositionType", trade.cell("TradeType").text()),
+            ("tradeAction", trade.cell("TradeAction").text()),
             ("status", self.message.clone()),
             ("canCreateOrder", "True".into()),
             ("canRemoveOrder", (!data.orders.is_empty()).to_string()),
-            ("canAddTrade", (!order.is_null()).to_string()),
+            ("canAddTrade", (order.is_some()).to_string()),
             ("canRemoveTrade", (!data.trades.is_empty()).to_string()),
             (
                 "canLoadTrade",
-                (!trade.is_null() && trade["TradeState"] != "NewTrade").to_string(),
+                (trade.is_some() && trade.cell("TradeState").text() != "NewTrade").to_string(),
             ),
             (
                 "canSubmit",
-                (mutable && trade["TradeState"] == "NewTrade" && can_enter).to_string(),
+                (mutable && trade.cell("TradeState").text() == "NewTrade" && can_enter).to_string(),
             ),
-            ("canEndOfDay", (mutable && !trade.is_null()).to_string()),
+            ("canEndOfDay", (mutable && trade.is_some()).to_string()),
         ] {
             result.context.insert(key.into(), value);
         }
@@ -469,78 +666,258 @@ impl TradeController {
         ] {
             result.context.insert(key.into(), value.into());
         }
-        if let Some(session)=&self.eod{result.rows.push(row("eod",session.scope.key()?,session.document())?);}
-        crate::state::trade_monitors::Hub::merge(&mut result,&self.monitors.current().result);
-        if let (Some(composer),Some(context))=(&self.composer,&data.context){composer.append(&mut result,context)?;
-            composer.append_evidence(&mut result,&self.order_operations)?;
-            if let Some(operation)=self.submission_operations.values().find(|operation|self.matches_submission(registry,operation)){
-                result.context.insert("submissionUnconfirmed".into(),if operation.confirmed{"False"}else{"True"}.into());
-                result.context.insert("submitted".into(),if operation.accepted.is_empty(){"False"}else{"True"}.into());
-                result.context.insert("canPlaceOrder".into(),"False".into());result.context.insert("editable".into(),"False".into());
-            }}
+        if let Some(session) = &self.eod {
+            result
+                .rows
+                .push(typed_row("eod", session.scope.key()?, &session.document())?);
+        }
+        crate::state::trade_monitors::Hub::merge(&mut result, &self.monitors.current().result);
+        if let (Some(composer), Some(context)) = (&self.composer, &data.context) {
+            composer.append(&mut result, context)?;
+            composer.append_evidence(&mut result, &self.order_operations)?;
+            if let Some(operation) = self
+                .submission_operations
+                .values()
+                .find(|operation| self.matches_submission(registry, operation))
+            {
+                result.context.insert(
+                    "submissionUnconfirmed".into(),
+                    if operation.confirmed { "False" } else { "True" }.into(),
+                );
+                result.context.insert(
+                    "submitted".into(),
+                    if operation.accepted.is_empty() {
+                        "False"
+                    } else {
+                        "True"
+                    }
+                    .into(),
+                );
+                result
+                    .context
+                    .insert("canPlaceOrder".into(), "False".into());
+                result.context.insert("editable".into(), "False".into());
+            }
+        }
         Ok(result)
     }
-    async fn composer_action(&mut self,backend:&Backend,registry:&Registry,intent:&Json,deadline:tokio::time::Instant)->Result<String,String>{
+    async fn composer_action(
+        &mut self,
+        backend: &Backend,
+        registry: &Registry,
+        intent: &Json,
+        deadline: tokio::time::Instant,
+    ) -> Result<String, String> {
         self.reconcile_account_operations();
         self.reconcile_order_operations();
-        let context=BusinessContext::load(backend).await?;
-        if matches!(intent["intent"].as_str(),Some("confirm-order"|"cancel-order-confirmation")){
-            let composer=self.composer.as_mut().ok_or("Open Trade Blotter first")?;
-            let id=composer.confirmation_id.ok_or("No order confirmation is pending")?;
-            if intent["originalId"].as_str()!=Some(id.to_string().as_str()){return Err("Order confirmation changed; review its current prepared values".into())}
-            if intent["intent"]=="cancel-order-confirmation"{composer.preparation=None;composer.confirmation_id=None;return Ok("Submission cancelled".into())}
-            return self.submit_confirmed(backend,registry,&context,intent,deadline).await;
+        let context = BusinessContext::load(backend).await?;
+        if matches!(
+            intent["intent"].as_str(),
+            Some("confirm-order" | "cancel-order-confirmation")
+        ) {
+            let composer = self.composer.as_mut().ok_or("Open Trade Blotter first")?;
+            let id = composer
+                .confirmation_id
+                .ok_or("No order confirmation is pending")?;
+            if intent["originalId"].as_str() != Some(id.to_string().as_str()) {
+                return Err(
+                    "Order confirmation changed; review its current prepared values".into(),
+                );
+            }
+            if intent["intent"] == "cancel-order-confirmation" {
+                composer.preparation = None;
+                composer.confirmation_id = None;
+                return Ok("Submission cancelled".into());
+            }
+            return self
+                .submit_confirmed(backend, registry, &context, intent, deadline)
+                .await;
         }
-        let selected_order=self.data.order.map(|v|v.to_string()).unwrap_or_default();
-        if intent["originalId"].as_str()!=Some(selected_order.as_str()){return Err("Order selection changed".into())}
-        if intent["fields"].get("tradeId").is_some()&&field(intent,"tradeId")!=self.data.trade.map(|v|v.to_string()).unwrap_or_default(){return Err("Trade selection changed".into())}
-        self.data.context=Some(context.clone());
-        if matches!(intent["intent"].as_str(),Some("qualification-submit"|"qualification-accept"|"qualification-revoke"|"qualification-hold"|"qualification-release"|"qualification-resync")){
-            return self.account_action(backend,registry,&context,intent,deadline).await;
+        let selected_order = self.data.order.map(|v| v.to_string()).unwrap_or_default();
+        if intent["originalId"].as_str() != Some(selected_order.as_str()) {
+            return Err("Order selection changed".into());
         }
-        if matches!(intent["intent"].as_str(),Some("update-limit"|"cancel-unfilled")){
-            return self.broker_mutation(backend,registry,&context,intent,deadline).await;
+        if intent["fields"].get("tradeId").is_some()
+            && field(intent, "tradeId")
+                != self.data.trade.map(|v| v.to_string()).unwrap_or_default()
+        {
+            return Err("Trade selection changed".into());
+        }
+        self.data.context = Some(context.clone());
+        if matches!(
+            intent["intent"].as_str(),
+            Some(
+                "qualification-submit"
+                    | "qualification-accept"
+                    | "qualification-revoke"
+                    | "qualification-hold"
+                    | "qualification-release"
+                    | "qualification-resync"
+            )
+        ) {
+            return self
+                .account_action(backend, registry, &context, intent, deadline)
+                .await;
+        }
+        if matches!(
+            intent["intent"].as_str(),
+            Some("update-limit" | "cancel-unfilled")
+        ) {
+            return self
+                .broker_mutation(backend, registry, &context, intent, deadline)
+                .await;
         }
         self.load_submissions(registry).await?;
-        if intent["intent"]=="refresh-execution"{self.reconcile_submissions(backend,registry,&context,deadline).await?;}
-        if intent["intent"]=="submit-order"&&self.submission_operations.values().any(|operation|self.matches_submission(registry,operation)){
+        if intent["intent"] == "refresh-execution" {
+            self.reconcile_submissions(backend, registry, &context, deadline)
+                .await?;
+        }
+        if intent["intent"] == "submit-order"
+            && self
+                .submission_operations
+                .values()
+                .any(|operation| self.matches_submission(registry, operation))
+        {
             return Err("This setup already has a retained submission; refresh execution evidence instead of submitting it again".into());
         }
-        if intent["intent"]=="compose" {
-            if let Some(composer)=self.composer.as_mut(){composer.close(backend,registry,deadline).await?;}
-            self.composer=None;
-            let mut trade=selected(registry,"FundOrderTradeProjectionReadModel",&self.data.trades,"TradeId",self.data.trade)?.ok_or("Select a trade")?;
-            for(key,kind,fallback)in[("TradeAction","TradeAction","Buy"),("TradeState","TradeState","NewTrade"),("TradeType","TradeType","Unknown")]{
-                let names=registry.enum_names(&format!("TomasAI.IFM.Domain.Trade.Shared.{kind}"))?;
-                let input=text(&trade[key]);
-                trade[key]=names.into_iter().find(|name|name.eq_ignore_ascii_case(&input)).unwrap_or_else(||if input.parse::<i32>().is_ok(){input}else{fallback.into()}).into();
+        if intent["intent"] == "compose" {
+            if let Some(composer) = self.composer.as_mut() {
+                composer.close(backend, registry, deadline).await?;
             }
-            let mut contract=text(&trade["BaseContractId"]);
-            let definitions=self.data.contracts.iter().map(|row|registry.project("TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel",row)).collect::<Result<Vec<_>,_>>()?;
-            if contract.trim().is_empty(){contract=definitions.iter().find(|c|c["Symbol"].as_str().is_some_and(|s|s.eq_ignore_ascii_case(trade["BaseContractSymbol"].as_str().unwrap_or_default()))).map(|c|text(&c["ContractId"])).unwrap_or_default();}
-            let matching=definitions.into_iter().filter(|c|c["ContractId"]==contract).collect::<Vec<_>>();
-            if matching.len()!=1{return Err("Selected underlying contract is unavailable or ambiguous".into())}
-            let order=selected(registry,"FundOrderProjectionReadModel",&self.data.orders,"OrderId",self.data.order)?.ok_or("Select an order")?;
-            let integer=|id:Option<i64>|id.and_then(|v|i32::try_from(v).ok()).filter(|v|*v>0).ok_or("Invalid composition scope");
-            let scope=crate::services::broker_reads::Scope{portfolio:integer(self.data.portfolio)?,fund:integer(self.data.fund)?,order:integer(self.data.order)?};
-            let development=std::env::var("DOTNET_ENVIRONMENT").unwrap_or("Development".into())=="Development";
-            let allowed=context.market_state==2||development&&context.allow_development_emulator;
-            let editable=order["Status"]=="Draft"&&trade["TradeState"]=="NewTrade"&&allowed;
+            self.composer = None;
+            use crate::models::{
+                trade_contracts::{
+                    FundOrderProjectionReadModel, FundOrderTradeProjectionReadModel,
+                    FuturesContractV3ReadModel,
+                },
+                wire_types::FromBackend,
+            };
+            let mut trade = selected_typed::<FundOrderTradeProjectionReadModel>(
+                &self.data.trades,
+                "TradeId",
+                self.data.trade,
+            )?
+            .ok_or("Select a trade")?;
+            for (value, kind, fallback) in [
+                (&mut trade.trade_action, "TradeAction", "Buy"),
+                (&mut trade.trade_state, "TradeState", "NewTrade"),
+                (&mut trade.trade_type, "TradeType", "Unknown"),
+            ] {
+                let names =
+                    registry.enum_names(&format!("TomasAI.IFM.Domain.Trade.Shared.{kind}"))?;
+                let input = value.as_deref().unwrap_or_default();
+                *value = Some(
+                    names
+                        .into_iter()
+                        .find(|name| name.eq_ignore_ascii_case(input))
+                        .unwrap_or_else(|| {
+                            if input.parse::<i32>().is_ok() {
+                                input.into()
+                            } else {
+                                fallback.into()
+                            }
+                        }),
+                );
+            }
+            let mut contract = trade.base_contract_id.clone().unwrap_or_default();
+            let definitions = self
+                .data
+                .contracts
+                .iter()
+                .map(FuturesContractV3ReadModel::from_backend)
+                .collect::<Result<Vec<_>, _>>()?;
+            if contract.trim().is_empty() {
+                contract = definitions
+                    .iter()
+                    .find(|c| {
+                        c.symbol.as_deref().is_some_and(|s| {
+                            s.eq_ignore_ascii_case(
+                                trade.base_contract_symbol.as_deref().unwrap_or_default(),
+                            )
+                        })
+                    })
+                    .and_then(|c| c.contract_id.clone())
+                    .unwrap_or_default();
+            }
+            let matching = definitions
+                .into_iter()
+                .filter(|c| c.contract_id.as_deref() == Some(contract.as_str()))
+                .collect::<Vec<_>>();
+            if matching.len() != 1 {
+                return Err("Selected underlying contract is unavailable or ambiguous".into());
+            }
+            let order = selected_typed::<FundOrderProjectionReadModel>(
+                &self.data.orders,
+                "OrderId",
+                self.data.order,
+            )?
+            .ok_or("Select an order")?;
+            let integer = |id: Option<i64>| {
+                id.and_then(|v| i32::try_from(v).ok())
+                    .filter(|v| *v > 0)
+                    .ok_or("Invalid composition scope")
+            };
+            let scope = crate::services::broker_reads::Scope {
+                portfolio: integer(self.data.portfolio)?,
+                fund: integer(self.data.fund)?,
+                order: integer(self.data.order)?,
+            };
+            let development = std::env::var("DOTNET_ENVIRONMENT").unwrap_or("Development".into())
+                == "Development";
+            let allowed =
+                context.market_state == 2 || development && context.allow_development_emulator;
+            let editable = order.status.as_deref() == Some("Draft")
+                && trade.trade_state.as_deref() == Some("NewTrade")
+                && allowed;
             // Install the owner before I/O: cancellation cannot discard the only
             // subscription identity capable of cleaning up a partial open.
-            self.composer=Some(composer::Composer::new(scope,trade,matching.into_iter().next().unwrap(),&context,editable,development)?);
-            if let Some(operation)=self.submission_operations.values().find(|operation|self.matches_submission(registry,operation)){
-                let composer=self.composer.as_mut().unwrap();
-                if operation.confirmed{composer.accept_submission(operation.accepted.clone(),"Previously submitted order restored");}
-                else{composer.mark_submission_unknown(operation.accepted.clone(),"Submission outcome unconfirmed; refresh execution evidence");}
+            self.composer = Some(composer::Composer::new(
+                scope,
+                trade,
+                matching.into_iter().next().unwrap(),
+                &context,
+                editable,
+                development,
+            )?);
+            if let Some(operation) = self
+                .submission_operations
+                .values()
+                .find(|operation| self.matches_submission(registry, operation))
+            {
+                let composer = self.composer.as_mut().unwrap();
+                if operation.confirmed {
+                    composer.accept_submission(
+                        operation.accepted.clone(),
+                        "Previously submitted order restored",
+                    )?;
+                } else {
+                    composer.mark_submission_unknown(
+                        operation.accepted.clone(),
+                        "Submission outcome unconfirmed; refresh execution evidence",
+                    )?;
+                }
             }
-            self.composer.as_mut().unwrap().initialize(backend,registry,&context,deadline).await?;
+            self.composer
+                .as_mut()
+                .unwrap()
+                .initialize(backend, registry, &context, deadline)
+                .await?;
             return Ok("Blotter loaded".into());
         }
-        let composer=self.composer.as_mut().ok_or("Open Trade Blotter first")?;
-        if let Some(session)=intent["fields"]["composerSessionId"].as_str(){if session!=composer.session{return Err("Blotter incarnation changed; reload its current draft".into())}}
-        if intent["intent"]=="submit-order"{return composer.prepare_confirmation(backend,registry,&context,intent,deadline).await;}
-        composer.execute(backend,registry,&context,intent,deadline).await
+        let composer = self.composer.as_mut().ok_or("Open Trade Blotter first")?;
+        if let Some(session) = intent["fields"]["composerSessionId"].as_str() {
+            if session != composer.session {
+                return Err("Blotter incarnation changed; reload its current draft".into());
+            }
+        }
+        if intent["intent"] == "submit-order" {
+            return composer
+                .prepare_confirmation(backend, registry, &context, intent, deadline)
+                .await;
+        }
+        composer
+            .execute(backend, registry, &context, intent, deadline)
+            .await
     }
     pub async fn execute(
         &mut self,
@@ -589,7 +966,7 @@ impl TradeController {
             self.confirmed_write = false;
             let deadline = tokio::time::Instant::now() + backend.default_timeout();
             let result =
-                tokio::time::timeout_at(deadline, self.apply(backend, registry, intent, deadline))
+                tokio::time::timeout_at(deadline, Box::pin(self.apply(backend, registry, intent, deadline)))
                     .await
                     .map_err(|_| if self.pending_manual.as_ref().is_some_and(|operation|operation.attempted){"OutcomeUnknown: manual order deadline expired; reload to check the retained operation".into()}else if self.account_operations.get(&request).is_some_and(|operation|operation.attempted&&!operation.acknowledged){"OutcomeUnknown: broker account deadline expired; refresh Account to check its retained operation".into()}else if self.order_operations.get(&request).is_some_and(|operation|operation.attempted&&!operation.acknowledged){"OutcomeUnknown: broker order deadline expired; refresh its original evidence".into()}else if self.submission_operations.get(&request).is_some_and(|operation|operation.attempted&&!operation.confirmed){"OutcomeUnknown: order submission deadline expired; reconcile its retained identity".into()}else{"Trade workspace deadline expired".to_string()})
                     .and_then(|v| v);
@@ -598,28 +975,39 @@ impl TradeController {
             } else {
                 result
             };
-            let outcome = match result {
-                Ok(message) => EditorOutcome {
-                    request_id: request.clone(),
-                    state: "Completed".into(),
-                    message,
-                },
-                Err(message) => {
-                    self.message = message.clone();
-                    EditorOutcome {
+            let outcome =
+                match result {
+                    Ok(message) => EditorOutcome {
                         request_id: request.clone(),
-                        state: if message.starts_with("OutcomeUnknown:")
-                            && (self.eod.as_ref().is_some_and(|v|v.pending)||self.manual_request.as_deref() == Some(request.as_str()) || self.account_operations.get(&request).is_some_and(|operation|operation.attempted&&!operation.acknowledged) || self.order_operations.get(&request).is_some_and(|operation|operation.attempted&&!operation.acknowledged) || self.submission_operations.get(&request).is_some_and(|operation|operation.attempted&&!operation.confirmed))
-                        {
-                            "Unknown"
-                        } else {
-                            "Failed"
-                        }
-                        .into(),
+                        state: "Completed".into(),
                         message,
+                    },
+                    Err(message) => {
+                        self.message = message.clone();
+                        EditorOutcome {
+                            request_id: request.clone(),
+                            state: if message.starts_with("OutcomeUnknown:")
+                                && (self.eod.as_ref().is_some_and(|v| v.pending)
+                                    || self.manual_request.as_deref() == Some(request.as_str())
+                                    || self.account_operations.get(&request).is_some_and(
+                                        |operation| operation.attempted && !operation.acknowledged,
+                                    )
+                                    || self.order_operations.get(&request).is_some_and(
+                                        |operation| operation.attempted && !operation.acknowledged,
+                                    )
+                                    || self.submission_operations.get(&request).is_some_and(
+                                        |operation| operation.attempted && !operation.confirmed,
+                                    ))
+                            {
+                                "Unknown"
+                            } else {
+                                "Failed"
+                            }
+                            .into(),
+                            message,
+                        }
                     }
-                }
-            };
+                };
             self.receipts
                 .insert(request.clone(), (intent.clone(), outcome.clone()));
             outcome
@@ -632,7 +1020,11 @@ impl TradeController {
             generation: self.generation,
             // Successful hybrid workspace publications use the standard hidden
             // Completed label; diagnostics stay visible for failed/unknown work.
-            status: if outcomes[0].state=="Completed" { "Completed".into() } else { outcomes[0].message.clone() },
+            status: if outcomes[0].state == "Completed" {
+                "Completed".into()
+            } else {
+                outcomes[0].message.clone()
+            },
             result: self.result(registry)?,
             outcomes,
             ..Default::default()

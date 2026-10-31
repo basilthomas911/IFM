@@ -35,3 +35,29 @@ fn risk_observation_text_matches_current_managed_presenter() {
         }
     }
 }
+
+#[test]
+fn borrowed_inspection_fields_preserve_named_evidence_without_retaining_a_json_tree() {
+    use ifm_ui_egui::backend::contract_view::Field;
+    let registry = Registry::compiled().unwrap();
+    for (name, kind) in [
+        (
+            "risk-observation.msgpack",
+            "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskObservation",
+        ),
+        (
+            "strategy-view.msgpack",
+            "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView",
+        ),
+    ] {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/backend")
+            .join(name);
+        let wire = ifm_ui_egui::backend::codec::decode(&std::fs::read(path).unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(Field::new(&registry, kind, &wire)).unwrap(),
+            registry.project(kind, &wire).unwrap(),
+            "{name}"
+        );
+    }
+}

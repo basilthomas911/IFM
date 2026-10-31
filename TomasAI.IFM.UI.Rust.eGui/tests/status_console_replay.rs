@@ -32,7 +32,9 @@ async fn core_console_keeps_latest_bounded_rows_when_gui_stalls_without_replay()
     raw.publish(subject,vec![0xc1].into()).await.unwrap();
     raw.publish(subject,payload(3001).into()).await.unwrap();raw.flush().await.unwrap();
     let after_invalid=tokio::time::timeout(Duration::from_secs(5),async{loop{let p=receive.recv().await.unwrap();if p.status_rows.iter().any(|r|r.message=="live console 3001"){break p;}}}).await.unwrap();
-    assert_eq!(after_invalid.error_sequence,0,"Malformed console input must not terminate intake or open a fatal dialog");
+    // The shared responder may have emitted a legitimate error beforehand.
+    // Malformed input must add no fatal error of its own.
+    assert_eq!(after_invalid.error_sequence,latest.error_sequence,"Malformed console input must not terminate intake or open a fatal dialog");
     assert_eq!(after_invalid.status_rows.iter().filter(|r|r.id.starts_with("current-warning|")).count(),1);
     task.abort();let _=task.await;
 }

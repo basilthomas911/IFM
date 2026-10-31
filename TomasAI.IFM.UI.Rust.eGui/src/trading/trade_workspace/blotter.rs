@@ -2,18 +2,13 @@
 
 use super::order_layout::{at, rect};
 use super::*;
+use crate::models::cells::Cells;
+pub(super) fn cell_text(value: &impl Cells, key: &str) -> String {
+    value.cell(key).text()
+}
 /// Borrow a published trade context value; absent keys produce an empty string.
 fn context<'a>(s: &'a ContractPublication, key: &str) -> &'a str {
     s.result.context.get(key).map(String::as_str).unwrap_or("")
-}
-/// Decode the first trade row of a requested kind for presentation, using the empty-value fallback when missing.
-fn value(s: &ContractPublication, kind: &str) -> serde_json::Value {
-    s.result
-        .rows
-        .iter()
-        .find(|r| r.fields.get("kind").is_some_and(|k| k == kind))
-        .map(data)
-        .unwrap_or_default()
 }
 /// Mirrored call/put option-chain column order, with Strike in the center.
 pub(super) const OPTION_COLUMNS: [&str; 13] = [
@@ -52,12 +47,12 @@ pub(super) fn strike_cell(ui: &mut egui::Ui, strike: &str, color: Color32) {
     );
 }
 /// Format one option-chain property for display without recalculating quote or risk values.
-pub(super) fn option_cell(v: &serde_json::Value, key: &str) -> String {
-    let Some(number) = v[key].wire_number() else {
-        return if v[key].is_null() {
+pub(super) fn option_cell(v: &impl Cells, key: &str) -> String {
+    let Some(number) = v.cell(key).number() else {
+        return if v.cell(key).is_missing() {
             "-".into()
         } else {
-            text(v, key)
+            cell_text(v, key)
         };
     };
     match key {
@@ -78,7 +73,7 @@ pub(super) fn option_cell(v: &serde_json::Value, key: &str) -> String {
             }
         }
         "bid" | "ask" | "strike" => format!("{number:.2}"),
-        _ => text(v, key),
+        _ => cell_text(v, key),
     }
 }
 // Position caption/value glyphs on the same text line, independent of control padding.
@@ -195,6 +190,7 @@ impl TradeWorkspace {
         ui: &mut egui::Ui,
         s: &ContractPublication,
     ) -> Option<&'static str> {
+        let display = self.prepare_trade_display(s);
         let p = ui.ctx().pixels_per_point();
         let parent_o = ui.cursor().min;
         let o = parent_o + egui::vec2(0., 50.) / p;
@@ -210,7 +206,7 @@ impl TradeWorkspace {
             .rows
             .iter()
             .find(|r| r.id == format!("trade:{}", context(s, "tradeId")))
-            .map(|r| text(&data(r), "tradeType"))
+            .map(|r| text(display.row(&r.id), "tradeType"))
             .unwrap_or_default();
         let kind = if context(s, "compositionType").is_empty() {
             selected_type.as_str()
@@ -622,8 +618,11 @@ impl TradeWorkspace {
         let o = o - egui::vec2(4. / p, 0.);
         let w = w + 8.;
         let mut action = None;
-        let market = value(s, "market");
-        let metrics = value(s, "market-metrics");
+        let display = self.prepare_trade_display(s);
+        let empty_market = crate::models::broker_presentation::MarketDisplay::default();
+        let empty_metrics = crate::models::broker_presentation::MarketMetrics::default();
+        let market = display.market.as_deref().unwrap_or(&empty_market);
+        let metrics = display.market_metrics.as_deref().unwrap_or(&empty_metrics);
         // Add ten physical pixels between successive header groups.
         let xs = [166., 387., 643., 907., 1082., 1360.];
         let widths = [130., 86., 141., 64., 115., 88.];
@@ -686,7 +685,7 @@ impl TradeWorkspace {
                             egui::Stroke::new(1. / p, Color32::from_gray(80)),
                             egui::StrokeKind::Inside,
                         );
-                        market_header_text(ui, r, &text(&metrics, key), egui::Align::LEFT);
+                        market_header_text(ui, r, &cell_text(metrics, key), egui::Align::LEFT);
                     });
                     self.controls.insert((*key).into(), r);
                 }
@@ -782,7 +781,7 @@ impl TradeWorkspace {
                 );
             },
         );
-        let liquidity = text(&market, "windowMethod");
+        let liquidity = cell_text(market, "windowMethod");
         self.draft
             .insert("liquiditySelector".into(), liquidity.clone());
         self.choice(
@@ -877,8 +876,12 @@ impl TradeWorkspace {
         let o = o - egui::vec2(4. / p, 0.);
         let w = w + 8.;
         let mut action = None;
-        let preview = value(s, "broker-preview");
-        let fields = &preview["fields"];
+        let display = self.prepare_trade_display(s);
+        let fields = display
+            .business
+            .values()
+            .find_map(|v| v.preview())
+            .map(|v| &v.fields);
         // Leave room for all four option legs, the header, and row spacing.
         let leg_grid_bounds = rect(o, p, 26., 123., w - 52., 160.);
         at(ui, leg_grid_bounds, "brokerPreviewLegGrid", |ui| {
@@ -1052,7 +1055,10 @@ impl TradeWorkspace {
                                 }
                             }
                             "SMART" => "Not configured".into(),
-                            _ => text(fields, caption),
+                            _ => fields
+                                .and_then(|v| v.get(*caption))
+                                .cloned()
+                                .unwrap_or_default(),
                         };
                         self.display(
                             ui,
@@ -1148,7 +1154,7 @@ impl TradeWorkspace {
         &mut self,
         ui: &mut egui::Ui,
         s: &ContractPublication,
-        fallback: &serde_json::Value,
+        fallback: &impl Cells,
     ) {
         let key = self
             .draft
@@ -1159,11 +1165,12 @@ impl TradeWorkspace {
                     .get("brokerOrderId")
                     .map(|id| format!("broker-properties:{id}"))
             });
-        let prepared = key
-            .and_then(|key| s.result.rows.iter().find(|r| r.id == key))
-            .map(data)
-            .unwrap_or_default();
-        let Some(properties) = prepared["properties"].as_array() else {
+        let display = self.prepare_trade_display(s);
+        let properties = key
+            .as_ref()
+            .and_then(|key| display.row(key).properties())
+            .map(|v| &v.properties);
+        let Some(properties) = properties else {
             Self::properties(ui, fallback);
             return;
         };
@@ -1214,13 +1221,8 @@ impl TradeWorkspace {
     /// Render the managed staged-order rows and their selection state.
     fn staging_grid(&mut self, ui: &mut egui::Ui, s: &ContractPublication) {
         let p = ui.ctx().pixels_per_point();
-        let legs: Vec<_> = s
-            .result
-            .rows
-            .iter()
-            .filter(|r| r.fields.get("kind").is_some_and(|k| k == "leg"))
-            .map(data)
-            .collect();
+        let display = self.prepare_trade_display(s);
+        let legs = &display.selected_legs;
         let headers = [
             "Leg",
             "Delta",
@@ -1259,31 +1261,31 @@ impl TradeWorkspace {
                     for column in 0..10 {
                         row.col(|ui| {
                             ui.trading_label(match column {
-                                0 => text(v, "role"),
-                                1 => text(v, "delta"),
+                                0 => cell_text(v, "role"),
+                                1 => cell_text(v, "delta"),
                                 2 => {
-                                    if text(v, "role").starts_with('-') {
+                                    if cell_text(v, "role").starts_with('-') {
                                         "SELL".into()
                                     } else {
                                         "BUY".into()
                                     }
                                 }
-                                3 => text(v, "contractId"),
+                                3 => cell_text(v, "contractId"),
                                 4 => {
-                                    if v["isFuture"] == true {
+                                    if v.is_future == Some(true) {
                                         "FUT".into()
-                                    } else if v["isCall"] == true {
+                                    } else if v.is_call == Some(true) {
                                         "CALL".into()
                                     } else {
                                         "PUT".into()
                                     }
                                 }
-                                5 => text(v, "strike"),
-                                6 => text(v, "bid"),
-                                7 => text(v, "ask"),
+                                5 => cell_text(v, "strike"),
+                                6 => cell_text(v, "bid"),
+                                7 => cell_text(v, "ask"),
                                 8 => self.draft.get("quantity").cloned().unwrap_or("1".into()),
                                 _ => {
-                                    if v["bid"].is_null() {
+                                    if v.bid.is_none() {
                                         "Quote unavailable".into()
                                     } else {
                                         "Selected".into()
@@ -1297,11 +1299,27 @@ impl TradeWorkspace {
     }
     /// Render the selected broker/reconciliation evidence from published data.
     fn evidence_panel(&mut self, ui: &mut egui::Ui, s: &ContractPublication) {
+        let display = self.prepare_trade_display(s);
         egui::ScrollArea::both().id_salt("durable-evidence-text").show(ui,|ui|{
-   let account=value(s,"account");ui.trading_label(format!("Account: {}; Gate={}; Qualification={}; Cash={}; Available={}",text(&account["id"],"accountAlias"),text(&account,"gate"),text(&account,"qualificationStatus"),text(&account["snapshot"],"cashBalance"),text(&account["snapshot"],"availableFunds")));ui.add_space(16.);
-   let orders:Vec<_>=s.result.rows.iter().filter(|r|r.fields.get("kind").is_some_and(|k|k=="broker-order")).map(data).collect();if orders.is_empty(){ui.trading_caption("Broker orders: none submitted");}for order in orders{ui.trading_label(format!("Broker order {}: {}; Limit={}; Revision={}; Generation={}; Operation={}; Dispatch={} {}",text(&order["id"],"componentId"),text(&order,"status"),text(&order,"currentSignedNetDebitLimit"),text(&order,"brokerRevision"),text(&order["lastObservation"],"sourceEpoch"),text(&order,"operationId"),text(&order,"dispatchCategory"),text(&order,"dispatchDetail")));if !order["lastObservation"].is_null(){ui.trading_label(format!("Latest broker fact: {}",order["lastObservation"]));}ui.add_space(16.);}
-   for execution in s.result.rows.iter().filter(|r|r.fields.get("kind").is_some_and(|k|k=="execution")).map(data){ui.trading_label(format!("Execution {}: {}; Requested={}; Cumulative={}; Revision={}",text(&execution["id"],"executionAttemptId"),text(&execution,"status"),text(&execution,"orderQuantity"),text(&execution,"cumulativeFilledQuantity"),text(&execution,"orderRevision")));if let Some(fills)=execution["fills"].as_array(){for fill in fills{ui.trading_label(format!("  {}: Quantity={}; Price={}; Commission={}; External={}; At={}",text(fill,"contractId"),text(fill,"signedQuantity"),text(fill,"price"),text(fill,"commission"),text(fill,"externalExecutionId"),text(fill,"filledAtUtc")));}}ui.add_space(16.);}
-  });
+            let account=display.business.values().find_map(|v|v.account());
+            ui.trading_label(format!("Account: {}; Gate={}; Qualification={}; Cash={}; Available={}",
+                account.and_then(|a|a.id.as_ref()).cell("accountAlias").text(),account.cell("gate").text(),account.cell("qualificationStatus").text(),
+                account.and_then(|a|a.snapshot.as_ref()).cell("cashBalance").text(),account.and_then(|a|a.snapshot.as_ref()).cell("availableFunds").text()));
+            ui.add_space(16.);
+            let orders:Vec<_>=display.business.values().filter_map(|v|v.broker_order()).collect();
+            if orders.is_empty(){ui.trading_caption("Broker orders: none submitted");}
+            for order in orders{
+                ui.trading_label(format!("Broker order {}: {}; Limit={}; Revision={}; Generation={}; Operation={}; Dispatch={} {}",
+                    order.id.cell("componentId").text(),order.cell("status").text(),order.cell("currentSignedNetDebitLimit").text(),order.cell("brokerRevision").text(),order.last_observation.cell("sourceEpoch").text(),order.cell("operationId").text(),order.cell("dispatchCategory").text(),order.cell("dispatchDetail").text()));
+                if let Some(fact)=display.business.iter().find(|(_,row)|row.broker_order().is_some_and(|value|std::ptr::eq(value,order))).and_then(|(id,_)|display.broker_facts.get(id)){ui.trading_label(format!("Latest broker fact: {fact}"));}
+                ui.add_space(16.);
+            }
+            for execution in display.business.values().filter_map(|v|v.execution()){
+                ui.trading_label(format!("Execution {}: {}; Requested={}; Cumulative={}; Revision={}",execution.cell("executionAttemptId").text(),execution.cell("status").text(),execution.cell("orderQuantity").text(),execution.cell("cumulativeFilledQuantity").text(),execution.cell("orderRevision").text()));
+                for fill in execution.fills.as_deref().unwrap_or_default(){ui.trading_label(format!("  {}: Quantity={}; Price={}; Commission={}; External={}; At={}",fill.cell("contractId").text(),fill.cell("signedQuantity").text(),fill.cell("price").text(),fill.cell("commission").text(),fill.cell("externalExecutionId").text(),fill.cell("filledAtUtc").text()));}
+                ui.add_space(16.);
+            }
+        });
     }
     /// Draw editable option-leg rows within the allotted height and report whether the leg selection changed.
     fn leg_grid(
@@ -1314,21 +1332,21 @@ impl TradeWorkspace {
         ui.style_mut()
             .text_styles
             .insert(egui::TextStyle::Body, egui::FontId::proportional(12.));
-        let legs: Vec<_> = s
-            .result
-            .rows
-            .iter()
-            .filter(|r| r.fields.get("kind").is_some_and(|k| k == "leg"))
-            .map(data)
-            .collect();
+        let display = self.prepare_trade_display(s);
+        let legs = &display.selected_legs;
         let mut changed = false;
         let p = ui.ctx().pixels_per_point();
         let titles = [
             "Leg", "Side", "Role", "Contract", "Strike", "Qty", "Bid", "Ask", "Mid", "Delta",
             "Age", "Selected",
         ];
-        let api_as_of = value(s,"market")["asOfUtc"].as_str()
-            .unwrap_or(context(s,"asOfUtc")).to_string();
+        let api_as_of = display
+            .market
+            .as_deref()
+            .and_then(|market| market.as_of_utc.as_ref())
+            .map(|value| value.as_str())
+            .unwrap_or(context(s, "asOfUtc"))
+            .to_string();
         let row_spacing = ui.spacing().item_spacing.y;
         let body_height = (height - 25. / p - row_spacing).max(0.);
         let mut table = egui_extras::TableBuilder::new(ui)
@@ -1364,9 +1382,10 @@ impl TradeWorkspace {
                     let leg = &legs[index];
                     for column in 0..12 {
                         row.col(|ui| {
-                            let mid = leg["bid"]
-                                .wire_number()
-                                .zip(leg["ask"].wire_number())
+                            let mid = leg
+                                .cell("bid")
+                                .number()
+                                .zip(leg.cell("ask").number())
                                 .map(|(b, a)| format!("{:.2}", (b + a) / 2.))
                                 .unwrap_or_default();
                             if column == 5 {
@@ -1379,31 +1398,34 @@ impl TradeWorkspace {
                                 ui.trading_label(match column {
                                     0 => (index + 1).to_string(),
                                     1 => {
-                                        if text(leg, "role").starts_with('-') {
+                                        if cell_text(leg, "role").starts_with('-') {
                                             "SELL".into()
                                         } else {
                                             "BUY".into()
                                         }
                                     }
-                                    2 => text(leg, "role"),
-                                    3 => text(leg, "contractId"),
-                                    4 => text(leg, "strike"),
-                                    6 => text(leg, "bid"),
-                                    7 => text(leg, "ask"),
+                                    2 => cell_text(leg, "role"),
+                                    3 => cell_text(leg, "contractId"),
+                                    4 => cell_text(leg, "strike"),
+                                    6 => cell_text(leg, "bid"),
+                                    7 => cell_text(leg, "ask"),
                                     8 => mid.clone(),
                                     11 => {
-                                        if leg["isFuture"] == true {
+                                        if leg.is_future == Some(true) {
                                             context(s, "underlyingReferencePrice").into()
                                         } else {
                                             mid
                                         }
                                     }
-                                    9 => leg["delta"]
-                                        .wire_number()
+                                    9 => leg
+                                        .cell("delta")
+                                        .number()
                                         .map(|delta| format!("{delta:.6}"))
                                         .unwrap_or_default(),
                                     _ => crate::services::broker_market_display::quote_age(
-                                        &api_as_of,&text(leg,"quoteAtUtc")),
+                                        &api_as_of,
+                                        &cell_text(leg, "quoteAtUtc"),
+                                    ),
                                 });
                             }
                         });
@@ -1415,14 +1437,11 @@ impl TradeWorkspace {
     /// Render selected trade legs from the current managed publication.
     fn selected_grid(&mut self, ui: &mut egui::Ui, s: &ContractPublication) {
         let p = ui.ctx().pixels_per_point();
-        let market = value(s, "market");
-        let legs: Vec<_> = s
-            .result
-            .rows
-            .iter()
-            .filter(|r| r.fields.get("kind").is_some_and(|k| k == "leg"))
-            .map(data)
-            .collect();
+        let prepared = self.prepare_trade_display(s);
+        let empty_market = crate::models::broker_presentation::MarketDisplay::default();
+        let market = prepared.market.as_deref().unwrap_or(&empty_market);
+        let display = self.prepare_trade_display(s);
+        let legs = &display.selected_legs;
         let row_spacing = ui.spacing().item_spacing.y;
         let body_height = (ui.available_height() - 24. / p - row_spacing).max(0.);
         let mut table = egui_extras::TableBuilder::new(ui)
@@ -1447,8 +1466,8 @@ impl TradeWorkspace {
             .bordered_body(24. / p, |body| {
                 body.rows(27. / p, legs.len(), |mut row| {
                     let v = &legs[row.index()];
-                    let call = v["isCall"] == true;
-                    let role = text(v, "role");
+                    let call = v.is_call == Some(true);
+                    let role = cell_text(v, "role");
                     for column in 0..13 {
                         row.col(|ui| {
                             let side = if call { column < 6 } else { column > 6 };
@@ -1475,10 +1494,11 @@ impl TradeWorkspace {
                                 let cell = if key == "role" {
                                     role.clone()
                                 } else {
-                                    market["contracts"]
-                                        .as_array()
+                                    market
+                                        .contracts
+                                        .as_ref()
                                         .and_then(|rows| {
-                                            rows.iter().find(|c| c["contractId"] == v["contractId"])
+                                            rows.iter().find(|c| c.contract_id == v.contract_id)
                                         })
                                         .map(|c| option_cell(c, key))
                                         .unwrap_or_else(|| option_cell(v, key))

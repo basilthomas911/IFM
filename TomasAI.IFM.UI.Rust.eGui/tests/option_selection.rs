@@ -1,3 +1,6 @@
+fn j(v: ifm_ui_egui::models::trade_contracts::EvaluatedOptionChainReadModel) -> serde_json::Value {
+    ifm_ui_egui::models::backend_document::request_document(&v).unwrap()
+}
 use ifm_ui_egui::{backend::contracts::ExactDecimal, services::option_selection::*};
 #[test]
 fn selections_match_unchanged_hybrid_decimal_and_delta_rules() {
@@ -9,7 +12,7 @@ fn selections_match_unchanged_hybrid_decimal_and_delta_rules() {
             .as_array()
             .unwrap()
             .iter()
-            .map(|c| Contract::from_backend(c).unwrap())
+            .map(|c| Contract::from_backend(&serde_json::from_value(c.clone()).unwrap()).unwrap())
             .collect();
         let underlying = case["underlying"]
             .as_str()
@@ -79,16 +82,28 @@ fn retained_display_matches_hybrid_without_changing_raw_eligibility() {
     let incoming = read("incoming");
     let original = incoming.clone();
     assert_eq!(
-        merge_display(Some(&previous), &incoming).unwrap(),
+        j(merge_display(
+            Some(&serde_json::from_value(previous.clone()).unwrap()),
+            &serde_json::from_value(incoming.clone()).unwrap()
+        )
+        .unwrap()),
         read("merged")
     );
     assert_eq!(incoming, original);
     let frozen = read("frozen");
     assert_eq!(
-        merge_display(Some(&previous), &frozen).unwrap(),
+        j(merge_display(
+            Some(&serde_json::from_value(previous.clone()).unwrap()),
+            &serde_json::from_value(frozen.clone()).unwrap()
+        )
+        .unwrap()),
         read("frozen-merged")
     );
-    let merged = merge_display(Some(&previous), &incoming).unwrap();
+    let merged = j(merge_display(
+        Some(&serde_json::from_value(previous.clone()).unwrap()),
+        &serde_json::from_value(incoming.clone()).unwrap(),
+    )
+    .unwrap());
     let missing = merged["Contracts"]
         .as_array()
         .unwrap()

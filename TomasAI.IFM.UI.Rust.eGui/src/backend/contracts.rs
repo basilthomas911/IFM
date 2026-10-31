@@ -85,6 +85,15 @@ pub fn service_result(value: &Value) -> Result<&Value, String> {
     }
 }
 
+/// Consume a validated service envelope without cloning its potentially large payload.
+pub fn into_service_result(value: Value) -> Result<Value, String> {
+    service_result(&value)?;
+    match value {
+        Value::Array(mut parts) => Ok(parts.swap_remove(3)),
+        _ => Err("ServiceResult must be an array".into()),
+    }
+}
+
 /// .NET decimal is encoded as an invariant string by MessagePack-CSharp.
 /// Validate its 96-bit coefficient and 0..28 scale without floating conversion.
 #[derive(Clone, Debug, Eq, PartialEq)]

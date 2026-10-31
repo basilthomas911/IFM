@@ -1,11 +1,16 @@
 //! Actor explorer and generation-bound Supervisor operations. HTTP owns health
 //! observation; existing NATS commands own lifecycle changes. UI time is API time.
+use crate::models::{
+    actor_health::{ActorHealthSnapshot, ActorHealthThreadId},
+    cells::{Cell, Cells},
+    health_fields::HealthFields,
+};
 use crate::{
     backend::{contracts::*, health_http::HealthClient, schema::Registry, transport::Backend},
     contract_editor::{ContractPublication, ContractResult, ContractRow},
     lookup_editor::EditorOutcome,
 };
-use chrono::{DateTime, Datelike, Timelike, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use rmpv::Value;
 use serde_json::Value as Json;
 use std::{collections::BTreeMap, time::Duration};
@@ -36,9 +41,10 @@ impl Default for ControlOptions {
 }
 impl ControlOptions {
     pub fn from_env() -> Result<Self, String> {
-        let enabled = crate::backend::configuration::value("SupervisorControl__Enabled")?.unwrap_or_default();
-        let timeout =
-            crate::backend::configuration::value("SupervisorControl__Timeout")?.unwrap_or_else(|| "00:02:00".into());
+        let enabled =
+            crate::backend::configuration::value("SupervisorControl__Enabled")?.unwrap_or_default();
+        let timeout = crate::backend::configuration::value("SupervisorControl__Timeout")?
+            .unwrap_or_else(|| "00:02:00".into());
         let parts = timeout
             .split(':')
             .map(str::parse::<u64>)
@@ -59,49 +65,30 @@ impl ControlOptions {
         }
         Ok(Self {
             enabled: enabled.eq_ignore_ascii_case("true"),
-            requester: crate::backend::configuration::value("SupervisorControl__Requester")?.unwrap_or_default(),
+            requester: crate::backend::configuration::value("SupervisorControl__Requester")?
+                .unwrap_or_default(),
             timeout: Duration::from_secs(seconds),
         })
     }
-    fn authority(&self, snapshot: &Json) -> bool {
+    fn authority(&self, snapshot: &ActorHealthSnapshot) -> bool {
         self.enabled
-            && snapshot["ManualMutationEnabled"] == true
-            && snapshot["SupervisorAuthorityState"] != "HostRecoveryRequired"
+            && snapshot.cell("ManualMutationEnabled") == Cell::Boolean(true)
+            && snapshot.cell("SupervisorAuthorityState").as_str() != Some("HostRecoveryRequired")
     }
 }
 #[derive(Clone)]
 pub struct Target {
-    pub thread: Json,
+    pub thread: ActorHealthThreadId,
     pub generation: i64,
 }
 pub struct ActorProjection {
     pub result: ContractResult,
     pub targets: BTreeMap<String, Target>,
 }
-pub fn pascal(value: &Json) -> Json {
+fn scalar(value: &Cell<'_>) -> String {
     match value {
-        Json::Object(map) => Json::Object(
-            map.iter()
-                .map(|(k, v)| {
-                    let name = k
-                        .chars()
-                        .next()
-                        .map(|c| format!("{}{}", c.to_uppercase(), &k[c.len_utf8()..]))
-                        .unwrap_or_default();
-                    (name, pascal(v))
-                })
-                .collect(),
-        ),
-        Json::Array(values) => Json::Array(values.iter().map(pascal).collect()),
-        _ => value.clone(),
-    }
-}
-fn scalar(v: &Json) -> String {
-    match v {
-        Json::Null => String::new(),
-        Json::String(s) => s.clone(),
-        Json::Bool(b) => if *b { "True" } else { "False" }.into(),
-        _ => v.to_string(),
+        Cell::Boolean(value) => if *value { "True" } else { "False" }.into(),
+        _ => value.text(),
     }
 }
 fn date_display(time: DateTime<Utc>) -> String {
@@ -111,70 +98,34 @@ fn date_display(time: DateTime<Utc>) -> String {
         time.timestamp_subsec_nanos() / 100
     )
 }
-fn display(value: &Json, key: &str) -> String {
-    if key.ends_with("Utc") {
-        if let Some(text) = value.as_str() {
-            if let Ok(time) = DateTime::parse_from_rfc3339(text) {
-                return date_display(time.to_utc());
-            }
-            if let Ok(time) = chrono::NaiveDateTime::parse_from_str(text, "%Y-%m-%dT%H:%M:%S%.f") {
-                return format!(
-                    "{}.{:07}",
-                    time.format("%Y-%m-%dT%H:%M:%S"),
-                    time.nanosecond() / 100
-                );
-            }
-        }
-    }
-    scalar(value)
-}
-fn flatten(value: &Json, prefix: &str, fields: &mut BTreeMap<String, String>) {
-    match value {
-        Json::Object(map) => {
-            for (k, v) in map {
-                flatten(
-                    v,
-                    &if prefix.is_empty() {
-                        k.clone()
-                    } else {
-                        format!("{prefix}.{k}")
-                    },
-                    fields,
-                )
-            }
-        }
-        Json::Array(_) => {}
-        _ => {
-            fields.insert(prefix.into(), display(value, prefix));
-        }
-    }
-}
-fn utc(v: &Json) -> Result<DateTime<Utc>, String> {
+fn utc(v: &Cell<'_>) -> Result<DateTime<Utc>, String> {
     DateTime::parse_from_rfc3339(v.as_str().ok_or("Missing health timestamp")?)
         .map(|v| v.to_utc())
         .map_err(|_| "Invalid health timestamp".into())
 }
-fn thread_id(value: &Json) -> Result<String, String> {
-    let name = value["Name"]
+fn thread_id(value: &(impl Cells + ?Sized)) -> Result<String, String> {
+    let name = value.cell("Name");
+    let name = name
         .as_str()
-        .filter(|s| !s.is_empty())
+        .filter(|value| !value.is_empty())
         .ok_or("Missing actor name")?;
-    let entity = value["EntityId"].as_str().ok_or("Missing mailbox entity")?;
-    let kind = value["ActorType"]
-        .as_str()
-        .ok_or("ActorType must be a named enum")?;
+    let entity = value.cell("EntityId");
+    let entity = entity.as_str().ok_or("Missing mailbox entity")?;
+    let kind = value.cell("ActorType");
+    let kind = kind.as_str().ok_or("ActorType must be a named enum")?;
     Ok(format!("{kind}:{name}:{entity}"))
 }
+
 pub fn project(
-    snapshot: &Json,
+    snapshot: &ActorHealthSnapshot,
     from: DateTime<Utc>,
     options: &ControlOptions,
 ) -> Result<ActorProjection, String> {
-    let observed = utc(&snapshot["ObservedUtc"])?;
+    let observed = utc(&snapshot.cell("ObservedUtc"))?;
     if observed.year_ce().1 <= 1 {
         return Err("Actor health observation is not initialized".into());
     }
-    let actors = snapshot["Actors"].as_array().ok_or("Missing actors")?;
+    let actors = snapshot.actors.as_ref().ok_or("Missing actors")?;
     if actors.len() > 4096 {
         return Err("Actor health exceeds its actor limit".into());
     }
@@ -183,7 +134,7 @@ pub fn project(
     let mut add = |id: String,
                    name: String,
                    parent: String,
-                   value: &Json,
+                   value: &dyn HealthFields,
                    kind: &str,
                    status: String|
      -> Result<(), String> {
@@ -191,7 +142,7 @@ pub fn project(
             return Err("Actor health exceeds its row limit".into());
         }
         let mut fields = BTreeMap::new();
-        flatten(value, "", &mut fields);
+        value.fields("", &mut fields);
         fields.extend(BTreeMap::from([
             ("name".into(), name),
             ("parent".into(), parent),
@@ -210,34 +161,40 @@ pub fn project(
         Ok(())
     };
     let mut actors: Vec<_> = actors.iter().collect();
-    actors.sort_by_key(|a| (scalar(&a["Domain"]), scalar(&a["ActorId"]["Name"])));
+    actors.sort_by_key(|a| (scalar(&a.cell("Domain")), scalar(&a.actor_id.cell("Name"))));
     for actor in actors {
-        let name = scalar(&actor["ActorId"]["Name"]);
-        let parent = format!("actor:{}:{name}", scalar(&actor["ActorId"]["ActorType"]));
+        let name = scalar(&actor.actor_id.cell("Name"));
+        let parent = format!("actor:{}:{name}", scalar(&actor.actor_id.cell("ActorType")));
         add(
             parent.clone(),
             name,
-            scalar(&actor["Domain"]),
+            scalar(&actor.cell("Domain")),
             actor,
             "actor",
-            scalar(&actor["Status"]),
+            scalar(&actor.cell("Status")),
         )?;
-        let mut mailboxes: Vec<_> = actor["Mailboxes"]
-            .as_array()
+        let mut mailboxes: Vec<_> = actor
+            .mailboxes
+            .as_ref()
             .ok_or("Missing mailboxes")?
             .iter()
             .collect();
-        mailboxes.sort_by_key(|m| scalar(&m["ThreadId"]["EntityId"]));
+        mailboxes.sort_by_key(|m| scalar(&m.thread_id.cell("EntityId")));
         for mailbox in mailboxes {
-            let thread = mailbox["ThreadId"].clone();
+            let thread = mailbox
+                .thread_id
+                .as_ref()
+                .ok_or("Missing mailbox thread identity")?
+                .clone();
             let id = format!("mailbox:{}", thread_id(&thread)?);
-            let status = if mailbox["IsProcessing"] == true
-                || mailbox["QueueDepth"].as_i64().unwrap_or(0) > 0
+            let status = if mailbox.cell("IsProcessing") == Cell::Boolean(true)
+                || mailbox.cell("QueueDepth").as_i64().unwrap_or(0) > 0
             {
                 "Yellow"
-            } else if !mailbox["LastFailedUtc"].is_null()
-                && (mailbox["LastCompletedUtc"].is_null()
-                    || utc(&mailbox["LastFailedUtc"])? >= utc(&mailbox["LastCompletedUtc"])?)
+            } else if !mailbox.cell("LastFailedUtc").is_missing()
+                && (mailbox.cell("LastCompletedUtc").is_missing()
+                    || utc(&mailbox.cell("LastFailedUtc"))?
+                        >= utc(&mailbox.cell("LastCompletedUtc"))?)
             {
                 "Red"
             } else {
@@ -245,7 +202,7 @@ pub fn project(
             };
             add(
                 id.clone(),
-                scalar(&thread["EntityId"]),
+                scalar(&thread.cell("EntityId")),
                 parent.clone(),
                 mailbox,
                 "mailbox",
@@ -255,21 +212,21 @@ pub fn project(
                 id,
                 Target {
                     thread,
-                    generation: mailbox["Generation"]
+                    generation: mailbox
+                        .cell("Generation")
                         .as_i64()
                         .ok_or("Missing mailbox generation")?,
                 },
             );
         }
     }
-    let empty = Vec::new();
-    for value in snapshot["Failures"].as_array().unwrap_or(&empty) {
+    for value in snapshot.failures.as_ref().map(Vec::as_slice).unwrap_or(&[]) {
         add(
-            format!("failure:{}", scalar(&value["FailureId"])),
+            format!("failure:{}", scalar(&value.cell("FailureId"))),
             format!(
                 "{}.{}",
-                scalar(&value["ActorId"]["Name"]),
-                scalar(&value["Verb"])
+                scalar(&value.actor_id.cell("Name")),
+                scalar(&value.cell("Verb"))
             ),
             "Failure history".into(),
             value,
@@ -277,16 +234,21 @@ pub fn project(
             "Red".into(),
         )?;
     }
-    for value in snapshot["Projectors"].as_array().unwrap_or(&empty) {
-        let name = scalar(&value["ActorName"]);
-        let projector = scalar(&value["ProjectorName"]);
+    for value in snapshot
+        .projectors
+        .as_ref()
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+    {
+        let name = scalar(&value.cell("ActorName"));
+        let projector = scalar(&value.cell("ProjectorName"));
         add(
             format!("projector:{name}:{projector}"),
             format!("{name} / {projector}"),
             "Event projectors".into(),
             value,
             "projector",
-            if value["IsReady"] == true {
+            if value.cell("IsReady") == Cell::Boolean(true) {
                 "Green"
             } else {
                 "Red"
@@ -294,20 +256,29 @@ pub fn project(
             .into(),
         )?;
     }
-    for value in snapshot["Incidents"].as_array().unwrap_or(&empty) {
-        let thread = value["ThreadId"].clone();
+    for value in snapshot
+        .incidents
+        .as_ref()
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+    {
+        let thread = value
+            .thread_id
+            .as_ref()
+            .ok_or("Missing incident thread identity")?
+            .clone();
         let id = format!("incident:{}", thread_id(&thread)?);
         add(
             id.clone(),
             format!(
                 "{}.{}",
-                scalar(&thread["Name"]),
-                scalar(&thread["EntityId"])
+                scalar(&thread.cell("Name")),
+                scalar(&thread.cell("EntityId"))
             ),
             "Active incidents".into(),
             value,
             "incident",
-            if value["Health"] == "Degraded" {
+            if value.cell("Health").as_str() == Some("Degraded") {
                 "Yellow"
             } else {
                 "Red"
@@ -318,24 +289,30 @@ pub fn project(
             id,
             Target {
                 thread,
-                generation: value["Generation"]
+                generation: value
+                    .cell("Generation")
                     .as_i64()
                     .ok_or("Missing incident generation")?,
             },
         );
     }
-    for value in snapshot["Operations"].as_array().unwrap_or(&empty) {
+    for value in snapshot
+        .operations
+        .as_ref()
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+    {
         add(
-            format!("operation:{}", scalar(&value["OperationId"])),
+            format!("operation:{}", scalar(&value.cell("OperationId"))),
             format!(
                 "{} {}",
-                utc(&value["StartedUtc"])?.format("%Y-%m-%d %H:%M:%SZ"),
-                scalar(&value["ThreadId"]["Name"])
+                utc(&value.cell("StartedUtc"))?.format("%Y-%m-%d %H:%M:%SZ"),
+                scalar(&value.thread_id.cell("Name"))
             ),
             "Lifecycle operations".into(),
             value,
             "operation",
-            if value["Outcome"] == "Succeeded" {
+            if value.cell("Outcome").as_str() == Some("Succeeded") {
                 "Green"
             } else {
                 "Yellow"
@@ -343,18 +320,18 @@ pub fn project(
             .into(),
         )?;
     }
-    for value in snapshot["History"].as_array().unwrap_or(&empty) {
+    for value in snapshot.history.as_ref().map(Vec::as_slice).unwrap_or(&[]) {
         add(
-            format!("history:{}", scalar(&value["Revision"])),
-            utc(&value["ObservedUtc"])?
+            format!("history:{}", scalar(&value.cell("Revision"))),
+            utc(&value.cell("ObservedUtc"))?
                 .format("%Y-%m-%d %H:%M:%SZ")
                 .to_string(),
             "Health history".into(),
             value,
             "history",
-            if value["CriticalActors"].as_i64().unwrap_or(0) > 0 {
+            if value.cell("CriticalActors").as_i64().unwrap_or(0) > 0 {
                 "Red"
-            } else if value["DegradedActors"].as_i64().unwrap_or(0) > 0 {
+            } else if value.cell("DegradedActors").as_i64().unwrap_or(0) > 0 {
                 "Yellow"
             } else {
                 "Green"
@@ -362,15 +339,15 @@ pub fn project(
             .into(),
         )?;
     }
-    for value in snapshot["Workers"].as_array().unwrap_or(&empty) {
-        let id = scalar(&value["WorkerId"]);
+    for value in snapshot.workers.as_ref().map(Vec::as_slice).unwrap_or(&[]) {
+        let id = scalar(&value.cell("WorkerId"));
         add(
             format!("worker:{id}"),
             format!("Worker {id}"),
             "Shared workers".into(),
             value,
             "worker",
-            if value["IsFaulted"] == true {
+            if value.cell("IsFaulted") == Cell::Boolean(true) {
                 "Red"
             } else {
                 "Green"
@@ -378,12 +355,12 @@ pub fn project(
             .into(),
         )?;
     }
-    let status = scalar(&snapshot["OverallStatus"]);
+    let status = scalar(&snapshot.cell("OverallStatus"));
     add(
         "collection".into(),
         "Collection".into(),
         "Health collection".into(),
-        &snapshot["Collection"],
+        &snapshot.collection,
         "collection",
         status.clone(),
     )?;
@@ -391,9 +368,9 @@ pub fn project(
         "polling".into(),
         "Polling".into(),
         "Health collection".into(),
-        &snapshot["Polling"],
+        &snapshot.polling,
         "polling",
-        if snapshot["Polling"]["IsAlive"] == true {
+        if snapshot.polling.cell("IsAlive") == Cell::Boolean(true) {
             "Green"
         } else {
             "Red"
@@ -415,9 +392,9 @@ pub fn project(
                     "summary".into(),
                     format!(
                         "{status} | Actors {}/{} running | Messages waiting {} | Observed {}",
-                        scalar(&snapshot["RunningActorCount"]),
-                        scalar(&snapshot["ActorCount"]),
-                        scalar(&snapshot["QueuedMessageCount"]),
+                        scalar(&snapshot.cell("RunningActorCount")),
+                        scalar(&snapshot.cell("ActorCount")),
+                        scalar(&snapshot.cell("QueuedMessageCount")),
                         observed.format("%Y-%m-%d %H:%M:%SZ")
                     ),
                 ),
@@ -443,7 +420,7 @@ pub struct ActorHealthController {
     endpoint: Option<String>,
     options: ControlOptions,
     from: Option<DateTime<Utc>>,
-    snapshot: Option<Json>,
+    snapshot: Option<ActorHealthSnapshot>,
     targets: BTreeMap<String, Target>,
     generation: u64,
     history: BTreeMap<String, (Json, EditorOutcome)>,
@@ -484,16 +461,24 @@ impl ActorHealthController {
             url.set_query(None);
             // The endpoint supplies ToUtc and its default history window from
             // the supervisor's operational clock, including while markets close.
-            if let Some(from)=self.from {url.query_pairs_mut().append_pair("fromUtc",&from.to_rfc3339());}
-            let snapshot = pascal(
-                &self
-                    .client
-                    .get(url.as_str(), 8 * 1024 * 1024, deadline)
-                    .await?,
-            );
-            let observed=utc(&snapshot["ObservedUtc"])?;
-            let from=self.from.unwrap_or(observed-chrono::Duration::hours(1));
-            if from>observed{return Err("The From time must be before the API observation time".into())}
+            if let Some(from) = self.from {
+                url.query_pairs_mut()
+                    .append_pair("fromUtc", &from.to_rfc3339());
+            }
+            let snapshot = self
+                .client
+                .get_typed_observation::<ActorHealthSnapshot>(
+                    url.as_str(),
+                    8 * 1024 * 1024,
+                    deadline,
+                )
+                .await?
+                .value;
+            let observed = utc(&snapshot.cell("ObservedUtc"))?;
+            let from = self.from.unwrap_or(observed - chrono::Duration::hours(1));
+            if from > observed {
+                return Err("The From time must be before the API observation time".into());
+            }
             let projection = project(&snapshot, from, &self.options)?;
             Ok::<_, String>((from, snapshot, projection))
         })
@@ -559,7 +544,7 @@ impl ActorHealthController {
                         .as_str()
                         .filter(|s| !s.trim().is_empty())
                     {
-                        self.from = Some(utc(&Json::String(from.into()))?);
+                        self.from = Some(utc(&Cell::Text(from.into()))?);
                     }
                     self.refresh(backend).await.map(|_| "Completed".to_string())
                 }
@@ -661,12 +646,17 @@ impl ActorHealthController {
         };
         let actor_type = registry.enum_value(
             "TomasAI.IFM.Shared.EventModelActor.ActorType",
-            target.thread["ActorType"]
+            target
+                .thread
+                .cell("ActorType")
                 .as_str()
                 .ok_or("Invalid ActorType")?,
         )?;
-        let name = target.thread["Name"]
-            .as_str()
+        let name = target
+            .thread
+            .name
+            .as_ref()
+            .map(String::as_str)
             .ok_or("Missing target name")?;
         let mailbox = Value::Map(vec![
             ("ActorType".into(), actor_type.into()),
@@ -677,7 +667,9 @@ impl ActorHealthController {
             ("Name".into(), name.into()),
             (
                 "EntityId".into(),
-                target.thread["EntityId"]
+                target
+                    .thread
+                    .cell("EntityId")
                     .as_str()
                     .ok_or("Missing entity")?
                     .into(),

@@ -10,8 +10,8 @@
 //! Native trading workspace. All persistence and trade eligibility stays in shared managed models.
 use crate::control_parity::BorderedTable as _;
 use crate::control_parity::FilledGrid as _;
+use crate::models::cells::Cells;
 use crate::presentation::TradingLabelUi as _;
-use crate::wire::WireNumber as _;
 /// Trade blotter and Broker Trade panels. Published option-chain cells, selected legs, reports, and reconciliation evidence are arranged with stable widget IDs; file selection chooses a local report path without importing it directly.
 mod blotter;
 /// Publication-owned decoded trade display data.
@@ -23,10 +23,7 @@ mod order_layout;
 pub use display_cache::PreparedTradeDisplay;
 /// Center-workspace tab strip for loaded trades. Stable trade identities select/close individual tabs and preserve per-trade display state; closing one tab does not close the order editor or unrelated trades.
 mod workspace_tabs;
-use crate::{
-    contract_editor::{ContractPublication, ContractRow},
-    lookup_editor::new_request_id,
-};
+use crate::{contract_editor::ContractPublication, lookup_editor::new_request_id};
 use eframe::egui::{self, Color32};
 use std::collections::BTreeMap;
 /// Trade-order dialogs and center trade tabs, with drafts, request correlation, chart caches, and measured control bounds.
@@ -81,21 +78,8 @@ pub struct TradeWorkspace {
     /// Last blotter refresh time in egui seconds, used to throttle automatic queries.
     last_blotter_refresh: f64,
 }
-/// Decode a row's binary MessagePack data for display, returning null on missing or malformed data.
-fn data(row: &ContractRow) -> serde_json::Value {
-    row.data
-        .as_ref()
-        .ok_or_else(|| "Missing binary row data".to_owned())
-        .and_then(|bytes| crate::wire::decode(bytes))
-        .unwrap_or_default()
-}
-/// Read a JSON-shaped display property as text; null becomes empty and non-string scalars use their serialized representation.
-fn text(v: &serde_json::Value, key: &str) -> String {
-    match &v[key] {
-        serde_json::Value::String(s) => s.clone(),
-        serde_json::Value::Null => String::new(),
-        v => v.to_string(),
-    }
+fn text(v: &(impl crate::models::cells::Cells + ?Sized), key: &str) -> String {
+    v.cell(key).text()
 }
 /// Read a managed context flag using its canonical True display representation.
 fn flag(s: &ContractPublication, key: &str) -> bool {
@@ -188,6 +172,7 @@ impl TradeWorkspace {
     ///
     /// This renderer owns trade-order dialogs and center trade tabs, with drafts, request correlation, chart caches, and measured control bounds.
     pub fn draw(&mut self, ctx: &egui::Context, s: &ContractPublication) -> Option<String> {
+        let display = self.prepare_trade_display(s);
         if self.pending.as_ref().is_some_and(|id| {
             s.outcomes
                 .iter()
@@ -449,11 +434,11 @@ impl TradeWorkspace {
                 self.dialog.clear();
             }
         }
-        if let Some(raw) = s.result.documents.get("confirmation") {
-            if let Ok(value) = crate::wire::decode::<serde_json::Value>(raw) {
+        if let Some(value) = display.confirmation.as_ref() {
+            {
                 let mut keep = true;
                 let mut decision = None;
-                let submitting = value["submitting"].as_bool().unwrap_or(false);
+                let submitting = value.submitting;
                 egui::Window::new(crate::presentation::dialog_title("Submit Order"))
                     .enabled(!submitting)
                     .id(egui::Id::new("trade-confirmation"))
@@ -469,7 +454,7 @@ impl TradeWorkspace {
                         if submitting {
                             ui.label("Submitting ? awaiting broker acceptance?");
                         }
-                        Self::confirmation_legs_grid(ui, &value["legs"], s);
+                        Self::confirmation_legs_grid(ui, &value.legs, &display.selected_legs);
                         ui.separator();
                         for (key, label) in [
                             ("orderQuantity", "Order Quantity:"),
@@ -479,7 +464,7 @@ impl TradeWorkspace {
                             ("totalAmount", "Total Amount:"),
                         ] {
                             Self::confirmation_field(ui, label, |ui| {
-                                ui.trading_label(text(&value["order"], key));
+                                ui.trading_label(text(&value.order, key));
                             });
                         }
                         let fill = self
@@ -516,7 +501,7 @@ impl TradeWorkspace {
                     decision = Some("cancel-order-confirmation");
                 }
                 if let Some(intent) = decision {
-                    return Some(serde_json::json!({"schema":1,"requestId":new_request_id(),"view":"trade-orders","intent":intent,"expectedGeneration":s.generation,"originalId":value["id"],"fields":self.draft}).to_string());
+                    return Some(serde_json::json!({"schema":1,"requestId":new_request_id(),"view":"trade-orders","intent":intent,"expectedGeneration":s.generation,"originalId":value.id,"fields":self.draft}).to_string());
                 }
             }
         }
@@ -610,6 +595,10 @@ impl TradeWorkspace {
     }
     /// Render end-of-day trade controls and return the selected backend action key.
     fn eod(&mut self, ctx: &egui::Context, s: &ContractPublication) -> Option<&'static str> {
+        use crate::models::cells::Cells;
+        let display = self.prepare_trade_display(s);
+        let default = crate::models::eod::EodDocument::default();
+        let value = display.eod.as_deref().unwrap_or(&default);
         let mut action = None;
         let mut open = true;
         egui::Window::new(crate::presentation::dialog_title("Trade End Of Day"))
@@ -620,13 +609,6 @@ impl TradeWorkspace {
                 ctx.available_rect().center() - ctx.screen_rect().center(),
             )
             .show(ctx, |ui| {
-                let value = s
-                    .result
-                    .rows
-                    .iter()
-                    .find(|r| r.fields.get("kind").is_some_and(|k| k == "eod"))
-                    .map(data)
-                    .unwrap_or_default();
                 for (key, label) in [
                     ("fundId", "Fund Id"),
                     ("orderId", "Order Id"),
@@ -634,7 +616,7 @@ impl TradeWorkspace {
                 ] {
                     ui.horizontal(|ui| {
                         ui.add_sized([170., 28.], crate::presentation::caption_widget(label));
-                        ui.trading_label(text(&value, key));
+                        ui.trading_label(value.cell(key).text());
                     });
                 }
                 ui.horizontal(|ui| {
@@ -661,7 +643,7 @@ impl TradeWorkspace {
                 ] {
                     ui.horizontal(|ui| {
                         ui.add_sized([170., 28.], crate::presentation::caption_widget(label));
-                        ui.trading_label(text(&value, key));
+                        ui.trading_label(value.cell(key).text());
                     });
                 }
                 ui.horizontal(|ui| {
@@ -677,7 +659,7 @@ impl TradeWorkspace {
                     }
                     if ui
                         .add_enabled(
-                            !s.busy && value["canRun"] == true,
+                            !s.busy && value.can_run,
                             egui::Button::new("Run End Of Day"),
                         )
                         .clicked()
@@ -685,7 +667,7 @@ impl TradeWorkspace {
                         action = Some("eod-run");
                     }
                 });
-                ui.trading_label(text(&value, "lastStatusMessage"));
+                ui.trading_label(value.cell("lastStatusMessage").text());
             });
         if !open {
             self.dialog.clear();
@@ -698,6 +680,7 @@ impl TradeWorkspace {
         ctx: &egui::Context,
         s: &ContractPublication,
     ) -> Option<&'static str> {
+        let display = self.prepare_trade_display(s);
         use order_layout::{at, rect};
         let mut action = None;
         let mut open = true;
@@ -708,9 +691,9 @@ impl TradeWorkspace {
             .rows
             .iter()
             .find(|r| r.fields.get("kind").is_some_and(|k| k == "account"))
-            .map(data)
-            .unwrap_or_default();
-        let available = !account.is_null();
+            .map(|r| display.row(&r.id))
+            .unwrap_or(&display_cache::BusinessRow::Missing);
+        let available = !account.is_missing();
         let revision = text(&account, "revision");
         if available && self.draft.get("qualificationRevision") != Some(&revision) {
             for (key, field) in [
@@ -733,8 +716,8 @@ impl TradeWorkspace {
                     .get("kind")
                     .is_some_and(|k| k == "qualification-report")
             })
-            .map(data)
-            .unwrap_or_default();
+            .map(|r| display.row(&r.id))
+            .unwrap_or(&display_cache::BusinessRow::Missing);
         let hash = text(&report, "hash");
         if !hash.is_empty() && self.draft.get("loadedReport") != Some(&hash) {
             self.draft.insert("manifestHash".into(), hash.clone());
@@ -760,13 +743,13 @@ impl TradeWorkspace {
             ui.painter().rect_filled(ui.max_rect(),0.,Color32::BLACK);
             let origin=self.qualification_bounds.map(|r|r.min).unwrap_or(ui.cursor().min-egui::vec2(frame.total_margin().sum().x/2.,title_height));
             let r=|x,y,w,h|rect(origin,reference_scale,x,y,w,h);
-            let approval=text(&account,"approvalId");let approval=if approval.replace("-","").chars().all(|c|c=='0'){"None".into()}else{approval.replace("-","")};let state=if available{format!("{} / {} | Qualification={} | Gate={} | Hold={} | Approval={} | Revision={} | {}",text(&account["id"],"accountAlias"),text(&account,"environment"),text(&account,"qualificationStatus"),text(&account,"gate"),text(&account,"manualHold"),approval,text(&account,"revision"),text(&account,"reason"))}else{"Account unavailable".into()};
+            let approval=text(&account,"approvalId");let approval=if approval.replace("-","").chars().all(|c|c=='0'){"None".into()}else{approval.replace("-","")};let state=if available{format!("{} / {} | Qualification={} | Gate={} | Hold={} | Approval={} | Revision={} | {}",account.account().and_then(|v|v.id.as_ref()).map(|id|id.cell("accountAlias").text()).unwrap_or_default(),text(&account,"environment"),text(&account,"qualificationStatus"),text(&account,"gate"),text(&account,"manualHold"),approval,text(&account,"revision"),text(&account,"reason"))}else{"Account unavailable".into()};
             for(caption,y)in[("Current state",65.),("Qualification report:",119.),("Report contents:",163.),("Manifest SHA-256",320.),("Evidence reference",356.),("Authorized reviewer",393.),("Hold / revoke reason",429.),("Durable actions",468.)]{at(ui,r(34.,y,260.,29.),caption,|ui|{ui.trading_label(egui::RichText::new(caption).color(crate::presentation::CAPTION_FOREGROUND));});}
             at(ui,r(313.,65.,700.,49.),"qualification-state",|ui|{ui.trading_label(state);});
             at(ui,r(311.,119.,155.,38.),"loadQualificationReport",|ui|{if ui.add_sized(ui.available_size(),egui::Button::new("Load test report...")).clicked(){if let Some(path)=blotter::pick_report(){self.draft.insert("reportPath".into(),path);action=Some("qualification-report");}}});
             at(ui,r(313.,163.,700.,150.),"qualificationReportPreview",|ui|{let mut content=text(&report,"preview");ui.add_sized(ui.available_size(),egui::TextEdit::multiline(&mut content).interactive(false));});
             for(key,id,y)in[("manifestHash","qualificationManifestHash",320.),("evidenceReference","qualificationEvidenceReference",356.),("reviewer","qualificationReviewer",393.),("reason","qualificationReason",429.)]{let bounds=r(313.,y,700.,29.);at(ui,bounds,id,|ui|{ui.visuals_mut().extreme_bg_color=Color32::from_gray(30);ui.add_sized(ui.available_size(),egui::TextEdit::singleline(self.draft.entry(key.into()).or_default()));});self.controls.insert(id.into(),bounds);}
-            for(label,intent,id,x,y,width)in[("Submit evidence","qualification-submit","submitQualificationEvidence",315.,468.,148.),("Accept reviewed manifest","qualification-accept","acceptQualification",468.,468.,216.),("Revoke","qualification-revoke","revokeQualification",689.,468.,94.),("Set hold","qualification-hold","setTradingHold",788.,468.,94.),("Release hold","qualification-release","releaseTradingHold",886.,468.,121.),("Resynchronize","qualification-resync","resynchronizeBrokerAccount",315.,510.,135.)]{let enabled=!s.busy&&self.pending.is_none()&&available&&match intent{"qualification-accept"=>text(&account,"qualificationStatus")=="ReviewPending","qualification-revoke"=>text(&account,"qualificationStatus")=="Accepted","qualification-hold"=>account["manualHold"]==false,"qualification-release"=>account["manualHold"]==true,_=>true};let bounds=r(x,y,width,38.);at(ui,bounds,id,|ui|{if ui.add_enabled(enabled,egui::Button::new(label).min_size(ui.available_size())).clicked(){if intent=="qualification-accept"{self.draft.insert("qualificationConfirm".into(),"true".into());}else{action=Some(intent);}}});self.controls.insert(id.into(),bounds);}
+            for(label,intent,id,x,y,width)in[("Submit evidence","qualification-submit","submitQualificationEvidence",315.,468.,148.),("Accept reviewed manifest","qualification-accept","acceptQualification",468.,468.,216.),("Revoke","qualification-revoke","revokeQualification",689.,468.,94.),("Set hold","qualification-hold","setTradingHold",788.,468.,94.),("Release hold","qualification-release","releaseTradingHold",886.,468.,121.),("Resynchronize","qualification-resync","resynchronizeBrokerAccount",315.,510.,135.)]{let enabled=!s.busy&&self.pending.is_none()&&available&&match intent{"qualification-accept"=>text(&account,"qualificationStatus")=="ReviewPending","qualification-revoke"=>text(&account,"qualificationStatus")=="Accepted","qualification-hold"=>account.cell("manualHold").as_bool()==Some(false),"qualification-release"=>account.cell("manualHold").as_bool()==Some(true),_=>true};let bounds=r(x,y,width,38.);at(ui,bounds,id,|ui|{if ui.add_enabled(enabled,egui::Button::new(label).min_size(ui.available_size())).clicked(){if intent=="qualification-accept"{self.draft.insert("qualificationConfirm".into(),"true".into());}else{action=Some(intent);}}});self.controls.insert(id.into(),bounds);}
             if self.draft.get("qualificationConfirm").is_some_and(|v|v=="true"){at(ui,r(34.,560.,975.,70.),"qualification-confirm",|ui|{ui.trading_caption("Accept emulator qualification for the reviewed manifest?");ui.horizontal(|ui|{if ui.button("Yes, accept manifest").clicked(){self.draft.remove("qualificationConfirm");action=Some("qualification-accept");}if ui.button("No").clicked(){self.draft.remove("qualificationConfirm");}});});}
             if !s.status.is_empty()&&s.status!="Completed"{at(ui,r(34.,650.,975.,55.),"qualification-status",|ui|{ui.trading_label(&s.status);});}
         });
@@ -801,6 +784,7 @@ impl TradeWorkspace {
         columns: &[(&str, &str)],
         height: f32,
     ) -> Option<String> {
+        let display = self.prepare_trade_display(s);
         let rows: Vec<_> = s
             .result
             .rows
@@ -810,7 +794,7 @@ impl TradeWorkspace {
                 kind != "order"
                     || self.source_filter.is_empty()
                     || self.source_filter == "All"
-                    || text(&data(r), "source") == self.source_filter
+                    || text(&display.row(&r.id), "source") == self.source_filter
             })
             .collect();
         let widths: &[f32] = match kind {
@@ -840,25 +824,23 @@ impl TradeWorkspace {
             rows.len(),
             selected,
             height,
-            |row, column| text(&data(rows[row]), columns[column].0),
+            |row, column| text(&display.row(&rows[row].id), columns[column].0),
         );
         self.drawn_rows = drawn;
         clicked.map(|index| rows[index].id.split_once(':').unwrap().1.to_string())
     }
 
     /// Render a published object's scalar properties as a read-only grid.
-    fn properties(ui: &mut egui::Ui, value: &serde_json::Value) {
+    fn properties(ui: &mut egui::Ui, value: &impl crate::models::cells::Cells) {
         egui::ScrollArea::both().show(ui, |ui| {
             egui::Grid::new("trade-properties")
                 .striped(true)
                 .show(ui, |ui| {
-                    if let Some(fields) = value.as_object() {
-                        for (key, value) in fields {
-                            ui.trading_caption(key);
-                            ui.trading_label(match value {
-                                serde_json::Value::String(s) => s.clone(),
-                                _ => value.to_string(),
-                            });
+                    for key in crate::services::broker_order_ui::SUMMARY_NAMES {
+                        let cell = value.cell(key);
+                        if !cell.is_missing() {
+                            ui.trading_caption(*key);
+                            ui.trading_label(cell.text());
                             ui.end_row();
                         }
                     }
@@ -900,22 +882,17 @@ impl TradeWorkspace {
     /// Render the confirmation's published option legs and contract details.
     fn confirmation_legs_grid(
         ui: &mut egui::Ui,
-        value: &serde_json::Value,
-        s: &ContractPublication,
+        value: &[crate::models::broker_presentation::ConfirmationLeg],
+        selected: &[crate::models::broker_presentation::LegDisplay],
     ) {
-        let selected: Vec<_> = s
-            .result
-            .rows
-            .iter()
-            .filter(|row| row.fields.get("kind").is_some_and(|kind| kind == "leg"))
-            .map(data)
-            .collect();
-        let mut rows: Vec<_> = value.as_array().into_iter().flatten().collect();
+        let mut rows: Vec<_> = value.iter().collect();
         // Use the displayed Broker Trade order; only the dialog's presentation is reordered.
         rows.sort_by_key(|leg| {
             selected
                 .iter()
-                .position(|selected| selected["contractId"] == leg["contractId"])
+                .position(|selected| {
+                    selected.contract_id.as_deref() == Some(leg.contract_id.as_str())
+                })
                 .unwrap_or(usize::MAX)
         });
         egui::Frame::new()
@@ -952,13 +929,9 @@ impl TradeWorkspace {
                     .bordered_body(26., |body| {
                         body.rows(27., rows.len(), |mut row| {
                             let leg = &rows[row.index()];
-                            let commission = leg["legCommission"]
-                                .wire_number()
-                                .or_else(|| {
-                                    leg["legCommission"]
-                                        .as_str()
-                                        .and_then(|text| text.parse::<f64>().ok())
-                                })
+                            let commission = leg
+                                .cell("legCommission")
+                                .number()
                                 .map(|v| format!("USD {v:.2}"))
                                 .unwrap_or_else(|| text(leg, "legCommission"));
                             for value in [

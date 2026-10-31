@@ -1,7 +1,7 @@
-use ifm_ui_egui::state::actor_health::{ControlOptions, pascal, project};
+use ifm_ui_egui::state::actor_health::{ControlOptions, project};
 use serde_json::Value;
-fn snapshot() -> Value {
-    pascal(&serde_json::from_str(include_str!("fixtures/backend/actor-health-http.json")).unwrap())
+fn snapshot() -> ifm_ui_egui::models::actor_health::ActorHealthSnapshot {
+    serde_json::from_str(include_str!("fixtures/backend/actor-health-http.json")).unwrap()
 }
 #[test]
 fn native_actor_explorer_matches_the_unchanged_hybrid_controller_projection() {
@@ -70,11 +70,12 @@ fn unavailable_authority_and_bad_observations_cannot_expose_actor_controls() {
         requester: "Operator".into(),
         ..Default::default()
     };
-    input["SupervisorAuthorityState"] = "HostRecoveryRequired".into();
+    input.supervisor_authority_state =
+        ifm_ui_egui::models::health_fields::Present::Value("HostRecoveryRequired".into());
     assert_eq!(
         project(&input, from, &options).unwrap().result.context["controls"],
         "false"
     );
-    input["ObservedUtc"] = Value::Null;
+    input.observed_utc = ifm_ui_egui::models::health_fields::Present::Null;
     assert!(project(&input, from, &options).is_err());
 }

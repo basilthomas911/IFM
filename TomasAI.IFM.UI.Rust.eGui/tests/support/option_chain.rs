@@ -56,6 +56,7 @@ async fn option_chain_preview_uses_exact_draft_and_backend_economics() {
         )
         .await
         .unwrap();
+    let result=ifm_ui_egui::models::backend_document::request_document(&result).unwrap();
     assert_eq!(
         result["MaximumLoss"].as_str(),
         Some("987.6543210123456789012345678")
@@ -156,6 +157,7 @@ async fn option_chain_scope_precision_and_subscription_ownership_survive_failure
     let mut other = Lease::default();
     assert_ne!(a.owner(), other.owner());
     let snapshot = a.load(&b, &r, spec(), budget()).await.unwrap();
+    let snapshot=ifm_ui_egui::models::backend_document::request_document(&snapshot).unwrap();
     assert_eq!(snapshot["Contracts"][0]["ContractId"], "ES-C");
     other.load(&b, &r, spec(), budget()).await.unwrap();
     assert_eq!(

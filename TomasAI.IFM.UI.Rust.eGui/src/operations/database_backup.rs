@@ -1,9 +1,10 @@
 //! Backup Databases Logs/Setup parity. Every operation is submitted to the original managed service.
+use crate::models::backup::*;
 use crate::presentation::TradingLabelUi as _;
 use crate::{contract_editor::ContractPublication, lookup_editor::new_request_id};
 use eframe::egui;
-use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, Weak};
 /// Local selection and source-specific drafts; no backup execution or policy enforcement lives here.
 pub struct DatabaseBackup {
     pub setup: bool,
@@ -18,6 +19,7 @@ pub struct DatabaseBackup {
     policy_identity: String,
     loaded: bool,
     error: String,
+    cache: Option<(u64, Weak<()>, Arc<BackupDocuments>)>,
 }
 impl Default for DatabaseBackup {
     fn default() -> Self {
@@ -34,6 +36,7 @@ impl Default for DatabaseBackup {
             policy_identity: String::new(),
             loaded: false,
             error: String::new(),
+            cache: None,
         }
     }
 }
@@ -52,14 +55,18 @@ fn default_fields(source: &str) -> BTreeMap<String, String> {
         ),
     ])
 }
-fn text(v: &Value, key: &str) -> String {
-    v[key].as_str().map(str::to_owned).unwrap_or_else(|| {
-        if v[key].is_null() {
-            String::new()
-        } else {
-            v[key].to_string()
-        }
-    })
+fn text(v: &(impl TextFields + ?Sized), key: &str) -> String {
+    v.display(key)
+}
+#[derive(Default)]
+struct BackupDocuments {
+    dashboard: Dashboard,
+    history: BTreeMap<String, Vec<Operation>>,
+    cursors: BTreeMap<String, String>,
+    policy: Option<Policy>,
+    editor: PolicyEditor,
+    setup: Setup,
+    health: Vec<Health>,
 }
 fn edit(
     ui: &mut egui::Ui,
@@ -85,6 +92,32 @@ fn status(outcome: &str) -> egui::Color32 {
     }
 }
 impl DatabaseBackup {
+    fn documents(&mut self, s: &ContractPublication) -> Arc<BackupDocuments> {
+        if let Some((generation, token, documents)) = &self.cache {
+            if *generation == s.generation
+                && token
+                    .upgrade()
+                    .is_some_and(|token| Arc::ptr_eq(&token, &s.render_token))
+            {
+                return documents.clone();
+            }
+        }
+        let documents = Arc::new(BackupDocuments {
+            dashboard: s.result.document("dashboard").unwrap_or_default(),
+            history: s.result.document("history").unwrap_or_default(),
+            cursors: s.result.document("continuations").unwrap_or_default(),
+            policy: s.result.document::<Option<Policy>>("policy").flatten(),
+            editor: s.result.document("policyEditor").unwrap_or_default(),
+            setup: s.result.document("setup").unwrap_or_default(),
+            health: s.result.document("health").unwrap_or_default(),
+        });
+        self.cache = Some((
+            s.generation,
+            Arc::downgrade(&s.render_token),
+            documents.clone(),
+        ));
+        documents
+    }
     /// Creates one correlated intent from the source-specific unsaved editor.
     pub fn request(&mut self, action: &str, s: &ContractPublication) -> String {
         let id = new_request_id();
@@ -145,12 +178,10 @@ impl DatabaseBackup {
         }
         let matching = s.result.view == "database-backup";
         let idle = live && !s.busy && self.pending.is_none();
-        let dashboard: Value = s.result.document("dashboard").unwrap_or_default();
-        let history: BTreeMap<String, Vec<Value>> =
-            s.result.document("history").unwrap_or_default();
-        let cursors: BTreeMap<String, String> =
-            s.result.document("continuations").unwrap_or_default();
-        let policy: Value = s.result.document("policy").unwrap_or_default();
+        let documents = self.documents(s);
+        let history = &documents.history;
+        let cursors = &documents.cursors;
+        let policy = &documents.policy;
         let identity = format!(
             "{}:{}:{}",
             self.source,
@@ -161,7 +192,7 @@ impl DatabaseBackup {
             .drafts
             .entry(self.source.clone())
             .or_insert_with(|| default_fields(&self.source));
-        if policy.is_object()
+        if policy.is_some()
             && identity != self.policy_identity
             && s.result.context.get("source") == Some(&self.source)
         {
@@ -179,8 +210,8 @@ impl DatabaseBackup {
                 ("maximumVerificationHours", "maximumVerificationAge", 3600.),
             ] {
                 let _ = (property, divisor);
-                let editor: Value = s.result.document("policyEditor").unwrap_or_default();
-                if let Some(value) = editor[key].as_str() {
+                let value = documents.editor.string(key);
+                if !value.is_empty() {
                     fields.insert(key.into(), value.into());
                 }
             }
@@ -199,7 +230,7 @@ impl DatabaseBackup {
             if !self.setup {
                 self.draw_logs(ui, s, &history, &cursors, idle, &mut action);
             } else {
-                self.draw_setup(ui, s, &dashboard, &policy, idle && matching, &mut action);
+                self.draw_setup(ui, s, &documents, idle && matching, &mut action);
             }
         });
         action.map(|action| self.request(action, s))
@@ -212,11 +243,12 @@ impl DatabaseBackup {
         &mut self,
         ui: &mut egui::Ui,
         s: &ContractPublication,
-        dashboard: &Value,
-        policy: &Value,
+        documents: &BackupDocuments,
         idle: bool,
         action: &mut Option<&'static str>,
     ) {
+        let dashboard = &documents.dashboard;
+        let policy = &documents.policy;
         ui.horizontal(|ui| {
             for (source, label) in [
                 ("AwsCloud", "AWS Backup"),
@@ -239,9 +271,9 @@ impl DatabaseBackup {
         let (left, right) =
             crate::system_admin::split(ui, bounds, "backup-setup-split", 267. / bounds.width());
         if self.selected_set.is_empty() {
-            self.selected_set = dashboard["protectionSets"]
-                .as_array()
-                .and_then(|sets| sets.first())
+            self.selected_set = dashboard
+                .protection_sets
+                .first()
                 .map(|set| text(set, "id"))
                 .unwrap_or_default();
         }
@@ -260,7 +292,7 @@ impl DatabaseBackup {
                 .id_salt("backup-protection-sets")
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    for set in dashboard["protectionSets"].as_array().into_iter().flatten() {
+                    for set in &dashboard.protection_sets {
                         let id = text(set, "id");
                         let mut checked = self
                             .checked
@@ -269,7 +301,7 @@ impl DatabaseBackup {
                             .contains(&id);
                         if ui
                             .add_enabled(
-                                idle && set["enabled"] == true,
+                                idle && set.enabled == Some(true),
                                 crate::presentation::checkbox(&mut checked, &id),
                             )
                             .changed()
@@ -298,16 +330,13 @@ impl DatabaseBackup {
                 egui::Stroke::new(1.0_f32, crate::presentation::BORDER),
                 egui::StrokeKind::Inside,
             );
-            let setup: Value = s.result.document("setup").unwrap_or_default();
-            let host = setup["backupHostSettings"]
-                .as_object()
-                .map(|m| {
-                    m.iter()
-                        .map(|(k, v)| format!("{k}: {}", v.as_str().unwrap_or_default()))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                })
-                .unwrap_or_default();
+            let host = documents
+                .setup
+                .backup_host_settings
+                .iter()
+                .map(|(key, value)| format!("{key}: {value}"))
+                .collect::<Vec<_>>()
+                .join("\n");
             egui::ScrollArea::both()
                 .id_salt("backup-host-settings")
                 .auto_shrink([false, false])
@@ -379,13 +408,13 @@ impl DatabaseBackup {
                         *action = Some("backup-policy-load");
                     }
                     if ui
-                        .add_enabled(policy.is_object(), egui::Button::new("Save policy"))
+                        .add_enabled(policy.is_some(), egui::Button::new("Save policy"))
                         .clicked()
                     {
                         *action = Some("backup-policy-save");
                     }
                 });
-                let health: Vec<Value> = s.result.document("health").unwrap_or_default();
+                let health = &documents.health;
                 ui.trading_label(if health.is_empty() {
                     "No host readiness observation".into()
                 } else {
@@ -420,7 +449,7 @@ impl DatabaseBackup {
                 .id_salt("backup-policy-grid")
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    if policy.is_object() {
+                    if policy.is_some() {
                         ui.add_enabled_ui(idle, |ui| {
                             egui::Grid::new("backup-policy-properties").show(ui, |ui| {
                                 for (label, key) in [
@@ -472,7 +501,13 @@ impl DatabaseBackup {
                     ] {
                         ui.trading_label(format!(
                             "{label}: {}",
-                            dashboard[key]["restorePointId"].as_str().unwrap_or("none")
+                            if key == "latestVerified" {
+                                dashboard.latest_verified.as_ref()
+                            } else {
+                                dashboard.latest_restore_tested.as_ref()
+                            }
+                            .and_then(|point| point.restore_point_id.as_deref())
+                            .unwrap_or("none")
                         ));
                     }
                     if self.error.is_empty() {
@@ -489,7 +524,11 @@ impl DatabaseBackup {
                 });
         });
         if fields.get("restorePoint").is_none_or(|v| v.is_empty()) {
-            if let Some(id) = dashboard["latestVerified"]["restorePointId"].as_str() {
+            if let Some(id) = dashboard
+                .latest_verified
+                .as_ref()
+                .and_then(|point| point.restore_point_id.as_deref())
+            {
                 fields.insert("restorePoint".into(), id.into());
             }
         }
@@ -533,7 +572,7 @@ impl DatabaseBackup {
         &mut self,
         ui: &mut egui::Ui,
         s: &ContractPublication,
-        history: &BTreeMap<String, Vec<Value>>,
+        history: &BTreeMap<String, Vec<Operation>>,
         cursors: &BTreeMap<String, String>,
         idle: bool,
         action: &mut Option<&'static str>,
@@ -545,12 +584,12 @@ impl DatabaseBackup {
             for(source,label)in[("AwsCloud","AWS Backup"),("LocalWorkstation","Local Workstation Backup")] {
                 let color=history.get(source).and_then(|rows|rows.first()).map(|op|status(&text(op,"outcome"))).unwrap_or(egui::Color32::GRAY);
                 egui::CollapsingHeader::new(label).id_salt(source).default_open(true).icon(move|ui,_,response|{ui.painter().circle_filled(response.rect.center(),4.,color);}).show(ui,|ui|{
-                    let mut dates:BTreeMap<String,BTreeMap<String,BTreeMap<String,Vec<&Value>>>>=BTreeMap::new();
+                    let mut dates:BTreeMap<String,BTreeMap<String,BTreeMap<String,Vec<&Operation>>>>=BTreeMap::new();
                     for operation in history.get(source).into_iter().flatten(){let date=text(operation,"createdUtc");if let Ok(at)=chrono::DateTime::parse_from_rfc3339(&date){let at=at.with_timezone(&chrono_tz::America::New_York);dates.entry(at.format("%Y").to_string()).or_default().entry(at.format("%m %B").to_string()).or_default().entry(at.format("%d %A").to_string()).or_default().push(operation);}}
                     for(year,months)in dates.iter().rev(){egui::CollapsingHeader::new(year).id_salt((source,year)).show(ui,|ui|{
                         for(month,days)in months.iter().rev(){egui::CollapsingHeader::new(month).id_salt((source,year,month)).show(ui,|ui|{
                             for(day,operations)in days.iter().rev(){egui::CollapsingHeader::new(day).id_salt((source,year,month,day)).show(ui,|ui|{
-                                let mut runs:BTreeMap<String,Vec<&Value>>=BTreeMap::new();for op in operations{let key=op["backupSetId"].as_str().unwrap_or(op["operationId"].as_str().unwrap_or_default());runs.entry(key.into()).or_default().push(op);}
+                                let mut runs:BTreeMap<String,Vec<&Operation>>=BTreeMap::new();for op in operations{let key=op.backup_set_id.as_deref().unwrap_or(op.operation_id.as_deref().unwrap_or_default());runs.entry(key.into()).or_default().push(op);}
                                 for(run,ops)in runs{let first=ops[0];let color=status(&text(first,"outcome"));egui::CollapsingHeader::new(format!("{} | {} {}/{} | {} | ran {} | scheduled: unavailable",text(first,"protectionSet"),text(first,"kind"),text(first,"requestedMode"),text(first,"resolvedMode"),run,text(first,"createdUtc"))).id_salt(&run).icon(move|ui,_,response|{ui.painter().circle_filled(response.rect.center(),4.,color);}).show(ui,|ui|{
                                     for(engine,label)in[("ScyllaDb","ScyllaDB"),("PostgreSql","PostgreSQL")] {
                                         if let Some(op)=ops.iter().find(|o|text(o,"engine")==engine){let id=text(op,"operationId");let caption=format!("{label} | {} | {}% milestone | {}",text(op,"phase"),text(op,"progressPercent"),text(op,"outcome"));
@@ -629,5 +668,42 @@ impl DatabaseBackup {
                 }
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn prepared_documents_reuse_only_the_same_publication_identity_and_generation() {
+        let mut view = DatabaseBackup::default();
+        let mut publication = ContractPublication::default();
+        publication.result.documents.insert(
+            "dashboard".into(),
+            crate::wire::encode(&Dashboard {
+                source: "LocalWorkstation".into(),
+                ..Default::default()
+            })
+            .unwrap()
+            .into(),
+        );
+        let first = view.documents(&publication);
+        let unchanged = view.documents(&publication);
+        assert!(Arc::ptr_eq(&first, &unchanged));
+        publication.result.documents.insert(
+            "dashboard".into(),
+            crate::wire::encode(&Dashboard {
+                source: "AwsCloud".into(),
+                ..Default::default()
+            })
+            .unwrap()
+            .into(),
+        );
+        publication.invalidate_render_cache();
+        let replaced = view.documents(&publication);
+        assert!(!Arc::ptr_eq(&first, &replaced));
+        assert_eq!(replaced.dashboard.source, "AwsCloud");
+        publication.generation += 1;
+        assert!(!Arc::ptr_eq(&replaced, &view.documents(&publication)));
     }
 }

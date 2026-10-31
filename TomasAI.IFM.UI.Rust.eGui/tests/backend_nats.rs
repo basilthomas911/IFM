@@ -2732,6 +2732,17 @@ async fn dashboard_health_composes_api_clock_and_http_without_retaining_stale_gr
                     if stream.read(&mut request).is_err() {
                         continue;
                     }
+                    // Dashboard loads also request options readiness. Count only
+                    // live-health observations when advancing this scenario.
+                    if request.starts_with(b"GET /api/market-data/options-health ") {
+                        let body = r#"{"datasets":[]}"#;
+                        let response = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len()
+                        );
+                        let _ = stream.write_all(response.as_bytes());
+                        continue;
+                    }
                     let observed = if count == 0 {
                         "2026-10-26T12:27:00Z"
                     } else {

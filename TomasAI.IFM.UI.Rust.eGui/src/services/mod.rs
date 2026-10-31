@@ -51,7 +51,6 @@ pub mod trade_orders;
 pub mod trade_monitor_queries;
 
 pub mod trade_feed_recovery;
-pub mod monitor_display;
 pub mod order_close;
 
 pub mod trade_eod;

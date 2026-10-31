@@ -154,7 +154,19 @@ impl PortfolioController {
                         None,
                     ),
                 ];
-                self.dialogs.push(json!({"key":"posting","title":"Fund Transaction","width":660,"height":360,"captionWidth":280,"fields":fields,"buttons":["Check outcome","Close"],"status":pending["Message"],"grids":null,"buttonEnabled":null}));
+                self.dialogs.push(Dialog {
+                    key: "posting".into(),
+                    title: "Fund Transaction".into(),
+                    width: (660) as _,
+                    height: (360) as _,
+                    caption_width: (280) as _,
+                    fields: fields,
+                    buttons: vec!["Check outcome".into(), "Close".into()],
+                    status: (pending["Message"]).to_string(),
+                    grids: None,
+                    button_enabled: None,
+                    ..Default::default()
+                });
                 self.pending_posting = Some(pending);
                 self.pending_posting_dialog(registry)?;
                 Ok("Original financial operation restored".into())

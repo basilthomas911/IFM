@@ -1,28 +1,62 @@
 //! Fund editor choices come from published lookup/product APIs. Labels never
 //! become identities; unavailable stored values remain visible but unselectable.
 use crate::backend::{contracts::*, schema::Registry, transport::Backend};
+use crate::{backend::contract_view::Field, models::portfolio::Choice};
 use rmpv::Value;
-use serde_json::Value as Json;
+const LOOKUP: &str = "TomasAI.IFM.Domain.Reference.Shared.Lookups.LookupDefinitionReadModel";
+const PRODUCT: &str =
+    "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel";
+#[derive(Clone)]
+struct Lookup {
+    id: i64,
+    group: String,
+    value: String,
+    label: String,
+    order: Option<i64>,
+    enabled: bool,
+}
+impl Lookup {
+    fn read(registry: &Registry, value: &Value) -> Result<Self, String> {
+        let row = Field::new(registry, LOOKUP, value);
+        let required = |key| -> Result<String, String> {
+            Ok(row
+                .field(key)?
+                .string()
+                .ok_or("Invalid lookup text")?
+                .to_string())
+        };
+        Ok(Self {
+            id: row
+                .field("Id")?
+                .integer()
+                .ok_or("Invalid lookup identity")?,
+            group: required("GroupName")?,
+            value: required("InternalValue")?,
+            label: required("DisplayName")?,
+            order: row.field("DisplayOrder")?.integer(),
+            enabled: row.field("IsEnabled")?.value.as_bool() == Some(true),
+        })
+    }
+}
 use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Default)]
 pub struct Selections {
     pub underlyings: Vec<String>,
-    pub groups: BTreeMap<String, Vec<Json>>,
+    groups: BTreeMap<String, Vec<Lookup>>,
 }
-fn selectable(registry: &Registry, row: &Json) -> bool {
-    if row["IsEnabled"] != true {
+fn selectable(registry: &Registry, row: &Lookup) -> bool {
+    if !row.enabled {
         return false;
     }
-    let value = row["InternalValue"].as_str().unwrap_or_default();
-    match row["GroupName"].as_str().unwrap_or_default() {
-        "AssetTypes" => matches!(value, "Futures" | "FuturesOption"),
+    match row.group.as_str() {
+        "AssetTypes" => matches!(row.value.as_str(), "Futures" | "FuturesOption"),
         "Directions" | "MarketConditions" => {
-            let name = if row["GroupName"] == "Directions" {
+            let name = if row.group == "Directions" {
                 "MarketConditionDirection"
             } else {
                 "MarketConditionType"
             };
-            value!="Undefined"&&registry.enum_value(&format!("TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model.{name}"),value).is_ok()
+            row.value != "Undefined" && registry.enum_value(&format!("TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model.{name}"), &row.value).is_ok()
         }
         _ => false,
     }
@@ -44,40 +78,30 @@ impl Selections {
             let reply = backend
                 .request_until(&subject, &body, deadline, None)
                 .await?;
-            let rows = registry.project(
-                "TomasAI.IFM.Domain.Reference.Shared.Lookups.LookupDefinitionReadModel[]",
-                service_result(&reply)?,
-            )?;
-            let mut rows = rows
+            let rows = service_result(&reply)?
                 .as_array()
-                .filter(|v| !v.is_empty() && v.len() <= 4096)
-                .cloned()
+                .filter(|rows| !rows.is_empty() && rows.len() <= 4096)
                 .ok_or(format!(
                     "{group}: lookup definitions are missing or invalid"
                 ))?;
+            let mut rows = rows
+                .iter()
+                .map(|row| Lookup::read(registry, row))
+                .collect::<Result<Vec<_>, _>>()?;
             let mut ids = BTreeSet::new();
             for row in &rows {
-                if row["Id"].as_i64().is_none_or(|id| id <= 0)
-                    || row["GroupName"] != group
-                    || row["InternalValue"]
-                        .as_str()
-                        .is_none_or(|v| v.trim().is_empty())
-                    || row["DisplayName"]
-                        .as_str()
-                        .is_none_or(|v| v.trim().is_empty())
-                    || !ids.insert(
-                        row["InternalValue"]
-                            .as_str()
-                            .unwrap_or_default()
-                            .to_string(),
-                    )
+                if row.id <= 0
+                    || row.group != group
+                    || row.value.trim().is_empty()
+                    || row.label.trim().is_empty()
+                    || !ids.insert(row.value.clone())
                 {
                     return Err(format!(
                         "{group}: lookup definitions are missing or invalid"
                     ));
                 }
             }
-            rows.sort_by_key(|row| (row["DisplayOrder"].as_i64(), row["Id"].as_i64()));
+            rows.sort_by_key(|row| (row.order, row.id));
             output.groups.insert(group.into(), rows);
         }
         let mut symbols = BTreeSet::new();
@@ -91,37 +115,28 @@ impl Selections {
             let reply = backend
                 .request_until(&subject, &body, deadline, None)
                 .await?;
-            let rows = registry.project(
-                "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel[]",
-                service_result(&reply)?,
-            )?;
-            for row in rows
+            let rows = service_result(&reply)?
                 .as_array()
-                .filter(|v| v.len() <= 100_000)
-                .ok_or("Invalid Databento product list")?
-            {
-                let symbol = row["Symbol"]
-                    .as_str()
-                    .filter(|v| !v.trim().is_empty())
-                    .ok_or("Invalid Databento product metadata")?;
-                for key in ["Exchange", "Currency"] {
-                    if row[key].as_str().is_none_or(|v| v.trim().is_empty()) {
-                        return Err("Invalid Databento product metadata".into());
-                    }
-                }
-                let currency = row["Currency"].as_str().unwrap_or_default();
-                let exchange = row["Exchange"].as_str().unwrap_or_default();
+                .filter(|rows| rows.len() <= 100_000)
+                .ok_or("Invalid Databento product list")?;
+            for wire in rows {
+                let row = Field::new(registry, PRODUCT, wire);
+                let required = |name| -> Result<&str, String> {
+                    row.field(name)?
+                        .string()
+                        .filter(|value| !value.trim().is_empty())
+                        .ok_or("Invalid Databento product metadata".into())
+                };
+                let symbol = required("Symbol")?;
+                let exchange = required("Exchange")?;
+                let currency = required("Currency")?;
+                required("Description")?;
                 if symbol != symbol.trim()
                     || exchange != exchange.trim()
                     || currency.len() != 3
-                    || !currency.bytes().all(|v| v.is_ascii_uppercase())
-                    || row["Description"]
-                        .as_str()
-                        .is_none_or(|v| v.trim().is_empty())
+                    || !currency.bytes().all(|value| value.is_ascii_uppercase())
+                    || row.field("Id")?.integer().is_none_or(|id| id <= 0)
                 {
-                    return Err("Invalid Databento product metadata".into());
-                }
-                if row["Id"].as_i64().is_none_or(|id| id <= 0) {
                     return Err("Invalid Databento product metadata".into());
                 }
                 symbols.insert(symbol.to_string());
@@ -136,8 +151,18 @@ impl Selections {
             .sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
         Ok(output)
     }
-    pub fn choices(&self, registry: &Registry, group: &str) -> Result<Vec<Json>, String> {
-        Ok(self.groups.get(group).ok_or("Missing Fund lookup group")?.iter().map(|row|serde_json::json!({"value":row["InternalValue"],"label":row["DisplayName"],"enabled":selectable(registry,row)})).collect())
+    pub(crate) fn choices(&self, registry: &Registry, group: &str) -> Result<Vec<Choice>, String> {
+        Ok(self
+            .groups
+            .get(group)
+            .ok_or("Missing Fund lookup group")?
+            .iter()
+            .map(|row| Choice {
+                value: row.value.clone(),
+                label: row.label.clone(),
+                enabled: selectable(registry, row),
+            })
+            .collect())
     }
     pub fn validate(
         &self,
@@ -180,12 +205,7 @@ impl Selections {
             .ok_or("Missing Fund lookup group")?
             .iter()
             .filter(|row| selectable(registry, row))
-            .map(|row| {
-                row["InternalValue"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_string()
-            })
+            .map(|row| row.value.clone())
             .collect())
     }
 }

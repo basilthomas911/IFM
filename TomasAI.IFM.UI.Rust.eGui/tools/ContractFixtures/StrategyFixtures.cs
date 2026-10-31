@@ -23,7 +23,7 @@ internal static class StrategyFixtures {
  public static void Export(string output){
   FixtureFiles.WriteAllBytes(Path.Combine(output,"strategy-view.msgpack"),MessagePackSerializer.Serialize(View,MessagePackBinarySerializer.Options));
   var transported=MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(MessagePackSerializer.Serialize(View,MessagePackBinarySerializer.Options),MessagePackBinarySerializer.Options);
-  using var adapter=new StrategyDetailsAdapter();var details=adapter.Project(StrategyWorkflowPresentation.CreateDetails(transported),1);
+  using var adapter=new StrategyDetailsAdapter();var details=adapter.Project(StrategyWorkflowPresentation.CreateDetails(transported),1) with{Epoch="3c5d3f13-01d7-4b78-aff6-dbdfc0073064"};
   FixtureFiles.WriteAllText(Path.Combine(output,"strategy-details-display.json"),JsonSerializer.Serialize(BridgeDocument.Project(details,camelCase:true)));
   FixtureFiles.WriteAllText(Path.Combine(output,"strategy-row-display.json"),JsonSerializer.Serialize(BridgeDocument.Project(StrategyDetailsAdapter.Display(StrategyWorkflowPresentation.CreateRow(transported),1000),camelCase:true)));
   var shapes=new Dictionary<string,object>();var seen=new HashSet<Type>();

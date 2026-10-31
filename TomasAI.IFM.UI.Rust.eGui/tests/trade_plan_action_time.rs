@@ -1,5 +1,8 @@
-use ifm_ui_egui::services::monitor_display::action_time;
 use serde_json::json;
+fn action_time(value: &serde_json::Value) -> Result<String, String> {
+    let plan = serde_json::from_value(value.clone()).map_err(|error| error.to_string())?;
+    ifm_ui_egui::models::trade_presentation::action_time(&plan)
+}
 
 #[test]
 fn action_time_matches_console_with_eastern_daylight_and_standard_time() {
@@ -24,5 +27,8 @@ fn fallback_calculation_time_uses_the_same_time_only_format() {
 fn absent_invalid_and_default_times_do_not_display_a_fabricated_time() {
     assert!(action_time(&json!({})).is_err());
     assert!(action_time(&json!({"CalculatedAtUtc":"invalid"})).is_err());
-    assert_eq!(action_time(&json!({"CalculatedAtUtc":"0001-01-01T00:00:00Z"})).unwrap(), "");
+    assert_eq!(
+        action_time(&json!({"CalculatedAtUtc":"0001-01-01T00:00:00Z"})).unwrap(),
+        ""
+    );
 }

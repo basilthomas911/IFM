@@ -1,6 +1,12 @@
 //! Read-only live strategy owner. Full snapshots replace older revisions, while
 //! historical signal observations are deduplicated independently of workflow
 //! selection. Its API clock and session are refreshed without a local-date fallback.
+use crate::models::{
+    cells::Cells,
+    strategy::{WorkflowView, signal_identity, signal_time},
+    trade_contracts::FuturesItiSignalV2ReadModel,
+    wire_types::FromBackend,
+};
 use crate::{
     Snapshot,
     backend::{schema::Registry, transport::Backend},
@@ -9,37 +15,17 @@ use crate::{
         strategy_display as display,
     },
 };
+use crate::{WorkflowChoice, strategy_workspace::GraphPoint};
 use rmpv::Value;
-use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
 const FRAMES: [&str; 3] = ["Daily", "Weekly", "Monthly"];
-fn text<'a>(row: &'a Json, key: &str) -> &'a str {
-    row[key].as_str().unwrap_or_default()
-}
-fn time(value: &Json) -> Result<chrono::DateTime<chrono::Utc>, String> {
-    chrono::DateTime::parse_from_rfc3339(value.as_str().ok_or("Missing strategy timestamp")?)
-        .map(|v| v.to_utc())
-        .map_err(|_| "Invalid strategy timestamp".into())
-}
-fn id(row: &Json) -> Result<String, String> {
-    let id = uuid::Uuid::parse_str(
-        row["WorkflowId"]["Value"]
-            .as_str()
-            .ok_or("Missing workflow identity")?,
-    )
-    .map_err(|_| "Invalid workflow identity")?;
-    if id.is_nil() {
-        return Err("Missing workflow identity".into());
-    }
-    Ok(id.simple().to_string())
-}
 pub struct StrategyController {
     symbol: String,
     contract: String,
     context: Option<BusinessContext>,
     frame: usize,
-    views: BTreeMap<String, Value>,
-    signals: BTreeMap<String, Value>,
+    views: BTreeMap<String, WorkflowView>,
+    signals: BTreeMap<String, FuturesItiSignalV2ReadModel>,
     tokens: BTreeMap<String, u32>,
     next_token: u32,
     selected: Option<String>,
@@ -94,35 +80,33 @@ impl StrategyController {
     }
     pub fn apply_signal(
         &mut self,
-        registry: &Registry,
+        _registry: &Registry,
         wire: Value,
         historical: bool,
     ) -> Result<bool, String> {
-        let row = registry.project(display::SIGNAL, &wire)?;
+        let row = FuturesItiSignalV2ReadModel::from_backend(&wire)?;
         if !self.accepts(
-            text(&row, "ContractId"),
-            text(&row, "TimePeriod"),
-            time(&row["IntrinsicTime"])?,
+            row.contract_id.as_deref().unwrap_or_default(),
+            row.time_period
+                .as_ref()
+                .map(|value| value.label())
+                .as_deref()
+                .unwrap_or_default(),
+            signal_time(&row)?,
             historical,
         )? {
             return Ok(false);
         }
-        let key = display::signal_identity(&row)?;
+        let key = signal_identity(&row)?;
         if self.signals.contains_key(&key) {
             return Ok(false);
         }
-        self.signals.insert(key, wire);
+        self.signals.insert(key, row);
         if self.signals.len() > 100_000 {
             let oldest = self
                 .signals
                 .iter()
-                .filter_map(|(k, v)| {
-                    registry
-                        .project(display::SIGNAL, v)
-                        .ok()
-                        .and_then(|v| time(&v["IntrinsicTime"]).ok())
-                        .map(|time| (time, k.clone()))
-                })
+                .filter_map(|(key, row)| signal_time(row).ok().map(|at| (at, key.clone())))
                 .min()
                 .map(|(_, key)| key);
             if let Some(key) = oldest {
@@ -134,31 +118,24 @@ impl StrategyController {
         Ok(true)
     }
     pub fn apply_view(&mut self, registry: &Registry, wire: Value) -> Result<bool, String> {
-        let row = registry.project(display::VIEW, &wire)?;
-        let iti = &row["EntityId"]["ItiSignalEntityId"];
-        let at = if time(&row["TriggerEvent"]["CreatedOn"])?.timestamp() <= -62_135_596_800 {
-            time(&row["StartedAtUtc"])?
-        } else {
-            time(&row["TriggerEvent"]["CreatedOn"])?
-        };
-        if !self.accepts(text(iti, "ContractId"), text(iti, "TimePeriod"), at, true)? {
+        let row = WorkflowView::from_backend(registry, &wire)?;
+        let header = &row.header;
+        if !self.accepts(
+            &header.entity_contract,
+            &header.frame,
+            header.occurred(),
+            true,
+        )? {
             return Ok(false);
         }
-        let key = id(&row)?;
-        let revision = row["WorkflowRevision"]
-            .as_i64()
-            .filter(|v| *v > 0)
-            .ok_or("Invalid workflow revision")?;
+        let key = header.id.clone();
+        let revision = header.revision;
         if let Some(old) = self.views.get(&key) {
-            let old = registry.project(display::VIEW, old)?;
-            let existing = old["WorkflowRevision"]
-                .as_i64()
-                .ok_or("Invalid cached workflow revision")?;
-            if existing > revision {
+            if old.header.revision > revision {
                 return Ok(false);
             }
-            if existing == revision {
-                if self.views[&key] != wire {
+            if old.header.revision == revision {
+                if old.evidence != row.evidence {
                     return Err(format!("Conflicting workflow state at revision {revision}"));
                 }
                 return Ok(false);
@@ -169,11 +146,11 @@ impl StrategyController {
             self.next_token = self
                 .next_token
                 .checked_add(1)
-                .filter(|v| *v < 0x1000_0000)
+                .filter(|value| *value < 0x1000_0000)
                 .ok_or("Workflow selection token bound reached")?;
             self.tokens.insert(key.clone(), token);
         }
-        self.views.insert(key, wire);
+        self.views.insert(key, row);
         if self.views.len() > 10_000 {
             return Err("Workflow display bound reached; refresh the view".into());
         }
@@ -307,66 +284,80 @@ impl StrategyController {
     pub fn snapshot(&mut self, registry: &Registry) -> Result<Snapshot, String> {
         self.generation += 1;
         let frame = FRAMES[self.frame];
+        let mut result = Snapshot {
+            schema: 1,
+            epoch: self.epoch.clone(),
+            generation: self.generation,
+            mode: "Live".into(),
+            status: self.status.clone(),
+            ..Default::default()
+        };
+        let Some(context) = self.context.as_ref() else {
+            return Ok(result);
+        };
+        let (start, end) = api::graph_window(context, frame)?;
         let mut views = self
             .views
             .values()
-            .map(|wire| {
-                let row = registry.project(display::VIEW, wire)?;
-                let at = if time(&row["TriggerEvent"]["CreatedOn"])?.timestamp() <= -62_135_596_800
-                {
-                    time(&row["StartedAtUtc"])?
-                } else {
-                    time(&row["TriggerEvent"]["CreatedOn"])?
-                };
-                Ok((at, row, wire))
+            .filter(|view| {
+                view.header.frame == frame
+                    && view.header.occurred() >= start
+                    && view.header.occurred() <= end
             })
-            .collect::<Result<Vec<_>, String>>()?;
-        views.retain(|(at, v, _)| {
-            v["EntityId"]["ItiSignalEntityId"]["TimePeriod"] == frame
-                && self.context.as_ref().is_some_and(|context| {
-                    api::graph_window(context, frame)
-                        .is_ok_and(|(start, end)| *at >= start && *at <= end)
-                })
+            .collect::<Vec<_>>();
+        views.sort_by_key(|view| {
+            std::cmp::Reverse((view.header.occurred(), view.header.id.clone()))
         });
-        views.sort_by_key(|(at, v, _)| std::cmp::Reverse((*at, id(v).unwrap_or_default())));
-        let ids = views
-            .iter()
-            .map(|(_, row, _)| id(row))
-            .collect::<Result<Vec<_>, _>>()?;
-        if self.selected.as_ref().is_none_or(|id| !ids.contains(id)) {
-            self.selected = ids.first().cloned();
+        if self
+            .selected
+            .as_ref()
+            .is_none_or(|id| !views.iter().any(|view| &view.header.id == id))
+        {
+            self.selected = views.first().map(|view| view.header.id.clone());
         }
-        let mut rows = vec![];
-        let mut choices = vec![];
-        let mut details = json!({"workflowId":"","revision":0,"roots":[],"header":""});
-        for ((at, row, wire), key) in views.iter().zip(ids) {
-            let token = self.tokens[&key];
-            rows.push(display::row(registry, wire, token)?);
-            choices.push(json!({"id":key,"label":format!("{} {} {}",at.format("%H:%M:%S"),text(row,"Outcome"),key),"action":token}));
-            if self.selected.as_ref() == Some(&key) {
-                details = display::details(registry, wire)?;
+        for view in &views {
+            let header = &view.header;
+            let token = self.tokens[&header.id];
+            result.rows.push(header.row(token)?);
+            result.workflows.push(WorkflowChoice {
+                id: header.id.clone(),
+                label: format!(
+                    "{} {} {}",
+                    header.occurred().format("%H:%M:%S"),
+                    header.outcome,
+                    header.id
+                ),
+                action: token,
+            });
+            if self.selected.as_ref() == Some(&header.id) {
+                let details =
+                    display::details(registry, &crate::backend::codec::decode(&view.evidence)?)?;
+                result.workflow_id = details.workflow_id;
+                result.revision = details.revision;
+                result.roots = details.roots;
+                result.header = details.header;
             }
         }
-        let (start, end) = if let Some(context) = &self.context {
-            api::graph_window(context, frame)?
-        } else {
-            return serde_json::from_value(json!({"schema":1,"epoch":self.epoch,"generation":self.generation,"mode":"Live","workflowId":"","revision":0,"roots":[],"status":self.status})).map_err(|e|e.to_string());
-        };
-        let mut signals = vec![];
-        for wire in self.signals.values() {
-            let row = registry.project(display::SIGNAL, wire)?;
-            let at = time(&row["IntrinsicTime"])?;
-            if row["TimePeriod"] != frame || at < start || at > end {
+        for signal in self.signals.values() {
+            let at = signal_time(signal)?;
+            if signal
+                .time_period
+                .as_ref()
+                .map(|value| value.label())
+                .as_deref()
+                != Some(frame)
+                || at < start
+                || at > end
+            {
                 continue;
             }
-            let mode = text(&row, "IntrinsicTimeMode");
-            let price = row["IntrinsicPrice"]
-                .as_f64()
-                .filter(|v| v.is_finite())
+            let mode = signal.cell("IntrinsicTimeMode").text();
+            let price = signal
+                .cell("IntrinsicPrice")
+                .number()
                 .ok_or("Invalid ITI plotted price")?;
-            let local = at.with_timezone(&chrono_tz::America::New_York);
             let direction = if mode == "TrendDirectionChanged" {
-                if row["IntrinsicTimeTrend"] == "UpTrend" {
+                if signal.cell("IntrinsicTimeTrend").text() == "UpTrend" {
                     "Up"
                 } else {
                     "Down"
@@ -374,52 +365,104 @@ impl StrategyController {
             } else {
                 "Other"
             };
-            signals.push(json!({"identity":display::signal_identity(&row)?,"utcSeconds":at.timestamp_millis()as f64/1000.0,"marketSeconds":market_history::market_seconds(at),"price":price,"direction":direction,"tooltip":format!("{} ET | {mode} | {price:.2}",local.format("%Y-%m-%d %-I:%M:%S %p"))}));
+            let local = at.with_timezone(&chrono_tz::America::New_York);
+            result.signals.push(GraphPoint {
+                identity: signal_identity(signal)?,
+                utc_seconds: at.timestamp_millis() as f64 / 1000.,
+                market_seconds: Some(market_history::market_seconds(at)),
+                price,
+                direction: direction.into(),
+                tooltip: format!(
+                    "{} ET | {mode} | {price:.2}",
+                    local.format("%Y-%m-%d %-I:%M:%S %p")
+                ),
+            });
         }
-        signals.sort_by(|a, b| {
-            a["utcSeconds"]
-                .as_f64()
-                .partial_cmp(&b["utcSeconds"].as_f64())
+        result.signals.sort_by(|a, b| {
+            a.utc_seconds
+                .partial_cmp(&b.utc_seconds)
                 .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| text(a, "identity").cmp(text(b, "identity")))
+                .then_with(|| a.identity.cmp(&b.identity))
         });
-        let page = self.pages.get(frame).copied().unwrap_or(1);
-        let total = self.totals.get(frame).copied().unwrap_or(rows.len());
-        let mut result = details;
-        let fields = result
-            .as_object_mut()
-            .ok_or("Invalid strategy details projection")?;
-        for (key, value) in [
-            ("schema", json!(1)),
-            ("epoch", json!(self.epoch)),
-            ("generation", json!(self.generation)),
-            ("mode", json!("Live")),
-            ("status", json!(self.status)),
-            ("rows", json!(rows)),
-            ("workflows", json!(choices)),
-            ("signals", json!(signals)),
-            ("pageNumber", json!(page)),
-            ("pageCount", json!(total.div_ceil(50).max(1))),
-            ("totalRows", json!(total)),
-            ("hasMore", json!(page as usize * 50 < total)),
-            (
-                "graphStartUtc",
-                json!(start.timestamp_millis() as f64 / 1000.0),
-            ),
-            ("graphEndUtc", json!(end.timestamp_millis() as f64 / 1000.0)),
-            (
-                "graphStartMarket",
-                json!(market_history::market_seconds(start)),
-            ),
-            ("graphEndMarket", json!(market_history::market_seconds(end))),
-            ("contractId", json!(self.contract)),
-            ("timeFrame", json!(frame)),
-        ] {
-            fields.insert(key.into(), value);
-        }
-        serde_json::from_value(result).map_err(|e| e.to_string())
+        let page = self.pages.get(frame).copied().unwrap_or(1) as usize;
+        let total = self.totals.get(frame).copied().unwrap_or(result.rows.len());
+        result.page_number = page;
+        result.page_count = total.div_ceil(50).max(1);
+        result.total_rows = total;
+        result.has_more = page * 50 < total;
+        result.graph_start_utc = start.timestamp_millis() as f64 / 1000.;
+        result.graph_end_utc = end.timestamp_millis() as f64 / 1000.;
+        result.graph_start_market = Some(market_history::market_seconds(start));
+        result.graph_end_market = Some(market_history::market_seconds(end));
+        result.contract_id = self.contract.clone();
+        result.time_frame = frame.into();
+        Ok(result)
     }
     pub fn set_error(&mut self, error: &str) {
         self.status = error.into();
+    }
+}
+
+#[cfg(test)]
+mod typed_state_tests {
+    use super::*;
+    #[test]
+    fn workflow_revisions_and_signal_deduplication_preserve_typed_publications() {
+        let registry = Registry::compiled().unwrap();
+        let wire = crate::backend::codec::decode(include_bytes!(
+            "../../tests/fixtures/backend/strategy-view.msgpack"
+        ))
+        .unwrap();
+        let header =
+            crate::models::strategy::WorkflowHeader::from_backend(&registry, &wire).unwrap();
+        let date = chrono::NaiveDate::parse_from_str(&header.entity_date, "%Y-%m-%d").unwrap();
+        let mut state = StrategyController::default();
+        state.contract = header.entity_contract.clone();
+        state.context = Some(BusinessContext {
+            value_date: date,
+            active_value_date: Some(date),
+            as_of_utc: header.occurred() + chrono::Duration::hours(1),
+            revision: 1,
+            market_state: 2,
+            allow_development_emulator: false,
+        });
+        assert!(state.apply_view(&registry, wire.clone()).unwrap());
+        assert!(!state.apply_view(&registry, wire.clone()).unwrap());
+        let mut conflict = wire.clone();
+        let shape = registry.describe(display::VIEW).unwrap();
+        let slot = shape
+            .members
+            .iter()
+            .find(|(name, _, _)| name == "StopReasonCode")
+            .unwrap()
+            .1;
+        let Value::Array(values) = &mut conflict else {
+            panic!("Expected numeric workflow contract")
+        };
+        values[slot] = "conflict at same revision".into();
+        assert!(
+            state
+                .apply_view(&registry, conflict)
+                .unwrap_err()
+                .contains("Conflicting workflow state")
+        );
+        let trigger = registry
+            .wire_field(display::VIEW, "TriggerEvent", &wire)
+            .unwrap();
+        let kind = registry.field_kind(display::VIEW, "TriggerEvent").unwrap();
+        let signal = registry
+            .wire_field(kind, "FuturesItiSignal", trigger)
+            .unwrap()
+            .clone();
+        assert!(state.apply_signal(&registry, signal.clone(), true).unwrap());
+        assert!(!state.apply_signal(&registry, signal, true).unwrap());
+        let snapshot = state.snapshot(&registry).unwrap();
+        assert_eq!(snapshot.rows.len(), 1);
+        assert_eq!(snapshot.signals.len(), 1);
+        assert_eq!(
+            snapshot.rows[0].trigger_identity,
+            snapshot.signals[0].identity
+        );
+        assert_eq!(snapshot.workflow_id, header.id);
     }
 }

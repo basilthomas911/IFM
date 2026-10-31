@@ -18,14 +18,15 @@ pub(super) fn at<R>(
 }
 impl TradeWorkspace {
     /// Derive editor-button availability from the published selected order/trade rows and current source filter. Submission/pending gates are applied by the caller.
-    pub(super) fn order_button_enabled(&self, s: &ContractPublication, flag_key: &str) -> bool {
+    pub(super) fn order_button_enabled(&mut self, s: &ContractPublication, flag_key: &str) -> bool {
+        let display = self.prepare_trade_display(s);
         match flag_key {
             "canCreateOrder" => true,
             "canRemoveOrder" => s.result.rows.iter().any(|r| {
                 r.fields.get("kind").is_some_and(|k| k == "order")
                     && (self.source_filter.is_empty()
                         || self.source_filter == "All"
-                        || text(&data(r), "source") == self.source_filter)
+                        || text(&display.row(&r.id), "source") == self.source_filter)
             }),
             "canLoadTrade" => s
                 .result
@@ -34,7 +35,8 @@ impl TradeWorkspace {
                 .filter(|id| !id.is_empty())
                 .is_some_and(|id| {
                     s.result.rows.iter().any(|r| {
-                        r.id == format!("trade:{id}") && text(&data(r), "tradeState") != "NewTrade"
+                        r.id == format!("trade:{id}")
+                            && text(&display.row(&r.id), "tradeState") != "NewTrade"
                     })
                 }),
             "canAddTrade" => s
@@ -47,7 +49,7 @@ impl TradeWorkspace {
                         r.id == format!("order:{id}")
                             && (self.source_filter.is_empty()
                                 || self.source_filter == "All"
-                                || text(&data(r), "source") == self.source_filter)
+                                || text(&display.row(&r.id), "source") == self.source_filter)
                     })
                 }),
             "canRemoveTrade" => s
@@ -149,6 +151,7 @@ impl TradeWorkspace {
         o: egui::Pos2,
         outer: egui::Vec2,
     ) -> Option<&'static str> {
+        let display = self.prepare_trade_display(s);
         let p = ui.ctx().pixels_per_point();
         let w = outer.x * p;
         let h = (outer.y * p - 218.).max(260.);
@@ -276,7 +279,8 @@ impl TradeWorkspace {
                 } else if let Some(row) =
                     s.result.rows.iter().find(|r| r.id == format!("trade:{id}"))
                 {
-                    self.draft.insert("index".into(), text(&data(row), "index"));
+                    self.draft
+                        .insert("index".into(), text(&display.row(&row.id), "index"));
                     action = Some("trade");
                 }
             }
@@ -380,24 +384,20 @@ impl TradeWorkspace {
         &mut self,
         ui: &mut egui::Ui,
         s: &ContractPublication,
-        value: &serde_json::Value,
+        value: &crate::models::broker_presentation::MarketDisplay,
     ) -> Option<&'static str> {
         let p = ui.ctx().pixels_per_point();
-        let contracts = value["contracts"].as_array().cloned().unwrap_or_default();
+        use crate::models::cells::Cells;
+        let contracts = value.contracts.as_deref().unwrap_or_default();
         let mut strikes: Vec<_> = contracts
             .iter()
-            .filter_map(|c| c["strike"].wire_number())
+            .filter_map(|c| c.cell("strike").number())
             .collect();
         strikes.sort_by(|a, b| b.total_cmp(a));
         strikes.dedup();
         let mut action = None;
-        let selected: Vec<_> = s
-            .result
-            .rows
-            .iter()
-            .filter(|r| r.fields.get("kind").is_some_and(|k| k == "leg"))
-            .map(data)
-            .collect();
+        let display = self.prepare_trade_display(s);
+        let selected = &display.selected_legs;
         let group_width = (ui.available_width() - 2. * ui.spacing().item_spacing.x) / 13.;
         ui.horizontal(|ui| {
             ui.add_sized(
@@ -428,7 +428,7 @@ impl TradeWorkspace {
         // Reveal a new selection once, then retain the operator's scroll position during quote updates.
         let selection_key = selected
             .iter()
-            .map(|leg| text(leg, "contractId"))
+            .map(|leg| super::blotter::cell_text(leg, "contractId"))
             .collect::<Vec<_>>()
             .join("|");
         if !selection_key.is_empty()
@@ -436,7 +436,7 @@ impl TradeWorkspace {
         {
             let selected_strikes: Vec<_> = selected
                 .iter()
-                .filter_map(|leg| leg["strike"].wire_number())
+                .filter_map(|leg| leg.cell("strike").number())
                 .collect();
             if !selected_strikes.is_empty() {
                 let middle = selected_strikes.iter().sum::<f64>() / selected_strikes.len() as f64;
@@ -462,14 +462,15 @@ impl TradeWorkspace {
                 widths = body.widths().to_vec();
                 body.rows(24. / p, strikes.len(), |mut row| {
                     let strike = strikes[row.index()];
-                    let call = contracts
-                        .iter()
-                        .find(|c| c["strike"].wire_number() == Some(strike) && c["isCall"] == true);
-                    let put = contracts.iter().find(|c| {
-                        c["strike"].wire_number() == Some(strike) && c["isCall"] == false
+                    let call = contracts.iter().find(|c| {
+                        c.cell("strike").number() == Some(strike) && c.is_call == Some(true)
                     });
-                    let nearest = value["lastUnderlyingPrice"]
-                        .wire_number()
+                    let put = contracts.iter().find(|c| {
+                        c.cell("strike").number() == Some(strike) && c.is_call == Some(false)
+                    });
+                    let nearest = value
+                        .cell("lastUnderlyingPrice")
+                        .number()
                         .and_then(|price| {
                             strikes
                                 .iter()
@@ -479,10 +480,8 @@ impl TradeWorkspace {
                     for column in 0..13 {
                         let c = if column < 6 { call } else { put };
                         let role = c
-                            .and_then(|c| {
-                                selected.iter().find(|l| l["contractId"] == c["contractId"])
-                            })
-                            .map(|l| text(l, "role"));
+                            .and_then(|c| selected.iter().find(|l| l.contract_id == c.contract_id))
+                            .map(|l| super::blotter::cell_text(l, "role"));
                         let (_, response) = row.col(|ui| {
                             if nearest {
                                 let background = ui
@@ -537,12 +536,17 @@ impl TradeWorkspace {
                             if let Some(c) = c {
                                 let short = if column < 6 { "-SC" } else { "-SP" };
                                 let long = if column < 6 { "+LC" } else { "+LP" };
-                                self.draft
-                                    .insert("contractId".into(), text(c, "contractId"));
+                                self.draft.insert(
+                                    "contractId".into(),
+                                    super::blotter::cell_text(c, "contractId"),
+                                );
                                 self.draft.insert(
                                     "role".into(),
                                     role.clone().unwrap_or_else(|| {
-                                        if selected.iter().any(|l| text(l, "role") == short) {
+                                        if selected
+                                            .iter()
+                                            .any(|l| super::blotter::cell_text(l, "role") == short)
+                                        {
                                             long.into()
                                         } else {
                                             short.into()
@@ -572,6 +576,7 @@ impl TradeWorkspace {
         ui: &mut egui::Ui,
         s: &ContractPublication,
     ) -> Option<&'static str> {
+        let display = self.prepare_trade_display(s);
         let mut action = None;
         let p = ui.ctx().pixels_per_point();
         let orders: Vec<_> = s
@@ -585,7 +590,7 @@ impl TradeWorkspace {
             .rows
             .iter()
             .filter(|r| r.fields.get("kind").is_some_and(|k| k == "fill"))
-            .map(data)
+            .map(|r| display.row(&r.id))
             .collect();
         if self
             .draft
@@ -599,7 +604,7 @@ impl TradeWorkspace {
                 );
                 self.draft.insert(
                     "limitPrice".into(),
-                    text(&data(first), "currentSignedNetDebitLimit"),
+                    text(&display.row(&first.id), "currentSignedNetDebitLimit"),
                 );
             }
         }
@@ -611,14 +616,14 @@ impl TradeWorkspace {
                     .is_some_and(|id| r.id == format!("broker-order:{id}"))
             })
             .map(|row| {
-                let v = data(row);
+                let v = display.row(&row.id);
                 let detail = text(&v, "dispatchDetail");
                 let status = s
                     .result
                     .rows
                     .iter()
                     .find(|r| r.id == row.id.replace("broker-order:", "broker-summary:"))
-                    .map(|r| text(&data(r), "status"))
+                    .map(|r| text(&display.row(&r.id), "status"))
                     .filter(|status| !status.is_empty())
                     .unwrap_or_else(|| text(&v, "status"));
                 if detail.is_empty() {
@@ -686,14 +691,14 @@ impl TradeWorkspace {
                 .id_salt("broker-tree-scroll")
                 .show(ui, |ui| {
                     for row in &orders {
-                        let v = data(row);
+                        let v = display.row(&row.id);
                         let id = row.id.strip_prefix("broker-order:").unwrap_or_default();
                         let caption = s
                             .result
                             .rows
                             .iter()
                             .find(|r| r.id == format!("broker-caption:{id}"))
-                            .map(|r| text(&data(r), "text"))
+                            .map(|r| text(&display.row(&r.id), "text"))
                             .unwrap_or_else(|| {
                                 format!(
                                     "{} @ {}",
@@ -706,7 +711,7 @@ impl TradeWorkspace {
                             .rows
                             .iter()
                             .find(|r| r.id == format!("broker-summary:{id}"))
-                            .map(|r| text(&data(r), "status"))
+                            .map(|r| text(&display.row(&r.id), "status"))
                             .unwrap_or_else(|| text(&v, "status"));
                         let color = match effective.as_str() {
                             "Filled" => Color32::from_rgb(50, 205, 50),
@@ -721,10 +726,12 @@ impl TradeWorkspace {
                                 .id_salt(id)
                                 .default_open(true)
                                 .show(ui, |ui| {
-                                    for fill in fills
-                                        .iter()
-                                        .filter(|f| f["componentId"] == v["id"]["componentId"])
-                                    {
+                                    for fill in fills.iter().filter(|f| {
+                                        f.fill().and_then(|f| f.component_id.as_ref())
+                                            == v.broker_order()
+                                                .and_then(|v| v.id.as_ref())
+                                                .and_then(|id| id.component_id.as_ref())
+                                    }) {
                                         let fid = text(fill, "executionFillId");
                                         if ui
                                             .selectable_label(
@@ -764,7 +771,7 @@ impl TradeWorkspace {
                     .get("brokerOrderId")
                     .is_some_and(|id| r.id == format!("broker-order:{id}"))
             })
-            .map(|r| data(r));
+            .map(|r| display.row(&r.id));
         let mutation = s
             .result
             .rows
@@ -774,8 +781,8 @@ impl TradeWorkspace {
                     .get("brokerOrderId")
                     .is_some_and(|id| r.id == format!("broker-mutation:{id}"))
             })
-            .map(data)
-            .unwrap_or_default();
+            .map(|r| display.row(&r.id))
+            .unwrap_or(&display_cache::BusinessRow::Missing);
         at(
             ui,
             right.shrink(1. / p),
@@ -790,7 +797,7 @@ impl TradeWorkspace {
                     .draft
                     .get("fillId")
                     .and_then(|id| fills.iter().find(|f| text(f, "executionFillId") == *id))
-                    .cloned()
+                    .copied()
                     .or_else(|| {
                         s.result
                             .rows
@@ -800,9 +807,9 @@ impl TradeWorkspace {
                                     .get("brokerOrderId")
                                     .is_some_and(|id| r.id == format!("broker-summary:{id}"))
                             })
-                            .map(data)
+                            .map(|r| display.row(&r.id))
                     })
-                    .or(current.clone());
+                    .or(current);
                 if let Some(v) = selected {
                     self.inspection_properties(ui, s, &v);
                 } else {
@@ -811,7 +818,7 @@ impl TradeWorkspace {
             },
         );
         let enabled = !self.draft.contains_key("fillId")
-            && mutation["canMutate"] == true
+            && mutation.cell("canMutate").as_bool() == Some(true)
             && self.interaction_ready(s);
         let y = area.bottom() - 37. / p;
         let cancel = egui::Rect::from_min_size(
@@ -832,12 +839,12 @@ impl TradeWorkspace {
                     ui,
                     "limitPrice",
                     "0",
-                    mutation["minimum"].wire_number().unwrap_or(-1000000.),
-                    mutation["maximum"].wire_number().unwrap_or(1000000.),
-                    mutation["tick"].wire_number().unwrap_or(0.05),
+                    mutation.cell("minimum").number().unwrap_or(-1000000.),
+                    mutation.cell("maximum").number().unwrap_or(1000000.),
+                    mutation.cell("tick").number().unwrap_or(0.05),
                     (0..=8)
                         .find(|n| {
-                            let scaled = mutation["tick"].wire_number().unwrap_or(0.05)
+                            let scaled = mutation.cell("tick").number().unwrap_or(0.05)
                                 * 10_f64.powi(*n as i32);
                             (scaled - scaled.round()).abs() < 1e-8
                         })
@@ -866,6 +873,7 @@ impl TradeWorkspace {
         s: &ContractPublication,
         kind: &str,
     ) -> Option<&'static str> {
+        let display = self.prepare_trade_display(s);
         let p = ui.ctx().pixels_per_point();
         let o = ui.cursor().min;
         let order = kind == "create-order";
@@ -939,11 +947,11 @@ impl TradeWorkspace {
                         .rows
                         .iter()
                         .find(|r| r.fields.get("kind").is_some_and(|k| k == "order-draft"))
-                        .map(data)
-                        .unwrap_or_default();
+                        .map(|r| display.row(&r.id))
+                        .unwrap_or(&display_cache::BusinessRow::Missing);
                     match i {
                         0 => {
-                            ui.trading_label(if text(&row, "orderId") == "0" || row.is_null() {
+                            ui.trading_label(if text(&row, "orderId") == "0" || row.is_missing() {
                                 "Allocated on Save".into()
                             } else {
                                 text(&row, "orderId")
@@ -953,7 +961,7 @@ impl TradeWorkspace {
                             ui.trading_label(text(&row, "orderDate"));
                         }
                         2 => {
-                            ui.trading_label(if row.is_null() {
+                            ui.trading_label(if row.is_missing() {
                                 "Open".into()
                             } else {
                                 text(&row, "orderStatus")

@@ -52,14 +52,15 @@ fn strategy_rows_and_complete_details_tree_match_unchanged_hybrid() {
     let registry = Registry::compiled().unwrap();
     let wire = codec::decode(&read("strategy-view.msgpack")).unwrap();
     let expected: Value = serde_json::from_slice(&read("strategy-row-display.json")).unwrap();
-    let row = strategy_display::row(&registry, &wire, 1000).unwrap();
+    let row = serde_json::to_value(strategy_display::row(&registry, &wire, 1000).unwrap()).unwrap();
     assert!(
         difference("row", &row, &expected).is_none(),
         "{}",
         difference("row", &row, &expected).unwrap_or_default()
     );
     let expected: Value = serde_json::from_slice(&read("strategy-details-display.json")).unwrap();
-    let result = strategy_display::details(&registry, &wire).unwrap();
+    let result =
+        serde_json::to_value(strategy_display::details(&registry, &wire).unwrap()).unwrap();
     fn missing(value: &Value, items: &mut Vec<String>) {
         match value {
             Value::String(v) if v.contains("No native display getter") => items.push(v.clone()),

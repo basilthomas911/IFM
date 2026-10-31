@@ -140,25 +140,25 @@ pub fn wing<'a>(
 }
 
 impl Contract {
-    /// Consume canonical schema projections, not display labels or rounded cells.
-    pub fn from_backend(row: &serde_json::Value) -> Result<Self, String> {
-        let decimal = row["Strike"]
-            .as_str()
-            .map(str::to_string)
-            .unwrap_or_else(|| row["Strike"].to_string());
-        let flag = |name: &str| row[name].as_bool().ok_or(format!("Missing option {name}"));
+    /// Consume the concrete backend snapshot; display retention never supplies execution inputs.
+    pub fn from_backend(
+        row: &crate::models::trade_contracts::EvaluatedOptionContractReadModel,
+    ) -> Result<Self, String> {
         Ok(Self {
-            id: row["ContractId"]
-                .as_str()
-                .filter(|s| !s.is_empty())
+            id: row
+                .contract_id
+                .as_deref()
+                .filter(|value| !value.is_empty())
                 .ok_or("Missing option identity")?
-                .into(),
-            strike: ExactDecimal::parse(&decimal)?,
-            is_call: flag("IsCall")?,
-            delta: row["Delta"].as_f64(),
-            stale: flag("IsStale")?,
-            greeks_valid: flag("GreeksValid")?,
-            selection_valid: flag("SelectionValid")?,
+                .to_string(),
+            strike: ExactDecimal::parse(
+                row.strike.as_ref().ok_or("Missing option strike")?.as_str(),
+            )?,
+            is_call: row.is_call.ok_or("Missing option IsCall")?,
+            delta: row.delta,
+            stale: row.is_stale.ok_or("Missing option IsStale")?,
+            greeks_valid: row.greeks_valid.ok_or("Missing option GreeksValid")?,
+            selection_valid: row.selection_valid.ok_or("Missing option SelectionValid")?,
         })
     }
 }

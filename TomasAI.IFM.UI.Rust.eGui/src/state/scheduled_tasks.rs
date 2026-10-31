@@ -1,5 +1,13 @@
 //! Scheduler UI ownership. Cron evaluation, execution and installation remain
 //! backend operations. Run/output cursors are scoped to their selected schedule.
+use crate::backend::contracts::ActorSubject;
+use crate::models::{
+    cells::{Cell, Cells},
+    labels::PublishedEnum,
+    scheduled::{Preview, Project, Run},
+    trade_contracts::*,
+    wire_types::FromBackend,
+};
 use crate::{
     backend::{contracts::*, schema::Registry, transport::Backend},
     contract_editor::{ContractPublication, ContractResult, ContractRow},
@@ -16,24 +24,23 @@ fn model(name: &str) -> String {
 fn field<'a>(intent: &'a Json, name: &str) -> &'a str {
     intent["fields"][name].as_str().unwrap_or_default().trim()
 }
-fn text(row: &Json, name: &str) -> String {
-    row[name].as_str().unwrap_or_default().into()
+fn text(row: &impl Cells, name: &str) -> String {
+    row.cell(name).text()
 }
-fn display(v: &Json) -> String {
+fn display(v: Cell<'_>) -> String {
     match v {
-        Json::Null => String::new(),
-        Json::String(v) => v.clone(),
-        Json::Bool(v) => if *v { "True" } else { "False" }.into(),
-        _ => v.to_string(),
+        Cell::Boolean(v) => if v { "True" } else { "False" }.into(),
+        _ => v.text(),
     }
 }
 fn id_wire(id: &str) -> Result<Value, String> {
     let id = uuid::Uuid::parse_str(id).map_err(|_| "Invalid scheduled task identity")?;
     Ok(Value::Array(vec![id.to_string().into()]))
 }
-fn id(row: &Json) -> Result<String, String> {
-    row["Id"]["Value"]
-        .as_str()
+fn id(identity: &Option<ScheduledTaskId>) -> Result<String, String> {
+    identity
+        .as_ref()
+        .and_then(|id| id.value.as_deref())
         .filter(|s| uuid::Uuid::parse_str(s).is_ok_and(|id| !id.is_nil()))
         .map(str::to_string)
         .ok_or("Missing scheduled task identity".into())
@@ -43,47 +50,38 @@ fn member<'a>(wire: &'a Value, index: usize) -> Result<&'a Value, String> {
         .and_then(|v| v.get(index))
         .ok_or("Incomplete scheduled-task payload".into())
 }
-fn offset(wire: &Value, index: usize) -> Result<Json, String> {
+fn offset(wire: &Value, index: usize) -> Result<Option<String>, String> {
     let value = member(wire, index)?;
     Ok(if value.is_nil() {
-        Json::Null
+        None
     } else {
-        json!(crate::backend::contracts::reference_offset(value)?)
+        Some(crate::backend::contracts::reference_offset(value)?)
     })
 }
 fn document<T: serde::Serialize>(value: &T) -> Result<serde_bytes::ByteBuf, String> {
-    crate::wire::encode_value(&serde_json::to_value(value).map_err(|e| e.to_string())?)
-        .map(Into::into)
+    crate::wire::encode(value).map(Into::into)
 }
 /// Map one persisted run exactly as the hybrid service; no business outcomes or
 /// EOD receipts are recomputed on the client. Raw timestamps retain their zones.
-pub fn run_document(registry: &Registry, wire: &Value) -> Result<Json, String> {
-    let row = registry.project(&model("ScheduledTaskRun"), wire)?;
-    let mut result = serde_json::Map::new();
-    result.insert("id".into(), json!(id(&row)?));
-    for (key, name) in [
-        ("status", "Status"),
-        ("stage", "Stage"),
-        ("detail", "Detail"),
-        ("exitCode", "ExitCode"),
-        ("valueDate", "ValueDate"),
-        ("revision", "Revision"),
-        ("operationCommandId", "OperationCommandId"),
-        ("processId", "ProcessId"),
-        ("standardOutputTail", "StandardOutputTail"),
-        ("standardErrorTail", "StandardErrorTail"),
-        ("outputDirectory", "OutputDirectory"),
-    ] {
-        result.insert(key.into(), row[name].clone());
-    }
-    for (key, index) in [
-        ("intendedFireTimeUtc", 7),
-        ("startedAtUtc", 10),
-        ("finishedAtUtc", 11),
-    ] {
-        result.insert(key.into(), offset(wire, index)?);
-    }
-    Ok(Json::Object(result))
+pub fn run_document(_registry: &Registry, wire: &Value) -> Result<Run, String> {
+    let row = ScheduledTaskRun::from_backend(wire)?;
+    Ok(Run {
+        id: id(&row.id)?,
+        status: row.status.as_ref().map(PublishedEnum::published_label),
+        stage: row.stage,
+        detail: row.detail,
+        exit_code: row.exit_code,
+        value_date: row.value_date,
+        revision: row.revision,
+        operation_command_id: row.operation_command_id,
+        process_id: row.process_id,
+        standard_output_tail: row.standard_output_tail,
+        standard_error_tail: row.standard_error_tail,
+        output_directory: row.output_directory,
+        intended_fire_time_utc: offset(wire, 7)?,
+        started_at_utc: offset(wire, 10)?,
+        finished_at_utc: offset(wire, 11)?,
+    })
 }
 pub fn schedule_input(registry: &Registry, intent: &Json) -> Result<Value, String> {
     let boolean = match field(intent, "oneTime").to_ascii_lowercase().as_str() {
@@ -145,7 +143,7 @@ pub struct ScheduledController {
     cursors: BTreeMap<String, Option<Vec<u8>>>,
     next_fires: BTreeMap<String, String>,
     history_schedule: Option<String>,
-    preview: Json,
+    preview: Option<Preview>,
     output: String,
     output_run: Option<String>,
     output_offset: i64,
@@ -210,7 +208,7 @@ impl ScheduledController {
         backend: &Backend,
         registry: &Registry,
         schedule: Value,
-    ) -> Result<Json, String> {
+    ) -> Result<Preview, String> {
         let wire = self
             .query(
                 backend,
@@ -219,7 +217,7 @@ impl ScheduledController {
                 BTreeMap::from([("Schedule".into(), schedule)]),
             )
             .await?;
-        let row = registry.project(&model("ScheduledTaskSchedulePreview"), &wire)?;
+        let row = ScheduledTaskSchedulePreview::from_backend(&wire)?;
         let times = member(&wire, 2)?
             .as_array()
             .filter(|v| v.len() <= 100)
@@ -227,7 +225,11 @@ impl ScheduledController {
             .iter()
             .map(crate::backend::contracts::reference_offset)
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(json!({"valid":row["Valid"],"errors":row["Errors"],"nextFireTimesUtc":times}))
+        Ok(Preview {
+            valid: row.valid,
+            errors: row.errors,
+            next_fire_times_utc: times,
+        })
     }
     async fn history_page(
         &mut self,
@@ -285,14 +287,18 @@ impl ScheduledController {
         // retained history is bounded; dropped display rows never relaunch a job.
         let mut indexed = BTreeMap::new();
         for row in all.drain(..).chain(rows.iter().cloned()) {
-            let projected = registry.project(&model("ScheduledTaskRun"), &row)?;
-            if projected["ScheduleId"]["Value"] != schedule
-                || projected["Environment"] != self.environment
-                || projected["HostId"] != self.host
+            let projected = ScheduledTaskRun::from_backend(&row)?;
+            if projected
+                .schedule_id
+                .as_ref()
+                .and_then(|id| id.value.as_deref())
+                != Some(schedule)
+                || projected.environment.as_deref() != Some(self.environment.as_str())
+                || projected.host_id.as_deref() != Some(self.host.as_str())
             {
                 return Err("Run history crossed the selected schedule or host".into());
             }
-            indexed.insert(id(&projected)?, row);
+            indexed.insert(id(&projected.id)?, row);
         }
         if indexed.len() > 100_000 {
             return Err("Run history display bound reached".into());
@@ -331,7 +337,7 @@ impl ScheduledController {
                 ]),
             )
             .await?;
-        let row = registry.project(&model("ScheduledTasksDashboard"), &wire)?;
+        let row = ScheduledTasksDashboard::from_backend(&wire)?;
         let definitions = member(&wire, 1)?
             .as_array()
             .filter(|v| v.len() <= 100)
@@ -342,17 +348,19 @@ impl ScheduledController {
         };
         let mut models = BTreeMap::new();
         for wire in definitions {
-            let row = registry.project(&model("ScheduledTaskDefinition"), wire)?;
-            if row["Schedule"]["Environment"] != self.environment
-                || row["Schedule"]["HostId"] != self.host
+            let row = ScheduledTaskDefinition::from_backend(wire)?;
+            if row.schedule.as_ref().and_then(|s| s.environment.as_deref())
+                != Some(self.environment.as_str())
+                || row.schedule.as_ref().and_then(|s| s.host_id.as_deref())
+                    != Some(self.host.as_str())
             {
                 return Err("Schedule dashboard crossed its requested host".into());
             }
-            if row["Removed"] == true {
+            if row.removed == Some(true) {
                 continue;
             }
-            let identity = id(&row)?;
-            let schedule = &row["Schedule"];
+            let identity = id(&row.id)?;
+            let schedule = row.schedule.as_ref().ok_or("Missing task schedule")?;
             let schedule_wire = member(wire, 3)?;
             let mut fields = BTreeMap::new();
             for (key, name) in [
@@ -366,11 +374,11 @@ impl ScheduledController {
                 ("dispatchToleranceSeconds", "DispatchToleranceSeconds"),
                 ("description", "Description"),
             ] {
-                fields.insert(key.into(), display(&schedule[name]));
+                fields.insert(key.into(), display(schedule.cell(name)));
             }
             fields.insert(
                 "oneTime".into(),
-                if schedule["Timing"] == "OneTime" {
+                if schedule.timing == Some(ScheduledTaskTiming::OneTime) {
                     "True"
                 } else {
                     "False"
@@ -378,7 +386,10 @@ impl ScheduledController {
                 .into(),
             );
             for (key, index) in [("startsAtUtc", 7), ("endsAtUtc", 8)] {
-                fields.insert(key.into(), display(&offset(schedule_wire, index)?));
+                fields.insert(
+                    key.into(),
+                    offset(schedule_wire, index)?.unwrap_or_default(),
+                );
             }
             for (key, name) in [
                 ("enabled", "Enabled"),
@@ -389,7 +400,7 @@ impl ScheduledController {
                 ("activeRunId", "ActiveRunId"),
                 ("revision", "Revision"),
             ] {
-                fields.insert(key.into(), display(&row[name]));
+                fields.insert(key.into(), display(row.cell(name)));
             }
             if models.insert(identity.clone(), wire.clone()).is_some() {
                 return Err("Duplicate schedule identity".into());
@@ -400,8 +411,8 @@ impl ScheduledController {
                 data: None,
             });
         }
-        let catalog = &row["Catalog"];
-        let projects = catalog["Projects"].as_array().cloned().unwrap_or_default();
+        let catalog = row.catalog.as_ref().ok_or("Missing task catalog")?;
+        let projects = catalog.projects.as_deref().unwrap_or_default();
         if projects.len() > 10_000 {
             return Err("Oversized task catalog".into());
         }
@@ -409,33 +420,42 @@ impl ScheduledController {
             "taskKey".into(),
             projects
                 .iter()
-                .filter(|p| p["Available"] == true)
-                .map(|p| text(p, "TaskKey"))
+                .filter(|p| p.available == Some(true))
+                .map(|p| p.task_key.clone().unwrap_or_default())
                 .collect(),
         );
-        let project_docs=projects.iter().map(|p|json!({"taskKey":p["TaskKey"],"name":p["DisplayName"],"available":p["Available"],"platform":p["Platform"],"manifestVersion":p["ManifestVersion"]})).collect::<Vec<_>>();
+        let project_docs: Vec<_> = projects
+            .iter()
+            .map(|p| Project {
+                task_key: p.task_key.clone(),
+                name: p.display_name.clone(),
+                available: p.available,
+                platform: p.platform.clone(),
+                manifest_version: p.manifest_version.clone(),
+            })
+            .collect();
         result
             .documents
             .insert("projects".into(), document(&project_docs)?);
-        let health = &catalog["HostCapability"];
+        let health = catalog.host_capability.as_ref();
         let context = BusinessContext::load(backend).await?;
         result
             .context
             .insert("apiAsOfUtc".into(), utc_roundtrip(context.as_of_utc));
         result.context.insert(
             "hostStatus".into(),
-            if health.is_null() {
+            if health.is_none() {
                 "Host has not reported capability.".into()
             } else {
                 format!(
                     "{}: {} - {}",
-                    text(health, "Platform"),
-                    if health["Ready"] == true {
+                    text(&health, "Platform"),
+                    if health.is_some_and(|h| h.ready == Some(true)) {
                         "Ready"
                     } else {
                         "Unavailable"
                     },
-                    text(health, "Detail")
+                    text(&health, "Detail")
                 )
             },
         );
@@ -453,8 +473,8 @@ impl ScheduledController {
         for (id, wire) in definitions {
             self.history_page(backend, registry, &id, false, false)
                 .await?;
-            let row = registry.project(&model("ScheduledTaskDefinition"), &wire)?;
-            let preview = if row["Enabled"] == true {
+            let row = ScheduledTaskDefinition::from_backend(&wire)?;
+            let preview = if row.enabled == Some(true) {
                 Some(
                     self.preview(backend, registry, member(&wire, 3)?.clone())
                         .await?,
@@ -465,14 +485,8 @@ impl ScheduledController {
             self.next_fires.insert(
                 id,
                 preview
-                    .filter(|p| p["valid"] == true)
-                    .and_then(|p| {
-                        p["nextFireTimesUtc"]
-                            .as_array()
-                            .and_then(|a| a.first())
-                            .and_then(Json::as_str)
-                            .map(str::to_string)
-                    })
+                    .filter(|p| p.valid == Some(true))
+                    .and_then(|p| p.next_fire_times_utc.first().cloned())
                     .unwrap_or_default(),
             );
         }
@@ -563,10 +577,9 @@ impl ScheduledController {
             .get(&schedule)
             .and_then(|rows| {
                 rows.iter().find(|v| {
-                    registry
-                        .project(&model("ScheduledTaskRun"), v)
-                        .ok()
-                        .is_some_and(|p| p["Id"]["Value"] == run_id)
+                    ScheduledTaskRun::from_backend(v).ok().is_some_and(|p| {
+                        p.id.as_ref().and_then(|id| id.value.as_deref()) == Some(run_id)
+                    })
                 })
             })
             .ok_or("Select a run from this schedule history")?;
@@ -589,10 +602,10 @@ impl ScheduledController {
                 ]),
             )
             .await?;
-        let page = registry.project(&model("ScheduledTaskOutputPage"), &wire)?;
-        let next = page["NextOffset"].as_i64().ok_or("Invalid output offset")?;
-        let available = page["Available"] == true;
-        let end = page["EndOfOutput"] == true || !available;
+        let page = ScheduledTaskOutputPage::from_backend(&wire)?;
+        let next = page.next_offset.ok_or("Invalid output offset")?;
+        let available = page.available == Some(true);
+        let end = page.end_of_output == Some(true) || !available;
         if next < 0
             || more && next < self.output_offset
             || more && !end && next == self.output_offset
@@ -602,7 +615,7 @@ impl ScheduledController {
         let output = if available {
             text(&page, "Text")
         } else {
-            let row = registry.project(&model("ScheduledTaskRun"), run)?;
+            let row = ScheduledTaskRun::from_backend(run)?;
             format!(
                 "{}\n{}",
                 text(&row, "StandardOutputTail"),
@@ -641,7 +654,7 @@ impl ScheduledController {
         };
         let row = wire
             .as_ref()
-            .map(|v| registry.project(&model("ScheduledTaskDefinition"), v))
+            .map(|v| ScheduledTaskDefinition::from_backend(v))
             .transpose()?;
         let command = match action {
             "add" => "CreateScheduledTaskCommand",
@@ -661,10 +674,7 @@ impl ScheduledController {
             ("CommandId".into(), request_id.into()),
             (
                 "ExpectedRevision".into(),
-                row.as_ref()
-                    .and_then(|r| r["Revision"].as_i64())
-                    .unwrap_or(0)
-                    .into(),
+                row.as_ref().and_then(|r| r.revision).unwrap_or(0).into(),
             ),
             ("Operator".into(), operator.into()),
             ("Reason".into(), "".into()),
@@ -677,7 +687,7 @@ impl ScheduledController {
             "add" | "change" => {
                 fields.insert("Schedule".into(), schedule_input(registry, intent)?);
             }
-            "remove" if row.as_ref().is_some_and(|r| r["Enabled"] == true) => {
+            "remove" if row.as_ref().is_some_and(|r| r.enabled == Some(true)) => {
                 return Err("Disable the schedule before removal".into());
             }
             "run" => {
@@ -688,8 +698,7 @@ impl ScheduledController {
                 fields.insert("ScheduleId".into(), id_wire(&selected)?);
                 fields.insert(
                     "DefinitionRevision".into(),
-                    row["DesiredRevision"]
-                        .as_i64()
+                    row.desired_revision
                         .ok_or("Missing desired revision")?
                         .into(),
                 );
@@ -698,7 +707,7 @@ impl ScheduledController {
                     Value::Array(vec![timestamp_wire(context.as_of_utc), 0.into()]),
                 );
                 fields.insert("Manual".into(), true.into());
-                fields.insert("TaskKey".into(), text(&row["Schedule"], "TaskKey").into());
+                fields.insert("TaskKey".into(), row.schedule.cell("TaskKey").text().into());
                 fields.insert("Environment".into(), self.environment.clone().into());
                 fields.insert("HostId".into(), self.host.clone().into());
                 fields.insert("Reason".into(), "Manual System Admin request.".into());
@@ -714,25 +723,21 @@ impl ScheduledController {
                     .get(&selected)
                     .and_then(|v| {
                         v.iter().find(|v| {
-                            registry
-                                .project(&model("ScheduledTaskRun"), v)
-                                .ok()
-                                .is_some_and(|p| p["Id"]["Value"] == run_id)
+                            ScheduledTaskRun::from_backend(v).ok().is_some_and(|p| {
+                                p.id.as_ref().and_then(|id| id.value.as_deref()) == Some(run_id)
+                            })
                         })
                     })
                     .ok_or("Select an uncertain run")?;
-                let run = registry.project(&model("ScheduledTaskRun"), run)?;
-                if run["Status"] != "Uncertain" {
+                let run = ScheduledTaskRun::from_backend(run)?;
+                if run.status != Some(ScheduledTaskRunStatus::Uncertain) {
                     return Err("Select an uncertain run".into());
                 }
                 let context = BusinessContext::load(backend).await?;
                 entity = run_id.into();
                 fields.insert(
                     "ExpectedRevision".into(),
-                    run["Revision"]
-                        .as_i64()
-                        .ok_or("Missing run revision")?
-                        .into(),
+                    run.revision.ok_or("Missing run revision")?.into(),
                 );
                 fields.insert(
                     "OperationCommandId".into(),
@@ -850,7 +855,7 @@ impl ScheduledController {
             self.cursors.clear();
             self.next_fires.clear();
             self.output.clear();
-            self.preview = Json::Null;
+            self.preview = None;
             self.output_run = None;
             self.output_offset = 0;
             self.output_end = true;
@@ -870,9 +875,10 @@ impl ScheduledController {
         }
         match action {
             "preview" => {
-                self.preview = self
-                    .preview(backend, registry, schedule_input(registry, intent)?)
-                    .await?
+                self.preview = Some(
+                    self.preview(backend, registry, schedule_input(registry, intent)?)
+                        .await?,
+                )
             }
             "history" | "next" => {
                 let (selected, _) = self.selected(intent)?;

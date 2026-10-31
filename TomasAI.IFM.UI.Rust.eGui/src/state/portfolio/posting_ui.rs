@@ -143,7 +143,12 @@ impl PortfolioController {
                 || matches!(kind, "WithdrawalSettled" | "WithdrawalCancelled")
                     && related["Transaction"]["TransactionKind"] == "WithdrawalRequested";
             if allowed {
-                choices.push(json!({"value":rule["RuleId"],"label":format!("{} (version {})",label(kind),text(&rule["Version"])),"enabled":true}));
+                choices.push(Choice {
+                    value: text(&(rule["RuleId"])),
+                    label: format!("{} (version {})", label(kind), text(&rule["Version"])),
+                    enabled: true,
+                    ..Default::default()
+                });
             }
         }
         let mut amount = input(
@@ -157,16 +162,13 @@ impl PortfolioController {
             true,
             None,
         );
-        amount["minimum"] = json!(0.01);
-        amount["maximum"] = json!(1000000000);
+        amount.minimum = 0.01;
+        amount.maximum = 1000000000.0;
         let mut fields = vec![
             input(
                 "rule",
                 "Transaction",
-                choices
-                    .first()
-                    .map(|v| text(&v["value"]))
-                    .unwrap_or_default(),
+                choices.first().map(|v| v.value.clone()).unwrap_or_default(),
                 "choice",
                 true,
                 Some(choices.clone()),
@@ -217,18 +219,38 @@ impl PortfolioController {
         ];
         if let Some(keep) = keep {
             for field in &mut fields {
-                if let Some(value) = keep
-                    .get(field["key"].as_str().unwrap_or_default())
-                    .and_then(Json::as_str)
-                {
-                    field["value"] = value.into();
+                if let Some(value) = keep.get(field.key.as_str()).and_then(Json::as_str) {
+                    field.value = value.into();
                 }
             }
         }
-        let dialog = json!({"key":"posting","title":"Fund Transaction","width":660,"height":360,"captionWidth":280,"fields":fields,"buttons":["Post","Close"],"status":if row["PeriodOpen"]==true{"Choose a configured transaction. Generated identities are assigned when you post."}else{"This accounting period is closed."},"grids":null,"buttonEnabled":{"Post":row["PeriodOpen"]==true&&!choices.is_empty(),"Close":true}});
+        let dialog = Dialog {
+            key: "posting".into(),
+            title: "Fund Transaction".into(),
+            width: (660) as _,
+            height: (360) as _,
+            caption_width: (280) as _,
+            fields: fields,
+            buttons: vec!["Post".into(), "Close".into()],
+            status: (if row["PeriodOpen"] == true {
+                "Choose a configured transaction. Generated identities are assigned when you post."
+            } else {
+                "This accounting period is closed."
+            })
+            .to_string(),
+            grids: None,
+            button_enabled: Some(BTreeMap::from([
+                (
+                    "Post".into(),
+                    row["PeriodOpen"] == true && !choices.is_empty(),
+                ),
+                ("Close".into(), true),
+            ])),
+            ..Default::default()
+        };
         self.posting_configuration = Some(read);
         self.data.context = Some(context);
-        if let Some(index) = self.dialogs.iter().position(|d| d["key"] == "posting") {
+        if let Some(index) = self.dialogs.iter().position(|d| d.key == "posting") {
             self.dialogs[index] = dialog;
         } else {
             self.dialogs.push(dialog);
@@ -237,16 +259,14 @@ impl PortfolioController {
         Ok("Transaction editor loaded".into())
     }
     fn update_posting_rule(&mut self, registry: &Registry) -> Result<(), String> {
-        let Some(dialog) = self.dialogs.iter_mut().find(|d| d["key"] == "posting") else {
+        let Some(dialog) = self.dialogs.iter_mut().find(|d| d.key == "posting") else {
             return Ok(());
         };
-        let fields = dialog["fields"]
-            .as_array_mut()
-            .ok_or("Invalid posting dialog")?;
+        let fields = &mut dialog.fields;
         let key = fields
             .iter()
-            .find(|f| f["key"] == "rule")
-            .map(|f| text(&f["value"]))
+            .find(|f| f.key == "rule")
+            .map(|f| f.value.clone())
             .unwrap_or_default();
         let config = self
             .posting_configuration
@@ -260,23 +280,23 @@ impl PortfolioController {
             .and_then(|rules| rules.iter().find(|rule| rule["RuleId"] == key))
             .is_some_and(|rule| rule["Kind"] == "OpeningBalance");
         for field in fields {
-            match field["key"].as_str().unwrap_or_default() {
+            match field.key.as_str() {
                 "confirmed" => {
-                    field["caption"] = if opening {
+                    field.caption = if opening {
                         "Development capital; no external movement"
                     } else {
                         "I confirm this cash movement"
                     }
                     .into();
-                    field["enabled"] = (!opening).into();
+                    field.enabled = (!opening).into();
                     if opening {
-                        field["value"] = "false".into();
+                        field.value = "false".into();
                     }
                 }
                 "reference" => {
-                    field["enabled"] = (!opening).into();
+                    field.enabled = (!opening).into();
                     if opening {
-                        field["value"] = "".into();
+                        field.value = "".into();
                     }
                 }
                 _ => {}
@@ -310,16 +330,10 @@ impl PortfolioController {
                 .open_posting(backend, registry, Some(day), Some(fields), deadline)
                 .await;
         }
-        if let Some(dialog) = self.dialogs.iter_mut().find(|d| d["key"] == "posting") {
-            for input in dialog["fields"]
-                .as_array_mut()
-                .ok_or("Invalid posting fields")?
-            {
-                if let Some(value) = fields
-                    .get(input["key"].as_str().unwrap_or_default())
-                    .and_then(Json::as_str)
-                {
-                    input["value"] = value.into();
+        if let Some(dialog) = self.dialogs.iter_mut().find(|d| d.key == "posting") {
+            for input in dialog.fields.iter_mut() {
+                if let Some(value) = fields.get(input.key.as_str()).and_then(Json::as_str) {
+                    input.value = value.into();
                 }
             }
         }
@@ -332,17 +346,20 @@ impl PortfolioController {
         let dialog = self
             .dialogs
             .iter_mut()
-            .find(|d| d["key"] == "posting")
+            .find(|d| d.key == "posting")
             .ok_or("Posting editor closed")?;
-        for field in dialog["fields"]
-            .as_array_mut()
-            .ok_or("Invalid posting fields")?
-        {
-            field["enabled"] = false.into();
+        for field in dialog.fields.iter_mut() {
+            field.enabled = false;
         }
-        dialog["buttons"] = json!(["Check outcome", "Close"]);
-        dialog["buttonEnabled"] = json!({"Check outcome":matches!(phase,0|1),"Close":true});
-        dialog["status"] = pending["Message"].clone();
+        dialog.buttons = ["Check outcome", "Close"]
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        dialog.button_enabled = Some(BTreeMap::from([
+            ("Check outcome".into(), matches!(phase, 0 | 1)),
+            ("Close".into(), true),
+        ]));
+        dialog.status = text(&pending["Message"]);
         let _ = registry;
         Ok(())
     }

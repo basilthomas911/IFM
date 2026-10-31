@@ -3,22 +3,6 @@
 use crate::backend::{contracts::utc_roundtrip, schema::Registry};
 use rmpv::Value;
 use serde_json::Value as Json;
-fn text(value: &Json) -> String {
-    match value {
-        Json::Null => String::new(),
-        Json::String(s) => s.clone(),
-        Json::Bool(v) => if *v { "True" } else { "False" }.into(),
-        _ => value.to_string(),
-    }
-}
-fn at(value: &Json) -> Result<String, String> {
-    if value.is_null() {
-        return Ok(String::new());
-    }
-    chrono::DateTime::parse_from_rfc3339(value.as_str().ok_or("Missing evidence timestamp")?)
-        .map(|v| utc_roundtrip(v.to_utc()))
-        .map_err(|_| "Invalid evidence timestamp".into())
-}
 /// Canonical hash input uses the published contract slots, exact numeric
 /// decimals and UTC JSON dates, rather than the display's named enum strings.
 pub fn semantic_document(registry: &Registry, kind: &str, wire: &Value) -> Result<Json, String> {
@@ -96,75 +80,82 @@ pub fn semantic_hash(registry: &Registry, kind: &str, wire: &Value) -> Result<St
         .map(|v| v.to_ascii_lowercase())
 }
 
+fn at_field(value: &crate::backend::contract_view::Field<'_>) -> Result<String, String> {
+    Ok(value.utc()?.map(utc_roundtrip).unwrap_or_default())
+}
 pub fn risk(registry: &Registry, wire: &Value) -> Result<String, String> {
     let kind = format!(
         "{}.RiskManagement.RiskObservation",
         super::inspection_queries::ROOT
     );
-    let row = registry.project(&kind, wire)?;
-    let view = &row["Snapshot"]["WorkflowDefinition"];
-    let calculation = &row["Calculation"];
+    let row = crate::backend::contract_view::Field::new(registry, &kind, wire);
+    let view = row.path(&["Snapshot", "WorkflowDefinition"])?;
+    let calculation = row.field("Calculation")?;
     let mut lines = vec![
         format!(
             "CURRENT AUTHORITY: {} (checked {})",
-            text(&row["CurrentAuthority"]),
-            at(&row["CheckedAtUtc"])?
+            row.path(&["CurrentAuthority"])?.text()?,
+            at_field(&row.path(&["CheckedAtUtc"])?)?
         ),
         format!(
             "Fund outcome: {}; projection behind: {}",
-            text(&row["FundSynchronization"]),
-            text(&row["ProjectionBehind"])
+            row.path(&["FundSynchronization"])?.text()?,
+            row.path(&["ProjectionBehind"])?.text()?
         ),
         format!(
             "Workflow: {}; revision: {}; invocation: {}",
-            text(&view["WorkflowId"]["Value"]).replace('-', ""),
-            text(&view["WorkflowRevision"]),
-            text(&view["RiskExecution"]["CommandId"])
+            view.path(&["WorkflowId", "Value"])?
+                .text()?
+                .replace('-', ""),
+            view.path(&["WorkflowRevision"])?.text()?,
+            view.path(&["RiskExecution", "CommandId"])?.text()?
         ),
         format!(
             "Workflow state: {}; financial phase: {}; stop reason: {}",
-            text(&view["Status"]),
-            text(&view["FinancialHandoff"]["Phase"]),
-            text(&view["StopReasonCode"])
+            view.path(&["Status"])?.text()?,
+            view.path(&["FinancialHandoff", "Phase"])?.text()?,
+            view.path(&["StopReasonCode"])?.text()?
         ),
     ];
-    if let Some(input) = view.get("RiskExecution").filter(|v| !v.is_null()) {
+    let input = view.field("RiskExecution")?;
+    if !input.is_nil() {
         lines.push(format!(
             "Composer result: {}; policy: {} version {}",
-            text(&input["CompositionResult"]["ResultId"]),
-            text(&input["PolicyId"]),
-            text(&input["PolicyVersion"])
+            input.path(&["CompositionResult", "ResultId"])?.text()?,
+            input.path(&["PolicyId"])?.text()?,
+            input.path(&["PolicyVersion"])?.text()?
         ));
         lines.push(format!(
             "Evaluated: {}; original expiry: {}; funding environment: {}",
-            at(&input["EvaluatedAtUtc"])?,
-            at(&input["ExpiresAtUtc"])?,
-            text(&input["SizingAuthority"]["Environment"])
+            at_field(&input.path(&["EvaluatedAtUtc"])?)?,
+            at_field(&input.path(&["ExpiresAtUtc"])?)?,
+            input.path(&["SizingAuthority", "Environment"])?.text()?
         ));
     }
-    if let Some(requirement) = calculation.get("Requirements").filter(|v| !v.is_null()) {
+    let requirement = calculation.field("Requirements")?;
+    if !requirement.is_nil() {
         lines.push(format!(
             "Settlement cash {}; margin funding {}; fees {}; variation reserve {}",
-            text(&requirement["SettlementCash"]),
-            text(&requirement["MarginFunding"]),
-            text(&requirement["FeeReserve"]),
-            text(&requirement["VariationReserve"])
+            requirement.path(&["SettlementCash"])?.text()?,
+            requirement.path(&["MarginFunding"])?.text()?,
+            requirement.path(&["FeeReserve"])?.text()?,
+            requirement.path(&["VariationReserve"])?.text()?
         ));
     }
     lines.push(format!(
         "Accepted by workflow: {}",
-        text(&row["CalculationAccepted"])
+        row.path(&["CalculationAccepted"])?.text()?
     ));
     lines.push(format!(
         "Historical calculation: {}; units: {}",
-        if calculation.is_null() {
+        if calculation.is_nil() {
             "Not completed".into()
         } else {
-            text(&calculation["Outcome"])
+            calculation.path(&["Outcome"])?.text()?
         },
-        text(&calculation["StrategyUnits"])
+        calculation.path(&["StrategyUnits"])?.text()?
     ));
-    if !calculation.is_null() {
+    if !calculation.is_nil() {
         let result = super::strategy::member(registry, &kind, wire, "Calculation")?;
         let hash = semantic_hash(
             registry,
@@ -176,65 +167,63 @@ pub fn risk(registry: &Registry, wire: &Value) -> Result<String, String> {
         )?;
         lines.push(format!(
             "Result: {}; hash: {hash}",
-            text(&calculation["ResultId"])
+            calculation.path(&["ResultId"])?.text()?
         ));
         lines.push(
-            calculation["Reasons"]
-                .as_array()
-                .ok_or("Invalid risk reasons")?
-                .iter()
-                .map(text)
-                .collect::<Vec<_>>()
+            calculation
+                .field("Reasons")?
+                .items(100_000)?
+                .into_iter()
+                .map(|value| value.text())
+                .collect::<Result<Vec<_>, _>>()?
                 .join("\r\n"),
         );
     }
-    if let Some(explanation) = view.get("RiskExplanation").filter(|v| !v.is_null()) {
+    let explanation = view.field("RiskExplanation")?;
+    if !explanation.is_nil() {
         lines.push(format!(
             "Explanation schema {}; hash {}",
-            text(&explanation["SchemaVersion"]),
-            text(&explanation["ContentHash"])
+            explanation.path(&["SchemaVersion"])?.text()?,
+            explanation.path(&["ContentHash"])?.text()?
         ));
         lines.push(format!(
             "Available cash {}; effective loss budget {}; market multiplier {}",
-            text(&explanation["AvailableCash"]),
-            text(&explanation["EffectiveLossBudget"]),
-            text(&explanation["MarketMultiplier"])
+            explanation.path(&["AvailableCash"])?.text()?,
+            explanation.path(&["EffectiveLossBudget"])?.text()?,
+            explanation.path(&["MarketMultiplier"])?.text()?
         ));
-        for condition in explanation["Conditions"]
-            .as_array()
-            .ok_or("Invalid risk explanation conditions")?
-        {
-            lines.push(text(condition));
+        for condition in explanation.field("Conditions")?.items(100_000)? {
+            lines.push(condition.text()?);
         }
-        for quantity in explanation["Quantities"]
-            .as_array()
-            .ok_or("Invalid risk explanation quantities")?
-        {
-            lines.push(format!("{} units require {} cash; available at evaluation: {}; fits={}. Loss charge {}; budget {}; fits={}.",text(&quantity["Units"]),text(&quantity["Cash"]),text(&explanation["AvailableCash"]),text(&quantity["CashFits"]),text(&quantity["Loss"]),text(&explanation["EffectiveLossBudget"]),text(&quantity["LossFits"])));
-            for limit in quantity["Limits"]
-                .as_array()
-                .ok_or("Invalid risk quantity limits")?
-            {
-                let index = limit["LimitIndex"]
-                    .as_u64()
+        for quantity in explanation.field("Quantities")?.items(100_000)? {
+            lines.push(format!("{} units require {} cash; available at evaluation: {}; fits={}. Loss charge {}; budget {}; fits={}.",quantity.path(&["Units"])?.text()?,quantity.path(&["Cash"])?.text()?,explanation.path(&["AvailableCash"])?.text()?,quantity.path(&["CashFits"])?.text()?,quantity.path(&["Loss"])?.text()?,explanation.path(&["EffectiveLossBudget"])?.text()?,quantity.path(&["LossFits"])?.text()?));
+            for limit in quantity.field("Limits")?.items(100_000)? {
+                let index = limit
+                    .field("LimitIndex")?
+                    .unsigned()
                     .ok_or("Invalid risk limit index")? as usize;
-                let bound = explanation["Limits"]
-                    .as_array()
-                    .and_then(|v| v.get(index))
+                let bound = explanation
+                    .field("Limits")?
+                    .items(100_000)?
+                    .get(index)
+                    .copied()
                     .ok_or("Risk evidence limit out of range")?;
                 lines.push(format!(
                     "  {}: proposed={}; existing={}; fits={}",
-                    text(bound),
-                    text(&limit["Proposed"]),
-                    text(&limit["Existing"]),
-                    text(&limit["Fits"])
+                    bound.text()?,
+                    limit.path(&["Proposed"])?.text()?,
+                    limit.path(&["Existing"])?.text()?,
+                    limit.path(&["Fits"])?.text()?
                 ));
             }
         }
     } else {
         lines.push("Detailed explanation unavailable for this historical snapshot.".into());
     }
-    lines.push(format!("Resize evidence: {}", text(&view["RiskResize"])));
+    lines.push(format!(
+        "Resize evidence: {}",
+        view.path(&["RiskResize"])?.text()?
+    ));
     lines.push(
         "Open Evidence for frozen inputs, source versions, hashes, receipts and Fund state.".into(),
     );

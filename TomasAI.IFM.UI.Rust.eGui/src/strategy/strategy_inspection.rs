@@ -21,7 +21,7 @@ pub struct InspectionRow {
     pub fields: BTreeMap<String, String>,
 }
 /// Inspection query page with optional workflow details, risk decision/evidence, and continuation state.
-#[derive(Default, Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InspectionResult {
     /// Managed risk/workflow inspection view key identifying this query result.
@@ -40,7 +40,7 @@ pub struct InspectionResult {
     pub context: Option<BTreeMap<String, String>>,
 }
 /// Versioned inspection result and outcomes for correlated user requests.
-#[derive(Default, Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InspectionPublication {
     /// Wire schema version used to interpret this publication.

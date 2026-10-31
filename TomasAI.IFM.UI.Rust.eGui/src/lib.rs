@@ -42,20 +42,20 @@
 //! build, fixture/live-mode, deployment, and desktop-test commands.
 
 use crate::control_parity::BorderedTable as _;
-/// Consistent outcome dialogs with accessible vector status icons.
-pub mod status_dialog;
 /// Typed native presentation models, separate from configuration/log JSON.
 pub mod models;
+/// Consistent outcome dialogs with accessible vector status icons.
+pub mod status_dialog;
 /// Native window identity uses the executable's Cargo package version at build time.
 pub const WINDOW_TITLE: &str = concat!("IFM - eGui ", env!("CARGO_PKG_VERSION"));
 
 /// Native actor transport and exact backend contract adapters.
 pub mod backend;
+pub mod date_picker;
 /// Atomic native journals for pending client operations.
 pub mod persistence;
 /// Native frontend service implementations.
 pub mod services;
-pub mod date_picker;
 /// Scoped controllers for the standalone views.
 pub mod state;
 // Source modules are grouped by responsibility; re-exports preserve the public API.
@@ -101,9 +101,9 @@ pub use navigation::{shell, sidebar};
 
 use crate::presentation::TradingLabelUi as _;
 use eframe::egui;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 /// A name/value pair already prepared for the read-only property grid.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Property {
     /// Published or edited display name.
     pub name: String,
@@ -111,7 +111,7 @@ pub struct Property {
     pub value: String,
 }
 /// Published details-tree node with stable identity, properties, and nested children.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Node {
     /// Stable identity used to correlate selection, rows, or commands.
     pub id: String,
@@ -123,7 +123,7 @@ pub struct Node {
     pub children: Vec<Node>,
 }
 /// Published workflow selector entry and the numeric bridge action that selects it.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowChoice {
     /// Stable identity used to correlate selection, rows, or commands.
@@ -134,7 +134,7 @@ pub struct WorkflowChoice {
     pub action: u32,
 }
 /// Strategy observation publication including details tree, workflow page, summaries, and chart window.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     /// Wire schema version used to interpret this publication.

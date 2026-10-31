@@ -1,6 +1,51 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use ifm_ui_egui::{market_charts::ChartSnapshot, services::market_history::*};
 use serde_json::{Value, json};
+// The frozen C# oracle is JSON, which serializes decimal fields as numbers.
+// Native monitor publications preserve these same decimals as exact strings.
+fn typed<T: serde::de::DeserializeOwned + ifm_ui_egui::models::wire_types::FromBackend>(
+    value: &Value,
+) -> Vec<T> {
+    use ifm_ui_egui::backend::schema::Registry;
+    fn normalize(registry: &Registry, kind: &str, value: &mut Value) {
+        if value.is_null() {
+            return;
+        }
+        let kind = kind
+            .strip_prefix("System.Nullable`1[")
+            .and_then(|kind| kind.strip_suffix(']'))
+            .unwrap_or(kind);
+        if kind == "System.Decimal" {
+            if value.is_number() {
+                *value = value.to_string().into();
+            }
+            return;
+        }
+        if let Some(inner) = kind.strip_suffix("[]") {
+            if let Some(values) = value.as_array_mut() {
+                for value in values {
+                    normalize(registry, inner, value)
+                }
+            }
+            return;
+        }
+        if let Ok(shape) = registry.describe(kind) {
+            for (name, _, kind) in shape.members {
+                if let Some(value) = value.get_mut(&name) {
+                    normalize(registry, &kind, value)
+                }
+            }
+        }
+    }
+    static REGISTRY: std::sync::OnceLock<Registry> = std::sync::OnceLock::new();
+    let registry = REGISTRY.get_or_init(|| Registry::compiled().unwrap());
+    let mut value = value.clone();
+    for row in value.as_array_mut().unwrap() {
+        normalize(registry, T::KIND, row);
+    }
+    serde_json::from_value(value).unwrap()
+}
+
 use std::{collections::BTreeMap, path::Path};
 fn fixture(name: &str) -> Value {
     serde_json::from_slice(
@@ -46,7 +91,7 @@ fn bars_match_hybrid_for_empty_single_window_filters_and_dst() {
                 case["symbol"].as_str().unwrap(),
                 time(&case["start"]),
                 time(&case["end"]),
-                &case["source"],
+                &typed(&case["source"]),
             )
             .unwrap(),
             &case["expected"],
@@ -59,7 +104,7 @@ fn bands_match_hybrid_for_warming_duplicates_validity_and_forty_day_bound() {
         compare(
             bands(
                 NaiveDate::parse_from_str(case["date"].as_str().unwrap(), "%Y-%m-%d").unwrap(),
-                &case["source"],
+                &typed(&case["source"]),
             )
             .unwrap(),
             &case["expected"],
@@ -73,7 +118,7 @@ fn refresh_errors_preserve_points_but_do_not_hide_the_failure() {
         "ES",
         time(&case["start"]),
         time(&case["end"]),
-        &case["source"],
+        &typed(&case["source"]),
     )
     .unwrap();
     let previous = BTreeMap::from([("ES".into(), chart.clone())]);
@@ -92,7 +137,9 @@ fn refresh_errors_preserve_points_but_do_not_hide_the_failure() {
             "ES",
             time(&case["start"]),
             time(&case["end"]),
-            &json!([{"BarRateType":"FifteenSeconds","BarDate":case["end"],"BarValue":"NaN"}])
+            &typed(
+                &json!([{"BarRateType":"FifteenSeconds","BarDate":case["end"],"BarValue":"NaN"}])
+            )
         )
         .is_err()
     );
