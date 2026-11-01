@@ -4,6 +4,7 @@ The generated records never contain serde_json::Value or untyped field maps.
 """
 from pathlib import Path
 import argparse, json, re
+from rust_readability import format_source
 ROOT=Path(__file__).resolve().parents[1]
 SCHEMA=ROOT/'tests/fixtures/backend/contracts.json'
 OUT=ROOT/'src/models/trade_contracts.rs'
@@ -118,6 +119,26 @@ for kind in sorted(names):
    lines += ['        "isComplete" => Cell::Boolean(self.is_complete()),', '        "forwardSpreadForChart" => self.forward_spread_for_chart().map(|value|Cell::Text(value.0.into())).unwrap_or(Cell::Missing),']
   lines += ['        _=>Cell::Missing,','    }}','}']
  lines.append('')
+# Compact native history views must match the existing presentation omission policy.
+for kind in sorted(names):
+ name=names[kind]
+ if name not in {'StrategyTradePlanSnapshot','IronCondorTradePlanSnapshot'}:continue
+ skipped={'Position','Parameters'} if name=='StrategyTradePlanSnapshot' else {'Position','LegacyLegs','StrategyRiskParameterSet'}
+ lines += [f'impl {name} {{', ' pub fn history_view(&self)->Self { Self {']
+ for m in D[kind]['members']:
+  field=snake(m['name'])
+  expr='None' if m['name'] in skipped else (f'self.{field}.as_ref().map(|v|Box::new(v.history_view()))' if m['name']=='IronCondorTradePlanSnapshot' else f'self.{field}.clone()')
+  lines.append(f' {field}: {expr},')
+ lines += [' }}', ' pub fn history_equivalent(&self,other:&Self)->bool {']
+ comparisons=[]
+ for m in D[kind]['members']:
+  if m['name'] in skipped:continue
+  field=snake(m['name'])
+  comparisons.append(f'(match (&self.{field},&other.{field}) {{(Some(a),Some(b))=>a.history_equivalent(b),(None,None)=>true,_=>false}})' if m['name']=='IronCondorTradePlanSnapshot' else f'self.{field}==other.{field}')
+ lines += [' && '.join(comparisons),' }',' pub fn is_history_view(&self)->bool {']
+ checks=[f'self.{snake(m)}.is_none()' for m in sorted(skipped)]
+ if name=='StrategyTradePlanSnapshot':checks.append('self.iron_condor_trade_plan_snapshot.as_ref().is_none_or(|v|v.is_history_view())')
+ lines += [' && '.join(checks),' }','}']
 # Pin every consumed slot and CLR type, allowing parity verification without reflection in production.
 lines += ['pub const CONTRACT_FIELDS: &[(&str,&str,usize,&str)] = &[']
 for kind in sorted(names):
@@ -126,8 +147,36 @@ lines+= ['];','']
 output='\n'.join(lines)
 import subprocess
 output=subprocess.run(['rustfmt','--edition','2024','--emit','stdout'],input=output,text=True,capture_output=True,check=True).stdout
+output=format_source(output,'src/models/trade_contracts.rs')
 args=argparse.ArgumentParser();args.add_argument('--check',action='store_true');a=args.parse_args()
 if a.check:
  if OUT.read_text(encoding='utf-8')!=output:raise SystemExit('Typed trade contracts are stale; regenerate them.')
 else:OUT.write_text(output,encoding='utf-8')
 print(f'{len(names)} concrete contract types, {sum(len(D[k]["members"]) for k in names)} pinned fields')
+
+# Direct streaming pilot: the same pinned metadata defines the two hot option records.
+direct = ["//! Generated streaming option-contract readers. Do not edit by hand.",
+          "use super::{direct_backend::*, trade_contracts::*, wire_types::*};",
+          "use serde::de::{IgnoredAny, SeqAccess, Visitor};"]
+for kind in sorted(names):
+ name=names[kind]
+ if name not in {"EvaluatedOptionChainReadModel","EvaluatedOptionContractReadModel"}: continue
+ direct += [f"impl DirectRecord for {name} {{", " fn deserialize_backend<'de,D:serde::Deserializer<'de>>(d:D)->Result<Self,D::Error>{", " struct RecordVisitor;", " impl<'de> Visitor<'de> for RecordVisitor {", f" type Value={name};", ' fn expecting(&self,f:&mut std::fmt::Formatter)->std::fmt::Result{f.write_str("positional backend record")}', " fn visit_seq<A:SeqAccess<'de>>(self,mut seq:A)->Result<Self::Value,A::Error>{"]
+ members=sorted(D[kind]['members'],key=lambda m:m['index'])
+ expected=0
+ for m in members:
+  while expected<m['index']:
+   direct.append(" let _=seq.next_element::<IgnoredAny>()?;");expected+=1
+  field=snake(m['name'])
+  reader='OptionalRecords<EvaluatedOptionContractReadModel>' if m['name']=='Contracts' else 'Scalar<Option<'+rust_type(m['type'],True)+'>>'
+  direct.append(f" let {field}=seq.next_element::<{reader}>()?.map(|v|v.0).unwrap_or_default();");expected+=1
+ direct += [' while seq.next_element::<IgnoredAny>()?.is_some() {}',f' Ok({name} {{']
+ direct += [f' {snake(m["name"])},' for m in members]
+ direct += [' })',' }',' }',' d.deserialize_seq(RecordVisitor)',' }','}']
+direct_output=subprocess.run(['rustfmt','--edition','2024','--emit','stdout'],input='\n'.join(direct)+'\n',text=True,capture_output=True,check=True).stdout
+direct_output=format_source(direct_output,'src/models/direct_contracts.rs')
+direct_path=ROOT/'src/models/direct_contracts.rs'
+if a.check:
+ if direct_path.read_text(encoding='utf-8')!=direct_output:raise SystemExit('Direct option readers are stale; regenerate them.')
+else:direct_path.write_text(direct_output,encoding='utf-8')
+print('2 streaming option records pinned to the same contract metadata')

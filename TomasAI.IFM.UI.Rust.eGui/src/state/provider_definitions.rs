@@ -19,30 +19,56 @@ const ROOT: &str = "TomasAI.IFM.Domain.MarketData.Shared.";
 const PAGE: &str = "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.InstrumentDefinitionPage";
 const REQUEST: &str =
     "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.InstrumentDefinitionPageRequest";
+
+/// Preview used by the provider definitions component.
 struct Preview {
+    /// Token associated with this preview.
     token: String,
+    /// Current selection retained by this state or view.
     selected: String,
+    /// Definition associated with this preview.
     definition: Value,
+    /// Zone associated with this preview.
     zone: String,
+    /// Mapped associated with this preview.
     mapped: Value,
+    /// Optional original; `None` represents an absent value.
     original: Option<Value>,
+    /// Optional underlying; `None` represents an absent value.
     underlying: Option<Value>,
+    /// Whether future is enabled or currently true.
     future: bool,
 }
+
+/// Provider Controller used by the provider definitions component.
 #[derive(Default)]
 pub struct ProviderController {
+    /// Generation associated with this provider controller.
     generation: u64,
+    /// Result associated with this provider controller.
     result: ContractResult,
+    /// Optional search; `None` represents an absent value.
     search: Option<Value>,
+    /// Optional snapshot; `None` represents an absent value.
     snapshot: Option<String>,
+    /// Optional cursor; `None` represents an absent value.
     cursor: Option<String>,
+    /// Keyed definitions retained by ProviderController.
     definitions: BTreeMap<String, Value>,
+    /// Optional preview; `None` represents an absent value.
     preview: Option<Preview>,
+    /// Retained historical data used by this component.
     history: BTreeMap<String, (Json, EditorOutcome)>,
 }
+
+
+/// Resolves the requested field in the supplied record.
 fn field<'a>(intent: &'a Json, name: &str) -> &'a str {
     intent["fields"][name].as_str().unwrap_or_default().trim()
 }
+
+
+/// Provides bool field for the provider definitions implementation.
 fn bool_field(intent: &Json, name: &str) -> Result<bool, String> {
     match field(intent, name).to_ascii_lowercase().as_str() {
         "" | "false" => Ok(false),
@@ -50,6 +76,9 @@ fn bool_field(intent: &Json, name: &str) -> Result<bool, String> {
         _ => Err(format!("Invalid {name}")),
     }
 }
+
+
+/// Provides optional for the provider definitions implementation.
 fn optional(intent: &Json, name: &str) -> Json {
     if field(intent, name).is_empty() {
         Json::Null
@@ -57,6 +86,9 @@ fn optional(intent: &Json, name: &str) -> Json {
         json!(field(intent, name))
     }
 }
+
+
+/// Provides display for the provider definitions implementation.
 fn display(value: &Json) -> String {
     match value {
         Json::Null => String::new(),
@@ -65,6 +97,9 @@ fn display(value: &Json) -> String {
         _ => value.to_string(),
     }
 }
+
+
+/// Provides camel for the provider definitions implementation.
 fn camel(name: &str) -> String {
     let mut chars = name.chars();
     format!(
@@ -76,6 +111,9 @@ fn camel(name: &str) -> String {
         chars.as_str()
     )
 }
+
+
+/// Provides key for the provider definitions implementation.
 fn key(row: &Json) -> Result<String, String> {
     let id = uuid::Uuid::parse_str(
         row["SnapshotId"]
@@ -92,6 +130,7 @@ fn key(row: &Json) -> Result<String, String> {
     ))
 }
 impl ProviderController {
+    /// Provides search for the provider controller implementation.
     async fn search(
         &mut self,
         backend: &Backend,
@@ -262,6 +301,9 @@ impl ProviderController {
         self.search = Some(request);
         Ok(())
     }
+
+
+    /// Reads contract for provider controller.
     async fn read_contract(
         backend: &Backend,
         registry: &Registry,
@@ -288,6 +330,9 @@ impl ProviderController {
         }
         Ok(value)
     }
+
+
+    /// Prepares provider definitions for provider controller.
     fn prepare(
         registry: &Registry,
         definition: &Value,
@@ -307,6 +352,9 @@ impl ProviderController {
         let local = time_zone::local_date(zone, expiration)?;
         provider_mapping::prepare(registry, definition, zone, at, local, underlying, original)
     }
+
+
+    /// Provides map for the provider controller implementation.
     async fn map(
         &mut self,
         backend: &Backend,
@@ -545,6 +593,9 @@ impl ProviderController {
             Ok(())
         }
     }
+
+
+    /// Handles a provider definitions intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,

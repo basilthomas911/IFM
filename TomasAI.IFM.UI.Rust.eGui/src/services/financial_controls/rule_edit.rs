@@ -1,6 +1,9 @@
 //! Exact posting-rule version edits; account choices are taken from the same
 //! backend ledger snapshot as the rule being replaced.
 use super::*;
+
+
+/// Provides binding for the rule edit implementation.
 fn binding(registry: &Registry, config: &Json, text: &str) -> Result<Value, String> {
     if text.is_empty() {
         return Ok(Value::Nil);
@@ -38,6 +41,9 @@ fn binding(registry: &Registry, config: &Json, text: &str) -> Result<Value, Stri
         ]),
     )
 }
+
+
+/// Edits rule for rule edit.
 pub fn edit_rule(
     registry: &Registry,
     context: &BusinessContext,

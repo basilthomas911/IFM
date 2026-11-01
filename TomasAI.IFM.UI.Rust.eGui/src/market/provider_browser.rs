@@ -2,9 +2,7 @@
 
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
-use crate::{
-    Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
-};
+use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings};
 use eframe::egui;
 use std::collections::BTreeMap;
 
@@ -81,6 +79,8 @@ impl ProviderBrowser {
         };
         serde_json::json!({"schema":1,"requestId":id,"view":"provider-definitions","intent":action,"expectedGeneration":s.generation,"originalId":original,"fields":fields}).to_string()
     }
+
+
     /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
     ///
     /// This renderer owns provider filters, stable selection, mapping draft, preview binding, and pending-request state.
@@ -124,7 +124,7 @@ impl ProviderBrowser {
                 ui.trading_label(format!("{}: {}", outcome.state, outcome.message));
             }
             ui.add_enabled_ui(enabled && !self.mapping_open, |ui| {
-                egui::Grid::new("provider-filters")
+                crate::presentation::form_grid(ui, "provider-filters")
                     .num_columns(4)
                     .show(ui, |ui| {
                         for (index, (field, label)) in [
@@ -139,11 +139,12 @@ impl ProviderBrowser {
                         .iter()
                         .enumerate()
                         {
-                            let r = ui.trading_caption(c.text(label));
+                            let r = crate::presentation::form_caption(ui, c.text(label));
                             ui.add(
                                 egui::TextEdit::singleline(
                                     self.filters.entry((*field).into()).or_default(),
                                 )
+                                .vertical_align(egui::Align::Center)
                                 .desired_width(160.)
                                 .min_size(egui::vec2(160., 20.)),
                             )
@@ -248,16 +249,15 @@ impl ProviderBrowser {
                                     .iter()
                                     .find(|r| Some(&r.id) == self.selected.as_ref())
                                 {
-                                    egui::Grid::new("provider-properties").striped(true).show(
-                                        ui,
-                                        |ui| {
+                                    crate::presentation::form_grid(ui, "provider-properties")
+                                        .striped(true)
+                                        .show(ui, |ui| {
                                             for (field, value) in &row.fields {
-                                                ui.trading_caption(field);
+                                                crate::presentation::form_caption(ui, field);
                                                 ui.trading_label(value);
                                                 ui.end_row();
                                             }
-                                        },
-                                    );
+                                        });
                                 }
                             }
                         });
@@ -337,7 +337,7 @@ impl ProviderBrowser {
             .show(ctx, |ui| {
                 ui.trading_caption(c.text(strings::PROVIDER_DRAFT_NOTICE));
                 ui.add_enabled_ui(enabled, |ui| {
-                    egui::Grid::new("provider-mapping-input").show(ui, |ui| {
+                    crate::presentation::form_grid(ui, "provider-mapping-input").show(ui, |ui| {
                         for (key, label) in [
                             ("existingContractId", strings::PROVIDER_TARGET),
                             ("exchangeTimeZoneId", strings::PROVIDER_ZONE),
@@ -346,11 +346,12 @@ impl ProviderBrowser {
                                 strings::PROVIDER_UNDERLYING_CONTRACT,
                             ),
                         ] {
-                            let r = ui.trading_caption(c.text(label));
+                            let r = crate::presentation::form_caption(ui, c.text(label));
                             ui.add(
                                 egui::TextEdit::singleline(
                                     self.mapping.entry(key.into()).or_default(),
                                 )
+                                .vertical_align(egui::Align::Center)
                                 .desired_width(300.)
                                 .min_size(egui::vec2(300., 20.)),
                             )
@@ -377,13 +378,13 @@ impl ProviderBrowser {
                         egui::ScrollArea::vertical()
                             .max_height(300.)
                             .show(ui, |ui| {
-                                egui::Grid::new("provider-mapping-preview")
+                                crate::presentation::form_grid(ui, "provider-mapping-preview")
                                     .max_col_width(460.)
                                     .striped(true)
                                     .show(ui, |ui| {
                                         if let Some(object) = value.as_object() {
                                             for (key, value) in object {
-                                                ui.trading_caption(key);
+                                                crate::presentation::form_caption(ui, key);
                                                 ui.trading_label(
                                                     value
                                                         .as_str()

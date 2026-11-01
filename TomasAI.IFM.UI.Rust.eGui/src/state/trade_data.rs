@@ -10,21 +10,38 @@ use crate::{
 use chrono::{Datelike, Months, NaiveDate};
 use rmpv::Value;
 use std::collections::BTreeMap;
+
+/// Trade Data used by the trade data component.
 #[derive(Clone, Default)]
 pub struct TradeData {
+    /// Context required to interpret the current operation or publication.
     pub context: Option<BusinessContext>,
+    /// Optional from; `None` represents an absent value.
     pub from: Option<NaiveDate>,
+    /// Optional through; `None` represents an absent value.
     pub through: Option<NaiveDate>,
+    /// Ordered contracts retained by TradeData.
     pub contracts: Vec<Value>,
+    /// Ordered portfolios retained by TradeData.
     pub portfolios: Vec<Value>,
+    /// Ordered funds retained by TradeData.
     pub funds: Vec<Value>,
+    /// Ordered orders retained by TradeData.
     pub orders: Vec<Value>,
+    /// Ordered trades retained by TradeData.
     pub trades: Vec<Value>,
+    /// Optional portfolio; `None` represents an absent value.
     pub portfolio: Option<i64>,
+    /// Optional fund; `None` represents an absent value.
     pub fund: Option<i64>,
+    /// Optional order; `None` represents an absent value.
     pub order: Option<i64>,
+    /// Optional trade; `None` represents an absent value.
     pub trade: Option<i64>,
 }
+
+
+/// Provides id for the trade data implementation.
 fn id(registry: &Registry, item: &str, wire: &Value, name: &str) -> Result<i64, String> {
     registry.project(&api::kind(item), wire)?[name]
         .as_i64()
@@ -32,6 +49,7 @@ fn id(registry: &Registry, item: &str, wire: &Value, name: &str) -> Result<i64, 
         .ok_or(format!("Missing {name}"))
 }
 impl TradeData {
+    /// Loads trade data for trade data.
     pub async fn load(
         &mut self,
         backend: &Backend,
@@ -117,6 +135,9 @@ impl TradeData {
         *self = next;
         Ok(())
     }
+
+
+    /// Selects portfolio for trade data.
     pub async fn select_portfolio(
         &mut self,
         backend: &Backend,
@@ -188,6 +209,9 @@ impl TradeData {
         *self = next;
         Ok(())
     }
+
+
+    /// Selects fund for trade data.
     pub async fn select_fund(
         &mut self,
         backend: &Backend,
@@ -208,6 +232,9 @@ impl TradeData {
         *self = next;
         Ok(())
     }
+
+
+    /// Loads orders for trade data.
     pub async fn load_orders(
         &mut self,
         backend: &Backend,
@@ -283,6 +310,9 @@ impl TradeData {
         self.trades.clear();
         Ok(())
     }
+
+
+    /// Selects order for trade data.
     pub async fn select_order(
         &mut self,
         backend: &Backend,

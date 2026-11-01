@@ -1,6 +1,8 @@
 use eframe::egui;
 use ifm_ui_egui::presentation;
 
+
+/// Verifies that shared theme matches winforms control baseline.
 #[test]
 fn shared_theme_matches_winforms_control_baseline() {
     let ctx = egui::Context::default();
@@ -45,6 +47,8 @@ fn shared_theme_matches_winforms_control_baseline() {
     );
 }
 
+
+/// Verifies that details tree matches winforms split at two window sizes.
 #[test]
 fn details_tree_matches_winforms_split_at_two_window_sizes() {
     use egui_kittest::Harness;
@@ -71,6 +75,8 @@ fn details_tree_matches_winforms_split_at_two_window_sizes() {
     }
 }
 
+
+/// Verifies that render dark trading details for review.
 #[cfg(feature = "visual-tests")]
 #[test]
 fn render_dark_trading_details_for_review() {
@@ -97,6 +103,8 @@ fn render_dark_trading_details_for_review() {
     harness.render().unwrap().save(output).unwrap();
 }
 
+
+/// Verifies that feed toolbar uses exact winforms rgb and foreground colors.
 #[test]
 fn feed_toolbar_uses_exact_winforms_rgb_and_foreground_colors() {
     assert_eq!(
@@ -131,6 +139,8 @@ fn feed_toolbar_uses_exact_winforms_rgb_and_foreground_colors() {
     );
 }
 
+
+/// Verifies that feed toolbar clicks are enabled only when the shared model allows them.
 #[test]
 fn feed_toolbar_clicks_are_enabled_only_when_the_shared_model_allows_them() {
     use egui_kittest::{

@@ -2,7 +2,8 @@
 //!
 //! The side panes start at 22 percent of available width and remain user-resizable.
 //! Viewport changes reset remembered pane sizes. The left pane hosts strategy
-//! observations; the right pane hosts outlook, charts, calendar, and status. The
+//! observations and the Operations and Actors health views; the right pane hosts
+//! outlook, charts, calendar, and status. The
 //! center workspace is composed by the executable. Optional shell metrics record
 //! geometry for tests; they are not market or portfolio data.
 
@@ -27,6 +28,7 @@ pub struct Dashboard {
     pub feed_health_reason: String,
     /// Current Options generation readiness, independent of connection health.
     pub options_health: String,
+    /// Options health reason associated with this dashboard.
     pub options_health_reason: String,
     /// Display-ready status supplied by the managed projection or current view state.
     pub status: String,
@@ -41,6 +43,16 @@ pub struct Dashboard {
     /// Published charts indexed by market symbol/tab key.
     pub market_charts: BTreeMap<String, crate::market_charts::ChartSnapshot>,
 }
+
+/// Operational diagnostics embedded beside Strategy in the left pane.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HealthPane {
+    /// Processing stages and dataset workers.
+    Operations,
+    /// Actor hierarchy and selected actor details.
+    Actors,
+}
+
 /// Persistent three-pane shell state, selected observations/timeframe, and sidebar/dashboard publications.
 #[derive(Default)]
 pub struct MainShell {
@@ -48,7 +60,7 @@ pub struct MainShell {
     pub workspace: String,
     /// Latest managed dashboard projection consumed by the market/outlook panes.
     pub dashboard: Dashboard,
-    /// Selected Strategy/Latency/Traffic/Errors/Saturation tab index.
+    /// Selected Strategy (0), Operations (1), or Actors (2) tab index.
     pub observation_tab: usize,
     /// Observation timeframe index: Daily (0), Weekly (1), or Monthly (2).
     pub time_frame: usize,
@@ -63,6 +75,7 @@ pub struct MainShell {
     /// Previous viewport dimensions used to reset remembered pane geometry on resize.
     viewport_size: Option<egui::Vec2>,
 }
+
 /// Serializable layout/interaction diagnostics for desktop verification; coordinate arrays use logical points.
 #[derive(Serialize)]
 pub struct ShellGeometry {
@@ -99,6 +112,8 @@ pub struct ShellGeometry {
     /// Whether the left-pane resize interaction was active.
     pub left_dragging: bool,
 }
+
+
 /// Convert a rectangle to the left/top/right/bottom array used in shell diagnostics.
 fn bounds(rect: egui::Rect) -> [f32; 4] {
     [rect.left(), rect.top(), rect.width(), rect.height()]
@@ -116,6 +131,8 @@ impl MainShell {
         *actor = section == 1;
         *health = section == 2;
     }
+
+
     /// Lay out the strategy and market side panes, render current publications, and return a numeric user action when a control changes.
     pub fn draw_panes(
         &mut self,
@@ -124,6 +141,22 @@ impl MainShell {
         catalog: &Catalog,
         strategy: &mut StrategyWorkspace,
         details: &mut DetailsView,
+    ) -> Option<u32> {
+        self.draw_panes_with_health(ctx, snapshot, catalog, strategy, details, |ui, _| {
+            ui.trading_label("Health data is loading.");
+        })
+    }
+
+
+    /// Render sidebar health content only for its active tab, preserving independent center-workspace state.
+    pub fn draw_panes_with_health(
+        &mut self,
+        ctx: &egui::Context,
+        snapshot: Option<&Snapshot>,
+        catalog: &Catalog,
+        strategy: &mut StrategyWorkspace,
+        details: &mut DetailsView,
+        mut render_health: impl FnMut(&mut egui::Ui, HealthPane),
     ) -> Option<u32> {
         let size = ctx.screen_rect().size();
         if self.viewport_size.is_some_and(|previous| previous != size) {
@@ -145,10 +178,9 @@ impl MainShell {
                 ui.set_min_width(ui.max_rect().width());
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 2.0;
-                    for (index, label) in ["Strategy", "Latency", "Traffic", "Errors", "Saturation"]
-                        .iter()
-                        .enumerate()
-                    {
+                    ui.spacing_mut().button_padding.x = 4.;
+                    self.observation_tab = self.observation_tab.min(2);
+                    for (index, label) in ["Strategy", "Operations", "Actors"].iter().enumerate() {
                         crate::presentation::tab_value(
                             ui,
                             &mut self.observation_tab,
@@ -158,19 +190,24 @@ impl MainShell {
                     }
                 });
                 if self.observation_tab != 0 {
-                    let message = [
-                        "",
-                        "Latency operations are not implemented yet.",
-                        "Traffic operations are not implemented yet.",
-                        "Error operations are not implemented yet.",
-                        "Saturation operations are not implemented yet.",
-                    ][self.observation_tab];
-                    ui.centered_and_justified(|ui| {
-                        ui.trading_label(message);
-                    });
+                    let pane = if self.observation_tab == 1 {
+                        HealthPane::Operations
+                    } else {
+                        HealthPane::Actors
+                    };
+                    ui.scope_builder(
+                        egui::UiBuilder::new()
+                            .id_salt(("sidebar-health", self.observation_tab))
+                            .max_rect(ui.available_rect_before_wrap()),
+                        |ui| {
+                            render_health(ui, pane);
+                        },
+                    );
                     return;
                 }
                 ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                     let controls_width = 180.0;
                     let heading_width = (ui.available_width() - controls_width).max(40.0);
                     let contract = snapshot

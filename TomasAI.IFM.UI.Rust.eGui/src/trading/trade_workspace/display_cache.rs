@@ -29,21 +29,22 @@ use std::sync::Arc;
 pub(super) enum BusinessRow {
     #[default]
     Missing,
-    Order(Box<OrderDisplay>),
-    Trade(Box<SetupTradeDisplay>),
-    OrderDraft(Box<OrderDraftDisplay>),
-    BrokerOrder(Box<BrokerOrderDefinition>),
-    Execution(Box<OrderExecutionDefinition>),
-    Fill(Box<ExecutionFillEvidence>),
-    Summary(Box<BrokerSummary>),
-    Mutation(Box<BrokerMutation>),
-    Properties(Box<Properties>),
-    Caption(Box<Caption>),
-    Preview(Box<PreviewDisplay>),
-    Account(Box<BrokerAccountDefinition>),
-    Report(Box<QualificationReport>),
+    Order(Arc<OrderDisplay>),
+    Trade(Arc<SetupTradeDisplay>),
+    OrderDraft(Arc<OrderDraftDisplay>),
+    BrokerOrder(Arc<BrokerOrderDefinition>),
+    Execution(Arc<OrderExecutionDefinition>),
+    Fill(Arc<ExecutionFillEvidence>),
+    Summary(Arc<BrokerSummary>),
+    Mutation(Arc<BrokerMutation>),
+    Properties(Arc<Properties>),
+    Caption(Arc<Caption>),
+    Preview(Arc<PreviewDisplay>),
+    Account(Arc<BrokerAccountDefinition>),
+    Report(Arc<QualificationReport>),
 }
 impl Cells for BusinessRow {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, key: &str) -> Cell<'_> {
         match self {
             Self::Order(v) => v.cell(key),
@@ -64,9 +65,13 @@ impl Cells for BusinessRow {
     }
 }
 impl BusinessRow {
+    /// Checks is missing against the current display cache state.
     pub fn is_missing(&self) -> bool {
         matches!(self, Self::Missing)
     }
+
+
+    /// Provides broker order for the business row implementation.
     pub fn broker_order(&self) -> Option<&BrokerOrderDefinition> {
         if let Self::BrokerOrder(v) = self {
             Some(v)
@@ -74,6 +79,9 @@ impl BusinessRow {
             None
         }
     }
+
+
+    /// Provides execution for the business row implementation.
     pub fn execution(&self) -> Option<&OrderExecutionDefinition> {
         if let Self::Execution(v) = self {
             Some(v)
@@ -81,6 +89,9 @@ impl BusinessRow {
             None
         }
     }
+
+
+    /// Provides fill for the business row implementation.
     pub fn fill(&self) -> Option<&ExecutionFillEvidence> {
         if let Self::Fill(v) = self {
             Some(v)
@@ -88,6 +99,9 @@ impl BusinessRow {
             None
         }
     }
+
+
+    /// Provides properties for the business row implementation.
     pub fn properties(&self) -> Option<&Properties> {
         if let Self::Properties(v) = self {
             Some(v)
@@ -95,6 +109,9 @@ impl BusinessRow {
             None
         }
     }
+
+
+    /// Provides preview for the business row implementation.
     pub fn preview(&self) -> Option<&PreviewDisplay> {
         if let Self::Preview(v) = self {
             Some(v)
@@ -102,6 +119,9 @@ impl BusinessRow {
             None
         }
     }
+
+
+    /// Provides account for the business row implementation.
     pub fn account(&self) -> Option<&BrokerAccountDefinition> {
         if let Self::Account(v) = self {
             Some(v)
@@ -110,6 +130,7 @@ impl BusinessRow {
         }
     }
 }
+
 /// Native-only prepared data; never serialized into bridge messages.
 #[derive(Default)]
 pub struct PreparedTradeDisplay {
@@ -124,6 +145,8 @@ enum RetiredDisplay {
     /// Replaced wire publication whose final release should leave the input frame.
     Publication(Box<ContractPublication>),
 }
+
+
 /// Queue a large model/publication for bounded background destruction; saturation or shutdown falls back to local drop.
 fn retire(value: RetiredDisplay) {
     // A single bounded cleanup worker avoids freeing large histories on an input frame.
@@ -148,6 +171,29 @@ fn retire(value: RetiredDisplay) {
     let _ = sender.try_send(value);
 }
 
+/// Prepared Tab used by the display cache component.
+pub(super) struct PreparedTab {
+    /// Tab associated with this prepared tab.
+    pub tab: WorkspaceTabRow,
+    /// Close id associated with this prepared tab.
+    pub close_id: String,
+    /// Tab id associated with this prepared tab.
+    pub tab_id: String,
+    /// Close caption associated with this prepared tab.
+    pub close_caption: String,
+}
+impl PreparedTab {
+    /// Constructs PreparedTab from the supplied inputs.
+    fn new(tab: WorkspaceTabRow) -> Self {
+        Self {
+            close_id: format!("close-trade:{}", tab.key),
+            tab_id: format!("trade-tab:{}", tab.key),
+            close_caption: format!("Close trade {}", tab.title),
+            tab,
+        }
+    }
+}
+
 /// Decoded row groups, flattened plan display rows, date lookup, and recent chart series for one publication.
 #[derive(Default)]
 pub(super) struct TradeDisplayData {
@@ -155,31 +201,40 @@ pub(super) struct TradeDisplayData {
     groups: BTreeMap<String, Vec<TradeDisplayRow>>,
     /// Flattened display-ready rows for the currently published trade-plan window.
     pub plans: Vec<PlanGridRow>,
+    /// Keyed business retained by TradeDisplayData.
     pub business: BTreeMap<String, BusinessRow>,
+    /// Optional confirmation; `None` represents an absent value.
     pub confirmation: Option<Confirmation>,
+    /// Keyed broker facts retained by TradeDisplayData.
     pub broker_facts: BTreeMap<String, String>,
-    pub market: Option<Box<crate::models::broker_presentation::MarketDisplay>>,
-    pub market_metrics: Option<Box<crate::models::broker_presentation::MarketMetrics>>,
-    pub selected_legs: Vec<crate::models::broker_presentation::LegDisplay>,
+    /// Optional market; `None` represents an absent value.
+    pub market: Option<Arc<crate::models::prepared_views::PreparedMarket>>,
+    /// Ordered tabs retained by TradeDisplayData.
+    pub tabs: Vec<PreparedTab>,
+    /// Optional market metrics; `None` represents an absent value.
+    pub market_metrics: Option<Arc<crate::models::broker_presentation::MarketMetrics>>,
+    /// Ordered selected legs retained by TradeDisplayData.
+    pub selected_legs: Vec<Arc<crate::models::broker_presentation::LegDisplay>>,
     /// Concrete EOD display, decoded once per publication.
-    pub eod: Option<Box<crate::models::eod::EodDocument>>,
+    pub eod: Option<Arc<crate::models::eod::EodDocument>>,
     /// Whether any displayed plan has an action reason, used to choose visible columns.
     pub has_action_reason: bool,
     /// First matching plan index for each serialized value-date key.
     pub plan_dates: BTreeMap<String, usize>,
     /// Cached recent net-spread x/y points decoded from the dedicated chart publication row.
-    pub chart_points: Vec<[f64; 2]>,
+    pub chart: Option<Arc<crate::models::trade_chart::PreparedTradeChart>>,
     /// Cached recent forward-spread x/y points decoded from the dedicated chart row.
-    pub forward_chart_points: Vec<[f64; 2]>,
     /// Backend chart window end decoded once by the typed chart-row model.
     pub chart_end_utc_seconds: Option<f64>,
 }
 
 impl TradeDisplayData {
+    /// Provides row for the trade display data implementation.
     pub fn row(&self, id: &str) -> &BusinessRow {
         static MISSING: BusinessRow = BusinessRow::Missing;
         self.business.get(id).unwrap_or(&MISSING)
     }
+
 
     /// Decode the relevant trade row groups once and prepare flattened plans, date indexes, and recent chart points.
     fn build(s: &ContractPublication) -> Self {
@@ -201,103 +256,99 @@ impl TradeDisplayData {
                 "order" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<OrderDisplay>(bytes).ok())
-                        .map(|v| BusinessRow::Order(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<OrderDisplay>().ok())
+                        .map(BusinessRow::Order)
                         .unwrap_or_default(),
                 ),
                 "trade" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<SetupTradeDisplay>(bytes).ok())
-                        .map(|v| BusinessRow::Trade(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<SetupTradeDisplay>().ok())
+                        .map(BusinessRow::Trade)
                         .unwrap_or_default(),
                 ),
                 "order-draft" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<OrderDraftDisplay>(bytes).ok())
-                        .map(|v| BusinessRow::OrderDraft(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<OrderDraftDisplay>().ok())
+                        .map(BusinessRow::OrderDraft)
                         .unwrap_or_default(),
                 ),
                 "broker-order" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<BrokerOrderDefinition>(bytes).ok())
-                        .map(|v| BusinessRow::BrokerOrder(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<BrokerOrderDefinition>().ok())
+                        .map(BusinessRow::BrokerOrder)
                         .unwrap_or_default(),
                 ),
                 "execution" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| {
-                            crate::wire::decode::<OrderExecutionDefinition>(bytes).ok()
-                        })
-                        .map(|v| BusinessRow::Execution(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<OrderExecutionDefinition>().ok())
+                        .map(BusinessRow::Execution)
                         .unwrap_or_default(),
                 ),
                 "fill" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<ExecutionFillEvidence>(bytes).ok())
-                        .map(|v| BusinessRow::Fill(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<ExecutionFillEvidence>().ok())
+                        .map(BusinessRow::Fill)
                         .unwrap_or_default(),
                 ),
                 "broker-summary" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<BrokerSummary>(bytes).ok())
-                        .map(|v| BusinessRow::Summary(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<BrokerSummary>().ok())
+                        .map(BusinessRow::Summary)
                         .unwrap_or_default(),
                 ),
                 "broker-mutation" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<BrokerMutation>(bytes).ok())
-                        .map(|v| BusinessRow::Mutation(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<BrokerMutation>().ok())
+                        .map(BusinessRow::Mutation)
                         .unwrap_or_default(),
                 ),
                 "broker-properties" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<Properties>(bytes).ok())
-                        .map(|v| BusinessRow::Properties(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<Properties>().ok())
+                        .map(BusinessRow::Properties)
                         .unwrap_or_default(),
                 ),
                 "fill-properties" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<Properties>(bytes).ok())
-                        .map(|v| BusinessRow::Properties(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<Properties>().ok())
+                        .map(BusinessRow::Properties)
                         .unwrap_or_default(),
                 ),
                 "broker-caption" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<Caption>(bytes).ok())
-                        .map(|v| BusinessRow::Caption(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<Caption>().ok())
+                        .map(BusinessRow::Caption)
                         .unwrap_or_default(),
                 ),
                 "broker-preview" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<PreviewDisplay>(bytes).ok())
-                        .map(|v| BusinessRow::Preview(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<PreviewDisplay>().ok())
+                        .map(BusinessRow::Preview)
                         .unwrap_or_default(),
                 ),
                 "account" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| {
-                            crate::wire::decode::<BrokerAccountDefinition>(bytes).ok()
-                        })
-                        .map(|v| BusinessRow::Account(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<BrokerAccountDefinition>().ok())
+                        .map(BusinessRow::Account)
                         .unwrap_or_default(),
                 ),
                 "qualification-report" => Some(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode::<QualificationReport>(bytes).ok())
-                        .map(|v| BusinessRow::Report(Box::new(v)))
+                        .and_then(|bytes| bytes.presentation::<QualificationReport>().ok())
+                        .map(BusinessRow::Report)
                         .unwrap_or_default(),
                 ),
                 _ => None,
@@ -320,8 +371,7 @@ impl TradeDisplayData {
                     model.market = row
                         .data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode(bytes).ok())
-                        .map(Box::new);
+                        .and_then(|bytes| bytes.presentation().ok());
                 }
                 continue;
             }
@@ -331,8 +381,7 @@ impl TradeDisplayData {
                     model.market_metrics = row
                         .data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode(bytes).ok())
-                        .map(Box::new);
+                        .and_then(|bytes| bytes.presentation().ok());
                 }
                 continue;
             }
@@ -340,7 +389,7 @@ impl TradeDisplayData {
                 model.selected_legs.push(
                     row.data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode(bytes).ok())
+                        .and_then(|bytes| bytes.presentation().ok())
                         .unwrap_or_default(),
                 );
                 continue;
@@ -351,8 +400,7 @@ impl TradeDisplayData {
                     model.eod = row
                         .data
                         .as_ref()
-                        .and_then(|bytes| crate::wire::decode(bytes).ok())
-                        .map(Box::new);
+                        .and_then(|bytes| bytes.presentation().ok());
                 }
                 continue;
             }
@@ -376,63 +424,53 @@ impl TradeDisplayData {
                     .data
                     .as_ref()
                     .map(|bytes| {
-                        crate::models::trade_chart::PreparedTradeChart::from_messagepack(bytes)
+                        bytes.presentation::<crate::models::trade_chart::PreparedTradeChart>()
                     })
                     .and_then(Result::ok)
                     .unwrap_or_default();
                 model.chart_end_utc_seconds = chart.end_utc_seconds;
-                model.chart_points = chart.net;
-                model.forward_chart_points = chart.forward;
+                model.chart = Some(chart);
                 continue;
             }
-            let mut value = row
+            let value = row
                 .data
                 .as_ref()
                 .ok_or_else(|| "Missing monitor row data".to_owned())
                 .and_then(|bytes| match kind.as_str() {
-                    "established" => crate::wire::decode::<EstablishedTradeDefinition>(bytes)
-                        .map(|value| TradeDisplayRow::Established(Box::new(value))),
-                    "position" => crate::wire::decode::<PositionHistoryRow>(bytes)
-                        .map(|value| TradeDisplayRow::Position(Box::new(value))),
-                    "position-details" => crate::wire::decode::<Option<StrategyPositionSnapshot>>(
-                        bytes,
-                    )
-                    .map(|value| {
-                        value
-                            .map(|value| TradeDisplayRow::PositionDetails(Box::new(value)))
-                            .unwrap_or_default()
-                    }),
-                    "limits" => crate::wire::decode::<LimitDisplayRow>(bytes)
-                        .map(|value| TradeDisplayRow::Limits(Box::new(value))),
-                    "plan" => crate::wire::decode::<StrategyTradePlanSnapshot>(bytes)
-                        .map(|value| TradeDisplayRow::Plan(Arc::new(value))),
-                    "realtime" => crate::wire::decode::<TradeRealtimeSnapshot>(bytes)
-                        .map(|value| TradeDisplayRow::Realtime(Box::new(value))),
-                    "observation" => crate::wire::decode::<ObservationRow>(bytes)
-                        .map(|value| TradeDisplayRow::Observation(Box::new(value))),
-                    "workspace-tab" => crate::wire::decode::<WorkspaceTabRow>(bytes)
-                        .map(|value| TradeDisplayRow::WorkspaceTab(Box::new(value))),
+                    "established" => bytes
+                        .presentation::<EstablishedTradeDefinition>()
+                        .map(TradeDisplayRow::Established),
+                    "position" => bytes
+                        .presentation::<PositionHistoryRow>()
+                        .map(TradeDisplayRow::Position),
+                    "position-details" => bytes
+                        .presentation::<Option<StrategyPositionSnapshot>>()
+                        .map(|value| {
+                            if value.is_some() {
+                                TradeDisplayRow::PositionDetails(value)
+                            } else {
+                                TradeDisplayRow::Empty
+                            }
+                        }),
+                    "limits" => bytes
+                        .presentation::<LimitDisplayRow>()
+                        .map(TradeDisplayRow::Limits),
+                    "plan" => bytes
+                        .presentation::<StrategyTradePlanSnapshot>()
+                        .map(TradeDisplayRow::Plan),
+                    "realtime" => bytes
+                        .presentation::<TradeRealtimeSnapshot>()
+                        .map(TradeDisplayRow::Realtime),
+                    "observation" => bytes
+                        .presentation::<ObservationRow>()
+                        .map(TradeDisplayRow::Observation),
+                    "workspace-tab" => bytes
+                        .presentation::<WorkspaceTabRow>()
+                        .map(TradeDisplayRow::WorkspaceTab),
                     _ => Err("Unsupported monitor presentation schema".into()),
                 })
                 .unwrap_or_default();
-            if let TradeDisplayRow::Realtime(snapshot) = &mut value {
-                if snapshot.plan.is_some() {
-                    for plan in [&mut snapshot.plan, &mut snapshot.last_available_plan]
-                        .into_iter()
-                        .flatten()
-                    {
-                        if let Some(detail) = plan.iron_condor_trade_plan_snapshot.as_mut() {
-                            detail.present_forward_risk();
-                        }
-                    }
-                }
-            }
-            if let TradeDisplayRow::Plan(plan) = &mut value {
-                if let Some(detail) = Arc::get_mut(plan)
-                    .and_then(|plan| plan.iron_condor_trade_plan_snapshot.as_mut())
-                {
-                    detail.present_forward_risk();
-                }
+            if let TradeDisplayRow::Plan(plan) = &value {
                 let index = model.groups.get("plan").map_or(0, Vec::len);
                 let date = plan
                     .value_date
@@ -453,8 +491,47 @@ impl TradeDisplayData {
             }
             model.groups.entry(kind.clone()).or_default().push(value);
         }
+        model.tabs = model
+            .values("workspace-tab")
+            .iter()
+            .filter_map(TradeDisplayRow::tab)
+            .cloned()
+            .map(PreparedTab::new)
+            .collect();
+        if model.tabs.is_empty() {
+            if let Some(trade) = model
+                .values("established")
+                .iter()
+                .find_map(TradeDisplayRow::established)
+            {
+                let id = trade.id.as_ref();
+                model.tabs.push(PreparedTab::new(WorkspaceTabRow {
+                    key: format!("{:?}", trade.id),
+                    title: format!(
+                        "{}:{}",
+                        id.and_then(|id| id.order_id).unwrap_or_default(),
+                        id.and_then(|id| id.trade_id).unwrap_or_default()
+                    ),
+                    kind: "trade".into(),
+                    active: true,
+                }));
+            }
+        }
         model
     }
+
+
+    /// Provides established arc for the trade display data implementation.
+    pub fn established_arc(&self) -> Option<&Arc<EstablishedTradeDefinition>> {
+        self.values("established").iter().find_map(|row| {
+            if let TradeDisplayRow::Established(value) = row {
+                Some(value)
+            } else {
+                None
+            }
+        })
+    }
+
 
     /// Borrow all decoded rows for a requested trade group; an absent group yields an empty slice.
     pub fn values(&self, kind: &str) -> &[TradeDisplayRow] {
@@ -481,12 +558,17 @@ impl TradeWorkspace {
             current, next,
         ))));
     }
+
+
     /// Release the active display-cache reference through the bounded retirement worker.
     pub(super) fn clear_trade_display(&mut self) {
+        self.spread_plot = None;
         if let Some(old) = self.display_cache.take() {
             retire(RetiredDisplay::Model(old.model));
         }
     }
+
+
     /// Called by publication intake before enqueueing to the GUI thread.
     pub fn prepare_publication(s: &ContractPublication) {
         if s.result.rows.iter().any(|row| {
@@ -514,6 +596,7 @@ impl TradeWorkspace {
             });
         }
     }
+
 
     /// Reuse prepared trade rows only when native token, generation, and count match; otherwise prepare and replace the shared display model.
     pub(super) fn prepare_trade_display(
@@ -556,12 +639,16 @@ mod tests {
     use crate::contract_editor::ContractRow;
     use crate::models::cells::Cells;
     use serde_json::json;
+
+
     /// Build a small deterministic trade publication for the display-cache regression tests.
     fn publication(value: i32) -> ContractPublication {
         serde_json::from_value(json!({"schema":1,"generation":3,"status":"Completed","busy":false,"outcomes":[],
             "result":{"view":"trade-orders","choices":{},"hasMore":false,"rows":[{"id":"plan:1","fields":{"kind":"plan"},
                 "data":crate::wire::encode_value(&json!({"totalPnl":value.to_string()})).unwrap()}]}})).unwrap()
     }
+
+
     /// Regression check: unchanged frames reuse rows but same generation replacement is fresh.
     #[test]
     fn unchanged_frames_reuse_rows_but_same_generation_replacement_is_fresh() {
@@ -575,6 +662,8 @@ mod tests {
         assert_eq!(first.plans[0].cell("dailyPnl").number(), Some(1.));
         assert_eq!(next.plans[0].cell("dailyPnl").number(), Some(2.));
     }
+
+
     /// Regression check: explicit invalidation covers in place updates and generation restart.
     #[test]
     fn explicit_invalidation_covers_in_place_updates_and_generation_restart() {
@@ -596,6 +685,9 @@ mod tests {
         s.generation = 0;
         assert!(!Arc::ptr_eq(&first, &view.prepare_trade_display(&s)));
     }
+
+
+    /// Verifies that unavailable plan rows keep their page positions.
     #[test]
     fn unavailable_plan_rows_keep_their_page_positions() {
         let mut s = publication(1);
@@ -613,6 +705,8 @@ mod tests {
         assert!(model.plans[0].cell("dailyPnl").is_missing());
         assert_eq!(model.plans[1].cell("dailyPnl").number(), Some(1.));
     }
+
+
     /// Regression check: gui reuses background preparation without decoding again.
     #[test]
     fn gui_reuses_background_preparation_without_decoding_again() {
@@ -627,6 +721,8 @@ mod tests {
         let mut view = TradeWorkspace::default();
         assert!(Arc::ptr_eq(prepared, &view.prepare_trade_display(&s)));
     }
+
+
     /// Regression check: closing the view releases retired history.
     #[test]
     fn closing_the_view_releases_retired_history() {

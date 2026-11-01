@@ -77,7 +77,10 @@ impl LaneOutput {
         self.quotes[index].next = None;
     }
     pub(super) fn push_back(&mut self, value: Output) -> Result<(), String> {
-        let is_quote = matches!(value.source, OutputSource::Observation(Observation::Quote(_)));
+        let is_quote = matches!(
+            value.source,
+            OutputSource::Observation(Observation::Quote(_))
+        );
         let index = match value.source {
             OutputSource::Observation(Observation::Quote(quote)) => {
                 self.indices.get(&quote.header.instrument).copied()
@@ -121,8 +124,14 @@ impl LaneOutput {
         [
             self.authoritative.front().map(|p| (p.serial, 0)),
             self.ordered_quotes.front().map(|p| (p.serial, 1)),
-            self.head.and_then(|head| self.quotes[head].value.as_ref()).map(|p| (p.serial, 2)),
-        ].into_iter().flatten().min_by_key(|(serial, _)| *serial).map(|(_, kind)| kind)
+            self.head
+                .and_then(|head| self.quotes[head].value.as_ref())
+                .map(|p| (p.serial, 2)),
+        ]
+        .into_iter()
+        .flatten()
+        .min_by_key(|(serial, _)| *serial)
+        .map(|(_, kind)| kind)
     }
     pub(super) fn pop_front(&mut self) -> Option<Output> {
         match self.next_kind()? {
@@ -216,16 +225,27 @@ mod tests {
             queue.push_back(output(1, sequence, true)).unwrap();
         }
         queue.push_back(output(0, 20_001, false)).unwrap();
-        assert!(matches!(queue.pop_front().unwrap().source, OutputSource::ReplayComplete(0)));
+        assert!(matches!(
+            queue.pop_front().unwrap().source,
+            OutputSource::ReplayComplete(0)
+        ));
         for expected in 20_000 - 8192 + 1..=20_000 {
-            for source in [queue.front().unwrap().source, queue.pop_front().unwrap().source] {
+            for source in [
+                queue.front().unwrap().source,
+                queue.pop_front().unwrap().source,
+            ] {
                 match source {
-                    OutputSource::Observation(Observation::Quote(q)) => assert_eq!(q.header.sequence, expected),
+                    OutputSource::Observation(Observation::Quote(q)) => {
+                        assert_eq!(q.header.sequence, expected)
+                    }
                     _ => panic!("Quote overflow displaced a control record"),
                 }
             }
         }
-        assert!(matches!(queue.pop_front().unwrap().source, OutputSource::ReplayComplete(20_001)));
+        assert!(matches!(
+            queue.pop_front().unwrap().source,
+            OutputSource::ReplayComplete(20_001)
+        ));
         assert!(queue.pop_front().is_none());
         // Even exhausted authoritative capacity must not reject incoming quotes.
         for sequence in 0..8192 {

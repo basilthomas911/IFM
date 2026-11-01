@@ -3,6 +3,9 @@ use ifm_ui_egui::{
     services::strategy_display,
 };
 use serde_json::Value;
+
+
+/// Reads strategy display for strategy display.
 fn read(name: &str) -> Vec<u8> {
     std::fs::read(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -11,6 +14,9 @@ fn read(name: &str) -> Vec<u8> {
     )
     .unwrap()
 }
+
+
+/// Provides difference for the strategy display implementation.
 fn difference(path: &str, a: &Value, b: &Value) -> Option<String> {
     if a == b {
         return None;
@@ -47,6 +53,9 @@ fn difference(path: &str, a: &Value, b: &Value) -> Option<String> {
     }
     None
 }
+
+
+/// Verifies that strategy rows and complete details tree match unchanged hybrid.
 #[test]
 fn strategy_rows_and_complete_details_tree_match_unchanged_hybrid() {
     let registry = Registry::compiled().unwrap();
@@ -61,6 +70,9 @@ fn strategy_rows_and_complete_details_tree_match_unchanged_hybrid() {
     let expected: Value = serde_json::from_slice(&read("strategy-details-display.json")).unwrap();
     let result =
         serde_json::to_value(strategy_display::details(&registry, &wire).unwrap()).unwrap();
+
+
+    /// Provides missing for the strategy display implementation.
     fn missing(value: &Value, items: &mut Vec<String>) {
         match value {
             Value::String(v) if v.contains("No native display getter") => items.push(v.clone()),

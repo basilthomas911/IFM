@@ -816,6 +816,12 @@ impl LiveData {
             None
         };
         let option_statistics = self.option_statistics.clone();
+        // Immutable generation directory keeps publisher qualification off the linear hot path.
+        let registration_indices: BTreeMap<_, _> = registrations
+            .iter()
+            .enumerate()
+            .map(|(index, registration)| (registration.instrument, index))
+            .collect();
         let retirement = BookRetirement(retired.clone(), pricing.clone());
         let processor = move |attempt, event: &Event| {
             let _retirement = &retirement;
@@ -978,9 +984,9 @@ impl LiveData {
                     super::records::Observation::Order(value) => value.header,
                     super::records::Observation::Statistic(value) => value.header,
                 };
-                if let Some(registration) = registrations
-                    .iter()
-                    .find(|r| r.instrument == header.instrument)
+                if let Some(registration) = registration_indices
+                    .get(&header.instrument)
+                    .map(|index| &registrations[*index])
                     && !publisher_matches(lane, registration.publisher, header.publisher)
                 {
                     return Err(format!(
@@ -1059,6 +1065,15 @@ impl LiveData {
                         state,
                         trade,
                     })?;
+                }
+                if was_ready {
+                    // Numeric state and the bounded output are committed. Wake consumers only after releasing the book.
+                    drop(state);
+                    updates.send_modify(|version| *version = version.saturating_add(1));
+                    notifier
+                        .signal(1 << (lane as u32))
+                        .map_err(|_| "Native delivery signal interrupted")?;
+                    return Ok(true);
                 }
                 updates.send_modify(|version| *version = version.saturating_add(1));
                 notifier

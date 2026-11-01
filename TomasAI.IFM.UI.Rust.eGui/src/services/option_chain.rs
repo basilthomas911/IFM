@@ -11,6 +11,7 @@ use rmpv::Value;
 use std::collections::{BTreeMap, BTreeSet};
 const ROOT: &str = "TomasAI.IFM.Domain.MarketData.Shared";
 
+
 /// Display cache only. Missing quotes retain their last visible values, while
 /// absent contracts become stale and ineligible. Callers must keep the raw
 /// backend snapshot separately for preview/submission eligibility.
@@ -29,6 +30,9 @@ pub fn same_display_scope(
         && previous.expiry_date == incoming.expiry_date
         && frozen(previous) == frozen(incoming)
 }
+
+
+/// Merges display for option chain.
 pub fn merge_display(
     previous: Option<&EvaluatedOptionChainReadModel>,
     incoming: &EvaluatedOptionChainReadModel,
@@ -45,20 +49,31 @@ pub fn merge_display(
         row.is_stale = Some(true);
         row.selection_valid = Some(false);
     }
+    let mut by_id = BTreeMap::new();
+    for (index, row) in rows.iter().enumerate() {
+        by_id.entry(row.contract_id.clone()).or_insert(index);
+    }
     for next in incoming
         .contracts
         .as_ref()
         .ok_or("Missing incoming display contracts")?
     {
-        let Some(index) = rows
-            .iter()
-            .position(|old| old.contract_id == next.contract_id)
-        else {
+        let Some(index) = by_id.get(&next.contract_id).copied() else {
+            by_id.insert(next.contract_id.clone(), rows.len());
             rows.push(next.clone());
             continue;
         };
         let mut merged = next.clone();
-        macro_rules! retain {($($field:ident),*)=>{$(if merged.$field.is_none(){merged.$field=rows[index].$field.clone();})*};}
+        // Missing quote fields keep their last accepted values for this contract.
+        macro_rules! retain {
+            ($($field:ident),*) => {
+                $(
+                    if merged.$field.is_none() {
+                        merged.$field = rows[index].$field.clone();
+                    }
+                )*
+            };
+        }
         retain!(
             bid,
             ask,
@@ -121,6 +136,27 @@ pub fn merge_display(
     })
 }
 
+
+/// Provides request for the option chain implementation.
+fn request(
+    registry: &Registry,
+    name: &str,
+    mut fields: BTreeMap<String, Value>,
+) -> Result<(ActorSubject, Value), String> {
+    let kind = format!("{ROOT}.Queries.{name}");
+    let (actor, verb) = registry.route(&kind)?;
+    let subject = ActorSubject::query(actor, verb, "none");
+    fields.insert("Subject".into(), subject.wire());
+    fields.insert(
+        "EntityId".into(),
+        Value::Array(vec![0.into(), Value::Array(vec!["none".into()])]),
+    );
+    let body = registry.encode(&kind, &fields)?;
+    Ok((subject, body))
+}
+
+
+/// Provides query for the option chain implementation.
 async fn query(
     backend: &Backend,
     registry: &Registry,
@@ -128,22 +164,16 @@ async fn query(
     fields: BTreeMap<String, Value>,
     deadline: tokio::time::Instant,
 ) -> Result<Value, String> {
-    let kind = format!("{ROOT}.Queries.{name}");
-    let (actor, verb) = registry.route(&kind)?;
-    let subject = ActorSubject::query(actor, verb, "none");
-    let mut fields = fields;
-    fields.insert("Subject".into(), subject.wire());
-    fields.insert(
-        "EntityId".into(),
-        Value::Array(vec![0.into(), Value::Array(vec!["none".into()])]),
-    );
-    let request = registry.encode(&kind, &fields)?;
-    let reply = backend
-        .request_until(&subject, &request, deadline, None)
-        .await?;
-    into_service_result(reply)
+    let (subject, body) = request(registry, name, fields)?;
+    into_service_result(
+        backend
+            .request_until(&subject, &body, deadline, None)
+            .await?,
+    )
 }
 
+
+/// Loads the option expirations available for the current contract scope.
 pub async fn expirations(
     backend: &Backend,
     registry: &Registry,
@@ -199,17 +229,26 @@ pub async fn expirations(
     Ok(result)
 }
 
+/// Specification used by the option chain component.
 #[derive(Clone, Debug)]
 pub struct Specification {
+    /// Contract associated with this specification.
     pub contract: String,
+    /// Symbol associated with this specification.
     pub symbol: String,
+    /// Expiry associated with this specification.
     pub expiry: NaiveDate,
+    /// Ordered roots retained by Specification.
     pub roots: Vec<String>,
+    /// Ordered required retained by Specification.
     pub required: Vec<String>,
+    /// Wing width associated with this specification.
     pub wing_width: ExactDecimal,
+    /// Whether frozen is enabled or currently true.
     pub frozen: bool,
 }
 impl Specification {
+    /// Appends named display fields to the destination map.
     fn fields(&self, owner: &str, release: bool) -> Result<BTreeMap<String, Value>, String> {
         if self.contract.is_empty()
             || self.symbol.is_empty()
@@ -262,11 +301,15 @@ impl Specification {
     }
 }
 
+/// Lease used by the option chain component.
 pub struct Lease {
+    /// Owner associated with this lease.
     owner: String,
+    /// Identity and routing scope against which requests and incoming results are checked.
     scope: Option<Specification>,
 }
 impl Default for Lease {
+    /// Constructs the initial state used when no explicit value is supplied.
     fn default() -> Self {
         Self {
             owner: uuid::Uuid::new_v4().simple().to_string(),
@@ -275,12 +318,19 @@ impl Default for Lease {
     }
 }
 impl Lease {
+    /// Provides owner for the lease implementation.
     pub fn owner(&self) -> &str {
         &self.owner
     }
+
+
+    /// Reports whether the owned subscription may still be active and require cleanup.
     pub fn may_be_active(&self) -> bool {
-        self.scope.is_some()
+        self.scope.as_ref().is_some_and(|scope| !scope.frozen)
     }
+
+
+    /// Loads option chain for lease.
     pub async fn load(
         &mut self,
         backend: &Backend,
@@ -297,15 +347,10 @@ impl Lease {
         // A deadline/cancellation cannot erase the only identity able to release
         // a subscription that the server may already have installed.
         self.scope = Some(spec.clone());
-        let wire = query(
-            backend,
-            registry,
-            "GetEvaluatedOptionChainQuery",
-            fields,
-            deadline,
-        )
-        .await?;
-        let result = EvaluatedOptionChainReadModel::from_backend(&wire)?;
+        let (subject, body) = request(registry, "GetEvaluatedOptionChainQuery", fields)?;
+        let result: EvaluatedOptionChainReadModel = backend
+            .query_direct_until(&subject, &body, deadline)
+            .await?;
         if result.underlying_contract_id.as_deref() != Some(spec.contract.as_str())
             || result.expiry_date.as_ref().map(|value| value.as_str())
                 != Some(spec.expiry.to_string().as_str())
@@ -334,6 +379,9 @@ impl Lease {
         .map_err(|_| "Invalid option-chain as-of")?;
         Ok(result)
     }
+
+
+    /// Releases option chain for lease.
     pub async fn release(
         &mut self,
         backend: &Backend,
@@ -343,6 +391,12 @@ impl Lease {
         let Some(scope) = &self.scope else {
             return Ok(());
         };
+        // Frozen previews are served from persisted inputs by the API. They
+        // never acquire a live Host subscription, including when a read fails.
+        if scope.frozen {
+            self.scope = None;
+            return Ok(());
+        }
         query(
             backend,
             registry,

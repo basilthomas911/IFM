@@ -889,3 +889,100 @@ async fn one_native_writer_orders_concurrent_quotes_and_trade_evidence_and_ports
     assert!(copied.submit(7, vec![0xc0], [2; 16], None).is_err());
     broker.task.await.unwrap();
 }
+
+/// Two ready cache chunks keep their original order and never claim a flush while the broker is silent.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn bounded_cache_pair_preserves_order_and_stalled_flush_cancellation() {
+    use ifm_market_data_native::{
+        messaging::option_cache::Publication,
+        option_chain::composition::model::{Instrument, Snapshot, Valued},
+    };
+    for stalled in [false, true] {
+        let mut broker = Broker::start(stalled, false).await;
+        let mut snapshot = Snapshot {
+            schema: 2,
+            id: [1; 16],
+            scope: "fixture".into(),
+            token: "token".into(),
+            horizon: "Daily".into(),
+            generation: [2; 16],
+            at: 0,
+            until: 10_000_000,
+            digest: String::new(),
+            ranking: None,
+            instruments: vec![Valued {
+                instrument: Instrument {
+                    contract: "fixture".into(),
+                    quote: None,
+                    context: None,
+                    strike: None,
+                    call: None,
+                    underlying: None,
+                    future: None,
+                    selection: None,
+                    volume: None,
+                    interest: None,
+                    statistics_at: None,
+                    unavailable: Some("x".repeat(150_000)),
+                    last_event: None,
+                    last_received: None,
+                    volume_date: None,
+                    interest_date: None,
+                },
+                valuation: None,
+            }],
+        };
+        snapshot.seal().unwrap();
+        let publication =
+            Publication::owned(snapshot, 739915, "configuration", 1, "fixture").unwrap();
+        assert!(publication.chunks() > 2);
+        let settings = BrokerSettings::new(
+            broker.endpoint.clone(),
+            vec!["127.0.0.1:1".parse().unwrap()],
+        )
+        .unwrap();
+        let mut publisher =
+            Publisher::start(settings, "development".into(), 2, 256 * 1024, budget()).unwrap();
+        let mut changes = publisher.changes();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !changes.borrow().connected {
+                changes.changed().await.unwrap();
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(publisher.try_option_cache_pair(&publication, 0).unwrap(), 2);
+        let first = tokio::time::timeout(Duration::from_secs(2), broker.packets.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(first, publication.frame(0).unwrap());
+        if !stalled {
+            let second = tokio::time::timeout(Duration::from_secs(2), broker.packets.recv())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(second, publication.frame(1).unwrap());
+            tokio::time::timeout(Duration::from_secs(2), async {
+                while changes.borrow().flushed < 2 {
+                    changes.changed().await.unwrap();
+                }
+            })
+            .await
+            .unwrap();
+        } else {
+            assert_eq!(publisher.status().flushed, 0);
+        }
+        assert!(
+            publisher
+                .try_option_cache_pair(&publication, publication.chunks())
+                .is_err()
+        );
+        publisher.shutdown(budget()).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(2), broker.exit)
+            .await
+            .unwrap()
+            .unwrap();
+        broker.task.await.unwrap();
+    }
+}

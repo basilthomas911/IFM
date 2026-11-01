@@ -3,6 +3,9 @@ use ifm_ui_egui::{
     persistence::{financial_journal as financial, journal::Journal},
 };
 use serde_json::Value;
+
+
+/// Verifies that typed financial journals preserve requests and managed store compatibility.
 #[test]
 fn typed_financial_journals_preserve_requests_and_managed_store_compatibility() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));

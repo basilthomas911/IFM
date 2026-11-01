@@ -41,6 +41,8 @@ internal static class MarketOutlookComponentEligibility
             && signal.IntrinsicTimeMode is IntrinsicTimeModeType.TrendDirectionChanged
                 or IntrinsicTimeModeType.TrendExtremeChanged
                 or IntrinsicTimeModeType.TrendReversalChanged
+                or IntrinsicTimeModeType.TrendOvershootExtended
+                or IntrinsicTimeModeType.TrendOvershootReversal
                 or IntrinsicTimeModeType.Trending;
 
     internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesEmaSignalReadModel signal)

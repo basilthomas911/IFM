@@ -248,7 +248,9 @@ impl Futures {
                 if let Some(stats) = source.state.session.filter(|s| s.has_volume()) {
                     output.push(Event {
                         kind: 4,
-                        value: state.instrument.statistics(stats, Identity::fresh(source.observed))?,
+                        value: state
+                            .instrument
+                            .statistics(stats, Identity::fresh(source.observed))?,
                     });
                 }
                 Self::vwap(state, source, source.state.market, &mut output)?;

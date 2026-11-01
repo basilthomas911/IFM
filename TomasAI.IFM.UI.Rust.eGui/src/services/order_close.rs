@@ -4,15 +4,172 @@ use super::{parameters, trade_monitor_queries::Scope};
 use crate::backend::{contracts::*, schema::Registry, transport::Backend};
 use crate::models::{trade_contracts::StrategyPositionSnapshot, wire_types::FromBackend};
 use rmpv::Value;
+
 /// Validated concrete position together with its immutable original wire record.
 pub struct CurrentPosition {
+    /// Snapshot associated with this current position.
     pub snapshot: StrategyPositionSnapshot,
+    /// Wire associated with this current position.
     pub wire: Value,
 }
 use serde_json::json;
 use std::collections::BTreeMap;
 const TRADE: &str = "TomasAI.IFM.Domain.Trade.Shared";
 const ROOT: &str = "TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition";
+
+/// Resolve a closing setup against its single opening trade, including legacy
+/// closing rows whose requested maturity was never populated.
+pub fn inherit_opening_trade(
+    trade: &mut crate::models::trade_contracts::FundOrderTradeProjectionReadModel,
+    trades: &[crate::models::trade_contracts::FundOrderTradeProjectionReadModel],
+) -> Result<Option<crate::models::trade_contracts::FundOrderTradeProjectionReadModel>, String> {
+    if trade.primary_trade != Some(false) {
+        return Ok(None);
+    }
+    let primaries: Vec<_> = trades
+        .iter()
+        .filter(|row| row.primary_trade == Some(true))
+        .collect();
+    if primaries.len() != 1 {
+        return Err("A closing trade requires exactly one opening trade in this order".into());
+    }
+    let primary = primaries[0];
+    if primary.order_id != trade.order_id
+        || primary.portfolio_id != trade.portfolio_id
+        || primary.fund_id != trade.fund_id
+        || primary.trade_id == trade.trade_id
+    {
+        return Err("Opening trade does not belong to the closing order".into());
+    }
+    let maturity = primary
+        .maturity_date
+        .clone()
+        .or_else(|| primary.requested_maturity_date.clone());
+    if maturity.is_none() && trade.trade_type.as_deref() != Some("FuturesOutright") {
+        return Err(
+            "The opening trade has no maturity date; reload its established position".into(),
+        );
+    }
+    trade.requested_maturity_date = maturity;
+    Ok(Some(primary.clone()))
+}
+
+pub fn primary_scope(
+    primary: &crate::models::trade_contracts::FundOrderTradeProjectionReadModel,
+) -> Result<Scope, String> {
+    let positive = |value: Option<i32>| {
+        value
+            .filter(|id| *id > 0)
+            .ok_or("The opening trade has no established execution identity".to_string())
+    };
+    Ok(Scope {
+        portfolio: positive(primary.portfolio_id)?,
+        fund: positive(primary.fund_id)?,
+        order: positive(primary.execution_order_id)?,
+        trade: positive(primary.execution_trade_id)?,
+    })
+}
+
+/// Stage the exact inverse of the remaining position, never a new delta-selected
+/// spread. The backend checks the position again when the close is submitted.
+pub fn reversed_legs(
+    position: &StrategyPositionSnapshot,
+    multiplier: &ExactDecimal,
+    expiry: Option<chrono::NaiveDate>,
+) -> Result<(i32, Vec<super::option_draft::Selected>), String> {
+    use crate::models::cells::Cells;
+    if position.is_open != Some(true) {
+        return Err("The opening position is already closed".into());
+    }
+    let rows = position
+        .legs
+        .as_ref()
+        .filter(|rows| !rows.is_empty() && rows.len() <= 4)
+        .ok_or("Opening position has no remaining legs")?;
+    let mut result = Vec::new();
+    let mut quantity = None;
+    let mut seen = std::collections::BTreeSet::new();
+    for row in rows {
+        let signed = row
+            .signed_quantity
+            .and_then(i32::checked_neg)
+            .filter(|q| *q != 0)
+            .ok_or("Invalid remaining opening quantity")?;
+        let units = signed.checked_abs().ok_or("Opening quantity overflow")?;
+        if quantity.is_some_and(|q| q != units) {
+            return Err(
+                "Remaining opening legs are not balanced; reconcile the position before closing"
+                    .into(),
+            );
+        }
+        quantity = Some(units);
+        let contract = row
+            .contract_id
+            .clone()
+            .filter(|id| !id.is_empty())
+            .ok_or("Missing opening contract")?;
+        if !seen.insert(contract.clone()) {
+            return Err("Duplicate opening contract".into());
+        }
+        let future = row.cell("AssetFamily").text() == "Futures";
+        if !future
+            && expiry.is_some_and(|date| {
+                row.expiry.as_ref().map(|v| v.as_str()) != Some(date.to_string().as_str())
+            })
+        {
+            return Err("Opening position legs do not match its maturity date".into());
+        }
+        let call = row.put_call == Some(1);
+        if !future && !matches!(row.put_call, Some(1 | 2)) {
+            return Err("Missing opening option right".into());
+        }
+        let side = if signed < 0 { -1 } else { 1 };
+        let role = if future {
+            format!("{}Future", if side < 0 { "-" } else { "+" })
+        } else {
+            format!(
+                "{}{}",
+                if side < 0 { "-S" } else { "+L" },
+                if call { "C" } else { "P" }
+            )
+        };
+        result.push(super::option_draft::Selected {
+            quote: super::broker_preview::Leg {
+                contract,
+                side,
+                strike: if future {
+                    None
+                } else {
+                    Some(ExactDecimal::parse(
+                        row.strike
+                            .as_ref()
+                            .ok_or("Missing opening strike")?
+                            .as_str(),
+                    )?)
+                },
+                is_call: call,
+                is_future: future,
+                bid: None,
+                ask: None,
+                delta: None,
+                vega: None,
+                multiplier: Some(
+                    row.cash_multiplier
+                        .as_ref()
+                        .map(|v| ExactDecimal::parse(v.as_str()))
+                        .transpose()?
+                        .unwrap_or_else(|| multiplier.clone()),
+                ),
+            },
+            role,
+            quote_at: None,
+            frozen: false,
+        });
+    }
+    Ok((quantity.ok_or("Missing opening quantity")?, result))
+}
+
+/// Provides current for the order close implementation.
 pub async fn current(
     backend: &Backend,
     registry: &Registry,
@@ -68,6 +225,8 @@ pub async fn current(
     }
     Ok(CurrentPosition { snapshot, wire })
 }
+
+/// Provides candidate for the order close implementation.
 pub async fn candidate(
     backend: &Backend,
     registry: &Registry,
@@ -133,6 +292,13 @@ pub async fn candidate(
             return Err(format!(
                 "Closing leg {contract} must reverse its remaining signed quantity"
             ));
+        }
+        for field in ["Expiry", "Strike", "PutCall"] {
+            if !target[field].is_null() && leg[field] != target[field] {
+                return Err(format!(
+                    "Closing leg {contract} must retain its opening {field}"
+                ));
+            }
         }
         leg["TradeLegId"] = target["TradeLegId"].clone();
     }

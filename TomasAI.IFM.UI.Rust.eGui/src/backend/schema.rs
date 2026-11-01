@@ -6,57 +6,89 @@ use rmpv::Value;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
+/// Schema used by the schema component.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Schema {
+    /// Optional error id; `None` represents an absent value.
     #[serde(default)]
     error_id: Option<i64>,
+    /// Name associated with this schema.
     #[serde(rename = "type")]
     name: String,
+    /// Whether enum is enabled or currently true.
     is_enum: bool,
+    /// Optional enum values; `None` represents an absent value.
     enum_values: Option<Vec<EnumValue>>,
+    /// Ordered members retained by Schema.
     members: Vec<Member>,
+    /// Optional actor; `None` represents an absent value.
     actor: Option<String>,
+    /// Optional verb; `None` represents an absent value.
     verb: Option<String>,
+    /// Whether map by name is enabled or currently true.
     #[serde(default)]
     map_by_name: bool,
+    /// Ordered generic parameters retained by Schema.
     #[serde(default)]
     generic_parameters: Vec<String>,
+    /// Ordered unions retained by Schema.
     #[serde(default)]
     unions: Vec<Union>,
 }
+
+/// Union used by the schema component.
 #[derive(Deserialize)]
 struct Union {
+    /// Tag associated with this union.
     tag: i64,
-    #[serde(rename = "type")]
-    kind: String,
-}
-#[derive(Deserialize)]
-struct EnumValue {
-    name: String,
-    value: i64,
-}
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Member {
-    name: String,
-    index: Option<usize>,
-    map_key: Option<String>,
+    /// Kind associated with this union.
     #[serde(rename = "type")]
     kind: String,
 }
 
+/// Enum Value used by the schema component.
+#[derive(Deserialize)]
+struct EnumValue {
+    /// Name associated with this enum value.
+    name: String,
+    /// Value associated with this enum value.
+    value: i64,
+}
+
+/// Member used by the schema component.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Member {
+    /// Name associated with this member.
+    name: String,
+    /// Optional index; `None` represents an absent value.
+    index: Option<usize>,
+    /// Optional map key; `None` represents an absent value.
+    map_key: Option<String>,
+    /// Kind associated with this member.
+    #[serde(rename = "type")]
+    kind: String,
+}
+
+/// Registry used by the schema component.
 pub struct Registry {
+    /// Keyed schemas retained by Registry.
     schemas: BTreeMap<String, Schema>,
 }
+
 /// Read-only compiled wire shape used by typed configuration editors. Numeric
 /// positions allow a leaf edit to retain untouched slots and unknown tails.
 pub struct ContractShape {
+    /// Whether enum is enabled or currently true.
     pub is_enum: bool,
+    /// Ordered members retained by ContractShape.
     pub members: Vec<(String, usize, String)>,
+    /// Ordered unions retained by ContractShape.
     pub unions: Vec<(i64, String)>,
 }
 impl Registry {
+    /// Provides describe for the registry implementation.
     pub fn describe(&self, kind: &str) -> Result<ContractShape, String> {
         let schema = self
             .schemas
@@ -79,6 +111,8 @@ impl Registry {
                 .collect(),
         })
     }
+
+
     /// Borrow one declared wire member without projecting or cloning its payload.
     pub fn wire_field<'a>(
         &self,
@@ -115,6 +149,9 @@ impl Registry {
         }
         .ok_or_else(|| format!("Missing wire field {kind}.{name}"))
     }
+
+
+    /// Resolves a field's declared contract type from the compiled schema.
     pub fn field_kind(&self, kind: &str, name: &str) -> Result<&str, String> {
         self.schemas
             .get(kind)
@@ -122,6 +159,9 @@ impl Registry {
             .map(|member| member.kind.as_str())
             .ok_or_else(|| format!("Missing field {kind}.{name}"))
     }
+
+
+    /// Resolves a declared enum value to its published name.
     pub fn enum_name(&self, kind: &str, value: i64) -> Result<String, String> {
         let values = self
             .schemas
@@ -135,6 +175,9 @@ impl Registry {
             .map(|entry| entry.name.clone())
             .unwrap_or_else(|| value.to_string()))
     }
+
+
+    /// Lists the enum names declared in the compiled schema.
     pub fn enum_names(&self, kind: &str) -> Result<Vec<String>, String> {
         self.schemas
             .get(kind)
@@ -143,6 +186,8 @@ impl Registry {
             .map(|v| v.iter().map(|v| v.name.clone()).collect())
             .ok_or_else(|| format!("Unknown enum {kind}"))
     }
+
+
     /// Edit only named contract members while retaining every other wire slot,
     /// including provider evidence, unknown tails and retired positions. Callers
     /// must apply their feature's editable-field whitelist before invoking this.
@@ -196,6 +241,8 @@ impl Registry {
         }
         Ok(output)
     }
+
+
     /// Copy same-named, identically typed array members without a display JSON
     /// roundtrip. Provider timestamp offsets and exact decimal scales are data,
     /// so a projection normalized for display must not become their new source.
@@ -242,6 +289,8 @@ impl Registry {
         }
         Ok(())
     }
+
+
     /// Convert an explicitly typed editor value. Decimal inputs stay exact
     /// strings. Polymorphic unions require dedicated adapters; guessing a union
     /// subtype from display property names could change a persisted identity.
@@ -426,6 +475,8 @@ impl Registry {
             .collect::<Result<BTreeMap<_, _>, String>>()?;
         self.encode(kind, &fields)
     }
+
+
     /// Read a terminal envelope field without projecting an unrelated large payload.
     pub fn field(&self, kind: &str, name: &str, wire: &Value) -> Result<serde_json::Value, String> {
         let schema = self
@@ -449,12 +500,18 @@ impl Registry {
         .ok_or_else(|| format!("Missing wire field {kind}.{name}"))?;
         self.project(&member.kind, value)
     }
+
+
+    /// Extracts the backend error identifier from the service result.
     pub fn error_id(&self, kind: &str) -> Result<i64, String> {
         self.schemas
             .get(kind)
             .and_then(|s| s.error_id)
             .ok_or_else(|| format!("Missing ErrorId for {kind}"))
     }
+
+
+    /// Resolves a published enum name to its declared value.
     pub fn enum_value(&self, kind: &str, name: &str) -> Result<i64, String> {
         self.schemas
             .get(kind)
@@ -463,6 +520,9 @@ impl Registry {
             .map(|v| v.value)
             .ok_or_else(|| format!("Unknown enum value {kind}.{name}"))
     }
+
+
+    /// Loads the schema registry embedded at build time.
     pub fn compiled() -> Result<Self, String> {
         let schemas: Vec<Schema> =
             serde_json::from_str(include_str!("../../tests/fixtures/backend/contracts.json"))
@@ -471,6 +531,9 @@ impl Registry {
             schemas: schemas.into_iter().map(|s| (s.name.clone(), s)).collect(),
         })
     }
+
+
+    /// Provides route for the registry implementation.
     pub fn route(&self, kind: &str) -> Result<(&str, &str), String> {
         let schema = self
             .schemas
@@ -481,6 +544,8 @@ impl Registry {
             schema.verb.as_deref().ok_or("Missing verb constant")?,
         ))
     }
+
+
     /// Build a keyed contract from wire values. Caller supplies validated fields.
     pub fn encode(&self, kind: &str, fields: &BTreeMap<String, Value>) -> Result<Value, String> {
         let schema = self
@@ -536,6 +601,9 @@ impl Registry {
         }
         Ok(Value::Array(array))
     }
+
+
+    /// Provides default value for the registry implementation.
     fn default_value(&self, kind: &str) -> Value {
         match kind {
             "System.Boolean" => false.into(),
@@ -549,6 +617,8 @@ impl Registry {
             _ => Value::Nil,
         }
     }
+
+
     /// Shape wire values for presentation. Decimal values remain invariant strings.
     pub fn project(&self, kind: &str, wire: &Value) -> Result<serde_json::Value, String> {
         use serde_json::Value as Json;
@@ -782,6 +852,9 @@ impl Registry {
         Ok(Json::Object(result))
     }
 }
+
+
+/// Provides generic for the schema implementation.
 fn generic(kind: &str) -> Option<(&str, Vec<&str>)> {
     let start = kind.find('[')?;
     let content = kind.get(start + 1..kind.len().checked_sub(1)?)?;
@@ -813,6 +886,9 @@ fn generic(kind: &str) -> Option<(&str, Vec<&str>)> {
     args.push(content[begin..].trim());
     Some((&kind[..start], args))
 }
+
+
+/// Provides substitute for the schema implementation.
 fn substitute(kind: &str, bindings: &BTreeMap<String, String>) -> String {
     if let Some(value) = bindings.get(kind) {
         return value.clone();

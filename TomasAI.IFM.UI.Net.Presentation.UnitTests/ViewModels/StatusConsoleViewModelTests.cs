@@ -40,15 +40,18 @@ public class StatusConsoleViewModelTests
             .GetFuturesItiTrendDirectionChangedSignalsAsync("ESZ26", ValueDate, TimeFrameType.Weekly);
     }
 
-    [Fact]
-    public async Task Listener_PublishesEventsAndIgnoresEventsAfterStop()
+    [Theory]
+    [InlineData(IntrinsicTimeModeType.TrendExtremeChanged)]
+    [InlineData(IntrinsicTimeModeType.TrendOvershootExtended)]
+    public async Task Listener_PublishesEventsAndIgnoresEventsAfterStop(IntrinsicTimeModeType mode)
     {
         var subject = CreateSubject();
         var direction = Signal(2, IntrinsicTimeTrendType.UpTrend);
         var extreme = direction with
         {
             SequenceId = 3,
-            IntrinsicTimeMode = IntrinsicTimeModeType.TrendExtremeChanged
+            IntrinsicTimeMode = mode,
+            BandPercentage = 0.20, Threshold = 10, BandSize = 2
         };
 
         await subject.ViewModel.InitializeAsync(CancellationToken.None);

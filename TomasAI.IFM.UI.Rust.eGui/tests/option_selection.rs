@@ -1,7 +1,11 @@
+/// Provides j for the option selection implementation.
 fn j(v: ifm_ui_egui::models::trade_contracts::EvaluatedOptionChainReadModel) -> serde_json::Value {
     ifm_ui_egui::models::backend_document::request_document(&v).unwrap()
 }
 use ifm_ui_egui::{backend::contracts::ExactDecimal, services::option_selection::*};
+
+
+/// Verifies that selections match unchanged hybrid decimal and delta rules.
 #[test]
 fn selections_match_unchanged_hybrid_decimal_and_delta_rules() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -59,6 +63,9 @@ fn selections_match_unchanged_hybrid_decimal_and_delta_rules() {
         std::cmp::Ordering::Equal
     );
 }
+
+
+/// Verifies that retained display matches hybrid without changing raw eligibility.
 #[test]
 fn retained_display_matches_hybrid_without_changing_raw_eligibility() {
     use ifm_ui_egui::{

@@ -3,14 +3,22 @@ use eframe::egui;
 
 /// Eligibility and edit mode supplied by the reference editor, never inferred from row position.
 pub struct Commands {
+    /// Whether editing is enabled or currently true.
     pub editing: bool,
+    /// Whether changing is enabled or currently true.
     pub changing: bool,
+    /// Whether ready is enabled or currently true.
     pub ready: bool,
+    /// Whether add is enabled or currently true.
     pub add: bool,
+    /// Whether change is enabled or currently true.
     pub change: bool,
+    /// Whether remove is enabled or currently true.
     pub remove: bool,
+    /// Whether save is enabled or currently true.
     pub save: bool,
 }
+
 
 /// Render the original 1450 by 850 reference client area with its 37-pixel selector and 115-pixel rail.
 pub fn show(
@@ -54,16 +62,11 @@ pub fn show(
             let header = egui::Rect::from_min_size(bounds.min, egui::vec2(bounds.width(), 37.));
             let labels = ["Lookup Types", "trade strategy families", "parameter sets"];
             let mut choice = selected;
-            let caption_rect =
-                egui::Rect::from_min_size(header.min + egui::vec2(32., 8.), egui::vec2(79., 20.));
-            let caption = ui.put(
-                caption_rect,
-                crate::presentation::caption_widget("Selection:"),
-            );
             let selector_rect = egui::Rect::from_min_size(
                 header.min + egui::vec2(115., 5.),
                 egui::vec2((header.width() - 236.).max(100.), 24.),
             );
+            let caption = crate::presentation::field_caption(ui, selector_rect, "Selection:");
             ui.scope_builder(egui::UiBuilder::new().max_rect(selector_rect), |ui| {
                 ui.add_enabled_ui(commands.ready && !commands.editing, |ui| {
                     let response = egui::ComboBox::from_id_salt("reference-selector")
@@ -199,6 +202,7 @@ pub fn show(
     }
     result
 }
+
 
 /// Original list-title band using the shared dark trading caption colors.
 pub fn header(ui: &mut egui::Ui, title: &str) {

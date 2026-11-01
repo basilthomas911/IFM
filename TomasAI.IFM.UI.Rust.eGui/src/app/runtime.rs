@@ -5,12 +5,16 @@ use ifm_ui_egui::{Catalog, Snapshot, backend::transport::*};
 use ifm_ui_egui::{backend::schema::Registry, state::lookup::LookupController};
 use std::{sync::mpsc, time::Duration};
 
+
+/// Owns the native async runtime, dispatches UI intents and delivers bounded result batches until
+/// shutdown.
 pub(crate) fn run(
     updates: mpsc::SyncSender<Update>,
     actions: mpsc::Receiver<u32>,
     intents: mpsc::Receiver<String>,
     context: egui::Context,
     stopping: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    wake: std::sync::Arc<tokio::sync::Notify>,
 ) {
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
@@ -19,7 +23,12 @@ pub(crate) fn run(
     {
         Ok(value) => value,
         Err(error) => {
-            ifm_ui_egui::diagnostics::errors::record("ui.runtime_start_failed",None,None,&format!("{error:?}"));
+            ifm_ui_egui::diagnostics::errors::record(
+                "ui.runtime_start_failed",
+                None,
+                None,
+                &format!("{error:?}"),
+            );
             let _ = updates.try_send(Update::Error(format!(
                 "Cannot start native runtime: {error}"
             )));
@@ -85,20 +94,27 @@ pub(crate) fn run(
         let mut sidebar_updates:Option<tokio::sync::mpsc::Receiver<ifm_ui_egui::sidebar::SidebarPublication>> = None;
         let mut sidebar_actions:Option<tokio::sync::mpsc::Sender<u32>>=None;
         let mut strategy_actions:Option<tokio::sync::mpsc::Sender<u32>>=None;
-        let mut tick = tokio::time::interval(Duration::from_millis(20));
+
         'running: loop {
-            // Console arrivals wake dispatch immediately; the tick remains for unrelated UI work.
+            if stopping.load(std::sync::atomic::Ordering::Acquire) { break; }
+            let mut completed_startup = None;
             tokio::select! {
-                _=tick.tick()=>{},
+                _=wake.notified()=>{},
+                result=async{startup.as_mut().unwrap().await},if startup.is_some()=>{startup.take();completed_startup=Some(result);},
+                outcome=operations.join_next(),if !operations.is_empty()=>{
+                    if let Some(Err(error))=outcome {pending.push(Update::Warning(format!("Native controller task failed: {error}")));}
+                },
+                update=received.recv(),if pending.len()<64=>{
+                    if let Some(update)=update {if matches!(&update,Update::TradeMonitor(_)){pending.retain(|old|!matches!(old,Update::TradeMonitor(_)));}pending.push(update);}
+                },
                 publication=async{sidebar_updates.as_mut().unwrap().recv().await},if sidebar_updates.is_some()=>{
                     if let Some(publication)=publication {pending.retain(|old|!matches!(old,Update::Sidebar(_)));pending.push(Update::Sidebar(publication)); }
                     else { sidebar_updates=None; }
                 }
             }
             if stopping.load(std::sync::atomic::Ordering::Acquire) { break; }
-            if startup.as_ref().is_some_and(|task| task.is_finished()) {
-                if let Some(task) = startup.take() {
-                    match task.await {
+            if let Some(outcome) = completed_startup {
+                    match outcome {
                         Ok(Ok(client)) => {
                             let (strategy_sender,strategy_receiver)=tokio::sync::mpsc::channel(32);strategy_actions=Some(strategy_sender);
                             let (strategy_updates,mut strategy_received)=tokio::sync::mpsc::channel(8);
@@ -159,13 +175,12 @@ pub(crate) fn run(
                         Ok(Err(_)) => {}, // Startup already published the specific error.
                         Err(error) => pending.push(Update::Error(format!("Native startup task failed: {error}"))),
                     }
-                }
             }
             while let Some(outcome) = operations.try_join_next() {
                 if let Err(error) = outcome { pending.push(Update::Warning(format!("Native controller task failed: {error}"))); }
             }
-            if pending.len() < 64 { match actions.try_recv() {
-                Ok(u32::MAX) | Err(mpsc::TryRecvError::Disconnected) => break,
+            for _ in 0..32 { if pending.len() >= 64 {break;} match actions.try_recv() {
+                Ok(u32::MAX) | Err(mpsc::TryRecvError::Disconnected) => break 'running,
                 Ok(action) if matches!(action&0xf000_0000,0x8000_0000|0x9000_0000|0xa000_0000|0xb000_0000)=>{
                     if sidebar_actions.as_ref().is_none_or(|sender|sender.try_send(action).is_err()){pending.push(Update::Warning("Calendar action is unavailable while its service is starting or busy".into()));}
                 }
@@ -177,7 +192,7 @@ pub(crate) fn run(
                         pending.push(Update::Warning(format!("Standalone action {action} has no native controller yet")));
                     }
                 }
-                Err(mpsc::TryRecvError::Empty) => {}
+                Err(mpsc::TryRecvError::Empty) => break
             } }
             for _ in 0..32 {
                 if pending.len() >= 64 { break; }
@@ -379,6 +394,7 @@ pub(crate) fn run(
                 if matches!(&update,Update::TradeMonitor(_)){pending.retain(|old|!matches!(old,Update::TradeMonitor(_)));}
                 pending.push(update);
             }
+            let mut delivered = false;
             while !pending.is_empty() {
                 // Audit on the service thread, outside paint callbacks. A full
                 // UI channel retries delivery without repeatedly logging it.
@@ -393,7 +409,7 @@ pub(crate) fn run(
                         if let Some((operation,error))=audit {
                             ifm_ui_egui::diagnostics::errors::record("ui.error_handed_to_ui",None,operation.as_deref(),&error);
                         }
-                        context.request_repaint();
+                        delivered = true;
                     },
                     Err(mpsc::TrySendError::Full(update)) => { pending.insert(0, update); break; }
                     Err(mpsc::TrySendError::Disconnected(_)) => {
@@ -402,6 +418,7 @@ pub(crate) fn run(
                     }
                 }
             }
+            if delivered { context.request_repaint(); }
         }
         if let Some(task) = startup { task.abort(); }
         operations.abort_all();
@@ -414,11 +431,15 @@ pub(crate) fn run(
         }
     });
     runtime.shutdown_timeout(Duration::from_secs(1));
+    ifm_ui_egui::diagnostics::writer::shutdown();
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    /// Verifies that shutdown does not wait for space in a full action or publication queue.
     #[test]
     fn shutdown_does_not_wait_for_space_in_a_full_action_or_publication_queue() {
         let (updates, _received) = mpsc::sync_channel(4);
@@ -438,6 +459,7 @@ mod tests {
             intent_receiver,
             egui::Context::default(),
             stopping,
+            std::sync::Arc::new(tokio::sync::Notify::new()),
         );
         assert!(started.elapsed() < Duration::from_secs(2));
     }

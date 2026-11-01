@@ -1,11 +1,16 @@
 //! Explicit desktop broker route, matching DesktopTradeExecutionContext.
 //! Production cannot silently fall back to an emulator or another account.
+
+/// Context used by the execution context component.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Context {
+    /// Account alias associated with this context.
     pub account_alias: String,
+    /// Environment associated with this context.
     pub environment: String,
 }
 impl Context {
+    /// Resolves execution context for context.
     pub fn resolve(
         app_environment: &str,
         alias: Option<&str>,
@@ -37,11 +42,14 @@ impl Context {
             environment: environment.into(),
         })
     }
+
+
+    /// Loads configuration from the supported environment settings.
     pub fn from_env() -> Result<Self, String> {
         let app = std::env::var("DOTNET_ENVIRONMENT").unwrap_or("Development".into());
         let mut alias = crate::backend::configuration::value("IFM_UI_BROKER_ACCOUNT_ALIAS")?;
         if alias.is_none() && app == "Development" {
-            alias=crate::backend::configuration::value("TradeBroker__Emulator__AccountAlias")?;
+            alias = crate::backend::configuration::value("TradeBroker__Emulator__AccountAlias")?;
         }
         let mode = crate::backend::configuration::value("IFM_UI_BROKER_ENVIRONMENT")?;
         Self::resolve(&app, alias.as_deref(), mode.as_deref())

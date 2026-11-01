@@ -6,9 +6,14 @@ use crate::{
 };
 use rmpv::Value;
 use std::collections::{BTreeMap, BTreeSet};
+
+
+/// Provides kind for the trade orders implementation.
 pub fn kind(name: &str) -> String {
     format!("{}.ViewModels.{name}", api::ROOT)
 }
+
+
 /// Read a bounded complete collection without accepting a repeated cursor or
 /// a duplicate business identity across pages. One deadline covers every page.
 pub async fn page(

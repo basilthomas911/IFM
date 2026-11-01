@@ -1,6 +1,8 @@
 use eframe::egui;
 use ifm_ui_egui::control_parity::BorderedTable as _;
 
+
+/// Checks borders for grid column borders.
 fn check_borders(rows: usize, shrink: bool) {
     let ctx = egui::Context::default();
     let mut viewport = egui::Rect::NOTHING;
@@ -70,11 +72,17 @@ fn check_borders(rows: usize, shrink: bool) {
         );
     }
 }
+
+
+/// Verifies that rules stop at shrinking grid bounds.
 #[test]
 fn rules_stop_at_shrinking_grid_bounds() {
     check_borders(0, true);
     check_borders(1, true);
 }
+
+
+/// Verifies that rules fill but do not exceed fixed or scrolling grid bounds.
 #[test]
 fn rules_fill_but_do_not_exceed_fixed_or_scrolling_grid_bounds() {
     check_borders(1, false);

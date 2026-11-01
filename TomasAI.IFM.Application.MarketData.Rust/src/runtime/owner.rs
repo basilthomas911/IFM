@@ -157,8 +157,11 @@ impl Owner {
     /// separate bounded storage; a wake-up is never the data payload itself.
     pub fn signal(&self, bits: u32) -> Result<(), OwnerError> {
         let mut state = self.state.lock().map_err(|_| OwnerError::InternalFailure)?;
+        let previous = state.notifications;
         state.notifications |= bits;
-        self.changed.notify_all();
+        if state.notifications != previous {
+            self.changed.notify_all();
+        }
         Ok(())
     }
     /// Atomically consumes accumulated notification bits for the delivery thread.
@@ -433,7 +436,66 @@ impl Drop for ChildTask {
         }
     }
 }
+/// Non-owning admission for the existing selection and risk loops. Retained capabilities cannot pin a dataset.
+#[cfg(test)]
+pub(crate) struct PricingOwner {
+    state: std::sync::Weak<ChildState>,
+}
+#[cfg(test)]
+impl PricingOwner {
+    /// Preserve the parent's 256-task bound and keep tracking until the numerical future is actually dropped.
+    pub(crate) fn spawn<F>(
+        &self,
+        work: F,
+    ) -> Result<tokio::task::JoinHandle<Option<Result<(), &'static str>>>, OwnerError>
+    where
+        F: Future<Output = Result<(), &'static str>> + Send + 'static,
+    {
+        let state = self.state.upgrade().ok_or(OwnerError::Closed)?;
+        let runtime = Handle::try_current().map_err(|_| OwnerError::InvalidOperation)?;
+        let root = state
+            .owner
+            .state
+            .lock()
+            .map_err(|_| OwnerError::InternalFailure)?;
+        if root.stopping || state.cancellation.is_cancelled() {
+            return Err(OwnerError::Closed);
+        }
+        state
+            .tasks
+            .fetch_update(
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+                |count| if count < 256 { Some(count + 1) } else { None },
+            )
+            .map_err(|_| OwnerError::Capacity)?;
+        let registration = ChildTask {
+            state: state.clone(),
+        };
+        drop(root);
+        Ok(runtime.spawn(async move {
+            let result = {
+                tokio::pin!(work);
+                tokio::select! { biased;
+                    ()=registration.state.cancellation.cancelled()=>None,
+                    result=&mut work=>Some(result),
+                }
+            };
+            drop(registration);
+            result
+        }))
+    }
+}
+
 impl Child {
+    /// Copy a weak admission capability rather than extending the owning child's lifetime.
+    #[cfg(test)]
+    pub(crate) fn pricing_owner(&self) -> PricingOwner {
+        PricingOwner {
+            state: Arc::downgrade(&self.state),
+        }
+    }
+
     /// Copied provider-connection state only; it certifies no quote or price.
     /// The SDK read deadline detects silence even when no consumer is polling.
     pub fn provider_state(&self) -> ProviderUpdates {
@@ -613,4 +675,99 @@ impl Drop for ChildState {
 /// Converts a foreign duration into the original capped budget without overflow.
 pub fn foreign_deadline(milliseconds: u64) -> Deadline {
     Deadline::after(Duration::from_millis(milliseconds))
+}
+
+#[cfg(test)]
+mod weak_pricing_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    /// Abandoned handles still drop the real future before cleanup proof, and weak ports retain no dataset.
+    #[tokio::test]
+    async fn weak_pricing_admission_preserves_retirement_and_actual_future_drop() {
+        struct Dropped(Arc<AtomicBool>);
+        impl Drop for Dropped {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Release);
+            }
+        }
+        let root = Arc::new(Owner::default());
+        let parent = root.child().unwrap();
+        let port = parent.pricing_owner();
+        let dropped = Arc::new(AtomicBool::new(false));
+        let observed = dropped.clone();
+        let (entered, ready) = tokio::sync::oneshot::channel();
+        let task = port
+            .spawn(async move {
+                let _dropped = Dropped(observed);
+                let _ = entered.send(());
+                std::future::pending::<()>().await;
+                Ok(())
+            })
+            .unwrap();
+        ready.await.unwrap();
+        drop(task);
+        parent.cancellation().cancel();
+        parent
+            .wait_nested(
+                &CancellationToken::new(),
+                Deadline::after(std::time::Duration::from_secs(2)),
+            )
+            .await
+            .unwrap();
+        assert!(dropped.load(Ordering::Acquire));
+        drop(parent);
+        assert!(matches!(
+            port.spawn(async { Ok(()) }),
+            Err(OwnerError::Closed)
+        ));
+        root.stop().unwrap();
+        root.wait_idle(
+            &CancellationToken::new(),
+            Deadline::after(std::time::Duration::from_secs(2)),
+        )
+        .await
+        .unwrap();
+        assert!(root.disposable().unwrap());
+    }
+
+    /// Pricing cannot bypass the same 256-sub-owner admission bound used by provider work.
+    #[tokio::test]
+    async fn weak_pricing_admission_keeps_existing_capacity_limit() {
+        let root = Arc::new(Owner::default());
+        let parent = root.child().unwrap();
+        let port = parent.pricing_owner();
+        let tasks: Vec<_> = (0..255)
+            .map(|_| parent.spawn(std::future::pending()).unwrap())
+            .collect();
+        let pricing = port
+            .spawn(async {
+                std::future::pending::<()>().await;
+                Ok(())
+            })
+            .unwrap();
+        assert!(matches!(
+            port.spawn(async { Ok(()) }),
+            Err(OwnerError::Capacity)
+        ));
+        parent.cancellation().cancel();
+        parent
+            .wait_nested(
+                &CancellationToken::new(),
+                Deadline::after(std::time::Duration::from_secs(2)),
+            )
+            .await
+            .unwrap();
+        drop(tasks);
+        drop(pricing);
+        drop(parent);
+        root.stop().unwrap();
+        root.wait_idle(
+            &CancellationToken::new(),
+            Deadline::after(std::time::Duration::from_secs(2)),
+        )
+        .await
+        .unwrap();
+        assert!(root.disposable().unwrap());
+    }
 }

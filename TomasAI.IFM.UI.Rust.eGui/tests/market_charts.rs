@@ -2,6 +2,9 @@ use eframe::egui;
 use egui_kittest::{Harness, kittest::Queryable};
 use ifm_ui_egui::market_charts::{self, ChartSeries, ChartSnapshot};
 use std::collections::BTreeMap;
+
+
+/// Verifies that all three market tabs select their own graph without blocking.
 #[test]
 fn all_three_market_tabs_select_their_own_graph_without_blocking() {
     let charts: BTreeMap<_, _> = ["ES", "ES-BB", "VX"]
@@ -48,6 +51,8 @@ fn all_three_market_tabs_select_their_own_graph_without_blocking() {
     );
 }
 
+
+/// Verifies that vx prices keep two decimals and six hour ticks use whole market hours.
 #[test]
 fn vx_prices_keep_two_decimals_and_six_hour_ticks_use_whole_market_hours() {
     assert_eq!(market_charts::price_label("VX", 16.9), "16.90");

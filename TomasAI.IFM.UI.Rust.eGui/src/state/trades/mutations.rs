@@ -2,6 +2,8 @@
 //! closing an editor cannot discard an uncertain command identity or payload.
 use super::*;
 use crate::services::{actor_requests, manual_orders};
+
+/// Checks the supplied value against the required positive-value constraint.
 fn positive(row: &Json, key: &str) -> Result<i32, String> {
     row[key]
         .as_i64()
@@ -10,6 +12,7 @@ fn positive(row: &Json, key: &str) -> Result<i32, String> {
         .ok_or(format!("Missing {key}"))
 }
 impl TradeController {
+    /// Reconciles manual for trade controller.
     pub(super) async fn reconcile_manual(
         &mut self,
         backend: &Backend,
@@ -40,6 +43,8 @@ impl TradeController {
         }
         Ok(())
     }
+
+    /// Provides manual action for the trade controller implementation.
     pub(super) async fn manual_action(
         &mut self,
         backend: &Backend,
@@ -166,6 +171,19 @@ impl TradeController {
                     let contract=self.data.contracts.iter().map(|wire|registry.project("TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel",wire)).collect::<Result<Vec<_>,_>>()?.into_iter().find(|row|row["ContractId"]==contract_id).ok_or("Select a current base futures contract")?;
                     let effective =
                         crate::backend::date_input::parse(field(intent, "effectiveDate"))?;
+                    let maturity = primary
+                        .as_ref()
+                        .map(|row| {
+                            let value = row["MaturityDate"]
+                                .as_str()
+                                .or_else(|| row["RequestedMaturityDate"].as_str());
+                            value.map(crate::backend::date_input::parse).transpose()
+                        })
+                        .transpose()?
+                        .flatten();
+                    if primary.is_some() && maturity.is_none() && trade_type != "FuturesOutright" {
+                        return Err("The opening trade has no maturity date; reload its established trade before adding a close".into());
+                    }
                     manual_orders::add(
                         registry,
                         &context,
@@ -175,6 +193,7 @@ impl TradeController {
                         trade_type,
                         &contract,
                         effective,
+                        maturity,
                         correlation,
                     )?
                 } else {

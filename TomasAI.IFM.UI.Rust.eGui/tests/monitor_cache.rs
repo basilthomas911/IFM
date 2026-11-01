@@ -8,9 +8,15 @@ use ifm_ui_egui::{
     wire,
 };
 use serde_json::{Value as Json, json};
+
+
+/// Provides typed for the monitor cache implementation.
 fn typed<T: serde::de::DeserializeOwned>(value: Json) -> T {
     serde_json::from_value(value).unwrap()
 }
+
+
+/// Loads monitor cache for monitor cache.
 fn load(name: &str, kind: &str) -> Json {
     let r = Registry::compiled().unwrap();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/backend");
@@ -21,6 +27,9 @@ fn load(name: &str, kind: &str) -> Json {
     )
     .unwrap()
 }
+
+
+/// Verifies that retained position history matches hybrid and sealed eod survives later quotes.
 #[test]
 fn retained_position_history_matches_hybrid_and_sealed_eod_survives_later_quotes() {
     let trade = load(
@@ -64,6 +73,9 @@ fn retained_position_history_matches_hybrid_and_sealed_eod_survives_later_quotes
         "Close"
     );
 }
+
+
+/// Verifies that realtime identity and generation fences prevent late query overwrites.
 #[test]
 fn realtime_identity_and_generation_fences_prevent_late_query_overwrites() {
     let trade = load(
@@ -105,6 +117,8 @@ fn realtime_identity_and_generation_fences_prevent_late_query_overwrites() {
     let _ = json!({});
 }
 
+
+/// Verifies that monitor documents match hybrid computed getters and compact plan shape.
 #[test]
 fn monitor_documents_match_hybrid_computed_getters_and_compact_plan_shape() {
     use crate::monitor_display;

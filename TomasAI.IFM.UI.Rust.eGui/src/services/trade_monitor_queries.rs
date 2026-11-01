@@ -7,14 +7,21 @@ use rmpv::Value;
 use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
 pub const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared";
+
+/// Scope used by the trade monitor queries component.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Scope {
+    /// Portfolio associated with this scope.
     pub portfolio: i32,
+    /// Fund associated with this scope.
     pub fund: i32,
+    /// Order associated with this scope.
     pub order: i32,
+    /// Trade associated with this scope.
     pub trade: i32,
 }
 impl Scope {
+    /// Provides key for the scope implementation.
     pub fn key(self) -> Result<String, String> {
         if [self.portfolio, self.fund, self.order, self.trade]
             .iter()
@@ -27,9 +34,15 @@ impl Scope {
             self.portfolio, self.fund, self.order, self.trade
         ))
     }
+
+
+    /// Provides document for the scope implementation.
     pub fn document(self) -> Json {
         json!({"PortfolioId":self.portfolio,"FundId":self.fund,"OrderId":self.order,"TradeId":self.trade})
     }
+
+
+    /// Returns the representation used at the backend wire boundary.
     pub fn wire(self) -> Result<Value, String> {
         self.key()?;
         Ok(Value::Array(vec![
@@ -39,6 +52,9 @@ impl Scope {
             self.trade.into(),
         ]))
     }
+
+
+    /// Provides position for the scope implementation.
     pub fn position(self, strategy: &str) -> Result<(String, Json), String> {
         let purpose = match strategy {
             "IronCondor" | "VerticalSpread" => "strategy-position",
@@ -52,9 +68,15 @@ impl Scope {
             json!({"Trade":self.document(),"PositionId":id.to_string()}),
         ))
     }
+
+
+    /// Provides matches for the scope implementation.
     pub fn matches(self, id: &Json) -> bool {
         id == &self.document()
     }
+
+
+    /// Builds the backend's concrete identity from the current scope.
     pub fn typed_id(self) -> TradeEntityId {
         TradeEntityId {
             portfolio_id: Some(self.portfolio),
@@ -63,6 +85,9 @@ impl Scope {
             trade_id: Some(self.trade),
         }
     }
+
+
+    /// Builds the backend's concrete position identity for the selected strategy.
     pub fn typed_position(self, strategy: &str) -> Result<(String, StrategyPositionId), String> {
         let purpose = match strategy {
             "IronCondor" | "VerticalSpread" => "strategy-position",
@@ -79,6 +104,9 @@ impl Scope {
             },
         ))
     }
+
+
+    /// Builds the wire position identity expected by the backend contract.
     pub fn position_wire(self, strategy: &str) -> Result<Value, String> {
         let (_, id) = self.typed_position(strategy)?;
         Ok(Value::Array(vec![
@@ -87,6 +115,9 @@ impl Scope {
         ]))
     }
 }
+
+
+/// Decodes and validates the response expected by this query.
 async fn query_response(
     backend: &Backend,
     registry: &Registry,
@@ -130,6 +161,8 @@ async fn query_response(
     Ok(response)
 }
 
+
+/// Provides query for the trade monitor queries implementation.
 async fn query<T: FromBackend>(
     backend: &Backend,
     registry: &Registry,
@@ -141,6 +174,9 @@ async fn query<T: FromBackend>(
     let response = query_response(backend, registry, kind, key, fields, deadline).await?;
     T::from_backend(service_result(&response)?)
 }
+
+
+/// Provides established for the trade monitor queries implementation.
 pub async fn established(
     backend: &Backend,
     registry: &Registry,
@@ -170,6 +206,9 @@ pub async fn established(
     }
     Ok(value)
 }
+
+
+/// Iterates retained position snapshots in their prepared chronological order.
 pub async fn positions(
     backend: &Backend,
     registry: &Registry,
@@ -204,6 +243,9 @@ pub async fn positions(
     }
     Ok(rows)
 }
+
+
+/// Provides realtime for the trade monitor queries implementation.
 pub async fn realtime(
     backend: &Backend,
     registry: &Registry,
@@ -231,6 +273,9 @@ pub async fn realtime(
     }
     Ok(result)
 }
+
+
+/// Provides plan scope for the trade monitor queries implementation.
 fn plan_scope(
     scope: Scope,
     date: chrono::NaiveDate,
@@ -245,6 +290,9 @@ fn plan_scope(
         id,
     ))
 }
+
+
+/// Returns the accepted plan associated with the current position or selection.
 pub async fn current_plan(
     backend: &Backend,
     registry: &Registry,
@@ -270,6 +318,9 @@ pub async fn current_plan(
     }
     Ok(result)
 }
+
+
+/// Provides plan page for the trade monitor queries implementation.
 pub async fn plan_page(
     backend: &Backend,
     registry: &Registry,
@@ -316,6 +367,9 @@ pub async fn plan_page(
     }
     Ok(result)
 }
+
+
+/// Provides chart for the trade monitor queries implementation.
 pub async fn chart(
     backend: &Backend,
     registry: &Registry,
@@ -335,6 +389,9 @@ pub async fn chart(
     .await?;
     crate::models::trade_chart::TradeChartSeries::from_backend(service_result(&result)?)
 }
+
+
+/// Provides limits for the trade monitor queries implementation.
 pub async fn limits(
     backend: &Backend,
     registry: &Registry,
@@ -358,6 +415,9 @@ pub async fn limits(
     }
     Ok(result)
 }
+
+
+/// Loads the saved position leg using its exact backend identity.
 pub async fn saved_leg(
     backend: &Backend,
     registry: &Registry,

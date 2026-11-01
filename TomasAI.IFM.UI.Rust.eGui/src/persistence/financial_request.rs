@@ -4,6 +4,9 @@ use crate::backend::{contracts::ExactDecimal, schema::Registry};
 use rmpv::Value;
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
+
+
+/// Returns the representation used at the backend wire boundary.
 fn wire(registry: &Registry, kind: &str, value: &Json, depth: usize) -> Result<Value, String> {
     if depth > 64 {
         return Err("Financial request nesting exceeds its bound".into());
@@ -83,6 +86,9 @@ fn wire(registry: &Registry, kind: &str, value: &Json, depth: usize) -> Result<V
     }
     registry.value_from_json(kind, value)
 }
+
+
+/// Restores the typed operation state from its persisted representation.
 pub fn rehydrate(registry: &Registry, command: &str, pending: &Json) -> Result<Value, String> {
     super::financial_journal::validate(registry, command, pending)?;
     wire(

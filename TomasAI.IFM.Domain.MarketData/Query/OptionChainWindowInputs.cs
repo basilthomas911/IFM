@@ -15,11 +15,11 @@ internal static class OptionChainWindowInputs
 
     internal static async Task<(decimal? Price, decimal? Deviation, DateOnly? ObservationDate)> GetAsync(
         IMarketDataQueryContext context, string symbol, string underlyingContractId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool useLivePrice = true)
     {
         var valueDate = context.MarketSessionAuthority.Current.OperationalValueDate;
         decimal? price = null;
-        if (context.MarketDataApi is { } marketDataApi && marketDataApi.GetRuntimeStatus().IsRunning)
+        if (useLivePrice && context.MarketDataApi is { } marketDataApi && marketDataApi.GetRuntimeStatus().IsRunning)
         {
             try
             {

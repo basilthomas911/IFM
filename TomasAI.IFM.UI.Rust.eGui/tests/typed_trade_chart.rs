@@ -7,6 +7,8 @@ use ifm_ui_egui::models::trade_chart::{TradeChartRow, TradeChartSeries};
 use ifm_ui_egui::{models::trade_chart::PreparedTradeChart, wire};
 use serde_json::json;
 
+
+/// Provides series for the typed trade chart implementation.
 fn series(seconds: i64, points: &[(i64, &str, Option<&str>)]) -> rmpv::Value {
     use ifm_ui_egui::backend::contracts::timestamp_wire;
     let start = chrono::DateTime::parse_from_rfc3339("2026-10-30T00:00:00Z")
@@ -30,6 +32,8 @@ fn series(seconds: i64, points: &[(i64, &str, Option<&str>)]) -> rmpv::Value {
     ])
 }
 
+
+/// Verifies that backend typed series preserves exact decimal text and existing projection.
 #[test]
 fn backend_typed_series_preserves_exact_decimal_text_and_existing_projection() {
     let registry = ifm_ui_egui::backend::schema::Registry::compiled().unwrap();
@@ -74,6 +78,8 @@ fn backend_typed_series_preserves_exact_decimal_text_and_existing_projection() {
     assert!(TradeChartSeries::from_backend(&series(60, &[(0, "invalid", None)])).is_err());
 }
 
+
+/// Verifies that typed backend slots match the exported csharp contracts.
 #[test]
 fn typed_backend_slots_match_the_exported_csharp_contracts() {
     let registry = ifm_ui_egui::backend::schema::Registry::compiled().unwrap();
@@ -104,6 +110,8 @@ fn typed_backend_slots_match_the_exported_csharp_contracts() {
     }
 }
 
+
+/// Verifies that backend chart capacity boundary is enforced.
 #[test]
 fn backend_chart_capacity_boundary_is_enforced() {
     let point = (0, "1", None);
@@ -117,6 +125,8 @@ fn backend_chart_capacity_boundary_is_enforced() {
     assert!(TradeChartSeries::from_backend(&series(60, &vec![point; 100_001])).is_err());
 }
 
+
+/// Verifies that direct typed decode matches previous plot coordinates.
 #[test]
 fn direct_typed_decode_matches_previous_plot_coordinates() {
     for count in [0, 1, 100, 10_000] {
@@ -128,6 +138,8 @@ fn direct_typed_decode_matches_previous_plot_coordinates() {
     }
 }
 
+
+/// Verifies that optional and invalid cells preserve existing skip behavior.
 #[test]
 fn optional_and_invalid_cells_preserve_existing_skip_behavior() {
     let bytes = wire::encode_value(
@@ -150,6 +162,8 @@ fn optional_and_invalid_cells_preserve_existing_skip_behavior() {
     assert_eq!(typed.forward.len(), 1);
 }
 
+
+/// Verifies that null points retain the backend window end and corrupt wire fails.
 #[test]
 fn null_points_retain_the_backend_window_end_and_corrupt_wire_fails() {
     for value in [

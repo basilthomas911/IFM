@@ -1,5 +1,7 @@
 //! System Admin Manager mirrors the WinForms selector and modal client area using shared Rust colors.
 use eframe::egui;
+
+
 /// Draw the 1293 by 850 administration client or a standalone legacy test surface.
 pub fn panel(
     ctx: &egui::Context,
@@ -35,14 +37,12 @@ pub fn panel(
         .show(ctx, |ui| {
             ctx.memory_mut(|memory| memory.set_modal_layer(ui.layer_id()));
             let bounds = ui.available_rect_before_wrap();
-            let caption = ui.put(
-                egui::Rect::from_min_size(bounds.min + egui::vec2(11., 10.), egui::vec2(172., 20.)),
-                crate::presentation::caption_widget("System Admin Function:"),
-            );
             let selector = egui::Rect::from_min_size(
                 bounds.min + egui::vec2(187., 7.),
                 egui::vec2((bounds.width() - 189.).max(100.), 26.),
             );
+            let caption =
+                crate::presentation::field_caption(ui, selector, "System Admin Function:");
             ui.scope_builder(egui::UiBuilder::new().max_rect(selector), |ui| {
                 ui.add_enabled_ui(ready, |ui| {
                     egui::ComboBox::from_id_salt("system-admin-selector")
@@ -83,6 +83,7 @@ pub fn panel(
     }
 }
 
+
 /// Draw within a fixed panel without allowing long text to resize the containing dialog.
 pub fn region(ui: &mut egui::Ui, rect: egui::Rect, body: impl FnOnce(&mut egui::Ui)) {
     let mut child = ui.new_child(
@@ -93,6 +94,8 @@ pub fn region(ui: &mut egui::Ui, rect: egui::Rect, body: impl FnOnce(&mut egui::
     child.set_clip_rect(rect.intersect(ui.clip_rect()));
     body(&mut child);
 }
+
+
 /// Retain a user-draggable splitter with the original default proportion.
 pub fn split(
     ui: &mut egui::Ui,

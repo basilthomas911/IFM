@@ -5,6 +5,8 @@ use rmpv::Value;
 use std::collections::BTreeMap;
 pub const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline";
 
+
+/// Provides query for the inspection queries implementation.
 pub async fn query(
     backend: &Backend,
     registry: &Registry,
@@ -70,6 +72,8 @@ pub async fn query(
     Ok(service_result(&reply)?.clone())
 }
 
+
+/// Provides workflow for the inspection queries implementation.
 pub async fn workflow(
     backend: &Backend,
     registry: &Registry,

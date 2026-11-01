@@ -6,6 +6,9 @@ use crate::{
     models::trade_contracts::{BrokerOrderStatus, TradeOrderDefinition},
 };
 use serde_json::Value as Json;
+
+
+/// Waits for for broker for order submission ack.
 pub async fn wait_for_broker(
     backend: &Backend,
     registry: &Registry,

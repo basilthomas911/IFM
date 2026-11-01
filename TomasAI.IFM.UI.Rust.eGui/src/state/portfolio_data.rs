@@ -5,17 +5,30 @@ use crate::services::{business_context::BusinessContext, portfolio as api};
 use rmpv::Value;
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
+
+
+/// Provides kind for the portfolio data implementation.
 pub fn kind(name: &str) -> String {
     format!("{}.ViewModels.{name}", api::ROOT)
 }
+
+/// Selection used by the portfolio data component.
 #[derive(Clone, Default)]
 struct Selection {
+    /// Optional portfolio id; `None` represents an absent value.
     portfolio_id: Option<i64>,
+    /// Optional fund id; `None` represents an absent value.
     fund_id: Option<i64>,
+    /// Optional fund mandate version; `None` represents an absent value.
     fund_mandate_version: Option<i64>,
+    /// Optional name; `None` represents an absent value.
     name: Option<String>,
+    /// Optional operating state; `None` represents an absent value.
     operating_state: Option<String>,
 }
+
+
+/// Provides model for the portfolio data implementation.
 fn model(registry: &Registry, name: &str, wire: &Value) -> Result<Selection, String> {
     if !wire.is_array() {
         return Err("Expected Portfolio selection record".into());
@@ -50,6 +63,9 @@ fn model(registry: &Registry, name: &str, wire: &Value) -> Result<Selection, Str
         operating_state: state,
     })
 }
+
+
+/// Provides fund key parts for the portfolio data implementation.
 fn fund_key_parts(
     name: Option<&str>,
     version: Option<i64>,
@@ -67,6 +83,7 @@ fn fund_key_parts(
     ]))
 }
 impl Selection {
+    /// Provides fund key for the selection implementation.
     fn fund_key(&self) -> Result<String, String> {
         fund_key_parts(
             self.name.as_deref(),
@@ -75,9 +92,15 @@ impl Selection {
         )
     }
 }
+
+
+/// Provides fund key wire for the portfolio data implementation.
 pub(crate) fn fund_key_wire(registry: &Registry, wire: &Value) -> Result<String, String> {
     model(registry, "FundMandateReadModel", wire)?.fund_key()
 }
+
+
+/// Provides fund key for the portfolio data implementation.
 pub fn fund_key(row: &Json) -> Result<String, String> {
     fund_key_parts(
         row["Name"].as_str(),
@@ -85,23 +108,39 @@ pub fn fund_key(row: &Json) -> Result<String, String> {
         row["OperatingState"].as_str(),
     )
 }
+
+/// Portfolio Data used by the portfolio data component.
 #[derive(Clone, Default)]
 pub struct PortfolioData {
+    /// Context required to interpret the current operation or publication.
     pub context: Option<BusinessContext>,
+    /// Ordered portfolios retained by PortfolioData.
     pub portfolios: Vec<Value>,
+    /// Ordered funds retained by PortfolioData.
     pub funds: Vec<Value>,
+    /// Optional portfolio; `None` represents an absent value.
     pub portfolio: Option<Value>,
+    /// Optional fund; `None` represents an absent value.
     pub fund: Option<Value>,
+    /// Optional allocation; `None` represents an absent value.
     pub allocation: Option<Value>,
+    /// Optional envelope; `None` represents an absent value.
     pub envelope: Option<Value>,
+    /// Ordered assignments retained by PortfolioData.
     pub assignments: Vec<Value>,
+    /// Portfolio revision associated with this portfolio data.
     pub portfolio_revision: i64,
+    /// Fund revision associated with this portfolio data.
     pub fund_revision: i64,
+    /// Filter associated with this portfolio data.
     pub filter: String,
+    /// Optional fund filter; `None` represents an absent value.
     pub fund_filter: Option<String>,
+    /// Current status text or state exposed by this component.
     pub status: String,
 }
 impl PortfolioData {
+    /// Provides visible funds for the portfolio data implementation.
     pub fn visible_funds(&self, registry: &Registry) -> Result<Vec<Value>, String> {
         Ok(self
             .visible_fund_refs(registry)?
@@ -109,6 +148,9 @@ impl PortfolioData {
             .cloned()
             .collect())
     }
+
+
+    /// Provides visible fund refs for the portfolio data implementation.
     pub(crate) fn visible_fund_refs<'a>(
         &'a self,
         registry: &Registry,
@@ -138,6 +180,9 @@ impl PortfolioData {
         });
         Ok(rows.into_iter().map(|(_, wire)| wire).collect())
     }
+
+
+    /// Checks is current fund against the current portfolio data state.
     pub fn is_current_fund(&self, registry: &Registry) -> Result<bool, String> {
         let Some(selected) = &self.fund else {
             return Ok(false);
@@ -153,6 +198,9 @@ impl PortfolioData {
         }
         Ok(true)
     }
+
+
+    /// Clears fund for portfolio data.
     fn clear_fund(&mut self) {
         self.fund = None;
         self.allocation = None;
@@ -160,6 +208,9 @@ impl PortfolioData {
         self.assignments.clear();
         self.fund_revision = 0;
     }
+
+
+    /// Provides page for the portfolio data implementation.
     async fn page(
         backend: &Backend,
         registry: &Registry,
@@ -184,6 +235,9 @@ impl PortfolioData {
             .cloned()
             .ok_or("Invalid Portfolio page".into())
     }
+
+
+    /// Provides revision for the portfolio data implementation.
     async fn revision(
         backend: &Backend,
         registry: &Registry,
@@ -225,6 +279,9 @@ impl PortfolioData {
             .filter(|value| *value > 0)
             .ok_or("Portfolio revision is unavailable".into())
     }
+
+
+    /// Refreshes portfolio data for portfolio data.
     pub async fn refresh(
         &mut self,
         backend: &Backend,
@@ -302,6 +359,9 @@ impl PortfolioData {
         *self = next;
         Ok(())
     }
+
+
+    /// Selects portfolio for portfolio data.
     pub async fn select_portfolio(
         &mut self,
         backend: &Backend,
@@ -325,6 +385,9 @@ impl PortfolioData {
         *self = next;
         Ok(())
     }
+
+
+    /// Selects portfolio wire for portfolio data.
     async fn select_portfolio_wire(
         &mut self,
         backend: &Backend,
@@ -389,6 +452,9 @@ impl PortfolioData {
         }
         Ok(())
     }
+
+
+    /// Selects fund for portfolio data.
     pub async fn select_fund(
         &mut self,
         backend: &Backend,
@@ -412,6 +478,9 @@ impl PortfolioData {
         *self = next;
         Ok(())
     }
+
+
+    /// Selects fund wire for portfolio data.
     async fn select_fund_wire(
         &mut self,
         backend: &Backend,

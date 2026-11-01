@@ -6,3 +6,6 @@ pub mod control_parity;
 pub mod presentation;
 /// Virtualized fixture grid with background filtering and stable row selection.
 pub mod virtual_grid;
+
+pub mod dispatch;
+pub mod errors;

@@ -12,6 +12,14 @@ internal static class Program{
  [System.Runtime.InteropServices.DllImport("user32.dll")]static extern uint GetWindowThreadProcessId(IntPtr window,out uint processId);
  [STAThread] static int Main(string[] args){
   _=SetThreadDpiAwarenessContext(new IntPtr(-4));
+  if(args.Length==3&&args[0]=="--inspect"){
+   // Explicit read-only inspection of the user's running desktop. Scenario
+   // actions below still require isolated backend services.
+   using var inspectAutomation=new UIA3Automation();using var inspectApp=NativeApp.Attach(int.Parse(args[1]));
+   using var inspectProcess=Process.GetProcessById(inspectApp.ProcessId);
+   var inspectWindow=inspectAutomation.FromHandle(inspectProcess.MainWindowHandle).AsWindow();
+   Directory.CreateDirectory(args[2]);Dump(inspectWindow,args[2],"inspection",capture:false);return 0;
+  }
   if(args.Length!=3)throw new ArgumentException("Expected executable, scenario JSON, artifact directory");
   var url=Environment.GetEnvironmentVariable("IFM_UI_NATS_URL");
   if(!Uri.TryCreate(url,UriKind.Absolute,out var broker)||!broker.IsLoopback||broker.Port==4222)throw new InvalidOperationException("Desktop acceptance requires an isolated loopback broker");
@@ -59,6 +67,19 @@ internal static class Program{
     if(action=="absent"){
      var gone=Stopwatch.StartNew();while(true){var found=searchRoot.FindAllDescendants(cf=>cf.ByName(name)).Any(e=>type is null||e.ControlType.ToString()==type);if(!found)break;if(gone.Elapsed>TimeSpan.FromSeconds(20))throw new TimeoutException("UI control remained visible: "+name);Thread.Sleep(50);}continue;
     }
+    if(action=="assert-legs"){
+     var selectionStatus=Wait(searchRoot,"Selected legs: 4 / 4",0,true,"Text");
+     var expected=step.GetProperty("legs").EnumerateArray().ToArray();
+     var nodes=searchRoot.FindAllDescendants(cf=>cf.ByControlType(FlaUI.Core.Definitions.ControlType.Text));
+     var selected=nodes.Where(e=>e.BoundingRectangle.Top>selectionStatus.BoundingRectangle.Bottom&&System.Text.RegularExpressions.Regex.IsMatch(e.Name,@"^[+-][SL][CP]$")).ToArray();
+     if(selected.Length!=4)throw new InvalidOperationException($"Expected four selected leg rows; found {selected.Length}");
+     foreach(var leg in expected){
+      var role=leg.GetProperty("role").GetString()!;var strike=leg.GetProperty("strike").GetDecimal();
+      var row=selected.Single(e=>e.Name==role);
+      if(!nodes.Any(e=>Math.Abs((e.BoundingRectangle.Top+e.BoundingRectangle.Height/2.0)-(row.BoundingRectangle.Top+row.BoundingRectangle.Height/2.0))<3&&decimal.TryParse(e.Name,System.Globalization.NumberStyles.Number,System.Globalization.CultureInfo.InvariantCulture,out var actual)&&actual==strike))throw new InvalidOperationException($"Selected {role} did not have strike {strike}");
+     }
+     File.WriteAllText(Path.Combine(output,name+"-assertion.json"),JsonSerializer.Serialize(new{passed=true,selectedLegs=expected}));continue;
+    }
     if(action=="wait"){_ = Wait(searchRoot,name,index,step.TryGetProperty("contains",out var c)&&c.GetBoolean(),type,enabled);continue;}
     if(action=="invoke"){var element=Wait(searchRoot,name,index,false,type,enabled);if(!element.IsEnabled)throw new InvalidOperationException("Control is disabled: "+name);if(element.Patterns.Invoke.IsSupported)element.Patterns.Invoke.Pattern.Invoke();else ClickOwned(element,window,app.ProcessId);continue;}
     if(action=="date-picker"){
@@ -91,12 +112,13 @@ internal static class Program{
    if(found is not null)return found;Thread.Sleep(50);
   }throw new TimeoutException("Missing UI control: "+name+" index "+index);
  }
- static void Dump(Window window,string directory,string name,string? scope=null){
+ static void Dump(Window window,string directory,string name,string? scope=null,bool capture=true){
   if(name.Length==0||name.Any(c=>!char.IsAsciiLetterOrDigit(c)&&c!='-'&&c!='_'))throw new InvalidDataException("Invalid evidence name");
   var owner=scope is null?window:Wait(window,scope,0,false,"Window");
   var rows=owner.FindAllDescendants().Select(e=>new{type=e.ControlType.ToString(),name=e.Properties.Name.ValueOrDefault??"",id=e.Properties.AutomationId.ValueOrDefault??"",enabled=e.IsEnabled,offscreen=e.Properties.IsOffscreen.ValueOrDefault,value=e.Patterns.Value.IsSupported?e.Patterns.Value.Pattern.Value.Value:null,bounds=e.BoundingRectangle.ToString(),x=e.BoundingRectangle.Left-owner.BoundingRectangle.Left,y=e.BoundingRectangle.Top-owner.BoundingRectangle.Top,width=e.BoundingRectangle.Width,height=e.BoundingRectangle.Height}).ToArray();
   File.WriteAllText(Path.Combine(directory,name+".json"),JsonSerializer.Serialize(rows,new JsonSerializerOptions{WriteIndented=true}));
   File.WriteAllText(Path.Combine(directory,name+"-window.json"),JsonSerializer.Serialize(new{width=window.BoundingRectangle.Width,height=window.BoundingRectangle.Height}));
+  if(!capture)return;
   window.SetForeground();Thread.Sleep(250);
   // Capture the owned HWND, not screen pixels from an application that may
   // cover it while the operator is using this shared desktop.

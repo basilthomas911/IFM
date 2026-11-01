@@ -2,6 +2,9 @@ use ifm_ui_egui::{
     backend::{codec, schema::Registry},
     services::inspection_display,
 };
+
+
+/// Verifies that risk observation text matches current managed presenter.
 #[test]
 fn risk_observation_text_matches_current_managed_presenter() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/backend");
@@ -36,6 +39,8 @@ fn risk_observation_text_matches_current_managed_presenter() {
     }
 }
 
+
+/// Verifies that borrowed inspection fields preserve named evidence without retaining a json tree.
 #[test]
 fn borrowed_inspection_fields_preserve_named_evidence_without_retaining_a_json_tree() {
     use ifm_ui_egui::backend::contract_view::Field;

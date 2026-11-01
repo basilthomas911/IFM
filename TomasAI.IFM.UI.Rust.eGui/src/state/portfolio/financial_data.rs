@@ -5,19 +5,32 @@ use crate::services::{
     business_context::BusinessContext,
     financial::{self, AccessScope, Read},
 };
+
+/// Ledger Data used by the financial data component.
 pub(super) struct LedgerData {
+    /// Portfolio associated with this ledger data.
     pub portfolio: i32,
+    /// Fund associated with this ledger data.
     pub fund: i32,
+    /// Optional balances; `None` represents an absent value.
     pub balances: Option<Read>,
+    /// Optional transactions; `None` represents an absent value.
     pub transactions: Option<Read>,
+    /// Optional reservations; `None` represents an absent value.
     pub reservations: Option<Read>,
+    /// Optional journal; `None` represents an absent value.
     pub journal: Option<Read>,
+    /// Message associated with this ledger data.
     pub message: String,
 }
+
+
+/// Provides financial kind for the financial data implementation.
 fn financial_kind(name: &str) -> String {
     format!("{}.{name}", financial::ROOT)
 }
 impl LedgerData {
+    /// Provides empty for the ledger data implementation.
     fn empty(portfolio: i32, fund: i32) -> Self {
         Self {
             portfolio,
@@ -29,6 +42,9 @@ impl LedgerData {
             message: String::new(),
         }
     }
+
+
+    /// Loads financial data for ledger data.
     pub async fn load(
         backend: &Backend,
         registry: &Registry,
@@ -60,6 +76,9 @@ impl LedgerData {
         }
         state
     }
+
+
+    /// Validates page for ledger data.
     fn validate_page(
         &self,
         registry: &Registry,
@@ -92,12 +111,21 @@ impl LedgerData {
         }
         Ok(())
     }
+
+
+    /// Provides transaction rows for the ledger data implementation.
     pub fn transaction_rows(&self) -> Result<Vec<Value>, String> {
         page_rows(self.transactions.as_ref())
     }
+
+
+    /// Provides reservation rows for the ledger data implementation.
     pub fn reservation_rows(&self) -> Result<Vec<Value>, String> {
         page_rows(self.reservations.as_ref())
     }
+
+
+    /// Provides next for the ledger data implementation.
     pub async fn next(
         &mut self,
         backend: &Backend,
@@ -181,6 +209,9 @@ impl LedgerData {
         }
         Ok(())
     }
+
+
+    /// Loads journal for ledger data.
     pub async fn load_journal(
         &mut self,
         backend: &Backend,
@@ -216,6 +247,9 @@ impl LedgerData {
         Ok(())
     }
 }
+
+
+/// Provides page cut for the financial data implementation.
 fn page_cut(read: &Read) -> i64 {
     read.value
         .as_ref()
@@ -224,6 +258,9 @@ fn page_cut(read: &Read) -> i64 {
         .and_then(Value::as_i64)
         .unwrap_or_default()
 }
+
+
+/// Provides page rows for the financial data implementation.
 fn page_rows(read: Option<&Read>) -> Result<Vec<Value>, String> {
     let Some(read) = read else {
         return Ok(vec![]);

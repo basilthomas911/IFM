@@ -4,20 +4,33 @@ use crate::backend::{identity::canonical_json, schema::Registry};
 use rmpv::Value;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+
+/// Property used by the inspection json component.
 #[derive(Deserialize)]
 struct Property {
+    /// Name associated with this property.
     name: String,
+    /// Member associated with this property.
     member: String,
+    /// Kind associated with this property.
     #[serde(rename = "type")]
     kind: String,
+    /// Whether ignore null is enabled or currently true.
     #[serde(default, rename = "ignoreNull")]
     ignore_null: bool,
+    /// Whether ignore default is enabled or currently true.
     #[serde(default, rename = "ignoreDefault")]
     ignore_default: bool,
 }
+
+
+/// Provides quoted for the inspection json implementation.
 fn quoted(text: &str) -> Result<String, String> {
     canonical_json(&serde_json::Value::String(text.into()))
 }
+
+
+/// Encodes the supplied bytes using the expected Base64 alphabet.
 fn base64(bytes: &[u8]) -> String {
     const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut output = String::with_capacity(bytes.len().div_ceil(3) * 4);
@@ -41,11 +54,17 @@ fn base64(bytes: &[u8]) -> String {
     }
     output
 }
+
+
+/// Renders inspection json for inspection json.
 pub fn render(registry: &Registry, kind: &str, wire: &Value) -> Result<String, String> {
     let shapes: BTreeMap<String, Vec<Property>> = serde_json::from_str(include_str!(
         "../../tests/fixtures/backend/inspection-json-shapes.json"
     ))
     .map_err(|e| e.to_string())?;
+
+
+    /// Provides node for the inspection json implementation.
     fn node(
         registry: &Registry,
         shapes: &BTreeMap<String, Vec<Property>>,
@@ -138,6 +157,9 @@ pub fn render(registry: &Registry, kind: &str, wire: &Value) -> Result<String, S
             _ => Err(format!("Missing embedded JSON metadata for {kind}")),
         }
     }
+
+
+    /// Provides object for the inspection json implementation.
     fn object(
         registry: &Registry,
         shapes: &BTreeMap<String, Vec<Property>>,

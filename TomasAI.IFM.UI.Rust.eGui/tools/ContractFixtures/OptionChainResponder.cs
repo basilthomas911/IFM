@@ -5,8 +5,10 @@ using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 /// <summary>Only the isolated test broker installs this in-memory responder.</summary>
 internal static class OptionChainResponder {
- public static bool Handles(string subject)=>subject.StartsWith("Query.NativeCompatibility.OptionChain",StringComparison.Ordinal)||subject.StartsWith("Query.MarketDataQuery.GetEvaluatedOptionChain.",StringComparison.Ordinal)||subject.StartsWith("Query.MarketDataQuery.GetDatabentoOptionChainRange.",StringComparison.Ordinal)||subject=="Query.TradeOrderQuery.GetTradeOrderPreview.Preview"||mode=="ComposeOptions"&&subject=="Query.ParameterSetQuery.GetParameterStartupRuns.none";
+ public static bool Handles(string subject)=>subject.StartsWith("Query.NativeCompatibility.OptionChain",StringComparison.Ordinal)||subject.StartsWith("Query.MarketDataQuery.GetEvaluatedOptionChain.",StringComparison.Ordinal)||subject.StartsWith("Query.MarketDataQuery.GetDatabentoOptionChainRange.",StringComparison.Ordinal)||subject=="Query.TradeOrderQuery.GetTradeOrderPreview.Preview"||(mode=="ComposeOptions"||mode=="ComposeCloseOptions")&&subject=="Query.ParameterSetQuery.GetParameterStartupRuns.none";
  static string mode="Normal";
+ static bool offline;
+ internal static bool LongOffline {get;private set;}
  static readonly HashSet<string> leases=[];
  static readonly DateOnly date=new(2026,10,26);
  static readonly DateTimeOffset at=new(2026,10,26,12,30,0,TimeSpan.Zero);
@@ -15,11 +17,12 @@ internal static class OptionChainResponder {
   byte[] Result<T>(T value)=>MessagePackSerializer.Serialize(new ServiceResult<T>{Success=true,ErrorMessage="",Value=value},options);
   byte[] Error()=>MessagePackSerializer.Serialize(new ServiceResult<EvaluatedOptionChainReadModel>{Success=false,ErrorCode=1065,ErrorMessage="Fixture unavailable"},options);
   if(subject=="Query.NativeCompatibility.OptionChainMode.none") {mode=MessagePackSerializer.Deserialize<string>(payload,options);return Result(new ScalarReadModel<bool>(true));}
+  if(subject=="Query.NativeCompatibility.OptionChainOffline.none"){var scenario=MessagePackSerializer.Deserialize<string>(payload,options);offline=scenario is "Enabled" or "Long";LongOffline=scenario=="Long";return Result(new ScalarReadModel<bool>(true));}
   if(subject=="Query.NativeCompatibility.OptionChainCount.none")return Result(new ScalarReadModel<int>(leases.Count));
   if(subject=="Query.ParameterSetQuery.GetParameterStartupRuns.none"){
    var q=MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.GetParameterStartupRunsQuery>(payload,options);
    if(q.Subject.ToString()!=subject||q.Limit!=20||q.AfterRunId is not null||q.AfterCreatedAtUtc is not null)throw new InvalidDataException("Incorrect applied-default query");
-   return Result(new[]{ComposerOptionFixtures.Startup});
+   return Result(offline?Array.Empty<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterStartupRun>():new[]{ComposerOptionFixtures.Startup});
   }
   if(subject=="Query.TradeOrderQuery.GetTradeOrderPreview.Preview") {
    var q=MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.Trade.Shared.Order.GetTradeOrderPreviewQuery>(payload,options);
@@ -28,12 +31,12 @@ internal static class OptionChainResponder {
     if(p.InputRevision<=0||p.StrategyQuantity!=1||p.SelectedLegs is not [{ContractId:"ESZ6",IsFuture:true,Side:var side,Quantity:1,CashMultiplier:50}]||side!=(mode=="ComposeCloseFutures"?-1:1)||p.UnderlyingReferencePrice!=6050.25m)throw new InvalidDataException("Incorrect native futures draft");
     return Result(new TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreview{InputRevision=p.InputRevision,OrderPrice=p.EnteredOrderPrice??6050.25m,NetMid=6050.25m,NetDelta=50,NetVega=0,ResolvedTickIncrement=.25m});
    }
-   if(mode=="ComposeOptions"){
+   if(mode is "ComposeOptions" or "ComposeCloseOptions"){
     if(p.SelectedLegs.Length==0)return Result(new TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreview{InputRevision=p.InputRevision,ResolvedTickIncrement=.05m});
-    var expected=ComposerOptionFixtures.Chain().Contracts;
+    var expected=ComposerOptionFixtures.Chain(longCondor:LongOffline).Contracts;
     if(p.InputRevision<=0||p.StrategyQuantity!=1||p.SelectedLegs.Length!=4||p.UnderlyingReferencePrice!=6050.25m)throw new InvalidDataException("Incorrect option preview draft");
-    for(var i=0;i<4;i++){var l=p.SelectedLegs[i];var e=expected[i];if(l.ContractId!=e.ContractId||l.Quantity!=1||l.Side!=(e.ContractId.EndsWith("SHORT",StringComparison.Ordinal)?-1:1)||l.Strike!=e.Strike||l.IsCall!=e.IsCall||l.IsFuture||l.Bid!=e.Bid||l.Ask!=e.Ask||l.Delta!=e.Delta||l.Vega!=e.Vega||l.CashMultiplier!=50)throw new InvalidDataException("Option preview changed canonical leg inputs");}
-    return Result(ComposerOptionFixtures.Preview(p.InputRevision,p.EnteredOrderPrice));
+    for(var i=0;i<4;i++){var l=p.SelectedLegs[i];var e=expected[i];if(l.ContractId!=e.ContractId||l.Quantity!=1||l.Side!=(e.ContractId.EndsWith("SHORT",StringComparison.Ordinal)?(mode=="ComposeCloseOptions"?1:-1):(mode=="ComposeCloseOptions"?-1:1))||l.Strike!=e.Strike||l.IsCall!=e.IsCall||l.IsFuture||l.Bid!=e.Bid||l.Ask!=e.Ask||l.Delta!=e.Delta||l.Vega!=e.Vega||l.CashMultiplier!=50)throw new InvalidDataException("Option preview changed canonical leg inputs");}
+    return Result(mode=="ComposeCloseOptions"?ComposerOptionFixtures.Preview(p.InputRevision,p.EnteredOrderPrice) with{OrderPrice=p.EnteredOrderPrice??14,NetBid=12,NetMid=14,NetAsk=16}:ComposerOptionFixtures.Preview(p.InputRevision,p.EnteredOrderPrice));
    }
    if(q.Subject.ToString()!=subject||q.EntityId.Format()!="none"||p.InputRevision<=0||p.StrategyQuantity!=3||p.TickIncrement!=1||p.EnteredOrderPrice!=-.1234567890123456789012345678m||p.UnderlyingReferencePrice!=6050.25m||p.SelectedLegs.Length!=1)throw new InvalidDataException("Preview lost draft identity or exact decimal inputs");
    var leg=p.SelectedLegs[0];
@@ -43,7 +46,7 @@ internal static class OptionChainResponder {
   }
   if(subject=="Query.MarketDataQuery.GetDatabentoOptionChainRange.none") {
    var q=MessagePackSerializer.Deserialize<GetDatabentoOptionChainRangeQuery>(payload,options);
-   if(q.Subject.ToString()!=subject||q.EntityId.Format()!="none"||q.UnderlyingSymbol!="ES"||q.FromMaturityDate!=date||q.ThroughMaturityDate!=date.AddDays(4))throw new InvalidDataException("Option expiry request did not use canonical API dates/scope");
+   if(q.Subject.ToString()!=subject||q.EntityId.Format()!="none"||q.UnderlyingSymbol!="ES"||q.FromMaturityDate!=date||q.ThroughMaturityDate!=date.AddDays(mode=="ComposeCloseOptions"?2:4))throw new InvalidDataException("Option expiry request did not use canonical API dates/scope");
    return Result(new[]{new OptionContractExpiryReadModel{Symbol=mode=="WrongExpirySymbol"?"VX":"ES",ContractId="ESZ6",ExpiryDate=date.AddDays(2),ProviderRoot="EW",RefreshedAtUtc=at.UtcDateTime},new OptionContractExpiryReadModel{Symbol="ES",ContractId="ESZ6",ExpiryDate=date.AddDays(-1),ProviderRoot="OLD",RefreshedAtUtc=at.UtcDateTime}});
   }
   if(subject!="Query.MarketDataQuery.GetEvaluatedOptionChain.none")throw new InvalidDataException("Invalid option-chain route");
@@ -54,9 +57,10 @@ internal static class OptionChainResponder {
    if(mode=="ReleaseUnavailable")return Error();
    leases.Remove(query.SubscriptionOwnerId);return Result<EvaluatedOptionChainReadModel?>(null);
   }
-  if(mode=="ComposeOptions"){
+  if(mode is "ComposeOptions" or "ComposeCloseOptions"){
    if(query.SpreadWingWidth!=50||query.ProviderRoots is not ["EW"]||query.AllowFrozenEmulatorPreview!=query.FrozenEmulatorPreviewOnly)throw new InvalidDataException("Incorrect composed chain intent");
-   leases.Add(query.SubscriptionOwnerId);return Result(ComposerOptionFixtures.Chain(query.FrozenEmulatorPreviewOnly));
+   if(offline&&!query.FrozenEmulatorPreviewOnly)throw new InvalidDataException("Offline test must request frozen emulator liquidity");
+   if(!query.FrozenEmulatorPreviewOnly)leases.Add(query.SubscriptionOwnerId);return Result(ComposerOptionFixtures.Chain(query.FrozenEmulatorPreviewOnly,LongOffline));
   }
   if(query.ProviderRoots.Length!=1||query.ProviderRoots[0]!="EW"||query.SpreadWingWidth!=50.000000000000000000000000001m||query.AllowFrozenEmulatorPreview!=query.FrozenEmulatorPreviewOnly)throw new InvalidDataException("Option chain lost exact width or frozen-preview intent");
   leases.Add(query.SubscriptionOwnerId);

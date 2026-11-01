@@ -4,6 +4,29 @@ This is an independent copy of the current Rust screens. The existing
 `TomasAI.IFM.UI.Rust` application remains the comparison application and default
 launch target. This project is **not yet feature complete or accepted for cutover**.
 
+## Rust readability
+
+Functions have `///` comments and two blank lines between definitions. Structs,
+enums and traits have header comments; named and tuple struct fields have their
+own comments. Existing explanations are retained. Generated contract fields also
+identify the backend member and pinned wire slot, including exact-decimal handling.
+
+Use the project formatter to preserve this spacing; plain `cargo fmt` collapses
+the extra blank lines:
+
+```powershell
+python -m pip install -r TomasAI.IFM.UI.Rust.eGui/tools/requirements-readability.txt
+python TomasAI.IFM.UI.Rust.eGui/tools/format_readable_rust.py
+python TomasAI.IFM.UI.Rust.eGui/tools/format_readable_rust.py --check
+```
+
+The formatter applies stable `rustfmt`, retains existing comments, fills missing
+declaration comments and applies the spacing policy. Review comments when adding
+or changing behavior so they explain the purpose, ownership and constraints.
+Both contract generators use the same policy. The formatter checks non-comment
+Rust tokens before writing; parser regression checks run with
+`python TomasAI.IFM.UI.Rust.eGui/tools/test_rust_readability.py`.
+
 ## Ownership
 
 - `src/app/runtime.rs`: background runtime, bounded action/publication queues,
@@ -24,6 +47,21 @@ launch target. This project is **not yet feature complete or accepted for cutove
 timestamps retain their precision; Eastern conversion is for display. Plotting
 published prices as floating-point coordinates does not change their authoritative
 financial representation.
+
+## Offline emulator option chains
+
+For a Development emulator account, the **LIQUIDITY** dropdown always offers
+**Emulator** and **Live**. Emulator is the initial source with Live Feed off;
+selecting it again reloads the stored chain, even when order entry is unavailable.
+It uses cached contract definitions and stored underlying/EOD observations, with
+historical option quotes and backend model quotes where historical quotes are
+missing. No live feed or native market-data worker is required for this preview.
+The API and storage must remain available. Missing stored inputs produce an error
+dialog; the UI does not invent contracts or underlying prices. With no matching
+applied startup parameters, the Development emulator uses editable defaults of
+16 for both deltas and 50 for both widths and automatically selects its legs.
+Applied startup values take precedence when present. Submitted-order and other
+order eligibility checks remain separate.
 
 ## Verification
 
@@ -54,29 +92,15 @@ Request correlation does not bypass notification deduplication or retry writes.
 
 ### Application alert policy
 
-Runtime recovery dialogs have one current message, with no pending-dialog queue.
-A newer error, warning outcome or success outcome replaces the open message.
-Pressing OK dismisses that message; retained older publications cannot reopen it.
-Repeated backend RecordIds are deduplicated. Full recovery history remains in the
-server recovery audit and durable diagnostics, independently of this display slot.
+All UI failures open the Application Error dialog, including failed or unknown
+request outcomes, validation/submission rejections, queue failures, recoverable
+service failures, calendar and daily-analytics refresh failures, and startup
+failures. Distinct errors wait for acknowledgement in arrival order. Replayed
+request receipts and repeated notification identities do not reopen dismissed
+errors. Sidebar error history survives coalesced publications. Ordinary console
+messages and successful daily-analytics status updates do not open error dialogs.
+Full diagnostics remain in the durable log.
 
-Global Application Error dialogs are reserved for confirmed terminal dataset/API
-recovery outcomes, the explicit two-minute dataset reset escalation, and failures
-that prevent UI startup (runtime, configuration, credentials, API business context
-or compiled-contract metadata). The native dataset owner supplies recovery facts;
-the UI does not infer fatality from a numeric error code or a NATS disconnect.
-
-Daily EMA/Bollinger refresh failures, stale-baseline warnings, calendar refresh
-failures, NATS warnings, malformed notifications, busy
-or unavailable actions and recoverable controller failures remain visible in the
-status console and durable logs. They cannot replace, clear or increment an
-outstanding terminal dialog. Request-specific validation/submission failures stay
-with the originating view. A later terminal event can escalate an operation that
-previously produced a warning. Warnings do not change backend retry/recovery policy
-or represent successful recovery. Stopped observers explicitly report that a view
-must be reloaded; this presentation change does not invent automatic recovery.
-
-`ui.warning_replaced` and `ui.warning_handed_to_ui` identify non-modal diagnostics.
 Request transport logs retain the subject, operation ID and full exception details.
 Backend failure notifications remain audited even when classified as status only.
 
@@ -313,6 +337,8 @@ Only an actual disconnected-to-connected transition initiates connection refresh
 
 ### Typed presentation models and repeatable CPU benchmarks
 
+The completed [Rust.eGui performance implementation plan](../Documents/system/Rust-eGui-Performance-Implementation-Plan-2026-10-31.md) records all 20 dispositions: 15 implemented changes/pilots, four existing capabilities retained, and additional chart sampling deferred with a tested 361-point bound. The [measured results](../Documents/system/Rust-eGui-Performance-Results-2026-10-31.md) include five alternating comparisons and a separate balanced ten-pair frame investigation. Against the completed typed-refactor baseline, 10,000-contract grid preparation is 3.01× faster, history selection is 33.25× faster, chain decoding is 1.28× faster and the native history-plan publication pilot is 6.22× faster. Portfolio publication is effectively unchanged; pointer-frame results remain mixed. All 315 native tests, 55 isolated NATS tests, the console-intake test and managed financial/operation-journal checks passed. The report preserves the initial unfavorable frame result, follow-up results, small-chain merge overhead and measurement limitations.
+
 The migration starts with the live trade path, followed by the remaining screens.
 MessagePack remains the backend transport. Concrete Rust records replace generic
 JSON trees in controllers/publications/rendering; financial calculations remain
@@ -500,3 +526,9 @@ comparison. The immutable original baseline is
 `before_remaining_typed_20261030_run1`; the final named baseline is
 `typed_remaining_final_20261030`. These are CPU fixture measurements, excluding
 live broker/network latency and GPU presentation.
+
+Closing trades inherit the opening trade's actual maturity (or its requested maturity when the actual date is not populated). The blotter fixes the execution action to Close, pins that expiry, and stages the inverse of every remaining opening-position contract and quantity. Expiry, delta/width selection, leg edits, and quantity edits cannot replace that position with a new spread. Emulator/Live liquidity refreshes quotes for those same contracts. Confirmation re-reads the opening position and submits through the existing reduce-only close workflow; a changed or closed position is rejected. Missing or ambiguous opening identities and missing option maturities are shown as errors.
+
+Order and trade row cells explicitly handle clicks on their text, ensuring that selecting a closing row updates the selected trade before opening its blotter.
+
+Close regression coverage includes `tests/closing_setup.rs`, the closing workspace NATS tests, and the FlaUI scenario `tests/desktop/closing-option-trade.json`.

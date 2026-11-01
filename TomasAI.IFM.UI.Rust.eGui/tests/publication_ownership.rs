@@ -3,6 +3,9 @@ use ifm_ui_egui::{
     contract_editor::{ContractPublication, ContractResult, ContractRow},
     state::publications::Publications,
 };
+
+
+/// Provides publication for the publication ownership implementation.
 fn publication(view: &str, generation: u64, id: &str) -> ContractPublication {
     ContractPublication {
         schema: 1,
@@ -18,6 +21,9 @@ fn publication(view: &str, generation: u64, id: &str) -> ContractPublication {
         ..Default::default()
     }
 }
+
+
+/// Verifies that delayed hidden view reply cannot replace active screen or its generation.
 #[test]
 fn delayed_hidden_view_reply_cannot_replace_active_screen_or_its_generation() {
     let mut state = Publications::default();
@@ -54,6 +60,9 @@ fn delayed_hidden_view_reply_cannot_replace_active_screen_or_its_generation() {
     assert!(state.get("economic-calendar").result.rows.is_empty());
     assert_eq!(state.get("economic-calendar").generation, 0);
 }
+
+
+/// Verifies that malformed or unbounded view names do not enter the cache.
 #[test]
 fn malformed_or_unbounded_view_names_do_not_enter_the_cache() {
     let mut state = Publications::default();
@@ -63,6 +72,9 @@ fn malformed_or_unbounded_view_names_do_not_enter_the_cache() {
     assert!(state.apply(wrong).is_err());
     assert!(state.get("yield-curve").result.rows.is_empty());
 }
+
+
+/// Verifies that command outcomes survive observer refresh until their view renders.
 #[test]
 fn command_outcomes_survive_observer_refresh_until_their_view_renders() {
     let mut cache = Publications::default();
@@ -97,6 +109,9 @@ fn command_outcomes_survive_observer_refresh_until_their_view_renders() {
     cache.acknowledge_rendered("futures-contract");
     assert!(cache.get("futures-contract").outcomes.is_empty());
 }
+
+
+/// Verifies that stale data can deliver a late receipt without replacing current rows.
 #[test]
 fn stale_data_can_deliver_a_late_receipt_without_replacing_current_rows() {
     let mut cache = Publications::default();
@@ -128,6 +143,10 @@ fn stale_data_can_deliver_a_late_receipt_without_replacing_current_rows() {
     cache.apply(delayed).unwrap();
     assert_eq!(cache.get("futures-contract").outcomes[0].state, "Completed");
 }
+
+
+/// Verifies that unconsumed receipts are bounded and can be released without resetting the
+/// controller.
 #[test]
 fn unconsumed_receipts_are_bounded_and_can_be_released_without_resetting_the_controller() {
     let mut cache = Publications::default();
@@ -155,6 +174,10 @@ fn unconsumed_receipts_are_bounded_and_can_be_released_without_resetting_the_con
             .unwrap()
     );
 }
+
+
+/// Verifies that duplicate receipts in the first publication are coalesced and terminal state never
+/// conflicts.
 #[test]
 fn duplicate_receipts_in_the_first_publication_are_coalesced_and_terminal_state_never_conflicts() {
     let mut cache = Publications::default();

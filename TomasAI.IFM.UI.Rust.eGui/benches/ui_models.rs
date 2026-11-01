@@ -22,6 +22,7 @@ const ESTABLISHED: &[u8] =
 const PLAN_DISPLAY: &[u8] =
     include_bytes!("../tests/fixtures/backend/monitor-plan-history-display.msgpack");
 
+
 /// Calls the actual decoding/projection/row-delivery path. Future typed adapters
 /// must retain these benchmark IDs and equivalent visible outputs for comparison.
 fn legacy_pipeline(
@@ -39,6 +40,9 @@ fn legacy_pipeline(
     };
     wire::decode(&wire::encode_value(&display).unwrap()).unwrap()
 }
+
+
+/// Measures typed pipeline using the deterministic benchmark fixtures.
 fn typed_pipeline<T>(bytes: &[u8], history: bool) -> T
 where
     T: ifm_ui_egui::models::wire_types::FromBackend
@@ -55,6 +59,8 @@ where
     wire::decode(&row_bytes).unwrap()
 }
 
+
+/// Measures production models using the deterministic benchmark fixtures.
 fn production_models(c: &mut Criterion) {
     let registry = Registry::compiled().unwrap();
     let mut group = c.benchmark_group("ui_models/backend_to_display");
@@ -73,9 +79,7 @@ fn production_models(c: &mut Criterion) {
             false,
         ),
     ] {
-        use ifm_ui_egui::models::trade_contracts::{
-            StrategyTradePlanSnapshot, TradeRealtimeSnapshot,
-        };
+        use ifm_ui_egui::models::trade_contracts::{StrategyTradePlanSnapshot, TradeRealtimeSnapshot};
         let expected = legacy_pipeline(&registry, kind, bytes, history);
         if history {
             let actual = typed_pipeline::<StrategyTradePlanSnapshot>(bytes, history);
@@ -151,6 +155,8 @@ fn production_models(c: &mut Criterion) {
     group.finish();
 }
 
+
+/// Measures chart models using the deterministic benchmark fixtures.
 fn chart_models(c: &mut Criterion) {
     let mut group = c.benchmark_group("ui_models/chart_decode");
     for count in [100usize, 10_000] {
@@ -185,6 +191,9 @@ fn chart_models(c: &mut Criterion) {
 
 #[path = "../tests/support/operations_health_baseline.rs"]
 mod health_baseline;
+
+
+/// Measures health models using the deterministic benchmark fixtures.
 fn health_models(c: &mut Criterion) {
     use ifm_ui_egui::{
         models::operations_health::MarketDataOperationsHealthSnapshot, state::operations_health,
@@ -243,6 +252,9 @@ fn health_models(c: &mut Criterion) {
 
 #[path = "../tests/support/outlook_baseline.rs"]
 mod outlook_baseline;
+
+
+/// Measures outlook models using the deterministic benchmark fixtures.
 fn outlook_models(c: &mut Criterion) {
     use ifm_ui_egui::{
         models::{trade_contracts::MarketOutlookReadModel, wire_types::FromBackend},
@@ -299,6 +311,9 @@ fn outlook_models(c: &mut Criterion) {
 
 #[path = "../tests/support/market_history_baseline.rs"]
 mod market_history_baseline;
+
+
+/// Measures market history models using the deterministic benchmark fixtures.
 fn market_history_models(c: &mut Criterion) {
     use ifm_ui_egui::{
         backend::contracts::timestamp_wire,
@@ -384,6 +399,9 @@ fn market_history_models(c: &mut Criterion) {
 #[allow(dead_code)]
 #[path = "../tests/support/strategy_display_baseline.rs"]
 mod strategy_baseline;
+
+
+/// Measures strategy models using the deterministic benchmark fixtures.
 fn strategy_models(c: &mut Criterion) {
     use ifm_ui_egui::services::strategy_display;
     let registry = Registry::compiled().unwrap();
@@ -425,6 +443,9 @@ fn strategy_models(c: &mut Criterion) {
 #[allow(dead_code)]
 #[path = "../tests/support/inspection_display_baseline.rs"]
 mod inspection_baseline;
+
+
+/// Measures inspection models using the deterministic benchmark fixtures.
 fn inspection_models(c: &mut Criterion) {
     let registry = Registry::compiled().unwrap();
     let mut group = c.benchmark_group("ui_models/risk_inspection");
@@ -463,6 +484,9 @@ fn inspection_models(c: &mut Criterion) {
 #[allow(dead_code)]
 #[path = "../tests/support/actor_health_baseline.rs"]
 mod actor_health_baseline;
+
+
+/// Measures actor health models using the deterministic benchmark fixtures.
 fn actor_health_models(c: &mut Criterion) {
     use ifm_ui_egui::{models::actor_health::ActorHealthSnapshot, state::actor_health};
     let bytes = include_bytes!("../tests/fixtures/backend/actor-health-http.json");
@@ -521,6 +545,9 @@ fn actor_health_models(c: &mut Criterion) {
 #[allow(dead_code)]
 #[path = "../tests/support/database_backup_baseline.rs"]
 mod backup_baseline;
+
+
+/// Measures backup models using the deterministic benchmark fixtures.
 fn backup_models(c: &mut Criterion) {
     use ifm_ui_egui::state::database_backup;
     let registry = Registry::compiled().unwrap();
@@ -579,6 +606,9 @@ mod option_selection_baseline;
 #[allow(dead_code)]
 #[path = "../tests/support/scheduled_baseline.rs"]
 mod scheduled_baseline;
+
+
+/// Measures remaining models using the deterministic benchmark fixtures.
 fn remaining_models(c: &mut Criterion) {
     use ifm_ui_egui::{
         models::{trade_contracts::EvaluatedOptionChainReadModel, wire_types::FromBackend},

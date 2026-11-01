@@ -9,6 +9,7 @@ use crate::{
 use eframe::egui;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+
 /// Stable inspection result row and its display fields.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -20,6 +21,7 @@ pub struct InspectionRow {
     /// Named field definitions or display/edit values supplied by the enclosing model.
     pub fields: BTreeMap<String, String>,
 }
+
 /// Inspection query page with optional workflow details, risk decision/evidence, and continuation state.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,6 +41,7 @@ pub struct InspectionResult {
     /// Managed view context/eligibility values indexed by stable keys.
     pub context: Option<BTreeMap<String, String>>,
 }
+
 /// Versioned inspection result and outcomes for correlated user requests.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,6 +59,7 @@ pub struct InspectionPublication {
     /// Correlated managed results for submitted request IDs.
     pub outcomes: Vec<EditorOutcome>,
 }
+
 /// Risk/workflow inspection filters, result selection, evidence visibility, and pending request.
 pub struct StrategyInspection {
     /// Whether the inspection view is in risk-history mode.
@@ -111,6 +115,8 @@ impl StrategyInspection {
         }
         serde_json::json!({"schema":1,"requestId":id,"view":if self.risk{"risk"}else{"observation"},"intent":action,"fields":fields}).to_string()
     }
+
+
     /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
     ///
     /// This renderer owns risk/workflow inspection filters, result selection, evidence visibility, and pending request.
@@ -144,7 +150,7 @@ impl StrategyInspection {
             }));
             ui.trading_label(&s.status);
             ui.add_enabled_ui(live && !s.busy && self.pending.is_none(), |ui| {
-                egui::Grid::new("inspection-fields").show(ui, |ui| {
+                crate::presentation::form_grid(ui, "inspection-fields").show(ui, |ui| {
                     let fields = if self.risk {
                         vec![
                             ("portfolio", strings::PORTFOLIO_ID),
@@ -160,16 +166,18 @@ impl StrategyInspection {
                         ]
                     };
                     for (key, label) in fields {
-                        let response = ui.trading_caption(c.text(label));
+                        let response = crate::presentation::form_caption(ui, c.text(label));
                         let value = self.fields.entry(key.into()).or_default();
                         ui.horizontal(|ui| {
-                            ui.add(egui::TextEdit::singleline(value).desired_width(
-                                if key == "workflow" || key == "invocation" {
-                                    340.0
-                                } else {
-                                    180.0
-                                },
-                            ))
+                            ui.add(
+                                egui::TextEdit::singleline(value)
+                                    .vertical_align(egui::Align::Center)
+                                    .desired_width(if key == "workflow" || key == "invocation" {
+                                        340.0
+                                    } else {
+                                        180.0
+                                    }),
+                            )
                             .labelled_by(response.id);
                             if key == "date" {
                                 if let Ok(mut date) =
@@ -187,7 +195,7 @@ impl StrategyInspection {
                         ui.end_row();
                     }
                     if !self.risk {
-                        ui.trading_caption(c.text(strings::TIMEFRAME));
+                        crate::presentation::form_caption(ui, c.text(strings::TIMEFRAME));
                         egui::ComboBox::from_id_salt("inspection-horizon")
                             .selected_text(&self.fields["horizon"])
                             .show_ui(ui, |ui| {

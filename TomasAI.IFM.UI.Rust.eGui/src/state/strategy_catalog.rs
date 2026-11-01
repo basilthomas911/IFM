@@ -17,18 +17,32 @@ pub const KINDS: [&str; 7] = [
     "ParameterSet",
     "Deployment",
 ];
+
+/// Catalog Controller used by the strategy catalog component.
 #[derive(Default)]
 pub struct CatalogController {
+    /// Ordered references retained by CatalogController.
     references: Vec<Json>,
+    /// Ordered products retained by CatalogController.
     products: Vec<Json>,
+    /// Current selection retained by this state or view.
     selected: Option<Json>,
+    /// Optional draft; `None` represents an absent value.
     draft: Option<Json>,
+    /// Kind associated with this catalog controller.
     kind: usize,
+    /// Whether loaded is enabled or currently true.
     loaded: bool,
+    /// Whether show all is enabled or currently true.
     show_all: bool,
+    /// Optional retry; `None` represents an absent value.
     retry: Option<Json>,
+    /// Generation associated with this catalog controller.
     pub generation: u64,
 }
+
+
+/// Provides identity for the strategy catalog implementation.
 fn identity(key: &Json) -> Result<String, String> {
     let kind = key["Kind"]
         .as_u64()
@@ -44,6 +58,9 @@ fn identity(key: &Json) -> Result<String, String> {
         .ok_or("Invalid catalog version")?;
     Ok(format!("{}:{id}:{version}", KINDS[kind - 1]))
 }
+
+
+/// Provides defaults for the strategy catalog implementation.
 fn defaults() -> Vec<Json> {
     serde_json::from_str(include_str!(
         "../../tests/fixtures/backend/catalog-defaults.json"
@@ -51,6 +68,8 @@ fn defaults() -> Vec<Json> {
     .expect("Compiled catalog defaults")
 }
 
+
+/// Provides query for the strategy catalog implementation.
 pub async fn query(backend: &Backend, registry: &Registry, request: &Json) -> Result<Json, String> {
     let subject = ActorSubject::query("ReferenceQuery", "StrategyCatalog", "none");
     let message = registry.encode(
@@ -78,12 +97,19 @@ pub async fn query(backend: &Backend, registry: &Registry, request: &Json) -> Re
     }
     serde_json::from_str(text).map_err(|e| e.to_string())
 }
+
+
+/// Provides list request for the strategy catalog implementation.
 fn list_request(kind: usize, after: Option<&str>) -> Json {
     json!({"Operation":1,"Kind":kind+1,"Key":null,"Limit":100,"AfterCode":after})
 }
+
+
+/// Provides exact request for the strategy catalog implementation.
 fn exact_request(key: &Json) -> Json {
     json!({"Operation":2,"Kind":1,"Key":key,"Limit":100,"AfterCode":null})
 }
+
 
 /// Retry the exact uncertain wire request, including its original effective
 /// instant. A newly read API clock must not create a second operation.
@@ -101,6 +127,7 @@ fn retain_retry(prior: &Json, next: &Json) -> Result<Json, String> {
 }
 
 impl CatalogController {
+    /// Handles a strategy catalog intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,
@@ -268,6 +295,9 @@ impl CatalogController {
         self.generation += 1;
         self.snapshot(request_id.to_string(), "Completed", "Completed")
     }
+
+
+    /// Provides require selection for the catalog controller implementation.
     fn require_selection(&self, intent: &Json) -> Result<(), String> {
         let selected = self.selected.as_ref().ok_or("Select an exact version")?;
         if intent["originalId"].as_str() != Some(identity(&selected["Definition"]["Key"])?.as_str())
@@ -276,6 +306,9 @@ impl CatalogController {
         }
         Ok(())
     }
+
+
+    /// Loads strategy catalog for catalog controller.
     async fn load(&mut self, backend: &Backend, registry: &Registry) -> Result<(), String> {
         let mut all = Vec::new();
         for kind in 0..7 {
@@ -330,6 +363,9 @@ impl CatalogController {
         self.loaded = true;
         Ok(())
     }
+
+
+    /// Provides exact for the catalog controller implementation.
     async fn exact(
         &self,
         backend: &Backend,
@@ -342,6 +378,9 @@ impl CatalogController {
         }
         Ok(value)
     }
+
+
+    /// Provides confirm for the catalog controller implementation.
     async fn confirm(
         &self,
         backend: &Backend,
@@ -357,6 +396,9 @@ impl CatalogController {
         }
         Ok(value)
     }
+
+
+    /// Provides send for the catalog controller implementation.
     async fn send(
         &mut self,
         backend: &Backend,
@@ -412,6 +454,9 @@ impl CatalogController {
         // Retain identity until the authoritative version/state is verified.
         Ok(())
     }
+
+
+    /// Provides failed for the catalog controller implementation.
     pub fn failed(&mut self, id: String, error: &str) -> Result<ContractPublication, String> {
         self.generation += 1;
         self.snapshot(
@@ -424,6 +469,9 @@ impl CatalogController {
             error,
         )
     }
+
+
+    /// Provides snapshot for the catalog controller implementation.
     fn snapshot(
         &self,
         id: String,
@@ -532,6 +580,10 @@ impl CatalogController {
 #[cfg(test)]
 mod retry_tests {
     use super::*;
+
+
+    /// Verifies that lifecycle retry preserves original id time and payload after api clock
+    /// advances.
     #[test]
     fn lifecycle_retry_preserves_original_id_time_and_payload_after_api_clock_advances() {
         let original = json!({"OperationId":uuid::Uuid::new_v4().to_string(),"Operation":2,"Key":{"Id":"fixed","Version":1},"ExpectedHash":"ABC","EffectiveUtc":"2026-10-26T12:30:00Z"});

@@ -169,13 +169,13 @@ public class FuturesTdiSignalQueryTests
         var query = SampleData.TdiSignalQueryFor(timePeriod);
         var expected = SampleData.TdiReadModelFor(timePeriod);
         db.GetLastFuturesTdiSignalAsync(
-                query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
+                query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(expected));
 
         await actor.InvokeReceiveAsync(context, query);
 
         await db.Received(1).GetLastFuturesTdiSignalAsync(
-            query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId);
+            query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesTdiSignalQuery.Verb,
@@ -193,7 +193,7 @@ public class FuturesTdiSignalQueryTests
         var (actor, db, context) = CreateScenario();
         var query = SampleData.TdiSignalQueryFor(timePeriod);
         db.GetLastFuturesTdiSignalAsync(
-                query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
+                query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(null));
 
         await actor.InvokeReceiveAsync(context, query);
@@ -221,13 +221,13 @@ public class FuturesTdiSignalQueryTests
             valueDate,
             direction: FuturesTrendDirectionType.DownTrending);
         db.GetLastFuturesTdiSignalAsync(
-                contractId, valueDate, query.TimePeriod, query.ConfigurationId)
+                contractId, valueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(expected));
 
         await actor.InvokeReceiveAsync(context, query);
 
         await db.Received(1).GetLastFuturesTdiSignalAsync(
-            contractId, valueDate, query.TimePeriod, query.ConfigurationId);
+            contractId, valueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesTdiSignalQuery.Verb,
@@ -242,7 +242,7 @@ public class FuturesTdiSignalQueryTests
         var (actor, db, context) = CreateScenario();
         var query = SampleData.TdiSignalQueryFor(timePeriod);
         db.GetLastFuturesTdiSignalAsync(
-                query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
+                query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None)
             .Returns<Task<FuturesTdiSignalReadModel?>>(_ =>
                 throw new InvalidOperationException($"{timePeriod} storage unavailable"));
 

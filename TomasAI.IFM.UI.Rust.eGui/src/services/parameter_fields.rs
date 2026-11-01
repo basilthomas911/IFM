@@ -18,21 +18,36 @@ const HIDDEN: &[&str] = &[
     "Horizon",
     "TargetHorizon",
 ];
+
+/// Parameter Field used by the parameter fields component.
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct ParameterField {
+    /// Path associated with this parameter field.
     pub path: String,
+    /// Value associated with this parameter field.
     pub value: String,
+    /// Kind associated with this parameter field.
     pub kind: u8,
+    /// Group associated with this parameter field.
     pub group: String,
+    /// Name associated with this parameter field.
     pub name: String,
 }
+
+/// Leaf used by the parameter fields component.
 #[derive(Clone)]
 struct Leaf {
+    /// Field associated with this leaf.
     field: ParameterField,
+    /// Kind associated with this leaf.
     kind: String,
+    /// Ordered slots retained by Leaf.
     slots: Vec<usize>,
 }
+
+
+/// Converts a declared identifier into a readable display caption.
 fn humanize(value: &str) -> String {
     let mut out = String::new();
     let mut previous = ' ';
@@ -45,12 +60,18 @@ fn humanize(value: &str) -> String {
     }
     out
 }
+
+
+/// Splits the supplied path into the segments used for field traversal.
 fn segments(path: &str) -> Vec<String> {
     path.split('/')
         .filter(|v| !v.is_empty())
         .map(|v| v.replace("~1", "/").replace("~0", "~"))
         .collect()
 }
+
+
+/// Provides labels for the parameter fields implementation.
 fn labels(path: &str) -> (String, String) {
     let parts = segments(path);
     let group = if parts.len() == 1 {
@@ -76,6 +97,9 @@ fn labels(path: &str) -> (String, String) {
     }
     (group, name)
 }
+
+
+/// Formats the supplied duration for display.
 pub fn timespan(ticks: i64) -> String {
     let n = ticks.unsigned_abs();
     let days = n / 864_000_000_000;
@@ -98,6 +122,9 @@ pub fn timespan(ticks: i64) -> String {
         }
     )
 }
+
+
+/// Parses timespan for parameter fields.
 fn parse_timespan(text: &str) -> Result<i64, String> {
     let (negative, text) = if let Some(v) = text.strip_prefix('-') {
         (true, v)
@@ -142,12 +169,16 @@ fn parse_timespan(text: &str) -> Result<i64, String> {
     };
     i64::try_from(signed).map_err(|_| "TimeSpan overflow".into())
 }
+
+
+/// Provides leaves for the parameter fields implementation.
 fn leaves(
     registry: &Registry,
     kind: &str,
     wire: &Value,
     include_identity: bool,
 ) -> Result<Vec<Leaf>, String> {
+    /// Provides visit for the parameter fields implementation.
     fn visit(
         registry: &Registry,
         kind: &str,
@@ -338,6 +369,8 @@ fn leaves(
     )?;
     Ok(result)
 }
+
+
 /// ParameterValue wrappers contain Value at slot zero; its name is deliberately
 /// not exposed as an extra /Value prefix in the existing editor contract.
 fn payload<'a>(registry: &Registry, wire: &'a Value) -> Result<(String, &'a Value), String> {
@@ -367,6 +400,9 @@ fn payload<'a>(registry: &Registry, wire: &'a Value) -> Result<(String, &'a Valu
             .ok_or("Missing typed parameter payload")?,
     ))
 }
+
+
+/// Reads parameter fields for parameter fields.
 pub fn read(
     registry: &Registry,
     wire: &Value,
@@ -378,6 +414,9 @@ pub fn read(
         .map(|v| v.field)
         .collect())
 }
+
+
+/// Provides display for the parameter fields implementation.
 pub fn display(registry: &Registry, wire: &Value) -> Result<String, String> {
     Ok(read(registry, wire, true)?
         .into_iter()
@@ -385,6 +424,9 @@ pub fn display(registry: &Registry, wire: &Value) -> Result<String, String> {
         .collect::<Vec<_>>()
         .join("\r\n"))
 }
+
+
+/// Applies parameter fields for parameter fields.
 pub fn apply(
     registry: &Registry,
     wire: &Value,
@@ -429,6 +471,9 @@ pub fn apply(
                 registry.value_from_json(&leaf.kind, &input)?
             }
         };
+
+
+        /// Provides slot for the parameter fields implementation.
         fn slot(value: &mut Value, index: usize) -> Result<&mut Value, String> {
             match value {
                 Value::Array(values) => {

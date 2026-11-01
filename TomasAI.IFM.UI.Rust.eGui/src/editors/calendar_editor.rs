@@ -2,9 +2,7 @@
 
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
-use crate::{
-    Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
-};
+use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings};
 use eframe::egui;
 use std::collections::BTreeMap;
 /// Calendar field names paired with localized caption keys in editor order.
@@ -22,6 +20,7 @@ const FIELDS: [(&str, &str); 12] = [
     ("createdOn", "calendar_created_on"),
     ("createdBy", "calendar_created_by"),
 ];
+
 /// Persistent calendar editor selection, draft, filter, and pending-request state.
 #[derive(Default)]
 pub struct CalendarEditor {
@@ -53,6 +52,8 @@ impl CalendarEditor {
         fields.insert("filterCountry".into(), self.country.clone());
         serde_json::json!({"schema":1,"requestId":id,"view":"economic-calendar","intent":action,"expectedGeneration":s.generation,"originalId":self.selected,"fields":fields}).to_string()
     }
+
+
     /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
     ///
     /// This renderer owns persistent calendar editor selection, draft, filter, and pending-request state.
@@ -118,12 +119,15 @@ impl CalendarEditor {
             }
             ui.add_enabled_ui(enabled, |ui| {
                 ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                     if ui.button(c.text(strings::CALENDAR_LOAD)).clicked() {
                         action = Some("load");
                     }
                     let label = ui.trading_caption(c.text(strings::CALENDAR_FILTER_DATE));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.filter_date)
+                            .vertical_align(egui::Align::Center)
                             .desired_width(140.)
                             .min_size(egui::vec2(140., 20.)),
                     )
@@ -179,11 +183,11 @@ impl CalendarEditor {
                         ]);
                     }
                 });
-                egui::Grid::new("calendar-fields")
+                crate::presentation::form_grid(ui, "calendar-fields")
                     .num_columns(2)
                     .show(ui, |ui| {
                         for (key, label) in FIELDS {
-                            let response = ui.trading_caption(c.text(label));
+                            let response = crate::presentation::form_caption(ui, c.text(label));
                             let value = self.draft.entry(key.into()).or_default();
                             if key == "countryCode" {
                                 egui::ComboBox::from_id_salt("calendar-event-country")
@@ -207,6 +211,7 @@ impl CalendarEditor {
                                 ui.add_enabled(
                                     key != "createdOn" && key != "createdBy",
                                     egui::TextEdit::singleline(value)
+                                        .vertical_align(egui::Align::Center)
                                         .desired_width(340.)
                                         .min_size(egui::vec2(340., 20.)),
                                 )

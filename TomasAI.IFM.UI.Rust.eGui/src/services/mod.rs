@@ -57,3 +57,5 @@ pub mod trade_eod;
 
 pub mod execution_context;
 pub mod saved_position;
+
+pub mod compute;

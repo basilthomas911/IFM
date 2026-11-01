@@ -18,27 +18,46 @@ mod background;
 mod commands;
 mod data;
 mod events;
+
+/// Open Request used by the mod component.
 #[derive(Clone)]
 pub struct OpenRequest {
+    /// Identity and routing scope against which requests and incoming results are checked.
     pub scope: Scope,
+    /// Strategy associated with this open request.
     pub strategy: String,
+    /// Trade type associated with this open request.
     pub trade_type: String,
+    /// Trade action associated with this open request.
     pub trade_action: String,
+    /// Fund name associated with this open request.
     pub fund_name: String,
 }
+
+/// Publication used by the mod component.
 #[derive(Clone, Default)]
 pub struct Publication {
+    /// Revision associated with this publication.
     pub revision: u64,
+    /// Result associated with this publication.
     pub result: ContractResult,
 }
+
+/// Owner used by the mod component.
 struct Owner {
+    /// Feed associated with this owner.
     feed: Client,
+    /// Data associated with this owner.
     data: Arc<Mutex<data::Monitor>>,
+    /// Registry associated with this owner.
     registry: Arc<Registry>,
+    /// Keyed background retained by Owner.
     background: BTreeMap<&'static str, tokio::task::JoinHandle<Result<(), ()>>>,
+    /// Ordered jobs retained by Owner.
     jobs: Vec<tokio::task::JoinHandle<()>>,
 }
 impl Drop for Owner {
+    /// Releases resources owned by this value when its lifetime ends.
     fn drop(&mut self) {
         for job in &self.jobs {
             job.abort();
@@ -48,20 +67,32 @@ impl Drop for Owner {
         }
     }
 }
+
+/// State used by the mod component.
 #[derive(Default)]
 struct State {
+    /// Keyed owners retained by State.
     owners: BTreeMap<String, Owner>,
+    /// Ordered order retained by State.
     order: Vec<String>,
+    /// Optional active; `None` represents an absent value.
     active: Option<String>,
+    /// Revision associated with this state.
     revision: u64,
 }
+
+/// Hub used by the mod component.
 #[derive(Clone)]
 pub struct Hub {
+    /// Host scope associated with this hub.
     host_scope: Arc<str>,
+    /// State associated with this hub.
     state: Arc<Mutex<State>>,
+    /// Updates associated with this hub.
     updates: tokio::sync::watch::Sender<Arc<Publication>>,
 }
 impl Default for Hub {
+    /// Constructs the initial state used when no explicit value is supplied.
     fn default() -> Self {
         let (updates, _) = tokio::sync::watch::channel(Arc::new(Publication::default()));
         // A production client must not silently address the Development Host.
@@ -83,6 +114,8 @@ impl Default for Hub {
         }
     }
 }
+
+
 /// Typed native records bypass the JSON compatibility adapter entirely.
 fn typed_row<T: serde::Serialize>(kind: &str, key: &str, value: &T) -> Result<ContractRow, String> {
     Ok(ContractRow {
@@ -92,6 +125,7 @@ fn typed_row<T: serde::Serialize>(kind: &str, key: &str, value: &T) -> Result<Co
     })
 }
 impl Hub {
+    /// Provides with host scope for the hub implementation.
     pub fn with_host_scope(scope: &str) -> Result<Self, String> {
         if scope.is_empty()
             || !scope
@@ -105,6 +139,9 @@ impl Hub {
             ..Default::default()
         })
     }
+
+
+    /// Provides feed for the hub implementation.
     fn feed(&self, key: &str) -> Result<Client, String> {
         self.state
             .lock()
@@ -114,12 +151,21 @@ impl Hub {
             .map(|owner| owner.feed.clone())
             .ok_or("The trade tab is no longer open".into())
     }
+
+
+    /// Provides watch for the hub implementation.
     pub fn watch(&self) -> tokio::sync::watch::Receiver<Arc<Publication>> {
         self.updates.subscribe()
     }
+
+
+    /// Provides current for the hub implementation.
     pub fn current(&self) -> Arc<Publication> {
         self.updates.borrow().clone()
     }
+
+
+    /// Provides owner for the hub implementation.
     fn owner(&self, key: &str) -> Result<Arc<Mutex<data::Monitor>>, String> {
         self.state
             .lock()
@@ -129,6 +175,9 @@ impl Hub {
             .map(|owner| owner.data.clone())
             .ok_or("The trade tab is no longer open".into())
     }
+
+
+    /// Provides active for the hub implementation.
     fn active(&self) -> Result<String, String> {
         self.state
             .lock()
@@ -137,6 +186,9 @@ impl Hub {
             .clone()
             .ok_or("Load a trade first".into())
     }
+
+
+    /// Publishes mod for hub.
     fn publish(&self) -> Result<(), String> {
         let mut state = self
             .state
@@ -176,6 +228,9 @@ impl Hub {
             .send_replace(Arc::new(Publication { revision, result }));
         Ok(())
     }
+
+
+    /// Closes mod for hub.
     pub fn close(&self, key: &str) -> Result<(), String> {
         {
             let mut state = self
@@ -192,6 +247,9 @@ impl Hub {
         // the trading session and is removed only by an explicit Live Feed OFF.
         self.publish()
     }
+
+
+    /// Provides activate for the hub implementation.
     pub fn activate(&self, key: &str) -> Result<(), String> {
         {
             let mut state = self
@@ -205,6 +263,9 @@ impl Hub {
         }
         self.publish()
     }
+
+
+    /// Merges mod for hub.
     pub fn merge(result: &mut ContractResult, monitor: &ContractResult) {
         const KINDS: &[&str] = &[
             "workspace-tab",
@@ -253,11 +314,15 @@ impl Hub {
 /// Cancellation can drop a controller future at any await. Clear only the
 /// operation's own incarnation, and publish the resulting finite UI state.
 struct StartGuard {
+    /// Hub associated with this start guard.
     hub: Hub,
+    /// Data associated with this start guard.
     data: Arc<Mutex<data::Monitor>>,
+    /// Unique owner lifetime used to reject results from an earlier open/close cycle.
     incarnation: uuid::Uuid,
 }
 impl Drop for StartGuard {
+    /// Releases resources owned by this value when its lifetime ends.
     fn drop(&mut self) {
         let changed = if let Ok(mut state) = self.data.lock() {
             if state.incarnation == self.incarnation && state.starting {
@@ -278,13 +343,20 @@ impl Drop for StartGuard {
         }
     }
 }
+
+/// Open Guard used by the mod component.
 struct OpenGuard {
+    /// Hub associated with this open guard.
     hub: Hub,
+    /// Key associated with this open guard.
     key: String,
+    /// Unique owner lifetime used to reject results from an earlier open/close cycle.
     incarnation: uuid::Uuid,
+    /// Whether armed is enabled or currently true.
     armed: bool,
 }
 impl Drop for OpenGuard {
+    /// Releases resources owned by this value when its lifetime ends.
     fn drop(&mut self) {
         if !self.armed {
             return;

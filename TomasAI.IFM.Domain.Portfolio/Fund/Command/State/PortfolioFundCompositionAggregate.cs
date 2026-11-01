@@ -541,8 +541,18 @@ public sealed class PortfolioFundCompositionAggregate
     FundCompositionReservationResult AddManualTradeCore(
         FundOrderProjectionReadModel order, AddManualFundOrderTradeRequest request, string principal)
     {
-        ValidateManualTrade(request);
         var trades = _trades[order.OrderId];
+        if (!request.PrimaryTrade && trades is [{ PrimaryTrade: true } opening])
+        {
+            var maturity = opening.MaturityDate ?? opening.RequestedMaturityDate;
+            if (maturity is not null)
+            {
+                if (request.MaturityDate is not null && request.MaturityDate != maturity)
+                    throw new InvalidOperationException("The closing trade must use the opening trade's maturity date.");
+                request = request with { MaturityDate = maturity };
+            }
+        }
+        ValidateManualTrade(request);
         ValidateManualTradeAddition(trades, request);
         var nextVersion = checked(order.AggregateVersion + 1);
         var trade = CreateManualTrade(request, principal, trades.Length + 1, nextVersion);

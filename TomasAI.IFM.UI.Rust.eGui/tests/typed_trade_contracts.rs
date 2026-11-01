@@ -8,6 +8,45 @@ use ifm_ui_egui::{
 };
 use serde::Serialize;
 
+/// Overshoot modes preserve the numeric backend contract and expose their names in typed and schema views.
+#[test]
+fn iti_overshoot_modes_decode_and_display_without_changing_legacy_values() {
+    let registry = Registry::compiled().unwrap();
+    let names = [
+        "Trending",
+        "TrendExtremeChanged",
+        "TrendDirectionChanged",
+        "TrendReversalChanged",
+        "PredictedIntervalChanged",
+        "HoldTradeChanged",
+        "InTradeChanged",
+        "TrendOvershootExtended",
+        "TrendOvershootReversal",
+    ];
+    for (number, name) in names.iter().enumerate() {
+        let mode = IntrinsicTimeModeType::from_backend(&rmpv::Value::from(number as i64)).unwrap();
+        assert_eq!(mode.label(), *name);
+        assert_eq!(
+            registry
+                .enum_name(IntrinsicTimeModeType::KIND, number as i64)
+                .unwrap(),
+            *name
+        );
+        let text = serde_json::to_string(&mode).unwrap();
+        assert_eq!(serde_json::from_str::<IntrinsicTimeModeType>(&text).unwrap(), mode);
+        assert_eq!(
+            serde_json::from_str::<IntrinsicTimeModeType>(&number.to_string()).unwrap(),
+            mode
+        );
+    }
+    assert_eq!(
+        IntrinsicTimeModeType::from_backend(&rmpv::Value::from(99)).unwrap(),
+        IntrinsicTimeModeType::Unrecognized(99)
+    );
+}
+
+
+/// Provides assert parity for the typed trade contracts implementation.
 fn assert_parity<T: FromBackend + Serialize>(name: &str, history: bool)
 where
     T: ifm_ui_egui::models::trade_presentation::PresentationValue,
@@ -30,6 +69,9 @@ where
     })
     .unwrap();
     let actual: serde_json::Value = wire::decode(&encoded).unwrap();
+
+
+    /// Provides differences for the typed trade contracts implementation.
     fn differences(
         path: &str,
         a: &serde_json::Value,
@@ -74,6 +116,9 @@ where
     );
 }
 
+
+/// Verifies that backend trade plan and realtime have exact display parity without json in
+/// production.
 #[test]
 fn backend_trade_plan_and_realtime_have_exact_display_parity_without_json_in_production() {
     assert_parity::<EstablishedTradeDefinition>("monitor-trade", false);
@@ -81,6 +126,8 @@ fn backend_trade_plan_and_realtime_have_exact_display_parity_without_json_in_pro
     assert_parity::<TradeRealtimeSnapshot>("monitor-realtime", false);
 }
 
+
+/// Verifies that every generated field matches the compiled csharp slot and type.
 #[test]
 fn every_generated_field_matches_the_compiled_csharp_slot_and_type() {
     let schema: serde_json::Value =
@@ -103,6 +150,8 @@ fn every_generated_field_matches_the_compiled_csharp_slot_and_type() {
     }
 }
 
+
+/// Verifies that retired plan slots are ignored and known fields keep their original positions.
 #[test]
 fn retired_plan_slots_are_ignored_and_known_fields_keep_their_original_positions() {
     let mut value = codec::decode(include_bytes!("fixtures/backend/monitor-plan.msgpack")).unwrap();
@@ -126,6 +175,8 @@ fn retired_plan_slots_are_ignored_and_known_fields_keep_their_original_positions
     assert_eq!(before, after);
 }
 
+
+/// Verifies that unknown enum values retain their numeric label and malformed values fail.
 #[test]
 fn unknown_enum_values_retain_their_numeric_label_and_malformed_values_fail() {
     let unknown = TradeStrategyKind::from_backend(&999.into()).unwrap();
@@ -134,10 +185,15 @@ fn unknown_enum_values_retain_their_numeric_label_and_malformed_values_fail() {
     assert!(StrategyPositionSnapshot::from_backend(&rmpv::Value::Map(vec![])).is_err());
 }
 
+
+/// Verifies that typed records keep unchanged clr json only at protocol boundaries.
 #[test]
 fn typed_records_keep_unchanged_clr_json_only_at_protocol_boundaries() {
     use ifm_ui_egui::models::backend_document::BackendRecord;
     let registry = Registry::compiled().unwrap();
+
+
+    /// Provides verify for the typed trade contracts implementation.
     fn verify<T: FromBackend + BackendRecord>(registry: &Registry, bytes: &[u8]) {
         let raw = ifm_ui_egui::backend::codec::decode(bytes).unwrap();
         let record = T::from_backend(&raw).unwrap();
@@ -164,6 +220,8 @@ fn typed_records_keep_unchanged_clr_json_only_at_protocol_boundaries() {
     );
 }
 
+
+/// Verifies that unnamed enum labels remain strings in monitor publications recursively.
 #[test]
 fn unnamed_enum_labels_remain_strings_in_monitor_publications_recursively() {
     let registry = Registry::compiled().unwrap();

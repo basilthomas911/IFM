@@ -6,6 +6,9 @@ use crate::services::portfolio_commands as commands;
 use crate::services::{
     business_context::BusinessContext, fund_selections::Selections, parameters::overlay_type,
 };
+
+
+/// Provides split for the fund editors implementation.
 fn split(value: &str) -> Vec<String> {
     value
         .split(',')
@@ -14,6 +17,9 @@ fn split(value: &str) -> Vec<String> {
         .map(str::to_string)
         .collect()
 }
+
+
+/// Provides patch for the fund editors implementation.
 fn patch(
     registry: &Registry,
     name: &str,
@@ -73,6 +79,9 @@ fn patch(
     }
     registry.patch(&kind(name), wire, &changes)
 }
+
+
+/// Provides csv for the fund editors implementation.
 fn csv(row: &Json, name: &str) -> Result<String, String> {
     Ok(row[name]
         .as_array()
@@ -82,6 +91,9 @@ fn csv(row: &Json, name: &str) -> Result<String, String> {
         .collect::<Vec<_>>()
         .join(","))
 }
+
+
+/// Provides choice for the fund editors implementation.
 fn choice(value: &str, label: &str, enabled: bool) -> Choice {
     Choice {
         value: (value).to_string(),
@@ -90,6 +102,9 @@ fn choice(value: &str, label: &str, enabled: bool) -> Choice {
         ..Default::default()
     }
 }
+
+
+/// Provides deployment label for the fund editors implementation.
 fn deployment_label(registry: &Registry, deployment: &Json) -> Result<String, String> {
     let enum_name = |kind: &str, value: &Json| -> Result<String, String> {
         if let Some(text) = value.as_str() {
@@ -119,6 +134,9 @@ fn deployment_label(registry: &Registry, deployment: &Json) -> Result<String, St
         )?
     ))
 }
+
+
+/// Reads the numeric representation supported by the supplied value.
 fn number(key: &str, caption: &str, value: Json, min: f64, max: f64, decimals: u8) -> Field {
     let mut field = input(key, caption, value, "number", true, None);
     field.minimum = min;
@@ -127,6 +145,7 @@ fn number(key: &str, caption: &str, value: Json, min: f64, max: f64, decimals: u
     field
 }
 impl PortfolioController {
+    /// Saves fund editor for portfolio controller.
     pub(super) async fn save_fund_editor(
         &mut self,
         backend: &Backend,
@@ -511,6 +530,9 @@ impl PortfolioController {
         self.message = self.data.status.clone();
         Ok("Fund command committed".into())
     }
+
+
+    /// Opens fund editor for portfolio controller.
     pub(super) async fn open_fund_editor(
         &mut self,
         backend: &Backend,
@@ -1111,6 +1133,9 @@ impl PortfolioController {
             _ => Err("Unsupported Fund editor".into()),
         }
     }
+
+
+    /// Provides populate assignment for the portfolio controller implementation.
     fn populate_assignment(
         &self,
         registry: &Registry,
@@ -1230,6 +1255,9 @@ impl PortfolioController {
         }
         Ok(())
     }
+
+
+    /// Chooses assignment for portfolio controller.
     pub(super) fn choose_assignment(
         &mut self,
         registry: &Registry,
@@ -1249,6 +1277,9 @@ impl PortfolioController {
         *self.dialogs.last_mut().ok_or("Assignment editor closed")? = dialog;
         Ok("Deployment selected".into())
     }
+
+
+    /// Provides retry fund attachment for the portfolio controller implementation.
     pub(super) async fn retry_fund_attachment(
         &mut self,
         backend: &Backend,
@@ -1342,6 +1373,9 @@ impl PortfolioController {
         self.message.clear();
         Ok("Fund attachment committed".into())
     }
+
+
+    /// Saves assignment for portfolio controller.
     async fn save_assignment(
         &mut self,
         backend: &Backend,

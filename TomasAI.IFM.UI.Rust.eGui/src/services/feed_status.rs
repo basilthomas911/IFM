@@ -1,16 +1,22 @@
 use crate::backend::{contracts::*, transport::Backend};
 use rmpv::Value;
 
+/// Feed Status used by the feed status component.
 #[derive(Debug)]
 pub struct FeedStatus {
+    /// Whether running is enabled or currently true.
     pub running: bool,
     /// Active trading date reported by the backend, never a local date.
     pub active_date: Option<chrono::NaiveDate>,
+    /// Observed at associated with this feed status.
     pub observed_at: chrono::DateTime<chrono::Utc>,
+    /// Optional terminal error; `None` represents an absent value.
     pub terminal_error: Option<String>,
+    /// Whether recovering is enabled or currently true.
     pub recovering: bool,
 }
 impl FeedStatus {
+    /// Loads feed status for feed status.
     pub async fn load(backend: &Backend) -> Result<Self, String> {
         let subject =
             ActorSubject::query("MarketDataFeedQuery", "GetRuntimeStatus", "runtime-status");
@@ -24,6 +30,9 @@ impl FeedStatus {
             .await?;
         Self::from_wire(service_result(&result)?)
     }
+
+
+    /// Converts the wire record to the component's typed representation.
     pub fn from_wire(value: &Value) -> Result<Self, String> {
         let values = value.as_array().ok_or("Invalid feed runtime status")?;
         if values.len() < 13 {

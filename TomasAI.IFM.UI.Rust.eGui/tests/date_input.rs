@@ -1,3 +1,4 @@
+/// Verifies that date inputs fit backend dateonly without a clock fallback.
 #[test]
 fn date_inputs_fit_backend_dateonly_without_a_clock_fallback() {
     use ifm_ui_egui::backend::date_input::parse;

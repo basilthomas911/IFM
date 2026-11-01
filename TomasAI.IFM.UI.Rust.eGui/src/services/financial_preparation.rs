@@ -9,9 +9,15 @@ use rmpv::Value;
 use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
 pub const ROOT: &str = "TomasAI.IFM.Domain.Portfolio.Shared.Financial";
+
+
+/// Provides kind for the financial preparation implementation.
 pub fn kind(name: &str) -> String {
     format!("{ROOT}.{name}")
 }
+
+
+/// Provides defaults for the financial preparation implementation.
 pub fn defaults(name: &str) -> Result<Value, String> {
     let values: BTreeMap<String, Vec<u8>> = serde_json::from_str(include_str!(
         "../../tests/fixtures/backend/portfolio-model-defaults.json"
@@ -23,6 +29,9 @@ pub fn defaults(name: &str) -> Result<Value, String> {
             .ok_or("Missing compiled financial initializer")?,
     )
 }
+
+
+/// Provides access for the financial preparation implementation.
 pub fn access() -> Value {
     Value::Array(vec![
         std::env::var("USERNAME").unwrap_or_default().into(),
@@ -41,6 +50,9 @@ pub fn access() -> Value {
         Value::Array(vec![]),
     ])
 }
+
+
+/// Provides scoped access for the financial preparation implementation.
 pub fn scoped_access(portfolio: i32) -> Value {
     let mut value = access();
     if let Value::Array(v) = &mut value {
@@ -48,6 +60,9 @@ pub fn scoped_access(portfolio: i32) -> Value {
     }
     value
 }
+
+
+/// Provides command for the financial preparation implementation.
 pub fn command(
     registry: &Registry,
     context: &BusinessContext,
@@ -67,6 +82,9 @@ pub fn command(
         operation,
     )
 }
+
+
+/// Provides command with identity for the financial preparation implementation.
 pub fn command_with_identity(
     registry: &Registry,
     context: &BusinessContext,
@@ -142,6 +160,9 @@ pub fn command_with_identity(
     financial_journal::validate(registry, name, &pending)?;
     Ok(pending)
 }
+
+
+/// Provides posting for the financial preparation implementation.
 pub fn posting(
     registry: &Registry,
     context: &BusinessContext,

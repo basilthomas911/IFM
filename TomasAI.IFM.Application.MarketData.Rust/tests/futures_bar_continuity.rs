@@ -76,9 +76,17 @@ fn events() -> (Vec<String>, Vec<String>) {
             if !duplicate {
                 assert_eq!(output[0].kind, 4);
                 let statistics = output[0].value.as_array().unwrap()[8].as_array().unwrap();
-                assert_eq!(statistics[7].as_i64(), Some(((index + 1) * (index + 2) / 2) as i64));
+                assert_eq!(
+                    statistics[7].as_i64(),
+                    Some(((index + 1) * (index + 2) / 2) as i64)
+                );
             }
-            volumes.extend(output.iter().filter(|event| event.kind == 4).map(|event| STANDARD.encode(codec::encode(&event.value).unwrap())));
+            volumes.extend(
+                output
+                    .iter()
+                    .filter(|event| event.kind == 4)
+                    .map(|event| STANDARD.encode(codec::encode(&event.value).unwrap())),
+            );
             for event in output.into_iter().filter(|event| event.kind == 3) {
                 assert_eq!(event.kind, 3);
                 let fields = event.value.as_array().unwrap();
@@ -105,7 +113,11 @@ fn native_wire_reaches_actual_csharp_bars_without_false_gaps_or_lost_volume() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let fixture = root.join("target/futures-bar-continuity.json");
     let (prices, statistics) = events();
-    std::fs::write(&fixture, serde_json::to_vec(&serde_json::json!({"prices":prices,"statistics":statistics})).unwrap()).unwrap();
+    std::fs::write(
+        &fixture,
+        serde_json::to_vec(&serde_json::json!({"prices":prices,"statistics":statistics})).unwrap(),
+    )
+    .unwrap();
     let status = std::process::Command::new("dotnet")
         .args(["run", "--project"])
         .arg(root.join("qualification/FuturesBarBridge/FuturesBarBridge.csproj"))

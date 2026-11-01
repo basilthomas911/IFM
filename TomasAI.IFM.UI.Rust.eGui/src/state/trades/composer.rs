@@ -19,35 +19,65 @@ use crate::services::{
     composer_market::{Defaults, Market},
     option_draft,
 };
+
+/// Provides exact cell for the composer implementation.
 fn exact_cell(value: Cell<'_>) -> Result<ExactDecimal, String> {
     ExactDecimal::parse(&value.text())
 }
+
+/// Composer used by the composer component.
 pub(super) struct Composer {
+    /// Execution associated with this composer.
     pub(super) execution: crate::services::execution_context::Context,
+    /// Session associated with this composer.
     pub session: String,
+    /// Identity and routing scope against which requests and incoming results are checked.
     pub(super) scope: Scope,
+    /// Trade associated with this composer.
     pub(super) trade: FundOrderTradeProjectionReadModel,
+    opening: Option<FundOrderTradeProjectionReadModel>,
+    /// Market associated with this composer.
     market: Market,
+    /// Optional initialization; `None` represents an absent value.
     initialization: Option<Initialization>,
+    /// Evidence associated with this composer.
     evidence: Evidence,
+    /// Preview associated with this composer.
     preview: Preview,
+    /// Optional totals; `None` represents an absent value.
     totals: Option<TradeOrderPreview>,
+    /// Quantity associated with this composer.
     quantity: i32,
+    /// Execution action associated with this composer.
     execution_action: String,
+    /// Order type associated with this composer.
     order_type: String,
+    /// Algorithm associated with this composer.
     algorithm: String,
+    /// Time in force associated with this composer.
     time_in_force: String,
+    /// Pace associated with this composer.
     pace: String,
+    /// Current status text or state exposed by this component.
     status: String,
+    /// Report path associated with this composer.
     report_path: String,
+    /// Report hash associated with this composer.
     report_hash: String,
+    /// Report preview associated with this composer.
     report_preview: String,
+    /// Ordered accepted orders retained by Composer.
     accepted_orders: Vec<TradeOrderDefinition>,
+    /// Whether submission unknown is enabled or currently true.
     submission_unknown: bool,
+    /// Submission error associated with this composer.
     submission_error: String,
+    /// Optional preparation; `None` represents an absent value.
     pub(super) preparation: Option<crate::services::order_preparation::Prepared>,
+    /// Optional confirmation id; `None` represents an absent value.
     pub(super) confirmation_id: Option<uuid::Uuid>,
 }
+
 /// NumberStyles.Number compatibility for user draft fields. This is parsing,
 /// never a conversion of a backend financial value through binary float.
 pub(super) fn entered(text: &str) -> Option<ExactDecimal> {
@@ -74,13 +104,17 @@ pub(super) fn entered(text: &str) -> Option<ExactDecimal> {
     }
     ExactDecimal::parse(&value).ok()
 }
+
+/// Provides flag for the composer implementation.
 fn flag(value: bool) -> String {
     if value { "True" } else { "False" }.into()
 }
 impl Composer {
+    /// Constructs Composer from the supplied inputs.
     pub fn new(
         scope: Scope,
         trade: FundOrderTradeProjectionReadModel,
+        opening: Option<FundOrderTradeProjectionReadModel>,
         underlying: FuturesContractV3ReadModel,
         context: &BusinessContext,
         editable: bool,
@@ -98,12 +132,21 @@ impl Composer {
             "Open"
         }
         .into();
+        let mut market = Market::new(underlying, strategy, context, editable, development);
+        if opening.is_some() {
+            market.fixed_expiry = trade
+                .requested_maturity_date
+                .as_ref()
+                .map(|date| crate::backend::date_input::parse(date.as_str()))
+                .transpose()?;
+        }
         Ok(Self {
             execution: crate::services::execution_context::Context::from_env()?,
             session: uuid::Uuid::new_v4().simple().to_string(),
             scope,
             trade,
-            market: Market::new(underlying, strategy, context, editable, development),
+            market,
+            opening,
             initialization: None,
             evidence: Default::default(),
             preview: Default::default(),
@@ -125,6 +168,8 @@ impl Composer {
             submission_error: String::new(),
         })
     }
+
+    /// Provides initialize for the composer implementation.
     pub async fn initialize(
         &mut self,
         backend: &Backend,
@@ -159,6 +204,32 @@ impl Composer {
                 .as_str()
                 .unwrap_or(&requested.to_string()),
         )?;
+        if let Some(primary) = &self.opening {
+            let strategy = if future {
+                "FuturesOutright"
+            } else if self.market.strategy.ends_with("IronCondor") {
+                "IronCondor"
+            } else {
+                "VerticalSpread"
+            };
+            let position = crate::services::order_close::current(
+                backend,
+                registry,
+                crate::services::order_close::primary_scope(primary)?,
+                strategy,
+                deadline,
+            )
+            .await?;
+            let multiplier = exact_cell(self.market.underlying.cell("Multiplier"))?;
+            let (quantity, legs) = crate::services::order_close::reversed_legs(
+                &position.snapshot,
+                &multiplier,
+                self.market.fixed_expiry,
+            )?;
+            self.quantity = quantity;
+            self.market.draft.manual = true;
+            self.market.draft.legs = legs;
+        }
         let initializing = broker_initialization::load(
             backend,
             registry,
@@ -172,6 +243,9 @@ impl Composer {
         );
         let selecting = async {
             if future {
+                if self.opening.is_some() {
+                    return Ok(());
+                }
                 let side = if self.trade.cell("TradeAction").text() == "Sell" {
                     -1
                 } else {
@@ -197,7 +271,14 @@ impl Composer {
                 Ok(())
             } else {
                 self.market
-                    .initialize(backend, registry, context, requested, through, deadline)
+                    .initialize(
+                        backend,
+                        registry,
+                        context,
+                        self.market.fixed_expiry.unwrap_or(requested),
+                        self.market.fixed_expiry.unwrap_or(through),
+                        deadline,
+                    )
                     .await
             }
         };
@@ -229,6 +310,8 @@ impl Composer {
         self.refresh_preview(backend, registry, deadline).await?;
         self.refresh_account(backend, registry, deadline).await
     }
+
+    /// Refreshes evidence for composer.
     pub(super) async fn refresh_evidence(
         &mut self,
         backend: &Backend,
@@ -272,6 +355,8 @@ impl Composer {
         self.evidence = broker_reads::evidence(backend, registry, &scopes, deadline).await?;
         Ok(())
     }
+
+    /// Provides broker order for the composer implementation.
     pub(super) fn broker_order(
         &self,
         key: &str,
@@ -305,6 +390,8 @@ impl Composer {
             .cloned();
         Ok((order, execution))
     }
+
+    /// Restores stored legs for composer.
     fn restore_stored_legs(&mut self) -> Result<(), String> {
         self.market.draft.manual = true;
         self.market.draft.legs.clear();
@@ -402,6 +489,8 @@ impl Composer {
         };
         Ok(())
     }
+
+    /// Refreshes preview for composer.
     async fn refresh_preview(
         &mut self,
         backend: &Backend,
@@ -436,6 +525,8 @@ impl Composer {
         );
         Ok(())
     }
+
+    /// Handles a composer intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,
@@ -444,6 +535,14 @@ impl Composer {
         intent: &Json,
         deadline: tokio::time::Instant,
     ) -> Result<String, String> {
+        if self.opening.is_some()
+            && matches!(
+                intent["intent"].as_str(),
+                Some("select-leg" | "remove-leg" | "clear-staged")
+            )
+        {
+            return Err("Closing legs are fixed to the remaining opening position".into());
+        }
         if self.preparation.is_some() && intent["intent"] == "refresh-chain" {
             return Ok("Awaiting order confirmation".into());
         }
@@ -501,6 +600,29 @@ impl Composer {
                     },
                 )?;
             }
+            "chain-source" => {
+                if self.execution.environment != "Emulator"
+                    || !self.accepted_orders.is_empty()
+                    || self.submission_unknown
+                {
+                    return Err("Chain source cannot change for this broker order".into());
+                }
+                let live = match field(intent, "liquiditySelector") {
+                    "Emulator" => false,
+                    "Live" => true,
+                    _ => return Err("Select Emulator or Live liquidity".into()),
+                };
+                self.market
+                    .select_source(backend, registry, live, deadline)
+                    .await?;
+                // Chain browsing remains available without configured order
+                // defaults or a broker preview; order gates remain unchanged.
+                self.totals = None;
+                if !self.market.draft.legs.is_empty() && self.initialization.is_some() {
+                    self.refresh_preview(backend, registry, deadline).await?;
+                }
+                return Ok("Option chain source updated".into());
+            }
             "chain" => {
                 let number =
                     |key: &str| entered(field(intent, key)).ok_or(format!("Invalid {key}"));
@@ -529,6 +651,11 @@ impl Composer {
                     .ok()
                     .filter(|v| (1..=100000).contains(v))
                     .ok_or("Quantity must be between 1 and 100000")?;
+                if self.opening.is_some() && quantity != self.quantity {
+                    return Err(
+                        "The closing quantity must reverse the remaining opening position".into(),
+                    );
+                }
                 let order_type = field(intent, "orderType");
                 let algorithm = field(intent, "algorithm");
                 let tif = field(intent, "timeInForce");
@@ -553,7 +680,12 @@ impl Composer {
                 self.time_in_force = tif.into();
                 self.pace = pace.into();
                 if ["Open", "Close"].contains(&field(intent, "action")) {
-                    self.execution_action = field(intent, "action").into();
+                    if field(intent, "action") != self.execution_action {
+                        return Err(format!(
+                            "This trade requires the {} action",
+                            self.execution_action
+                        ));
+                    }
                 }
             }
             "account" => {
@@ -618,6 +750,8 @@ impl Composer {
         self.refresh_account(backend, registry, deadline).await?;
         Ok("Blotter updated".into())
     }
+
+    /// Refreshes account for composer.
     pub async fn refresh_account(
         &mut self,
         backend: &Backend,
@@ -638,6 +772,8 @@ impl Composer {
         }
         Ok(())
     }
+
+    /// Appends composer for composer.
     pub fn append(
         &self,
         result: &mut ContractResult,
@@ -750,7 +886,9 @@ impl Composer {
                 .collect(),
         );
         let defaults = self.market.defaults.as_ref();
-        let loaded = defaults.is_some() || self.market.strategy == "FuturesOutright";
+        let loaded = defaults.is_some()
+            || self.market.strategy == "FuturesOutright"
+            || self.opening.is_some();
         let quantity = self.market.draft.legs.len();
         let required = if self.market.strategy == "FuturesOutright" {
             1
@@ -772,6 +910,17 @@ impl Composer {
             });
         for (key, value) in [
             ("composerSessionId", self.session.clone()),
+            ("closingTrade", flag(self.opening.is_some())),
+            (
+                "canSelectChainSource",
+                flag(
+                    self.market.development
+                        && self.execution.environment == "Emulator"
+                        && self.accepted_orders.is_empty()
+                        && !self.submission_unknown
+                        && self.preparation.is_none(),
+                ),
+            ),
             ("expiry", self.market.expiry.to_string()),
             ("compositionType", self.market.strategy.clone()),
             ("brokerMode", self.execution.environment.clone()),
@@ -861,6 +1010,8 @@ impl Composer {
         }
         Ok(())
     }
+
+    /// Provides accept submission for the composer implementation.
     pub(super) fn accept_submission(
         &mut self,
         orders: Vec<Json>,
@@ -878,6 +1029,8 @@ impl Composer {
         self.status = message.into();
         Ok(())
     }
+
+    /// Provides mark submission unknown for the composer implementation.
     pub(super) fn mark_submission_unknown(
         &mut self,
         orders: Vec<Json>,
@@ -895,6 +1048,8 @@ impl Composer {
         self.status = message.into();
         Ok(())
     }
+
+    /// Provides reject submission for the composer implementation.
     pub(super) fn reject_submission(&mut self, error: &str) {
         self.preparation = None;
         self.confirmation_id = None;
@@ -902,6 +1057,8 @@ impl Composer {
         self.submission_error = error.into();
         self.status = error.into();
     }
+
+    /// Prepares confirmation for composer.
     pub(super) async fn prepare_confirmation(
         &mut self,
         backend: &Backend,
@@ -921,7 +1078,9 @@ impl Composer {
                     "Open"
                 }
         {
-            return Err("This New Trade screen submits opening orders only".into());
+            return Err(
+                "The execution action must match the trade's opening or closing role".into(),
+            );
         }
         // Parse and publish the same execution controls as a preview before freezing
         // the order. Human review itself never holds this async controller lock.
@@ -997,6 +1156,8 @@ impl Composer {
         self.preparation = Some(prepared);
         Ok("Awaiting order confirmation".into())
     }
+
+    /// Provides confirmation document for the composer implementation.
     pub(super) fn confirmation_document(
         &self,
     ) -> Result<Option<crate::models::broker_presentation::Confirmation>, String> {
@@ -1045,6 +1206,8 @@ impl Composer {
             legs,
         }))
     }
+
+    /// Appends evidence for composer.
     pub(super) fn append_evidence(
         &self,
         result: &mut ContractResult,
@@ -1129,6 +1292,8 @@ impl Composer {
         }
         Ok(())
     }
+
+    /// Closes composer for composer.
     pub async fn close(
         &mut self,
         backend: &Backend,
@@ -1137,6 +1302,8 @@ impl Composer {
     ) -> Result<(), String> {
         self.market.close(backend, registry, deadline).await
     }
+
+    /// Provides report document for the composer implementation.
     fn report_document(&self) -> QualificationReport {
         QualificationReport {
             path: self.report_path.clone(),

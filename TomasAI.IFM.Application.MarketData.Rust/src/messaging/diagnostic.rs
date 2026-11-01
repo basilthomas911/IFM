@@ -91,6 +91,9 @@ mod tests {
         assert!(encode(last, [0; 16]).is_err());
         let mut invalid = last.clone();
         invalid.attempt = 0;
-        assert!(encode(&invalid, [1; 16]).is_err(), "The Host rejects zero attempts; do not enqueue an unacknowledgeable diagnostic");
+        assert!(
+            encode(&invalid, [1; 16]).is_err(),
+            "The Host rejects zero attempts; do not enqueue an unacknowledgeable diagnostic"
+        );
     }
 }

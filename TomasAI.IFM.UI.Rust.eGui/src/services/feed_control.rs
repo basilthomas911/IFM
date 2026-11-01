@@ -8,8 +8,11 @@ use crate::{
 use rmpv::Value;
 use std::collections::BTreeMap;
 
+/// Feed Observation used by the feed control component.
 pub struct FeedObservation {
+    /// Session associated with this feed observation.
     pub session: BusinessContext,
+    /// Current status text or state exposed by this component.
     pub status: FeedStatus,
 }
 impl FeedObservation {
@@ -23,6 +26,8 @@ impl FeedObservation {
         .await
         .map_err(|_| "Market-feed observation deadline expired".to_string())?
     }
+
+
     /// Same enablement rule as the hybrid: stop an active feed, or start while
     /// the API-owned market session is open. Busy disables overlapping writes.
     pub fn control(&self, busy: bool) -> FeedControl {
@@ -34,6 +39,7 @@ impl FeedObservation {
         }
     }
 }
+
 
 /// Set an explicit desired state. Read-after-write reconciliation handles a
 /// lost terminal event without issuing a second command or inventing success.
@@ -81,6 +87,7 @@ pub async fn set_running(
         }
     }).await.map_err(|_|"OutcomeUnknown: market-feed command deadline expired; authoritative runtime did not confirm completion".to_string())?
 }
+
 
 /// Resolve a toolbar click against current API state immediately before sending.
 pub async fn toggle(

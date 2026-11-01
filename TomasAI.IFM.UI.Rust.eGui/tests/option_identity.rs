@@ -1,4 +1,7 @@
 use ifm_ui_egui::backend::identity::{decimal_to_legacy_double, option_contract_id, option_strike};
+
+
+/// Verifies that option identity matches csharp without rounding strikes or changing scale.
 #[test]
 fn option_identity_matches_csharp_without_rounding_strikes_or_changing_scale() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -33,6 +36,9 @@ fn option_identity_matches_csharp_without_rounding_strikes_or_changing_scale() {
     }
     assert!(option_contract_id("ES.*", expiry, "Put", "6500").is_err());
 }
+
+
+/// Verifies that legacy conversion matches compiled dotnet bit for bit across all decimal scales.
 #[test]
 fn legacy_conversion_matches_compiled_dotnet_bit_for_bit_across_all_decimal_scales() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -39,13 +39,14 @@ pub use scopes::Demand as ScopeDemand;
 mod browser;
 #[path = "background/committed.rs"]
 mod committed_refresh;
-#[path = "background/statistics.rs"]
-pub mod statistics;
 #[path = "background/quotes.rs"]
 mod quotes;
+#[path = "background/statistics.rs"]
+pub mod statistics;
 
 type FactCache = Arc<Mutex<Option<(time::Date, Arc<Facts>)>>>;
-type SetupDiagnostics = Arc<Mutex<Option<(Weak<super::live::Diagnostics>, [u8;16], [u8;16], u64)>>>;
+type SetupDiagnostics =
+    Arc<Mutex<Option<(Weak<super::live::Diagnostics>, [u8; 16], [u8; 16], u64)>>>;
 /// Immutable native policy/source configuration. The weak market directory
 /// observes copied prices without retaining a physical sibling dataset owner.
 #[derive(Clone)]
@@ -72,6 +73,7 @@ pub struct Configuration {
     quote_changes: watch::Sender<u64>,
 }
 struct Facts {
+    fingerprint: std::sync::OnceLock<Result<[u8; 32], String>>,
     policies: Vec<Arc<crate::option_chain::strategy::Parameters>>,
     models: Vec<crate::reference::option_contract::CoverageRow>,
 }
@@ -175,22 +177,64 @@ impl Configuration {
             Ok(self.clone())
         }
     }
-    pub(in crate::dataset) fn bind_setup_diagnostics(&self, sink: &Arc<super::live::Diagnostics>, worker: [u8;16], generation: [u8;16], revision: u64) -> Result<(),String> {
-        *self.setup_diagnostics.lock().map_err(|_| "Native setup diagnostics interrupted")? = Some((Arc::downgrade(sink),worker,generation,revision));
+    pub(in crate::dataset) fn bind_setup_diagnostics(
+        &self,
+        sink: &Arc<super::live::Diagnostics>,
+        worker: [u8; 16],
+        generation: [u8; 16],
+        revision: u64,
+    ) -> Result<(), String> {
+        *self
+            .setup_diagnostics
+            .lock()
+            .map_err(|_| "Native setup diagnostics interrupted")? =
+            Some((Arc::downgrade(sink), worker, generation, revision));
         Ok(())
     }
-    fn waiting_underlyings(&self, contracts: &[String], clock: &Clock) -> Result<(),String> {
-        report_waiting(&self.setup_diagnostics,contracts,clock)
+    fn waiting_underlyings(&self, contracts: &[String], clock: &Clock) -> Result<(), String> {
+        report_waiting(&self.setup_diagnostics, contracts, clock)
     }
 }
-fn report_waiting(diagnostics: &SetupDiagnostics, contracts: &[String], clock: &Clock) -> Result<(),String> {
-        let binding=diagnostics.lock().map_err(|_| "Native setup diagnostics interrupted")?.clone();
-        if let Some((sink,worker,generation,revision))=binding && let Some(sink)=sink.upgrade() {
-            let mut text=format!("Background option coverage pending for {} underlying quotes; monitored subscriptions are independent; generation={}; contracts=",contracts.len(),crate::messaging::wire::guid(generation));
-            for contract in contracts {if text.len()+contract.len()+1>3800{text.push_str("[truncated]");break;}text.push_str(contract);text.push(',');}
-            sink.retain(super::live::Diagnostic{worker,lane:Lane::OptionsGlbx,attempt:revision,observed:clock.utc_ticks().map_err(|_|"Native setup clock unavailable")?,replaced:0,event:super::transport::Event::System{code:u8::MAX,message:text}})?;
+fn report_waiting(
+    diagnostics: &SetupDiagnostics,
+    contracts: &[String],
+    clock: &Clock,
+) -> Result<(), String> {
+    let binding = diagnostics
+        .lock()
+        .map_err(|_| "Native setup diagnostics interrupted")?
+        .clone();
+    if let Some((sink, worker, generation, revision)) = binding
+        && let Some(sink) = sink.upgrade()
+    {
+        let mut text = format!(
+            "Background option coverage pending for {} underlying quotes; monitored subscriptions are independent; generation={}; contracts=",
+            contracts.len(),
+            crate::messaging::wire::guid(generation)
+        );
+        for contract in contracts {
+            if text.len() + contract.len() + 1 > 3800 {
+                text.push_str("[truncated]");
+                break;
+            }
+            text.push_str(contract);
+            text.push(',');
         }
-        Ok(())
+        sink.retain(super::live::Diagnostic {
+            worker,
+            lane: Lane::OptionsGlbx,
+            attempt: revision,
+            observed: clock
+                .utc_ticks()
+                .map_err(|_| "Native setup clock unavailable")?,
+            replaced: 0,
+            event: super::transport::Event::System {
+                code: u8::MAX,
+                message: text,
+            },
+        })?;
+    }
+    Ok(())
 }
 impl Configuration {
     async fn source_facts(
@@ -215,6 +259,7 @@ impl Configuration {
         }
         if !self.enabled {
             let facts = Arc::new(Facts {
+                fingerprint: std::sync::OnceLock::new(),
                 policies: vec![],
                 models: vec![],
             });
@@ -263,6 +308,7 @@ impl Configuration {
             return Err("Native background fact acquisition cancelled/deadline expired".into());
         }
         let facts = Arc::new(Facts {
+            fingerprint: std::sync::OnceLock::new(),
             policies,
             models: models.into_values().collect(),
         });
@@ -432,7 +478,10 @@ impl Configuration {
             if missing.len() > 64 {
                 return Err("Native background underlying capacity exceeded".into());
             }
-            let symbols = underlyings.values().map(|r| r.source.clone()).collect::<Vec<_>>();
+            let symbols = underlyings
+                .values()
+                .map(|r| r.source.clone())
+                .collect::<Vec<_>>();
             let mut source = base.source.clone();
             source.registrations = underlyings.values().cloned().collect();
             // A clean opening has no previous book. Recover the latest quote
@@ -452,15 +501,27 @@ impl Configuration {
                     })
                     .collect(),
             };
-            let diagnostics=self.setup_diagnostics.clone();
-            let diagnostic_clock=clock.clone();
-            prices.extend(self.quotes.lock().map_err(|_|"Background observer state interrupted")?.prices(
-                source,base.date,clock.clone(),parent.clone(),
-                move |missing| report_waiting(&diagnostics,missing,&diagnostic_clock),
-                self.quote_changes.clone(),
-            )?);
-            let missing=underlyings.values().filter(|row|!prices.contains_key(&row.contract)).map(|row|row.contract.clone()).collect::<Vec<_>>();
-            self.waiting_underlyings(&missing,&clock)?;
+            let diagnostics = self.setup_diagnostics.clone();
+            let diagnostic_clock = clock.clone();
+            prices.extend(
+                self.quotes
+                    .lock()
+                    .map_err(|_| "Background observer state interrupted")?
+                    .prices(
+                        source,
+                        base.date,
+                        clock.clone(),
+                        parent.clone(),
+                        move |missing| report_waiting(&diagnostics, missing, &diagnostic_clock),
+                        self.quote_changes.clone(),
+                    )?,
+            );
+            let missing = underlyings
+                .values()
+                .filter(|row| !prices.contains_key(&row.contract))
+                .map(|row| row.contract.clone())
+                .collect::<Vec<_>>();
+            self.waiting_underlyings(&missing, &clock)?;
         }
         // Quiet quote acquisition is not a recovery incident. Subsequent finite
         // reference/planning work has its own bounded attempt after data arrives.
@@ -604,16 +665,16 @@ impl Configuration {
         if selected.len() > 2048 {
             return Err("Native selected background option capacity exceeded".into());
         }
+        let retained = self
+            .reference_cache
+            .lock()
+            .map_err(|_| "Native background reference cache interrupted")?
+            .clone();
         let mut full = Vec::new();
         for indices in selected.into_iter().collect::<Vec<_>>().chunks(8) {
             let requests = indices.iter().map(|index| async {
                 let compact = &models[*index];
                 let contract = compact.coverage_definition()?.contract;
-                let retained = self
-                    .reference_cache
-                    .lock()
-                    .map_err(|_| "Native background reference cache interrupted")?
-                    .clone();
                 let known = retained
                     .as_ref()
                     .map(|cache| cache.option_model(contract))
@@ -651,24 +712,62 @@ impl Configuration {
         // A missing/stale price pauses replanning; it must not unsubscribe
         // already acquired coverage. Retain only current-source background
         // contracts, never removed policies or released monitored legs.
-        if let Some(view)=&current {
-            let allowed=models.iter().map(|model|model.coverage_definition().map(|d|d.contract.to_owned())).collect::<Result<BTreeSet<_>,_>>()?;
-            let retained=self.reference_cache.lock().map_err(|_|"Native background reference cache interrupted")?.clone();
-            let mut kept=BTreeSet::new();
-            for definition in view.definitions.iter().filter(|d|!view.monitored.contains(&d.instrument)) {
-                let contract=definition.blueprint.contract.contract();
-                if !allowed.contains(contract) {continue;}
-                if let Some(model)=retained.as_ref().map(|cache|cache.option_model(contract)).transpose()?.flatten()
-                    && !prices.contains_key(model.underlying_source()?.2) {
+        if let Some(view) = &current {
+            let allowed = models
+                .iter()
+                .map(|model| model.coverage_definition().map(|d| d.contract.to_owned()))
+                .collect::<Result<BTreeSet<_>, _>>()?;
+            let retained = self
+                .reference_cache
+                .lock()
+                .map_err(|_| "Native background reference cache interrupted")?
+                .clone();
+            let mut kept = BTreeSet::new();
+            for definition in view
+                .definitions
+                .iter()
+                .filter(|d| !view.monitored.contains(&d.instrument))
+            {
+                let contract = definition.blueprint.contract.contract();
+                if !allowed.contains(contract) {
+                    continue;
+                }
+                if let Some(model) = retained
+                    .as_ref()
+                    .map(|cache| cache.option_model(contract))
+                    .transpose()?
+                    .flatten()
+                    && !prices.contains_key(model.underlying_source()?.2)
+                {
                     kept.insert(contract.to_owned());
-                    if !selected.iter().any(|known|known.convention().is_ok_and(|c|c.contract()==contract)) {selected.push(model);}
+                    if !selected
+                        .iter()
+                        .any(|known| known.convention().is_ok_and(|c| c.contract() == contract))
+                    {
+                        selected.push(model);
+                    }
                 }
             }
             for old in view.cache_scopes.iter() {
-                let contracts=old.contracts.intersection(&kept).cloned().collect::<BTreeSet<_>>();
-                if contracts.is_empty() {continue;}
-                if let Some(cache)=caches.get_mut(&old.scope) {cache.contracts.extend(contracts);}
-                else {caches.insert(old.scope.clone(),CacheScope {contracts,..old.clone()});}
+                let contracts = old
+                    .contracts
+                    .intersection(&kept)
+                    .cloned()
+                    .collect::<BTreeSet<_>>();
+                if contracts.is_empty() {
+                    continue;
+                }
+                if let Some(cache) = caches.get_mut(&old.scope) {
+                    cache.contracts.extend(contracts);
+                } else {
+                    caches.insert(
+                        old.scope.clone(),
+                        CacheScope {
+                            contracts,
+                            ..old.clone()
+                        },
+                    );
+                }
             }
         }
         selected.extend(monitored_models);
@@ -816,6 +915,11 @@ pub struct Refresh {
 }
 impl Facts {
     fn fingerprint(&self) -> Result<[u8; 32], String> {
+        self.fingerprint
+            .get_or_init(|| self.compute_fingerprint())
+            .clone()
+    }
+    fn compute_fingerprint(&self) -> Result<[u8; 32], String> {
         let mut hash = Sha256::new();
         let policies = self
             .policies
@@ -964,9 +1068,14 @@ impl Drop for Refresh {
 // A healthy-provider quiet wait precedes a planned replacement, not a dataset
 // failure. Start its budget when the complete replacement is ready. An explicit
 // pending business handoff keeps its original deadline, including when expired.
-fn replacement_status(replacement: Option<Arc<Intent>>, pending: Option<Deadline>) -> RefreshStatus {
+fn replacement_status(
+    replacement: Option<Arc<Intent>>,
+    pending: Option<Deadline>,
+) -> RefreshStatus {
     RefreshStatus {
-        error: Some("Native background policy/coverage changed; replacing dataset resources".into()),
+        error: Some(
+            "Native background policy/coverage changed; replacing dataset resources".into(),
+        ),
         deadline: Some(pending.unwrap_or_else(Deadline::recovery)),
         replacement,
     }
@@ -996,11 +1105,14 @@ mod recovery_budget_tests {
     use super::*;
     #[tokio::test(start_paused = true)]
     async fn planned_change_starts_budget_after_quiet_wait_but_preserves_explicit_handoff() {
-        let explicit=Deadline::recovery();
+        let explicit = Deadline::recovery();
         tokio::time::advance(Duration::from_secs(180)).await;
-        let planned=replacement_status(None,None);
-        assert_eq!(planned.deadline.unwrap().remaining(),Duration::from_secs(120));
-        let handoff=replacement_status(None,Some(explicit));
+        let planned = replacement_status(None, None);
+        assert_eq!(
+            planned.deadline.unwrap().remaining(),
+            Duration::from_secs(120)
+        );
+        let handoff = replacement_status(None, Some(explicit));
         assert!(handoff.deadline.unwrap().remaining().is_zero());
         assert!(planned.replacement.is_none());
     }
@@ -1017,5 +1129,89 @@ mod recovery_budget_tests {
         let (fresh, new_episode) = refresh_budget(&state, Deadline::recovery()).unwrap();
         assert!(fresh);
         assert_eq!(new_episode.remaining(), Duration::from_secs(120));
+    }
+}
+
+#[cfg(test)]
+mod fingerprint_performance {
+    use super::*;
+
+    /// The cached result must retain the exact original ordered source fingerprint.
+    #[test]
+    fn immutable_fact_fingerprint_keeps_original_identity() {
+        let cases: serde_json::Value = serde_json::from_str(include_str!(
+            "../../qualification/ContextWireBridge/strategy-policy.json"
+        ))
+        .unwrap();
+        let facts = Facts {
+            fingerprint: std::sync::OnceLock::new(),
+            models: vec![],
+            policies: cases
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|row| {
+                    Arc::new(
+                        crate::option_chain::strategy::from_command(&row["command"]["parameters"])
+                            .unwrap(),
+                    )
+                })
+                .collect(),
+        };
+        assert_eq!(
+            facts.fingerprint().unwrap(),
+            facts.compute_fingerprint().unwrap()
+        );
+        assert_eq!(
+            facts.fingerprint().unwrap(),
+            facts.compute_fingerprint().unwrap()
+        );
+    }
+
+    /// Run explicitly without competing compilers; compare the actual old computation and its immutable cache.
+    #[test]
+    #[ignore = "Explicit performance run after compilation ends"]
+    fn immutable_fact_fingerprint_before_after_timings() {
+        use std::{hint::black_box, time::Instant};
+        let cases: serde_json::Value = serde_json::from_str(include_str!(
+            "../../qualification/ContextWireBridge/strategy-policy.json"
+        ))
+        .unwrap();
+        let facts = Facts {
+            fingerprint: std::sync::OnceLock::new(),
+            models: vec![],
+            policies: cases
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|row| {
+                    Arc::new(
+                        crate::option_chain::strategy::from_command(&row["command"]["parameters"])
+                            .unwrap(),
+                    )
+                })
+                .collect(),
+        };
+        facts.fingerprint().unwrap();
+        let mut samples = [Vec::new(), Vec::new()];
+        for pair in 0..5 {
+            let order = if pair % 2 == 0 { [0, 1] } else { [1, 0] };
+            for variant in order {
+                let start = Instant::now();
+                for _ in 0..10000 {
+                    black_box(if variant == 0 {
+                        facts.compute_fingerprint()
+                    } else {
+                        facts.fingerprint()
+                    })
+                    .unwrap();
+                }
+                samples[variant].push(start.elapsed().as_nanos() as u64);
+            }
+        }
+        println!(
+            "FACTS_PERFORMANCE {}",
+            serde_json::json!({"scenario":"background-fingerprint","operationsPerSample":10000,"policies":facts.policies.len(),"note":"Uncached versus cached fingerprint with current policy hashing in both arms","beforeNs":samples[0],"afterNs":samples[1]})
+        );
     }
 }

@@ -28,6 +28,7 @@ pub struct Context {
     maximum_age: u32,
     maximum_skew: u32,
     prepared_at: i64,
+    digest: std::sync::OnceLock<Result<String, &'static str>>,
 }
 
 impl std::fmt::Debug for Context {
@@ -60,6 +61,9 @@ impl Context {
         let mut result = self.clone();
         result.maximum_age = result.maximum_age.min(age);
         result.maximum_skew = result.maximum_skew.min(skew);
+        if result.maximum_age != self.maximum_age || result.maximum_skew != self.maximum_skew {
+            result.digest = std::sync::OnceLock::new();
+        }
         Ok(result)
     }
     /// Qualified age, skew and source-clock-lead limits in milliseconds.
@@ -186,6 +190,7 @@ impl Context {
             publication_version: publications.version().into(),
             maximum_lead,
             prepared_at: at,
+            digest: std::sync::OnceLock::new(),
         })
     }
     /// API UTC business instant at which native preparation completed.
@@ -252,7 +257,9 @@ impl Context {
     /// # Errors
     /// Rejects malformed imported scalar data and bounded canonical encoding errors.
     pub fn digest(&self) -> Result<String, &'static str> {
-        semantic::compute(&self.semantic()?)
+        self.digest
+            .get_or_init(|| semantic::compute(&self.semantic()?))
+            .clone()
     }
     /// Typed reference provenance for native trade evidence. This is copied data,
     /// and cannot retain a provider, renewal timer, lock or managed callback.

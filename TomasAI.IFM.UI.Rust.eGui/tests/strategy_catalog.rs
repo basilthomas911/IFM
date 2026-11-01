@@ -1,13 +1,17 @@
 use egui_kittest::kittest::NodeT;
 use egui_kittest::{Harness, kittest::Queryable};
-use ifm_ui_egui::{
-    Catalog, contract_editor::ContractPublication, strategy_catalog::StrategyCatalog,
-};
+use ifm_ui_egui::{Catalog, contract_editor::ContractPublication, strategy_catalog::StrategyCatalog};
+
+
+/// Provides fixture for the strategy catalog implementation.
 fn fixture(editing: bool) -> (Catalog, ContractPublication) {
     let c = serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap();
     let s=serde_json::from_value(serde_json::json!({"schema":1,"busy":false,"generation":7,"status":"Ready","result":{"hasMore":false,"view":"strategy-catalog","rows":[{"id":"fixture","fields":{"name":"Fixture family","version":"1","status":"Draft"}}],"choices":{"kind":["Family","Structure"]},"context":{"kind":"Family","selectedId":"fixture","editing":if editing{"True"}else{"False"},"definition":r#"{"Key":{"Kind":1,"Id":"00000000-0000-0000-0000-000000000001","Version":1},"Code":"Fixture","Name":"Fixture family","Description":"","Settings":{},"Families":[],"Structures":[],"Variants":[],"Products":[],"Capabilities":[],"ExpiryGroups":[],"Legs":[],"VariantLegs":[],"Parameters":[],"PipelineParameters":[],"LegacyFamilies":[]}"#,"templates":"[]","references":"[]","products":"[]"}},"outcomes":[]})).unwrap();
     (c, s)
 }
+
+
+/// Verifies that saving keeps exact immutable key and decimal parameter text.
 #[test]
 fn saving_keeps_exact_immutable_key_and_decimal_parameter_text() {
     let (c, s) = fixture(true);
@@ -32,6 +36,9 @@ fn saving_keeps_exact_immutable_key_and_decimal_parameter_text() {
     assert!(d.contains("0.1234567890123456789012345678"));
     assert!(h.state().0.pending.is_some());
 }
+
+
+/// Verifies that publication cancel does not write.
 #[test]
 fn publication_cancel_does_not_write() {
     let (c, s) = fixture(false);
@@ -52,6 +59,9 @@ fn publication_cancel_does_not_write() {
     assert!(h.state().1.is_none());
     assert!(h.state().0.confirmation.is_none());
 }
+
+
+/// Verifies that report publication preserves unsaved name and discarded copy reload replaces it.
 #[test]
 fn report_publication_preserves_unsaved_name_and_discarded_copy_reload_replaces_it() {
     let (c, s) = fixture(true);
@@ -77,6 +87,8 @@ fn report_publication_preserves_unsaved_name_and_discarded_copy_reload_replaces_
     assert_eq!(h.state().0.definition["Name"], "Fixture family");
 }
 
+
+/// Verifies that reference catalog preserves selector rail and original toolbar.
 #[test]
 fn reference_catalog_preserves_selector_rail_and_original_toolbar() {
     let (c, s) = fixture(false);
@@ -112,6 +124,8 @@ fn reference_catalog_preserves_selector_rail_and_original_toolbar() {
     assert!(h.query_by_label("Resume catalog operation").is_none());
 }
 
+
+/// Verifies that reference variant uses the original variant tab and fields.
 #[test]
 fn reference_variant_uses_the_original_variant_tab_and_fields() {
     let (c, mut s) = fixture(false);
@@ -154,6 +168,8 @@ fn reference_variant_uses_the_original_variant_tab_and_fields() {
     assert!(h.query_by_label("Add property").is_none());
 }
 
+
+/// Verifies that reference catalog selects the first loaded definition without an extra click.
 #[test]
 fn reference_catalog_selects_the_first_loaded_definition_without_an_extra_click() {
     let (c, mut s) = fixture(false);

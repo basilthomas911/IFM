@@ -16,9 +16,15 @@ const STAGES: [(&str, &str, &str); 5] = [
 ];
 use crate::models::{strategy::WorkflowHeader, trade_contracts::FuturesItiSignalV2ReadModel};
 use crate::{Node, Property, Snapshot};
+
+
+/// Extracts the workflow signal identity used for correlation and deduplication.
 pub fn signal_identity(signal: &FuturesItiSignalV2ReadModel) -> Result<String, String> {
     crate::models::strategy::signal_identity(signal)
 }
+
+
+/// Provides row for the strategy display implementation.
 pub fn row(
     registry: &Registry,
     wire: &Value,
@@ -26,29 +32,47 @@ pub fn row(
 ) -> Result<crate::strategy_workspace::WorkflowRow, String> {
     WorkflowHeader::from_backend(registry, wire)?.row(action)
 }
+
+
+/// Formats the UUID without separators for backend compatibility.
 fn uuid_n(value: &str) -> Result<String, String> {
     uuid::Uuid::parse_str(value)
         .map(|value| value.simple().to_string())
         .map_err(|_| "Invalid workflow identity".into())
 }
+
+/// Display Shape used by the strategy display component.
 #[derive(Deserialize)]
 struct DisplayShape {
+    /// Name associated with this display shape.
     name: String,
+    /// Ordered properties retained by DisplayShape.
     properties: Vec<DisplayProperty>,
+    /// Whether opaque byte array is enabled or currently true.
     #[serde(default, rename = "opaqueByteArray")]
     opaque_byte_array: bool,
 }
+
+/// Display Property used by the strategy display component.
 #[derive(Deserialize)]
 struct DisplayProperty {
+    /// Name associated with this display property.
     name: String,
+    /// Kind associated with this display property.
     #[serde(rename = "type")]
     kind: String,
+    /// Label associated with this display property.
     #[serde(rename = "DisplayName")]
     label: String,
+    /// Whether browsable is enabled or currently true.
     #[serde(rename = "IsBrowsable")]
     browsable: bool,
+    /// Optional key; `None` represents an absent value.
     key: Option<usize>,
 }
+
+
+/// Provides display shapes for the strategy display implementation.
 fn display_shapes() -> Result<&'static BTreeMap<String, DisplayShape>, String> {
     static SHAPES: std::sync::OnceLock<Result<BTreeMap<String, DisplayShape>, String>> =
         std::sync::OnceLock::new();
@@ -62,6 +86,9 @@ fn display_shapes() -> Result<&'static BTreeMap<String, DisplayShape>, String> {
         .as_ref()
         .map_err(Clone::clone)
 }
+
+
+/// Provides field names for the strategy display implementation.
 pub fn field_names(kind: &str) -> Result<Vec<String>, String> {
     Ok(display_shapes()?
         .get(kind)
@@ -71,6 +98,9 @@ pub fn field_names(kind: &str) -> Result<Vec<String>, String> {
         .map(|p| p.name.clone())
         .collect())
 }
+
+
+/// Reads the original property without replacing its stored representation.
 pub(crate) fn raw_property(
     registry: &Registry,
     kind: &str,
@@ -79,6 +109,8 @@ pub(crate) fn raw_property(
 ) -> Result<Value, String> {
     member(registry, kind, wire, name).or_else(|_| derived(registry, kind, wire, name))
 }
+
+
 /// Ordered display cells, using the same generated public properties and value
 /// formatting as the hybrid's BridgeDocument.Fields. These are presentation
 /// strings only; commands retain their independent typed immutable DTOs.
@@ -103,6 +135,9 @@ pub fn fields(
         })
         .collect()
 }
+
+
+/// Provides scalar for the strategy display implementation.
 fn scalar(kind: &str, registry: &Registry) -> bool {
     kind.starts_with("System.")
         && matches!(
@@ -129,6 +164,9 @@ fn scalar(kind: &str, registry: &Registry) -> bool {
         || kind == "TomasAI.IFM.Domain.Trade.Shared.StrategyWorkflowId"
         || registry.describe(kind).is_ok_and(|v| v.is_enum)
 }
+
+
+/// Provides simple for the strategy display implementation.
 fn simple(kind: &str, wire: &Value, registry: &Registry) -> Result<String, String> {
     if wire.is_nil() {
         return Ok("null".into());
@@ -169,6 +207,8 @@ fn simple(kind: &str, wire: &Value, registry: &Registry) -> Result<String, Strin
     })
 }
 
+
+/// Looks up the requested member in the supplied record.
 fn member(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<Value, String> {
     if let Value::Map(entries) = wire {
         return entries
@@ -188,6 +228,9 @@ fn member(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<V
         .cloned()
         .ok_or("Incomplete workflow value".into())
 }
+
+
+/// Provides derived for the strategy display implementation.
 fn derived(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<Value, String> {
     if kind == "TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyReference"
         && name == "IsValid"
@@ -353,11 +396,16 @@ fn derived(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<
         _ => Err(format!("No native display getter for {kind}.{name}")),
     }
 }
+
+
 /// The hybrid evidence pane uses BridgeDocument.Display, not JSON. Preserve
 /// generated property order and its scalar/collection conventions so a frozen
 /// backend result has the same readable evidence in either frontend.
 pub fn evidence(registry: &Registry, kind: &str, wire: &Value) -> Result<String, String> {
     let shapes = display_shapes()?;
+
+
+    /// Renders strategy display for strategy display.
     fn render(
         registry: &Registry,
         shapes: &BTreeMap<String, DisplayShape>,
@@ -463,6 +511,9 @@ pub fn evidence(registry: &Registry, kind: &str, wire: &Value) -> Result<String,
     }
     Ok(result)
 }
+
+
+/// Provides node for the strategy display implementation.
 fn node(
     registry: &Registry,
     shapes: &BTreeMap<String, DisplayShape>,
@@ -642,6 +693,9 @@ fn node(
         children,
     })
 }
+
+
+/// Provides details for the strategy display implementation.
 pub fn details(registry: &Registry, wire: &Value) -> Result<Snapshot, String> {
     let shapes = display_shapes()?;
     let view = WorkflowHeader::from_backend(registry, wire)?;

@@ -8,3 +8,5 @@ pub mod trade_load;
 
 /// Durable local request failures and backend notification audit records.
 pub mod errors;
+
+pub mod writer;

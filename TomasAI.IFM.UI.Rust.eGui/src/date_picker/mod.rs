@@ -7,12 +7,17 @@ mod popup;
 pub use button::DatePickerButton;
 use chrono::{Datelike as _, Duration, NaiveDate, Weekday};
 
+/// Week used by the mod component.
 #[derive(Debug)]
 struct Week {
+    /// Number associated with this week.
     number: u8,
+    /// Ordered days retained by Week.
     days: Vec<NaiveDate>,
 }
 
+
+/// Prepares calendar cells for the requested month.
 fn month_data(year: i32, month: u32) -> Vec<Week> {
     let first = NaiveDate::from_ymd_opt(year, month, 1).expect("Could not create NaiveDate");
     let mut start = first;
@@ -39,17 +44,23 @@ fn month_data(year: i32, month: u32) -> Vec<Week> {
 /// Upstream permission notice, retained in the one-executable distribution.
 pub const LICENSE: &str = include_str!("LICENSE-MIT");
 const API_DATE: &str = "ifm-api-clock-civil-date";
+
+
 /// Only a successfully decoded API session may update this context value.
 pub fn set_api_today(ctx: &eframe::egui::Context, date: NaiveDate) {
-    ctx.data_mut(|data| data.insert_temp(eframe::egui::Id::new(API_DATE),date));
+    ctx.data_mut(|data| data.insert_temp(eframe::egui::Id::new(API_DATE), date));
 }
+
+
 /// A missing clock has no today marker; the selected explicit date remains usable.
 pub fn api_today(ctx: &eframe::egui::Context) -> Option<NaiveDate> {
-    ctx.data(|data|data.get_temp(eframe::egui::Id::new(API_DATE)))
+    ctx.data(|data| data.get_temp(eframe::egui::Id::new(API_DATE)))
 }
+
+
 /// Dropdown navigation follows its explicit selected date, never workstation UTC.
-fn year_bounds(date: NaiveDate) -> (i32,i32) {
-    ((date.year()-100).max(1),(date.year()+10).min(9999))
+fn year_bounds(date: NaiveDate) -> (i32, i32) {
+    ((date.year() - 100).max(1), (date.year() + 10).min(9999))
 }
 
 #[cfg(test)]

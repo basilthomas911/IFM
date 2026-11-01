@@ -4,6 +4,9 @@ use ifm_ui_egui::{
 };
 use serde_json::json;
 use std::path::Path;
+
+
+/// Reads scheduled tasks for scheduled tasks.
 fn read(name: &str) -> Vec<u8> {
     std::fs::read(
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -12,6 +15,9 @@ fn read(name: &str) -> Vec<u8> {
     )
     .unwrap()
 }
+
+
+/// Verifies that run receipts match unchanged hybrid without recomputing outcomes.
 #[test]
 fn run_receipts_match_unchanged_hybrid_without_recomputing_outcomes() {
     let registry = Registry::compiled().unwrap();
@@ -23,6 +29,9 @@ fn run_receipts_match_unchanged_hybrid_without_recomputing_outcomes() {
         golden
     );
 }
+
+
+/// Verifies that schedule draft matches typed backend contract and rejects bad input.
 #[test]
 fn schedule_draft_matches_typed_backend_contract_and_rejects_bad_input() {
     let registry = Registry::compiled().unwrap();

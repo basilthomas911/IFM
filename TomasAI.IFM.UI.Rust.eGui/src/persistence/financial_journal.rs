@@ -3,6 +3,9 @@
 //! creates a replacement financial operation ID.
 use crate::backend::{identity::financial_hash, schema::Registry};
 use serde_json::{Value as Json, json};
+
+
+/// Reads the UTC timestamp representation expected by this component.
 fn utc(value: &Json) -> Result<String, String> {
     let text = value
         .as_str()
@@ -25,6 +28,9 @@ fn utc(value: &Json) -> Result<String, String> {
         format!("{whole}.{fraction}Z")
     })
 }
+
+
+/// Provides normalized for the financial journal implementation.
 fn normalized(registry: &Registry, kind: &str, value: &Json) -> Result<Json, String> {
     if value.is_null() {
         return Ok(Json::Null);
@@ -75,6 +81,9 @@ fn normalized(registry: &Registry, kind: &str, value: &Json) -> Result<Json, Str
     }
     Ok(value.clone())
 }
+
+
+/// Calculates the canonical request hash used to identify persisted operations.
 pub fn request_hash(registry: &Registry, command: &str, request: &Json) -> Result<String, String> {
     if !matches!(
         command,
@@ -102,6 +111,9 @@ pub fn request_hash(registry: &Registry, command: &str, request: &Json) -> Resul
         &json!({"PortfolioId":request["PortfolioId"],"OperationId":operation.to_string(),"ExpectedFinancialRevision":request["ExpectedFinancialRevision"],"RequestedAtUtc":utc(&request["RequestedAtUtc"] )?,"ExpiresAtUtc":utc(&request["ExpiresAtUtc"] )?,"Body":normalized(registry,body_kind,&request["Body"] )?,"Principal":request["Access"]["Principal"]}),
     )
 }
+
+
+/// Validates financial journal for financial journal.
 pub fn validate(registry: &Registry, command: &str, value: &Json) -> Result<(), String> {
     let request = &value["Request"];
     let operation = uuid::Uuid::parse_str(request["OperationId"].as_str().unwrap_or_default())
@@ -139,6 +151,9 @@ pub fn validate(registry: &Registry, command: &str, value: &Json) -> Result<(), 
     }
     Ok(())
 }
+
+
+/// Resolves the current user's directory for local application state.
 pub fn current_user_directory(configuration: bool) -> Result<std::path::PathBuf, String> {
     let base = std::env::var_os("LOCALAPPDATA")
         .filter(|v| !v.is_empty())

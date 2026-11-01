@@ -221,6 +221,7 @@ public sealed class StatusConsoleViewModel : ObservableObject, IAsyncLifecycle, 
                 OnTrendDirectionChanged(signal);
                 break;
             case IntrinsicTimeModeType.TrendExtremeChanged:
+            case IntrinsicTimeModeType.TrendOvershootExtended:
                 OnTrendExtremeChanged(signal);
                 break;
         }
@@ -242,7 +243,7 @@ public sealed class StatusConsoleViewModel : ObservableObject, IAsyncLifecycle, 
     void OnTrendExtremeChanged(FuturesItiSignalV2ReadModel signal)
     {
         if (Volatile.Read(ref _acceptEvents) == 1
-            && signal?.IntrinsicTimeMode == IntrinsicTimeModeType.TrendExtremeChanged)
+            && signal?.IntrinsicTimeMode is IntrinsicTimeModeType.TrendExtremeChanged or IntrinsicTimeModeType.TrendOvershootExtended)
         {
             LatestTrendExtreme = signal;
         }

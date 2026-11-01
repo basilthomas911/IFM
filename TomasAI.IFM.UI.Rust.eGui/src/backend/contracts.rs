@@ -2,13 +2,20 @@
 use chrono::{Datelike, NaiveDate};
 use rmpv::Value;
 
+/// Actor Subject used by the contracts component.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ActorSubject {
+    /// Kind associated with this actor subject.
     pub kind: ActorKind,
+    /// Name associated with this actor subject.
     pub name: String,
+    /// Verb associated with this actor subject.
     pub verb: String,
+    /// Entity associated with this actor subject.
     pub entity: String,
 }
+
+/// Actor Kind used by the contracts component.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ActorKind {
     Command = 2,
@@ -19,6 +26,7 @@ pub enum ActorKind {
     Function = 8,
 }
 impl ActorKind {
+    /// Returns the pinned backend actor name used in NATS subjects.
     pub fn name(self) -> &'static str {
         match self {
             Self::Command => "Command",
@@ -31,6 +39,7 @@ impl ActorKind {
     }
 }
 impl ActorSubject {
+    /// Builds a read-only actor subject and validates its routed identity.
     pub fn query(name: &str, verb: &str, entity: &str) -> Self {
         Self {
             kind: ActorKind::Query,
@@ -39,6 +48,9 @@ impl ActorSubject {
             entity: entity.into(),
         }
     }
+
+
+    /// Builds the actor subject using the declared prefix, kind and safe entity identifier.
     pub fn route(&self) -> Result<String, String> {
         for (index, part) in [&self.name, &self.verb, &self.entity].iter().enumerate() {
             if part.is_empty()
@@ -59,6 +71,9 @@ impl ActorSubject {
             self.entity
         ))
     }
+
+
+    /// Returns the representation used at the backend wire boundary.
     pub fn wire(&self) -> Value {
         Value::Array(vec![
             (self.kind as u8).into(),
@@ -69,6 +84,8 @@ impl ActorSubject {
     }
 }
 
+
+/// Validates the service-result envelope and exposes its payload or backend error.
 pub fn service_result(value: &Value) -> Result<&Value, String> {
     let parts = value.as_array().ok_or("ServiceResult must be an array")?;
     if parts.len() < 4 {
@@ -85,6 +102,7 @@ pub fn service_result(value: &Value) -> Result<&Value, String> {
     }
 }
 
+
 /// Consume a validated service envelope without cloning its potentially large payload.
 pub fn into_service_result(value: Value) -> Result<Value, String> {
     service_result(&value)?;
@@ -97,8 +115,12 @@ pub fn into_service_result(value: Value) -> Result<Value, String> {
 /// .NET decimal is encoded as an invariant string by MessagePack-CSharp.
 /// Validate its 96-bit coefficient and 0..28 scale without floating conversion.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExactDecimal(String);
+pub struct ExactDecimal(
+    /// Validated exact decimal text retained without floating-point rounding.
+    String,
+);
 impl ExactDecimal {
+    /// Parses contracts for exact decimal.
     pub fn parse(text: &str) -> Result<Self, String> {
         let digits = text.strip_prefix('-').unwrap_or(text);
         if digits.is_empty() {
@@ -131,13 +153,20 @@ impl ExactDecimal {
         }
         Ok(Self(text.into()))
     }
+
+
+    /// Borrows the stored text without allocating a replacement string.
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+
+    /// Returns the representation used at the backend wire boundary.
     pub fn wire(&self) -> Value {
         self.0.clone().into()
     }
 }
+
 
 /// DateOnly is a .NET day number, not a machine-local date or UTC instant.
 pub fn date_only(value: &Value) -> Result<NaiveDate, String> {
@@ -149,9 +178,13 @@ pub fn date_only(value: &Value) -> Result<NaiveDate, String> {
     }
     NaiveDate::from_num_days_from_ce_opt(day as i32 + 1).ok_or_else(|| "Invalid date".into())
 }
+
+
+/// Encodes the supplied calendar date using the backend DateOnly representation.
 pub fn date_only_wire(value: NaiveDate) -> Value {
     (value.num_days_from_ce() - 1).into()
 }
+
 
 /// .NET round-trip display uses exactly seven fractional digits. Chrono's
 /// strftime precision accepts 3/6/9, so do not use an unsupported %.7f pattern.
@@ -162,6 +195,8 @@ pub fn utc_roundtrip(time: chrono::DateTime<chrono::Utc>) -> String {
         time.timestamp_subsec_nanos() / 100
     )
 }
+
+
 /// Convert MessagePack timestamp extensions without losing subsecond precision.
 pub fn timestamp(value: &Value) -> Result<chrono::DateTime<chrono::Utc>, String> {
     let Value::Ext(-1, data) = value else {
@@ -186,6 +221,7 @@ pub fn timestamp(value: &Value) -> Result<chrono::DateTime<chrono::Utc>, String>
         .ok_or_else(|| "Timestamp outside supported range".into())
 }
 
+
 /// C# DateTimeOffset formatter writes [wall-clock timestamp, offset minutes].
 pub fn datetime_offset(value: &Value) -> Result<chrono::DateTime<chrono::Utc>, String> {
     let values = value.as_array().ok_or("Expected DateTimeOffset array")?;
@@ -201,6 +237,8 @@ pub fn datetime_offset(value: &Value) -> Result<chrono::DateTime<chrono::Utc>, S
         .ok_or_else(|| "DateTimeOffset overflow".into())
 }
 
+
+/// Encodes the supplied timestamp using the backend wire representation.
 pub fn timestamp_wire(time: chrono::DateTime<chrono::Utc>) -> Value {
     let seconds = time.timestamp();
     let nanos = time.timestamp_subsec_nanos();
@@ -217,6 +255,7 @@ pub fn timestamp_wire(time: chrono::DateTime<chrono::Utc>) -> Value {
     };
     Value::Ext(-1, data)
 }
+
 
 /// Exact seven-digit offset display for reference/provider and admin evidence.
 pub fn reference_offset(value: &Value) -> Result<String, String> {

@@ -2,6 +2,7 @@
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+
 /// Match .NET Decimal's legacy double conversion, including its intermediate
 /// rounding. Parsing decimal text as f64 is not bit-identical for every scale.
 /// Source: dotnet/runtime v10.0.10 Decimal.DecCalc.VarR8FromDec (MIT):
@@ -29,6 +30,7 @@ pub fn decimal_to_legacy_double(text: &str) -> Result<f64, String> {
         magnitude
     })
 }
+
 
 /// Exact positive strike parsing used by contract maintenance, not a valuation.
 /// IDs use canonical plain digits; the payload retains the representable input
@@ -84,6 +86,9 @@ pub fn option_strike(text: &str) -> Result<(String, super::contracts::ExactDecim
         super::contracts::ExactDecimal::parse(&payload)?,
     ))
 }
+
+
+/// Builds the option identity from its exact backend contract components.
 pub fn option_contract_id(
     symbol: &str,
     expiry: chrono::NaiveDate,
@@ -111,10 +116,13 @@ pub fn option_contract_id(
     ))
 }
 
+
 /// SHA256(seed)[0..16] interpreted using .NET Guid(byte[]) byte order.
 pub fn lifecycle_id(seed: &str) -> uuid::Uuid {
     guid_from_hash(seed.as_bytes())
 }
+
+
 /// Match IdempotentCommandId.Create using the caller's *uncompressed default*
 /// MessagePack body. Do not pass LZ4 wire bytes here.
 pub fn idempotent_command_id(
@@ -128,10 +136,14 @@ pub fn idempotent_command_id(
     bytes.extend_from_slice(uncompressed_body);
     Ok(guid_from_hash(&bytes))
 }
+
+
+/// Derives a stable GUID from the supplied canonical hash input.
 fn guid_from_hash(bytes: &[u8]) -> uuid::Uuid {
     let hash = Sha256::digest(bytes);
     uuid::Uuid::from_bytes_le(hash[..16].try_into().unwrap())
 }
+
 
 /// FinancialCanonicalHash.Compute on a correctly shaped .NET JSON contract.
 /// Wire decimal strings must become exact JSON numbers before calling this.
@@ -140,11 +152,17 @@ pub fn financial_hash(value: &Value) -> Result<String, String> {
     let text = canonical_json(value)?;
     Ok(format!("{:X}", Sha256::digest(text.as_bytes())))
 }
+
+
+/// Produces the canonical JSON text used when deriving stable identities.
 pub fn canonical_json(value: &Value) -> Result<String, String> {
     let mut output = String::new();
     write_canonical(value, &mut output)?;
     Ok(output)
 }
+
+
+/// Writes canonical for identity.
 fn write_canonical(value: &Value, output: &mut String) -> Result<(), String> {
     match value {
         Value::Object(map) => {
@@ -178,6 +196,9 @@ fn write_canonical(value: &Value, output: &mut String) -> Result<(), String> {
     }
     Ok(())
 }
+
+
+/// Writes dotnet string for identity.
 fn write_dotnet_string(text: &str, output: &mut String) {
     output.push('"');
     for unit in text.encode_utf16() {
@@ -196,6 +217,8 @@ fn write_dotnet_string(text: &str, output: &mut String) {
     }
     output.push('"');
 }
+
+
 /// Invariant .NET decimal G29: strip trailing zeroes and use E-05 notation below
 /// 1e-4. Integer coefficients are limited to 96 bits; no f64 conversion occurs.
 fn decimal_g29(text: &str) -> Result<String, String> {
@@ -267,6 +290,7 @@ fn decimal_g29(text: &str) -> Result<String, String> {
         Ok(format!("{sign}0.{}{digits}", "0".repeat(-point as usize)))
     }
 }
+
 
 /// Lossless compatibility translation of the typed option strike members.
 pub fn exact_option_strike(value: &Value) -> Result<String, String> {

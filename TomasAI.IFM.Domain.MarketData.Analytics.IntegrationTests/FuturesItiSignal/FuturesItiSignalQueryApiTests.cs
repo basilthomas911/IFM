@@ -12,11 +12,13 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSig
 public class FuturesItiSignalQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, MarketDataAnalyticsFixture dbFixture)
     : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataAnalyticsFixture>
 {
+    readonly string _contractId = $"ES-ITI-QUERY-{Guid.NewGuid():N}";
+
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
 
-    async Task SeedItiSignalAsync()
+    async Task SeedItiSignalAsync(IntrinsicTimeModeType mode = IntrinsicTimeModeType.TrendDirectionChanged)
     {
-        var contractId = SampleData.ContractId;
+        var contractId = _contractId;
         var valueDate = SampleData.ValueDate;
         var timePeriod = SampleData.TimePeriod;
 
@@ -27,23 +29,26 @@ public class FuturesItiSignalQueryApiTests(TomasAI.IFM.IntegrationTesting.Kestre
             valueDate: valueDate,
             timePeriod: timePeriod,
             sequenceId: 0,
-            intrinsicTime: SampleData.Timestamp,
+            intrinsicTime: DateTime.SpecifyKind(SampleData.Timestamp, DateTimeKind.Utc),
             intrinsicTimeGroupId: 0,
             intrinsicTimeLength: 0,
             intrinsicPrice: SampleData.FuturesPrice,
             intrinsicTimeTrend: IntrinsicTimeTrendType.UpTrend,
-            intrinsicTimeMode: IntrinsicTimeModeType.TrendDirectionChanged,
+            intrinsicTimeMode: mode,
             trendPrice: SampleData.FuturesPrice,
             trendExtreme: SampleData.FuturesPrice,
             trendReversal: SampleData.FuturesPrice,
             trendDelta: SampleData.PredictedDelta + ((SampleData.FuturesPrice * SampleData.Lambda) / 2),
             targetDelta: SampleData.FuturesPrice * SampleData.Lambda,
             lambda: SampleData.Lambda,
-            tradingDays: 0,
-            threshold: 0,
+            tradingDays: 20,
+            threshold: 10,
             upTrendTrigger: SampleData.FuturesPrice,
             downTrendTrigger: SampleData.FuturesPrice - (SampleData.FuturesPrice * SampleData.Lambda),
-            tradeState: IntrinsicTimeTradeState.Ready);
+            tradeState: IntrinsicTimeTradeState.Ready,
+            bandPercentage: 0.20,
+            bandSize: 2,
+            bandLevel: mode is IntrinsicTimeModeType.TrendOvershootExtended or IntrinsicTimeModeType.TrendOvershootReversal ? 1.4 : 0);
 
         await dbFixture.MarketDataDb.InsertFuturesItiSignalAsync(signal);
     }
@@ -56,36 +61,39 @@ public class FuturesItiSignalQueryApiTests(TomasAI.IFM.IntegrationTesting.Kestre
 
         // act...
         var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
-        var response = await analyticsApi.GetFuturesItiSignalDataAsync(SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod);
+        var response = await analyticsApi.GetFuturesItiSignalDataAsync(_contractId, SampleData.ValueDate, SampleData.TimePeriod);
 
         // assert...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
         response.Value!.TrendDirectionChange.Should().NotBeNull();
-        response.Value.TrendDirectionChange!.ContractId.Should().Be(SampleData.ContractId);
+        response.Value.TrendDirectionChange!.ContractId.Should().Be(_contractId);
         response.Value.TrendDirectionChange.ValueDate.Should().Be(SampleData.ValueDate);
     }
 
-    [Fact]
-    public async Task GetLastFuturesItiSignal_Ok()
+    [Theory]
+    [InlineData(IntrinsicTimeModeType.TrendDirectionChanged)]
+    [InlineData(IntrinsicTimeModeType.TrendOvershootExtended)]
+    [InlineData(IntrinsicTimeModeType.TrendOvershootReversal)]
+    public async Task GetLastFuturesItiSignal_Ok(IntrinsicTimeModeType mode)
     {
         // arrange...
-        await SeedItiSignalAsync();
+        await SeedItiSignalAsync(mode);
 
         // act...
         var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
-        var response = await analyticsApi.GetFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod);
+        var response = await analyticsApi.GetFuturesItiSignalAsync(_contractId, SampleData.ValueDate, SampleData.TimePeriod);
 
         // assert...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
-        response.Value!.ContractId.Should().Be(SampleData.ContractId);
+        response.Value!.ContractId.Should().Be(_contractId);
         response.Value.ValueDate.Should().Be(SampleData.ValueDate);
         response.Value.TimePeriod.Should().Be(SampleData.TimePeriod);
         response.Value.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.UpTrend);
-        response.Value.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendDirectionChanged);
+        response.Value.IntrinsicTimeMode.Should().Be(mode);
         response.Value.TradeState.Should().Be(IntrinsicTimeTradeState.Ready);
     }
 
@@ -97,14 +105,14 @@ public class FuturesItiSignalQueryApiTests(TomasAI.IFM.IntegrationTesting.Kestre
 
         // act...
         var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
-        var response = await analyticsApi.GetFuturesItiTrendDirectionChangedSignalsAsync(SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod);
+        var response = await analyticsApi.GetFuturesItiTrendDirectionChangedSignalsAsync(_contractId, SampleData.ValueDate, SampleData.TimePeriod);
 
         // assert...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
         response.Value.Should().NotBeEmpty();
-        response.Value!.First().ContractId.Should().Be(SampleData.ContractId);
+        response.Value!.First().ContractId.Should().Be(_contractId);
         response.Value.First().ValueDate.Should().Be(SampleData.ValueDate);
         response.Value.First().IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendDirectionChanged);
     }
@@ -187,6 +195,8 @@ public class FuturesItiSignalQueryApiTests(TomasAI.IFM.IntegrationTesting.Kestre
             5_010,
             4_990,
             IntrinsicTimeTradeState.Ready,
-            timeFrameStartValueDate: valueDate);
+            timeFrameStartValueDate: valueDate,
+            bandPercentage: 0.20,
+            bandSize: 2);
 }
 

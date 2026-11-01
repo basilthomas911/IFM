@@ -82,6 +82,7 @@ pub struct MarketData {
     raw_catalog_commands: Mutex<intent_memo::Catalog>,
     routes: Mutex<routes::Routes>,
     empty_discovery: Mutex<BTreeMap<u128, tokio::time::Instant>>,
+    price_bindings: Mutex<BTreeMap<Lane, price_query::Bindings>>,
 }
 impl MarketData {
     /// Authoritative API instant for copied command processing, never OS local time.
@@ -147,6 +148,7 @@ impl MarketData {
             raw_catalog_commands: Mutex::default(),
             routes: Mutex::default(),
             empty_discovery: Mutex::default(),
+            price_bindings: Mutex::default(),
         };
         if let Some(catalog) = catalog {
             owner.configure_options_catalog(catalog)?;
@@ -158,7 +160,11 @@ impl MarketData {
     ///
     /// # Errors
     /// Invalid date or stopped/exhausted root admission prevents replacement.
-    pub fn new_session(root: Arc<Owner>, clock: Arc<Clock>, date: time::Date) -> Result<Self, String> {
+    pub fn new_session(
+        root: Arc<Owner>,
+        clock: Arc<Clock>,
+        date: time::Date,
+    ) -> Result<Self, String> {
         if date.to_julian_day() == 1721426 {
             return Err("Native market data requires an explicit API ValueDate".into());
         }

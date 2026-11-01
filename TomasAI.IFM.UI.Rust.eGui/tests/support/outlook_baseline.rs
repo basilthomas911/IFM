@@ -3,11 +3,19 @@ use chrono::{DateTime, Utc};
 use ifm_ui_egui::{backend::contracts::ExactDecimal, market_outlook::OutlookCell};
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
+
+/// Outlook used by the outlook baseline test fixtures.
 pub struct Outlook {
+    /// Keyed cells retained by Outlook.
     pub cells: BTreeMap<String, OutlookCell>,
+    /// Current status text or state exposed by this component.
     pub status: String,
+    /// Summary associated with this outlook.
     pub summary: String,
 }
+
+
+/// Provides text for the outlook baseline implementation.
 fn text(value: &Json) -> String {
     value.as_str().map(str::to_owned).unwrap_or_else(|| {
         if value.is_null() {
@@ -17,12 +25,17 @@ fn text(value: &Json) -> String {
         }
     })
 }
+
+
+/// Provides numeric for the outlook baseline implementation.
 fn numeric(value: &Json) -> Option<f64> {
     value
         .as_f64()
         .or_else(|| value.as_str().and_then(|s| s.parse().ok()))
         .filter(|v| v.is_finite())
 }
+
+
 /// Decimal display rounding works on the preserved 96-bit coefficient. Even a
 /// very large price retains its cents; conversion to f64 is only used for color
 /// comparisons against small thresholds, never to format the decimal itself.
@@ -87,6 +100,9 @@ pub fn decimal_fixed(text: &str, places: u32, percent: bool) -> Result<String, S
     }
     Ok(format!("{grouped}%"))
 }
+
+
+/// Provides fixed for the outlook baseline implementation.
 fn fixed(value: &Json, places: u32) -> String {
     if let Some(s) = value.as_str() {
         return decimal_fixed(s, places, false).unwrap_or_else(|_| "N/A".into());
@@ -95,6 +111,9 @@ fn fixed(value: &Json, places: u32) -> String {
         .map(|n| format!("{n:.precision$}", precision = places as usize))
         .unwrap_or_else(|| "N/A".into())
 }
+
+
+/// Resolves a named display cell; unsupported columns remain missing.
 fn cell(
     cells: &mut BTreeMap<String, OutlookCell>,
     key: &str,
@@ -111,9 +130,15 @@ fn cell(
         },
     );
 }
+
+
+/// Provides simple for the outlook baseline implementation.
 fn simple(cells: &mut BTreeMap<String, OutlookCell>, key: &str, value: String) {
     cell(cells, key, value, "LightText", "DarkSurface")
 }
+
+
+/// Provides mood for the outlook baseline implementation.
 fn mood(value: Option<f64>, up: f64, down: f64) -> &'static str {
     match value {
         Some(n) if n > up => "Positive",
@@ -121,6 +146,9 @@ fn mood(value: Option<f64>, up: f64, down: f64) -> &'static str {
         _ => "Caution",
     }
 }
+
+
+/// Provides project for the outlook baseline implementation.
 pub fn project(snapshot: &Json, live: bool, now: DateTime<Utc>) -> Result<Outlook, String> {
     let mut cells = BTreeMap::new();
     let e = &snapshot["FuturesEodData"];

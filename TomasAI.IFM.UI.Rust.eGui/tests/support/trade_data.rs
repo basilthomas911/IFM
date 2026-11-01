@@ -1,6 +1,9 @@
 use super::*;
 use ifm_ui_egui::{backend::schema::Registry, state::trade_data::TradeData};
 use serde_json::json;
+
+
+/// Provides mode for the trade data implementation.
 async fn mode(backend: &Backend, name: &str) {
     service_result(
         &backend
@@ -15,6 +18,9 @@ async fn mode(backend: &Backend, name: &str) {
     )
     .unwrap();
 }
+
+
+/// Verifies that trade workspace reads keep atomic scope and current fund mandates.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn trade_workspace_reads_keep_atomic_scope_and_current_fund_mandates() {
@@ -135,6 +141,9 @@ async fn trade_workspace_reads_keep_atomic_scope_and_current_fund_mandates() {
     );
     mode(&backend, "Disabled").await;
 }
+
+
+/// Verifies that trade workspace publication matches hybrid and fences stale choices.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn trade_workspace_publication_matches_hybrid_and_fences_stale_choices() {

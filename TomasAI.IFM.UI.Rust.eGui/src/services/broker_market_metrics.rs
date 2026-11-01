@@ -9,6 +9,9 @@ use crate::{
     },
 };
 use std::borrow::Cow;
+
+
+/// Encodes a MessagePack value without adding a compression frame.
 fn raw(value: Cell<'_>) -> Result<Cow<'_, str>, String> {
     if let Cell::Text(value) = value {
         Ok(value)
@@ -16,6 +19,9 @@ fn raw(value: Cell<'_>) -> Result<Cow<'_, str>, String> {
         Err("Missing exact market metric".into())
     }
 }
+
+
+/// Provides fixed for the broker market metrics implementation.
 fn fixed(value: Cell<'_>, places: u32) -> Result<String, String> {
     if value.is_missing() {
         Ok("N/A".into())
@@ -23,6 +29,9 @@ fn fixed(value: Cell<'_>, places: u32) -> Result<String, String> {
         decimal_fixed(&raw(value)?, places, false)
     }
 }
+
+
+/// Provides signed for the broker market metrics implementation.
 fn signed(value: Cell<'_>, percent: bool) -> Result<String, String> {
     let text = raw(value)?;
     let mut formatted = decimal_fixed(&text, 2, percent)?;
@@ -31,6 +40,9 @@ fn signed(value: Cell<'_>, percent: bool) -> Result<String, String> {
     }
     Ok(formatted)
 }
+
+
+/// Provides document for the broker market metrics implementation.
 pub fn document(
     chain: &EvaluatedOptionChainReadModel,
     underlying: &FuturesContractV3ReadModel,

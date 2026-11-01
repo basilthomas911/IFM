@@ -2,10 +2,54 @@
 
 use super::*;
 use chrono::{Datelike, NaiveDate};
+
+/// Content measurements shared by the draft window and its positioned controls, in screen pixels.
+pub(super) struct DraftLayout {
+    /// Vertical distance between single-line fields.
+    pub(super) row_height: f32,
+    /// Height retained for the multiline order reference.
+    pub(super) reference_height: f32,
+    /// Top of the centered action row.
+    pub(super) buttons_top: f32,
+    /// Button height adjusted to the current font.
+    pub(super) button_height: f32,
+    /// Window content size, excluding title bar and frame.
+    pub(super) size: egui::Vec2,
+}
+
+
+/// Fit the draft dialog to its fields and action row without reserving a second block below them.
+pub(super) fn draft_layout(ctx: &egui::Context, order: bool) -> DraftLayout {
+    let p = ctx.pixels_per_point();
+    let font = egui::TextStyle::Body.resolve(&ctx.style());
+    let line = ctx.fonts(|fonts| fonts.row_height(&font)) * p;
+    let row_height = (if order { 34_f32 } else { 30_f32 }).max(line + 4.);
+    let reference_height = 140_f32.max(4. * line + 8.);
+    let button_height = 30_f32.max(line + 8.);
+    let buttons_top = if order {
+        12. + 3. * row_height + reference_height + 16.
+    } else {
+        272_f32.max(2. + 7. * row_height + 26_f32.max(line + 2.) + 16.)
+    };
+    DraftLayout {
+        row_height,
+        reference_height,
+        buttons_top,
+        button_height,
+        size: egui::vec2(
+            if order { 721. } else { 621. },
+            buttons_top + button_height + 12.,
+        ),
+    }
+}
+
+
 /// Convert WinForms reference coordinates and dimensions into a scaled egui rectangle relative to the given origin.
 pub(super) fn rect(o: egui::Pos2, p: f32, x: f32, y: f32, w: f32, h: f32) -> egui::Rect {
     egui::Rect::from_min_size(o + egui::vec2(x, y) / p, egui::vec2(w, h) / p)
 }
+
+
 /// Run a widget renderer in a child UI with the requested stable ID and maximum rectangle. Callers own any additional clipping requirements.
 pub(super) fn at<R>(
     ui: &mut egui::Ui,
@@ -16,7 +60,64 @@ pub(super) fn at<R>(
     ui.scope_builder(egui::UiBuilder::new().id_salt(id).max_rect(r), f)
         .inner
 }
+
+
+/// Keep each form field tall enough for the active font, around its row center.
+pub(super) fn form_rect(ui: &egui::Ui, bounds: egui::Rect) -> egui::Rect {
+    let p = ui.ctx().pixels_per_point();
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let height = bounds
+        .height()
+        .max(ui.fonts(|fonts| fonts.row_height(&font)) + 2.0 / p);
+    egui::Rect::from_center_size(
+        bounds.center(),
+        egui::vec2(bounds.width(), (height * p).ceil() / p),
+    )
+}
+
+
+/// Center control text in a shared row without widget-specific vertical padding.
+pub(super) fn form_at<R>(
+    ui: &mut egui::Ui,
+    bounds: egui::Rect,
+    id: &str,
+    render: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    ui.scope_builder(
+        egui::UiBuilder::new().id_salt(id).max_rect(bounds).layout(
+            egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+        ),
+        |ui| {
+            let font = egui::TextStyle::Body.resolve(ui.style());
+            ui.style_mut()
+                .text_styles
+                .insert(egui::TextStyle::Button, font.clone());
+            ui.style_mut()
+                .text_styles
+                .insert(egui::TextStyle::Monospace, font);
+            ui.spacing_mut().button_padding.y = 0.0;
+            ui.spacing_mut().interact_size.y = bounds.height();
+            render(ui)
+        },
+    )
+    .inner
+}
+
 impl TradeWorkspace {
+    /// Right-align a field caption exactly twenty screen pixels before its control.
+    /// Shared font metrics put caption and control text on the same row baseline.
+    pub(super) fn field_caption(
+        &mut self,
+        ui: &mut egui::Ui,
+        control: egui::Rect,
+        id: &str,
+        caption: &str,
+    ) {
+        let response = crate::presentation::field_caption(ui, control, caption);
+        self.controls.insert(format!("caption:{id}"), response.rect);
+    }
+
+
     /// Derive editor-button availability from the published selected order/trade rows and current source filter. Submission/pending gates are applied by the caller.
     pub(super) fn order_button_enabled(&mut self, s: &ContractPublication, flag_key: &str) -> bool {
         let display = self.prepare_trade_display(s);
@@ -60,6 +161,8 @@ impl TradeWorkspace {
             _ => false,
         }
     }
+
+
     /// Render portfolio/fund/strategy/order selector controls in their reference layout and return the chosen action key.
     pub(super) fn draw_selectors(
         &mut self,
@@ -71,23 +174,30 @@ impl TradeWorkspace {
         let p = ui.ctx().pixels_per_point();
         let w = outer.x * p;
         let mut action = None;
+        let font = egui::TextStyle::Body.resolve(ui.style());
+        let first_x = 127_f32.max(
+            ui.painter()
+                .layout_no_wrap("Portfolio:".into(), font, Color32::WHITE)
+                .size()
+                .x
+                * p
+                + 40.,
+        );
         for (key, label, y) in [("portfolio", "Portfolio:", 51.), ("fund", "Fund:", 101.)] {
-            at(ui, rect(o, p, 45., y + 6., 76., 24.), label, |ui| {
-                ui.trading_caption(label);
-            });
             let width = if key == "portfolio" {
                 720_f32.min((w - 562.).max(200.))
             } else {
                 (w - 319.).max(300.)
             };
-            let r = rect(o, p, 127., y, width, 27.);
+            let r = form_rect(ui, rect(o, p, first_x, y, width, 27.));
+            self.field_caption(ui, r, key, label);
             let values = s.result.choices.get(key).cloned().unwrap_or_default();
             let index = s
                 .result
                 .context
                 .get(&format!("{key}Index"))
                 .and_then(|v| v.parse::<usize>().ok());
-            let response = at(ui, r, key, |ui| {
+            let response = form_at(ui, r, key, |ui| {
                 egui::ComboBox::from_id_salt(key)
                     .width(r.width())
                     .selected_text(
@@ -115,17 +225,21 @@ impl TradeWorkspace {
                 response.response.rect,
             );
             if key == "portfolio" {
-                let x = 127. + width + 21.;
-                at(ui, rect(o, p, x, 57., 56., 24.), "source-label", |ui| {
-                    ui.trading_caption("Source:");
-                });
-                let r = rect(o, p, x + 62., 51., 220., 27.);
+                let font = egui::TextStyle::Body.resolve(ui.style());
+                let caption_width = ui
+                    .painter()
+                    .layout_no_wrap("Source:".into(), font, Color32::WHITE)
+                    .size()
+                    .x;
+                let x = first_x + width + 40. + caption_width * p;
+                let r = form_rect(ui, rect(o, p, x, 51., 220., 27.));
+                self.field_caption(ui, r, "source", "Source:");
                 let current = if self.source_filter.is_empty() {
                     "All".to_string()
                 } else {
                     self.source_filter.clone()
                 };
-                let response = at(ui, r, "source", |ui| {
+                let response = form_at(ui, r, "source", |ui| {
                     egui::ComboBox::from_id_salt("composition-source")
                         .width(r.width())
                         .selected_text(&current)
@@ -143,6 +257,8 @@ impl TradeWorkspace {
         }
         action
     }
+
+
     /// Render order/expiry selection lists and the selected order summary in the reference layout.
     pub(super) fn draw_order_lists(
         &mut self,
@@ -154,8 +270,13 @@ impl TradeWorkspace {
         let display = self.prepare_trade_display(s);
         let p = ui.ctx().pixels_per_point();
         let w = outer.x * p;
-        let h = (outer.y * p - 218.).max(260.);
-        let oh = (h * 0.54).round();
+        let grid_top = 238.;
+        let grid_gap = 20.;
+        let grid_bottom = ((ui.clip_rect().bottom() - o.y) * p - 8.).min(outer.y * p - 8.);
+        let grid_height = (grid_bottom - grid_top - grid_gap).max(0.);
+        let order_height = grid_height * (2. / 3.);
+        let trade_height = grid_height - order_height;
+        let trade_top = grid_top + order_height + grid_gap;
         let mut action = None;
         let initial = s
             .result
@@ -177,13 +298,9 @@ impl TradeWorkspace {
             "%Y-%m-%d",
         )
         .unwrap_or(last);
-        for (label, x) in [("From:", 45.), ("To:", 568.)] {
-            at(ui, rect(o, p, x, 188., 70., 24.), label, |ui| {
-                ui.trading_caption(label);
-            });
-        }
-        let r = rect(o, p, 133., 188., 424., 22.);
-        let changed = at(ui, r, "from-date", |ui| {
+        let r = form_rect(ui, rect(o, p, 133., 188., 424., 27.));
+        self.field_caption(ui, r, "dtpFrom", "From:");
+        let changed = form_at(ui, r, "from-date", |ui| {
             ui.spacing_mut().button_padding.y = 0.;
             ui.spacing_mut().interact_size.y = r.height();
             let response = ui.add_sized(
@@ -203,8 +320,9 @@ impl TradeWorkspace {
             to = month_end(from);
             action = Some("range");
         }
-        let r = rect(o, p, 624., 188., 416., 22.);
-        if at(ui, r, "to-date", |ui| {
+        let r = form_rect(ui, rect(o, p, 624., 188., 416., 27.));
+        self.field_caption(ui, r, "dtpTo", "To:");
+        if form_at(ui, r, "to-date", |ui| {
             ui.spacing_mut().button_padding.y = 0.;
             ui.spacing_mut().interact_size.y = r.height();
             let response = ui.add_sized(
@@ -230,9 +348,9 @@ impl TradeWorkspace {
             (
                 "order",
                 "Orders:",
-                226.,
+                grid_top,
                 0.,
-                oh - 45.,
+                order_height,
                 vec![
                     ("orderId", "Order Id"),
                     ("createdOnUtc", "Order Date"),
@@ -244,9 +362,9 @@ impl TradeWorkspace {
             (
                 "trade",
                 "Trades:",
-                226. + oh - 29.,
+                trade_top,
                 0.,
-                h - oh - 6.,
+                trade_height,
                 vec![
                     ("tradeId", "Trade Id"),
                     ("tradeType", "Trade Type"),
@@ -256,10 +374,12 @@ impl TradeWorkspace {
                 ],
             ),
         ] {
-            at(ui, rect(o, p, 45., y + top, 76., 24.), label, |ui| {
-                ui.trading_caption(label);
-            });
             let r = rect(o, p, 131., y + top, width - 8., height);
+            let caption_row = form_rect(
+                ui,
+                egui::Rect::from_min_size(r.min, egui::vec2(r.width(), 24. / p)),
+            );
+            self.field_caption(ui, caption_row, kind, label);
             let selected = at(ui, r, kind, |ui| {
                 self.table(ui, s, kind, &columns, r.height())
             });
@@ -291,35 +411,35 @@ impl TradeWorkspace {
                 "Create Order...",
                 "canCreateOrder",
                 "prepare-order",
-                226.,
+                grid_top,
             ),
             (
                 "btnDeleteOrder",
                 "Delete Order",
                 "canRemoveOrder",
                 "remove-order",
-                262.,
+                grid_top + 44.,
             ),
             (
                 "btnLoadOrder",
                 "Load Trade",
                 "canLoadTrade",
                 "load-trade",
-                226. + oh - 29.,
+                trade_top,
             ),
             (
                 "btnAddTrade",
                 "Add Trade...",
                 "canAddTrade",
                 "prepare-trade",
-                262. + oh - 29.,
+                trade_top + 44.,
             ),
             (
                 "btnRemoveTrade",
                 "Remove Trade",
                 "canRemoveTrade",
                 "remove-trade",
-                298. + oh - 29.,
+                trade_top + 88.,
             ),
         ] {
             let r = rect(o, p, bx, y, 140., 32.);
@@ -352,6 +472,8 @@ impl TradeWorkspace {
         }
         action
     }
+
+
     /// Edit a bounded numeric trade draft value with the configured step and decimal precision.
     pub(super) fn numeric(
         &mut self,
@@ -366,19 +488,24 @@ impl TradeWorkspace {
         ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::BLACK;
         let stored = self.draft.entry(key.into()).or_insert(default.into());
         let mut value = stored.parse::<f64>().unwrap_or(min).clamp(min, max);
-        if ui
-            .add_sized(
-                ui.available_size(),
-                egui::DragValue::new(&mut value)
-                    .range(min..=max)
-                    .speed(step)
-                    .fixed_decimals(decimals),
-            )
-            .changed()
-        {
+        let response = ui.add_sized(
+            ui.available_size(),
+            egui::DragValue::new(&mut value)
+                .range(min..=max)
+                .speed(step)
+                .fixed_decimals(decimals),
+        );
+        response.widget_info(|| {
+            let mut info = egui::WidgetInfo::drag_value(ui.is_enabled(), value);
+            info.label = Some(key.into());
+            info
+        });
+        if response.changed() {
             *stored = format!("{value:.decimals$}");
         }
     }
+
+
     /// Render the option-chain grid from the published contracts/quotes and return selection/refresh actions.
     pub(super) fn option_grid(
         &mut self,
@@ -389,14 +516,15 @@ impl TradeWorkspace {
         let p = ui.ctx().pixels_per_point();
         use crate::models::cells::Cells;
         let contracts = value.contracts.as_deref().unwrap_or_default();
-        let mut strikes: Vec<_> = contracts
-            .iter()
-            .filter_map(|c| c.cell("strike").number())
-            .collect();
-        strikes.sort_by(|a, b| b.total_cmp(a));
-        strikes.dedup();
         let mut action = None;
         let display = self.prepare_trade_display(s);
+        let empty_grid = crate::models::prepared_views::OptionGrid::default();
+        let grid = display
+            .market
+            .as_ref()
+            .map(|market| &market.grid)
+            .unwrap_or(&empty_grid);
+        let strikes = &grid.strikes;
         let selected = &display.selected_legs;
         let group_width = (ui.available_width() - 2. * ui.spacing().item_spacing.x) / 13.;
         ui.horizontal(|ui| {
@@ -461,22 +589,12 @@ impl TradeWorkspace {
             .bordered_body(24. / p, |body| {
                 widths = body.widths().to_vec();
                 body.rows(24. / p, strikes.len(), |mut row| {
-                    let strike = strikes[row.index()];
-                    let call = contracts.iter().find(|c| {
-                        c.cell("strike").number() == Some(strike) && c.is_call == Some(true)
-                    });
-                    let put = contracts.iter().find(|c| {
-                        c.cell("strike").number() == Some(strike) && c.is_call == Some(false)
-                    });
-                    let nearest = value
-                        .cell("lastUnderlyingPrice")
-                        .number()
-                        .and_then(|price| {
-                            strikes
-                                .iter()
-                                .min_by(|a, b| (*a - price).abs().total_cmp(&(*b - price).abs()))
-                        })
-                        .is_some_and(|nearest| *nearest == strike);
+                    let indexed = &grid.rows[row.index()];
+                    let call = indexed.call.map(|i| &contracts[i]);
+                    let put = indexed.put.map(|i| &contracts[i]);
+                    let call_text = indexed.call.map(|i| grid.formatted(i, &contracts[i]));
+                    let put_text = indexed.put.map(|i| grid.formatted(i, &contracts[i]));
+                    let nearest = grid.nearest == Some(row.index());
                     for column in 0..13 {
                         let c = if column < 6 { call } else { put };
                         let role = c
@@ -493,14 +611,14 @@ impl TradeWorkspace {
                             if column == 6 {
                                 super::blotter::strike_cell(
                                     ui,
-                                    &format!("{strike:.2}"),
+                                    &indexed.strike_text,
                                     if nearest {
                                         Color32::BLACK
                                     } else {
                                         Color32::WHITE
                                     },
                                 );
-                            } else if let Some(c) = c {
+                            } else if c.is_some() {
                                 if let Some(role) = &role {
                                     if !nearest {
                                         ui.painter().rect_filled(
@@ -524,9 +642,17 @@ impl TradeWorkspace {
                                 };
                                 ui.add(
                                     crate::presentation::label_widget(if key.is_empty() {
-                                        role.clone().unwrap_or_default()
+                                        role.as_deref().unwrap_or_default()
                                     } else {
-                                        super::blotter::option_cell(c, key)
+                                        &(if column < 6 {
+                                            call_text.as_ref()
+                                        } else {
+                                            put_text.as_ref()
+                                        })
+                                        .unwrap()[crate::models::prepared_views::OptionGrid::FIELDS
+                                            .iter()
+                                            .position(|field| *field == key)
+                                            .unwrap()]
                                     })
                                     .truncate(),
                                 );
@@ -569,6 +695,7 @@ impl TradeWorkspace {
         }
         action
     }
+
 
     /// Render order execution, fills, price update, and cancellation controls using managed eligibility.
     pub(super) fn draw_execution(
@@ -866,6 +993,8 @@ impl TradeWorkspace {
         }
         action
     }
+
+
     /// Render an opening/closing trade draft and its eligible preview/submission actions.
     pub(super) fn draw_draft(
         &mut self,
@@ -877,9 +1006,14 @@ impl TradeWorkspace {
         let p = ui.ctx().pixels_per_point();
         let o = ui.cursor().min;
         let order = kind == "create-order";
-        let label_x = if order { 12. } else { 4. };
-        let value_x = if order { 132. } else { 157. };
-        let row_height = if order { 34. } else { 30. };
+        let font = egui::TextStyle::Body.resolve(ui.style());
+        let layout = draft_layout(ui.ctx(), order);
+        let row_height = layout.row_height;
+        let form_width = ui.available_width() * p;
+        self.controls.insert(
+            "draft-client".into(),
+            rect(o, p, 0., 0., form_width, layout.size.y),
+        );
         let labels = if order {
             vec!["Order Id:", "Order Date:", "Order Status:", "Reference:"]
         } else {
@@ -895,6 +1029,17 @@ impl TradeWorkspace {
                 "Reference:",
             ]
         };
+        let value_x = labels
+            .iter()
+            .map(|label| {
+                ui.painter()
+                    .layout_no_wrap((*label).into(), font.clone(), Color32::WHITE)
+                    .size()
+                    .x
+                    * p
+            })
+            .fold(if order { 112_f32 } else { 137_f32 }, f32::max)
+            + 20.;
         let closing = s
             .result
             .context
@@ -918,29 +1063,23 @@ impl TradeWorkspace {
             }
             let row = if !order && i > 4 { i - 1 } else { i };
             let y = if order { 12. } else { 2. } + row as f32 * row_height;
-            at(
-                ui,
-                rect(o, p, label_x, y, value_x - label_x - 8., 26.),
-                label,
-                |ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.trading_label(*label);
-                    });
-                },
-            );
             let r = rect(
                 o,
                 p,
                 value_x,
                 y,
                 if order {
-                    570.
+                    (form_width - value_x - 12.).max(120.)
                 } else {
-                    if i == 8 { 462. } else { 311. }
+                    (if i == 8 { 462_f32 } else { 311_f32 })
+                        .min((form_width - value_x - 12.).max(100.))
                 },
                 26.,
             );
-            at(ui, r, &format!("draft-field-{i}"), |ui| {
+            let r = form_rect(ui, r);
+            self.field_caption(ui, r, &format!("draft-field-{i}"), label);
+            self.controls.insert(format!("draft-field-{i}"), r);
+            form_at(ui, r, &format!("draft-field-{i}"), |ui| {
                 if order {
                     let row = s
                         .result
@@ -950,30 +1089,57 @@ impl TradeWorkspace {
                         .map(|r| display.row(&r.id))
                         .unwrap_or(&display_cache::BusinessRow::Missing);
                     match i {
-                        0 => {
-                            ui.trading_label(if text(&row, "orderId") == "0" || row.is_missing() {
-                                "Allocated on Save".into()
-                            } else {
-                                text(&row, "orderId")
-                            });
-                        }
-                        1 => {
-                            ui.trading_label(text(&row, "orderDate"));
-                        }
-                        2 => {
-                            ui.trading_label(if row.is_missing() {
-                                "Open".into()
-                            } else {
-                                text(&row, "orderStatus")
-                            });
+                        0..=2 => {
+                            let value = match i {
+                                0 if text(&row, "orderId") == "0" || row.is_missing() => {
+                                    "Allocated on Save".into()
+                                }
+                                0 => text(&row, "orderId"),
+                                1 => text(&row, "orderDate"),
+                                _ if row.is_missing() => "Open".into(),
+                                _ => text(&row, "orderStatus"),
+                            };
+                            let size = ui
+                                .painter()
+                                .layout_no_wrap(value.clone(), font.clone(), Color32::WHITE)
+                                .size();
+                            let text_bounds = egui::Rect::from_min_size(
+                                egui::pos2(r.left() + 4. / p, r.center().y - size.y * 0.5),
+                                egui::vec2(size.x.min((r.width() - 8. / p).max(0.)), size.y),
+                            );
+                            let response = ui.place(
+                                text_bounds,
+                                crate::presentation::label_widget(
+                                    egui::RichText::new(value).font(font.clone()),
+                                )
+                                .truncate(),
+                            );
+                            self.controls
+                                .insert(format!("draft-value-{i}"), response.rect);
                         }
                         _ => {
-                            ui.add_sized(
-                                egui::vec2(r.width(), 140. / p),
-                                egui::TextEdit::multiline(
-                                    self.draft.entry("reference".into()).or_default(),
-                                )
-                                .hint_text("Optional multiline order reference"),
+                            // Align the multiline reference's first line with its caption.
+                            ui.scope_builder(
+                                egui::UiBuilder::new()
+                                    .max_rect(r)
+                                    .layout(egui::Layout::top_down(egui::Align::Min)),
+                                |ui| {
+                                    let response = ui.add_sized(
+                                        egui::vec2(r.width(), layout.reference_height / p),
+                                        egui::TextEdit::multiline(
+                                            self.draft.entry("reference".into()).or_default(),
+                                        )
+                                        .margin(egui::vec2(
+                                            4. / p,
+                                            (r.height()
+                                                - ui.fonts(|fonts| fonts.row_height(&font)))
+                                                * 0.5,
+                                        ))
+                                        .hint_text("Optional multiline order reference"),
+                                    );
+                                    self.controls
+                                        .insert("draft-reference".into(), response.rect);
+                                },
                             );
                         }
                     }
@@ -1105,10 +1271,29 @@ impl TradeWorkspace {
             });
         }
         let mut action = None;
-        let y = if order { 307. } else { 272. };
-        let x = if order { 547. } else { 239. };
-        for (label, offset) in [("Save", 0.), ("Cancel", 85.)] {
-            let r = rect(o, p, x + offset, y, 77., 30.);
+        let button_width = ["Save", "Cancel"]
+            .iter()
+            .map(|label| {
+                ui.painter()
+                    .layout_no_wrap((*label).into(), font.clone(), Color32::WHITE)
+                    .size()
+                    .x
+                    * p
+                    + (2. * ui.spacing().button_padding.x * p).max(16.)
+            })
+            .fold(77_f32, f32::max)
+            .ceil();
+        let gap = 8.;
+        let x = (form_width - 2. * button_width - gap) * 0.5;
+        for (label, offset) in [("Save", 0.), ("Cancel", button_width + gap)] {
+            let r = rect(
+                o,
+                p,
+                x + offset,
+                layout.buttons_top,
+                button_width,
+                layout.button_height,
+            );
             let ready = self.interaction_ready(s)
                 && (!order
                     || s.result
@@ -1120,14 +1305,17 @@ impl TradeWorkspace {
                         .context
                         .get("preparedTradeId")
                         .is_some_and(|v| !v.is_empty()));
-            if at(ui, r, label, |ui| {
+            let response = form_at(ui, r, label, |ui| {
                 ui.add_enabled(
                     label == "Cancel" || ready,
                     egui::Button::new(label).min_size(r.size()),
                 )
-            })
-            .clicked()
-            {
+            });
+            self.controls.insert(
+                format!("draft-{}", label.to_ascii_lowercase()),
+                response.rect,
+            );
+            if response.clicked() {
                 action = Some(if label == "Cancel" {
                     "cancel-draft"
                 } else if order {
@@ -1137,19 +1325,16 @@ impl TradeWorkspace {
                 });
             }
         }
-        if order {
-            ui.allocate_space(egui::vec2(ui.available_width(), 350. / p));
-        } else {
-            // The positioned controls already advance the cursor. Reserve the
-            // dialog bounds from its origin instead of adding another full height.
-            ui.allocate_rect(
-                egui::Rect::from_min_size(o, egui::vec2(621., 310.) / p),
-                egui::Sense::hover(),
-            );
-        }
+        // Reserve the content once from its origin; adding height below positioned fields doubles the window.
+        ui.allocate_rect(
+            rect(o, p, 0., 0., form_width, layout.size.y),
+            egui::Sense::hover(),
+        );
         action
     }
 }
+
+
 /// Return the last calendar date in the input date's month.
 fn month_end(date: NaiveDate) -> NaiveDate {
     let next = if date.month() == 12 {

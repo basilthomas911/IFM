@@ -4,6 +4,7 @@
 use super::*;
 use crate::services::{order_submission::Operation, order_submission_store as store};
 impl TradeController {
+    /// Submits confirmed for trade controller.
     pub(super) async fn submit_confirmed(
         &mut self,
         backend: &Backend,
@@ -194,6 +195,9 @@ impl TradeController {
             }
         }
     }
+
+
+    /// Checks matches submission against the current submissions state.
     pub(super) fn matches_submission(&self, registry: &Registry, operation: &Operation) -> bool {
         let Ok(body) = crate::services::parameters::document(
             registry,
@@ -208,6 +212,9 @@ impl TradeController {
             && body["Body"]["SetupTrade"]["OrderId"].as_i64() == self.data.order
             && body["Body"]["SetupTrade"]["TradeId"].as_i64() == self.data.trade
     }
+
+
+    /// Loads submissions for trade controller.
     pub(super) async fn load_submissions(&mut self, registry: &Registry) -> Result<(), String> {
         if self.submissions_loaded {
             return Ok(());
@@ -221,6 +228,9 @@ impl TradeController {
         self.submissions_loaded = true;
         Ok(())
     }
+
+
+    /// Reconciles submissions for trade controller.
     pub(super) async fn reconcile_submissions(
         &mut self,
         backend: &Backend,

@@ -1,5 +1,8 @@
 //! Frozen original chain retention for parity/timing.
 use serde_json::Value as Json;
+
+
+/// Merges display for option chain baseline.
 pub fn merge_display(previous: Option<&Json>, incoming: &Json) -> Result<Json, String> {
     let frozen = |v: &Json| {
         v["WindowMethod"]

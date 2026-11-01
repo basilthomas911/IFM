@@ -1,9 +1,14 @@
 use serde_json::json;
+
+
+/// Provides action time for the trade plan action time implementation.
 fn action_time(value: &serde_json::Value) -> Result<String, String> {
     let plan = serde_json::from_value(value.clone()).map_err(|error| error.to_string())?;
     ifm_ui_egui::models::trade_presentation::action_time(&plan)
 }
 
+
+/// Verifies that action time matches console with eastern daylight and standard time.
 #[test]
 fn action_time_matches_console_with_eastern_daylight_and_standard_time() {
     for (utc, expected) in [
@@ -17,12 +22,16 @@ fn action_time_matches_console_with_eastern_daylight_and_standard_time() {
     }
 }
 
+
+/// Verifies that fallback calculation time uses the same time only format.
 #[test]
 fn fallback_calculation_time_uses_the_same_time_only_format() {
     let plan = json!({"CalculatedAtUtc":"2026-10-30T17:38:42.123Z"});
     assert_eq!(action_time(&plan).unwrap(), "01:38:42.123 PM");
 }
 
+
+/// Verifies that absent invalid and default times do not display a fabricated time.
 #[test]
 fn absent_invalid_and_default_times_do_not_display_a_fabricated_time() {
     assert!(action_time(&json!({})).is_err());

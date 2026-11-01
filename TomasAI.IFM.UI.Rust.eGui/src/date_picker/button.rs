@@ -6,26 +6,39 @@ use chrono::NaiveDate;
 use egui::{Area, Button, Frame, InnerResponse, Key, Order, RichText, Ui, Widget};
 use std::ops::RangeInclusive;
 
+/// Date Picker Button State used by the button component.
 #[derive(Default, Clone)]
 pub(crate) struct DatePickerButtonState {
+    /// Whether picker visible is enabled or currently true.
     pub picker_visible: bool,
 }
 
 /// Shows a date, and will open a date picker popup when clicked.
 pub struct DatePickerButton<'a> {
+    /// Selection associated with this date picker button.
     selection: &'a mut NaiveDate,
+    /// Optional id salt; `None` represents an absent value.
     id_salt: Option<&'a str>,
+    /// Whether combo boxes is enabled or currently true.
     combo_boxes: bool,
+    /// Whether arrows is enabled or currently true.
     arrows: bool,
+    /// Whether calendar is enabled or currently true.
     calendar: bool,
+    /// Whether calendar week is enabled or currently true.
     calendar_week: bool,
+    /// Whether show icon is enabled or currently true.
     show_icon: bool,
+    /// Format associated with this date picker button.
     format: String,
+    /// Whether highlight weekends is enabled or currently true.
     highlight_weekends: bool,
+    /// Optional start end years; `None` represents an absent value.
     start_end_years: Option<RangeInclusive<i32>>,
 }
 
 impl<'a> DatePickerButton<'a> {
+    /// Constructs DatePickerButton<'a> from the supplied inputs.
     pub fn new(selection: &'a mut NaiveDate) -> Self {
         Self {
             selection,
@@ -41,6 +54,7 @@ impl<'a> DatePickerButton<'a> {
         }
     }
 
+
     /// Override the stable widget identity.
     /// The default automatic widget ID keeps sibling popups independent.
     #[inline]
@@ -48,6 +62,7 @@ impl<'a> DatePickerButton<'a> {
         self.id_salt = Some(id_salt);
         self
     }
+
 
     /// Override the stable widget identity.
     /// The default automatic widget ID keeps sibling popups independent.
@@ -57,12 +72,14 @@ impl<'a> DatePickerButton<'a> {
         self.id_salt(id_salt)
     }
 
+
     /// Show combo boxes in date picker popup. (Default: true)
     #[inline]
     pub fn combo_boxes(mut self, combo_boxes: bool) -> Self {
         self.combo_boxes = combo_boxes;
         self
     }
+
 
     /// Show arrows in date picker popup. (Default: true)
     #[inline]
@@ -71,12 +88,14 @@ impl<'a> DatePickerButton<'a> {
         self
     }
 
+
     /// Show calendar in date picker popup. (Default: true)
     #[inline]
     pub fn calendar(mut self, calendar: bool) -> Self {
         self.calendar = calendar;
         self
     }
+
 
     /// Show calendar week in date picker popup. (Default: true)
     #[inline]
@@ -85,12 +104,14 @@ impl<'a> DatePickerButton<'a> {
         self
     }
 
+
     /// Show the calendar icon on the button. (Default: true)
     #[inline]
     pub fn show_icon(mut self, show_icon: bool) -> Self {
         self.show_icon = show_icon;
         self
     }
+
 
     /// Change the format shown on the button. (Default: %Y-%m-%d)
     /// See [`chrono::format::strftime`] for valid formats.
@@ -100,12 +121,14 @@ impl<'a> DatePickerButton<'a> {
         self
     }
 
+
     /// Highlight weekend days. (Default: true)
     #[inline]
     pub fn highlight_weekends(mut self, highlight_weekends: bool) -> Self {
         self.highlight_weekends = highlight_weekends;
         self
     }
+
 
     /// Set the start and end years for the date picker. (Default: selected year - 100 to selected year + 10, within .NET DateOnly bounds)
     /// This will limit the years you can choose from in the dropdown to the specified range.
@@ -120,9 +143,13 @@ impl<'a> DatePickerButton<'a> {
 }
 
 impl Widget for DatePickerButton<'_> {
+    /// Renders the date picker button<' > view and collects its UI interactions.
     fn ui(self, ui: &mut Ui) -> egui::Response {
         // Default widget identity keeps sibling calendars independent.
-        let id = self.id_salt.map(|salt| ui.make_persistent_id(salt)).unwrap_or_else(|| ui.next_auto_id());
+        let id = self
+            .id_salt
+            .map(|salt| ui.make_persistent_id(salt))
+            .unwrap_or_else(|| ui.next_auto_id());
         let mut button_state = ui
             .data_mut(|data| data.get_persisted::<DatePickerButtonState>(id))
             .unwrap_or_default();

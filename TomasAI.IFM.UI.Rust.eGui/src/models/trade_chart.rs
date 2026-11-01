@@ -90,6 +90,7 @@ pub struct TradeChartRow<'a> {
     pub points: Option<&'a [TradeChartPoint]>,
 }
 impl<'a> From<Option<&'a TradeChartSeries>> for TradeChartRow<'a> {
+    /// Converts the supplied value into this representation.
     fn from(series: Option<&'a TradeChartSeries>) -> Self {
         Self {
             chart_end_utc: series.map(|v| v.end_utc.as_str()),
@@ -101,13 +102,20 @@ impl<'a> From<Option<&'a TradeChartSeries>> for TradeChartRow<'a> {
 /// Plot cells decode directly through a Serde visitor. Unlike untagged enums,
 /// this does not buffer and replay every value while trying alternatives.
 struct PlotCellVisitor {
+    /// Whether timestamp is enabled or currently true.
     timestamp: bool,
 }
 impl<'de> serde::de::Visitor<'de> for PlotCellVisitor {
     type Value = Option<f64>;
+
+
+    /// Describes the accepted input shape in deserialization errors.
     fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("a published plot cell")
     }
+
+
+    /// Accepts text through this value's deserialization rules.
     fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
         Ok(if self.timestamp {
             chrono::DateTime::parse_from_rfc3339(value)
@@ -117,28 +125,52 @@ impl<'de> serde::de::Visitor<'de> for PlotCellVisitor {
             value.parse().ok()
         })
     }
+
+
+    /// Provides visit f64 for the plot cell visitor implementation.
     fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<Self::Value, E> {
         Ok((!self.timestamp).then_some(value))
     }
+
+
+    /// Accepts a signed integer through this value's deserialization rules.
     fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<Self::Value, E> {
         self.visit_f64(value as f64)
     }
+
+
+    /// Accepts an unsigned integer through this value's deserialization rules.
     fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Self::Value, E> {
         self.visit_f64(value as f64)
     }
+
+
+    /// Provides visit bool for the plot cell visitor implementation.
     fn visit_bool<E: serde::de::Error>(self, _: bool) -> Result<Self::Value, E> {
         Ok(None)
     }
+
+
+    /// Handles an explicit null value during deserialization.
     fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
         Ok(None)
     }
+
+
+    /// Provides visit bytes for the plot cell visitor implementation.
     fn visit_bytes<E: serde::de::Error>(self, _: &[u8]) -> Result<Self::Value, E> {
         Ok(None)
     }
+
+
+    /// Reads the sequence entries through this value's deserialization rules.
     fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
         while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
         Ok(None)
     }
+
+
+    /// Reads named entries through this value's deserialization rules.
     fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
         while map
             .next_entry::<serde::de::IgnoredAny, serde::de::IgnoredAny>()?
@@ -149,28 +181,38 @@ impl<'de> serde::de::Visitor<'de> for PlotCellVisitor {
 }
 
 /// Float conversion is restricted to rendering coordinates, never financial state.
-struct PlotNumber(Option<f64>);
+struct PlotNumber(
+    /// Wrapped `Option<f64>` value owned by PlotNumber.
+    Option<f64>,
+);
 impl<'de> Deserialize<'de> for PlotNumber {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         d.deserialize_any(PlotCellVisitor { timestamp: false })
             .map(Self)
     }
 }
 impl PlotNumber {
+    /// Provides value for the plot number implementation.
     fn value(&self) -> Option<f64> {
         self.0
     }
 }
 
 /// Parsed backend timestamp in UTC plotting seconds; invalid cells remain absent.
-struct PlotTime(Option<f64>);
+struct PlotTime(
+    /// Wrapped `Option<f64>` value owned by PlotTime.
+    Option<f64>,
+);
 impl<'de> Deserialize<'de> for PlotTime {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         d.deserialize_any(PlotCellVisitor { timestamp: true })
             .map(Self)
     }
 }
 impl PlotTime {
+    /// Provides seconds for the plot time implementation.
     fn seconds(&self) -> Option<f64> {
         self.0
     }
@@ -180,23 +222,35 @@ impl PlotTime {
 #[derive(Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 struct Point {
+    /// Optional at utc; `None` represents an absent value.
     at_utc: Option<PlotTime>,
+    /// Optional net spread; `None` represents an absent value.
     net_spread: Option<PlotNumber>,
+    /// Optional forward spread; `None` represents an absent value.
     forward_spread: Option<PlotNumber>,
 }
 
+/// Point Record used by the trade chart component.
 enum PointRecord {
     Point(Point),
     Other,
 }
 impl<'de> Deserialize<'de> for PointRecord {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        /// Point Visitor used by the trade chart component.
         struct PointVisitor;
         impl<'de> serde::de::Visitor<'de> for PointVisitor {
             type Value = PointRecord;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.write_str("a chart point map")
             }
+
+
+            /// Reads named entries through this value's deserialization rules.
             fn visit_map<A: serde::de::MapAccess<'de>>(
                 self,
                 map: A,
@@ -204,6 +258,9 @@ impl<'de> Deserialize<'de> for PointRecord {
                 Point::deserialize(serde::de::value::MapAccessDeserializer::new(map))
                     .map(PointRecord::Point)
             }
+
+
+            /// Reads the sequence entries through this value's deserialization rules.
             fn visit_seq<A: serde::de::SeqAccess<'de>>(
                 self,
                 mut seq: A,
@@ -211,24 +268,45 @@ impl<'de> Deserialize<'de> for PointRecord {
                 while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
                 Ok(PointRecord::Other)
             }
+
+
+            /// Handles an explicit null value during deserialization.
             fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
                 Ok(PointRecord::Other)
             }
+
+
+            /// Provides visit bool for the point visitor implementation.
             fn visit_bool<E: serde::de::Error>(self, _: bool) -> Result<Self::Value, E> {
                 Ok(PointRecord::Other)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, _: &str) -> Result<Self::Value, E> {
                 Ok(PointRecord::Other)
             }
+
+
+            /// Provides visit f64 for the point visitor implementation.
             fn visit_f64<E: serde::de::Error>(self, _: f64) -> Result<Self::Value, E> {
                 Ok(PointRecord::Other)
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, _: i64) -> Result<Self::Value, E> {
                 Ok(PointRecord::Other)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, _: u64) -> Result<Self::Value, E> {
                 Ok(PointRecord::Other)
             }
+
+
+            /// Provides visit bytes for the point visitor implementation.
             fn visit_bytes<E: serde::de::Error>(self, _: &[u8]) -> Result<Self::Value, E> {
                 Ok(PointRecord::Other)
             }
@@ -241,7 +319,9 @@ impl<'de> Deserialize<'de> for PointRecord {
 #[derive(Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 struct Chart {
+    /// Optional chart end utc; `None` represents an absent value.
     chart_end_utc: Option<PlotTime>,
+    /// Optional points; `None` represents an absent value.
     points: Option<Vec<PointRecord>>,
 }
 
@@ -262,6 +342,8 @@ impl PreparedTradeChart {
         Ok(Self::prepare(chart))
     }
 
+
+    /// Prepares trade chart for prepared trade chart.
     fn prepare(chart: Chart) -> Self {
         let mut result = Self {
             end_utc_seconds: chart.chart_end_utc.as_ref().and_then(PlotTime::seconds),

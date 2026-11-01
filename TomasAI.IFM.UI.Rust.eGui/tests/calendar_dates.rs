@@ -1,5 +1,8 @@
 use chrono::{NaiveDate, Timelike};
 use ifm_ui_egui::state::calendar::{eastern_midnight, instant};
+
+
+/// Verifies that calendar days use eastern dst and preserve utc event precision.
 #[test]
 fn calendar_days_use_eastern_dst_and_preserve_utc_event_precision() {
     let summer = eastern_midnight(NaiveDate::from_ymd_opt(2026, 7, 1).unwrap()).unwrap();

@@ -3,6 +3,9 @@ use ifm_ui_egui::{
     services::{broker_preview, broker_preview_display, option_draft::Selected},
 };
 use serde_json::Value as Json;
+
+
+/// Verifies that provisional economics display matches unchanged hybrid presenter.
 #[test]
 fn provisional_economics_display_matches_unchanged_hybrid_presenter() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/backend");

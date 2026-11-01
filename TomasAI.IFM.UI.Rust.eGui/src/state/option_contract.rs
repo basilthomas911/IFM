@@ -40,9 +40,15 @@ const REVIEW: [(&str, &str); 16] = [
     ("exerciseCutoffUtc", "ExerciseCutoffUtc"),
     ("exerciseResultContractId", "ExerciseResultContractId"),
 ];
+
+
+/// Returns the display text for the requested value or field.
 fn text(value: &Json) -> String {
     value.as_str().unwrap_or_default().into()
 }
+
+
+/// Provides expiry for the option contract implementation.
 fn expiry(value: &Json) -> Result<chrono::NaiveDate, String> {
     chrono::NaiveDate::parse_from_str(
         value["ContractMonth"]
@@ -52,6 +58,9 @@ fn expiry(value: &Json) -> Result<chrono::NaiveDate, String> {
     )
     .map_err(|_| "Invalid option expiry".into())
 }
+
+
+/// Provides display contract for the option contract implementation.
 pub fn display_contract(registry: &Registry, wire: &Value) -> Result<ContractRow, String> {
     let value = registry.project(MODEL, wire)?;
     let mut fields = review_fields(&value);
@@ -107,6 +116,8 @@ pub fn display_contract(registry: &Registry, wire: &Value) -> Result<ContractRow
         data: None,
     })
 }
+
+
 /// Build a draft using the same user-editable fields as the current hybrid.
 /// Provider contracts allow description changes only. Legacy contract identities
 /// cannot change after creation; a new identity requires an explicit Add.
@@ -225,18 +236,29 @@ pub fn draft(
     exact_strike(&value)?;
     Ok(next)
 }
+
+/// Option Contract Controller used by the option contract component.
 #[derive(Default)]
 pub struct OptionContractController {
+    /// Generation associated with this option contract controller.
     generation: u64,
+    /// Whether loaded is enabled or currently true.
     loaded: bool,
+    /// Symbol associated with this option contract controller.
     symbol: String,
+    /// Optional token; `None` represents an absent value.
     token: Option<String>,
+    /// Whether restart attempted is enabled or currently true.
     restart_attempted: bool,
+    /// Keyed models retained by OptionContractController.
     models: BTreeMap<String, Value>,
+    /// Result associated with this option contract controller.
     result: ContractResult,
+    /// Retained historical data used by this component.
     history: BTreeMap<String, (Json, EditorOutcome)>,
 }
 impl OptionContractController {
+    /// Provides page for the option contract controller implementation.
     async fn page(
         backend: &Backend,
         registry: &Registry,
@@ -300,6 +322,9 @@ impl OptionContractController {
         }
         Ok((rows, next))
     }
+
+
+    /// Publishes page for option contract controller.
     fn publish_page(
         &mut self,
         page: (Vec<(ContractRow, Value)>, Option<String>),
@@ -330,6 +355,9 @@ impl OptionContractController {
         self.loaded = true;
         Ok(())
     }
+
+
+    /// Provides first for the option contract controller implementation.
     async fn first(
         &mut self,
         backend: &Backend,
@@ -347,6 +375,9 @@ impl OptionContractController {
         self.result.view = "option-contract".into();
         Ok(())
     }
+
+
+    /// Loads option contract for option contract controller.
     async fn load(
         &mut self,
         backend: &Backend,
@@ -397,6 +428,9 @@ impl OptionContractController {
         self.result.choices = choices;
         Ok(())
     }
+
+
+    /// Provides next for the option contract controller implementation.
     async fn next(&mut self, backend: &Backend, registry: &Registry) -> Result<(), String> {
         let Some(token) = self.token.clone() else {
             return Ok(());
@@ -420,6 +454,9 @@ impl OptionContractController {
             Err(error) => Err(error),
         }
     }
+
+
+    /// Provides mutate for the option contract controller implementation.
     async fn mutate(
         &mut self,
         backend: &Backend,
@@ -521,6 +558,9 @@ impl OptionContractController {
             }
         }
     }
+
+
+    /// Handles a option contract intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,

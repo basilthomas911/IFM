@@ -9,9 +9,15 @@ use crate::models::{
     labels::Label,
     trade_contracts::*,
 };
+
+
+/// Provides dec for the broker order ui implementation.
 fn dec(value: Cell<'_>) -> Result<ExactDecimal, String> {
     ExactDecimal::parse(&value.text())
 }
+
+
+/// Provides component for the broker order ui implementation.
 pub fn component(order: &BrokerOrderDefinition) -> Result<&TradeOrderComponentDefinition, String> {
     let id = order.id.as_ref().and_then(|id| id.component_id.as_ref());
     let found = order
@@ -27,6 +33,9 @@ pub fn component(order: &BrokerOrderDefinition) -> Result<&TradeOrderComponentDe
     }
     Ok(found[0])
 }
+
+
+/// Provides coefficient for the broker order ui implementation.
 fn coefficient(value: &ExactDecimal) -> (u128, usize) {
     let text = value.as_str().trim_start_matches('-');
     let scale = text.split_once('.').map(|(_, f)| f.len()).unwrap_or(0);
@@ -37,6 +46,9 @@ fn coefficient(value: &ExactDecimal) -> (u128, usize) {
         scale,
     )
 }
+
+
+/// Checks is tick multiple against the current broker order ui state.
 pub fn is_tick_multiple(value: &ExactDecimal, tick: &ExactDecimal) -> bool {
     if compare(tick, &ExactDecimal::parse("0").unwrap()).is_le() {
         return false;
@@ -55,6 +67,9 @@ pub fn is_tick_multiple(value: &ExactDecimal, tick: &ExactDecimal) -> bool {
         remainder == 0
     }
 }
+
+
+/// Checks can mutate against the current broker order ui state.
 pub fn can_mutate(
     order: &BrokerOrderDefinition,
     execution: Option<&OrderExecutionDefinition>,
@@ -88,6 +103,9 @@ pub fn can_mutate(
             .is_le(),
     )
 }
+
+
+/// Validates limit for broker order ui.
 pub fn validate_limit(order: &BrokerOrderDefinition, price: &ExactDecimal) -> Result<(), String> {
     let c = component(order)?;
     let tick = dec(c.cell("TickIncrement"))?;
@@ -101,6 +119,9 @@ pub fn validate_limit(order: &BrokerOrderDefinition, price: &ExactDecimal) -> Re
     }
     Ok(())
 }
+
+
+/// Provides compact for the broker order ui implementation.
 fn compact(value: Cell<'_>) -> Result<String, String> {
     let mut text = decimal_fixed(&value.text(), 8, false)?;
     if text.contains('.') {
@@ -108,6 +129,9 @@ fn compact(value: Cell<'_>) -> Result<String, String> {
     }
     Ok(text)
 }
+
+
+/// Provides caption for the broker order ui implementation.
 pub fn caption(order: &BrokerOrderDefinition) -> Result<String, String> {
     let c = component(order)?;
     let legs = c.legs.as_ref().ok_or("Missing broker caption legs")?;
@@ -197,6 +221,9 @@ pub fn caption(order: &BrokerOrderDefinition) -> Result<String, String> {
         compact(order.cell("CurrentSignedNetDebitLimit"))?
     ))
 }
+
+
+/// Returns the user-facing label for this value.
 fn label(value: Cell<'_>) -> Option<Label> {
     match value {
         Cell::Missing => None,
@@ -205,6 +232,9 @@ fn label(value: Cell<'_>) -> Option<Label> {
         other => Some(Label::Text(other.text())),
     }
 }
+
+
+/// Provides summary for the broker order ui implementation.
 pub fn summary(
     order: &BrokerOrderDefinition,
     execution: Option<&OrderExecutionDefinition>,
@@ -248,6 +278,9 @@ pub fn summary(
         changed_at_utc: order.changed_at_utc.clone(),
     })
 }
+
+
+/// Provides mutation for the broker order ui implementation.
 pub fn mutation(
     order: &BrokerOrderDefinition,
     execution: Option<&OrderExecutionDefinition>,
@@ -262,6 +295,9 @@ pub fn mutation(
         pending,
     })
 }
+
+
+/// Provides properties for the broker order ui implementation.
 pub fn properties(value: &impl Cells, names: &[&str]) -> Result<Properties, String> {
     Ok(Properties {
         properties: names

@@ -5,6 +5,8 @@ use crate::contract_editor::ContractPublication;
 use crate::lookup_editor::EditorOutcome;
 use std::collections::BTreeMap;
 
+
+/// Merges outcomes for publications.
 fn merge_outcomes(
     mut outcomes: Vec<EditorOutcome>,
     incoming: Vec<EditorOutcome>,
@@ -37,15 +39,21 @@ fn merge_outcomes(
     Ok(outcomes)
 }
 
+/// Publications used by the publications component.
 #[derive(Default)]
 pub struct Publications {
+    /// Keyed views retained by Publications.
     views: BTreeMap<String, ContractPublication>,
+    /// Empty associated with this publications.
     empty: ContractPublication,
 }
 impl Publications {
+    /// Provides get for the publications implementation.
     pub fn get(&self, view: &str) -> &ContractPublication {
         self.views.get(view).unwrap_or(&self.empty)
     }
+
+
     /// Acknowledge UI delivery only after all renderers for this view ran. This
     /// does not acknowledge or change a business command's outcome/journal.
     pub fn acknowledge_rendered(&mut self, view: &str) {
@@ -53,6 +61,9 @@ impl Publications {
             value.outcomes.clear();
         }
     }
+
+
+    /// Applies publications for publications.
     pub fn apply(&mut self, mut publication: ContractPublication) -> Result<bool, String> {
         let view = publication.result.view.as_str();
         if !matches!(

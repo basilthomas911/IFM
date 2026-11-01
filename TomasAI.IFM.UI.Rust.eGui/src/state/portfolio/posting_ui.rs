@@ -6,9 +6,15 @@ use crate::services::{
     business_context::BusinessContext, financial, financial_operations::OperationStore,
     financial_preparation,
 };
+
+
+/// Provides fk for the posting ui implementation.
 fn fk(name: &str) -> String {
     format!("{}.{name}", financial::ROOT)
 }
+
+
+/// Returns the user-facing label for this value.
 fn label(kind: &str) -> &str {
     match kind {
         "DepositConfirmed" => "Confirmed deposit",
@@ -21,6 +27,7 @@ fn label(kind: &str) -> &str {
     }
 }
 impl PortfolioController {
+    /// Opens the local operation store used for durable reconciliation.
     pub(super) fn operation_store(&self, configuration: bool) -> Result<OperationStore, String> {
         let directory = if let Some(root) = &self.journal_root {
             root.join(if configuration {
@@ -36,6 +43,9 @@ impl PortfolioController {
             configuration,
         })
     }
+
+
+    /// Opens posting for portfolio controller.
     pub(super) async fn open_posting(
         &mut self,
         backend: &Backend,
@@ -258,6 +268,9 @@ impl PortfolioController {
         self.update_posting_rule(registry)?;
         Ok("Transaction editor loaded".into())
     }
+
+
+    /// Updates posting rule for portfolio controller.
     fn update_posting_rule(&mut self, registry: &Registry) -> Result<(), String> {
         let Some(dialog) = self.dialogs.iter_mut().find(|d| d.key == "posting") else {
             return Ok(());
@@ -304,6 +317,9 @@ impl PortfolioController {
         }
         Ok(())
     }
+
+
+    /// Chooses posting for portfolio controller.
     pub(super) async fn choose_posting(
         &mut self,
         backend: &Backend,
@@ -340,6 +356,9 @@ impl PortfolioController {
         self.update_posting_rule(registry)?;
         Ok("Posting selection updated".into())
     }
+
+
+    /// Provides pending posting dialog for the portfolio controller implementation.
     pub(super) fn pending_posting_dialog(&mut self, registry: &Registry) -> Result<(), String> {
         let pending = self.pending_posting.as_ref().ok_or("No retained posting")?;
         let phase = pending["Phase"].as_i64().ok_or("Invalid pending phase")?;
@@ -363,6 +382,9 @@ impl PortfolioController {
         let _ = registry;
         Ok(())
     }
+
+
+    /// Submits a new posting or reconciles its existing persisted operation identity.
     pub(super) async fn post_or_reconcile(
         &mut self,
         backend: &Backend,

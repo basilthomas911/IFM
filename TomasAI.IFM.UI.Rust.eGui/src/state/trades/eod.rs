@@ -2,6 +2,7 @@
 //! setup cannot silently replace an unconfirmed lifecycle operation.
 use super::*;
 impl TradeController {
+    /// Provides eod action for the trade controller implementation.
     pub(super) async fn eod_action(
         &mut self,
         b: &Backend,

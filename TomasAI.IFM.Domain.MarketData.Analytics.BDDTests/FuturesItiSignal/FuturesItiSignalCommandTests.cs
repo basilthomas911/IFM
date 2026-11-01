@@ -78,7 +78,7 @@ public class FuturesItiSignalCommandTests
         signal.IntrinsicTimeGroupId.Should().Be(0);
         signal.TimeFrameStartValueDate.Should().Be(command.TimeFrameStartValueDate);
         signal.TradingDays.Should().Be(ExpectedTradingDays(timePeriod));
-        signal.BandPercentage.Should().Be(0.15);
+        signal.BandPercentage.Should().Be(0.20);
         signal.BandSize.Should().Be(signal.Threshold * signal.BandPercentage);
         signal.BandLevel.Should().Be(0);
         signal.ReversalLevel.Should().Be(0);
@@ -135,7 +135,7 @@ public class FuturesItiSignalCommandTests
         result.Success.Should().BeTrue();
         var signal = LastSignal(state);
         signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.UpTrend);
-        signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendExtremeChanged);
+        signal.IntrinsicTimeMode.Should().Be(signal.BandLevel > 1.0 ? IntrinsicTimeModeType.TrendOvershootExtended : IntrinsicTimeModeType.TrendExtremeChanged);
         signal.IntrinsicTimeGroupId.Should().Be(0);
         signal.TrendExtreme.Should().Be(higherPrice);
         AssertCalculatedLevels(signal);
@@ -165,7 +165,7 @@ public class FuturesItiSignalCommandTests
         // Then
         result.Success.Should().BeTrue();
         var signal = LastSignal(state);
-        signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendReversalChanged);
+        signal.IntrinsicTimeMode.Should().Be(signal.BandLevel > 1.0 ? IntrinsicTimeModeType.TrendOvershootReversal : IntrinsicTimeModeType.TrendReversalChanged);
         signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.UpTrend);
         signal.IntrinsicTimeGroupId.Should().Be(0);
         signal.TrendReversal.Should().Be(reversalPrice);
@@ -246,7 +246,7 @@ public class FuturesItiSignalCommandTests
         result.Success.Should().BeTrue();
         var signal = LastSignal(state);
         signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
-        signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendExtremeChanged);
+        signal.IntrinsicTimeMode.Should().Be(signal.BandLevel > 1.0 ? IntrinsicTimeModeType.TrendOvershootExtended : IntrinsicTimeModeType.TrendExtremeChanged);
         signal.IntrinsicTimeGroupId.Should().Be(downTrendSignal.IntrinsicTimeGroupId);
         signal.TrendExtreme.Should().Be(lowerPrice);
         AssertCalculatedLevels(signal);
@@ -279,7 +279,7 @@ public class FuturesItiSignalCommandTests
         // Then
         result.Success.Should().BeTrue();
         var signal = LastSignal(state);
-        signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendReversalChanged);
+        signal.IntrinsicTimeMode.Should().Be(signal.BandLevel > 1.0 ? IntrinsicTimeModeType.TrendOvershootReversal : IntrinsicTimeModeType.TrendReversalChanged);
         signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
         signal.IntrinsicTimeGroupId.Should().Be(afterExtreme.IntrinsicTimeGroupId);
         signal.TrendReversal.Should().Be(reversalPrice);
@@ -389,13 +389,13 @@ public class FuturesItiSignalCommandTests
         signals.Select(signal => signal.IntrinsicTimeMode).Should().Equal(
             IntrinsicTimeModeType.TrendDirectionChanged,
             IntrinsicTimeModeType.TrendExtremeChanged,
-            IntrinsicTimeModeType.TrendExtremeChanged,
-            IntrinsicTimeModeType.TrendReversalChanged,
+            IntrinsicTimeModeType.TrendOvershootExtended,
+            IntrinsicTimeModeType.TrendOvershootReversal,
             IntrinsicTimeModeType.Trending,
             IntrinsicTimeModeType.TrendDirectionChanged,
             IntrinsicTimeModeType.TrendExtremeChanged,
-            IntrinsicTimeModeType.TrendExtremeChanged,
-            IntrinsicTimeModeType.TrendReversalChanged,
+            IntrinsicTimeModeType.TrendOvershootExtended,
+            IntrinsicTimeModeType.TrendOvershootReversal,
             IntrinsicTimeModeType.Trending,
             IntrinsicTimeModeType.TrendDirectionChanged,
             IntrinsicTimeModeType.HoldTradeChanged,
@@ -421,7 +421,7 @@ public class FuturesItiSignalCommandTests
         signals.Should().OnlyContain(signal =>
             signal.TimePeriod == timePeriod
             && signal.TimeFrameStartValueDate == SampleData.ValueDate
-            && signal.BandPercentage == 0.15
+            && signal.BandPercentage == 0.20
             && signal.BandSize > 0
             && signal.Threshold > 0);
         foreach (var signal in signals)
@@ -660,8 +660,8 @@ public class FuturesItiSignalCommandTests
         => timePeriod switch
         {
             TimeFrameType.Daily => 1,
-            TimeFrameType.Weekly => 10,
-            TimeFrameType.Monthly => 30,
+            TimeFrameType.Weekly => 20,
+            TimeFrameType.Monthly => 60,
             _ => throw new ArgumentOutOfRangeException(nameof(timePeriod))
         };
 }

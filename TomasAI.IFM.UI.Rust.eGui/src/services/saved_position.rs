@@ -1,13 +1,22 @@
 //! Attach typed backend risk observations without changing saved lifecycle or accounting values.
 use crate::models::{trade_contracts::*, wire_types::DecimalText};
+
+
+/// Provides decimal for the saved position implementation.
 fn decimal(value: &Option<DecimalText>) -> Option<crate::backend::contracts::ExactDecimal> {
     crate::backend::contracts::ExactDecimal::parse(value.as_ref()?.as_str()).ok()
 }
+
+
+/// Compares monetary values without converting them through binary floating point.
 fn equal_amount(a: &Option<DecimalText>, b: &Option<DecimalText>) -> bool {
     decimal(a)
         .zip(decimal(b))
         .is_some_and(|(a, b)| super::option_selection::compare(&a, &b).is_eq())
 }
+
+
+/// Provides enrich for the saved position implementation.
 pub fn enrich(
     saved: &StrategyPositionSnapshot,
     current: &StrategyPositionSnapshot,

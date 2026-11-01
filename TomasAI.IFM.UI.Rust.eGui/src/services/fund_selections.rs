@@ -6,16 +6,25 @@ use rmpv::Value;
 const LOOKUP: &str = "TomasAI.IFM.Domain.Reference.Shared.Lookups.LookupDefinitionReadModel";
 const PRODUCT: &str =
     "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel";
+
+/// Lookup used by the fund selections component.
 #[derive(Clone)]
 struct Lookup {
+    /// Id associated with this lookup.
     id: i64,
+    /// Group associated with this lookup.
     group: String,
+    /// Value associated with this lookup.
     value: String,
+    /// Label associated with this lookup.
     label: String,
+    /// Optional order; `None` represents an absent value.
     order: Option<i64>,
+    /// Whether enabled is enabled or currently true.
     enabled: bool,
 }
 impl Lookup {
+    /// Reads fund selections for lookup.
     fn read(registry: &Registry, value: &Value) -> Result<Self, String> {
         let row = Field::new(registry, LOOKUP, value);
         let required = |key| -> Result<String, String> {
@@ -39,11 +48,18 @@ impl Lookup {
     }
 }
 use std::collections::{BTreeMap, BTreeSet};
+
+/// Selections used by the fund selections component.
 #[derive(Clone, Default)]
 pub struct Selections {
+    /// Ordered underlyings retained by Selections.
     pub underlyings: Vec<String>,
+    /// Keyed groups retained by Selections.
     groups: BTreeMap<String, Vec<Lookup>>,
 }
+
+
+/// Provides selectable for the fund selections implementation.
 fn selectable(registry: &Registry, row: &Lookup) -> bool {
     if !row.enabled {
         return false;
@@ -62,6 +78,7 @@ fn selectable(registry: &Registry, row: &Lookup) -> bool {
     }
 }
 impl Selections {
+    /// Loads fund selections for selections.
     pub async fn load(
         backend: &Backend,
         registry: &Registry,
@@ -151,6 +168,9 @@ impl Selections {
             .sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
         Ok(output)
     }
+
+
+    /// Provides choices for the selections implementation.
     pub(crate) fn choices(&self, registry: &Registry, group: &str) -> Result<Vec<Choice>, String> {
         Ok(self
             .groups
@@ -164,6 +184,9 @@ impl Selections {
             })
             .collect())
     }
+
+
+    /// Validates fund selections for selections.
     pub fn validate(
         &self,
         registry: &Registry,
@@ -198,6 +221,9 @@ impl Selections {
         }
         Ok(())
     }
+
+
+    /// Provides allowed for the selections implementation.
     fn allowed(&self, registry: &Registry, group: &str) -> Result<Vec<String>, String> {
         Ok(self
             .groups

@@ -1,3 +1,4 @@
+/// Verifies that sidebar short time matches hybrid including both sides of the dst fold.
 #[test]
 fn sidebar_short_time_matches_hybrid_including_both_sides_of_the_dst_fold() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

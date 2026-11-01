@@ -4,12 +4,20 @@ use crate::backend::{codec, contracts::*, schema::Registry, transport::Backend};
 use crate::services::{business_context::BusinessContext, portfolio};
 use rmpv::Value;
 use std::collections::BTreeMap;
+
+/// Prepared used by the portfolio commands component.
 #[derive(Clone)]
 pub struct Prepared {
+    /// Command id associated with this prepared.
     pub command_id: uuid::Uuid,
+    /// Subject associated with this prepared.
     pub subject: ActorSubject,
+    /// Body associated with this prepared.
     pub body: Value,
 }
+
+
+/// Provides template for the portfolio commands implementation.
 pub fn template(kind: &str) -> Result<Value, String> {
     let templates: BTreeMap<String, Vec<u8>> = serde_json::from_str(include_str!(
         "../../tests/fixtures/backend/portfolio-request-defaults.json"
@@ -21,6 +29,9 @@ pub fn template(kind: &str) -> Result<Value, String> {
             .ok_or("Missing compiled Portfolio initializer")?,
     )
 }
+
+
+/// Prepares portfolio commands for portfolio commands.
 pub fn prepare(
     registry: &Registry,
     context: &BusinessContext,
@@ -102,6 +113,9 @@ pub fn prepare(
         body,
     })
 }
+
+
+/// Submits portfolio commands for portfolio commands.
 pub async fn submit(
     backend: &Backend,
     prepared: &Prepared,
@@ -129,9 +143,17 @@ pub async fn submit(
     // that layer before its callers see ServiceResult<Guid>. Decode the actor
     // boundary here, while retaining compatibility with an already-unwrapped
     // reply from older endpoints.
-    let id=value.as_str().or_else(||value.as_array().filter(|v|v.len()==1).and_then(|v|v[0].as_str())).unwrap_or_default();
+    let id = value
+        .as_str()
+        .or_else(|| {
+            value
+                .as_array()
+                .filter(|v| v.len() == 1)
+                .and_then(|v| v[0].as_str())
+        })
+        .unwrap_or_default();
     uuid::Uuid::parse_str(id)
         .ok()
-        .filter(|v| !v.is_nil() && *v==prepared.command_id)
+        .filter(|v| !v.is_nil() && *v == prepared.command_id)
         .ok_or("OutcomeUnknown: invalid Portfolio command receipt".into())
 }

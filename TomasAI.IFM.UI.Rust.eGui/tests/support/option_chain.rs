@@ -1,5 +1,8 @@
 use super::*;
 use ifm_ui_egui::{backend::schema::Registry, services::option_chain::*};
+
+
+/// Provides control for the option chain implementation.
 async fn control(b: &Backend, verb: &str, value: Value) -> Value {
     service_result(
         &b.request(
@@ -14,6 +17,9 @@ async fn control(b: &Backend, verb: &str, value: Value) -> Value {
     .unwrap()
     .clone()
 }
+
+
+/// Verifies that option chain preview uses exact draft and backend economics.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn option_chain_preview_uses_exact_draft_and_backend_economics() {
@@ -56,7 +62,7 @@ async fn option_chain_preview_uses_exact_draft_and_backend_economics() {
         )
         .await
         .unwrap();
-    let result=ifm_ui_egui::models::backend_document::request_document(&result).unwrap();
+    let result = ifm_ui_egui::models::backend_document::request_document(&result).unwrap();
     assert_eq!(
         result["MaximumLoss"].as_str(),
         Some("987.6543210123456789012345678")
@@ -113,6 +119,9 @@ async fn option_chain_preview_uses_exact_draft_and_backend_economics() {
     assert_eq!(preview.revision(), before);
     control(&b, "OptionChainMode", "Normal".into()).await;
 }
+
+
+/// Provides spec for the option chain implementation.
 fn spec() -> Specification {
     Specification {
         contract: "ESZ6".into(),
@@ -124,9 +133,15 @@ fn spec() -> Specification {
         frozen: false,
     }
 }
+
+
+/// Provides budget for the option chain implementation.
 fn budget() -> tokio::time::Instant {
     tokio::time::Instant::now() + Duration::from_millis(400)
 }
+
+
+/// Verifies that option chain scope precision and subscription ownership survive failures.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn option_chain_scope_precision_and_subscription_ownership_survive_failures() {
@@ -157,7 +172,7 @@ async fn option_chain_scope_precision_and_subscription_ownership_survive_failure
     let mut other = Lease::default();
     assert_ne!(a.owner(), other.owner());
     let snapshot = a.load(&b, &r, spec(), budget()).await.unwrap();
-    let snapshot=ifm_ui_egui::models::backend_document::request_document(&snapshot).unwrap();
+    let snapshot = ifm_ui_egui::models::backend_document::request_document(&snapshot).unwrap();
     assert_eq!(snapshot["Contracts"][0]["ContractId"], "ES-C");
     other.load(&b, &r, spec(), budget()).await.unwrap();
     assert_eq!(

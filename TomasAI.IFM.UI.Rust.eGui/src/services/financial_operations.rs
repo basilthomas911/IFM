@@ -9,12 +9,17 @@ use crate::{
 use rmpv::Value;
 use serde_json::Value as Json;
 use std::{collections::BTreeMap, path::PathBuf};
+
+/// Operation Store used by the financial operations component.
 #[derive(Clone)]
 pub struct OperationStore {
+    /// Directory associated with this operation store.
     pub directory: PathBuf,
+    /// Whether configuration is enabled or currently true.
     pub configuration: bool,
 }
 impl OperationStore {
+    /// Provides command for the operation store implementation.
     fn command(&self) -> &'static str {
         if self.configuration {
             "ConfigureLedgerCommand"
@@ -22,6 +27,9 @@ impl OperationStore {
             "PostFundTransactionCommand"
         }
     }
+
+
+    /// Saves financial operations for operation store.
     async fn save(&self, value: Json) -> Result<Json, String> {
         let path = self.directory.clone();
         let command = self.command();
@@ -40,6 +48,9 @@ impl OperationStore {
         .await
         .map_err(|e| e.to_string())?
     }
+
+
+    /// Loads financial operations for operation store.
     pub async fn load(&self, id: uuid::Uuid) -> Result<Json, String> {
         let path = self.directory.clone();
         let command = self.command();
@@ -52,6 +63,9 @@ impl OperationStore {
         .await
         .map_err(|e| e.to_string())?
     }
+
+
+    /// Submits financial operations for operation store.
     pub async fn submit(
         &self,
         backend: &Backend,
@@ -69,6 +83,9 @@ impl OperationStore {
         self.save(pending).await?;
         self.recover(backend, registry, id, deadline).await
     }
+
+
+    /// Provides recover for the operation store implementation.
     pub async fn recover(
         &self,
         backend: &Backend,
@@ -165,6 +182,9 @@ impl OperationStore {
             }
         }
     }
+
+
+    /// Reconciles financial operations for operation store.
     async fn reconcile(
         &self,
         backend: &Backend,

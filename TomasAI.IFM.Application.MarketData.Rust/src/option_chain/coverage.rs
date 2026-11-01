@@ -141,7 +141,19 @@ impl Planner {
         stop: &CancellationToken,
         deadline: Deadline,
     ) -> Result<ResultSet, &'static str> {
-        self.plan_inner(parameters,date,definitions,complete,forward,volatility,zone,underlying_prices,stop,deadline,false)
+        self.plan_inner(
+            parameters,
+            date,
+            definitions,
+            complete,
+            forward,
+            volatility,
+            zone,
+            underlying_prices,
+            stop,
+            deadline,
+            false,
+        )
     }
     /// Plan only coverage groups with valid underlying prices. Missing prices
     /// leave those groups pending without rejecting independently ready groups.
@@ -151,19 +163,46 @@ impl Planner {
     /// Arithmetic, cancellation, capacity or interrupted state is explicit.
     #[allow(clippy::too_many_arguments)]
     pub fn plan_available(
-        &self, parameters: &Parameters, date: time::Date, definitions: &[Definition<'_>],
-        complete: bool, forward: Decimal, volatility: f64, zone: Zone,
-        underlying_prices: Option<&BTreeMap<String, Decimal>>, stop: &CancellationToken,
+        &self,
+        parameters: &Parameters,
+        date: time::Date,
+        definitions: &[Definition<'_>],
+        complete: bool,
+        forward: Decimal,
+        volatility: f64,
+        zone: Zone,
+        underlying_prices: Option<&BTreeMap<String, Decimal>>,
+        stop: &CancellationToken,
         deadline: Deadline,
     ) -> Result<ResultSet, &'static str> {
-        self.plan_inner(parameters,date,definitions,complete,forward,volatility,zone,underlying_prices,stop,deadline,true)
+        self.plan_inner(
+            parameters,
+            date,
+            definitions,
+            complete,
+            forward,
+            volatility,
+            zone,
+            underlying_prices,
+            stop,
+            deadline,
+            true,
+        )
     }
     #[allow(clippy::too_many_arguments)]
     fn plan_inner(
-        &self, parameters: &Parameters, date: time::Date, definitions: &[Definition<'_>],
-        complete: bool, forward: Decimal, volatility: f64, zone: Zone,
-        underlying_prices: Option<&BTreeMap<String, Decimal>>, stop: &CancellationToken,
-        deadline: Deadline, allow_pending: bool,
+        &self,
+        parameters: &Parameters,
+        date: time::Date,
+        definitions: &[Definition<'_>],
+        complete: bool,
+        forward: Decimal,
+        volatility: f64,
+        zone: Zone,
+        underlying_prices: Option<&BTreeMap<String, Decimal>>,
+        stop: &CancellationToken,
+        deadline: Deadline,
+        allow_pending: bool,
     ) -> Result<ResultSet, &'static str> {
         if !parameters.enabled || !parameters.biases.iter().any(|b| b.enabled) {
             return Ok(failed("StrategyDisabled"));
@@ -224,11 +263,17 @@ impl Planner {
         if groups.is_empty() {
             return Ok(failed("NoEligibleExpiration"));
         }
-        if allow_pending && let Some(prices)=underlying_prices {
+        if allow_pending && let Some(prices) = underlying_prices {
             // Unpriced groups cannot consume expiration capacity or determine
             // expiry preference for independently available coverage.
-            groups.retain(|_,(underlying,_)|prices.get(underlying).copied().is_some_and(positive));
-            if groups.is_empty() {return Ok(ResultSet {universes:vec![],reason:""});}
+            groups
+                .retain(|_, (underlying, _)| prices.get(underlying).copied().is_some_and(positive));
+            if groups.is_empty() {
+                return Ok(ResultSet {
+                    universes: vec![],
+                    reason: "",
+                });
+            }
         }
         let mut selected = BTreeSet::new();
         for bias in &active {
@@ -246,7 +291,9 @@ impl Planner {
                     )
                 });
             let Some((date, _)) = best else {
-                if allow_pending {continue;}
+                if allow_pending {
+                    continue;
+                }
                 return Ok(failed("BiasExpirationUnavailable"));
             };
             selected.insert(*date);
@@ -300,7 +347,9 @@ impl Planner {
             }
             let forward = if let Some(prices) = underlying_prices {
                 let Some(price) = prices.get(underlying).copied().filter(|n| positive(*n)) else {
-                    if allow_pending { continue; }
+                    if allow_pending {
+                        continue;
+                    }
                     return Ok(failed("CoverageInputsUnavailable"));
                 };
                 price

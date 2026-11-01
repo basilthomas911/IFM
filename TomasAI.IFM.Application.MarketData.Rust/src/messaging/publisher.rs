@@ -403,6 +403,33 @@ impl Publisher {
         )
     }
 
+    /// Prepare at most two cache chunks before enqueueing, using the cache writer's existing bounds.
+    /// The dedicated delivery owner waits for both flush ordinals before admitting another pair.
+    ///
+    /// # Errors
+    /// Invalid indices, stopped writers or bounded admission failures retire the owning delivery.
+    pub fn try_option_cache_pair(
+        &self,
+        publication: &super::option_cache::Publication,
+        index: usize,
+    ) -> Result<usize, &'static str> {
+        let remaining = publication
+            .chunks()
+            .checked_sub(index)
+            .filter(|remaining| *remaining > 0)
+            .ok_or("Native option-cache chunk unavailable")?;
+        let count = remaining.min(2);
+        let mut encoded = Vec::with_capacity(count);
+        for offset in 0..count {
+            encoded.push(publication.frame(index + offset)?);
+        }
+        let subject = format!("ifm.{}.marketdata.v1.option-cache", self.scope);
+        for bytes in encoded {
+            self.try_packet(subject.clone(), bytes, None)?;
+        }
+        Ok(count)
+    }
+
     /// Submits copied evidence to the external IO endpoint. The reply is a
     /// durable-writer receipt, distinct from a broker PONG. No FFI stream is used.
     ///

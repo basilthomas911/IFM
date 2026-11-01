@@ -1,11 +1,19 @@
 use egui_kittest::{Harness, kittest::Queryable};
 use ifm_ui_egui::{Catalog, contract_editor::*};
 use std::collections::BTreeMap;
+
+/// State used by the contract editor test fixtures.
 struct State {
+    /// View associated with this state.
     view: ContractEditor,
+    /// Snapshot associated with this state.
     snapshot: ContractPublication,
+    /// Ordered intents retained by State.
     intents: Vec<String>,
 }
+
+
+/// Provides setup for the contract editor implementation.
 fn setup(count: usize) -> Harness<'static, State> {
     let catalog: Catalog =
         serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap();
@@ -56,6 +64,9 @@ fn setup(count: usize) -> Harness<'static, State> {
         },
     )
 }
+
+
+/// Verifies that edit uses exact original identity and waits for ack.
 #[test]
 fn edit_uses_exact_original_identity_and_waits_for_ack() {
     let mut h = setup(2);
@@ -72,6 +83,9 @@ fn edit_uses_exact_original_identity_and_waits_for_ack() {
     assert_eq!(data["expectedGeneration"], 4);
     assert!(h.state().view.pending.is_some());
 }
+
+
+/// Verifies that remove requires confirmation and cancel sends nothing.
 #[test]
 fn remove_requires_confirmation_and_cancel_sends_nothing() {
     let mut h = setup(2);
@@ -91,6 +105,9 @@ fn remove_requires_confirmation_and_cancel_sends_nothing() {
     h.run();
     assert_eq!(h.state().intents.len(), 1);
 }
+
+
+/// Verifies that hundred thousand contracts draw only visible rows.
 #[test]
 fn hundred_thousand_contracts_draw_only_visible_rows() {
     let mut h = setup(100_000);
@@ -100,6 +117,8 @@ fn hundred_thousand_contracts_draw_only_visible_rows() {
     assert!(h.state().view.drawn_rows < 40);
 }
 
+
+/// Verifies that provider convention review requires confirmation and cancel submits nothing.
 #[test]
 fn provider_convention_review_requires_confirmation_and_cancel_submits_nothing() {
     let mut h = setup(1);

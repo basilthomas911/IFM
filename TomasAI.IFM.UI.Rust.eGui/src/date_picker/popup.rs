@@ -3,21 +3,27 @@
 use eframe::egui;
 use chrono::{Datelike as _, NaiveDate, Weekday};
 
-use egui::{Align, Button, Color32, ComboBox, Direction, Id, Layout, RichText, Ui, Vec2};
+use egui::{Button, Color32, ComboBox, Direction, Id, Layout, RichText, Ui, Vec2};
 
 use super::{button::DatePickerButtonState, month_data};
 
 use egui_extras::{Column, Size, StripBuilder, TableBuilder};
 
+/// Date Picker Popup State used by the popup component.
 #[derive(Default, Clone)]
 struct DatePickerPopupState {
+    /// Year associated with this date picker popup state.
     year: i32,
+    /// Month associated with this date picker popup state.
     month: u32,
+    /// Day associated with this date picker popup state.
     day: u32,
+    /// Whether setup is enabled or currently true.
     setup: bool,
 }
 
 impl DatePickerPopupState {
+    /// Finds the final valid day in the selected calendar month.
     fn last_day_of_month(&self) -> u32 {
         let date: NaiveDate =
             NaiveDate::from_ymd_opt(self.year, self.month, 1).expect("Could not create NaiveDate");
@@ -29,14 +35,23 @@ impl DatePickerPopupState {
     }
 }
 
+/// Date Picker Popup used by the popup component.
 pub(crate) struct DatePickerPopup<'a> {
+    /// Selection associated with this date picker popup.
     pub selection: &'a mut NaiveDate,
+    /// Button id associated with this date picker popup.
     pub button_id: Id,
+    /// Whether combo boxes is enabled or currently true.
     pub combo_boxes: bool,
+    /// Whether arrows is enabled or currently true.
     pub arrows: bool,
+    /// Whether calendar is enabled or currently true.
     pub calendar: bool,
+    /// Whether calendar week is enabled or currently true.
     pub calendar_week: bool,
+    /// Whether highlight weekends is enabled or currently true.
     pub highlight_weekends: bool,
+    /// Optional start end years; `None` represents an absent value.
     pub start_end_years: Option<std::ops::RangeInclusive<i32>>,
 }
 
@@ -57,13 +72,21 @@ impl DatePickerPopup<'_> {
             ui.data_mut(|data| data.insert_persisted(id, popup_state.clone()));
         }
 
-        if popup_state.year < 1 { popup_state.year=1;popup_state.month=1;popup_state.day=1; }
-        if popup_state.year > 9999 { popup_state.year=9999;popup_state.month=12;popup_state.day=31; }
-        popup_state.day=popup_state.day.min(popup_state.last_day_of_month());
+        if popup_state.year < 1 {
+            popup_state.year = 1;
+            popup_state.month = 1;
+            popup_state.day = 1;
+        }
+        if popup_state.year > 9999 {
+            popup_state.year = 9999;
+            popup_state.month = 12;
+            popup_state.day = 31;
+        }
+        popup_state.day = popup_state.day.min(popup_state.last_day_of_month());
         let weeks = month_data(popup_state.year, popup_state.month);
         let (mut close, mut saved) = (false, false);
-        let height = 20.0;
-        let spacing = 2.0;
+        let height = ui.text_style_height(&egui::TextStyle::Body).max(20.) + 6.;
+        let spacing = 6.0;
         ui.spacing_mut().item_spacing = Vec2::splat(spacing);
 
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend); // Don't wrap any text
@@ -79,7 +102,7 @@ impl DatePickerPopup<'_> {
                 },
             )
             .sizes(
-                Size::exact((spacing + height) * (weeks.len() + 1) as f32),
+                Size::exact(height * (weeks.len() + 1) as f32 + 2. * weeks.len() as f32),
                 self.calendar as usize,
             )
             .size(Size::exact(height))
@@ -168,104 +191,132 @@ impl DatePickerPopup<'_> {
                     strip.strip(|builder| {
                         builder.sizes(Size::remainder(), 6).horizontal(|mut strip| {
                             strip.cell(|ui| {
-                                ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
-                                    if ui
-                                        .button("<<<")
-                                        .on_hover_text("subtract one year")
-                                        .clicked()
-                                    {
-                                        popup_state.year -= 1;
-                                        popup_state.day =
-                                            popup_state.day.min(popup_state.last_day_of_month());
-                                        ui.data_mut(|data| {
-                                            data.insert_persisted(id, popup_state.clone());
-                                        });
-                                    }
-                                });
-                            });
-                            strip.cell(|ui| {
-                                ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
-                                    if ui
-                                        .button("<<")
-                                        .on_hover_text("subtract one month")
-                                        .clicked()
-                                    {
-                                        popup_state.month -= 1;
-                                        if popup_state.month == 0 {
-                                            popup_state.month = 12;
+                                ui.with_layout(
+                                    Layout::centered_and_justified(Direction::LeftToRight),
+                                    |ui| {
+                                        if ui
+                                            .button("<<<")
+                                            .on_hover_text("subtract one year")
+                                            .clicked()
+                                        {
                                             popup_state.year -= 1;
+                                            popup_state.day = popup_state
+                                                .day
+                                                .min(popup_state.last_day_of_month());
+                                            ui.data_mut(|data| {
+                                                data.insert_persisted(id, popup_state.clone());
+                                            });
                                         }
-                                        popup_state.day =
-                                            popup_state.day.min(popup_state.last_day_of_month());
-                                        ui.data_mut(|data| {
-                                            data.insert_persisted(id, popup_state.clone());
-                                        });
-                                    }
-                                });
+                                    },
+                                );
                             });
                             strip.cell(|ui| {
-                                ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
-                                    if ui.button("<").on_hover_text("subtract one day").clicked() {
-                                        popup_state.day -= 1;
-                                        if popup_state.day == 0 {
+                                ui.with_layout(
+                                    Layout::centered_and_justified(Direction::LeftToRight),
+                                    |ui| {
+                                        if ui
+                                            .button("<<")
+                                            .on_hover_text("subtract one month")
+                                            .clicked()
+                                        {
                                             popup_state.month -= 1;
                                             if popup_state.month == 0 {
-                                                popup_state.year -= 1;
                                                 popup_state.month = 12;
+                                                popup_state.year -= 1;
                                             }
-                                            popup_state.day = popup_state.last_day_of_month();
+                                            popup_state.day = popup_state
+                                                .day
+                                                .min(popup_state.last_day_of_month());
+                                            ui.data_mut(|data| {
+                                                data.insert_persisted(id, popup_state.clone());
+                                            });
                                         }
-                                        ui.data_mut(|data| {
-                                            data.insert_persisted(id, popup_state.clone());
-                                        });
-                                    }
-                                });
+                                    },
+                                );
                             });
                             strip.cell(|ui| {
-                                ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
-                                    if ui.button(">").on_hover_text("add one day").clicked() {
-                                        popup_state.day += 1;
-                                        if popup_state.day > popup_state.last_day_of_month() {
-                                            popup_state.day = 1;
+                                ui.with_layout(
+                                    Layout::centered_and_justified(Direction::LeftToRight),
+                                    |ui| {
+                                        if ui
+                                            .button("<")
+                                            .on_hover_text("subtract one day")
+                                            .clicked()
+                                        {
+                                            popup_state.day -= 1;
+                                            if popup_state.day == 0 {
+                                                popup_state.month -= 1;
+                                                if popup_state.month == 0 {
+                                                    popup_state.year -= 1;
+                                                    popup_state.month = 12;
+                                                }
+                                                popup_state.day = popup_state.last_day_of_month();
+                                            }
+                                            ui.data_mut(|data| {
+                                                data.insert_persisted(id, popup_state.clone());
+                                            });
+                                        }
+                                    },
+                                );
+                            });
+                            strip.cell(|ui| {
+                                ui.with_layout(
+                                    Layout::centered_and_justified(Direction::LeftToRight),
+                                    |ui| {
+                                        if ui.button(">").on_hover_text("add one day").clicked() {
+                                            popup_state.day += 1;
+                                            if popup_state.day > popup_state.last_day_of_month() {
+                                                popup_state.day = 1;
+                                                popup_state.month += 1;
+                                                if popup_state.month > 12 {
+                                                    popup_state.month = 1;
+                                                    popup_state.year += 1;
+                                                }
+                                            }
+                                            ui.data_mut(|data| {
+                                                data.insert_persisted(id, popup_state.clone());
+                                            });
+                                        }
+                                    },
+                                );
+                            });
+                            strip.cell(|ui| {
+                                ui.with_layout(
+                                    Layout::centered_and_justified(Direction::LeftToRight),
+                                    |ui| {
+                                        if ui.button(">>").on_hover_text("add one month").clicked()
+                                        {
                                             popup_state.month += 1;
                                             if popup_state.month > 12 {
                                                 popup_state.month = 1;
                                                 popup_state.year += 1;
                                             }
+                                            popup_state.day = popup_state
+                                                .day
+                                                .min(popup_state.last_day_of_month());
+                                            ui.data_mut(|data| {
+                                                data.insert_persisted(id, popup_state.clone());
+                                            });
                                         }
-                                        ui.data_mut(|data| {
-                                            data.insert_persisted(id, popup_state.clone());
-                                        });
-                                    }
-                                });
+                                    },
+                                );
                             });
                             strip.cell(|ui| {
-                                ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
-                                    if ui.button(">>").on_hover_text("add one month").clicked() {
-                                        popup_state.month += 1;
-                                        if popup_state.month > 12 {
-                                            popup_state.month = 1;
+                                ui.with_layout(
+                                    Layout::centered_and_justified(Direction::LeftToRight),
+                                    |ui| {
+                                        if ui.button(">>>").on_hover_text("add one year").clicked()
+                                        {
                                             popup_state.year += 1;
+                                            popup_state.day = popup_state
+                                                .day
+                                                .min(popup_state.last_day_of_month());
+                                            ui.data_mut(|data| {
+                                                data.insert_persisted(id, popup_state.clone());
+                                            });
                                         }
-                                        popup_state.day =
-                                            popup_state.day.min(popup_state.last_day_of_month());
-                                        ui.data_mut(|data| {
-                                            data.insert_persisted(id, popup_state.clone());
-                                        });
-                                    }
-                                });
-                            });
-                            strip.cell(|ui| {
-                                ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
-                                    if ui.button(">>>").on_hover_text("add one year").clicked() {
-                                        popup_state.year += 1;
-                                        popup_state.day =
-                                            popup_state.day.min(popup_state.last_day_of_month());
-                                        ui.data_mut(|data| {
-                                            data.insert_persisted(id, popup_state.clone());
-                                        });
-                                    }
-                                });
+                                    },
+                                );
                             });
                         });
                     });
@@ -312,7 +363,9 @@ impl DatePickerPopup<'_> {
                                         for day in week.days {
                                             row.col(|ui| {
                                                 ui.with_layout(
-                                                    Layout::top_down_justified(Align::Center),
+                                                    Layout::centered_and_justified(
+                                                        Direction::LeftToRight,
+                                                    ),
                                                     |ui| {
                                                         let fill_color = if popup_state.year
                                                             == day.year()
@@ -344,7 +397,8 @@ impl DatePickerPopup<'_> {
                                                                 text_color.linear_multiply(0.5);
                                                         };
 
-                                                        let button_response = ui.add_enabled((1..=9999).contains(&day.year()),
+                                                        let button_response = ui.add_enabled(
+                                                            (1..=9999).contains(&day.year()),
                                                             Button::new(
                                                                 RichText::new(
                                                                     day.day().to_string(),
@@ -368,7 +422,9 @@ impl DatePickerPopup<'_> {
                                                             );
                                                         }
 
-                                                        if button_response.clicked() && (1..=9999).contains(&day.year()) {
+                                                        if button_response.clicked()
+                                                            && (1..=9999).contains(&day.year())
+                                                        {
                                                             popup_state.year = day.year();
                                                             popup_state.month = day.month();
                                                             popup_state.day = day.day();
@@ -390,30 +446,53 @@ impl DatePickerPopup<'_> {
                 }
 
                 strip.strip(|builder| {
-                    builder.sizes(Size::remainder(), 3).horizontal(|mut strip| {
-                        strip.empty();
-                        strip.cell(|ui| {
-                            ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
-                                if ui.button("Cancel").clicked() {
-                                    close = true;
-                                }
+                    builder
+                        .size(Size::remainder())
+                        .sizes(Size::exact(96.), 2)
+                        .size(Size::remainder())
+                        .horizontal(|mut strip| {
+                            strip.empty();
+                            strip.cell(|ui| {
+                                ui.with_layout(
+                                    Layout::centered_and_justified(Direction::LeftToRight),
+                                    |ui| {
+                                        if ui
+                                            .add_enabled(
+                                                (1..=9999).contains(&popup_state.year)
+                                                    && NaiveDate::from_ymd_opt(
+                                                        popup_state.year,
+                                                        popup_state.month,
+                                                        popup_state.day,
+                                                    )
+                                                    .is_some(),
+                                                Button::new("Save"),
+                                            )
+                                            .clicked()
+                                        {
+                                            *self.selection = NaiveDate::from_ymd_opt(
+                                                popup_state.year,
+                                                popup_state.month,
+                                                popup_state.day,
+                                            )
+                                            .expect("Could not create NaiveDate");
+                                            saved = true;
+                                            close = true;
+                                        }
+                                    },
+                                );
                             });
-                        });
-                        strip.cell(|ui| {
-                            ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
-                                if ui.add_enabled((1..=9999).contains(&popup_state.year) && NaiveDate::from_ymd_opt(popup_state.year, popup_state.month, popup_state.day).is_some(), Button::new("Save")).clicked() {
-                                    *self.selection = NaiveDate::from_ymd_opt(
-                                        popup_state.year,
-                                        popup_state.month,
-                                        popup_state.day,
-                                    )
-                                    .expect("Could not create NaiveDate");
-                                    saved = true;
-                                    close = true;
-                                }
+                            strip.cell(|ui| {
+                                ui.with_layout(
+                                    Layout::centered_and_justified(Direction::LeftToRight),
+                                    |ui| {
+                                        if ui.button("Cancel").clicked() {
+                                            close = true;
+                                        }
+                                    },
+                                );
                             });
+                            strip.empty();
                         });
-                    });
                 });
             });
 
@@ -430,6 +509,8 @@ impl DatePickerPopup<'_> {
     }
 }
 
+
+/// Returns the display caption for the requested calendar month.
 fn month_name(i: u32) -> &'static str {
     match i {
         1 => "January",

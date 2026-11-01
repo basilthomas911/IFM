@@ -3,18 +3,40 @@
 use super::wire_types::*;
 use serde::Serialize;
 use serde::ser::SerializeSeq;
-pub struct BackendDocument<'a, T: BackendRecord + ?Sized>(pub &'a T);
+
+/// Backend Document used by the backend document component.
+pub struct BackendDocument<'a, T: BackendRecord + ?Sized>(
+    /// Borrowed backend record; the wrapper does not take ownership of the referenced record.
+    pub &'a T,
+);
+
+/// Defines the backend record operations shared by its implementations.
 pub trait BackendRecord {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>;
 }
 impl<T: BackendRecord + ?Sized> Serialize for BackendDocument<'_, T> {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.0.serialize_backend(serializer)
     }
 }
-macro_rules! scalar {($($kind:ty),*)=>{$(impl BackendRecord for $kind{
-    fn serialize_backend<S:serde::Serializer>(&self,serializer:S)->Result<S::Ok,S::Error>{self.serialize(serializer)}
-})*};}
+// Scalar records use their existing serde representation at the backend boundary.
+macro_rules! scalar {
+    ($($kind:ty),*) => {
+        $(
+            impl BackendRecord for $kind {
+                /// Writes this scalar using its declared serde representation.
+                fn serialize_backend<S: serde::Serializer>(
+                    &self,
+                    serializer: S,
+                ) -> Result<S::Ok, S::Error> {
+                    self.serialize(serializer)
+                }
+            }
+        )*
+    };
+}
 scalar!(
     String,
     bool,
@@ -36,6 +58,7 @@ scalar!(
     ByteBuffer
 );
 impl<T: BackendRecord> BackendRecord for Option<T> {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Some(value) => serializer.serialize_some(&BackendDocument(value)),
@@ -44,11 +67,13 @@ impl<T: BackendRecord> BackendRecord for Option<T> {
     }
 }
 impl<T: BackendRecord + ?Sized> BackendRecord for Box<T> {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         (**self).serialize_backend(serializer)
     }
 }
 impl<T: BackendRecord> BackendRecord for Vec<T> {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut output = serializer.serialize_seq(Some(self.len()))?;
         for value in self {
@@ -57,6 +82,7 @@ impl<T: BackendRecord> BackendRecord for Vec<T> {
         output.end()
     }
 }
+
 
 /// Materialize a named value only for an existing JSON command/journal adapter.
 pub fn request_document<T: BackendRecord>(record: &T) -> Result<serde_json::Value, String> {

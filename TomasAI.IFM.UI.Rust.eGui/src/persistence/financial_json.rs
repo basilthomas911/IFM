@@ -4,9 +4,15 @@ use crate::backend::{contracts::*, schema::Registry};
 use rmpv::Value;
 use serde_json::Value as Json;
 use std::str::FromStr;
+
+
+/// Serializes the persisted operation using its canonical JSON representation.
 pub fn stored_json(registry: &Registry, kind: &str, wire: &Value) -> Result<Json, String> {
     convert(registry, kind, wire, 0)
 }
+
+
+/// Provides convert for the financial json implementation.
 fn convert(registry: &Registry, kind: &str, wire: &Value, depth: usize) -> Result<Json, String> {
     if depth > 64 {
         return Err("Financial receipt nesting exceeds its bound".into());

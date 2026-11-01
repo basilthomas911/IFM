@@ -81,9 +81,16 @@ fn next_validity_wakeup(next: &mut Option<tokio::time::Instant>, at: i64, until:
 // provider/component failures. Retry only on existing source/calculation events;
 // malformed snapshots, changed generations and unknown errors still escalate.
 fn cache_waits_for_market_data(code: &str) -> bool {
-    matches!(code, "StaleData" | "QuoteUnavailable" | "UnderlyingQuoteUnavailable"
-        | "PricingContextUnavailable" | "SelectionCalculationUnavailable"
-        | "InvalidQuote" | "IncoherentQuotes")
+    matches!(
+        code,
+        "StaleData"
+            | "QuoteUnavailable"
+            | "UnderlyingQuoteUnavailable"
+            | "PricingContextUnavailable"
+            | "SelectionCalculationUnavailable"
+            | "InvalidQuote"
+            | "IncoherentQuotes"
+    )
 }
 // No eligible spread is a valid business result only when the complete captured
 // scope was actually valued. Missing/invalid inputs remain unavailable and are
@@ -228,15 +235,26 @@ pub struct OptionsFactory {
 struct Recipe {
     desired: std::sync::Weak<Intent>,
     source: Arc<Intent>,
-    physical: Option<[u8;32]>,
+    physical: Option<[u8; 32]>,
 }
 impl Recipe {
     fn matches(&self, desired: &Intent) -> bool {
-        let physical=desired.background.as_ref().map(|background|background.committed_book())
-            .transpose().and_then(|book|book.flatten().map(|book|book.physical_signature()).transpose());
-        self.desired.upgrade().is_some_and(|old| std::ptr::eq(old.as_ref(), desired))
-            && self.source.date == desired.date && self.source.revision == desired.revision
-            && physical.ok()==Some(self.physical)
+        let physical = desired
+            .background
+            .as_ref()
+            .map(|background| background.committed_book())
+            .transpose()
+            .and_then(|book| {
+                book.flatten()
+                    .map(|book| book.physical_signature())
+                    .transpose()
+            });
+        self.desired
+            .upgrade()
+            .is_some_and(|old| std::ptr::eq(old.as_ref(), desired))
+            && self.source.date == desired.date
+            && self.source.revision == desired.revision
+            && physical.ok() == Some(self.physical)
     }
 }
 impl OptionsFactory {
@@ -340,8 +358,11 @@ impl LogicalStatistics {
 impl Factory for OptionsFactory {
     fn audit_workloads(&self, intent: &Self::Intent) -> Vec<String> {
         let retained = self.realized.lock().ok();
-        let intent = retained.as_ref().and_then(|known| known.as_ref())
-            .filter(|known| known.matches(intent)).map_or(intent, |known| known.source.as_ref());
+        let intent = retained
+            .as_ref()
+            .and_then(|known| known.as_ref())
+            .filter(|known| known.matches(intent))
+            .map_or(intent, |known| known.source.as_ref());
         let mut scopes: Vec<_> = intent
             .monitored
             .iter()
@@ -354,7 +375,11 @@ impl Factory for OptionsFactory {
             intent.monitored.len()
         ));
         if let Some(background) = &intent.background {
-            for monitor in background.monitors().into_iter().take(255 - scopes.len().min(255)) {
+            for monitor in background
+                .monitors()
+                .into_iter()
+                .take(255 - scopes.len().min(255))
+            {
                 scopes.push(format!("monitor/{}/{}", monitor.scope, monitor.contract));
             }
         }
@@ -450,7 +475,12 @@ impl Factory for OptionsFactory {
         let generation = rand::random::<u128>().max(1).to_le_bytes();
         if let Some(background) = &intent.background {
             background.bind_browser_generation(generation, reset_window_iv)?;
-            background.bind_setup_diagnostics(&self.diagnostics, worker, generation, intent.revision as u64)?;
+            background.bind_setup_diagnostics(
+                &self.diagnostics,
+                worker,
+                generation,
+                intent.revision as u64,
+            )?;
         }
 
         *self
@@ -510,21 +540,33 @@ impl Run {
         // Logging starts before discovery. An unavailable sink never gates the
         // resource task; its own copied queue and cancellation remain bounded.
         let mut delivery = match diagnostic_delivery::Delivery::start(
-            self.diagnostics.clone(), self.intent.broker.clone(), self.intent.scope.clone(), self.parent.clone()) {
+            self.diagnostics.clone(),
+            self.intent.broker.clone(),
+            self.intent.scope.clone(),
+            self.parent.clone(),
+        ) {
             Ok(delivery) => delivery,
             Err(error) => {
-                self.health.send_modify(|s| {s.failure=Some(error.into());s.deadline=setup;});
+                self.health.send_modify(|s| {
+                    s.failure = Some(error.into());
+                    s.deadline = setup;
+                });
                 return;
             }
         };
         let mut stage = String::from("starting reconstruction");
-        let result = self.run(&stop, &mut setup, delivery.changes(), &mut stage).await;
+        let result = self
+            .run(&stop, &mut setup, delivery.changes(), &mut stage)
+            .await;
         if let Err(error) = result {
             let error = format!("{error}; last native setup step: {stage}");
             // Retain the copied failure before cancellation. A replacement's
             // independent diagnostic sender can deliver it after this task exits.
             let safe = error.replace(&self.intent.source.key, "[REDACTED]");
-            let _ = self.stage(&mut stage, &format!("Failed: {}", safe.chars().take(3000).collect::<String>()));
+            let _ = self.stage(
+                &mut stage,
+                &format!("Failed: {}", safe.chars().take(3000).collect::<String>()),
+            );
             let deadline = self
                 .retirement
                 .lock()
@@ -548,18 +590,27 @@ impl Run {
         mut logs: watch::Receiver<diagnostic_delivery::Status>,
         stage: &mut String,
     ) -> Result<(), String> {
-        let retained = self.realized.lock()
+        let retained = self
+            .realized
+            .lock()
             .map_err(|_| "Native reconstruction recipe interrupted")?
-            .as_ref().filter(|known| known.matches(&self.intent))
+            .as_ref()
+            .filter(|known| known.matches(&self.intent))
             .map(|known| known.source.clone());
         // Reopen the exact qualified membership before background replanning.
         // The recipe contains no quotes or physical generation; every task,
         // subscription, reference context and output is recreated below.
         let wanted = if let Some(retained) = retained {
-            self.stage(stage, "Reopening retained qualified subscriptions before background discovery")?;
+            self.stage(
+                stage,
+                "Reopening retained qualified subscriptions before background discovery",
+            )?;
             retained
         } else if let Some(background) = &self.intent.background {
-            self.stage(stage, "Resolving background and monitored subscription metadata")?;
+            self.stage(
+                stage,
+                "Resolving background and monitored subscription metadata",
+            )?;
             let Some(resolved) = background
                 .resolve(
                     self.intent.clone(),
@@ -614,13 +665,23 @@ impl Run {
                         // there is no physical option session yet. Carry its
                         // resolved recipe across the idle-to-active handoff;
                         // never restart quote acquisition from an empty snapshot.
-                        if let Some(source)=state.replacement {
-                            let physical=background.committed_book()?.map(|book|book.physical_signature()).transpose()?;
-                            *self.realized.lock().map_err(|_|"Native reconstruction recipe interrupted")?=Some(Recipe {
-                                desired:Arc::downgrade(&self.intent),
-                                source:Arc::new(Intent {background:None,..(*source).clone()}),
-                                physical,
-                            });
+                        if let Some(source) = state.replacement {
+                            let physical = background
+                                .committed_book()?
+                                .map(|book| book.physical_signature())
+                                .transpose()?;
+                            *self
+                                .realized
+                                .lock()
+                                .map_err(|_| "Native reconstruction recipe interrupted")? =
+                                Some(Recipe {
+                                    desired: Arc::downgrade(&self.intent),
+                                    source: Arc::new(Intent {
+                                        background: None,
+                                        ..(*source).clone()
+                                    }),
+                                    physical,
+                                });
                         }
                         *self
                             .retirement
@@ -814,7 +875,10 @@ impl Run {
             }
         }
         source.evidence = Evidence::ControlOnly;
-        self.stage(stage, "Opening final option subscriptions and awaiting acknowledgements")?;
+        self.stage(
+            stage,
+            "Opening final option subscriptions and awaiting acknowledgements",
+        )?;
         data.start_in_parent(source, stop, initial, &self.parent)
             .await?;
         // Subscription setup is complete. Quotes do not own a recovery timer.
@@ -929,12 +993,18 @@ impl Run {
             cache_scopes: Arc::new(intent.caches.clone()),
             monitored: Arc::new(intent.monitored.clone()),
         }));
-        *self.realized.lock().map_err(|_| "Native reconstruction recipe interrupted")? = Some(Recipe {
+        *self
+            .realized
+            .lock()
+            .map_err(|_| "Native reconstruction recipe interrupted")? = Some(Recipe {
             // Preserve the pre-bootstrap recipe identity: feeding an already
             // substituted calendar back into its raw-fact cache can force an
             // unnecessary storage lookup during recovery.
             desired: Arc::downgrade(&self.intent),
-            source: Arc::new(Intent { background: None, ..(*wanted).clone() }),
+            source: Arc::new(Intent {
+                background: None,
+                ..(*wanted).clone()
+            }),
             physical: initial_physical,
         });
         self.stage(stage, "Final source installed; waiting for component readiness and current-generation market data")?;
@@ -1082,7 +1152,7 @@ impl Run {
                         let Some(snapshot)=prepared.or(if complete_choices{no_candidate}else{None}) else{continue;};
                         cache_version=cache_version.checked_add(1).ok_or("Native cache version overflow")?;
                         let digest=cache.ranking.as_ref().map(|r|r.parameters.hash()).transpose()?.unwrap_or_else(||token.clone());
-                        let publication=Arc::new(CachePublication::new(&snapshot,intent.date.to_julian_day()-1721426,&digest,cache_version,&cache.scope)?);
+                        let publication=Arc::new(CachePublication::owned(snapshot,intent.date.to_julian_day()-1721426,&digest,cache_version,&cache.scope)?);
                         retained=retained.checked_add(publication.len()).ok_or("Native cache size overflow")?;
                         if retained>16*1024*1024{return Err("Native cache retained-byte capacity exceeded".into());}
                         next.insert(cache.scope.clone(),publication);
@@ -1409,10 +1479,25 @@ mod failure_budget_tests {
     use super::*;
     #[test]
     fn known_pending_market_inputs_do_not_hide_structural_or_component_failures() {
-        for code in ["QuoteUnavailable", "UnderlyingQuoteUnavailable", "PricingContextUnavailable", "StaleData", "InvalidQuote", "IncoherentQuotes"] {
+        for code in [
+            "QuoteUnavailable",
+            "UnderlyingQuoteUnavailable",
+            "PricingContextUnavailable",
+            "StaleData",
+            "InvalidQuote",
+            "IncoherentQuotes",
+        ] {
             assert!(cache_waits_for_market_data(code), "{code}");
         }
-        for code in ["SnapshotTimeout", "InvalidSnapshotRequest", "IncompleteChain", "ConflictingDefinition", "Recovering", "GreeksCalculationFailed", "UnknownFailure"] {
+        for code in [
+            "SnapshotTimeout",
+            "InvalidSnapshotRequest",
+            "IncompleteChain",
+            "ConflictingDefinition",
+            "Recovering",
+            "GreeksCalculationFailed",
+            "UnknownFailure",
+        ] {
             assert!(!cache_waits_for_market_data(code), "{code}");
         }
     }

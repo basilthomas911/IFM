@@ -8,12 +8,18 @@ use ifm_ui_egui::{
 #[path = "support/broker_order_ui_baseline.rs"]
 mod baseline;
 use serde_json::Value;
+
+
+/// Provides rows for the typed broker views implementation.
 fn rows() -> Vec<ContractRow> {
     wire::decode(include_bytes!(
         "fixtures/backend/broker-evidence-rows.msgpack"
     ))
     .unwrap()
 }
+
+
+/// Verifies that typed broker records keep all managed fields and computed identity getters.
 #[test]
 fn typed_broker_records_keep_all_managed_fields_and_computed_identity_getters() {
     for row in rows() {
@@ -42,6 +48,9 @@ fn typed_broker_records_keep_all_managed_fields_and_computed_identity_getters() 
         }
     }
 }
+
+
+/// Verifies that typed mutation eligibility captions summaries and property order match original.
 #[test]
 fn typed_mutation_eligibility_captions_summaries_and_property_order_match_original() {
     let rows = rows();
@@ -89,6 +98,9 @@ fn typed_mutation_eligibility_captions_summaries_and_property_order_match_origin
         }
     }
 }
+
+
+/// Verifies that typed account publication has one identity with validity and lossless amounts.
 #[test]
 fn typed_account_publication_has_one_identity_with_validity_and_lossless_amounts() {
     let account:BrokerAccountDefinition=serde_json::from_value(serde_json::json!({"Id":{"AccountAlias":"IFM-EMULATOR-PAPER"},"Snapshot":{"CashBalance":"123456.7890123456789012345678"},"Gate":"Open"})).unwrap();
@@ -104,6 +116,8 @@ fn typed_account_publication_has_one_identity_with_validity_and_lossless_amounts
     assert_eq!(restored, account);
 }
 
+
+/// Verifies that unnamed broker strategy keeps the original caption fallback.
 #[test]
 fn unnamed_broker_strategy_keeps_the_original_caption_fallback() {
     let row = rows()
@@ -120,12 +134,17 @@ fn unnamed_broker_strategy_keeps_the_original_caption_fallback() {
     );
 }
 
+
+/// Verifies that trade dispatch future stays within the native worker stack budget.
 #[test]
 fn trade_dispatch_future_stays_within_the_native_worker_stack_budget() {
     use ifm_ui_egui::{
         backend::{schema::Registry, transport::Backend},
         state::trades::TradeController,
     };
+
+
+    /// Provides size for the typed broker views implementation.
     fn size<F, Fut>(_: F) -> usize
     where
         F: FnOnce(

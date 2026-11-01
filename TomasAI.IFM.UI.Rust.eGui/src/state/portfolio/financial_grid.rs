@@ -3,10 +3,14 @@
 use super::editors::input;
 use super::*;
 use crate::services::{business_context::BusinessContext, financial};
+
+
+/// Provides fk for the financial grid implementation.
 fn fk(name: &str) -> String {
     format!("{}.{name}", financial::ROOT)
 }
 impl PortfolioController {
+    /// Provides financial grid action for the portfolio controller implementation.
     pub(super) async fn financial_grid_action(
         &mut self,
         backend: &Backend,

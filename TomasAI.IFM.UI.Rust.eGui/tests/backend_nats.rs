@@ -32,6 +32,9 @@ mod portfolio_posting;
 mod portfolio_subtabs;
 #[path = "support/trade_data.rs"]
 mod trade_data;
+
+
+/// Checks same display document against the current backend nats state.
 fn same_display_document(a: &serde_json::Value, b: &serde_json::Value) -> bool {
     if a == b {
         return true;
@@ -50,6 +53,8 @@ fn same_display_document(a: &serde_json::Value, b: &serde_json::Value) -> bool {
     }
 }
 
+
+/// Verifies that portfolio policy commands reconcile revisions and unknown outcomes.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn portfolio_policy_commands_reconcile_revisions_and_unknown_outcomes() {
@@ -64,6 +69,9 @@ async fn portfolio_policy_commands_reconcile_revisions_and_unknown_outcomes() {
     .await
     .unwrap();
     let registry = Registry::compiled().unwrap();
+
+
+    /// Provides mode for the backend nats implementation.
     async fn mode(backend: &Backend, name: &str) {
         service_result(
             &backend
@@ -78,6 +86,9 @@ async fn portfolio_policy_commands_reconcile_revisions_and_unknown_outcomes() {
         )
         .unwrap();
     }
+
+
+    /// Provides action for the backend nats implementation.
     async fn action(
         controller: &mut PortfolioController,
         backend: &Backend,
@@ -89,9 +100,15 @@ async fn portfolio_policy_commands_reconcile_revisions_and_unknown_outcomes() {
     ) -> ifm_ui_egui::contract_editor::ContractPublication {
         controller.execute(backend,registry,&json!({"schema":1,"requestId":uuid::Uuid::new_v4().to_string(),"view":"portfolio","intent":intent,"expectedGeneration":generation,"originalId":id,"fields":fields})).await.unwrap()
     }
+
+
+    /// Provides document for the backend nats implementation.
     fn document(publication: &ifm_ui_egui::contract_editor::ContractPublication) -> Json {
         ifm_ui_egui::wire::decode(&publication.result.documents["portfolio"]).unwrap()
     }
+
+
+    /// Provides value for the backend nats implementation.
     fn value(doc: &Json, name: &str) -> String {
         doc["policy"]["fields"]
             .as_array()
@@ -313,6 +330,8 @@ async fn portfolio_policy_commands_reconcile_revisions_and_unknown_outcomes() {
     mode(&backend, "Reset").await;
 }
 
+
+/// Verifies that portfolio native selection uses api clock revisions and atomic scope checks.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn portfolio_native_selection_uses_api_clock_revisions_and_atomic_scope_checks() {
@@ -358,6 +377,9 @@ async fn portfolio_native_selection_uses_api_clock_revisions_and_atomic_scope_ch
         .unwrap(),
     )
     .unwrap();
+
+
+    /// Provides difference for the backend nats implementation.
     fn difference(path: &str, a: &serde_json::Value, b: &serde_json::Value) -> Option<String> {
         if a == b || a.is_number() && b.is_number() && a.as_f64() == b.as_f64() {
             return None;
@@ -437,6 +459,9 @@ async fn portfolio_native_selection_uses_api_clock_revisions_and_atomic_scope_ch
         .await
         .unwrap();
     assert_eq!(state.fund, selected);
+
+
+    /// Provides mode for the backend nats implementation.
     async fn mode(backend: &Backend, name: &str) {
         service_result(
             &backend
@@ -487,12 +512,12 @@ async fn portfolio_native_selection_uses_api_clock_revisions_and_atomic_scope_ch
     assert_eq!(state.fund, selected);
 }
 
+
+/// Verifies that inspection native history evidence scope and failed refresh retention.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn inspection_native_history_evidence_scope_and_failed_refresh_retention() {
-    use ifm_ui_egui::{
-        backend::schema::Registry, state::strategy_inspection::InspectionController,
-    };
+    use ifm_ui_egui::{backend::schema::Registry, state::strategy_inspection::InspectionController};
     use serde_json::json;
     let backend = Backend::connect(Settings {
         url: std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),
@@ -524,6 +549,9 @@ async fn inspection_native_history_evidence_scope_and_failed_refresh_retention()
             .label
             .contains("Rejected 2 Fixture risk history")
     );
+
+
+    /// Provides mode for the backend nats implementation.
     async fn mode(backend: &Backend, name: &str) {
         service_result(
             &backend
@@ -633,6 +661,8 @@ async fn inspection_native_history_evidence_scope_and_failed_refresh_retention()
     assert!(invalid.status.contains("yyyy-MM-dd"));
 }
 
+
+/// Verifies that strategy native history hydration notifications selection and revision fences.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn strategy_native_history_hydration_notifications_selection_and_revision_fences() {
@@ -672,6 +702,9 @@ async fn strategy_native_history_hydration_notifications_selection_and_revision_
         state.snapshot(&registry).unwrap().workflow_id,
         "b7329333f0e3478eb8846d7ef9d47971"
     );
+
+
+    /// Provides control for the backend nats implementation.
     async fn control(backend: &Backend, verb: &str, value: &str) {
         service_result(
             &backend
@@ -777,6 +810,9 @@ async fn strategy_native_history_hydration_notifications_selection_and_revision_
         .unwrap();
 }
 
+
+/// Verifies that parameter native drafts lifecycle metrics and authoritative unknown
+/// reconciliation.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn parameter_native_drafts_lifecycle_metrics_and_authoritative_unknown_reconciliation() {
@@ -793,6 +829,9 @@ async fn parameter_native_drafts_lifecycle_metrics_and_authoritative_unknown_rec
     let registry = Registry::compiled().unwrap();
     let mut state = ParameterController::default();
     let request = |action: &str, generation: u64, fields: Json| json!({"schema":1,"view":"parameter-sets","requestId":uuid::Uuid::new_v4().to_string(),"intent":action,"expectedGeneration":generation,"originalId":null,"fields":fields,"documents":{}});
+
+
+    /// Provides mode for the backend nats implementation.
     async fn mode(backend: &Backend, name: &str) {
         service_result(
             &backend
@@ -1178,6 +1217,8 @@ async fn parameter_native_drafts_lifecycle_metrics_and_authoritative_unknown_rec
     mode(&backend, "Normal").await;
 }
 
+
+/// Verifies that backup native admin uses typed api and bounds uncertain operations.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn backup_native_admin_uses_typed_api_and_bounds_uncertain_operations() {
@@ -1201,6 +1242,9 @@ async fn backup_native_admin_uses_typed_api_and_bounds_uncertain_operations() {
             .insert("source".into(), json!("LocalWorkstation"));
         json!({"schema":1,"view":"database-backup","requestId":uuid::Uuid::new_v4().to_string(),"intent":action,"fields":fields})
     };
+
+
+    /// Provides mode for the backend nats implementation.
     async fn mode(backend: &Backend, name: &str) {
         service_result(
             &backend
@@ -1426,6 +1470,9 @@ async fn backup_native_admin_uses_typed_api_and_bounds_uncertain_operations() {
     mode(&backend, "Normal").await;
 }
 
+
+/// Verifies that scheduled tasks native crud history output notifications and unknown
+/// acknowledgements.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn scheduled_tasks_native_crud_history_output_notifications_and_unknown_acknowledgements() {
@@ -1451,6 +1498,9 @@ async fn scheduled_tasks_native_crud_history_output_notifications_and_unknown_ac
         map.entry("hostId").or_insert(json!("development"));
         json!({"schema":1,"view":"scheduled-tasks","requestId":uuid::Uuid::new_v4().to_string(),"intent":action,"expectedGeneration":generation,"originalId":selected,"fields":fields})
     };
+
+
+    /// Provides mode for the backend nats implementation.
     async fn mode(backend: &Backend, name: &str) {
         service_result(
             &backend
@@ -1875,6 +1925,8 @@ async fn scheduled_tasks_native_crud_history_output_notifications_and_unknown_ac
     mode(&backend, "Normal").await;
 }
 
+
+/// Verifies that provider browser pinned pages preview publish and identity fences.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn provider_browser_pinned_pages_preview_publish_and_identity_fences() {
@@ -1891,6 +1943,9 @@ async fn provider_browser_pinned_pages_preview_publish_and_identity_fences() {
     let registry = Registry::compiled().unwrap();
     let mut state = ProviderController::default();
     let request = |action: &str, generation: u64, selected: &str, fields: serde_json::Value| json!({"schema":1,"view":"provider-definitions","requestId":uuid::Uuid::new_v4().to_string(),"intent":action,"expectedGeneration":generation,"originalId":selected,"fields":fields});
+
+
+    /// Provides mode for the backend nats implementation.
     async fn mode(backend: &Backend, name: &str) {
         service_result(
             &backend
@@ -2166,12 +2221,12 @@ async fn provider_browser_pinned_pages_preview_publish_and_identity_fences() {
     mode(&backend, "Normal").await;
 }
 
+
+/// Verifies that option editor paging crud review and uncertain outcomes.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn option_editor_paging_crud_review_and_uncertain_outcomes() {
-    use ifm_ui_egui::{
-        backend::schema::Registry, state::option_contract::OptionContractController,
-    };
+    use ifm_ui_egui::{backend::schema::Registry, state::option_contract::OptionContractController};
     use serde_json::json;
     let backend = Backend::connect(Settings {
         url: std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),
@@ -2184,6 +2239,9 @@ async fn option_editor_paging_crud_review_and_uncertain_outcomes() {
     let registry = Registry::compiled().unwrap();
     let mut state = OptionContractController::default();
     let request = |action: &str, generation: u64, original: &str, fields: serde_json::Value| json!({"schema":1,"view":"option-contract","requestId":uuid::Uuid::new_v4().to_string(),"intent":action,"expectedGeneration":generation,"originalId":original,"fields":fields});
+
+
+    /// Provides mode for the backend nats implementation.
     async fn mode(backend: &Backend, name: &str) {
         service_result(
             &backend
@@ -2503,12 +2561,13 @@ async fn option_editor_paging_crud_review_and_uncertain_outcomes() {
     assert!(!current.result.rows.iter().any(|r| r.id == legacy));
 }
 
+
+/// Verifies that futures editor crud review immutable identity explicit reload and unknown
+/// outcomes.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn futures_editor_crud_review_immutable_identity_explicit_reload_and_unknown_outcomes() {
-    use ifm_ui_egui::{
-        backend::schema::Registry, state::futures_contract::FuturesContractController,
-    };
+    use ifm_ui_egui::{backend::schema::Registry, state::futures_contract::FuturesContractController};
     use serde_json::json;
     let backend = Backend::connect(Settings {
         url: std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),
@@ -2695,6 +2754,8 @@ async fn futures_editor_crud_review_immutable_identity_explicit_reload_and_unkno
     );
 }
 
+
+/// Verifies that dashboard health composes api clock and http without retaining stale green.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn dashboard_health_composes_api_clock_and_http_without_retaining_stale_green() {
@@ -2768,8 +2829,16 @@ async fn dashboard_health_composes_api_clock_and_http_without_retaining_stale_gr
             }
         }
     });
-    struct Stop(Arc<AtomicBool>, Option<std::thread::JoinHandle<()>>);
+
+    /// Stop used by the backend nats test fixtures.
+    struct Stop(
+        /// Wrapped `Arc<AtomicBool>` value owned by Stop.
+        Arc<AtomicBool>,
+        /// Wrapped `Option<std::thread::JoinHandle<()>>` value owned by Stop.
+        Option<std::thread::JoinHandle<()>>,
+    );
     impl Drop for Stop {
+        /// Releases resources owned by this value when its lifetime ends.
         fn drop(&mut self) {
             self.0.store(true, Ordering::Release);
             let result = self.1.take().unwrap().join();
@@ -2792,6 +2861,8 @@ async fn dashboard_health_composes_api_clock_and_http_without_retaining_stale_gr
     assert!(failed.reason.contains("HTTP 500"));
 }
 
+
+/// Verifies that outlook uses current contract api time and published analytics.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn outlook_uses_current_contract_api_time_and_published_analytics() {
@@ -2834,6 +2905,8 @@ async fn outlook_uses_current_contract_api_time_and_published_analytics() {
     );
 }
 
+
+/// Verifies that market history uses api clock and current contracts without local indicators.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn market_history_uses_api_clock_and_current_contracts_without_local_indicators() {
@@ -2865,6 +2938,8 @@ async fn market_history_uses_api_clock_and_current_contracts_without_local_indic
     assert_eq!(charts["VX"].series[0].points.len(), 2); // same single-bar continuity as hybrid
 }
 
+
+/// Verifies that pending calendar hydration does not delay the recovery error publication.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn pending_calendar_hydration_does_not_delay_the_recovery_error_publication() {
@@ -2914,7 +2989,10 @@ async fn pending_calendar_hydration_does_not_delay_the_recovery_error_publicatio
     .unwrap();
     let state = result.expect("Pending calendar query blocked the feed failure dialog");
     assert!(state.busy, "Calendar hydration should still be pending");
-    assert_eq!(state.api_today,"2026-10-26","Calendar reference must arrive from the API even while calendar data is blocked");
+    assert_eq!(
+        state.api_today, "2026-10-26",
+        "Calendar reference must arrive from the API even while calendar data is blocked"
+    );
     assert!(
         state.error.contains("Option pipeline recovery failed"),
         "{}",
@@ -2922,6 +3000,8 @@ async fn pending_calendar_hydration_does_not_delay_the_recovery_error_publicatio
     );
 }
 
+
+/// Verifies that csharp request reply compression errors and deadlines.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn csharp_request_reply_compression_errors_and_deadlines() {
@@ -3028,6 +3108,8 @@ async fn csharp_request_reply_compression_errors_and_deadlines() {
     drop(subscription);
 }
 
+
+/// Verifies that catalog controller load edit save publish retire and rejection paths.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn catalog_controller_load_edit_save_publish_retire_and_rejection_paths() {
@@ -3176,6 +3258,8 @@ async fn catalog_controller_load_edit_save_publish_retire_and_rejection_paths() 
     );
 }
 
+
+/// Verifies that lookup mutations correlate early events and preserve unknown outcomes.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn lookup_mutations_correlate_early_events_and_preserve_unknown_outcomes() {
@@ -3215,8 +3299,19 @@ async fn lookup_mutations_correlate_early_events_and_preserve_unknown_outcomes()
             .iter()
             .any(|r| r.lookup_type_name == "StandaloneFixture")
     );
-    let saved = added.rows.iter().find(|r|r.lookup_type_name=="StandaloneFixture").unwrap();
-    assert_eq!(chrono::DateTime::parse_from_rfc3339(&saved.created_on).unwrap().timestamp(), chrono::DateTime::parse_from_rfc3339("2026-10-26T12:30:00Z").unwrap().timestamp());
+    let saved = added
+        .rows
+        .iter()
+        .find(|r| r.lookup_type_name == "StandaloneFixture")
+        .unwrap();
+    assert_eq!(
+        chrono::DateTime::parse_from_rfc3339(&saved.created_on)
+            .unwrap()
+            .timestamp(),
+        chrono::DateTime::parse_from_rfc3339("2026-10-26T12:30:00Z")
+            .unwrap()
+            .timestamp()
+    );
     row["createdOn"] = saved.created_on.clone().into();
     row["description"] = "Native change".into();
     let changed = state
@@ -3297,6 +3392,9 @@ async fn lookup_mutations_correlate_early_events_and_preserve_unknown_outcomes()
     );
 }
 
+
+/// Verifies that yield controller import add change remove and date validation use backend
+/// contracts.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn yield_controller_import_add_change_remove_and_date_validation_use_backend_contracts() {
@@ -3405,6 +3503,8 @@ async fn yield_controller_import_add_change_remove_and_date_validation_use_backe
     assert!(!removed.result.rows.iter().any(|r| r.id == "2026-10-22"));
 }
 
+
+/// Verifies that calendar native crud import dates rejection and unknown outcomes.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn calendar_native_crud_import_dates_rejection_and_unknown_outcomes() {
@@ -3570,6 +3670,9 @@ async fn calendar_native_crud_import_dates_rejection_and_unknown_outcomes() {
     );
 }
 
+
+/// Verifies that actor health http and supervisor commands preserve permissions generation and
+/// unknown outcome.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn actor_health_http_and_supervisor_commands_preserve_permissions_generation_and_unknown_outcome()
@@ -3617,8 +3720,16 @@ async fn actor_health_http_and_supervisor_commands_preserve_permissions_generati
                     let mut bytes = [0; 8192];
                     let length = stream.read(&mut bytes).unwrap();
                     let request = String::from_utf8_lossy(&bytes[..length]);
-                    assert!(!request.contains("toUtc="),"API must own the current health-window end: {request}");
-                    if request.contains("fromUtc="){assert!(request.contains("2026-10-26T"),"API observation must own the initial From time: {request}");}
+                    assert!(
+                        !request.contains("toUtc="),
+                        "API must own the current health-window end: {request}"
+                    );
+                    if request.contains("fromUtc=") {
+                        assert!(
+                            request.contains("2026-10-26T"),
+                            "API observation must own the initial From time: {request}"
+                        );
+                    }
                     let response = format!(
                         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                         body.len()
@@ -3632,9 +3743,16 @@ async fn actor_health_http_and_supervisor_commands_preserve_permissions_generati
             }
         }
     });
+
     // Always stop the fixture even if a parity assertion fails.
-    struct Stop(Arc<AtomicBool>, Option<std::thread::JoinHandle<()>>);
+    struct Stop(
+        /// Wrapped `Arc<AtomicBool>` value owned by Stop.
+        Arc<AtomicBool>,
+        /// Wrapped `Option<std::thread::JoinHandle<()>>` value owned by Stop.
+        Option<std::thread::JoinHandle<()>>,
+    );
     impl Drop for Stop {
+        /// Releases resources owned by this value when its lifetime ends.
         fn drop(&mut self) {
             self.0.store(true, Ordering::Release);
             if let Some(worker) = self.1.take() {
@@ -3731,6 +3849,8 @@ async fn actor_health_http_and_supervisor_commands_preserve_permissions_generati
     assert!(denied.status.contains("unavailable"));
 }
 
+
+/// Verifies that feed controls use api date terminal events and authoritative reconciliation.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn feed_controls_use_api_date_terminal_events_and_authoritative_reconciliation() {
@@ -3813,6 +3933,8 @@ async fn feed_controls_use_api_date_terminal_events_and_authoritative_reconcilia
     );
 }
 
+
+/// Verifies that sidebar calendar queries backend periods and keeps other publication owners.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
 async fn sidebar_calendar_queries_backend_periods_and_keeps_other_publication_owners() {
@@ -3885,43 +4007,64 @@ async fn sidebar_calendar_queries_backend_periods_and_keeps_other_publication_ow
     assert!(state.action(0x8000000f).is_err());
 }
 
-#[path="support/broker_order_commands.rs"]
+#[path = "support/broker_order_commands.rs"]
 mod broker_order_commands;
 
-#[path="support/order_preparation.rs"]
+#[path = "support/order_preparation.rs"]
 mod order_preparation;
 
-#[path="support/order_submission.rs"]
+#[path = "support/order_submission.rs"]
 mod order_submission;
 
-#[path="support/monitor_api.rs"]
+#[path = "support/monitor_api.rs"]
 mod monitor_api;
 
-#[path="support/monitor_controller.rs"]
+#[path = "support/monitor_controller.rs"]
 mod monitor_controller;
 
-#[path="support/order_close.rs"]
+#[path = "support/order_close.rs"]
 mod order_close;
 
-#[path="support/trade_eod.rs"]
+#[path = "support/trade_eod.rs"]
 mod trade_eod;
 
-#[path="support/closing_workspace.rs"]
+#[path = "support/closing_workspace.rs"]
 mod closing_workspace;
 
 
+/// Verifies that operational health closed market uses independent api clock.
 #[tokio::test]
-#[ignore="Requires isolated C# compatibility responder"]
-async fn operational_health_closed_market_uses_independent_api_clock(){
- use std::{io::{Read,Write},net::TcpListener};
- let listener=TcpListener::bind("127.0.0.1:0").unwrap();let endpoint=format!("http://{}/health",listener.local_addr().unwrap());
- let worker=std::thread::spawn(move||{let(mut stream,_)=listener.accept().unwrap();let mut buffer=[0u8;4096];stream.read(&mut buffer).unwrap();
- let body=r#"{"schemaVersion":1,"revision":1,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Inactive","sessionState":"Closed","valueDate":null,"stages":[{"stage":"Actor routing/API","status":"Green","required":true,"reasonCode":"Healthy","reason":"API remains available"}],"datasets":[]}"#;
- write!(stream,"HTTP/1.1 200 OK\r\nX-IFM-Server-Utc: 2000-01-03T12:30:00Z\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).unwrap();});
- let backend=Backend::connect(Settings{url:std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),credentials_file:None,token:None,request_timeout:Duration::from_secs(2)}).await.unwrap();
- // The compatibility MarketSession is in 2026, intentionally unrelated to this
- // health API clock. A market-session dependency would reject this valid read.
- let mut health=ifm_ui_egui::state::operations_health::OperationsHealthController::new(Some(endpoint)).unwrap();
- let publication=health.execute(&backend,&serde_json::json!({"schema":1,"view":"operations-health","intent":"load","requestId":uuid::Uuid::new_v4().to_string()})).await.unwrap();
- assert_eq!(publication.outcomes[0].state,"Completed");assert_eq!(publication.result.context["status"],"Inactive");assert_eq!(publication.result.rows[0].fields["Status"],"Green");worker.join().unwrap();
+#[ignore = "Requires isolated C# compatibility responder"]
+async fn operational_health_closed_market_uses_independent_api_clock() {
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+    };
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let endpoint = format!("http://{}/health", listener.local_addr().unwrap());
+    let worker = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut buffer = [0u8; 4096];
+        stream.read(&mut buffer).unwrap();
+        let body = r#"{"schemaVersion":1,"revision":1,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Inactive","sessionState":"Closed","valueDate":null,"stages":[{"stage":"Actor routing/API","status":"Green","required":true,"reasonCode":"Healthy","reason":"API remains available"}],"datasets":[]}"#;
+        write!(stream,"HTTP/1.1 200 OK\r\nX-IFM-Server-Utc: 2000-01-03T12:30:00Z\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).unwrap();
+    });
+    let backend = Backend::connect(Settings {
+        url: std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),
+        credentials_file: None,
+        token: None,
+        request_timeout: Duration::from_secs(2),
+    })
+    .await
+    .unwrap();
+    // The compatibility MarketSession is in 2026, intentionally unrelated to this
+    // health API clock. A market-session dependency would reject this valid read.
+    let mut health =
+        ifm_ui_egui::state::operations_health::OperationsHealthController::new(Some(endpoint))
+            .unwrap();
+    let publication=health.execute(&backend,&serde_json::json!({"schema":1,"view":"operations-health","intent":"load","requestId":uuid::Uuid::new_v4().to_string()})).await.unwrap();
+    assert_eq!(publication.outcomes[0].state, "Completed");
+    assert_eq!(publication.result.context["status"], "Inactive");
+    assert_eq!(publication.result.rows[0].fields["Status"], "Green");
+    worker.join().unwrap();
 }

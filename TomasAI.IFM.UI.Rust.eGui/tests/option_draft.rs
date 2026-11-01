@@ -1,9 +1,15 @@
 use ifm_ui_egui::{backend::contracts::ExactDecimal, services::option_draft::*};
 use serde_json::{Value as Json, json};
+
+
+/// Provides chain for the option draft implementation.
 fn chain() -> Json {
     let row = |id: &str, strike: &str, call: bool, delta: f64| json!({"ContractId":id,"Strike":strike,"IsCall":call,"Delta":delta,"Vega":0.3,"IsStale":false,"GreeksValid":true,"SelectionValid":false,"Bid":"1.25","Ask":"1.5","QuoteAtUtc":"2026-10-26T12:30:00Z"});
     json!({"UnderlyingContractId":"ESZ6","ExpiryDate":"2026-10-28","UnderlyingPrice":"6000","WindowMethod":"Live","Contracts":[row("C-HIGH","6100",true,0.10),row("C-LOW","6050",true,0.16),row("P-HIGH","5950",false,-0.16),row("P-LOW","5900",false,-0.10)]})
 }
+
+
+/// Verifies that all manual roles match unchanged managed normalizer.
 #[test]
 fn all_manual_roles_match_unchanged_managed_normalizer() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -47,6 +53,9 @@ fn all_manual_roles_match_unchanged_managed_normalizer() {
         assert_eq!(d.legs.len(), before);
     }
 }
+
+
+/// Verifies that automatic selection keeps price for same identity and preserves raw authority.
 #[test]
 fn automatic_selection_keeps_price_for_same_identity_and_preserves_raw_authority() {
     let delta = ExactDecimal::parse("16").unwrap();
@@ -104,4 +113,102 @@ fn automatic_selection_keeps_price_for_same_identity_and_preserves_raw_authority
     assert!(d.manual);
     assert!(d.select("P-HIGH", "+LC", &settings).is_err());
     assert!(d.select("MISSING", "-SP", &settings).is_err());
+}
+
+
+/// Verifies that emulator and live select the same four condor legs from delta and width.
+#[test]
+fn emulator_and_live_select_the_same_four_condor_legs_from_delta_and_width() {
+    use ifm_ui_egui::services::composer_market::Defaults;
+    for (strategy, delta_text, width_text, expected) in [
+        (
+            "ShortIronCondor",
+            "16",
+            "50",
+            ["C-6100", "C-6150", "P-5900", "P-5850"],
+        ),
+        (
+            "LongIronCondor",
+            "16",
+            "50",
+            ["C-6100", "C-6050", "P-5900", "P-5950"],
+        ),
+        (
+            "ShortIronCondor",
+            "16",
+            "100",
+            ["C-6100", "C-6200", "P-5900", "P-5800"],
+        ),
+        (
+            "ShortIronCondor",
+            "10",
+            "50",
+            ["C-6150", "C-6200", "P-5850", "P-5800"],
+        ),
+        (
+            "LongIronCondor",
+            "10",
+            "50",
+            ["C-6150", "C-6100", "P-5850", "P-5900"],
+        ),
+    ] {
+        for live in [false, true] {
+            let mut defaults = Defaults::emulator().unwrap();
+            if delta_text != "16" {
+                defaults.call_delta = ExactDecimal::parse(delta_text).unwrap();
+                defaults.put_delta = ExactDecimal::parse(delta_text).unwrap();
+            }
+            if width_text != "50" {
+                defaults.call_width = ExactDecimal::parse(width_text).unwrap();
+                defaults.put_width = ExactDecimal::parse(width_text).unwrap();
+            }
+            let multiplier = ExactDecimal::parse("50").unwrap();
+            let settings = Settings {
+                strategy,
+                call_delta: &defaults.call_delta,
+                put_delta: &defaults.put_delta,
+                call_width: &defaults.call_width,
+                put_width: &defaults.put_width,
+                multiplier: &multiplier,
+                live,
+                development: true,
+                editable: true,
+            };
+            let row = |id: &str, strike: &str, call: bool, delta: f64| {
+                json!({
+                "ContractId":id,"Strike":strike,"IsCall":call,"Delta":delta,
+                "Vega":0.3,"IsStale":!live,"GreeksValid":true,"SelectionValid":live,
+                "Bid":"1.25","Ask":"1.5","QuoteAtUtc":"2026-10-26T12:30:00Z"})
+            };
+            let mut source = chain();
+            source["WindowMethod"] = json!(if live {
+                "Live"
+            } else {
+                "Frozen emulator preview"
+            });
+            source["Contracts"] = json!([
+                row("C-6050", "6050", true, 0.25),
+                row("C-6100", "6100", true, 0.16),
+                row("C-6150", "6150", true, 0.10),
+                row("C-6200", "6200", true, 0.05),
+                row("P-5950", "5950", false, -0.25),
+                row("P-5900", "5900", false, -0.16),
+                row("P-5850", "5850", false, -0.10),
+                row("P-5800", "5800", false, -0.05)
+            ]);
+            let mut draft = Draft::default();
+            draft
+                .accept(serde_json::from_value(source).unwrap(), &settings)
+                .unwrap();
+            let actual: Vec<_> = draft
+                .legs
+                .iter()
+                .map(|leg| leg.quote.contract.as_str())
+                .collect();
+            assert_eq!(
+                actual, expected,
+                "{strategy}, delta {delta_text}, width {width_text}, live {live}"
+            );
+        }
+    }
 }

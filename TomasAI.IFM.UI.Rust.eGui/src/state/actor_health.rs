@@ -24,13 +24,19 @@ pub const OPERATIONS: [&str; 8] = [
     "Recycle",
     "AcknowledgeIncident",
 ];
+
+/// Control Options used by the actor health component.
 #[derive(Clone)]
 pub struct ControlOptions {
+    /// Whether enabled is enabled or currently true.
     pub enabled: bool,
+    /// Requester associated with this control options.
     pub requester: String,
+    /// Timeout associated with this control options.
     pub timeout: Duration,
 }
 impl Default for ControlOptions {
+    /// Constructs the initial state used when no explicit value is supplied.
     fn default() -> Self {
         Self {
             enabled: false,
@@ -40,6 +46,7 @@ impl Default for ControlOptions {
     }
 }
 impl ControlOptions {
+    /// Loads configuration from the supported environment settings.
     pub fn from_env() -> Result<Self, String> {
         let enabled =
             crate::backend::configuration::value("SupervisorControl__Enabled")?.unwrap_or_default();
@@ -70,27 +77,44 @@ impl ControlOptions {
             timeout: Duration::from_secs(seconds),
         })
     }
+
+
+    /// Provides authority for the control options implementation.
     fn authority(&self, snapshot: &ActorHealthSnapshot) -> bool {
         self.enabled
             && snapshot.cell("ManualMutationEnabled") == Cell::Boolean(true)
             && snapshot.cell("SupervisorAuthorityState").as_str() != Some("HostRecoveryRequired")
     }
 }
+
+/// Target used by the actor health component.
 #[derive(Clone)]
 pub struct Target {
+    /// Thread associated with this target.
     pub thread: ActorHealthThreadId,
+    /// Generation associated with this target.
     pub generation: i64,
 }
+
+/// Actor Projection used by the actor health component.
 pub struct ActorProjection {
+    /// Result associated with this actor projection.
     pub result: ContractResult,
+    /// Keyed targets retained by ActorProjection.
     pub targets: BTreeMap<String, Target>,
 }
+
+
+/// Provides scalar for the actor health implementation.
 fn scalar(value: &Cell<'_>) -> String {
     match value {
         Cell::Boolean(value) => if *value { "True" } else { "False" }.into(),
         _ => value.text(),
     }
 }
+
+
+/// Provides date display for the actor health implementation.
 fn date_display(time: DateTime<Utc>) -> String {
     format!(
         "{}.{:07}Z",
@@ -98,11 +122,17 @@ fn date_display(time: DateTime<Utc>) -> String {
         time.timestamp_subsec_nanos() / 100
     )
 }
+
+
+/// Reads the UTC timestamp representation expected by this component.
 fn utc(v: &Cell<'_>) -> Result<DateTime<Utc>, String> {
     DateTime::parse_from_rfc3339(v.as_str().ok_or("Missing health timestamp")?)
         .map(|v| v.to_utc())
         .map_err(|_| "Invalid health timestamp".into())
 }
+
+
+/// Provides thread id for the actor health implementation.
 fn thread_id(value: &(impl Cells + ?Sized)) -> Result<String, String> {
     let name = value.cell("Name");
     let name = name
@@ -116,6 +146,8 @@ fn thread_id(value: &(impl Cells + ?Sized)) -> Result<String, String> {
     Ok(format!("{kind}:{name}:{entity}"))
 }
 
+
+/// Projects backend data into the UI's display representation.
 pub fn project(
     snapshot: &ActorHealthSnapshot,
     from: DateTime<Utc>,
@@ -415,18 +447,30 @@ pub fn project(
         },
     })
 }
+
+/// Actor Health Controller used by the actor health component.
 pub struct ActorHealthController {
+    /// Client associated with this actor health controller.
     client: HealthClient,
+    /// Optional endpoint; `None` represents an absent value.
     endpoint: Option<String>,
+    /// Options associated with this actor health controller.
     options: ControlOptions,
+    /// Optional from; `None` represents an absent value.
     from: Option<DateTime<Utc>>,
+    /// Optional snapshot; `None` represents an absent value.
     snapshot: Option<ActorHealthSnapshot>,
+    /// Keyed targets retained by ActorHealthController.
     targets: BTreeMap<String, Target>,
+    /// Generation associated with this actor health controller.
     generation: u64,
+    /// Retained historical data used by this component.
     history: BTreeMap<String, (Json, EditorOutcome)>,
+    /// Result associated with this actor health controller.
     result: ContractResult,
 }
 impl ActorHealthController {
+    /// Constructs ActorHealthController from the supplied inputs.
     pub fn new(endpoint: Option<String>, options: ControlOptions) -> Result<Self, String> {
         Ok(Self {
             client: HealthClient::new()?,
@@ -443,12 +487,18 @@ impl ActorHealthController {
             },
         })
     }
+
+
+    /// Loads configuration from the supported environment settings.
     pub fn from_env() -> Result<Self, String> {
         Self::new(
             crate::backend::configuration::value("IFM_UI_ACTOR_HEALTH_URL")?,
             ControlOptions::from_env()?,
         )
     }
+
+
+    /// Refreshes actor health for actor health controller.
     async fn refresh(&mut self, backend: &Backend) -> Result<(), String> {
         let deadline = tokio::time::Instant::now() + backend.default_timeout();
         let result = tokio::time::timeout_at(deadline, async {
@@ -512,6 +562,9 @@ impl ActorHealthController {
             }
         }
     }
+
+
+    /// Handles a actor health intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,
@@ -596,6 +649,9 @@ impl ActorHealthController {
             ..Default::default()
         })
     }
+
+
+    /// Provides supervise for the actor health controller implementation.
     async fn supervise(
         &mut self,
         backend: &Backend,

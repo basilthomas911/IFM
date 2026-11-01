@@ -79,7 +79,8 @@ impl State {
         let now = clock
             .utc_ticks()
             .map_err(|_| "Background quote clock unavailable")?;
-        Ok(self.current
+        Ok(self
+            .current
             .as_ref()
             .ok_or("Background quote observer unavailable")?
             .quotes

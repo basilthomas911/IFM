@@ -1,5 +1,8 @@
 use ifm_ui_egui::{backend::schema::Registry, services::parameter_metrics};
 use serde_json::Value;
+
+
+/// Reads parameter metrics for parameter metrics.
 fn read(name: &str) -> Value {
     serde_json::from_slice(
         &std::fs::read(
@@ -11,6 +14,9 @@ fn read(name: &str) -> Value {
     )
     .unwrap()
 }
+
+
+/// Verifies that metric selection preparation matches hybrid legacy projection and identifiers.
 #[test]
 fn metric_selection_preparation_matches_hybrid_legacy_projection_and_identifiers() {
     let registry = Registry::compiled().unwrap();

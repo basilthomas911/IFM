@@ -4,6 +4,42 @@ use crate::{
     latest::{Asset, price_policy},
     option_chain::qualification::Decimal,
 };
+/// Detached bounded indexes retain copied identities only, never a provider owner.
+pub(super) struct Bindings {
+    rows: Arc<Vec<crate::dataset::live::Registration>>,
+    contracts: [BTreeMap<String, u32>; 2],
+}
+impl MarketData {
+    fn indexed_binding(
+        &self,
+        lane: Lane,
+        rows: Arc<Vec<crate::dataset::live::Registration>>,
+        contract: &str,
+        asset: Asset,
+    ) -> Result<Option<u32>, String> {
+        let mut bindings = self
+            .price_bindings
+            .lock()
+            .map_err(|_| "Native price binding directory interrupted")?;
+        if bindings
+            .get(&lane)
+            .is_none_or(|prior| !Arc::ptr_eq(&prior.rows, &rows))
+        {
+            let mut contracts: [BTreeMap<String, u32>; 2] = Default::default();
+            for row in rows.iter() {
+                contracts[usize::from(row.asset == Asset::Option)]
+                    .entry(row.contract.clone())
+                    .or_insert(row.instrument);
+            }
+            bindings.insert(lane, Bindings { rows, contracts });
+        }
+        Ok(bindings.get(&lane).and_then(|index| {
+            index.contracts[usize::from(asset == Asset::Option)]
+                .get(contract)
+                .copied()
+        }))
+    }
+}
 impl MarketData {
     /// Reads one current native mark. The boolean distinguishes unmapped contract
     /// identity from an accepted contract whose current quote/trade is unavailable.
@@ -26,33 +62,32 @@ impl MarketData {
         };
         for &lane in lanes {
             let binding = if options {
-                self.options
+                let current = self
+                    .options
                     .factory
                     .view()
-                    .and_then(|v| {
-                        v.registrations
+                    .map(|view| view.registrations.clone());
+                let indexed = current
+                    .map(|rows| self.indexed_binding(lane, rows, contract, Asset::Option))
+                    .transpose()?
+                    .flatten();
+                indexed.or_else(|| {
+                    self.options.control.intent().and_then(|intent| {
+                        intent
+                            .source
+                            .registrations
                             .iter()
-                            .find(|r| r.contract == contract && r.asset == Asset::Option)
-                            .map(|r| r.instrument)
+                            .find(|row| row.contract == contract && row.asset == Asset::Option)
+                            .map(|row| row.instrument)
                     })
-                    .or_else(|| {
-                        self.options.control.intent().and_then(|i| {
-                            i.source
-                                .registrations
-                                .iter()
-                                .find(|r| r.contract == contract && r.asset == Asset::Option)
-                                .map(|r| r.instrument)
-                        })
-                    })
+                })
             } else {
                 self.futures
                     .get(&lane)
-                    .and_then(|f| f.factory.registrations())
-                    .and_then(|rs| {
-                        rs.iter()
-                            .find(|r| r.contract == contract && r.asset == Asset::Futures)
-                            .map(|r| r.instrument)
-                    })
+                    .and_then(|factory| factory.factory.registrations())
+                    .map(|rows| self.indexed_binding(lane, rows, contract, Asset::Futures))
+                    .transpose()?
+                    .flatten()
             };
             let Some(binding) = binding else {
                 continue;
@@ -419,5 +454,77 @@ impl MarketData {
             return Ok(Value::Nil);
         }
         Ok(Value::Array(vec![Value::Array(market), greeks]))
+    }
+}
+
+#[cfg(test)]
+mod binding_index_tests {
+    use super::*;
+
+    /// Indexes remain asset/lane specific and are replaced when the immutable source directory changes.
+    #[tokio::test]
+    async fn canonical_index_replaces_copied_directory_and_preserves_unknown_asset_results() {
+        let root = Arc::new(Owner::default());
+        let market =
+            MarketData::new(root.clone(), Arc::new(Clock::new(0, false).unwrap()), None).unwrap();
+        let registration = |id, asset| crate::dataset::live::Registration {
+            instrument: id,
+            publisher: 1,
+            contract: "same".into(),
+            source: "source".into(),
+            asset,
+            tick: None,
+            vwap: false,
+            required: false,
+        };
+        let first = Arc::new(vec![
+            registration(1, Asset::Futures),
+            registration(2, Asset::Option),
+        ]);
+        let weak = Arc::downgrade(&first);
+        assert_eq!(
+            market
+                .indexed_binding(Lane::OptionsGlbx, first.clone(), "same", Asset::Option)
+                .unwrap(),
+            Some(2)
+        );
+        assert_eq!(
+            market
+                .indexed_binding(Lane::OptionsGlbx, first.clone(), "same", Asset::Futures)
+                .unwrap(),
+            Some(1)
+        );
+        assert_eq!(
+            market
+                .indexed_binding(Lane::OptionsGlbx, first.clone(), "absent", Asset::Option)
+                .unwrap(),
+            None
+        );
+        drop(first);
+        let next = Arc::new(vec![registration(9, Asset::Option)]);
+        assert_eq!(
+            market
+                .indexed_binding(Lane::OptionsGlbx, next.clone(), "same", Asset::Option)
+                .unwrap(),
+            Some(9)
+        );
+        assert!(
+            weak.upgrade().is_none(),
+            "Replaced directories must not accumulate"
+        );
+        assert_eq!(
+            market
+                .indexed_binding(Lane::OptionsGlbx, next, "same", Asset::Futures)
+                .unwrap(),
+            None
+        );
+        market.shutdown(Deadline::recovery()).await.unwrap();
+        root.stop().unwrap();
+        root.wait_idle(
+            &tokio_util::sync::CancellationToken::new(),
+            Deadline::recovery(),
+        )
+        .await
+        .unwrap();
     }
 }

@@ -5,6 +5,9 @@ use ifm_ui_egui::{
     provider_browser::ProviderBrowser,
 };
 use std::collections::BTreeMap;
+
+
+/// Provides fixture for the provider browser implementation.
 fn fixture(count: usize) -> (Catalog, ContractPublication) {
     let c = serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap();
     let s = ContractPublication {
@@ -35,6 +38,9 @@ fn fixture(count: usize) -> (Catalog, ContractPublication) {
     };
     (c, s)
 }
+
+
+/// Verifies that search emits exact filters once and pending disables further search.
 #[test]
 fn search_emits_exact_filters_once_and_pending_disables_further_search() {
     let (c, s) = fixture(3);
@@ -58,6 +64,9 @@ fn search_emits_exact_filters_once_and_pending_disables_further_search() {
     assert!(h.state().0.pending.is_some());
     assert!(h.query_by_label("Confirm removal").is_none());
 }
+
+
+/// Verifies that selected provider identity and exact decimal are retained with virtual rows.
 #[test]
 fn selected_provider_identity_and_exact_decimal_are_retained_with_virtual_rows() {
     let (c, s) = fixture(100000);
@@ -80,6 +89,9 @@ fn selected_provider_identity_and_exact_decimal_are_retained_with_virtual_rows()
     assert!(h.query_by_label("verified-digest").is_some());
 }
 
+
+/// Verifies that mapping preview and confirmation keep exact selection and cancel does not
+/// dispatch.
 #[test]
 fn mapping_preview_and_confirmation_keep_exact_selection_and_cancel_does_not_dispatch() {
     let (c, mut s) = fixture(3);

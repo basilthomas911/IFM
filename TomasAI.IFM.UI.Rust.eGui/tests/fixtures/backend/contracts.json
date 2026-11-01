@@ -20642,6 +20642,14 @@
       {
         "name": "InTradeChanged",
         "value": 6
+      },
+      {
+        "name": "TrendOvershootExtended",
+        "value": 7
+      },
+      {
+        "name": "TrendOvershootReversal",
+        "value": 8
       }
     ],
     "members": [],

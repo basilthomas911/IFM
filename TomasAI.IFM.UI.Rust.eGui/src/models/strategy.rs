@@ -21,49 +21,91 @@ pub const STAGES: [(&str, &str, &str); 5] = [
     ("OrderComposition", "order-composition", "Order Composition"),
     ("RiskManagement", "risk-management", "Risk Management"),
 ];
+
+/// Stage Header used by the strategy component.
 #[derive(Clone, Debug)]
 pub struct StageHeader {
+    /// Processing associated with this stage header.
     pub processing: String,
+    /// Continuation associated with this stage header.
     pub continuation: String,
+    /// Optional completed; `None` represents an absent value.
     pub completed: Option<chrono::DateTime<chrono::Utc>>,
+    /// Optional failed; `None` represents an absent value.
     pub failed: Option<chrono::DateTime<chrono::Utc>>,
+    /// Optional failure; `None` represents an absent value.
     pub failure: Option<StageFailure>,
 }
+
+/// Stage Failure used by the strategy component.
 #[derive(Clone, Debug)]
 pub struct StageFailure {
+    /// Error type associated with this stage failure.
     pub error_type: String,
+    /// Error code associated with this stage failure.
     pub error_code: String,
+    /// Error message associated with this stage failure.
     pub error_message: String,
 }
+
+/// Workflow Header used by the strategy component.
 #[derive(Clone, Debug)]
 pub struct WorkflowHeader {
+    /// Id associated with this workflow header.
     pub id: String,
+    /// Definition id associated with this workflow header.
     pub definition_id: String,
+    /// Entity contract associated with this workflow header.
     pub entity_contract: String,
+    /// Entity date associated with this workflow header.
     pub entity_date: String,
+    /// Frame associated with this workflow header.
     pub frame: String,
+    /// Trigger id associated with this workflow header.
     pub trigger_id: String,
+    /// Correlation id associated with this workflow header.
     pub correlation_id: String,
+    /// Causation id associated with this workflow header.
     pub causation_id: String,
+    /// Definition version associated with this workflow header.
     pub definition_version: String,
+    /// Revision associated with this workflow header.
     pub revision: u64,
+    /// Current status text or state exposed by this component.
     pub status: String,
+    /// Outcome associated with this workflow header.
     pub outcome: String,
+    /// Current stage associated with this workflow header.
     pub current_stage: String,
+    /// Stop reason associated with this workflow header.
     pub stop_reason: String,
+    /// Started associated with this workflow header.
     pub started: chrono::DateTime<chrono::Utc>,
+    /// Updated associated with this workflow header.
     pub updated: chrono::DateTime<chrono::Utc>,
+    /// Expires associated with this workflow header.
     pub expires: chrono::DateTime<chrono::Utc>,
+    /// Optional terminal; `None` represents an absent value.
     pub terminal: Option<chrono::DateTime<chrono::Utc>>,
+    /// Trigger created associated with this workflow header.
     pub trigger_created: chrono::DateTime<chrono::Utc>,
+    /// Signal associated with this workflow header.
     pub signal: FuturesItiSignalV2ReadModel,
+    /// Ordered stages retained by WorkflowHeader.
     pub stages: Vec<StageHeader>,
 }
+
+/// Workflow View used by the strategy component.
 #[derive(Clone)]
 pub struct WorkflowView {
+    /// Header associated with this workflow view.
     pub header: WorkflowHeader,
+    /// Evidence associated with this workflow view.
     pub evidence: Arc<[u8]>,
 }
+
+
+/// Provides value for the strategy implementation.
 fn value<'a>(r: &Registry, kind: &str, wire: &'a Value, name: &str) -> Result<&'a Value, String> {
     if wire.is_nil() {
         Ok(&Value::Nil)
@@ -73,6 +115,9 @@ fn value<'a>(r: &Registry, kind: &str, wire: &'a Value, name: &str) -> Result<&'
         r.wire_field(kind, name, wire)
     }
 }
+
+
+/// Returns the display text for the requested value or field.
 fn text(r: &Registry, kind: &str, wire: &Value, name: &str) -> Result<String, String> {
     let v = value(r, kind, wire, name)?;
     if v.is_nil() {
@@ -89,6 +134,9 @@ fn text(r: &Registry, kind: &str, wire: &Value, name: &str) -> Result<String, St
     }
     Err(format!("Invalid workflow text {kind}.{name}"))
 }
+
+
+/// Reads a timestamp as an instant while retaining the supported precision.
 fn instant(
     r: &Registry,
     kind: &str,
@@ -97,6 +145,9 @@ fn instant(
 ) -> Result<chrono::DateTime<chrono::Utc>, String> {
     timestamp(value(r, kind, wire, name)?)
 }
+
+
+/// Reads an optional timestamp without inventing a value for missing data.
 fn optional_instant(
     r: &Registry,
     kind: &str,
@@ -111,6 +162,7 @@ fn optional_instant(
     }
 }
 impl WorkflowView {
+    /// Reads the pinned backend representation and validates its scalar values.
     pub fn from_backend(r: &Registry, wire: &Value) -> Result<Self, String> {
         Ok(Self {
             header: WorkflowHeader::from_backend(r, wire)?,
@@ -119,6 +171,7 @@ impl WorkflowView {
     }
 }
 impl WorkflowHeader {
+    /// Reads the pinned backend representation and validates its scalar values.
     pub fn from_backend(r: &Registry, wire: &Value) -> Result<Self, String> {
         let entity = value(r, VIEW, wire, "EntityId")?;
         let entity_kind = r.field_kind(VIEW, "EntityId")?;
@@ -196,6 +249,9 @@ impl WorkflowHeader {
             stages,
         })
     }
+
+
+    /// Reads the occurrence time used to order the supplied event.
     pub fn occurred(&self) -> chrono::DateTime<chrono::Utc> {
         if self.trigger_created.timestamp() <= -62_135_596_800 {
             self.started
@@ -203,6 +259,9 @@ impl WorkflowHeader {
             self.trigger_created
         }
     }
+
+
+    /// Provides header for the workflow header implementation.
     pub fn header(&self) -> String {
         let mut out = "=== WORKFLOW ===\r\n".to_owned();
         let id = uuid::Uuid::parse_str(&self.id)
@@ -249,6 +308,9 @@ impl WorkflowHeader {
         out
     }
 }
+
+
+/// Extracts the workflow signal's published event time.
 pub fn signal_time(
     signal: &FuturesItiSignalV2ReadModel,
 ) -> Result<chrono::DateTime<chrono::Utc>, String> {
@@ -262,6 +324,9 @@ pub fn signal_time(
     .map(|v| v.to_utc())
     .map_err(|_| "Invalid strategy timestamp".into())
 }
+
+
+/// Extracts the workflow signal identity used for correlation and deduplication.
 pub fn signal_identity(signal: &FuturesItiSignalV2ReadModel) -> Result<String, String> {
     let at = signal_time(signal)?;
     let ticks = at.timestamp() as i128 * 10_000_000
@@ -304,6 +369,7 @@ pub fn signal_identity(signal: &FuturesItiSignalV2ReadModel) -> Result<String, S
 }
 
 impl WorkflowHeader {
+    /// Provides row for the workflow header implementation.
     pub fn row(&self, action: u32) -> Result<crate::strategy_workspace::WorkflowRow, String> {
         use crate::strategy_workspace::{WorkflowActor, WorkflowRow};
         let local = self.occurred().with_timezone(&chrono_tz::America::New_York);

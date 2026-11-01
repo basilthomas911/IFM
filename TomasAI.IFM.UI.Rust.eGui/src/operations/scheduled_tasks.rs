@@ -1,13 +1,12 @@
 //! Scheduled-task setup, daily-time editing, preview/confirmation, and run history. Draft schedule fields are sent to the managed scheduler; Rust does not create its own timer or execute jobs.
 
 use crate::presentation::TradingLabelUi as _;
-use crate::{
-    Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
-};
+use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings};
 use eframe::egui;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Weak};
+
 /// Published scheduled-task execution status and timestamps.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,6 +24,8 @@ pub struct Run {
     /// Optional actual task start time in UTC.
     pub started_at_utc: Option<String>,
 }
+
+
 /// Map published status/severity text to its view-specific indicator color.
 pub fn status_color(status: &str) -> egui::Color32 {
     match status {
@@ -35,14 +36,24 @@ pub fn status_color(status: &str) -> egui::Color32 {
         _ => egui::Color32::GRAY,
     }
 }
+
+/// Scheduled Documents used by the scheduled tasks component.
 #[derive(Default)]
 struct ScheduledDocuments {
+    /// Ordered runs retained by ScheduledDocuments.
     runs: Vec<Run>,
+    /// Keyed histories retained by ScheduledDocuments.
     histories: BTreeMap<String, Vec<Run>>,
+    /// Keyed fires retained by ScheduledDocuments.
     fires: BTreeMap<String, String>,
+    /// Optional preview; `None` represents an absent value.
     preview: Option<crate::models::scheduled::Preview>,
+    /// Preview text associated with this scheduled documents.
     preview_text: String,
+    /// Output associated with this scheduled documents.
+    output: crate::models::prepared_views::LineIndex,
 }
+
 /// Schedule editor, weekday/time draft, run selection, and preview/confirmation state.
 pub struct ScheduledTasks {
     /// Whether the scheduled-task setup editor is open.
@@ -77,6 +88,7 @@ pub struct ScheduledTasks {
     last_action: String,
     /// Safe administrative failure shown in the persistent status line.
     last_error: String,
+    /// Optional cache; `None` represents an absent value.
     cache: Option<(u64, Weak<()>, Arc<ScheduledDocuments>)>,
 }
 impl Default for ScheduledTasks {
@@ -103,6 +115,8 @@ impl Default for ScheduledTasks {
         }
     }
 }
+
+
 /// Create the scheduler's initial editable field values without persisting a schedule.
 fn defaults() -> BTreeMap<String, String> {
     BTreeMap::from(
@@ -124,6 +138,7 @@ fn defaults() -> BTreeMap<String, String> {
     )
 }
 impl ScheduledTasks {
+    /// Returns the display documents associated with the current accepted state.
     fn documents(&mut self, s: &ContractPublication) -> Arc<ScheduledDocuments> {
         if let Some((generation, token, docs)) = &self.cache {
             if *generation == s.generation
@@ -144,10 +159,19 @@ impl ScheduledTasks {
                 .and_then(|v| serde_json::to_string_pretty(v).ok())
                 .unwrap_or_default(),
             preview,
+            output: crate::models::prepared_views::LineIndex::new(
+                s.result
+                    .context
+                    .get("output")
+                    .map(String::as_str)
+                    .unwrap_or_default(),
+            ),
         });
         self.cache = Some((s.generation, Arc::downgrade(&s.render_token), docs.clone()));
         docs
     }
+
+
     /// Copy the hour/minute/weekday controls into the scheduler draft's daily recurrence fields.
     pub fn apply_daily_time(&mut self) {
         let days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
@@ -161,6 +185,7 @@ impl ScheduledTasks {
             format!("0 {} {} ? * {}", self.minute, self.hour, days),
         );
     }
+
 
     /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     pub fn request(&mut self, action: &str, s: &ContractPublication) -> String {
@@ -178,6 +203,8 @@ impl ScheduledTasks {
         fields.insert("reason".into(), self.reason.clone());
         serde_json::json!({"schema":1,"requestId":id,"view":"scheduled-tasks","intent":action,"expectedGeneration":s.generation,"originalId":self.selected,"fields":fields}).to_string()
     }
+
+
     /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
     ///
     /// This renderer owns schedule editor, weekday/time draft, run selection, and preview/confirmation state.
@@ -190,6 +217,8 @@ impl ScheduledTasks {
     ) -> Option<String> {
         self.draw_impl(ctx, s, c, live, false)
     }
+
+
     /// Render inside the original System Admin Manager selector shell.
     pub fn draw_system(
         &mut self,
@@ -200,6 +229,9 @@ impl ScheduledTasks {
     ) -> Option<String> {
         self.draw_impl(ctx, s, c, live, true)
     }
+
+
+    /// Renders the impl view and collects its UI interactions.
     fn draw_impl(
         &mut self,
         ctx: &egui::Context,
@@ -259,6 +291,8 @@ impl ScheduledTasks {
         crate::system_admin::panel(ctx, manager, 1, !s.busy && self.pending.is_none(), |ui| {
             if !manager {
                 ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                     for (key, label) in [
                         ("environment", strings::SCHEDULE_ENVIRONMENT),
                         ("hostId", strings::SCHEDULE_HOST),
@@ -267,6 +301,7 @@ impl ScheduledTasks {
                         ui.add_enabled(
                             idle,
                             egui::TextEdit::singleline(self.draft.entry(key.into()).or_default())
+                                .vertical_align(egui::Align::Center)
                                 .desired_width(160.)
                                 .id_salt(key),
                         );
@@ -419,10 +454,13 @@ impl ScheduledTasks {
                 egui::ScrollArea::vertical()
                     .id_salt("schedule-fields")
                     .show(ui, |ui| {
-                        egui::Grid::new("schedule-edit")
+                        crate::presentation::form_grid(ui, "schedule-edit")
                             .num_columns(2)
                             .show(ui, |ui| {
-                                ui.trading_caption(c.text(strings::SCHEDULE_PROJECT));
+                                crate::presentation::form_caption(
+                                    ui,
+                                    c.text(strings::SCHEDULE_PROJECT),
+                                );
                                 let selected =
                                     self.draft.get("taskKey").cloned().unwrap_or_default();
                                 egui::ComboBox::from_id_salt("schedule-project")
@@ -453,18 +491,22 @@ impl ScheduledTasks {
                                     ("dispatchToleranceSeconds", strings::SCHEDULE_TOLERANCE),
                                     ("description", strings::SCHEDULE_DESCRIPTION),
                                 ] {
-                                    ui.trading_caption(c.text(label));
+                                    crate::presentation::form_caption(ui, c.text(label));
                                     ui.add_enabled(
                                         idle,
                                         egui::TextEdit::singleline(
                                             self.draft.entry(key.into()).or_default(),
                                         )
+                                        .vertical_align(egui::Align::Center)
                                         .desired_width(380.)
                                         .id_salt(key),
                                     );
                                     ui.end_row();
                                 }
-                                ui.trading_caption(c.text(strings::SCHEDULE_ONE_TIME));
+                                crate::presentation::form_caption(
+                                    ui,
+                                    c.text(strings::SCHEDULE_ONE_TIME),
+                                );
                                 let mut one = self
                                     .draft
                                     .get("oneTime")
@@ -575,7 +617,7 @@ impl ScheduledTasks {
      });
      ui.separator();
      ui.allocate_ui_with_layout(egui::vec2((content_size.x - tree_width - 5.0).max(0.0), content_size.y), egui::Layout::top_down(egui::Align::Min), |ui| {
-     if !manager{ui.heading(c.text(strings::SCHEDULE_OUTPUT));}if s.result.context.get("outputRun")==self.selected_run.as_ref(){let lines=s.result.context.get("output").map(String::as_str).unwrap_or("").lines().collect::<Vec<_>>();egui::ScrollArea::both().id_salt("task-output").show_rows(ui,20.,lines.len(),|ui,range|{for i in range{ui.monospace(lines[i]);}});}else{ui.trading_caption(c.text(strings::SCHEDULE_NO_OUTPUT));}
+     if !manager{ui.heading(c.text(strings::SCHEDULE_OUTPUT));}if s.result.context.get("outputRun")==self.selected_run.as_ref(){let lines=&documents.output;let output=s.result.context.get("output").map(String::as_str).unwrap_or_default();egui::ScrollArea::both().id_salt("task-output").show_rows(ui,20.,lines.len(),|ui,range|{for i in range{ui.monospace(lines.line(output,i));}});}else{ui.trading_caption(c.text(strings::SCHEDULE_NO_OUTPUT));}
      if manager&&ui.add_enabled(idle&&self.selected_run.is_some()&&s.result.context.get("outputEnd").is_some_and(|v|v.eq_ignore_ascii_case("false")),egui::Button::new("Load more output")).clicked(){action=Some("more-output");}
      });
     });
@@ -584,8 +626,13 @@ impl ScheduledTasks {
                     .any(|r| Some(&r.id) == self.selected_run.as_ref() && r.status == "Uncertain")
                 {
                     ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                         ui.trading_caption(c.text(strings::SCHEDULE_REASON));
-                        ui.text_edit_singleline(&mut self.reason);
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.reason)
+                                .vertical_align(egui::Align::Center),
+                        );
                         if ui
                             .add_enabled(
                                 idle && target_ok && self.reason.trim().len() >= 3,

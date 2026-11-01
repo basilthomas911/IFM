@@ -4,14 +4,20 @@ use super::{codec, contracts::ActorSubject};
 use rmpv::Value;
 use std::{path::PathBuf, time::Duration};
 
+/// Settings used by the transport component.
 #[derive(Clone)]
 pub struct Settings {
+    /// Explicit NATS endpoint loaded from the selected client profile or environment.
     pub url: String,
+    /// Optional NATS credentials file; used when configured instead of token-only authentication.
     pub credentials_file: Option<PathBuf>,
+    /// Optional NATS authentication token loaded from configuration.
     pub token: Option<String>,
+    /// Overall request budget used to establish caller deadlines.
     pub request_timeout: Duration,
 }
 impl Settings {
+    /// Loads configuration from the supported environment settings.
     pub fn from_env() -> Result<Self, String> {
         let url = super::configuration::value("IFM_UI_NATS_URL")?
             .ok_or("Configure IFM_UI_NATS_URL or AppSettings:NatsServerUri in the client profile; no backend is selected implicitly")?;
@@ -24,7 +30,8 @@ impl Settings {
         }
         Ok(Self {
             url,
-            credentials_file: std::env::var_os("IFM_UI_NATS_CREDENTIALS").map(PathBuf::from)
+            credentials_file: std::env::var_os("IFM_UI_NATS_CREDENTIALS")
+                .map(PathBuf::from)
                 .or(super::configuration::value("IFM_UI_NATS_CREDENTIALS")?.map(PathBuf::from)),
             token: super::configuration::value("IFM_UI_NATS_TOKEN")?,
             request_timeout: Duration::from_secs(seconds),
@@ -32,26 +39,43 @@ impl Settings {
     }
 }
 
+/// Backend used by the transport component.
 #[derive(Clone)]
 pub struct Backend {
+    /// Client associated with this backend.
     client: async_nats::Client,
+    /// Timeout associated with this backend.
     timeout: Duration,
+    /// Connection associated with this backend.
     connection: tokio::sync::watch::Receiver<ConnectionState>,
 }
+
+/// Connection State used by the transport component.
 #[derive(Clone, Debug, Default)]
 pub struct ConnectionState {
+    /// Whether connected is enabled or currently true.
     pub connected: bool,
+    /// Revision associated with this connection state.
     pub revision: u64,
+    /// Warning sequence associated with this connection state.
     pub warning_sequence: u64,
+    /// Optional last warning; `None` represents an absent value.
     pub last_warning: Option<String>,
 }
 impl Backend {
+    /// Returns the configured default budget for backend requests.
     pub fn default_timeout(&self) -> Duration {
         self.timeout
     }
+
+
+    /// Subscribes to connection-state revisions without polling.
     pub fn watch_connection(&self) -> tokio::sync::watch::Receiver<ConnectionState> {
         self.connection.clone()
     }
+
+
+    /// Connects transport for backend.
     pub async fn connect(settings: Settings) -> Result<Self, String> {
         let (connection_sender, connection) =
             tokio::sync::watch::channel(ConnectionState::default());
@@ -93,14 +117,30 @@ impl Backend {
         }
         let client = tokio::time::timeout(settings.request_timeout, options.connect(settings.url))
             .await
-            .map_err(|_| crate::diagnostics::errors::request_failure("NATS.connect",&uuid::Uuid::new_v4().to_string(),"NATS connection deadline expired".into()))?
-            .map_err(|e| crate::diagnostics::errors::request_failure("NATS.connect",&uuid::Uuid::new_v4().to_string(),format!("NATS connection failed: {e}; details={e:?}")))?;
+            .map_err(|_| {
+                crate::diagnostics::errors::request_failure(
+                    "NATS.connect",
+                    &uuid::Uuid::new_v4().to_string(),
+                    "NATS connection deadline expired".into(),
+                )
+            })?
+            .map_err(|e| {
+                crate::diagnostics::errors::request_failure(
+                    "NATS.connect",
+                    &uuid::Uuid::new_v4().to_string(),
+                    format!("NATS connection failed: {e}; details={e:?}"),
+                )
+            })?;
         Ok(Self {
             client,
             timeout: settings.request_timeout,
             connection,
         })
     }
+
+
+    /// Sends a request using the configured default budget; submitted writes are not automatically
+    /// retried.
     pub async fn request(
         &self,
         subject: &ActorSubject,
@@ -116,6 +156,9 @@ impl Backend {
         )
         .await
     }
+
+
+    /// Sends the request within the caller's deadline and records transport or backend failures.
     pub async fn request_until(
         &self,
         subject: &ActorSubject,
@@ -124,14 +167,63 @@ impl Backend {
         trace: Option<(&str, &str)>,
     ) -> Result<Value, String> {
         let operation = uuid::Uuid::new_v4().to_string();
-        let result = self.request_until_inner(subject, body, deadline, trace, &operation).await;
-        result.map_err(|error| crate::diagnostics::errors::request_failure(
-            &subject.route().unwrap_or_else(|_| "invalid-actor-subject".into()), &operation, error))
+        let result = self
+            .request_until_inner(subject, body, deadline, trace, &operation)
+            .await;
+        result.map_err(|error| {
+            crate::diagnostics::errors::request_failure(
+                &subject
+                    .route()
+                    .unwrap_or_else(|_| "invalid-actor-subject".into()),
+                &operation,
+                error,
+            )
+        })
     }
+
+
+    /// Performs the bounded request/reply exchange and decodes its service result.
     async fn request_until_inner(
-        &self, subject: &ActorSubject, body: &Value, deadline: tokio::time::Instant,
-        trace: Option<(&str, &str)>, operation: &str,
+        &self,
+        subject: &ActorSubject,
+        body: &Value,
+        deadline: tokio::time::Instant,
+        trace: Option<(&str, &str)>,
+        operation: &str,
     ) -> Result<Value, String> {
+        let reply = self
+            .reply_until(subject, body, deadline, trace, operation)
+            .await?;
+        let route = subject.route()?;
+        let decoded = codec::decode(&reply.payload)?;
+        // A valid reply can still reject a command/query. Preserve the wire
+        // response for its controller while retaining the backend's full error.
+        if decoded
+            .as_array()
+            .is_some_and(|parts| parts.len() >= 4 && parts[0].as_bool() == Some(false))
+        {
+            if let Err(error) = super::contracts::service_result(&decoded) {
+                crate::diagnostics::errors::record(
+                    "backend.request_rejected",
+                    Some(&route),
+                    Some(operation),
+                    &error,
+                );
+            }
+        }
+        Ok(decoded)
+    }
+
+
+    /// Receives the request reply within the caller's deadline, retaining response headers.
+    async fn reply_until(
+        &self,
+        subject: &ActorSubject,
+        body: &Value,
+        deadline: tokio::time::Instant,
+        trace: Option<(&str, &str)>,
+        operation: &str,
+    ) -> Result<async_nats::Message, String> {
         let route = subject.route()?;
         let bytes = codec::encode(body)?;
         let mut headers = async_nats::HeaderMap::new();
@@ -152,35 +244,107 @@ impl Backend {
                     .to_string()
             })?
             .map_err(|e| format!("Backend request failed: {e}; details={e:?}"))?;
-        let decoded=codec::decode(&reply.payload)?;
-        // A valid reply can still reject a command/query. Preserve the wire
-        // response for its controller while retaining the backend's full error.
-        if decoded.as_array().is_some_and(|parts|parts.len()>=4&&parts[0].as_bool()==Some(false)) {
-            if let Err(error)=super::contracts::service_result(&decoded) {
-                crate::diagnostics::errors::record("backend.request_rejected",Some(&route),Some(operation),&error);
-            }
-        }
-        Ok(decoded)
+        Ok(reply)
     }
+
+
+    /// Direct decoding is restricted to read queries; command acknowledgement
+    /// and immutable receipt paths continue to retain the complete wire result.
+    pub async fn query_direct_until<
+        T: crate::models::direct_backend::DirectRecord + Send + 'static,
+    >(
+        &self,
+        subject: &ActorSubject,
+        body: &Value,
+        deadline: tokio::time::Instant,
+    ) -> Result<T, String> {
+        let route = subject.route()?;
+        if !route.starts_with("Query.") {
+            return Err("Direct decoding is restricted to queries".into());
+        }
+        let operation = uuid::Uuid::new_v4().to_string();
+        let reply = self
+            .reply_until(subject, body, deadline, None, &operation)
+            .await
+            .map_err(|e| crate::diagnostics::errors::request_failure(&route, &operation, e))?;
+        let plain = codec::message_bytes(&reply.payload)
+            .map_err(|e| crate::diagnostics::errors::request_failure(&route, &operation, e))?;
+        crate::services::compute::decode(plain, deadline)
+            .await
+            .map_err(|error| {
+                if error.starts_with("Backend error") {
+                    crate::diagnostics::errors::record(
+                        "backend.request_rejected",
+                        Some(&route),
+                        Some(&operation),
+                        &error,
+                    );
+                    error
+                } else {
+                    crate::diagnostics::errors::request_failure(&route, &operation, error)
+                }
+            })
+    }
+
+
     /// The only non-actor RPC used by this frontend is the existing versioned
     /// MarketData Host control subject. Scope is one validated deployment token.
-    pub async fn marketdata_control_until(&self,scope:&str,body:&Value,deadline:tokio::time::Instant)->Result<Value,String>{
-        let operation=uuid::Uuid::new_v4().to_string();
-        let valid=!scope.is_empty()&&scope.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-');
-        let subject=if valid {format!("ifm.{scope}.marketdata.v1.control")}else{"invalid-marketdata-scope".into()};
-        let result=async {
-            if !valid{return Err("Invalid MarketData Host scope".into())}
-            let bytes=codec::encode(body)?;
-            let mut headers=async_nats::HeaderMap::new();headers.insert("IFM-UI-Operation-Id",operation.as_str());
-            let reply=tokio::time::timeout_at(deadline,self.client.request_with_headers(subject.clone(),headers,bytes.into())).await.map_err(|_|"MarketData Host request deadline expired; reconcile saved live-feed intent".to_string())?.map_err(|e|format!("MarketData Host request failed: {e}; details={e:?}"))?;
-            let decoded=codec::decode(&reply.payload)?;
-            if let Some(error)=decoded.as_array().filter(|parts|parts.len()==2).and_then(|parts|parts[1].as_str()) {
-                crate::diagnostics::errors::record("backend.request_rejected",Some(&subject),Some(&operation),error);
+    pub async fn marketdata_control_until(
+        &self,
+        scope: &str,
+        body: &Value,
+        deadline: tokio::time::Instant,
+    ) -> Result<Value, String> {
+        let operation = uuid::Uuid::new_v4().to_string();
+        let valid = !scope.is_empty()
+            && scope
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-');
+        let subject = if valid {
+            format!("ifm.{scope}.marketdata.v1.control")
+        } else {
+            "invalid-marketdata-scope".into()
+        };
+        let result = async {
+            if !valid {
+                return Err("Invalid MarketData Host scope".into());
+            }
+            let bytes = codec::encode(body)?;
+            let mut headers = async_nats::HeaderMap::new();
+            headers.insert("IFM-UI-Operation-Id", operation.as_str());
+            let reply = tokio::time::timeout_at(
+                deadline,
+                self.client
+                    .request_with_headers(subject.clone(), headers, bytes.into()),
+            )
+            .await
+            .map_err(|_| {
+                "MarketData Host request deadline expired; reconcile saved live-feed intent"
+                    .to_string()
+            })?
+            .map_err(|e| format!("MarketData Host request failed: {e}; details={e:?}"))?;
+            let decoded = codec::decode(&reply.payload)?;
+            if let Some(error) = decoded
+                .as_array()
+                .filter(|parts| parts.len() == 2)
+                .and_then(|parts| parts[1].as_str())
+            {
+                crate::diagnostics::errors::record(
+                    "backend.request_rejected",
+                    Some(&subject),
+                    Some(&operation),
+                    error,
+                );
             }
             Ok(decoded)
-        }.await;
-        result.map_err(|error|crate::diagnostics::errors::request_failure(&subject,&operation,error))
+        }
+        .await;
+        result.map_err(|error| {
+            crate::diagnostics::errors::request_failure(&subject, &operation, error)
+        })
     }
+
+
     /// Subscriber ownership is scoped: dropping the returned stream unsubscribes.
     pub async fn subscribe(
         &self,
@@ -195,21 +359,52 @@ impl Backend {
         self.client
             .subscribe(format!("{actor}.{name}.>"))
             .await
-            .map_err(|e| crate::diagnostics::errors::request_failure(&format!("{actor}.{name}.>"), &uuid::Uuid::new_v4().to_string(), format!("NATS subscription failed: {e}; details={e:?}")))
+            .map_err(|e| {
+                crate::diagnostics::errors::request_failure(
+                    &format!("{actor}.{name}.>"),
+                    &uuid::Uuid::new_v4().to_string(),
+                    format!("NATS subscription failed: {e}; details={e:?}"),
+                )
+            })
     }
+
+
     /// Bind the exact durable push delivery subject so JetStream sees active UI interest.
     pub async fn subscribe_console(&self) -> Result<async_nats::Subscriber, String> {
-        self.client.subscribe("Notify.StatusConsoleEvent.>").await.map_err(|error|crate::diagnostics::errors::request_failure("Notify.StatusConsoleEvent.Logged",&uuid::Uuid::new_v4().to_string(),format!("NATS console subscription failed: {error}; details={error:?}")))
+        self.client
+            .subscribe("Notify.StatusConsoleEvent.>")
+            .await
+            .map_err(|error| {
+                crate::diagnostics::errors::request_failure(
+                    "Notify.StatusConsoleEvent.Logged",
+                    &uuid::Uuid::new_v4().to_string(),
+                    format!("NATS console subscription failed: {error}; details={error:?}"),
+                )
+            })
     }
+
+
+    /// Flushes pending transport or buffered output before returning.
     pub async fn flush(&self) -> Result<(), String> {
         self.flush_until(tokio::time::Instant::now() + self.timeout)
             .await
     }
+
+
+    /// Waits for pending transport writes to flush within the supplied deadline.
     pub async fn flush_until(&self, deadline: tokio::time::Instant) -> Result<(), String> {
         let result = tokio::time::timeout_at(deadline, self.client.flush())
             .await
             .map_err(|_| "NATS flush deadline expired".to_string())
-            .and_then(|result|result.map_err(|e|format!("NATS flush failed: {e}; details={e:?}")));
-        result.map_err(|error|crate::diagnostics::errors::request_failure("NATS.flush",&uuid::Uuid::new_v4().to_string(),error))
+            .and_then(|result| {
+                result.map_err(|e| format!("NATS flush failed: {e}; details={e:?}"))
+            });
+        result.map_err(|error| {
+            crate::diagnostics::errors::request_failure(
+                "NATS.flush",
+                &uuid::Uuid::new_v4().to_string(),
+                error,
+            )
+        })
     }
 }

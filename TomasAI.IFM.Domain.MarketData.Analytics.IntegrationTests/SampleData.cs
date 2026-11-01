@@ -79,7 +79,8 @@ public static class SampleData
                 threshold: 0,
                 upTrendTrigger: FuturesPrice,
                 downTrendTrigger: FuturesPrice - (FuturesPrice * Lambda),
-                tradeState: IntrinsicTimeTradeState.Ready),
+                tradeState: IntrinsicTimeTradeState.Ready,
+                bandPercentage: 0.20),
             CreatedOn = Timestamp,
             CreatedBy = "test"
         };

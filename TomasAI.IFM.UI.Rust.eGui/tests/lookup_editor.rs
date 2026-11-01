@@ -1,14 +1,25 @@
 use egui_kittest::kittest::NodeT;
 use egui_kittest::{Harness, kittest::Queryable};
 use ifm_ui_egui::{Catalog, lookup_editor::*};
+
+/// State used by the lookup editor test fixtures.
 struct State {
+    /// View associated with this state.
     view: LookupEditor,
+    /// Snapshot associated with this state.
     snapshot: EditorPublication,
+    /// Ordered intents retained by State.
     intents: Vec<String>,
 }
+
+
+/// Provides setup for the lookup editor implementation.
 fn setup(count: usize, live: bool) -> Harness<'static, State> {
     setup_mode(count, live, false)
 }
+
+
+/// Provides setup mode for the lookup editor implementation.
 fn setup_mode(count: usize, live: bool, reference: bool) -> Harness<'static, State> {
     let c: Catalog = serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap();
     let snapshot = EditorPublication {
@@ -43,6 +54,9 @@ fn setup_mode(count: usize, live: bool, reference: bool) -> Harness<'static, Sta
         },
     )
 }
+
+
+/// Verifies that selected edit emits one typed intent then waits for completion.
 #[test]
 fn selected_edit_emits_one_typed_intent_then_waits_for_completion() {
     let mut h = setup(3, true);
@@ -67,6 +81,9 @@ fn selected_edit_emits_one_typed_intent_then_waits_for_completion() {
     h.run();
     assert!(h.state().view.pending.is_none());
 }
+
+
+/// Verifies that removal requires confirmation and fixture cannot send.
 #[test]
 fn removal_requires_confirmation_and_fixture_cannot_send() {
     let mut h = setup(2, true);
@@ -93,6 +110,9 @@ fn removal_requires_confirmation_and_fixture_cannot_send() {
     );
     assert!(fixture.state().intents.is_empty());
 }
+
+
+/// Verifies that lookup history is virtualized.
 #[test]
 fn lookup_history_is_virtualized() {
     let mut h = setup(100_000, true);
@@ -102,6 +122,9 @@ fn lookup_history_is_virtualized() {
     assert!(h.state().view.drawn_rows < 40);
 }
 
+
+/// Verifies that reference lookup preserves lists four fields and two step add without extra
+/// controls.
 #[test]
 fn reference_lookup_preserves_lists_four_fields_and_two_step_add_without_extra_controls() {
     let mut h = setup_mode(3, true, true);

@@ -5,28 +5,43 @@ use super::{
     parameters,
     portfolio_commands::{self, Prepared},
 };
-use crate::backend::{
-    contracts::*, identity::financial_hash, schema::Registry, transport::Backend,
-};
+use crate::backend::{contracts::*, identity::financial_hash, schema::Registry, transport::Backend};
 use rmpv::Value;
 use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
 const ROOT: &str = "TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition";
 const TRADE: &str = "TomasAI.IFM.Domain.Trade.Shared";
+
+/// Operation used by the order submission component.
 pub struct Operation {
+    /// Id associated with this operation.
     pub id: uuid::Uuid,
+    /// Portfolio associated with this operation.
     pub portfolio: i32,
+    /// Composition associated with this operation.
     pub composition: uuid::Uuid,
+    /// Subject associated with this operation.
     pub subject: ActorSubject,
+    /// Body associated with this operation.
     pub body: Value,
+    /// Hash associated with this operation.
     pub hash: String,
+    /// Whether attempted is enabled or currently true.
     pub attempted: bool,
+    /// Ordered accepted retained by Operation.
     pub accepted: Vec<Json>,
+    /// Optional completed; `None` represents an absent value.
     pub completed: Option<Json>,
+    /// Dispatched associated with this operation.
     pub dispatched: usize,
+    /// Channel associated with this operation.
     pub channel: String,
+    /// Whether confirmed is enabled or currently true.
     pub confirmed: bool,
 }
+
+
+/// Builds the candidate content used for semantic operation comparison.
 fn semantic_candidate(
     registry: &Registry,
     candidate: &Value,
@@ -86,6 +101,7 @@ fn semantic_candidate(
     Ok(value)
 }
 impl Operation {
+    /// Prepares order submission for operation.
     pub fn prepare(
         registry: &Registry,
         context: &BusinessContext,
@@ -95,6 +111,9 @@ impl Operation {
     ) -> Result<Self, String> {
         Self::prepare_kind(registry, context, portfolio, id, candidate, false)
     }
+
+
+    /// Resolves the declared command kind used for backend dispatch.
     pub fn command_kind(&self) -> String {
         format!(
             "{ROOT}.{}",
@@ -105,9 +124,15 @@ impl Operation {
             }
         )
     }
+
+
+    /// Checks is closing against the current order submission state.
     pub fn is_closing(&self) -> bool {
         self.subject.name == "PortfolioCloseOrderCompositionFunction"
     }
+
+
+    /// Prepares close for operation.
     pub fn prepare_close(
         registry: &Registry,
         context: &BusinessContext,
@@ -117,6 +142,9 @@ impl Operation {
     ) -> Result<Self, String> {
         Self::prepare_kind(registry, context, portfolio, id, candidate, true)
     }
+
+
+    /// Prepares kind for operation.
     fn prepare_kind(
         registry: &Registry,
         context: &BusinessContext,
@@ -250,6 +278,9 @@ impl Operation {
             confirmed: false,
         })
     }
+
+
+    /// Provides evaluate for the operation implementation.
     pub async fn evaluate(
         &mut self,
         backend: &Backend,
@@ -266,6 +297,8 @@ impl Operation {
         super::order_submission_store::save(self, 1, "Awaiting Portfolio completion").await?;
         self.request_terminal(backend, registry, deadline).await
     }
+
+
     /// Portfolio's function state and transaction store key completed results by
     /// operation ID plus hash. Explicit reconciliation reuses these exact bytes;
     /// it cannot allocate a replacement composition or regenerate its expiry.
@@ -286,6 +319,9 @@ impl Operation {
         .await?;
         self.request_terminal(backend, registry, deadline).await
     }
+
+
+    /// Provides request terminal for the operation implementation.
     async fn request_terminal(
         &mut self,
         backend: &Backend,
@@ -306,6 +342,9 @@ impl Operation {
             }
         })
     }
+
+
+    /// Decodes terminal for operation.
     fn decode_terminal(&mut self, registry: &Registry, response: &Value) -> Result<(), String> {
         let closing = self.is_closing();
         let value = service_result(&response).map_err(|error| {
@@ -427,6 +466,9 @@ impl Operation {
         self.completed = Some(completed);
         Ok(())
     }
+
+
+    /// Provides dispatch for the operation implementation.
     pub async fn dispatch(
         &mut self,
         backend: &Backend,
@@ -529,6 +571,9 @@ impl Operation {
         Ok(())
     }
 }
+
+
+/// Provides stable for the order submission implementation.
 pub fn stable(values: &[&str]) -> uuid::Uuid {
     use sha2::{Digest, Sha256};
     let bytes = Sha256::digest(values.join("|").as_bytes());
@@ -536,6 +581,9 @@ pub fn stable(values: &[&str]) -> uuid::Uuid {
     id.copy_from_slice(&bytes[..16]);
     uuid::Uuid::from_bytes_le(id)
 }
+
+
+/// Provides instruction for the order submission implementation.
 pub fn instruction(registry: &Registry, value: &Json, portfolio: i32) -> Result<Json, String> {
     if value["Id"]["PortfolioId"] != portfolio
         || ["PortfolioId", "FundId", "OrderId"]
@@ -588,6 +636,8 @@ pub fn instruction(registry: &Registry, value: &Json, portfolio: i32) -> Result<
     )
 }
 
+
+/// Normalizes a published timestamp to its canonical instant representation.
 fn normalized_instant(v: chrono::DateTime<chrono::Utc>) -> String {
     let value = utc_roundtrip(v);
     let (whole, fraction) = value.trim_end_matches('Z').split_once('.').unwrap();
@@ -598,6 +648,9 @@ fn normalized_instant(v: chrono::DateTime<chrono::Utc>) -> String {
         format!("{whole}.{fraction}Z")
     }
 }
+
+
+/// Calculates the canonical request hash used to identify persisted operations.
 pub fn request_hash(registry: &Registry, body: &Value) -> Result<String, String> {
     let kind = journal_kind(body)?;
     let closing = kind.ends_with("EvaluatePortfolioCloseOrderCompositionCommand");
@@ -613,6 +666,7 @@ pub fn request_hash(registry: &Registry, body: &Value) -> Result<String, String>
         &json!({"PortfolioId":member("PortfolioId")?.as_i64(),"OperationId":member("OperationId")?.as_str(),"ExpectedFinancialRevision":member("ExpectedFinancialRevision")?.as_i64(),"RequestedAtUtc":normalized_instant(timestamp(&member("RequestedAtUtc")?)?),"ExpiresAtUtc":normalized_instant(timestamp(&member("ExpiresAtUtc")?)?),"Body":semantic_candidate(registry,&candidate,closing)?,"Principal":access["Principal"]}),
     )
 }
+
 
 /// Decode only the closed submission envelope family. Journal data cannot choose
 /// an arbitrary actor or deserialize as a different financial command.

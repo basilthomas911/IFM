@@ -109,7 +109,8 @@ public static class SampleData
                 threshold: 0,
                 upTrendTrigger: (double)FuturesPrice,
                 downTrendTrigger: (double)FuturesPrice - ((double)FuturesPrice * Lambda),
-                tradeState: IntrinsicTimeTradeState.Ready),
+                tradeState: IntrinsicTimeTradeState.Ready,
+                bandPercentage: 0.20),
             CreatedOn = Timestamp,
             CreatedBy = "test"
         };

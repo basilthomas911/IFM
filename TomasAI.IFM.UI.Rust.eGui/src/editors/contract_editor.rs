@@ -16,6 +16,7 @@ use crate::{
 use eframe::egui;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+
 /// Stable row identity, display fields, and optional typed MessagePack row payload.
 #[derive(Clone, Default, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,8 +27,9 @@ pub struct ContractRow {
     pub fields: BTreeMap<String, String>,
     /// Optional binary MessagePack payload containing the typed row data behind the display fields.
     #[serde(default)]
-    pub data: Option<serde_bytes::ByteBuf>,
+    pub data: Option<crate::models::row_data::RowData>,
 }
+
 /// Managed view result containing display rows, choices, context, and named binary documents.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,6 +49,7 @@ pub struct ContractResult {
     #[serde(default)]
     pub documents: BTreeMap<String, serde_bytes::ByteBuf>,
 }
+
 /// Immutable editor/trade publication with request outcomes and native-only render cache identity.
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,6 +88,7 @@ impl ContractResult {
             .and_then(|bytes| crate::wire::decode(bytes).ok())
     }
 }
+
 /// Contract editor state for futures or options, including drafts, confirmation, and convention review.
 #[derive(Default)]
 pub struct ContractEditor {
@@ -116,6 +120,8 @@ impl ContractEditor {
         self.review_open = false;
         self.confirm_review = false;
     }
+
+
     /// Return the managed view key corresponding to the currently selected editor mode.
     fn view(&self) -> &str {
         if self.option {
@@ -124,6 +130,8 @@ impl ContractEditor {
             "futures-contract"
         }
     }
+
+
     /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     pub fn request(&mut self, action: &str, s: &ContractPublication) -> String {
         let id = new_request_id();
@@ -131,6 +139,8 @@ impl ContractEditor {
         self.last_action = action.into();
         serde_json::json!({"schema":1,"requestId":id,"view":self.view(),"intent":action,"expectedGeneration":s.generation,"originalId":self.selected,"fields":self.draft}).to_string()
     }
+
+
     /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
     ///
     /// This renderer owns contract editor state for futures or options, including drafts, confirmation, and convention review.
@@ -236,7 +246,7 @@ impl ContractEditor {
                 }
             });
             ui.add_enabled_ui(enabled, |ui| {
-                egui::Grid::new("contract-editor-fields")
+                crate::presentation::form_grid(ui, "contract-editor-fields")
                     .num_columns(4)
                     .show(ui, |ui| {
                         let mut fields = vec![
@@ -259,7 +269,7 @@ impl ContractEditor {
                             fields.push(("lastTradeDate", strings::LAST_TRADE_DATE));
                         }
                         for (i, (key, label)) in fields.iter().enumerate() {
-                            let response = ui.trading_caption(c.text(label));
+                            let response = crate::presentation::form_caption(ui, c.text(label));
                             let value = self.draft.entry((*key).into()).or_default();
                             let editable = *key != "contractId"
                                 && (!provider || *key == "description")
@@ -282,8 +292,12 @@ impl ContractEditor {
                                         .response
                                         .labelled_by(response.id);
                                 } else {
-                                    ui.add(egui::TextEdit::singleline(value).desired_width(170.0))
-                                        .labelled_by(response.id);
+                                    ui.add(
+                                        egui::TextEdit::singleline(value)
+                                            .vertical_align(egui::Align::Center)
+                                            .desired_width(170.0),
+                                    )
+                                    .labelled_by(response.id);
                                 }
                             });
                             if i % 2 == 1 {
@@ -469,7 +483,7 @@ impl ContractEditor {
                     egui::ScrollArea::vertical()
                         .max_height(420.)
                         .show(ui, |ui| {
-                            egui::Grid::new("convention-fields")
+                            crate::presentation::form_grid(ui, "convention-fields")
                                 .striped(true)
                                 .show(ui, |ui| {
                                     for key in [
@@ -492,7 +506,8 @@ impl ContractEditor {
                                         "exerciseResultContractId",
                                     ] {
                                         let caption = format!("review_{key}");
-                                        let label = ui.trading_caption(c.text(&caption));
+                                        let label =
+                                            crate::presentation::form_caption(ui, c.text(&caption));
                                         let value = self.draft.entry(key.into()).or_default();
                                         ui.add_enabled_ui(key != "underlyingContractId", |ui| {
                                             if let Some(choices) = s.result.choices.get(key) {
@@ -512,6 +527,7 @@ impl ContractEditor {
                                             } else {
                                                 ui.add(
                                                     egui::TextEdit::singleline(value)
+                                                        .vertical_align(egui::Align::Center)
                                                         .desired_width(290.)
                                                         .min_size(egui::vec2(290., 20.)),
                                                 )

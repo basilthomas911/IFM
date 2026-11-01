@@ -20,7 +20,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSignal;
 
 /// <summary>
-/// Verifies the durable ITI strategy-level lifecycle across actors, messages, and Scylla projections.
+/// Verifies the durable ITI strategy-level lifecycle across actors, messages, and PostgreSQL projections.
 /// </summary>
 [Trait("Category", "Integration")]
 [Collection(ItiPipelineIntegrationCollection.Name)]
@@ -35,18 +35,13 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
     const double VixPrice = 20;
     static readonly DateOnly ValueDate = new(2026, 8, 18);
     static readonly DateTime FirstTimestamp = new(2026, 8, 18, 14, 30, 0, DateTimeKind.Utc);
-    static readonly double[] ValidationLevels =
-    [
-        0.16, 0.32, 0.48, 0.64, 0.80,
-        0.96, 1.12, 1.28, 1.44, 1.60,
-        1.80
-    ];
+    const int ValidationBandCount = 11;
 
     readonly IActorProducer _actorProducer =
         factory.Services.GetRequiredService<IActorProducer>();
 
     /// <summary>
-    /// Runs an up/down/up trend cycle through every fifteen-percent threshold level and beyond one full threshold.
+    /// Runs an up/down/up trend cycle through successive twenty-percent publication bands and beyond one full threshold.
     /// </summary>
     [Fact]
     public async Task DurablePipeline_UpDownUpCycle_PreservesEveryCalculatedStrategyLevel()
@@ -102,15 +97,21 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
                 return signal;
             }
 
-            // Start the first uptrend and publish every fifteen-percent validation rung.
+            // Start the first uptrend and publish successive twenty-percent validation bands.
             var upStart = await GenerateAsync(StartPrice);
             AssertDirectionChange(upStart, IntrinsicTimeTrendType.UpTrend, expectedGroup: 0);
             var upExtremes = new List<FuturesItiSignalV2ReadModel>();
-            foreach (var targetLevel in ValidationLevels)
+            var upPrevious = upStart;
+            for (var band = 0; band < ValidationBandCount; band++)
             {
                 var signal = await GenerateAsync(
-                    upStart.TrendPrice + upStart.Threshold * targetLevel);
-                signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendExtremeChanged);
+                    upPrevious.TrendExtreme + upPrevious.BandSize * 1.01);
+                signal.IntrinsicTimeMode.Should().Be(signal.BandLevel > 1.0
+                    ? IntrinsicTimeModeType.TrendOvershootExtended : IntrinsicTimeModeType.TrendExtremeChanged);
+                signal.BandPercentage.Should().Be(0.20);
+                signal.BandSize.Should().Be(signal.Threshold * 0.20);
+                signal.TrendReversal.Should().Be(signal.TrendExtreme);
+                upPrevious = signal;
                 signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.UpTrend);
                 signal.ReversalLevel.Should().Be(0);
                 upExtremes.Add(signal);
@@ -121,7 +122,8 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
             upExtended.BandLevel.Should().BeGreaterThan(1);
             var upReversal = await GenerateAsync(
                 upExtended.TrendReversal - upExtended.BandSize * 1.01);
-            upReversal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendReversalChanged);
+            upReversal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootReversal);
+            upReversal.BandLevel.Should().BeGreaterThan(1.0);
             upReversal.ReversalLevel.Should().BeGreaterThan(0);
             var upTrending = await GenerateAsync(
                 upReversal.BandAnchorPrice + upReversal.BandSize * 1.01);
@@ -132,11 +134,17 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
             var downStart = await GenerateAsync(upTrending.DownTrendTrigger);
             AssertDirectionChange(downStart, IntrinsicTimeTrendType.DownTrend, expectedGroup: 1);
             var downExtremes = new List<FuturesItiSignalV2ReadModel>();
-            foreach (var targetLevel in ValidationLevels)
+            var downPrevious = downStart;
+            for (var band = 0; band < ValidationBandCount; band++)
             {
                 var signal = await GenerateAsync(
-                    downStart.TrendPrice - downStart.Threshold * targetLevel);
-                signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendExtremeChanged);
+                    downPrevious.TrendExtreme - downPrevious.BandSize * 1.01);
+                signal.IntrinsicTimeMode.Should().Be(signal.BandLevel > 1.0
+                    ? IntrinsicTimeModeType.TrendOvershootExtended : IntrinsicTimeModeType.TrendExtremeChanged);
+                signal.BandPercentage.Should().Be(0.20);
+                signal.BandSize.Should().Be(signal.Threshold * 0.20);
+                signal.TrendReversal.Should().Be(signal.TrendExtreme);
+                downPrevious = signal;
                 signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
                 signal.ReversalLevel.Should().Be(0);
                 downExtremes.Add(signal);
@@ -147,7 +155,8 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
             downExtended.BandLevel.Should().BeGreaterThan(1);
             var downReversal = await GenerateAsync(
                 downExtended.TrendReversal + downExtended.BandSize * 1.01);
-            downReversal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendReversalChanged);
+            downReversal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootReversal);
+            downReversal.BandLevel.Should().BeGreaterThan(1.0);
             downReversal.ReversalLevel.Should().BeGreaterThan(0);
             var downTrending = await GenerateAsync(
                 downReversal.BandAnchorPrice - downReversal.BandSize * 1.01);
@@ -260,14 +269,11 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
 
     static void AssertValidationRungs(IReadOnlyList<FuturesItiSignalV2ReadModel> signals)
     {
-        signals.Should().HaveCount(ValidationLevels.Length);
+        signals.Should().HaveCount(ValidationBandCount);
         signals.Select(signal => signal.BandLevel).Should().BeInAscendingOrder();
-        for (var index = 0; index < 10; index++)
-        {
-            var lowerBound = (index + 1) * 0.15;
-            signals[index].BandLevel.Should().BeGreaterThanOrEqualTo(lowerBound);
-            signals[index].BandLevel.Should().BeLessThan(lowerBound + 0.18);
-        }
+        signals.Should().OnlyContain(signal => signal.BandPercentage == 0.20 && signal.BandSize == signal.Threshold * 0.20);
+        signals.Should().Contain(signal => signal.BandLevel <= 1.0 && signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendExtremeChanged);
+        signals.Should().Contain(signal => signal.BandLevel > 1.0 && signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendOvershootExtended);
     }
 
     static void AssertCalculatedLevels(FuturesItiSignalV2ReadModel signal)

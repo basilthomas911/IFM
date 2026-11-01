@@ -5,6 +5,9 @@ use ifm_ui_egui::{
     contract_editor::{ContractPublication, ContractResult, ContractRow},
 };
 use std::collections::BTreeMap;
+
+
+/// Provides fixture for the actor health implementation.
 fn fixture() -> (Catalog, ContractPublication) {
     (
         serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap(),
@@ -46,6 +49,9 @@ fn fixture() -> (Catalog, ContractPublication) {
         },
     )
 }
+
+
+/// Verifies that domain actor mailbox expand select and collapse uses cached data.
 #[test]
 fn domain_actor_mailbox_expand_select_and_collapse_uses_cached_data() {
     let (c, s) = fixture();
@@ -57,21 +63,30 @@ fn domain_actor_mailbox_expand_select_and_collapse_uses_cached_data() {
     );
     h.set_size(eframe::egui::vec2(1100., 800.));
     h.run();
-    h.get_by_label("FixtureDomain").click();
+    h.query_all_by_label("FixtureDomain")
+        .next()
+        .unwrap()
+        .click();
     h.run();
-    h.get_by_label("FixtureActor").click();
+    h.query_all_by_label("FixtureActor").next().unwrap().click();
     h.run();
     h.get_by_label("fixture-mailbox").click();
     h.run();
     assert_eq!(h.state().selected.as_deref(), Some("mailbox-fixture"));
     h.get_by_label("Generation");
     h.get_by_label("7");
-    h.get_by_label("FixtureActor").click();
+    h.query_all_by_label("FixtureActor").next().unwrap().click();
     h.run();
-    h.get_by_label("FixtureDomain").click();
+    h.query_all_by_label("FixtureDomain")
+        .next()
+        .unwrap()
+        .click();
     h.run();
     assert!(h.state().pending.is_none());
 }
+
+
+/// Verifies that cancel supervisor confirmation never dispatches.
 #[test]
 fn cancel_supervisor_confirmation_never_dispatches() {
     let (c, s) = fixture();

@@ -7,12 +7,18 @@ use ifm_ui_egui::{
 };
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+
+
+/// Provides document for the system admin implementation.
 fn document(s: &mut ContractPublication, key: &str, value: Value) {
     s.result.documents.insert(
         key.into(),
         ifm_ui_egui::wire::encode_value(&value).unwrap().into(),
     );
 }
+
+
+/// Provides complete for the system admin implementation.
 fn complete(s: &mut ContractPublication, payload: &str) {
     let value: Value = serde_json::from_str(payload).unwrap();
     s.generation += 1;
@@ -22,6 +28,10 @@ fn complete(s: &mut ContractPublication, payload: &str) {
         message: "Fixture accepted".into(),
     });
 }
+
+
+/// Verifies that backup original controls dispatch through service intents without growing the
+/// manager.
 #[test]
 fn backup_original_controls_dispatch_through_service_intents_without_growing_the_manager() {
     let mut s = ContractPublication {
@@ -80,6 +90,9 @@ fn backup_original_controls_dispatch_through_service_intents_without_growing_the
     h.run();
     assert_eq!(initial, h.get_by_label("System Admin Manager").rect());
 }
+
+
+/// Verifies that scheduler manager retains original editor actions and field labels.
 #[test]
 fn scheduler_manager_retains_original_editor_actions_and_field_labels() {
     let c: Catalog = serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap();

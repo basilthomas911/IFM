@@ -1,6 +1,7 @@
 """Generate concrete actor HTTP health records from the shared C# UI contract."""
 from pathlib import Path
 import re,argparse
+from rust_readability import format_source
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT.parent/'TomasAI.IFM.UI.Net.Models/Operations/ActorHealthSnapshot.cs'
 OUT=ROOT/'src/models/actor_health.rs'
@@ -43,6 +44,7 @@ for name,fields in records.items():
 output='\n'.join(lines)+'\n'
 import subprocess
 output=subprocess.run(['rustfmt','--edition','2024','--emit','stdout'],input=output,text=True,capture_output=True,check=True).stdout
+output=format_source(output,'src/models/actor_health.rs')
 parser=argparse.ArgumentParser();parser.add_argument('--check',action='store_true');args=parser.parse_args()
 if args.check:
  if OUT.read_text()!=output:raise SystemExit('Actor HTTP health contracts are stale.')

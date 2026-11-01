@@ -17,29 +17,52 @@ mod composer;
 mod eod;
 mod mutations;
 mod submissions;
+
+/// Trade Controller used by the trades component.
 #[derive(Default)]
 pub struct TradeController {
+    /// Data associated with this trade controller.
     pub data: TradeData,
+    /// Monitors associated with this trade controller.
     pub monitors: crate::state::trade_monitors::Hub,
+    /// Optional eod; `None` represents an absent value.
     eod: Option<crate::services::trade_eod::Session>,
+    /// Generation associated with this trade controller.
     generation: u64,
+    /// Keyed receipts retained by TradeController.
     receipts: BTreeMap<String, (Json, EditorOutcome)>,
+    /// Message associated with this trade controller.
     message: String,
+    /// Optional order draft; `None` represents an absent value.
     order_draft: Option<crate::models::broker_presentation::OrderDraftDisplay>,
+    /// Optional prepared trade; `None` represents an absent value.
     prepared_trade: Option<i32>,
+    /// Optional pending manual; `None` represents an absent value.
     pending_manual: Option<crate::services::manual_orders::Operation>,
+    /// Optional manual request; `None` represents an absent value.
     manual_request: Option<String>,
+    /// Whether confirmed write is enabled or currently true.
     confirmed_write: bool,
+    /// Ordered reconciled retained by TradeController.
     reconciled: Vec<EditorOutcome>,
+    /// Optional composer; `None` represents an absent value.
     composer: Option<composer::Composer>,
+    /// Keyed submission operations retained by TradeController.
     submission_operations: BTreeMap<String, crate::services::order_submission::Operation>,
+    /// Whether submissions loaded is enabled or currently true.
     submissions_loaded: bool,
+    /// Keyed order operations retained by TradeController.
     order_operations: BTreeMap<String, crate::services::broker_order_commands::Operation>,
+    /// Keyed account operations retained by TradeController.
     account_operations: BTreeMap<String, crate::services::broker_account_commands::Operation>,
 }
+
+/// Resolves the requested field in the supplied record.
 fn field<'a>(intent: &'a Json, key: &str) -> &'a str {
     intent["fields"][key].as_str().unwrap_or_default()
 }
+
+/// Returns the display text for the requested value or field.
 fn text(value: &Json) -> String {
     value.as_str().map(str::to_string).unwrap_or_else(|| {
         if value.is_null() {
@@ -49,9 +72,13 @@ fn text(value: &Json) -> String {
         }
     })
 }
+
+/// Provides model for the trades implementation.
 fn model(registry: &Registry, name: &str, value: &Value) -> Result<Json, String> {
     registry.project(&api::kind(name), value)
 }
+
+/// Provides selected for the trades implementation.
 fn selected(
     registry: &Registry,
     name: &str,
@@ -68,6 +95,8 @@ fn selected(
         .map(Some)
         .ok_or("Selected trade workspace identity is no longer available".into())
 }
+
+/// Provides selected typed for the trades implementation.
 fn selected_typed<T: crate::models::wire_types::FromBackend + crate::models::cells::Cells>(
     rows: &[Value],
     key: &str,
@@ -82,6 +111,8 @@ fn selected_typed<T: crate::models::wire_types::FromBackend + crate::models::cel
     }
     Err("Selected trade workspace identity is no longer available".into())
 }
+
+/// Provides typed row for the trades implementation.
 fn typed_row(
     kind: &str,
     id: impl std::fmt::Display,
@@ -93,6 +124,8 @@ fn typed_row(
         data: Some(crate::wire::encode(value)?.into()),
     })
 }
+
+/// Provides choice index for the trades implementation.
 fn choice_index(intent: &Json, length: usize) -> Result<usize, String> {
     field(intent, "index")
         .parse::<usize>()
@@ -100,6 +133,8 @@ fn choice_index(intent: &Json, length: usize) -> Result<usize, String> {
         .filter(|v| *v < length)
         .ok_or("Select a current workspace row".into())
 }
+
+/// Provides closing for the trades implementation.
 fn closing(name: &str) -> &str {
     match name {
         "ShortIronCondor" => "LongIronCondor",
@@ -128,6 +163,8 @@ impl TradeController {
         self.composer = None;
         Ok(())
     }
+
+    /// Applies trades for trade controller.
     async fn apply(
         &mut self,
         backend: &Backend,
@@ -146,6 +183,8 @@ impl TradeController {
             self.apply_inner(backend, registry, intent, deadline).await
         }
     }
+
+    /// Applies inner for trade controller.
     async fn apply_inner(
         &mut self,
         backend: &Backend,
@@ -288,6 +327,7 @@ impl TradeController {
                 | "refresh-chain"
                 | "clear-staged"
                 | "chain"
+                | "chain-source"
                 | "select-leg"
                 | "remove-leg"
                 | "account"
@@ -401,6 +441,8 @@ impl TradeController {
         self.message.clear();
         Ok("Trade workspace loaded".into())
     }
+
+    /// Provides result for the trade controller implementation.
     pub fn result(&self, registry: &Registry) -> Result<ContractResult, String> {
         let mut result = ContractResult {
             view: "trade-orders".into(),
@@ -701,6 +743,8 @@ impl TradeController {
         }
         Ok(result)
     }
+
+    /// Provides composer action for the trade controller implementation.
     async fn composer_action(
         &mut self,
         backend: &Backend,
@@ -819,6 +863,15 @@ impl TradeController {
                         }),
                 );
             }
+            let opening = crate::services::order_close::inherit_opening_trade(
+                &mut trade,
+                &self
+                    .data
+                    .trades
+                    .iter()
+                    .map(FundOrderTradeProjectionReadModel::from_backend)
+                    .collect::<Result<Vec<_>, _>>()?,
+            )?;
             let mut contract = trade.base_contract_id.clone().unwrap_or_default();
             let definitions = self
                 .data
@@ -874,6 +927,7 @@ impl TradeController {
             self.composer = Some(composer::Composer::new(
                 scope,
                 trade,
+                opening,
                 matching.into_iter().next().unwrap(),
                 &context,
                 editable,
@@ -919,6 +973,8 @@ impl TradeController {
             .execute(backend, registry, &context, intent, deadline)
             .await
     }
+
+    /// Handles a trades intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,

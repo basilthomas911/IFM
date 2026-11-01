@@ -9,21 +9,31 @@ use std::{
 };
 
 const MAX_BYTES: u64 = 2 * 1024 * 1024;
+
+/// Journal used by the journal component.
 pub struct Journal {
+    /// Directory associated with this journal.
     directory: PathBuf,
 }
 impl Journal {
+    /// Constructs Journal from the supplied inputs.
     pub fn new(directory: impl Into<PathBuf>) -> Self {
         Self {
             directory: directory.into(),
         }
     }
+
+
+    /// Provides file for the journal implementation.
     fn file(&self, operation: uuid::Uuid) -> Result<PathBuf, String> {
         if operation.is_nil() {
             return Err("OperationId is required".into());
         }
         Ok(self.directory.join(format!("{}.json", operation.simple())))
     }
+
+
+    /// Loads journal for journal.
     pub fn load(
         &self,
         operation: uuid::Uuid,
@@ -53,6 +63,8 @@ impl Journal {
         }
         Ok(Some(value))
     }
+
+
     /// Call off the egui thread. `cancelled` is checked while acquiring the
     /// cross-process .NET FileShare.None lock; the lock has a three-second bound.
     pub fn save(
@@ -111,6 +123,9 @@ impl Journal {
         }
         result
     }
+
+
+    /// Provides list for the journal implementation.
     pub fn list(
         &self,
         validate: &impl Fn(&Value) -> Result<(), String>,
@@ -145,6 +160,9 @@ impl Journal {
         Ok(values)
     }
 }
+
+
+/// Provides acquire for the journal implementation.
 fn acquire(path: &Path, cancelled: &impl Fn() -> bool) -> Result<File, String> {
     let start = Instant::now();
     loop {

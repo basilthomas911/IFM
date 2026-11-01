@@ -5,6 +5,9 @@ use ifm_ui_egui::{
     contract_editor::{ContractPublication, ContractResult, ContractRow},
 };
 use std::collections::BTreeMap;
+
+
+/// Provides fixture for the calendar editor implementation.
 fn fixture() -> (Catalog, ContractPublication) {
     let c = serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap();
     let s = ContractPublication {
@@ -37,6 +40,9 @@ fn fixture() -> (Catalog, ContractPublication) {
     };
     (c, s)
 }
+
+
+/// Verifies that changes keep exact identity and utc instant.
 #[test]
 fn changes_keep_exact_identity_and_utc_instant() {
     let (c, s) = fixture();
@@ -60,6 +66,9 @@ fn changes_keep_exact_identity_and_utc_instant() {
     assert_eq!(p["fields"]["eventDate"], "2026-10-13T12:30:00.0000000Z");
     assert!(h.state().0.pending.is_some());
 }
+
+
+/// Verifies that cancel removal submits no action.
 #[test]
 fn cancel_removal_submits_no_action() {
     let (c, s) = fixture();
@@ -82,6 +91,9 @@ fn cancel_removal_submits_no_action() {
     h.run();
     assert!(h.state().1.is_none());
 }
+
+
+/// Verifies that calendar history draws only viewport rows.
 #[test]
 fn calendar_history_draws_only_viewport_rows() {
     let (c, mut s) = fixture();

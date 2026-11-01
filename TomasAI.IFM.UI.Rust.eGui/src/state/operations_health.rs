@@ -11,17 +11,25 @@ use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
+/// Operations Health Controller used by the operations health component.
 pub struct OperationsHealthController {
+    /// Client associated with this operations health controller.
     client: HealthClient,
+    /// Optional endpoint; `None` represents an absent value.
     endpoint: Option<String>,
+    /// Generation associated with this operations health controller.
     generation: u64,
 }
 impl OperationsHealthController {
+    /// Loads configuration from the supported environment settings.
     pub fn from_env() -> Result<Self, String> {
         Self::new(crate::backend::configuration::value(
             "IFM_UI_OPERATIONS_HEALTH_URL",
         )?)
     }
+
+
+    /// Constructs OperationsHealthController from the supplied inputs.
     pub fn new(endpoint: Option<String>) -> Result<Self, String> {
         Ok(Self {
             client: HealthClient::new()?,
@@ -29,6 +37,9 @@ impl OperationsHealthController {
             generation: 0,
         })
     }
+
+
+    /// Handles a operations health intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,
@@ -89,12 +100,18 @@ impl OperationsHealthController {
         })
     }
 }
+
+
+/// Provides scalar for the operations health implementation.
 fn scalar(value: Cell<'_>) -> String {
     match value {
         Cell::Boolean(b) => if b { "True" } else { "False" }.into(),
         value => value.text(),
     }
 }
+
+
+/// Provides cell str for the operations health implementation.
 fn cell_str(value: Cell<'_>) -> Option<&str> {
     if let Cell::Text(std::borrow::Cow::Borrowed(value)) = value {
         Some(value)
@@ -102,12 +119,18 @@ fn cell_str(value: Cell<'_>) -> Option<&str> {
         None
     }
 }
+
+
+/// Reads the UTC timestamp representation expected by this component.
 fn utc(value: Cell<'_>) -> String {
     cell_str(value)
         .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
         .map(|d| d.to_utc().format("%Y-%m-%d %H:%M:%S UTC").to_string())
         .unwrap_or_else(|| "Unknown".into())
 }
+
+
+/// Provides span for the operations health implementation.
 fn span(value: Cell<'_>) -> String {
     let Some(text) = cell_str(value) else {
         return "Unknown".into();
@@ -142,6 +165,9 @@ fn span(value: Cell<'_>) -> String {
         format!("{:.1} ms", seconds * 1000.)
     }
 }
+
+
+/// Projects backend data into the UI's display representation.
 pub fn project(
     value: &MarketDataOperationsHealthSnapshot,
     as_of: DateTime<Utc>,

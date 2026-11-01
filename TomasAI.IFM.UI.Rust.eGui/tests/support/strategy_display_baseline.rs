@@ -15,28 +15,46 @@ const STAGES: [(&str, &str, &str); 5] = [
     ("OrderComposition", "order-composition", "Order Composition"),
     ("RiskManagement", "risk-management", "Risk Management"),
 ];
+
+
+/// Provides text for the strategy display baseline implementation.
 fn text<'a>(row: &'a Json, key: &str) -> &'a str {
     row[key].as_str().unwrap_or_default()
 }
+
+
+/// Provides time for the strategy display baseline implementation.
 fn time(value: &Json) -> Result<chrono::DateTime<chrono::Utc>, String> {
     chrono::DateTime::parse_from_rfc3339(value.as_str().ok_or("Missing workflow timestamp")?)
         .map(|v| v.to_utc())
         .map_err(|_| "Invalid workflow timestamp".into())
 }
+
+
+/// Provides time text for the strategy display baseline implementation.
 fn time_text(value: &Json) -> Result<String, String> {
     Ok(utc_roundtrip(time(value)?))
 }
+
+
+/// Provides uuid n for the strategy display baseline implementation.
 fn uuid_n(value: &Json) -> Result<String, String> {
     uuid::Uuid::parse_str(value.as_str().ok_or("Missing workflow identity")?)
         .map(|v| v.simple().to_string())
         .map_err(|_| "Invalid workflow identity".into())
 }
+
+
+/// Provides amount for the strategy display baseline implementation.
 fn amount(value: &Json) -> Result<f64, String> {
     value
         .as_f64()
         .filter(|v| v.is_finite())
         .ok_or("Invalid workflow display number".into())
 }
+
+
+/// Provides signal identity for the strategy display baseline implementation.
 pub fn signal_identity(signal: &Json) -> Result<String, String> {
     let at = time(&signal["IntrinsicTime"])?;
     let ticks = at.timestamp() as i128 * 10_000_000
@@ -74,6 +92,9 @@ pub fn signal_identity(signal: &Json) -> Result<String, String> {
     values.push(text(signal, "TradeState").into());
     Ok(values.join("|"))
 }
+
+
+/// Provides row for the strategy display baseline implementation.
 pub fn row(registry: &Registry, wire: &Value, action: u32) -> Result<Json, String> {
     let view = registry.project(VIEW, wire)?;
     let signal = &view["TriggerEvent"]["FuturesItiSignal"];
@@ -153,24 +174,39 @@ pub fn row(registry: &Registry, wire: &Value, action: u32) -> Result<Json, Strin
         json!({"id":uuid_n(&view["WorkflowId"]["Value"])?,"action":action,"triggerIdentity":signal_identity(signal)?,"occurredOn":occurred,"signal":signal["IntrinsicTimeMode"],"trend":signal["IntrinsicTimeTrend"],"futuresPrice":format!("{:.2}",amount(&signal["IntrinsicPrice"])?),"outcome":outcome,"endState":end,"actors":actors}),
     )
 }
+
+/// Display Shape used by the strategy display baseline test fixtures.
 #[derive(Deserialize)]
 struct DisplayShape {
+    /// Name associated with this display shape.
     name: String,
+    /// Ordered properties retained by DisplayShape.
     properties: Vec<DisplayProperty>,
+    /// Whether opaque byte array is enabled or currently true.
     #[serde(default, rename = "opaqueByteArray")]
     opaque_byte_array: bool,
 }
+
+/// Display Property used by the strategy display baseline test fixtures.
 #[derive(Deserialize)]
 struct DisplayProperty {
+    /// Name associated with this display property.
     name: String,
+    /// Kind associated with this display property.
     #[serde(rename = "type")]
     kind: String,
+    /// Label associated with this display property.
     #[serde(rename = "DisplayName")]
     label: String,
+    /// Whether browsable is enabled or currently true.
     #[serde(rename = "IsBrowsable")]
     browsable: bool,
+    /// Optional key; `None` represents an absent value.
     key: Option<usize>,
 }
+
+
+/// Provides display shapes for the strategy display baseline implementation.
 fn display_shapes() -> Result<&'static BTreeMap<String, DisplayShape>, String> {
     static SHAPES: std::sync::OnceLock<Result<BTreeMap<String, DisplayShape>, String>> =
         std::sync::OnceLock::new();
@@ -184,6 +220,9 @@ fn display_shapes() -> Result<&'static BTreeMap<String, DisplayShape>, String> {
         .as_ref()
         .map_err(Clone::clone)
 }
+
+
+/// Provides field names for the strategy display baseline implementation.
 pub fn field_names(kind: &str) -> Result<Vec<String>, String> {
     Ok(display_shapes()?
         .get(kind)
@@ -193,6 +232,9 @@ pub fn field_names(kind: &str) -> Result<Vec<String>, String> {
         .map(|p| p.name.clone())
         .collect())
 }
+
+
+/// Provides raw property for the strategy display baseline implementation.
 pub(crate) fn raw_property(
     registry: &Registry,
     kind: &str,
@@ -201,6 +243,8 @@ pub(crate) fn raw_property(
 ) -> Result<Value, String> {
     member(registry, kind, wire, name).or_else(|_| derived(registry, kind, wire, name))
 }
+
+
 /// Ordered display cells, using the same generated public properties and value
 /// formatting as the hybrid's BridgeDocument.Fields. These are presentation
 /// strings only; commands retain their independent typed immutable DTOs.
@@ -225,6 +269,9 @@ pub fn fields(
         })
         .collect()
 }
+
+
+/// Provides scalar for the strategy display baseline implementation.
 fn scalar(kind: &str, registry: &Registry) -> bool {
     kind.starts_with("System.")
         && matches!(
@@ -251,6 +298,9 @@ fn scalar(kind: &str, registry: &Registry) -> bool {
         || kind == "TomasAI.IFM.Domain.Trade.Shared.StrategyWorkflowId"
         || registry.describe(kind).is_ok_and(|v| v.is_enum)
 }
+
+
+/// Provides simple for the strategy display baseline implementation.
 fn simple(kind: &str, wire: &Value, registry: &Registry) -> Result<String, String> {
     if wire.is_nil() {
         return Ok("null".into());
@@ -278,6 +328,9 @@ fn simple(kind: &str, wire: &Value, registry: &Registry) -> Result<String, Strin
             .unwrap_or_else(|| value.to_string()),
     })
 }
+
+
+/// Provides member for the strategy display baseline implementation.
 fn member(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<Value, String> {
     if let Value::Map(entries) = wire {
         return entries
@@ -297,6 +350,9 @@ fn member(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<V
         .cloned()
         .ok_or("Incomplete workflow value".into())
 }
+
+
+/// Provides derived for the strategy display baseline implementation.
 fn derived(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<Value, String> {
     if kind == "TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyReference"
         && name == "IsValid"
@@ -457,11 +513,16 @@ fn derived(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<
         _ => Err(format!("No native display getter for {kind}.{name}")),
     }
 }
+
+
 /// The hybrid evidence pane uses BridgeDocument.Display, not JSON. Preserve
 /// generated property order and its scalar/collection conventions so a frozen
 /// backend result has the same readable evidence in either frontend.
 pub fn evidence(registry: &Registry, kind: &str, wire: &Value) -> Result<String, String> {
     let shapes = display_shapes()?;
+
+
+    /// Renders strategy display baseline for strategy display baseline.
     fn render(
         registry: &Registry,
         shapes: &BTreeMap<String, DisplayShape>,
@@ -567,6 +628,9 @@ pub fn evidence(registry: &Registry, kind: &str, wire: &Value) -> Result<String,
     }
     Ok(result)
 }
+
+
+/// Provides node for the strategy display baseline implementation.
 fn node(
     registry: &Registry,
     shapes: &BTreeMap<String, DisplayShape>,
@@ -717,6 +781,9 @@ fn node(
     }
     Ok(json!({"id":id,"label":label,"properties":rows,"children":children}))
 }
+
+
+/// Provides details for the strategy display baseline implementation.
 pub fn details(registry: &Registry, wire: &Value) -> Result<Json, String> {
     let shapes = display_shapes()?;
     let view = registry.project(VIEW, wire)?;
@@ -753,6 +820,9 @@ pub fn details(registry: &Registry, wire: &Value) -> Result<Json, String> {
         json!({"workflowId":prefix,"revision":view["WorkflowRevision"],"roots":[workflow,signal,{"id":format!("{prefix}/pipeline"),"label":"Workflow Pipeline","properties":[],"children":stages}],"header":header(&view)?}),
     )
 }
+
+
+/// Provides header for the strategy display baseline implementation.
 pub fn header(view: &Json) -> Result<String, String> {
     let entity = &view["EntityId"];
     let iti = &entity["ItiSignalEntityId"];

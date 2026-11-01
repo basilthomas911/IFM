@@ -1,6 +1,8 @@
 //! WinForms Setup layout: toolbar, definitions, flowing timing editor/preview, run grid/details, status.
 use super::*;
 use chrono::TimeZone;
+
+
 /// Reserve a complete label/control pair before the surrounding flow layout decides where to wrap.
 fn pair<R>(
     ui: &mut egui::Ui,
@@ -9,27 +11,11 @@ fn pair<R>(
     height: f32,
     body: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
-    let label_width = ui
-        .painter()
-        .layout_no_wrap(
-            label.into(),
-            egui::FontId::proportional(crate::presentation::FONT_SIZE),
-            crate::presentation::CAPTION_FOREGROUND,
-        )
-        .size()
-        .x;
-    ui.allocate_ui_with_layout(
-        egui::vec2(label_width + width + 8., height),
-        egui::Layout::left_to_right(egui::Align::Min),
-        |ui| {
-            ui.add(
-                crate::presentation::caption_widget(label).wrap_mode(egui::TextWrapMode::Extend),
-            );
-            body(ui)
-        },
-    )
-    .inner
+    crate::presentation::field_pair(ui, label, egui::vec2(width, height), body)
 }
+
+
+/// Resolves the requested field in the supplied record.
 fn field(
     ui: &mut egui::Ui,
     draft: &mut BTreeMap<String, String>,
@@ -40,11 +26,16 @@ fn field(
     pair(ui, label, width, 30., |ui| {
         let r = ui.add_sized(
             egui::vec2(width, 24.),
-            egui::TextEdit::singleline(draft.entry(key.into()).or_default()).id_salt(key),
+            egui::TextEdit::singleline(draft.entry(key.into()).or_default())
+                .vertical_align(egui::Align::Center)
+                .id_salt(key),
         );
         r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::TextEdit, true, label));
     });
 }
+
+
+/// Provides bound for the scheduled tasks parity implementation.
 fn bound(
     ui: &mut egui::Ui,
     draft: &mut BTreeMap<String, String>,
@@ -83,6 +74,7 @@ fn bound(
             .add_enabled(
                 enabled,
                 egui::TextEdit::singleline(&mut time)
+                    .vertical_align(egui::Align::Center)
                     .desired_width(65.)
                     .id_salt((key, "time")),
             )
@@ -512,9 +504,14 @@ impl ScheduledTasks {
                 ),
                 |ui| {
                     ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                         let label = ui.trading_caption("Review reason:");
-                        let response = ui
-                            .add(egui::TextEdit::singleline(&mut self.reason).desired_width(300.));
+                        let response = ui.add(
+                            egui::TextEdit::singleline(&mut self.reason)
+                                .vertical_align(egui::Align::Center)
+                                .desired_width(300.),
+                        );
                         response.widget_info(|| {
                             egui::WidgetInfo::labeled(
                                 egui::WidgetType::TextEdit,
@@ -569,6 +566,8 @@ impl ScheduledTasks {
     }
 }
 
+
+/// Builds the selected scheduled run's detail fields.
 fn run_details(run: &serde_json::Value) -> String {
     let get = |key: &str| {
         run[key].as_str().map(str::to_owned).unwrap_or_else(|| {

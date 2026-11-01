@@ -5,19 +5,28 @@ use crate::services::business_context::BusinessContext;
 use rmpv::Value;
 use std::collections::BTreeMap;
 pub const ROOT: &str = "TomasAI.IFM.Domain.Portfolio.Shared.Financial";
+
+/// Access Scope used by the financial component.
 #[derive(Clone, Copy)]
 pub enum AccessScope {
     MetricsReader,
     LedgerEditor,
 }
+
+/// Read used by the financial component.
 #[derive(Clone)]
 pub struct Read {
+    /// Current status text or state exposed by this component.
     pub status: i64,
+    /// Optional value; `None` represents an absent value.
     pub value: Option<Value>,
+    /// Financial revision associated with this read.
     pub financial_revision: i64,
+    /// Observed at associated with this read.
     pub observed_at: chrono::DateTime<chrono::Utc>,
 }
 impl Read {
+    /// Provides found for the read implementation.
     pub fn found(&self) -> Result<&Value, String> {
         if self.status != 1 {
             return Err(if self.status == 2 {
@@ -32,6 +41,9 @@ impl Read {
             .ok_or("Found financial read has no value".into())
     }
 }
+
+
+/// Provides query for the financial implementation.
 pub async fn query(
     backend: &Backend,
     registry: &Registry,
@@ -163,6 +175,8 @@ pub async fn query(
         observed_at,
     })
 }
+
+
 /// Fractions and monetary values are display-only here. Preserve the backend's
 /// CalculationBasis report; the Sharpe/drawdown definitions are not recomputed.
 pub fn metrics_context(
@@ -207,6 +221,9 @@ pub fn metrics_context(
     }
     Ok(fields)
 }
+
+
+/// Provides group amount for the financial implementation.
 fn group_amount(value: &str) -> String {
     let (integer, fraction) = value.split_once('.').unwrap_or((value, ""));
     let negative = integer.starts_with('-');

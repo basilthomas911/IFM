@@ -8,6 +8,8 @@ use std::{
     time::Duration,
 };
 
+
+/// Provides server for the health http implementation.
 fn server(response: Vec<u8>, hold: Duration) -> (String, std::thread::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}/health", listener.local_addr().unwrap());
@@ -20,10 +22,15 @@ fn server(response: Vec<u8>, hold: Duration) -> (String, std::thread::JoinHandle
     });
     (endpoint, worker)
 }
+
+
+/// Provides response for the health http implementation.
 fn response(status: &str, body: &str) -> Vec<u8> {
     format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).into_bytes()
 }
 
+
+/// Verifies that health transport enforces status size json and single deadline.
 #[tokio::test]
 async fn health_transport_enforces_status_size_json_and_single_deadline() {
     let client = HealthClient::new().unwrap();
@@ -57,6 +64,8 @@ async fn health_transport_enforces_status_size_json_and_single_deadline() {
     worker.join().unwrap();
 }
 
+
+/// Verifies that operations projection uses api time and reports bad or stale health as unknown.
 #[test]
 fn operations_projection_uses_api_time_and_reports_bad_or_stale_health_as_unknown() {
     let value = json!({"schemaVersion":1,"revision":42,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Green","sessionState":"LiveTrading","valueDate":"2000-01-03","rejectedStaleGenerationPublications":0,
@@ -86,6 +95,8 @@ fn operations_projection_uses_api_time_and_reports_bad_or_stale_health_as_unknow
     assert!(project(&invalid, now).is_err());
 }
 
+
+/// Verifies that operational clock comes from api headers not market or workstation time.
 #[tokio::test]
 async fn operational_clock_comes_from_api_headers_not_market_or_workstation_time() {
     let body = r#"{"schemaVersion":1,"revision":1,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Inactive","sessionState":"Closed","valueDate":null,"stages":[{"stage":"Actor routing/API","status":"Green","required":true,"reasonCode":"Healthy","reason":"Available while market closed"}],"datasets":[]}"#;
@@ -131,6 +142,8 @@ async fn operational_clock_comes_from_api_headers_not_market_or_workstation_time
     }
 }
 
+
+/// Provides project for the health http implementation.
 fn project(
     value: &serde_json::Value,
     as_of: chrono::DateTime<chrono::Utc>,
@@ -143,6 +156,9 @@ fn project(
 
 #[path = "support/operations_health_baseline.rs"]
 mod baseline;
+
+
+/// Verifies that typed health preserves dataset counters and display fields.
 #[test]
 fn typed_health_preserves_dataset_counters_and_display_fields() {
     let input = json!({"schemaVersion":1,"revision":42,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Yellow","sessionState":"LiveTrading","valueDate":"2000-01-03","rejectedStaleGenerationPublications":0,"stages":[],
@@ -170,6 +186,9 @@ fn typed_health_preserves_dataset_counters_and_display_fields() {
         "18446744073709551615/18446744073709551615"
     );
 }
+
+
+/// Verifies that typed health transport preserves depth bounds without a json tree.
 #[tokio::test]
 async fn typed_health_transport_preserves_depth_bounds_without_a_json_tree() {
     use ifm_ui_egui::models::operations_health::MarketDataOperationsHealthSnapshot;

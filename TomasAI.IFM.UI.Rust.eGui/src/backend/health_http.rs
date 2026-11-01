@@ -3,13 +3,18 @@
 use futures_util::StreamExt;
 use serde_json::Value;
 
+/// Health Client used by the health http component.
 #[derive(Clone)]
 pub struct HealthClient {
+    /// Client associated with this health client.
     client: reqwest::Client,
 }
+
 /// API operational time is independent of market-session observation time.
 pub struct HealthObservation<T = Value> {
+    /// Value associated with this health observation.
     pub value: T,
+    /// Optional server utc; `None` represents an absent value.
     pub server_utc: Option<chrono::DateTime<chrono::Utc>>,
 }
 impl HealthClient {
@@ -24,6 +29,9 @@ impl HealthClient {
             .await
             .map_err(|error| audit_failure("POST", endpoint, error))
     }
+
+
+    /// Sends the JSON request while enforcing HTTP status, response-size and deadline rules.
     async fn post_json_inner(
         &self,
         endpoint: &str,
@@ -54,6 +62,9 @@ impl HealthClient {
         .await
         .map_err(|_| "Console acknowledgement deadline expired".to_string())?
     }
+
+
+    /// Constructs HealthClient from the supplied inputs.
     pub fn new() -> Result<Self, String> {
         if rustls::crypto::CryptoProvider::get_default().is_none() {
             let _ = rustls::crypto::ring::default_provider().install_default();
@@ -64,6 +75,9 @@ impl HealthClient {
                 .map_err(|error| format!("Could not initialize HTTP health client: {error:?}"))?,
         })
     }
+
+
+    /// Provides get for the health client implementation.
     pub async fn get(
         &self,
         endpoint: &str,
@@ -74,6 +88,9 @@ impl HealthClient {
             .await
             .map(|read| read.value)
     }
+
+
+    /// Loads an HTTP health observation and retains its response metadata.
     pub async fn get_observation(
         &self,
         endpoint: &str,
@@ -84,6 +101,9 @@ impl HealthClient {
             .await
             .map_err(|error| audit_failure("GET", endpoint, error))
     }
+
+
+    /// Loads and validates a typed HTTP health observation within the request budget.
     pub async fn get_typed_observation<T: serde::de::DeserializeOwned>(
         &self,
         endpoint: &str,
@@ -94,6 +114,9 @@ impl HealthClient {
             .await
             .map_err(|error| audit_failure("GET", endpoint, error))
     }
+
+
+    /// Reads the bounded HTTP health response using the selected decoder.
     async fn get_observation_inner<T: serde::de::DeserializeOwned>(
         &self,
         endpoint: &str,
@@ -165,6 +188,7 @@ impl HealthClient {
     }
 }
 
+
 /// Keep the route useful without exposing URL credentials or query secrets.
 fn audit_failure(method: &str, endpoint: &str, error: String) -> String {
     let route = reqwest::Url::parse(endpoint)
@@ -178,6 +202,7 @@ fn audit_failure(method: &str, endpoint: &str, error: String) -> String {
         .unwrap_or_else(|_| format!("{method} invalid-http-endpoint"));
     crate::diagnostics::errors::request_failure(&route, &uuid::Uuid::new_v4().to_string(), error)
 }
+
 
 /// Bound nesting before deserialization without allocating a second document tree.
 /// Serde validates JSON syntax and field types after this lexical depth check.

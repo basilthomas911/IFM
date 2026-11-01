@@ -3,6 +3,8 @@
 use crate::backend::{contracts::utc_roundtrip, schema::Registry};
 use rmpv::Value;
 use serde_json::Value as Json;
+
+
 /// Canonical hash input uses the published contract slots, exact numeric
 /// decimals and UTC JSON dates, rather than the display's named enum strings.
 pub fn semantic_document(registry: &Registry, kind: &str, wire: &Value) -> Result<Json, String> {
@@ -75,14 +77,22 @@ pub fn semantic_document(registry: &Registry, kind: &str, wire: &Value) -> Resul
     }
     registry.project(kind, wire)
 }
+
+
+/// Hashes the canonical semantic content used to identify an operation.
 pub fn semantic_hash(registry: &Registry, kind: &str, wire: &Value) -> Result<String, String> {
     crate::backend::identity::financial_hash(&semantic_document(registry, kind, wire)?)
         .map(|v| v.to_ascii_lowercase())
 }
 
+
+/// Provides at field for the inspection display implementation.
 fn at_field(value: &crate::backend::contract_view::Field<'_>) -> Result<String, String> {
     Ok(value.utc()?.map(utc_roundtrip).unwrap_or_default())
 }
+
+
+/// Provides risk for the inspection display implementation.
 pub fn risk(registry: &Registry, wire: &Value) -> Result<String, String> {
     let kind = format!(
         "{}.RiskManagement.RiskObservation",

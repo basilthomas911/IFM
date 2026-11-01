@@ -71,16 +71,26 @@ public sealed class OptionRecoveryReplacementProofTests
     public void Old_wire_shape_defaults_to_process_and_new_shape_keeps_all_old_fields()
     {
         // An eight-element array is the pre-capability status wire shape.
-        // Guid uses the project's formatter, so take its bytes from an actual
-        // serialization rather than inventing a different Guid representation.
+        // Serialize the legacy DTO with the project's formatters. Trimming one
+        // byte from the current DTO breaks whenever another field is appended.
         var original = new MarketDataBackendStatus(true, Date, [], Guid.NewGuid(), 17, [new byte[]{1,2}], EnabledOptionTrades:["1.1.1.1"]);
-        var bytes = MessagePackSerializer.Serialize(original);
-        Assert.Equal(0x99, bytes[0]); bytes[0] = 0x98;
-        var oldBytes = bytes[..^1]; // default enum 0 occupies one byte
-        Assert.Equal(MarketDataRecoveryOwnership.Process, MessagePackSerializer.Deserialize<MarketDataBackendStatus>(oldBytes).RecoveryOwnership);
-        var native = original with { RecoveryOwnership = MarketDataRecoveryOwnership.TokioDatasetOwner };
+        var legacy = new LegacyBackendStatus(original.Ready, original.ValueDate, original.Datasets,
+            original.HostInstanceId, original.Revision, original.WorkerObservations,
+            original.OptionProcessingFailure, original.EnabledOptionTrades);
+        var oldBytes = MessagePackSerializer.Serialize(legacy);
+        Assert.Equal(0x98, oldBytes[0]);
+        var restored = MessagePackSerializer.Deserialize<MarketDataBackendStatus>(oldBytes);
+        Assert.Equal(MarketDataRecoveryOwnership.Process, restored.RecoveryOwnership);
+        Assert.Null(restored.RecoveryAudit);
+        var native = original with
+        {
+            RecoveryOwnership = MarketDataRecoveryOwnership.TokioDatasetOwner,
+            RecoveryAudit = new MarketDataRecoveryAuditHealth(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, "fixture")
+        };
         var nativeBytes=MessagePackSerializer.Serialize(native);
-        Assert.Equal(native.RecoveryOwnership, MessagePackSerializer.Deserialize<MarketDataBackendStatus>(nativeBytes).RecoveryOwnership);
+        var roundTrip=MessagePackSerializer.Deserialize<MarketDataBackendStatus>(nativeBytes);
+        Assert.Equal(native.RecoveryOwnership, roundTrip.RecoveryOwnership);
+        Assert.Equal(native.RecoveryAudit, roundTrip.RecoveryAudit);
         var oldReader=MessagePackSerializer.Deserialize<LegacyBackendStatus>(nativeBytes);
         Assert.Equal(original.Ready,oldReader.Ready);Assert.Equal(original.ValueDate,oldReader.ValueDate);
         Assert.Equal(original.HostInstanceId,oldReader.HostInstanceId);Assert.Equal(original.Revision,oldReader.Revision);

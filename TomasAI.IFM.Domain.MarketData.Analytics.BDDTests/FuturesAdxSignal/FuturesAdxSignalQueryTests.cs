@@ -42,7 +42,7 @@ public class FuturesAdxSignalQueryTests
         var dbFactory = CreateDbFactory(out var marketDataDb);
         var expected = CreateReadModel();
         marketDataDb.GetLastFuturesAdxSignalAsync(
-                SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength)
+                SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength, CancellationToken.None)
             .Returns(expected);
 
         var query = new GetFuturesAdxSignalQuery(
@@ -54,7 +54,7 @@ public class FuturesAdxSignalQueryTests
         // Then
         result.Should().BeSameAs(expected);
         await marketDataDb.Received(1).GetLastFuturesAdxSignalAsync(
-            SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength);
+            SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength, CancellationToken.None);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class FuturesAdxSignalQueryTests
         // Given
         var dbFactory = CreateDbFactory(out var marketDataDb);
         marketDataDb.GetLastFuturesAdxSignalAsync(
-                SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength)
+                SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength, CancellationToken.None)
             .Returns((FuturesAdxSignalReadModel?)null);
 
         var query = new GetFuturesAdxSignalQuery(
@@ -84,7 +84,7 @@ public class FuturesAdxSignalQueryTests
         var dbFactory = CreateDbFactory(out var marketDataDb);
         var expected = CreateReadModel(contractId: otherContractId);
         marketDataDb.GetLastFuturesAdxSignalAsync(
-                otherContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength)
+                otherContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength, CancellationToken.None)
             .Returns(expected);
 
         var query = new GetFuturesAdxSignalQuery(
@@ -97,7 +97,7 @@ public class FuturesAdxSignalQueryTests
         result.Should().NotBeNull();
         result!.ContractId.Should().Be(otherContractId);
         await marketDataDb.DidNotReceive().GetLastFuturesAdxSignalAsync(
-            SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength);
+            SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength, CancellationToken.None);
     }
 
     [Theory]
@@ -110,7 +110,7 @@ public class FuturesAdxSignalQueryTests
         var dbFactory = CreateDbFactory(out var marketDataDb);
         var expected = CreateReadModel();
         marketDataDb.GetLastFuturesAdxSignalAsync(
-                SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength)
+                SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength, CancellationToken.None)
             .Returns(expected);
 
         var query = new GetFuturesAdxSignalQuery(
@@ -132,7 +132,7 @@ public class FuturesAdxSignalQueryTests
             adx: FuturesTrendDirectionType.TrendReversal,
             strength: FuturesTrendDirectionStrengthType.Medium);
         marketDataDb.GetLastFuturesAdxSignalAsync(
-                SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength)
+                SampleData.ContractId, SampleData.ValueDate, SampleData.TimePeriod, SampleData.PeriodLength, CancellationToken.None)
             .Returns(expected);
 
         var query = new GetFuturesAdxSignalQuery(
@@ -156,7 +156,7 @@ public class FuturesAdxSignalQueryTests
         var dbFactory = CreateDbFactory(out var marketDataDb);
         var expected = CreateReadModel();
         marketDataDb.GetLastFuturesAdxDailySignalAsync(
-                SampleData.ContractId, SampleData.TimePeriod, SampleData.PeriodLength)
+                SampleData.ContractId, SampleData.TimePeriod, SampleData.PeriodLength, CancellationToken.None)
             .Returns(expected);
 
         var query = new GetFuturesAdxDailySignalQuery(
@@ -168,7 +168,7 @@ public class FuturesAdxSignalQueryTests
         // Then
         result.Should().BeSameAs(expected);
         await marketDataDb.Received(1).GetLastFuturesAdxDailySignalAsync(
-            SampleData.ContractId, SampleData.TimePeriod, SampleData.PeriodLength);
+            SampleData.ContractId, SampleData.TimePeriod, SampleData.PeriodLength, CancellationToken.None);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class FuturesAdxSignalQueryTests
         // Given
         var dbFactory = CreateDbFactory(out var marketDataDb);
         marketDataDb.GetLastFuturesAdxDailySignalAsync(
-                SampleData.ContractId, SampleData.TimePeriod, SampleData.PeriodLength)
+                SampleData.ContractId, SampleData.TimePeriod, SampleData.PeriodLength, CancellationToken.None)
             .Returns((FuturesAdxSignalReadModel?)null);
 
         var query = new GetFuturesAdxDailySignalQuery(
@@ -198,7 +198,7 @@ public class FuturesAdxSignalQueryTests
         var dbFactory = CreateDbFactory(out var marketDataDb);
         var expected = CreateReadModel();
         marketDataDb.GetLastFuturesAdxDailySignalAsync(
-                SampleData.ContractId, SampleData.TimePeriod, otherPeriodLength)
+                SampleData.ContractId, SampleData.TimePeriod, otherPeriodLength, CancellationToken.None)
             .Returns(expected);
 
         var query = new GetFuturesAdxDailySignalQuery(
@@ -210,7 +210,7 @@ public class FuturesAdxSignalQueryTests
         // Then
         result.Should().BeSameAs(expected);
         await marketDataDb.DidNotReceive().GetLastFuturesAdxDailySignalAsync(
-            SampleData.ContractId, SampleData.TimePeriod, SampleData.PeriodLength);
+            SampleData.ContractId, SampleData.TimePeriod, SampleData.PeriodLength, CancellationToken.None);
     }
 
     [Fact]

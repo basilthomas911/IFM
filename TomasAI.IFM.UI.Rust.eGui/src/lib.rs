@@ -102,6 +102,7 @@ pub use navigation::{shell, sidebar};
 use crate::presentation::TradingLabelUi as _;
 use eframe::egui;
 use serde::{Deserialize, Serialize};
+
 /// A name/value pair already prepared for the read-only property grid.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Property {
@@ -110,6 +111,7 @@ pub struct Property {
     /// Published or edited display value; formatting/validation belongs to its managed field contract.
     pub value: String,
 }
+
 /// Published details-tree node with stable identity, properties, and nested children.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Node {
@@ -122,6 +124,7 @@ pub struct Node {
     /// Nested published details-tree nodes.
     pub children: Vec<Node>,
 }
+
 /// Published workflow selector entry and the numeric bridge action that selects it.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -133,6 +136,7 @@ pub struct WorkflowChoice {
     /// Numeric bridge action used to select this published workflow.
     pub action: u32,
 }
+
 /// Strategy observation publication including details tree, workflow page, summaries, and chart window.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -200,6 +204,7 @@ pub struct Snapshot {
     #[serde(default)]
     pub time_frame: String,
 }
+
 /// Versioned localized UI text shared with the managed bridge.
 #[derive(Clone, Deserialize)]
 pub struct Catalog {
@@ -219,12 +224,15 @@ impl Catalog {
             .unwrap_or("[Missing string]")
     }
 }
+
 /// Persistent selected node identity for the read-only workflow tree and property grid.
 #[derive(Default)]
 pub struct DetailsView {
     /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<String>,
 }
+
+
 /// Search the published details tree depth-first for a stable node ID; return None when absent.
 fn find<'a>(nodes: &'a [Node], id: &str) -> Option<&'a Node> {
     for n in nodes {
@@ -244,6 +252,8 @@ impl DetailsView {
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| self.draw_inside(ui, snapshot, catalog));
     }
+
+
     /// Render a bounded details tree and property grid inside the supplied UI; selection is resolved by node ID.
     pub fn draw_inside(&mut self, ui: &mut egui::Ui, snapshot: &Snapshot, catalog: &Catalog) {
         egui::TopBottomPanel::top("objects")
@@ -318,6 +328,8 @@ impl DetailsView {
             );
         });
     }
+
+
     /// Draw one details-tree node recursively and update the selected node identity when clicked.
     fn node(&mut self, ui: &mut egui::Ui, node: &Node, catalog: &Catalog) {
         if node.children.is_empty() {
@@ -350,6 +362,7 @@ impl DetailsView {
         }
     }
 }
+
 
 /// Match WinForms Microsoft Sans Serif 10pt at 96 logical pixels per inch.
 /// Read the installed Windows font; do not redistribute Microsoft's font file.

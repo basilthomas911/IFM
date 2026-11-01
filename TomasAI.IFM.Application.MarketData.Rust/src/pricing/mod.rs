@@ -115,10 +115,37 @@ impl Default for Settings {
         }
     }
 }
-/// Bounded calculator owning only immutable settings; each tree owns its scratch.
+/// Bounded calculator with immutable numerical settings and one reusable tree workspace.
 pub struct Calculator {
     settings: Settings,
     kernel: EuropeanKernel,
+    scratch: std::sync::Mutex<Option<Vec<f64>>>,
+}
+/// An exclusively borrowed workspace; cancellation returns it without retaining any task or source.
+struct Scratch<'a> {
+    owner: &'a std::sync::Mutex<Option<Vec<f64>>>,
+    buffer: Vec<f64>,
+}
+impl std::ops::Deref for Scratch<'_> {
+    type Target = Vec<f64>;
+    fn deref(&self) -> &Self::Target {
+        &self.buffer
+    }
+}
+impl std::ops::DerefMut for Scratch<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.buffer
+    }
+}
+impl Drop for Scratch<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut retained) = self.owner.lock()
+            && retained.is_none()
+        {
+            self.buffer.clear();
+            *retained = Some(std::mem::take(&mut self.buffer));
+        }
+    }
 }
 /// Existing selectable European-pricer arithmetic profiles. Both are native here;
 /// this choice preserves the configured current backend's numerical operation order.
@@ -139,6 +166,19 @@ fn max(a: f64, b: f64) -> f64 {
     }
 }
 impl Calculator {
+    /// Rent exclusive scratch without keeping a lock across numerical work or await.
+    fn scratch(&self) -> Scratch<'_> {
+        Scratch {
+            owner: &self.scratch,
+            buffer: self
+                .scratch
+                .lock()
+                .ok()
+                .and_then(|mut buffer| buffer.take())
+                .unwrap_or_default(),
+        }
+    }
+
     /// Validates numerical policy before accepting any work.
     pub fn new(s: Settings) -> Result<Self, Failure> {
         if !(32..=4096).contains(&s.steps)
@@ -155,6 +195,7 @@ impl Calculator {
         Ok(Self {
             settings: s,
             kernel: EuropeanKernel::ManagedCompatibility,
+            scratch: std::sync::Mutex::new(None),
         })
     }
     /// Selects an existing compatibility profile without changing numerical policy.
@@ -287,7 +328,7 @@ impl Calculator {
     ) -> Result<f64, Failure> {
         deadline
             .run(token, async {
-                let mut scratch = Vec::new();
+                let mut scratch = self.scratch();
                 self.validate(r)?;
                 self.sigma(sigma)?;
                 let intrinsic = max(f64::from(r.sign()) * (r.forward - r.strike), 0.0);
@@ -341,7 +382,7 @@ impl Calculator {
                 rho: if r.futures_style { 0.0 } else { g.rho },
             }
         } else {
-            let mut scratch = Vec::new();
+            let mut scratch = self.scratch();
             let core = self.core(r, sigma, token, &mut scratch).await?;
             if !core.0.is_finite() {
                 return Err(Failure::NumericalFailure);
@@ -452,7 +493,7 @@ impl Calculator {
     ) -> Result<Solution, Failure> {
         deadline
             .run(token, async {
-                let mut scratch = Vec::new();
+                let mut scratch = self.scratch();
                 self.validate(r)?;
                 if !market.is_finite() || market < 0.0 {
                     return Err(Failure::InvalidInput);
@@ -548,7 +589,7 @@ impl Calculator {
                     return Err(Failure::UndefinedGreeks);
                 }
                 let (price, delta) = if r.american {
-                    let mut scratch = Vec::new();
+                    let mut scratch = self.scratch();
                     let core = self.core(r, sigma, token, &mut scratch).await?;
                     (core.0, core.1)
                 } else {

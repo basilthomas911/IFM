@@ -1,0 +1,118 @@
+{
+  "controls": [
+    {
+      "verb": "FeedScenario",
+      "value": "Stopped"
+    },
+    {
+      "verb": "TradeWorkspaceMode",
+      "value": "ComposeOptions"
+    },
+    {
+      "verb": "BrokerInitMode",
+      "value": "Normal"
+    },
+    {
+      "verb": "BrokerReadMode",
+      "value": "Empty"
+    },
+    {
+      "verb": "OptionChainMode",
+      "value": "ComposeOptions"
+    },
+    {
+      "verb": "OptionChainOffline",
+      "value": "Enabled"
+    },
+    {
+      "verb": "MonitorMode",
+      "value": "ClosedEmulator"
+    },
+    {
+      "verb": "DesktopOutlookAvailable",
+      "value": "true"
+    }
+  ],
+  "steps": [
+    {
+      "action": "invoke",
+      "name": "Trade Orders",
+      "type": "Button",
+      "enabled": true
+    },
+    {
+      "action": "wait",
+      "name": "Add Trade...",
+      "type": "Button",
+      "enabled": true,
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "invoke",
+      "name": "Trade Blotter",
+      "type": "Button",
+      "enabled": true,
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "wait",
+      "name": "Selected legs: 4 / 4",
+      "contains": true,
+      "type": "Text"
+    },
+    {
+      "action": "wait",
+      "name": "callDelta",
+      "type": "Spinner",
+      "enabled": true
+    },
+    {
+      "action": "wait",
+      "name": "callWidth",
+      "type": "Spinner",
+      "enabled": true
+    },
+    {
+      "action": "wait",
+      "name": "putDelta",
+      "type": "Spinner",
+      "enabled": true
+    },
+    {
+      "action": "wait",
+      "name": "putWidth",
+      "type": "Spinner",
+      "enabled": true
+    },
+    {
+      "action": "assert-legs",
+      "name": "offline-default-four-legs",
+      "legs": [
+        {
+          "role": "-SC",
+          "strike": 6050
+        },
+        {
+          "role": "+LC",
+          "strike": 6100
+        },
+        {
+          "role": "-SP",
+          "strike": 5950
+        },
+        {
+          "role": "+LP",
+          "strike": 5900
+        }
+      ]
+    },
+    {
+      "action": "snapshot",
+      "name": "offline-default-four-legs",
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "close"
+    }
+  ]
+}

@@ -5,6 +5,8 @@ use crate::{
 use rmpv::Value;
 use std::collections::BTreeMap;
 
+
+/// Loads lookups for reference.
 pub async fn load_lookups(
     backend: &Backend,
     registry: &Registry,
@@ -23,6 +25,9 @@ pub async fn load_lookups(
     let result = backend.request(&subject, &request, None, None).await?;
     project_lookups(registry, service_result(&result)?)
 }
+
+
+/// Provides project lookups for the reference implementation.
 pub fn project_lookups(registry: &Registry, result: &Value) -> Result<Vec<LookupRow>, String> {
     let named = registry.project(
         "TomasAI.IFM.Domain.Reference.Shared.LookupTypeCollection",

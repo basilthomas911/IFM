@@ -198,14 +198,22 @@ pub extern "C" fn ifm_market_data_owner_create_v1(handle: u64) -> i32 {
 /// and the durable recovery outbox survive; live claims and date-scoped caches do not.
 /// A failed join never admits a replacement over surviving old resources.
 #[unsafe(no_mangle)]
-pub extern "C" fn ifm_market_data_owner_reinitialize_v1(handle: u64, operation: u64, date: u32) -> i32 {
+pub extern "C" fn ifm_market_data_owner_reinitialize_v1(
+    handle: u64,
+    operation: u64,
+    date: u32,
+) -> i32 {
     boundary(|| {
         let date = super::reference::date(date)?;
         if date.to_julian_day() == 1721426 {
             return Err(Status::InvalidInput);
         }
         let instance = instance(handle)?;
-        let transition = instance.market_transition.clone().try_lock_owned().map_err(|_| Status::Busy)?;
+        let transition = instance
+            .market_transition
+            .clone()
+            .try_lock_owned()
+            .map_err(|_| Status::Busy)?;
         let previous = owner(handle)?;
         let clock = instance.reference_clock()?;
         let mut reservation = instance.reserve_control(operation)?;
@@ -215,19 +223,30 @@ pub extern "C" fn ifm_market_data_owner_reinitialize_v1(handle: u64, operation: 
             let result = async {
                 previous.shutdown(Deadline::recovery()).await?;
                 let fresh = Arc::new(MarketData::new_session(target.owner.clone(), clock, date)?);
-                let mut slot = target.market_owner.lock().map_err(|_| "Native owner directory interrupted")?;
-                if !slot.as_ref().is_some_and(|current| Arc::ptr_eq(current, &previous)) {
+                let mut slot = target
+                    .market_owner
+                    .lock()
+                    .map_err(|_| "Native owner directory interrupted")?;
+                if !slot
+                    .as_ref()
+                    .is_some_and(|current| Arc::ptr_eq(current, &previous))
+                {
                     return Err("Native owner changed during opening retirement".into());
                 }
                 *slot = Some(fresh);
                 Ok(())
-            }.await;
+            }
+            .await;
             reservation.result = super::live::NativeControlResult::finished(result);
             drop(reservation);
             Ok(0.0)
         };
         if let Err(status) = instance.submit_observer(operation, work) {
-            instance.control.lock().map_err(|_| Status::InternalFailure)?.remove(&operation);
+            instance
+                .control
+                .lock()
+                .map_err(|_| Status::InternalFailure)?
+                .remove(&operation);
             return Err(status);
         }
         Ok(())

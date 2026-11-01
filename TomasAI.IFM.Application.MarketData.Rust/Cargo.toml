@@ -57,7 +57,8 @@ undocumented_unsafe_blocks = "deny"
 [profile.development]
 inherits = "release"
 opt-level = 1
-debug = 1
+# Everyday development includes full source, type and variable debug information.
+debug = 2
 incremental = true
 lto = false
 codegen-units = 256

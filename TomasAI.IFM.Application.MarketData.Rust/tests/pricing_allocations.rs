@@ -1,4 +1,4 @@
-//! Count actual American scratch reservations across bisection and Greek bumps.
+//! Count actual American scratch reuse across bisection, Greek bumps and subsequent calls.
 use ifm_market_data_native::{
     pricing::{Calculator, Request, Settings},
     runtime::Deadline,
@@ -48,12 +48,16 @@ async fn american_solver_and_risk_reuse_operation_scratch_instead_of_allocating_
     assert!(result.volatility > 0.);
     let allocations = TREE_ALLOCATIONS.load(Ordering::Relaxed) - before;
     assert_eq!(
-        allocations, 2,
-        "one owned buffer for IV bisection, one for all full-Greek repricings"
+        allocations, 1,
+        "one exclusive workspace is reused by IV bisection and every full-Greek repricing"
     );
     let before = TREE_ALLOCATIONS.load(Ordering::Relaxed);
     calc.solve(request, 80., &token, Deadline::recovery())
         .await
         .unwrap();
-    assert_eq!(TREE_ALLOCATIONS.load(Ordering::Relaxed) - before, 1);
+    assert_eq!(
+        TREE_ALLOCATIONS.load(Ordering::Relaxed) - before,
+        0,
+        "the next solve reuses the calculator's retained workspace"
+    );
 }

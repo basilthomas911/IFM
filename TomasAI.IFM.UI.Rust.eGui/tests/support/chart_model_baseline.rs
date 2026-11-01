@@ -3,6 +3,8 @@
 use ifm_ui_egui::{models::trade_chart::PreparedTradeChart, wire};
 use serde_json::Value;
 
+
+/// Provides legacy for the chart model baseline implementation.
 pub fn legacy(bytes: &[u8]) -> PreparedTradeChart {
     let value: Value = wire::decode(bytes).unwrap();
     let mut result = PreparedTradeChart::default();
@@ -31,6 +33,7 @@ pub fn legacy(bytes: &[u8]) -> PreparedTradeChart {
     }
     result
 }
+
 
 /// Deterministic synthetic published chart. No financial values are recalculated.
 pub fn input(count: usize) -> Vec<u8> {

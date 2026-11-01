@@ -1,8 +1,14 @@
 //! Stored financial data remains visible while a live source is being restored.
 use super::*;
+
+
+/// Provides typed for the two phase tests implementation.
 fn typed<T: serde::de::DeserializeOwned>(value: Json) -> T {
     serde_json::from_value(value).unwrap()
 }
+
+
+/// Builds the deterministic input used by this test or measurement.
 fn fixture(name: &str, kind: &str) -> Json {
     let registry = Registry::compiled().unwrap();
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -15,6 +21,9 @@ fn fixture(name: &str, kind: &str) -> Json {
     )
     .unwrap()
 }
+
+
+/// Provides stored for the two phase tests implementation.
 fn stored() -> data::Monitor {
     let scope = api::Scope {
         portfolio: 1,
@@ -57,12 +66,15 @@ fn stored() -> data::Monitor {
     state.page = Some(typed(
         json!({"Items":[fixture("monitor-plan","TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot")],"MaximumRevision":7,"Offset":0,"TotalCount":1}),
     ));
-    state.chart = Some(crate::models::trade_chart::TradeChartSeries {
+    state.set_chart(Some(crate::models::trade_chart::TradeChartSeries {
         end_utc: "2026-10-26T12:30:00Z".into(),
         ..Default::default()
-    });
+    }));
     state
 }
+
+
+/// Provides document for the two phase tests implementation.
 fn document(state: &data::Monitor, kind: &str) -> Json {
     let mut result = ContractResult::default();
     state.append(&mut result).unwrap();
@@ -78,6 +90,9 @@ fn document(state: &data::Monitor, kind: &str) -> Json {
     )
     .unwrap()
 }
+
+
+/// Verifies that starting and acknowledged live without snapshot keep saved position and plans.
 #[test]
 fn starting_and_acknowledged_live_without_snapshot_keep_saved_position_and_plans() {
     let mut state = stored();
@@ -94,6 +109,9 @@ fn starting_and_acknowledged_live_without_snapshot_keep_saved_position_and_plans
     assert_eq!(document(&state, "plan"), plan);
     assert_eq!(document(&state, "chart"), chart);
 }
+
+
+/// Verifies that failed live restore keeps stored data and allows retry.
 #[test]
 fn failed_live_restore_keeps_stored_data_and_allows_retry() {
     let mut state = stored();
@@ -104,6 +122,8 @@ fn failed_live_restore_keeps_stored_data_and_allows_retry() {
     assert!(!document(&state, "plan").is_null());
 }
 
+
+/// Verifies that authoritative live snapshot replaces saved fallback.
 #[test]
 fn authoritative_live_snapshot_replaces_saved_fallback() {
     let mut state = stored();
@@ -115,4 +135,47 @@ fn authoritative_live_snapshot_replaces_saved_fallback() {
     ))));
     assert_ne!(document(&state, "position-details"), saved);
     assert!(!document(&state, "realtime").is_null());
+}
+
+
+/// Verifies that unchanged monitor sections share payloads and chart changes invalidate only the
+/// chart.
+#[test]
+fn unchanged_monitor_sections_share_payloads_and_chart_changes_invalidate_only_the_chart() {
+    let mut state = stored();
+    let mut first = ContractResult::default();
+    state.append(&mut first).unwrap();
+    let mut second = ContractResult::default();
+    state.status = "another status".into();
+    state.append(&mut second).unwrap();
+    for old in &first.rows {
+        let new = second.rows.iter().find(|r| r.id == old.id).unwrap();
+        assert!(
+            old.data
+                .as_ref()
+                .unwrap()
+                .ptr_eq(new.data.as_ref().unwrap()),
+            "{} rebuilt without a data change",
+            old.id
+        );
+    }
+    state.set_chart(Some(crate::models::trade_chart::TradeChartSeries {
+        start_utc: "2026-10-26T12:00:00Z".into(),
+        end_utc: "2026-10-26T13:00:00Z".into(),
+        points: vec![],
+    }));
+    let mut changed = ContractResult::default();
+    state.append(&mut changed).unwrap();
+    for old in &second.rows {
+        let new = changed.rows.iter().find(|r| r.id == old.id).unwrap();
+        assert_eq!(
+            old.data
+                .as_ref()
+                .unwrap()
+                .ptr_eq(new.data.as_ref().unwrap()),
+            old.fields["kind"] != "chart",
+            "{} invalidation",
+            old.id
+        );
+    }
 }

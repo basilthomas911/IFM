@@ -3,6 +3,7 @@ use crate::backend::codec;
 use crate::models::{trade_contracts as typed, wire_types::FromBackend};
 use futures_util::StreamExt;
 impl Hub {
+    /// Starts events for hub.
     pub(super) async fn start_events(
         &self,
         backend: Backend,
@@ -38,7 +39,7 @@ impl Hub {
             loop {
                 let incoming = tokio::select! {
                  message=realtime.next()=>Some((0,message)),message=positions.next()=>Some((1,message)),message=plans.next()=>Some((2,message)),message=feeds.next()=>Some((3,message)),
-                 _=tick.tick()=>{
+                 _=tick.tick(),if dirty=>{
                   if dirty{if let Some(state)=weak.upgrade(){let hub=Hub{state,updates:updates.clone(),host_scope:host_scope.clone()};let _=hub.publish();}else{break}dirty=false;}
                   None
                  },

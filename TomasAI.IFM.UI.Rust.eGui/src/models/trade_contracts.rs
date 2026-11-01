@@ -12,6 +12,7 @@ use rmpv::Value;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 
+/// Account Broker Environment used by the trade contracts component.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AccountBrokerEnvironment {
     Unknown,
@@ -21,6 +22,7 @@ pub enum AccountBrokerEnvironment {
     Unrecognized(i64),
 }
 impl AccountBrokerEnvironment {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -33,6 +35,9 @@ impl AccountBrokerEnvironment {
 }
 impl FromBackend for AccountBrokerEnvironment {
     const KIND: &'static str = "TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -46,6 +51,7 @@ impl FromBackend for AccountBrokerEnvironment {
     }
 }
 impl Serialize for AccountBrokerEnvironment {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -54,25 +60,39 @@ impl Serialize for AccountBrokerEnvironment {
     }
 }
 impl<'de> Deserialize<'de> for AccountBrokerEnvironment {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = AccountBrokerEnvironment;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<AccountBrokerEnvironment, E> {
                 AccountBrokerEnvironment::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<AccountBrokerEnvironment, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -92,6 +112,7 @@ impl<'de> Deserialize<'de> for AccountBrokerEnvironment {
     }
 }
 impl ScalarCell for AccountBrokerEnvironment {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -100,6 +121,7 @@ impl ScalarCell for AccountBrokerEnvironment {
     }
 }
 impl PresentationValue for AccountBrokerEnvironment {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -113,6 +135,7 @@ impl PresentationValue for AccountBrokerEnvironment {
     }
 }
 impl BackendRecord for AccountBrokerEnvironment {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -121,6 +144,7 @@ impl BackendRecord for AccountBrokerEnvironment {
     }
 }
 impl PublishedEnum for AccountBrokerEnvironment {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -129,6 +153,8 @@ impl PublishedEnum for AccountBrokerEnvironment {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountDefinition`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct BrokerAccountDefinition {
     /// C# SchemaVersion, wire slot 0.
@@ -183,6 +209,9 @@ pub struct BrokerAccountDefinition {
 }
 impl FromBackend for BrokerAccountDefinition {
     const KIND: &'static str = "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountDefinition";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -228,6 +257,7 @@ impl FromBackend for BrokerAccountDefinition {
     }
 }
 impl PresentationRecord for BrokerAccountDefinition {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -349,11 +379,13 @@ impl PresentationRecord for BrokerAccountDefinition {
     }
 }
 impl Serialize for BrokerAccountDefinition {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for BrokerAccountDefinition {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -363,12 +395,14 @@ impl PresentationValue for BrokerAccountDefinition {
     }
 }
 impl PresentationExtras for BrokerAccountDefinition {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for BrokerAccountDefinition {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -399,6 +433,7 @@ impl BackendRecord for BrokerAccountDefinition {
     }
 }
 impl Cells for BrokerAccountDefinition {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -423,6 +458,8 @@ impl Cells for BrokerAccountDefinition {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountId`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct BrokerAccountId {
     /// C# AccountAlias, wire slot 0.
@@ -431,6 +468,9 @@ pub struct BrokerAccountId {
 }
 impl FromBackend for BrokerAccountId {
     const KIND: &'static str = "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountId";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -442,6 +482,7 @@ impl FromBackend for BrokerAccountId {
     }
 }
 impl PresentationRecord for BrokerAccountId {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -465,11 +506,13 @@ impl PresentationRecord for BrokerAccountId {
     }
 }
 impl Serialize for BrokerAccountId {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for BrokerAccountId {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -479,12 +522,14 @@ impl PresentationValue for BrokerAccountId {
     }
 }
 impl PresentationExtras for BrokerAccountId {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for BrokerAccountId {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("AccountAlias", &BackendDocument(&self.account_alias))?;
@@ -492,6 +537,7 @@ impl BackendRecord for BrokerAccountId {
     }
 }
 impl Cells for BrokerAccountId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "accountAlias" | "AccountAlias" => self.account_alias.scalar_cell(),
@@ -500,6 +546,9 @@ impl Cells for BrokerAccountId {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountOperationalGate`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BrokerAccountOperationalGate {
     Closed,
@@ -508,6 +557,7 @@ pub enum BrokerAccountOperationalGate {
     Unrecognized(i64),
 }
 impl BrokerAccountOperationalGate {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Closed => "Closed".into(),
@@ -520,6 +570,9 @@ impl BrokerAccountOperationalGate {
 impl FromBackend for BrokerAccountOperationalGate {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountOperationalGate";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -532,6 +585,7 @@ impl FromBackend for BrokerAccountOperationalGate {
     }
 }
 impl Serialize for BrokerAccountOperationalGate {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -540,25 +594,39 @@ impl Serialize for BrokerAccountOperationalGate {
     }
 }
 impl<'de> Deserialize<'de> for BrokerAccountOperationalGate {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = BrokerAccountOperationalGate;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<BrokerAccountOperationalGate, E> {
                 BrokerAccountOperationalGate::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<BrokerAccountOperationalGate, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -577,6 +645,7 @@ impl<'de> Deserialize<'de> for BrokerAccountOperationalGate {
     }
 }
 impl ScalarCell for BrokerAccountOperationalGate {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -585,6 +654,7 @@ impl ScalarCell for BrokerAccountOperationalGate {
     }
 }
 impl PresentationValue for BrokerAccountOperationalGate {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -598,6 +668,7 @@ impl PresentationValue for BrokerAccountOperationalGate {
     }
 }
 impl BackendRecord for BrokerAccountOperationalGate {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -606,6 +677,7 @@ impl BackendRecord for BrokerAccountOperationalGate {
     }
 }
 impl PublishedEnum for BrokerAccountOperationalGate {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -614,6 +686,9 @@ impl PublishedEnum for BrokerAccountOperationalGate {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountPositionEvidence`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct BrokerAccountPositionEvidence {
     /// C# ContractId, wire slot 0.
@@ -629,6 +704,9 @@ pub struct BrokerAccountPositionEvidence {
 impl FromBackend for BrokerAccountPositionEvidence {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountPositionEvidence";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -646,6 +724,7 @@ impl FromBackend for BrokerAccountPositionEvidence {
     }
 }
 impl PresentationRecord for BrokerAccountPositionEvidence {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -683,11 +762,13 @@ impl PresentationRecord for BrokerAccountPositionEvidence {
     }
 }
 impl Serialize for BrokerAccountPositionEvidence {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for BrokerAccountPositionEvidence {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -697,12 +778,14 @@ impl PresentationValue for BrokerAccountPositionEvidence {
     }
 }
 impl PresentationExtras for BrokerAccountPositionEvidence {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for BrokerAccountPositionEvidence {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -712,6 +795,7 @@ impl BackendRecord for BrokerAccountPositionEvidence {
     }
 }
 impl Cells for BrokerAccountPositionEvidence {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -722,6 +806,9 @@ impl Cells for BrokerAccountPositionEvidence {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountQualificationStatus`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BrokerAccountQualificationStatus {
     Unknown,
@@ -732,6 +819,7 @@ pub enum BrokerAccountQualificationStatus {
     Unrecognized(i64),
 }
 impl BrokerAccountQualificationStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -746,6 +834,9 @@ impl BrokerAccountQualificationStatus {
 impl FromBackend for BrokerAccountQualificationStatus {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountQualificationStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -760,6 +851,7 @@ impl FromBackend for BrokerAccountQualificationStatus {
     }
 }
 impl Serialize for BrokerAccountQualificationStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -768,13 +860,21 @@ impl Serialize for BrokerAccountQualificationStatus {
     }
 }
 impl<'de> Deserialize<'de> for BrokerAccountQualificationStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = BrokerAccountQualificationStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
@@ -782,12 +882,18 @@ impl<'de> Deserialize<'de> for BrokerAccountQualificationStatus {
                 BrokerAccountQualificationStatus::from_backend(&Value::from(value))
                     .map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<BrokerAccountQualificationStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -808,6 +914,7 @@ impl<'de> Deserialize<'de> for BrokerAccountQualificationStatus {
     }
 }
 impl ScalarCell for BrokerAccountQualificationStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -816,6 +923,7 @@ impl ScalarCell for BrokerAccountQualificationStatus {
     }
 }
 impl PresentationValue for BrokerAccountQualificationStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -829,6 +937,7 @@ impl PresentationValue for BrokerAccountQualificationStatus {
     }
 }
 impl BackendRecord for BrokerAccountQualificationStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -837,6 +946,7 @@ impl BackendRecord for BrokerAccountQualificationStatus {
     }
 }
 impl PublishedEnum for BrokerAccountQualificationStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -845,6 +955,9 @@ impl PublishedEnum for BrokerAccountQualificationStatus {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountSnapshotEvidence`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct BrokerAccountSnapshotEvidence {
     /// C# AccountAlias, wire slot 0.
@@ -878,6 +991,9 @@ pub struct BrokerAccountSnapshotEvidence {
 impl FromBackend for BrokerAccountSnapshotEvidence {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountSnapshotEvidence";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -909,6 +1025,7 @@ impl FromBackend for BrokerAccountSnapshotEvidence {
     }
 }
 impl PresentationRecord for BrokerAccountSnapshotEvidence {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -988,11 +1105,13 @@ impl PresentationRecord for BrokerAccountSnapshotEvidence {
     }
 }
 impl Serialize for BrokerAccountSnapshotEvidence {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for BrokerAccountSnapshotEvidence {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -1002,12 +1121,14 @@ impl PresentationValue for BrokerAccountSnapshotEvidence {
     }
 }
 impl PresentationExtras for BrokerAccountSnapshotEvidence {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for BrokerAccountSnapshotEvidence {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("AccountAlias", &BackendDocument(&self.account_alias))?;
@@ -1023,6 +1144,7 @@ impl BackendRecord for BrokerAccountSnapshotEvidence {
     }
 }
 impl Cells for BrokerAccountSnapshotEvidence {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "accountAlias" | "AccountAlias" => self.account_alias.scalar_cell(),
@@ -1038,6 +1160,9 @@ impl Cells for BrokerAccountSnapshotEvidence {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.FuturesSeriesId`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesSeriesId {
     /// C# RootSymbol, wire slot 0.
@@ -1056,6 +1181,9 @@ pub struct FuturesSeriesId {
 impl FromBackend for FuturesSeriesId {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.FuturesSeriesId";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -1073,6 +1201,7 @@ impl FromBackend for FuturesSeriesId {
     }
 }
 impl PresentationRecord for FuturesSeriesId {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -1117,11 +1246,13 @@ impl PresentationRecord for FuturesSeriesId {
     }
 }
 impl Serialize for FuturesSeriesId {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesSeriesId {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -1131,12 +1262,14 @@ impl PresentationValue for FuturesSeriesId {
     }
 }
 impl PresentationExtras for FuturesSeriesId {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesSeriesId {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("RootSymbol", &BackendDocument(&self.root_symbol))?;
@@ -1150,6 +1283,7 @@ impl BackendRecord for FuturesSeriesId {
     }
 }
 impl Cells for FuturesSeriesId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "rootSymbol" | "RootSymbol" => self.root_symbol.scalar_cell(),
@@ -1161,6 +1295,9 @@ impl Cells for FuturesSeriesId {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketAnalyticsSignalKey`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct MarketAnalyticsSignalKey {
     /// C# MarketSeriesIdentity, wire slot 0.
@@ -1187,6 +1324,9 @@ pub struct MarketAnalyticsSignalKey {
 impl FromBackend for MarketAnalyticsSignalKey {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketAnalyticsSignalKey";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -1210,6 +1350,7 @@ impl FromBackend for MarketAnalyticsSignalKey {
     }
 }
 impl PresentationRecord for MarketAnalyticsSignalKey {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -1254,11 +1395,13 @@ impl PresentationRecord for MarketAnalyticsSignalKey {
     }
 }
 impl Serialize for MarketAnalyticsSignalKey {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for MarketAnalyticsSignalKey {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -1268,12 +1411,14 @@ impl PresentationValue for MarketAnalyticsSignalKey {
     }
 }
 impl PresentationExtras for MarketAnalyticsSignalKey {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for MarketAnalyticsSignalKey {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry(
@@ -1290,6 +1435,7 @@ impl BackendRecord for MarketAnalyticsSignalKey {
     }
 }
 impl Cells for MarketAnalyticsSignalKey {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "signalKind" | "SignalKind" => self.signal_kind.scalar_cell(),
@@ -1302,6 +1448,9 @@ impl Cells for MarketAnalyticsSignalKey {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketAnalyticsSignalKind`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MarketAnalyticsSignalKind {
     Unknown,
@@ -1319,6 +1468,7 @@ pub enum MarketAnalyticsSignalKind {
     Unrecognized(i64),
 }
 impl MarketAnalyticsSignalKind {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -1340,6 +1490,9 @@ impl MarketAnalyticsSignalKind {
 impl FromBackend for MarketAnalyticsSignalKind {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketAnalyticsSignalKind";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -1361,6 +1514,7 @@ impl FromBackend for MarketAnalyticsSignalKind {
     }
 }
 impl Serialize for MarketAnalyticsSignalKind {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -1369,25 +1523,39 @@ impl Serialize for MarketAnalyticsSignalKind {
     }
 }
 impl<'de> Deserialize<'de> for MarketAnalyticsSignalKind {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = MarketAnalyticsSignalKind;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<MarketAnalyticsSignalKind, E> {
                 MarketAnalyticsSignalKind::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<MarketAnalyticsSignalKind, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -1415,6 +1583,7 @@ impl<'de> Deserialize<'de> for MarketAnalyticsSignalKind {
     }
 }
 impl ScalarCell for MarketAnalyticsSignalKind {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -1423,6 +1592,7 @@ impl ScalarCell for MarketAnalyticsSignalKind {
     }
 }
 impl PresentationValue for MarketAnalyticsSignalKind {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -1436,6 +1606,7 @@ impl PresentationValue for MarketAnalyticsSignalKind {
     }
 }
 impl BackendRecord for MarketAnalyticsSignalKind {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -1444,6 +1615,7 @@ impl BackendRecord for MarketAnalyticsSignalKind {
     }
 }
 impl PublishedEnum for MarketAnalyticsSignalKind {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -1452,6 +1624,9 @@ impl PublishedEnum for MarketAnalyticsSignalKind {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketAnalyticsSignalMetadata`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct MarketAnalyticsSignalMetadata {
     /// C# SignalKey, wire slot 0.
@@ -1497,6 +1672,9 @@ pub struct MarketAnalyticsSignalMetadata {
 impl FromBackend for MarketAnalyticsSignalMetadata {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketAnalyticsSignalMetadata";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -1544,6 +1722,7 @@ impl FromBackend for MarketAnalyticsSignalMetadata {
     }
 }
 impl PresentationRecord for MarketAnalyticsSignalMetadata {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -1651,11 +1830,13 @@ impl PresentationRecord for MarketAnalyticsSignalMetadata {
     }
 }
 impl Serialize for MarketAnalyticsSignalMetadata {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for MarketAnalyticsSignalMetadata {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -1665,12 +1846,14 @@ impl PresentationValue for MarketAnalyticsSignalMetadata {
     }
 }
 impl PresentationExtras for MarketAnalyticsSignalMetadata {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for MarketAnalyticsSignalMetadata {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SignalKey", &BackendDocument(&self.signal_key))?;
@@ -1702,6 +1885,7 @@ impl BackendRecord for MarketAnalyticsSignalMetadata {
     }
 }
 impl Cells for MarketAnalyticsSignalMetadata {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -1719,6 +1903,9 @@ impl Cells for MarketAnalyticsSignalMetadata {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSeriesIdentity`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct MarketSeriesIdentity {
     /// C# Kind, wire slot 0.
@@ -1734,6 +1921,9 @@ pub struct MarketSeriesIdentity {
 impl FromBackend for MarketSeriesIdentity {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSeriesIdentity";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -1749,6 +1939,7 @@ impl FromBackend for MarketSeriesIdentity {
     }
 }
 impl PresentationRecord for MarketSeriesIdentity {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -1786,11 +1977,13 @@ impl PresentationRecord for MarketSeriesIdentity {
     }
 }
 impl Serialize for MarketSeriesIdentity {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for MarketSeriesIdentity {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -1800,12 +1993,14 @@ impl PresentationValue for MarketSeriesIdentity {
     }
 }
 impl PresentationExtras for MarketSeriesIdentity {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for MarketSeriesIdentity {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Kind", &BackendDocument(&self.kind))?;
@@ -1815,6 +2010,7 @@ impl BackendRecord for MarketSeriesIdentity {
     }
 }
 impl Cells for MarketSeriesIdentity {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "kind" | "Kind" => self.kind.scalar_cell(),
@@ -1824,6 +2020,9 @@ impl Cells for MarketSeriesIdentity {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSeriesIdentityKind`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MarketSeriesIdentityKind {
     Unknown,
@@ -1832,6 +2031,7 @@ pub enum MarketSeriesIdentityKind {
     Unrecognized(i64),
 }
 impl MarketSeriesIdentityKind {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -1844,6 +2044,9 @@ impl MarketSeriesIdentityKind {
 impl FromBackend for MarketSeriesIdentityKind {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSeriesIdentityKind";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -1856,6 +2059,7 @@ impl FromBackend for MarketSeriesIdentityKind {
     }
 }
 impl Serialize for MarketSeriesIdentityKind {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -1864,25 +2068,39 @@ impl Serialize for MarketSeriesIdentityKind {
     }
 }
 impl<'de> Deserialize<'de> for MarketSeriesIdentityKind {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = MarketSeriesIdentityKind;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<MarketSeriesIdentityKind, E> {
                 MarketSeriesIdentityKind::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<MarketSeriesIdentityKind, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -1901,6 +2119,7 @@ impl<'de> Deserialize<'de> for MarketSeriesIdentityKind {
     }
 }
 impl ScalarCell for MarketSeriesIdentityKind {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -1909,6 +2128,7 @@ impl ScalarCell for MarketSeriesIdentityKind {
     }
 }
 impl PresentationValue for MarketSeriesIdentityKind {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -1922,6 +2142,7 @@ impl PresentationValue for MarketSeriesIdentityKind {
     }
 }
 impl BackendRecord for MarketSeriesIdentityKind {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -1930,6 +2151,7 @@ impl BackendRecord for MarketSeriesIdentityKind {
     }
 }
 impl PublishedEnum for MarketSeriesIdentityKind {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -1938,6 +2160,9 @@ impl PublishedEnum for MarketSeriesIdentityKind {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSignalCalculationMethod`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MarketSignalCalculationMethod {
     Unknown,
@@ -1947,6 +2172,7 @@ pub enum MarketSignalCalculationMethod {
     Unrecognized(i64),
 }
 impl MarketSignalCalculationMethod {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -1960,6 +2186,9 @@ impl MarketSignalCalculationMethod {
 impl FromBackend for MarketSignalCalculationMethod {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSignalCalculationMethod";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -1973,6 +2202,7 @@ impl FromBackend for MarketSignalCalculationMethod {
     }
 }
 impl Serialize for MarketSignalCalculationMethod {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -1981,25 +2211,39 @@ impl Serialize for MarketSignalCalculationMethod {
     }
 }
 impl<'de> Deserialize<'de> for MarketSignalCalculationMethod {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = MarketSignalCalculationMethod;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<MarketSignalCalculationMethod, E> {
                 MarketSignalCalculationMethod::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<MarketSignalCalculationMethod, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -2021,6 +2265,7 @@ impl<'de> Deserialize<'de> for MarketSignalCalculationMethod {
     }
 }
 impl ScalarCell for MarketSignalCalculationMethod {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -2029,6 +2274,7 @@ impl ScalarCell for MarketSignalCalculationMethod {
     }
 }
 impl PresentationValue for MarketSignalCalculationMethod {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -2042,6 +2288,7 @@ impl PresentationValue for MarketSignalCalculationMethod {
     }
 }
 impl BackendRecord for MarketSignalCalculationMethod {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -2050,6 +2297,7 @@ impl BackendRecord for MarketSignalCalculationMethod {
     }
 }
 impl PublishedEnum for MarketSignalCalculationMethod {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -2058,6 +2306,9 @@ impl PublishedEnum for MarketSignalCalculationMethod {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSignalValidationIssue`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MarketSignalValidationIssue {
     None,
@@ -2073,6 +2324,7 @@ pub enum MarketSignalValidationIssue {
     Unrecognized(i64),
 }
 impl MarketSignalValidationIssue {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::None => "None".into(),
@@ -2092,6 +2344,9 @@ impl MarketSignalValidationIssue {
 impl FromBackend for MarketSignalValidationIssue {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSignalValidationIssue";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -2111,6 +2366,7 @@ impl FromBackend for MarketSignalValidationIssue {
     }
 }
 impl Serialize for MarketSignalValidationIssue {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -2119,25 +2375,39 @@ impl Serialize for MarketSignalValidationIssue {
     }
 }
 impl<'de> Deserialize<'de> for MarketSignalValidationIssue {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = MarketSignalValidationIssue;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<MarketSignalValidationIssue, E> {
                 MarketSignalValidationIssue::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<MarketSignalValidationIssue, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -2163,6 +2433,7 @@ impl<'de> Deserialize<'de> for MarketSignalValidationIssue {
     }
 }
 impl ScalarCell for MarketSignalValidationIssue {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -2171,6 +2442,7 @@ impl ScalarCell for MarketSignalValidationIssue {
     }
 }
 impl PresentationValue for MarketSignalValidationIssue {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -2184,6 +2456,7 @@ impl PresentationValue for MarketSignalValidationIssue {
     }
 }
 impl BackendRecord for MarketSignalValidationIssue {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -2192,6 +2465,7 @@ impl BackendRecord for MarketSignalValidationIssue {
     }
 }
 impl PublishedEnum for MarketSignalValidationIssue {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -2200,6 +2474,9 @@ impl PublishedEnum for MarketSignalValidationIssue {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal.FuturesBbSignalReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesBbSignalReadModel {
     /// C# Metadata, wire slot 0.
@@ -2266,6 +2543,9 @@ pub struct FuturesBbSignalReadModel {
 impl FromBackend for FuturesBbSignalReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal.FuturesBbSignalReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -2321,6 +2601,7 @@ impl FromBackend for FuturesBbSignalReadModel {
     }
 }
 impl PresentationRecord for FuturesBbSignalReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -2477,11 +2758,13 @@ impl PresentationRecord for FuturesBbSignalReadModel {
     }
 }
 impl Serialize for FuturesBbSignalReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesBbSignalReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -2491,12 +2774,14 @@ impl PresentationValue for FuturesBbSignalReadModel {
     }
 }
 impl PresentationExtras for FuturesBbSignalReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesBbSignalReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Metadata", &BackendDocument(&self.metadata))?;
@@ -2535,6 +2820,7 @@ impl BackendRecord for FuturesBbSignalReadModel {
     }
 }
 impl Cells for FuturesBbSignalReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "price" | "Price" => self.price.scalar_cell(),
@@ -2565,6 +2851,9 @@ impl Cells for FuturesBbSignalReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal.FuturesEmaSignalReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesEmaSignalReadModel {
     /// C# Metadata, wire slot 0.
@@ -2625,6 +2914,9 @@ pub struct FuturesEmaSignalReadModel {
 impl FromBackend for FuturesEmaSignalReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal.FuturesEmaSignalReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -2672,6 +2964,7 @@ impl FromBackend for FuturesEmaSignalReadModel {
     }
 }
 impl PresentationRecord for FuturesEmaSignalReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -2814,11 +3107,13 @@ impl PresentationRecord for FuturesEmaSignalReadModel {
     }
 }
 impl Serialize for FuturesEmaSignalReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesEmaSignalReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -2828,12 +3123,14 @@ impl PresentationValue for FuturesEmaSignalReadModel {
     }
 }
 impl PresentationExtras for FuturesEmaSignalReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesEmaSignalReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Metadata", &BackendDocument(&self.metadata))?;
@@ -2864,6 +3161,7 @@ impl BackendRecord for FuturesEmaSignalReadModel {
     }
 }
 impl Cells for FuturesEmaSignalReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "price" | "Price" => self.price.scalar_cell(),
@@ -2888,6 +3186,8 @@ impl Cells for FuturesEmaSignalReadModel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesMDITrendType`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FuturesMDITrendType {
     RangeBound,
@@ -2896,6 +3196,7 @@ pub enum FuturesMDITrendType {
     Unrecognized(i64),
 }
 impl FuturesMDITrendType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::RangeBound => "RangeBound".into(),
@@ -2907,6 +3208,9 @@ impl FuturesMDITrendType {
 }
 impl FromBackend for FuturesMDITrendType {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesMDITrendType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -2919,6 +3223,7 @@ impl FromBackend for FuturesMDITrendType {
     }
 }
 impl Serialize for FuturesMDITrendType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -2927,19 +3232,33 @@ impl Serialize for FuturesMDITrendType {
     }
 }
 impl<'de> Deserialize<'de> for FuturesMDITrendType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = FuturesMDITrendType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<FuturesMDITrendType, E> {
                 FuturesMDITrendType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<FuturesMDITrendType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<FuturesMDITrendType, E> {
                 Ok(match value {
                     "RangeBound" => FuturesMDITrendType::RangeBound,
@@ -2953,6 +3272,7 @@ impl<'de> Deserialize<'de> for FuturesMDITrendType {
     }
 }
 impl ScalarCell for FuturesMDITrendType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -2961,6 +3281,7 @@ impl ScalarCell for FuturesMDITrendType {
     }
 }
 impl PresentationValue for FuturesMDITrendType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -2974,6 +3295,7 @@ impl PresentationValue for FuturesMDITrendType {
     }
 }
 impl BackendRecord for FuturesMDITrendType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -2982,6 +3304,7 @@ impl BackendRecord for FuturesMDITrendType {
     }
 }
 impl PublishedEnum for FuturesMDITrendType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -2990,6 +3313,8 @@ impl PublishedEnum for FuturesMDITrendType {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTdiCrossType`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FuturesTdiCrossType {
     None,
@@ -2998,6 +3323,7 @@ pub enum FuturesTdiCrossType {
     Unrecognized(i64),
 }
 impl FuturesTdiCrossType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::None => "None".into(),
@@ -3009,6 +3335,9 @@ impl FuturesTdiCrossType {
 }
 impl FromBackend for FuturesTdiCrossType {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTdiCrossType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -3021,6 +3350,7 @@ impl FromBackend for FuturesTdiCrossType {
     }
 }
 impl Serialize for FuturesTdiCrossType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3029,19 +3359,33 @@ impl Serialize for FuturesTdiCrossType {
     }
 }
 impl<'de> Deserialize<'de> for FuturesTdiCrossType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = FuturesTdiCrossType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<FuturesTdiCrossType, E> {
                 FuturesTdiCrossType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<FuturesTdiCrossType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<FuturesTdiCrossType, E> {
                 Ok(match value {
                     "None" => FuturesTdiCrossType::None,
@@ -3055,6 +3399,7 @@ impl<'de> Deserialize<'de> for FuturesTdiCrossType {
     }
 }
 impl ScalarCell for FuturesTdiCrossType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -3063,6 +3408,7 @@ impl ScalarCell for FuturesTdiCrossType {
     }
 }
 impl PresentationValue for FuturesTdiCrossType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -3076,6 +3422,7 @@ impl PresentationValue for FuturesTdiCrossType {
     }
 }
 impl BackendRecord for FuturesTdiCrossType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3084,6 +3431,7 @@ impl BackendRecord for FuturesTdiCrossType {
     }
 }
 impl PublishedEnum for FuturesTdiCrossType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -3092,6 +3440,9 @@ impl PublishedEnum for FuturesTdiCrossType {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTdiMarketStateType`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FuturesTdiMarketStateType {
     Unknown,
@@ -3102,6 +3453,7 @@ pub enum FuturesTdiMarketStateType {
     Unrecognized(i64),
 }
 impl FuturesTdiMarketStateType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -3116,6 +3468,9 @@ impl FuturesTdiMarketStateType {
 impl FromBackend for FuturesTdiMarketStateType {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTdiMarketStateType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -3130,6 +3485,7 @@ impl FromBackend for FuturesTdiMarketStateType {
     }
 }
 impl Serialize for FuturesTdiMarketStateType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3138,25 +3494,39 @@ impl Serialize for FuturesTdiMarketStateType {
     }
 }
 impl<'de> Deserialize<'de> for FuturesTdiMarketStateType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = FuturesTdiMarketStateType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<FuturesTdiMarketStateType, E> {
                 FuturesTdiMarketStateType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<FuturesTdiMarketStateType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -3177,6 +3547,7 @@ impl<'de> Deserialize<'de> for FuturesTdiMarketStateType {
     }
 }
 impl ScalarCell for FuturesTdiMarketStateType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -3185,6 +3556,7 @@ impl ScalarCell for FuturesTdiMarketStateType {
     }
 }
 impl PresentationValue for FuturesTdiMarketStateType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -3198,6 +3570,7 @@ impl PresentationValue for FuturesTdiMarketStateType {
     }
 }
 impl BackendRecord for FuturesTdiMarketStateType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3206,6 +3579,7 @@ impl BackendRecord for FuturesTdiMarketStateType {
     }
 }
 impl PublishedEnum for FuturesTdiMarketStateType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -3214,6 +3588,9 @@ impl PublishedEnum for FuturesTdiMarketStateType {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarId`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesTradeSessionBarId {
     /// C# Value, wire slot 0.
@@ -3222,6 +3599,9 @@ pub struct FuturesTradeSessionBarId {
 }
 impl FromBackend for FuturesTradeSessionBarId {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarId";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -3233,6 +3613,7 @@ impl FromBackend for FuturesTradeSessionBarId {
     }
 }
 impl PresentationRecord for FuturesTradeSessionBarId {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -3256,11 +3637,13 @@ impl PresentationRecord for FuturesTradeSessionBarId {
     }
 }
 impl Serialize for FuturesTradeSessionBarId {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesTradeSessionBarId {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -3270,12 +3653,14 @@ impl PresentationValue for FuturesTradeSessionBarId {
     }
 }
 impl PresentationExtras for FuturesTradeSessionBarId {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesTradeSessionBarId {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Value", &BackendDocument(&self.value))?;
@@ -3283,6 +3668,7 @@ impl BackendRecord for FuturesTradeSessionBarId {
     }
 }
 impl Cells for FuturesTradeSessionBarId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "value" | "Value" => self.value.scalar_cell(),
@@ -3291,6 +3677,9 @@ impl Cells for FuturesTradeSessionBarId {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendDirectionStrengthType`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FuturesTrendDirectionStrengthType {
     Low,
@@ -3299,6 +3688,7 @@ pub enum FuturesTrendDirectionStrengthType {
     Unrecognized(i64),
 }
 impl FuturesTrendDirectionStrengthType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Low => "Low".into(),
@@ -3311,6 +3701,9 @@ impl FuturesTrendDirectionStrengthType {
 impl FromBackend for FuturesTrendDirectionStrengthType {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendDirectionStrengthType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -3323,6 +3716,7 @@ impl FromBackend for FuturesTrendDirectionStrengthType {
     }
 }
 impl Serialize for FuturesTrendDirectionStrengthType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3331,13 +3725,21 @@ impl Serialize for FuturesTrendDirectionStrengthType {
     }
 }
 impl<'de> Deserialize<'de> for FuturesTrendDirectionStrengthType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = FuturesTrendDirectionStrengthType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
@@ -3345,12 +3747,18 @@ impl<'de> Deserialize<'de> for FuturesTrendDirectionStrengthType {
                 FuturesTrendDirectionStrengthType::from_backend(&Value::from(value))
                     .map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<FuturesTrendDirectionStrengthType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -3369,6 +3777,7 @@ impl<'de> Deserialize<'de> for FuturesTrendDirectionStrengthType {
     }
 }
 impl ScalarCell for FuturesTrendDirectionStrengthType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -3377,6 +3786,7 @@ impl ScalarCell for FuturesTrendDirectionStrengthType {
     }
 }
 impl PresentationValue for FuturesTrendDirectionStrengthType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -3390,6 +3800,7 @@ impl PresentationValue for FuturesTrendDirectionStrengthType {
     }
 }
 impl BackendRecord for FuturesTrendDirectionStrengthType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3398,6 +3809,7 @@ impl BackendRecord for FuturesTrendDirectionStrengthType {
     }
 }
 impl PublishedEnum for FuturesTrendDirectionStrengthType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -3406,6 +3818,9 @@ impl PublishedEnum for FuturesTrendDirectionStrengthType {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendDirectionType`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FuturesTrendDirectionType {
     Init,
@@ -3416,6 +3831,7 @@ pub enum FuturesTrendDirectionType {
     Unrecognized(i64),
 }
 impl FuturesTrendDirectionType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Init => "Init".into(),
@@ -3430,6 +3846,9 @@ impl FuturesTrendDirectionType {
 impl FromBackend for FuturesTrendDirectionType {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendDirectionType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -3444,6 +3863,7 @@ impl FromBackend for FuturesTrendDirectionType {
     }
 }
 impl Serialize for FuturesTrendDirectionType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3452,25 +3872,39 @@ impl Serialize for FuturesTrendDirectionType {
     }
 }
 impl<'de> Deserialize<'de> for FuturesTrendDirectionType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = FuturesTrendDirectionType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<FuturesTrendDirectionType, E> {
                 FuturesTrendDirectionType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<FuturesTrendDirectionType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -3491,6 +3925,7 @@ impl<'de> Deserialize<'de> for FuturesTrendDirectionType {
     }
 }
 impl ScalarCell for FuturesTrendDirectionType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -3499,6 +3934,7 @@ impl ScalarCell for FuturesTrendDirectionType {
     }
 }
 impl PresentationValue for FuturesTrendDirectionType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -3512,6 +3948,7 @@ impl PresentationValue for FuturesTrendDirectionType {
     }
 }
 impl BackendRecord for FuturesTrendDirectionType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3520,6 +3957,7 @@ impl BackendRecord for FuturesTrendDirectionType {
     }
 }
 impl PublishedEnum for FuturesTrendDirectionType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -3528,6 +3966,9 @@ impl PublishedEnum for FuturesTrendDirectionType {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendStrengthType`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FuturesTrendStrengthType {
     None,
@@ -3537,6 +3978,7 @@ pub enum FuturesTrendStrengthType {
     Unrecognized(i64),
 }
 impl FuturesTrendStrengthType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::None => "None".into(),
@@ -3550,6 +3992,9 @@ impl FuturesTrendStrengthType {
 impl FromBackend for FuturesTrendStrengthType {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendStrengthType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -3563,6 +4008,7 @@ impl FromBackend for FuturesTrendStrengthType {
     }
 }
 impl Serialize for FuturesTrendStrengthType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3571,25 +4017,39 @@ impl Serialize for FuturesTrendStrengthType {
     }
 }
 impl<'de> Deserialize<'de> for FuturesTrendStrengthType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = FuturesTrendStrengthType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<FuturesTrendStrengthType, E> {
                 FuturesTrendStrengthType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<FuturesTrendStrengthType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -3609,6 +4069,7 @@ impl<'de> Deserialize<'de> for FuturesTrendStrengthType {
     }
 }
 impl ScalarCell for FuturesTrendStrengthType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -3617,6 +4078,7 @@ impl ScalarCell for FuturesTrendStrengthType {
     }
 }
 impl PresentationValue for FuturesTrendStrengthType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -3630,6 +4092,7 @@ impl PresentationValue for FuturesTrendStrengthType {
     }
 }
 impl BackendRecord for FuturesTrendStrengthType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3638,6 +4101,7 @@ impl BackendRecord for FuturesTrendStrengthType {
     }
 }
 impl PublishedEnum for FuturesTrendStrengthType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -3646,6 +4110,8 @@ impl PublishedEnum for FuturesTrendStrengthType {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendType`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FuturesTrendType {
     RangeBound,
@@ -3658,6 +4124,7 @@ pub enum FuturesTrendType {
     Unrecognized(i64),
 }
 impl FuturesTrendType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::RangeBound => "RangeBound".into(),
@@ -3673,6 +4140,9 @@ impl FuturesTrendType {
 }
 impl FromBackend for FuturesTrendType {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTrendType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -3689,6 +4159,7 @@ impl FromBackend for FuturesTrendType {
     }
 }
 impl Serialize for FuturesTrendType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3697,19 +4168,33 @@ impl Serialize for FuturesTrendType {
     }
 }
 impl<'de> Deserialize<'de> for FuturesTrendType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = FuturesTrendType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<FuturesTrendType, E> {
                 FuturesTrendType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<FuturesTrendType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<FuturesTrendType, E> {
                 Ok(match value {
                     "RangeBound" => FuturesTrendType::RangeBound,
@@ -3727,6 +4212,7 @@ impl<'de> Deserialize<'de> for FuturesTrendType {
     }
 }
 impl ScalarCell for FuturesTrendType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -3735,6 +4221,7 @@ impl ScalarCell for FuturesTrendType {
     }
 }
 impl PresentationValue for FuturesTrendType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -3748,6 +4235,7 @@ impl PresentationValue for FuturesTrendType {
     }
 }
 impl BackendRecord for FuturesTrendType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3756,6 +4244,7 @@ impl BackendRecord for FuturesTrendType {
     }
 }
 impl PublishedEnum for FuturesTrendType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -3764,6 +4253,9 @@ impl PublishedEnum for FuturesTrendType {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal.FuturesVwapCalculationMethod`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FuturesVwapCalculationMethod {
     Unknown,
@@ -3771,6 +4263,7 @@ pub enum FuturesVwapCalculationMethod {
     Unrecognized(i64),
 }
 impl FuturesVwapCalculationMethod {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -3781,6 +4274,9 @@ impl FuturesVwapCalculationMethod {
 }
 impl FromBackend for FuturesVwapCalculationMethod {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal.FuturesVwapCalculationMethod";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -3792,6 +4288,7 @@ impl FromBackend for FuturesVwapCalculationMethod {
     }
 }
 impl Serialize for FuturesVwapCalculationMethod {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3800,25 +4297,39 @@ impl Serialize for FuturesVwapCalculationMethod {
     }
 }
 impl<'de> Deserialize<'de> for FuturesVwapCalculationMethod {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = FuturesVwapCalculationMethod;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<FuturesVwapCalculationMethod, E> {
                 FuturesVwapCalculationMethod::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<FuturesVwapCalculationMethod, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -3836,6 +4347,7 @@ impl<'de> Deserialize<'de> for FuturesVwapCalculationMethod {
     }
 }
 impl ScalarCell for FuturesVwapCalculationMethod {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -3844,6 +4356,7 @@ impl ScalarCell for FuturesVwapCalculationMethod {
     }
 }
 impl PresentationValue for FuturesVwapCalculationMethod {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -3857,6 +4370,7 @@ impl PresentationValue for FuturesVwapCalculationMethod {
     }
 }
 impl BackendRecord for FuturesVwapCalculationMethod {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3865,6 +4379,7 @@ impl BackendRecord for FuturesVwapCalculationMethod {
     }
 }
 impl PublishedEnum for FuturesVwapCalculationMethod {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -3873,6 +4388,9 @@ impl PublishedEnum for FuturesVwapCalculationMethod {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal.FuturesVwapInvalidReason`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FuturesVwapInvalidReason {
     None,
@@ -3884,6 +4402,7 @@ pub enum FuturesVwapInvalidReason {
     Unrecognized(i64),
 }
 impl FuturesVwapInvalidReason {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::None => "None".into(),
@@ -3899,6 +4418,9 @@ impl FuturesVwapInvalidReason {
 impl FromBackend for FuturesVwapInvalidReason {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal.FuturesVwapInvalidReason";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -3914,6 +4436,7 @@ impl FromBackend for FuturesVwapInvalidReason {
     }
 }
 impl Serialize for FuturesVwapInvalidReason {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3922,25 +4445,39 @@ impl Serialize for FuturesVwapInvalidReason {
     }
 }
 impl<'de> Deserialize<'de> for FuturesVwapInvalidReason {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = FuturesVwapInvalidReason;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<FuturesVwapInvalidReason, E> {
                 FuturesVwapInvalidReason::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<FuturesVwapInvalidReason, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -3964,6 +4501,7 @@ impl<'de> Deserialize<'de> for FuturesVwapInvalidReason {
     }
 }
 impl ScalarCell for FuturesVwapInvalidReason {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -3972,6 +4510,7 @@ impl ScalarCell for FuturesVwapInvalidReason {
     }
 }
 impl PresentationValue for FuturesVwapInvalidReason {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -3985,6 +4524,7 @@ impl PresentationValue for FuturesVwapInvalidReason {
     }
 }
 impl BackendRecord for FuturesVwapInvalidReason {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -3993,6 +4533,7 @@ impl BackendRecord for FuturesVwapInvalidReason {
     }
 }
 impl PublishedEnum for FuturesVwapInvalidReason {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -4001,6 +4542,9 @@ impl PublishedEnum for FuturesVwapInvalidReason {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal.FuturesVwapSignalReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesVwapSignalReadModel {
     /// C# ContractId, wire slot 0.
@@ -4086,6 +4630,9 @@ pub struct FuturesVwapSignalReadModel {
 }
 impl FromBackend for FuturesVwapSignalReadModel {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal.FuturesVwapSignalReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -4161,6 +4708,7 @@ impl FromBackend for FuturesVwapSignalReadModel {
     }
 }
 impl PresentationRecord for FuturesVwapSignalReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -4345,11 +4893,13 @@ impl PresentationRecord for FuturesVwapSignalReadModel {
     }
 }
 impl Serialize for FuturesVwapSignalReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesVwapSignalReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -4359,12 +4909,14 @@ impl PresentationValue for FuturesVwapSignalReadModel {
     }
 }
 impl PresentationExtras for FuturesVwapSignalReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesVwapSignalReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -4422,6 +4974,7 @@ impl BackendRecord for FuturesVwapSignalReadModel {
     }
 }
 impl Cells for FuturesVwapSignalReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -4457,6 +5010,9 @@ impl Cells for FuturesVwapSignalReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.IntrinsicTimeModeType`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IntrinsicTimeModeType {
     Trending,
@@ -4466,9 +5022,12 @@ pub enum IntrinsicTimeModeType {
     PredictedIntervalChanged,
     HoldTradeChanged,
     InTradeChanged,
+    TrendOvershootExtended,
+    TrendOvershootReversal,
     Unrecognized(i64),
 }
 impl IntrinsicTimeModeType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Trending => "Trending".into(),
@@ -4478,6 +5037,8 @@ impl IntrinsicTimeModeType {
             Self::PredictedIntervalChanged => "PredictedIntervalChanged".into(),
             Self::HoldTradeChanged => "HoldTradeChanged".into(),
             Self::InTradeChanged => "InTradeChanged".into(),
+            Self::TrendOvershootExtended => "TrendOvershootExtended".into(),
+            Self::TrendOvershootReversal => "TrendOvershootReversal".into(),
             Self::Unrecognized(value) => value.to_string().into(),
         }
     }
@@ -4485,6 +5046,9 @@ impl IntrinsicTimeModeType {
 impl FromBackend for IntrinsicTimeModeType {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.IntrinsicTimeModeType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -4495,12 +5059,15 @@ impl FromBackend for IntrinsicTimeModeType {
                 4 => Self::PredictedIntervalChanged,
                 5 => Self::HoldTradeChanged,
                 6 => Self::InTradeChanged,
+                7 => Self::TrendOvershootExtended,
+                8 => Self::TrendOvershootReversal,
                 value => Self::Unrecognized(value),
             },
         )
     }
 }
 impl Serialize for IntrinsicTimeModeType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -4509,25 +5076,39 @@ impl Serialize for IntrinsicTimeModeType {
     }
 }
 impl<'de> Deserialize<'de> for IntrinsicTimeModeType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = IntrinsicTimeModeType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<IntrinsicTimeModeType, E> {
                 IntrinsicTimeModeType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<IntrinsicTimeModeType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -4540,6 +5121,8 @@ impl<'de> Deserialize<'de> for IntrinsicTimeModeType {
                     "PredictedIntervalChanged" => IntrinsicTimeModeType::PredictedIntervalChanged,
                     "HoldTradeChanged" => IntrinsicTimeModeType::HoldTradeChanged,
                     "InTradeChanged" => IntrinsicTimeModeType::InTradeChanged,
+                    "TrendOvershootExtended" => IntrinsicTimeModeType::TrendOvershootExtended,
+                    "TrendOvershootReversal" => IntrinsicTimeModeType::TrendOvershootReversal,
                     value => IntrinsicTimeModeType::Unrecognized(value.parse().map_err(E::custom)?),
                 })
             }
@@ -4548,6 +5131,7 @@ impl<'de> Deserialize<'de> for IntrinsicTimeModeType {
     }
 }
 impl ScalarCell for IntrinsicTimeModeType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -4556,6 +5140,7 @@ impl ScalarCell for IntrinsicTimeModeType {
     }
 }
 impl PresentationValue for IntrinsicTimeModeType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -4569,6 +5154,7 @@ impl PresentationValue for IntrinsicTimeModeType {
     }
 }
 impl BackendRecord for IntrinsicTimeModeType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -4577,6 +5163,7 @@ impl BackendRecord for IntrinsicTimeModeType {
     }
 }
 impl PublishedEnum for IntrinsicTimeModeType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -4585,6 +5172,9 @@ impl PublishedEnum for IntrinsicTimeModeType {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.IntrinsicTimeTradeState`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IntrinsicTimeTradeState {
     Ready,
@@ -4594,6 +5184,7 @@ pub enum IntrinsicTimeTradeState {
     Unrecognized(i64),
 }
 impl IntrinsicTimeTradeState {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Ready => "Ready".into(),
@@ -4607,6 +5198,9 @@ impl IntrinsicTimeTradeState {
 impl FromBackend for IntrinsicTimeTradeState {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.IntrinsicTimeTradeState";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -4620,6 +5214,7 @@ impl FromBackend for IntrinsicTimeTradeState {
     }
 }
 impl Serialize for IntrinsicTimeTradeState {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -4628,25 +5223,39 @@ impl Serialize for IntrinsicTimeTradeState {
     }
 }
 impl<'de> Deserialize<'de> for IntrinsicTimeTradeState {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = IntrinsicTimeTradeState;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<IntrinsicTimeTradeState, E> {
                 IntrinsicTimeTradeState::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<IntrinsicTimeTradeState, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -4666,6 +5275,7 @@ impl<'de> Deserialize<'de> for IntrinsicTimeTradeState {
     }
 }
 impl ScalarCell for IntrinsicTimeTradeState {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -4674,6 +5284,7 @@ impl ScalarCell for IntrinsicTimeTradeState {
     }
 }
 impl PresentationValue for IntrinsicTimeTradeState {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -4687,6 +5298,7 @@ impl PresentationValue for IntrinsicTimeTradeState {
     }
 }
 impl BackendRecord for IntrinsicTimeTradeState {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -4695,6 +5307,7 @@ impl BackendRecord for IntrinsicTimeTradeState {
     }
 }
 impl PublishedEnum for IntrinsicTimeTradeState {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -4703,6 +5316,9 @@ impl PublishedEnum for IntrinsicTimeTradeState {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.IntrinsicTimeTrendType`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IntrinsicTimeTrendType {
     UpTrend,
@@ -4710,6 +5326,7 @@ pub enum IntrinsicTimeTrendType {
     Unrecognized(i64),
 }
 impl IntrinsicTimeTrendType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::UpTrend => "UpTrend".into(),
@@ -4721,6 +5338,9 @@ impl IntrinsicTimeTrendType {
 impl FromBackend for IntrinsicTimeTrendType {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.IntrinsicTimeTrendType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -4732,6 +5352,7 @@ impl FromBackend for IntrinsicTimeTrendType {
     }
 }
 impl Serialize for IntrinsicTimeTrendType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -4740,25 +5361,39 @@ impl Serialize for IntrinsicTimeTrendType {
     }
 }
 impl<'de> Deserialize<'de> for IntrinsicTimeTrendType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = IntrinsicTimeTrendType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<IntrinsicTimeTrendType, E> {
                 IntrinsicTimeTrendType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<IntrinsicTimeTrendType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -4776,6 +5411,7 @@ impl<'de> Deserialize<'de> for IntrinsicTimeTrendType {
     }
 }
 impl ScalarCell for IntrinsicTimeTrendType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -4784,6 +5420,7 @@ impl ScalarCell for IntrinsicTimeTrendType {
     }
 }
 impl PresentationValue for IntrinsicTimeTrendType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -4797,6 +5434,7 @@ impl PresentationValue for IntrinsicTimeTrendType {
     }
 }
 impl BackendRecord for IntrinsicTimeTrendType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -4805,6 +5443,7 @@ impl BackendRecord for IntrinsicTimeTrendType {
     }
 }
 impl PublishedEnum for IntrinsicTimeTrendType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -4813,6 +5452,9 @@ impl PublishedEnum for IntrinsicTimeTrendType {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct MarketDecisionEvidence {
     /// C# SchemaVersion, wire slot 0.
@@ -4837,6 +5479,9 @@ pub struct MarketDecisionEvidence {
 impl FromBackend for MarketDecisionEvidence {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -4858,6 +5503,7 @@ impl FromBackend for MarketDecisionEvidence {
     }
 }
 impl PresentationRecord for MarketDecisionEvidence {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -4916,11 +5562,13 @@ impl PresentationRecord for MarketDecisionEvidence {
     }
 }
 impl Serialize for MarketDecisionEvidence {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for MarketDecisionEvidence {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -4930,12 +5578,14 @@ impl PresentationValue for MarketDecisionEvidence {
     }
 }
 impl PresentationExtras for MarketDecisionEvidence {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for MarketDecisionEvidence {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -4948,6 +5598,7 @@ impl BackendRecord for MarketDecisionEvidence {
     }
 }
 impl Cells for MarketDecisionEvidence {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -4961,6 +5612,9 @@ impl Cells for MarketDecisionEvidence {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.OptionIvMetricSnapshot`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct OptionIvMetricSnapshot {
     /// C# SchemaVersion, wire slot 0.
@@ -5097,6 +5751,9 @@ pub struct OptionIvMetricSnapshot {
 impl FromBackend for OptionIvMetricSnapshot {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.OptionIvMetricSnapshot";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -5196,6 +5853,7 @@ impl FromBackend for OptionIvMetricSnapshot {
     }
 }
 impl PresentationRecord for OptionIvMetricSnapshot {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -5422,11 +6080,13 @@ impl PresentationRecord for OptionIvMetricSnapshot {
     }
 }
 impl Serialize for OptionIvMetricSnapshot {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for OptionIvMetricSnapshot {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -5436,12 +6096,14 @@ impl PresentationValue for OptionIvMetricSnapshot {
     }
 }
 impl PresentationExtras for OptionIvMetricSnapshot {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for OptionIvMetricSnapshot {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -5526,6 +6188,7 @@ impl BackendRecord for OptionIvMetricSnapshot {
     }
 }
 impl Cells for OptionIvMetricSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -5581,6 +6244,9 @@ impl Cells for OptionIvMetricSnapshot {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityDependencyRequirement`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VolatilityDependencyRequirement {
     Unspecified,
@@ -5589,6 +6255,7 @@ pub enum VolatilityDependencyRequirement {
     Unrecognized(i64),
 }
 impl VolatilityDependencyRequirement {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unspecified => "Unspecified".into(),
@@ -5600,6 +6267,9 @@ impl VolatilityDependencyRequirement {
 }
 impl FromBackend for VolatilityDependencyRequirement {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityDependencyRequirement";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -5612,6 +6282,7 @@ impl FromBackend for VolatilityDependencyRequirement {
     }
 }
 impl Serialize for VolatilityDependencyRequirement {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -5620,13 +6291,21 @@ impl Serialize for VolatilityDependencyRequirement {
     }
 }
 impl<'de> Deserialize<'de> for VolatilityDependencyRequirement {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = VolatilityDependencyRequirement;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
@@ -5634,12 +6313,18 @@ impl<'de> Deserialize<'de> for VolatilityDependencyRequirement {
                 VolatilityDependencyRequirement::from_backend(&Value::from(value))
                     .map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<VolatilityDependencyRequirement, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -5658,6 +6343,7 @@ impl<'de> Deserialize<'de> for VolatilityDependencyRequirement {
     }
 }
 impl ScalarCell for VolatilityDependencyRequirement {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -5666,6 +6352,7 @@ impl ScalarCell for VolatilityDependencyRequirement {
     }
 }
 impl PresentationValue for VolatilityDependencyRequirement {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -5679,6 +6366,7 @@ impl PresentationValue for VolatilityDependencyRequirement {
     }
 }
 impl BackendRecord for VolatilityDependencyRequirement {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -5687,6 +6375,7 @@ impl BackendRecord for VolatilityDependencyRequirement {
     }
 }
 impl PublishedEnum for VolatilityDependencyRequirement {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -5695,6 +6384,9 @@ impl PublishedEnum for VolatilityDependencyRequirement {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityFreshnessStatus`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VolatilityFreshnessStatus {
     Unspecified,
@@ -5704,6 +6396,7 @@ pub enum VolatilityFreshnessStatus {
     Unrecognized(i64),
 }
 impl VolatilityFreshnessStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unspecified => "Unspecified".into(),
@@ -5717,6 +6410,9 @@ impl VolatilityFreshnessStatus {
 impl FromBackend for VolatilityFreshnessStatus {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityFreshnessStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -5730,6 +6426,7 @@ impl FromBackend for VolatilityFreshnessStatus {
     }
 }
 impl Serialize for VolatilityFreshnessStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -5738,25 +6435,39 @@ impl Serialize for VolatilityFreshnessStatus {
     }
 }
 impl<'de> Deserialize<'de> for VolatilityFreshnessStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = VolatilityFreshnessStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<VolatilityFreshnessStatus, E> {
                 VolatilityFreshnessStatus::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<VolatilityFreshnessStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -5776,6 +6487,7 @@ impl<'de> Deserialize<'de> for VolatilityFreshnessStatus {
     }
 }
 impl ScalarCell for VolatilityFreshnessStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -5784,6 +6496,7 @@ impl ScalarCell for VolatilityFreshnessStatus {
     }
 }
 impl PresentationValue for VolatilityFreshnessStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -5797,6 +6510,7 @@ impl PresentationValue for VolatilityFreshnessStatus {
     }
 }
 impl BackendRecord for VolatilityFreshnessStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -5805,6 +6519,7 @@ impl BackendRecord for VolatilityFreshnessStatus {
     }
 }
 impl PublishedEnum for VolatilityFreshnessStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -5813,6 +6528,9 @@ impl PublishedEnum for VolatilityFreshnessStatus {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityMetricStatus`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VolatilityMetricStatus {
     Unspecified,
@@ -5823,6 +6541,7 @@ pub enum VolatilityMetricStatus {
     Unrecognized(i64),
 }
 impl VolatilityMetricStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unspecified => "Unspecified".into(),
@@ -5837,6 +6556,9 @@ impl VolatilityMetricStatus {
 impl FromBackend for VolatilityMetricStatus {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityMetricStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -5851,6 +6573,7 @@ impl FromBackend for VolatilityMetricStatus {
     }
 }
 impl Serialize for VolatilityMetricStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -5859,25 +6582,39 @@ impl Serialize for VolatilityMetricStatus {
     }
 }
 impl<'de> Deserialize<'de> for VolatilityMetricStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = VolatilityMetricStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<VolatilityMetricStatus, E> {
                 VolatilityMetricStatus::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<VolatilityMetricStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -5900,6 +6637,7 @@ impl<'de> Deserialize<'de> for VolatilityMetricStatus {
     }
 }
 impl ScalarCell for VolatilityMetricStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -5908,6 +6646,7 @@ impl ScalarCell for VolatilityMetricStatus {
     }
 }
 impl PresentationValue for VolatilityMetricStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -5921,6 +6660,7 @@ impl PresentationValue for VolatilityMetricStatus {
     }
 }
 impl BackendRecord for VolatilityMetricStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -5929,6 +6669,7 @@ impl BackendRecord for VolatilityMetricStatus {
     }
 }
 impl PublishedEnum for VolatilityMetricStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -5937,6 +6678,7 @@ impl PublishedEnum for VolatilityMetricStatus {
     }
 }
 
+/// Volatility Metric Unit used by the trade contracts component.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VolatilityMetricUnit {
     Unspecified,
@@ -5944,6 +6686,7 @@ pub enum VolatilityMetricUnit {
     Unrecognized(i64),
 }
 impl VolatilityMetricUnit {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unspecified => "Unspecified".into(),
@@ -5955,6 +6698,9 @@ impl VolatilityMetricUnit {
 impl FromBackend for VolatilityMetricUnit {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityMetricUnit";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -5966,6 +6712,7 @@ impl FromBackend for VolatilityMetricUnit {
     }
 }
 impl Serialize for VolatilityMetricUnit {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -5974,19 +6721,33 @@ impl Serialize for VolatilityMetricUnit {
     }
 }
 impl<'de> Deserialize<'de> for VolatilityMetricUnit {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = VolatilityMetricUnit;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<VolatilityMetricUnit, E> {
                 VolatilityMetricUnit::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<VolatilityMetricUnit, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -6002,6 +6763,7 @@ impl<'de> Deserialize<'de> for VolatilityMetricUnit {
     }
 }
 impl ScalarCell for VolatilityMetricUnit {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -6010,6 +6772,7 @@ impl ScalarCell for VolatilityMetricUnit {
     }
 }
 impl PresentationValue for VolatilityMetricUnit {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -6023,6 +6786,7 @@ impl PresentationValue for VolatilityMetricUnit {
     }
 }
 impl BackendRecord for VolatilityMetricUnit {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -6031,6 +6795,7 @@ impl BackendRecord for VolatilityMetricUnit {
     }
 }
 impl PublishedEnum for VolatilityMetricUnit {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -6039,6 +6804,9 @@ impl PublishedEnum for VolatilityMetricUnit {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilitySeriesIdentity`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct VolatilitySeriesIdentity {
     /// C# SeriesId, wire slot 0.
@@ -6051,6 +6819,9 @@ pub struct VolatilitySeriesIdentity {
 impl FromBackend for VolatilitySeriesIdentity {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilitySeriesIdentity";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -6064,6 +6835,7 @@ impl FromBackend for VolatilitySeriesIdentity {
     }
 }
 impl PresentationRecord for VolatilitySeriesIdentity {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -6094,11 +6866,13 @@ impl PresentationRecord for VolatilitySeriesIdentity {
     }
 }
 impl Serialize for VolatilitySeriesIdentity {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for VolatilitySeriesIdentity {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -6108,12 +6882,14 @@ impl PresentationValue for VolatilitySeriesIdentity {
     }
 }
 impl PresentationExtras for VolatilitySeriesIdentity {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for VolatilitySeriesIdentity {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SeriesId", &BackendDocument(&self.series_id))?;
@@ -6125,6 +6901,7 @@ impl BackendRecord for VolatilitySeriesIdentity {
     }
 }
 impl Cells for VolatilitySeriesIdentity {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "seriesId" | "SeriesId" => self.series_id.scalar_cell(),
@@ -6134,6 +6911,9 @@ impl Cells for VolatilitySeriesIdentity {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityValueUnit`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VolatilityValueUnit {
     Unspecified,
@@ -6141,6 +6921,7 @@ pub enum VolatilityValueUnit {
     Unrecognized(i64),
 }
 impl VolatilityValueUnit {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unspecified => "Unspecified".into(),
@@ -6152,6 +6933,9 @@ impl VolatilityValueUnit {
 impl FromBackend for VolatilityValueUnit {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityValueUnit";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -6163,6 +6947,7 @@ impl FromBackend for VolatilityValueUnit {
     }
 }
 impl Serialize for VolatilityValueUnit {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -6171,19 +6956,33 @@ impl Serialize for VolatilityValueUnit {
     }
 }
 impl<'de> Deserialize<'de> for VolatilityValueUnit {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = VolatilityValueUnit;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<VolatilityValueUnit, E> {
                 VolatilityValueUnit::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<VolatilityValueUnit, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<VolatilityValueUnit, E> {
                 Ok(match value {
                     "Unspecified" => VolatilityValueUnit::Unspecified,
@@ -6196,6 +6995,7 @@ impl<'de> Deserialize<'de> for VolatilityValueUnit {
     }
 }
 impl ScalarCell for VolatilityValueUnit {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -6204,6 +7004,7 @@ impl ScalarCell for VolatilityValueUnit {
     }
 }
 impl PresentationValue for VolatilityValueUnit {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -6217,6 +7018,7 @@ impl PresentationValue for VolatilityValueUnit {
     }
 }
 impl BackendRecord for VolatilityValueUnit {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -6225,6 +7027,7 @@ impl BackendRecord for VolatilityValueUnit {
     }
 }
 impl PublishedEnum for VolatilityValueUnit {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -6233,6 +7036,9 @@ impl PublishedEnum for VolatilityValueUnit {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityWorkflowDependencyPolicy`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct VolatilityWorkflowDependencyPolicy {
     /// C# SchemaVersion, wire slot 0.
@@ -6260,6 +7066,9 @@ pub struct VolatilityWorkflowDependencyPolicy {
 }
 impl FromBackend for VolatilityWorkflowDependencyPolicy {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityWorkflowDependencyPolicy";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -6292,6 +7101,7 @@ impl FromBackend for VolatilityWorkflowDependencyPolicy {
     }
 }
 impl PresentationRecord for VolatilityWorkflowDependencyPolicy {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -6350,11 +7160,13 @@ impl PresentationRecord for VolatilityWorkflowDependencyPolicy {
     }
 }
 impl Serialize for VolatilityWorkflowDependencyPolicy {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for VolatilityWorkflowDependencyPolicy {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -6364,12 +7176,14 @@ impl PresentationValue for VolatilityWorkflowDependencyPolicy {
     }
 }
 impl PresentationExtras for VolatilityWorkflowDependencyPolicy {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for VolatilityWorkflowDependencyPolicy {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -6391,6 +7205,7 @@ impl BackendRecord for VolatilityWorkflowDependencyPolicy {
     }
 }
 impl Cells for VolatilityWorkflowDependencyPolicy {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -6407,6 +7222,9 @@ impl Cells for VolatilityWorkflowDependencyPolicy {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityWorkflowInput`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct VolatilityWorkflowInput {
     /// C# SchemaVersion, wire slot 0.
@@ -6435,6 +7253,9 @@ pub struct VolatilityWorkflowInput {
 impl FromBackend for VolatilityWorkflowInput {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.VolatilityWorkflowInput";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -6458,6 +7279,7 @@ impl FromBackend for VolatilityWorkflowInput {
     }
 }
 impl PresentationRecord for VolatilityWorkflowInput {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -6516,11 +7338,13 @@ impl PresentationRecord for VolatilityWorkflowInput {
     }
 }
 impl Serialize for VolatilityWorkflowInput {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for VolatilityWorkflowInput {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -6530,12 +7354,14 @@ impl PresentationValue for VolatilityWorkflowInput {
     }
 }
 impl PresentationExtras for VolatilityWorkflowInput {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for VolatilityWorkflowInput {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -6551,6 +7377,7 @@ impl BackendRecord for VolatilityWorkflowInput {
     }
 }
 impl Cells for VolatilityWorkflowInput {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -6564,6 +7391,9 @@ impl Cells for VolatilityWorkflowInput {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery.RegimeDiscoverySignalAvailability`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RegimeDiscoverySignalAvailability {
     Available,
@@ -6579,6 +7409,7 @@ pub enum RegimeDiscoverySignalAvailability {
     Unrecognized(i64),
 }
 impl RegimeDiscoverySignalAvailability {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Available => "Available".into(),
@@ -6597,6 +7428,9 @@ impl RegimeDiscoverySignalAvailability {
 }
 impl FromBackend for RegimeDiscoverySignalAvailability {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery.RegimeDiscoverySignalAvailability";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -6616,6 +7450,7 @@ impl FromBackend for RegimeDiscoverySignalAvailability {
     }
 }
 impl Serialize for RegimeDiscoverySignalAvailability {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -6624,13 +7459,21 @@ impl Serialize for RegimeDiscoverySignalAvailability {
     }
 }
 impl<'de> Deserialize<'de> for RegimeDiscoverySignalAvailability {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = RegimeDiscoverySignalAvailability;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
@@ -6638,12 +7481,18 @@ impl<'de> Deserialize<'de> for RegimeDiscoverySignalAvailability {
                 RegimeDiscoverySignalAvailability::from_backend(&Value::from(value))
                     .map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<RegimeDiscoverySignalAvailability, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -6675,6 +7524,7 @@ impl<'de> Deserialize<'de> for RegimeDiscoverySignalAvailability {
     }
 }
 impl ScalarCell for RegimeDiscoverySignalAvailability {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -6683,6 +7533,7 @@ impl ScalarCell for RegimeDiscoverySignalAvailability {
     }
 }
 impl PresentationValue for RegimeDiscoverySignalAvailability {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -6696,6 +7547,7 @@ impl PresentationValue for RegimeDiscoverySignalAvailability {
     }
 }
 impl BackendRecord for RegimeDiscoverySignalAvailability {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -6704,6 +7556,7 @@ impl BackendRecord for RegimeDiscoverySignalAvailability {
     }
 }
 impl PublishedEnum for RegimeDiscoverySignalAvailability {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -6712,6 +7565,9 @@ impl PublishedEnum for RegimeDiscoverySignalAvailability {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery.RegimeDiscoverySignalMetric`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RegimeDiscoverySignalMetric {
     Unknown,
@@ -6750,6 +7606,7 @@ pub enum RegimeDiscoverySignalMetric {
     Unrecognized(i64),
 }
 impl RegimeDiscoverySignalMetric {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -6791,6 +7648,9 @@ impl RegimeDiscoverySignalMetric {
 }
 impl FromBackend for RegimeDiscoverySignalMetric {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery.RegimeDiscoverySignalMetric";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -6833,6 +7693,7 @@ impl FromBackend for RegimeDiscoverySignalMetric {
     }
 }
 impl Serialize for RegimeDiscoverySignalMetric {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -6841,25 +7702,39 @@ impl Serialize for RegimeDiscoverySignalMetric {
     }
 }
 impl<'de> Deserialize<'de> for RegimeDiscoverySignalMetric {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = RegimeDiscoverySignalMetric;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<RegimeDiscoverySignalMetric, E> {
                 RegimeDiscoverySignalMetric::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<RegimeDiscoverySignalMetric, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -6912,6 +7787,7 @@ impl<'de> Deserialize<'de> for RegimeDiscoverySignalMetric {
     }
 }
 impl ScalarCell for RegimeDiscoverySignalMetric {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -6920,6 +7796,7 @@ impl ScalarCell for RegimeDiscoverySignalMetric {
     }
 }
 impl PresentationValue for RegimeDiscoverySignalMetric {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -6933,6 +7810,7 @@ impl PresentationValue for RegimeDiscoverySignalMetric {
     }
 }
 impl BackendRecord for RegimeDiscoverySignalMetric {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -6941,6 +7819,7 @@ impl BackendRecord for RegimeDiscoverySignalMetric {
     }
 }
 impl PublishedEnum for RegimeDiscoverySignalMetric {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -6949,6 +7828,9 @@ impl PublishedEnum for RegimeDiscoverySignalMetric {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery.RegimeDiscoverySignalObservation`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct RegimeDiscoverySignalObservation {
     /// C# Metric, wire slot 0.
@@ -6993,6 +7875,9 @@ pub struct RegimeDiscoverySignalObservation {
 }
 impl FromBackend for RegimeDiscoverySignalObservation {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery.RegimeDiscoverySignalObservation";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -7044,6 +7929,7 @@ impl FromBackend for RegimeDiscoverySignalObservation {
     }
 }
 impl PresentationRecord for RegimeDiscoverySignalObservation {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -7151,11 +8037,13 @@ impl PresentationRecord for RegimeDiscoverySignalObservation {
     }
 }
 impl Serialize for RegimeDiscoverySignalObservation {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for RegimeDiscoverySignalObservation {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -7165,12 +8053,14 @@ impl PresentationValue for RegimeDiscoverySignalObservation {
     }
 }
 impl PresentationExtras for RegimeDiscoverySignalObservation {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for RegimeDiscoverySignalObservation {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Metric", &BackendDocument(&self.metric))?;
@@ -7196,6 +8086,7 @@ impl BackendRecord for RegimeDiscoverySignalObservation {
     }
 }
 impl Cells for RegimeDiscoverySignalObservation {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "metric" | "Metric" => self.metric.scalar_cell(),
@@ -7215,6 +8106,8 @@ impl Cells for RegimeDiscoverySignalObservation {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TimeFrameType {
     None,
@@ -7235,6 +8128,7 @@ pub enum TimeFrameType {
     Unrecognized(i64),
 }
 impl TimeFrameType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::None => "None".into(),
@@ -7258,6 +8152,9 @@ impl TimeFrameType {
 }
 impl FromBackend for TimeFrameType {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -7282,6 +8179,7 @@ impl FromBackend for TimeFrameType {
     }
 }
 impl Serialize for TimeFrameType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -7290,19 +8188,33 @@ impl Serialize for TimeFrameType {
     }
 }
 impl<'de> Deserialize<'de> for TimeFrameType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TimeFrameType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TimeFrameType, E> {
                 TimeFrameType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TimeFrameType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TimeFrameType, E> {
                 Ok(match value {
                     "None" => TimeFrameType::None,
@@ -7328,6 +8240,7 @@ impl<'de> Deserialize<'de> for TimeFrameType {
     }
 }
 impl ScalarCell for TimeFrameType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -7336,6 +8249,7 @@ impl ScalarCell for TimeFrameType {
     }
 }
 impl PresentationValue for TimeFrameType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -7349,6 +8263,7 @@ impl PresentationValue for TimeFrameType {
     }
 }
 impl BackendRecord for TimeFrameType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -7357,6 +8272,7 @@ impl BackendRecord for TimeFrameType {
     }
 }
 impl PublishedEnum for TimeFrameType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -7365,6 +8281,8 @@ impl PublishedEnum for TimeFrameType {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Analytics.Shared.TradeExecuteState`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradeExecuteState {
     No,
@@ -7383,6 +8301,7 @@ pub enum TradeExecuteState {
     Unrecognized(i64),
 }
 impl TradeExecuteState {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::No => "No".into(),
@@ -7404,6 +8323,9 @@ impl TradeExecuteState {
 }
 impl FromBackend for TradeExecuteState {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.TradeExecuteState";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -7426,6 +8348,7 @@ impl FromBackend for TradeExecuteState {
     }
 }
 impl Serialize for TradeExecuteState {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -7434,19 +8357,33 @@ impl Serialize for TradeExecuteState {
     }
 }
 impl<'de> Deserialize<'de> for TradeExecuteState {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradeExecuteState;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TradeExecuteState, E> {
                 TradeExecuteState::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TradeExecuteState, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TradeExecuteState, E> {
                 Ok(match value {
                     "No" => TradeExecuteState::No,
@@ -7470,6 +8407,7 @@ impl<'de> Deserialize<'de> for TradeExecuteState {
     }
 }
 impl ScalarCell for TradeExecuteState {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -7478,6 +8416,7 @@ impl ScalarCell for TradeExecuteState {
     }
 }
 impl PresentationValue for TradeExecuteState {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -7491,6 +8430,7 @@ impl PresentationValue for TradeExecuteState {
     }
 }
 impl BackendRecord for TradeExecuteState {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -7499,6 +8439,7 @@ impl BackendRecord for TradeExecuteState {
     }
 }
 impl PublishedEnum for TradeExecuteState {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -7507,6 +8448,8 @@ impl PublishedEnum for TradeExecuteState {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Analytics.Shared.TradeSignalType`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradeSignalType {
     None,
@@ -7515,6 +8458,7 @@ pub enum TradeSignalType {
     Unrecognized(i64),
 }
 impl TradeSignalType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::None => "None".into(),
@@ -7526,6 +8470,9 @@ impl TradeSignalType {
 }
 impl FromBackend for TradeSignalType {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.TradeSignalType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -7538,6 +8485,7 @@ impl FromBackend for TradeSignalType {
     }
 }
 impl Serialize for TradeSignalType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -7546,19 +8494,33 @@ impl Serialize for TradeSignalType {
     }
 }
 impl<'de> Deserialize<'de> for TradeSignalType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradeSignalType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TradeSignalType, E> {
                 TradeSignalType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TradeSignalType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TradeSignalType, E> {
                 Ok(match value {
                     "None" => TradeSignalType::None,
@@ -7572,6 +8534,7 @@ impl<'de> Deserialize<'de> for TradeSignalType {
     }
 }
 impl ScalarCell for TradeSignalType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -7580,6 +8543,7 @@ impl ScalarCell for TradeSignalType {
     }
 }
 impl PresentationValue for TradeSignalType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -7593,6 +8557,7 @@ impl PresentationValue for TradeSignalType {
     }
 }
 impl BackendRecord for TradeSignalType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -7601,6 +8566,7 @@ impl BackendRecord for TradeSignalType {
     }
 }
 impl PublishedEnum for TradeSignalType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -7609,6 +8575,9 @@ impl PublishedEnum for TradeSignalType {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesAdxSignalReadModel`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesAdxSignalReadModel {
     /// C# ContractId, wire slot 0.
@@ -7654,6 +8623,9 @@ pub struct FuturesAdxSignalReadModel {
 impl FromBackend for FuturesAdxSignalReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesAdxSignalReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -7689,6 +8661,7 @@ impl FromBackend for FuturesAdxSignalReadModel {
     }
 }
 impl PresentationRecord for FuturesAdxSignalReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -7796,11 +8769,13 @@ impl PresentationRecord for FuturesAdxSignalReadModel {
     }
 }
 impl Serialize for FuturesAdxSignalReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesAdxSignalReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -7810,12 +8785,14 @@ impl PresentationValue for FuturesAdxSignalReadModel {
     }
 }
 impl PresentationExtras for FuturesAdxSignalReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesAdxSignalReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -7835,6 +8812,7 @@ impl BackendRecord for FuturesAdxSignalReadModel {
     }
 }
 impl Cells for FuturesAdxSignalReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -7854,6 +8832,9 @@ impl Cells for FuturesAdxSignalReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesAtrSignalReadModel`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesAtrSignalReadModel {
     /// C# ContractId, wire slot 0.
@@ -7905,6 +8886,9 @@ pub struct FuturesAtrSignalReadModel {
 impl FromBackend for FuturesAtrSignalReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesAtrSignalReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -7944,6 +8928,7 @@ impl FromBackend for FuturesAtrSignalReadModel {
     }
 }
 impl PresentationRecord for FuturesAtrSignalReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -8065,11 +9050,13 @@ impl PresentationRecord for FuturesAtrSignalReadModel {
     }
 }
 impl Serialize for FuturesAtrSignalReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesAtrSignalReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -8079,12 +9066,14 @@ impl PresentationValue for FuturesAtrSignalReadModel {
     }
 }
 impl PresentationExtras for FuturesAtrSignalReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesAtrSignalReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -8109,6 +9098,7 @@ impl BackendRecord for FuturesAtrSignalReadModel {
     }
 }
 impl Cells for FuturesAtrSignalReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -8130,6 +9120,9 @@ impl Cells for FuturesAtrSignalReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesItiSignalV2ReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesItiSignalV2ReadModel {
     /// C# ContractId, wire slot 0.
@@ -8225,6 +9218,9 @@ pub struct FuturesItiSignalV2ReadModel {
 impl FromBackend for FuturesItiSignalV2ReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesItiSignalV2ReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -8304,6 +9300,7 @@ impl FromBackend for FuturesItiSignalV2ReadModel {
     }
 }
 impl PresentationRecord for FuturesItiSignalV2ReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -8509,11 +9506,13 @@ impl PresentationRecord for FuturesItiSignalV2ReadModel {
     }
 }
 impl Serialize for FuturesItiSignalV2ReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesItiSignalV2ReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -8523,12 +9522,14 @@ impl PresentationValue for FuturesItiSignalV2ReadModel {
     }
 }
 impl PresentationExtras for FuturesItiSignalV2ReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesItiSignalV2ReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -8580,6 +9581,7 @@ impl BackendRecord for FuturesItiSignalV2ReadModel {
     }
 }
 impl Cells for FuturesItiSignalV2ReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -8620,6 +9622,9 @@ impl Cells for FuturesItiSignalV2ReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesMacdSignalReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesMacdSignalReadModel {
     /// C# ContractId, wire slot 0.
@@ -8680,6 +9685,9 @@ pub struct FuturesMacdSignalReadModel {
 impl FromBackend for FuturesMacdSignalReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesMacdSignalReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -8725,6 +9733,7 @@ impl FromBackend for FuturesMacdSignalReadModel {
     }
 }
 impl PresentationRecord for FuturesMacdSignalReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -8867,11 +9876,13 @@ impl PresentationRecord for FuturesMacdSignalReadModel {
     }
 }
 impl Serialize for FuturesMacdSignalReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesMacdSignalReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -8881,12 +9892,14 @@ impl PresentationValue for FuturesMacdSignalReadModel {
     }
 }
 impl PresentationExtras for FuturesMacdSignalReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesMacdSignalReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -8914,6 +9927,7 @@ impl BackendRecord for FuturesMacdSignalReadModel {
     }
 }
 impl Cells for FuturesMacdSignalReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -8938,6 +9952,9 @@ impl Cells for FuturesMacdSignalReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesRsiSignalReadModel {
     /// C# ContractId, wire slot 0.
@@ -9011,6 +10028,9 @@ pub struct FuturesRsiSignalReadModel {
 impl FromBackend for FuturesRsiSignalReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -9064,6 +10084,7 @@ impl FromBackend for FuturesRsiSignalReadModel {
     }
 }
 impl PresentationRecord for FuturesRsiSignalReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -9227,11 +10248,13 @@ impl PresentationRecord for FuturesRsiSignalReadModel {
     }
 }
 impl Serialize for FuturesRsiSignalReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesRsiSignalReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -9241,12 +10264,14 @@ impl PresentationValue for FuturesRsiSignalReadModel {
     }
 }
 impl PresentationExtras for FuturesRsiSignalReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesRsiSignalReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -9283,6 +10308,7 @@ impl BackendRecord for FuturesRsiSignalReadModel {
     }
 }
 impl Cells for FuturesRsiSignalReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -9312,6 +10338,9 @@ impl Cells for FuturesRsiSignalReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesTdiSignalReadModel`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesTdiSignalReadModel {
     /// C# ContractId, wire slot 0.
@@ -9421,6 +10450,9 @@ pub struct FuturesTdiSignalReadModel {
 impl FromBackend for FuturesTdiSignalReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesTdiSignalReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -9502,6 +10534,7 @@ impl FromBackend for FuturesTdiSignalReadModel {
     }
 }
 impl PresentationRecord for FuturesTdiSignalReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -9721,11 +10754,13 @@ impl PresentationRecord for FuturesTdiSignalReadModel {
     }
 }
 impl Serialize for FuturesTdiSignalReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesTdiSignalReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -9735,12 +10770,14 @@ impl PresentationValue for FuturesTdiSignalReadModel {
     }
 }
 impl PresentationExtras for FuturesTdiSignalReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesTdiSignalReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -9800,6 +10837,7 @@ impl BackendRecord for FuturesTdiSignalReadModel {
     }
 }
 impl Cells for FuturesTdiSignalReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -9848,6 +10886,9 @@ impl Cells for FuturesTdiSignalReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesTradeSignalV2ReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesTradeSignalV2ReadModel {
     /// C# ContractId, wire slot 0.
@@ -9947,6 +10988,9 @@ pub struct FuturesTradeSignalV2ReadModel {
 impl FromBackend for FuturesTradeSignalV2ReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesTradeSignalV2ReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -10032,6 +11076,7 @@ impl FromBackend for FuturesTradeSignalV2ReadModel {
     }
 }
 impl PresentationRecord for FuturesTradeSignalV2ReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -10265,11 +11310,13 @@ impl PresentationRecord for FuturesTradeSignalV2ReadModel {
     }
 }
 impl Serialize for FuturesTradeSignalV2ReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesTradeSignalV2ReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -10279,12 +11326,14 @@ impl PresentationValue for FuturesTradeSignalV2ReadModel {
     }
 }
 impl PresentationExtras for FuturesTradeSignalV2ReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesTradeSignalV2ReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -10340,6 +11389,7 @@ impl BackendRecord for FuturesTradeSignalV2ReadModel {
     }
 }
 impl Cells for FuturesTradeSignalV2ReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -10380,6 +11430,9 @@ impl Cells for FuturesTradeSignalV2ReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.MarketOutlookInputAvailability`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MarketOutlookInputAvailability {
     Unavailable,
@@ -10390,6 +11443,7 @@ pub enum MarketOutlookInputAvailability {
     Unrecognized(i64),
 }
 impl MarketOutlookInputAvailability {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unavailable => "Unavailable".into(),
@@ -10404,6 +11458,9 @@ impl MarketOutlookInputAvailability {
 impl FromBackend for MarketOutlookInputAvailability {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.MarketOutlookInputAvailability";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -10418,6 +11475,7 @@ impl FromBackend for MarketOutlookInputAvailability {
     }
 }
 impl Serialize for MarketOutlookInputAvailability {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -10426,25 +11484,39 @@ impl Serialize for MarketOutlookInputAvailability {
     }
 }
 impl<'de> Deserialize<'de> for MarketOutlookInputAvailability {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = MarketOutlookInputAvailability;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<MarketOutlookInputAvailability, E> {
                 MarketOutlookInputAvailability::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<MarketOutlookInputAvailability, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -10465,6 +11537,7 @@ impl<'de> Deserialize<'de> for MarketOutlookInputAvailability {
     }
 }
 impl ScalarCell for MarketOutlookInputAvailability {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -10473,6 +11546,7 @@ impl ScalarCell for MarketOutlookInputAvailability {
     }
 }
 impl PresentationValue for MarketOutlookInputAvailability {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -10486,6 +11560,7 @@ impl PresentationValue for MarketOutlookInputAvailability {
     }
 }
 impl BackendRecord for MarketOutlookInputAvailability {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -10494,6 +11569,7 @@ impl BackendRecord for MarketOutlookInputAvailability {
     }
 }
 impl PublishedEnum for MarketOutlookInputAvailability {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -10502,6 +11578,9 @@ impl PublishedEnum for MarketOutlookInputAvailability {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.MarketOutlookReadModel`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct MarketOutlookReadModel {
     /// C# ContractId, wire slot 0.
@@ -10628,6 +11707,9 @@ pub struct MarketOutlookReadModel {
 impl FromBackend for MarketOutlookReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.MarketOutlookReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -10723,6 +11805,7 @@ impl FromBackend for MarketOutlookReadModel {
     }
 }
 impl PresentationRecord for MarketOutlookReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -10991,11 +12074,13 @@ impl PresentationRecord for MarketOutlookReadModel {
     }
 }
 impl Serialize for MarketOutlookReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for MarketOutlookReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -11005,12 +12090,14 @@ impl PresentationValue for MarketOutlookReadModel {
     }
 }
 impl PresentationExtras for MarketOutlookReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for MarketOutlookReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -11110,6 +12197,7 @@ impl BackendRecord for MarketOutlookReadModel {
     }
 }
 impl Cells for MarketOutlookReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -11143,6 +12231,9 @@ impl Cells for MarketOutlookReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.MarketOutlookRefreshTrigger`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MarketOutlookRefreshTrigger {
     None,
@@ -11154,6 +12245,7 @@ pub enum MarketOutlookRefreshTrigger {
     Unrecognized(i64),
 }
 impl MarketOutlookRefreshTrigger {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::None => "None".into(),
@@ -11169,6 +12261,9 @@ impl MarketOutlookRefreshTrigger {
 impl FromBackend for MarketOutlookRefreshTrigger {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.MarketOutlookRefreshTrigger";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -11184,6 +12279,7 @@ impl FromBackend for MarketOutlookRefreshTrigger {
     }
 }
 impl Serialize for MarketOutlookRefreshTrigger {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11192,25 +12288,39 @@ impl Serialize for MarketOutlookRefreshTrigger {
     }
 }
 impl<'de> Deserialize<'de> for MarketOutlookRefreshTrigger {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = MarketOutlookRefreshTrigger;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<MarketOutlookRefreshTrigger, E> {
                 MarketOutlookRefreshTrigger::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<MarketOutlookRefreshTrigger, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -11232,6 +12342,7 @@ impl<'de> Deserialize<'de> for MarketOutlookRefreshTrigger {
     }
 }
 impl ScalarCell for MarketOutlookRefreshTrigger {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -11240,6 +12351,7 @@ impl ScalarCell for MarketOutlookRefreshTrigger {
     }
 }
 impl PresentationValue for MarketOutlookRefreshTrigger {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -11253,6 +12365,7 @@ impl PresentationValue for MarketOutlookRefreshTrigger {
     }
 }
 impl BackendRecord for MarketOutlookRefreshTrigger {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11261,6 +12374,7 @@ impl BackendRecord for MarketOutlookRefreshTrigger {
     }
 }
 impl PublishedEnum for MarketOutlookRefreshTrigger {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -11269,6 +12383,9 @@ impl PublishedEnum for MarketOutlookRefreshTrigger {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.MarketOutlookSnapshotSource`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MarketOutlookSnapshotSource {
     Unknown,
@@ -11277,6 +12394,7 @@ pub enum MarketOutlookSnapshotSource {
     Unrecognized(i64),
 }
 impl MarketOutlookSnapshotSource {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -11289,6 +12407,9 @@ impl MarketOutlookSnapshotSource {
 impl FromBackend for MarketOutlookSnapshotSource {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.MarketOutlookSnapshotSource";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -11301,6 +12422,7 @@ impl FromBackend for MarketOutlookSnapshotSource {
     }
 }
 impl Serialize for MarketOutlookSnapshotSource {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11309,25 +12431,39 @@ impl Serialize for MarketOutlookSnapshotSource {
     }
 }
 impl<'de> Deserialize<'de> for MarketOutlookSnapshotSource {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = MarketOutlookSnapshotSource;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<MarketOutlookSnapshotSource, E> {
                 MarketOutlookSnapshotSource::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<MarketOutlookSnapshotSource, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -11346,6 +12482,7 @@ impl<'de> Deserialize<'de> for MarketOutlookSnapshotSource {
     }
 }
 impl ScalarCell for MarketOutlookSnapshotSource {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -11354,6 +12491,7 @@ impl ScalarCell for MarketOutlookSnapshotSource {
     }
 }
 impl PresentationValue for MarketOutlookSnapshotSource {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -11367,6 +12505,7 @@ impl PresentationValue for MarketOutlookSnapshotSource {
     }
 }
 impl BackendRecord for MarketOutlookSnapshotSource {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11375,6 +12514,7 @@ impl BackendRecord for MarketOutlookSnapshotSource {
     }
 }
 impl PublishedEnum for MarketOutlookSnapshotSource {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -11383,6 +12523,8 @@ impl PublishedEnum for MarketOutlookSnapshotSource {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Feed.Shared.BarRateType`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BarRateType {
     Minute,
@@ -11390,6 +12532,7 @@ pub enum BarRateType {
     Unrecognized(i64),
 }
 impl BarRateType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Minute => "Minute".into(),
@@ -11400,6 +12543,9 @@ impl BarRateType {
 }
 impl FromBackend for BarRateType {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Feed.Shared.BarRateType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -11411,6 +12557,7 @@ impl FromBackend for BarRateType {
     }
 }
 impl Serialize for BarRateType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11419,19 +12566,33 @@ impl Serialize for BarRateType {
     }
 }
 impl<'de> Deserialize<'de> for BarRateType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = BarRateType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<BarRateType, E> {
                 BarRateType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<BarRateType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<BarRateType, E> {
                 Ok(match value {
                     "Minute" => BarRateType::Minute,
@@ -11444,6 +12605,7 @@ impl<'de> Deserialize<'de> for BarRateType {
     }
 }
 impl ScalarCell for BarRateType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -11452,6 +12614,7 @@ impl ScalarCell for BarRateType {
     }
 }
 impl PresentationValue for BarRateType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -11465,6 +12628,7 @@ impl PresentationValue for BarRateType {
     }
 }
 impl BackendRecord for BarRateType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11473,6 +12637,7 @@ impl BackendRecord for BarRateType {
     }
 }
 impl PublishedEnum for BarRateType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -11481,6 +12646,9 @@ impl PublishedEnum for BarRateType {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesBarDataReadModel`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesBarDataReadModel {
     /// C# ContractId, wire slot 0.
@@ -11511,6 +12679,9 @@ pub struct FuturesBarDataReadModel {
 impl FromBackend for FuturesBarDataReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesBarDataReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -11536,6 +12707,7 @@ impl FromBackend for FuturesBarDataReadModel {
     }
 }
 impl PresentationRecord for FuturesBarDataReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -11608,11 +12780,13 @@ impl PresentationRecord for FuturesBarDataReadModel {
     }
 }
 impl Serialize for FuturesBarDataReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesBarDataReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -11622,12 +12796,14 @@ impl PresentationValue for FuturesBarDataReadModel {
     }
 }
 impl PresentationExtras for FuturesBarDataReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesBarDataReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -11645,6 +12821,7 @@ impl BackendRecord for FuturesBarDataReadModel {
     }
 }
 impl Cells for FuturesBarDataReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -11660,6 +12837,8 @@ impl Cells for FuturesBarDataReadModel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Shared.MarketDirectionType`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MarketDirectionType {
     Down,
@@ -11669,6 +12848,7 @@ pub enum MarketDirectionType {
     Unrecognized(i64),
 }
 impl MarketDirectionType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Down => "Down".into(),
@@ -11681,6 +12861,9 @@ impl MarketDirectionType {
 }
 impl FromBackend for MarketDirectionType {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Shared.MarketDirectionType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -11694,6 +12877,7 @@ impl FromBackend for MarketDirectionType {
     }
 }
 impl Serialize for MarketDirectionType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11702,19 +12886,33 @@ impl Serialize for MarketDirectionType {
     }
 }
 impl<'de> Deserialize<'de> for MarketDirectionType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = MarketDirectionType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<MarketDirectionType, E> {
                 MarketDirectionType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<MarketDirectionType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<MarketDirectionType, E> {
                 Ok(match value {
                     "Down" => MarketDirectionType::Down,
@@ -11729,6 +12927,7 @@ impl<'de> Deserialize<'de> for MarketDirectionType {
     }
 }
 impl ScalarCell for MarketDirectionType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -11737,6 +12936,7 @@ impl ScalarCell for MarketDirectionType {
     }
 }
 impl PresentationValue for MarketDirectionType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -11750,6 +12950,7 @@ impl PresentationValue for MarketDirectionType {
     }
 }
 impl BackendRecord for MarketDirectionType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11758,6 +12959,7 @@ impl BackendRecord for MarketDirectionType {
     }
 }
 impl PublishedEnum for MarketDirectionType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -11766,6 +12968,8 @@ impl PublishedEnum for MarketDirectionType {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Shared.MarketVolatilityType`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MarketVolatilityType {
     Low,
@@ -11776,6 +12980,7 @@ pub enum MarketVolatilityType {
     Unrecognized(i64),
 }
 impl MarketVolatilityType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Low => "Low".into(),
@@ -11789,6 +12994,9 @@ impl MarketVolatilityType {
 }
 impl FromBackend for MarketVolatilityType {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Shared.MarketVolatilityType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -11803,6 +13011,7 @@ impl FromBackend for MarketVolatilityType {
     }
 }
 impl Serialize for MarketVolatilityType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11811,19 +13020,33 @@ impl Serialize for MarketVolatilityType {
     }
 }
 impl<'de> Deserialize<'de> for MarketVolatilityType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = MarketVolatilityType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<MarketVolatilityType, E> {
                 MarketVolatilityType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<MarketVolatilityType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -11842,6 +13065,7 @@ impl<'de> Deserialize<'de> for MarketVolatilityType {
     }
 }
 impl ScalarCell for MarketVolatilityType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -11850,6 +13074,7 @@ impl ScalarCell for MarketVolatilityType {
     }
 }
 impl PresentationValue for MarketVolatilityType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -11863,6 +13088,7 @@ impl PresentationValue for MarketVolatilityType {
     }
 }
 impl BackendRecord for MarketVolatilityType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11871,6 +13097,7 @@ impl BackendRecord for MarketVolatilityType {
     }
 }
 impl PublishedEnum for MarketVolatilityType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -11879,6 +13106,8 @@ impl PublishedEnum for MarketVolatilityType {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Shared.OptionType`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OptionType {
     Put,
@@ -11886,6 +13115,7 @@ pub enum OptionType {
     Unrecognized(i64),
 }
 impl OptionType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Put => "Put".into(),
@@ -11896,6 +13126,9 @@ impl OptionType {
 }
 impl FromBackend for OptionType {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Shared.OptionType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -11907,6 +13140,7 @@ impl FromBackend for OptionType {
     }
 }
 impl Serialize for OptionType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11915,19 +13149,33 @@ impl Serialize for OptionType {
     }
 }
 impl<'de> Deserialize<'de> for OptionType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = OptionType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<OptionType, E> {
                 OptionType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<OptionType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<OptionType, E> {
                 Ok(match value {
                     "Put" => OptionType::Put,
@@ -11940,6 +13188,7 @@ impl<'de> Deserialize<'de> for OptionType {
     }
 }
 impl ScalarCell for OptionType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -11948,6 +13197,7 @@ impl ScalarCell for OptionType {
     }
 }
 impl PresentationValue for OptionType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -11961,6 +13211,7 @@ impl PresentationValue for OptionType {
     }
 }
 impl BackendRecord for OptionType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -11969,6 +13220,7 @@ impl BackendRecord for OptionType {
     }
 }
 impl PublishedEnum for OptionType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -11977,6 +13229,8 @@ impl PublishedEnum for OptionType {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Shared.PriceDirectionType`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PriceDirectionType {
     Rising,
@@ -11987,6 +13241,7 @@ pub enum PriceDirectionType {
     Unrecognized(i64),
 }
 impl PriceDirectionType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Rising => "Rising".into(),
@@ -12000,6 +13255,9 @@ impl PriceDirectionType {
 }
 impl FromBackend for PriceDirectionType {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Shared.PriceDirectionType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -12014,6 +13272,7 @@ impl FromBackend for PriceDirectionType {
     }
 }
 impl Serialize for PriceDirectionType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -12022,19 +13281,33 @@ impl Serialize for PriceDirectionType {
     }
 }
 impl<'de> Deserialize<'de> for PriceDirectionType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = PriceDirectionType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<PriceDirectionType, E> {
                 PriceDirectionType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<PriceDirectionType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<PriceDirectionType, E> {
                 Ok(match value {
                     "Rising" => PriceDirectionType::Rising,
@@ -12050,6 +13323,7 @@ impl<'de> Deserialize<'de> for PriceDirectionType {
     }
 }
 impl ScalarCell for PriceDirectionType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -12058,6 +13332,7 @@ impl ScalarCell for PriceDirectionType {
     }
 }
 impl PresentationValue for PriceDirectionType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -12071,6 +13346,7 @@ impl PresentationValue for PriceDirectionType {
     }
 }
 impl BackendRecord for PriceDirectionType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -12079,6 +13355,7 @@ impl BackendRecord for PriceDirectionType {
     }
 }
 impl PublishedEnum for PriceDirectionType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -12087,6 +13364,8 @@ impl PublishedEnum for PriceDirectionType {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.MarketData.Shared.PriceVolatilityType`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PriceVolatilityType {
     Unknown,
@@ -12096,6 +13375,7 @@ pub enum PriceVolatilityType {
     Unrecognized(i64),
 }
 impl PriceVolatilityType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -12108,6 +13388,9 @@ impl PriceVolatilityType {
 }
 impl FromBackend for PriceVolatilityType {
     const KIND: &'static str = "TomasAI.IFM.Domain.MarketData.Shared.PriceVolatilityType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -12121,6 +13404,7 @@ impl FromBackend for PriceVolatilityType {
     }
 }
 impl Serialize for PriceVolatilityType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -12129,19 +13413,33 @@ impl Serialize for PriceVolatilityType {
     }
 }
 impl<'de> Deserialize<'de> for PriceVolatilityType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = PriceVolatilityType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<PriceVolatilityType, E> {
                 PriceVolatilityType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<PriceVolatilityType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<PriceVolatilityType, E> {
                 Ok(match value {
                     "Unknown" => PriceVolatilityType::Unknown,
@@ -12156,6 +13454,7 @@ impl<'de> Deserialize<'de> for PriceVolatilityType {
     }
 }
 impl ScalarCell for PriceVolatilityType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -12164,6 +13463,7 @@ impl ScalarCell for PriceVolatilityType {
     }
 }
 impl PresentationValue for PriceVolatilityType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -12177,6 +13477,7 @@ impl PresentationValue for PriceVolatilityType {
     }
 }
 impl BackendRecord for PriceVolatilityType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -12185,6 +13486,7 @@ impl BackendRecord for PriceVolatilityType {
     }
 }
 impl PublishedEnum for PriceVolatilityType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -12193,6 +13495,9 @@ impl PublishedEnum for PriceVolatilityType {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Shared.ViewModels.EvaluatedOptionChainReadModel`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct EvaluatedOptionChainReadModel {
     /// C# UnderlyingContractId, wire slot 0.
@@ -12280,6 +13585,9 @@ pub struct EvaluatedOptionChainReadModel {
 impl FromBackend for EvaluatedOptionChainReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.EvaluatedOptionChainReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -12359,6 +13667,7 @@ impl FromBackend for EvaluatedOptionChainReadModel {
     }
 }
 impl PresentationRecord for EvaluatedOptionChainReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -12508,11 +13817,13 @@ impl PresentationRecord for EvaluatedOptionChainReadModel {
     }
 }
 impl Serialize for EvaluatedOptionChainReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for EvaluatedOptionChainReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -12522,12 +13833,14 @@ impl PresentationValue for EvaluatedOptionChainReadModel {
     }
 }
 impl PresentationExtras for EvaluatedOptionChainReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for EvaluatedOptionChainReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry(
@@ -12586,6 +13899,7 @@ impl BackendRecord for EvaluatedOptionChainReadModel {
     }
 }
 impl Cells for EvaluatedOptionChainReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "underlyingContractId" | "UnderlyingContractId" => {
@@ -12625,6 +13939,9 @@ impl Cells for EvaluatedOptionChainReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Shared.ViewModels.EvaluatedOptionContractReadModel`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct EvaluatedOptionContractReadModel {
     /// C# ContractId, wire slot 0.
@@ -12730,6 +14047,9 @@ pub struct EvaluatedOptionContractReadModel {
 impl FromBackend for EvaluatedOptionContractReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.EvaluatedOptionContractReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -12827,6 +14147,7 @@ impl FromBackend for EvaluatedOptionContractReadModel {
     }
 }
 impl PresentationRecord for EvaluatedOptionContractReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -13046,11 +14367,13 @@ impl PresentationRecord for EvaluatedOptionContractReadModel {
     }
 }
 impl Serialize for EvaluatedOptionContractReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for EvaluatedOptionContractReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -13060,12 +14383,14 @@ impl PresentationValue for EvaluatedOptionContractReadModel {
     }
 }
 impl PresentationExtras for EvaluatedOptionContractReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for EvaluatedOptionContractReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -13119,6 +14444,7 @@ impl BackendRecord for EvaluatedOptionContractReadModel {
     }
 }
 impl Cells for EvaluatedOptionContractReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -13163,6 +14489,9 @@ impl Cells for EvaluatedOptionContractReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesContractV3ReadModel {
     /// C# ContractId, wire slot 0.
@@ -13273,6 +14602,9 @@ pub struct FuturesContractV3ReadModel {
 impl FromBackend for FuturesContractV3ReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -13358,6 +14690,7 @@ impl FromBackend for FuturesContractV3ReadModel {
     }
 }
 impl PresentationRecord for FuturesContractV3ReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -13598,11 +14931,13 @@ impl PresentationRecord for FuturesContractV3ReadModel {
     }
 }
 impl Serialize for FuturesContractV3ReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesContractV3ReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -13612,12 +14947,14 @@ impl PresentationValue for FuturesContractV3ReadModel {
     }
 }
 impl PresentationExtras for FuturesContractV3ReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesContractV3ReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -13674,6 +15011,7 @@ impl BackendRecord for FuturesContractV3ReadModel {
     }
 }
 impl Cells for FuturesContractV3ReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -13717,6 +15055,9 @@ impl Cells for FuturesContractV3ReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesEodDataV2ReadModel`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesEodDataV2ReadModel {
     /// C# ContractId, wire slot 0.
@@ -13793,6 +15134,9 @@ pub struct FuturesEodDataV2ReadModel {
 impl FromBackend for FuturesEodDataV2ReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesEodDataV2ReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -13852,6 +15196,7 @@ impl FromBackend for FuturesEodDataV2ReadModel {
     }
 }
 impl PresentationRecord for FuturesEodDataV2ReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -14022,11 +15367,13 @@ impl PresentationRecord for FuturesEodDataV2ReadModel {
     }
 }
 impl Serialize for FuturesEodDataV2ReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesEodDataV2ReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -14036,12 +15383,14 @@ impl PresentationValue for FuturesEodDataV2ReadModel {
     }
 }
 impl PresentationExtras for FuturesEodDataV2ReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FuturesEodDataV2ReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ContractId", &BackendDocument(&self.contract_id))?;
@@ -14082,6 +15431,7 @@ impl BackendRecord for FuturesEodDataV2ReadModel {
     }
 }
 impl Cells for FuturesEodDataV2ReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "contractId" | "ContractId" => self.contract_id.scalar_cell(),
@@ -14113,6 +15463,9 @@ impl Cells for FuturesEodDataV2ReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FuturesOptionTickDataV2ReadModel {
     /// C# ContractId, wire slot 0.
@@ -14230,6 +15583,9 @@ pub struct FuturesOptionTickDataV2ReadModel {
 impl FromBackend for FuturesOptionTickDataV2ReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -14348,6 +15704,7 @@ impl FromBackend for FuturesOptionTickDataV2ReadModel {
     }
 }
 impl PresentationRecord for FuturesOptionTickDataV2ReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -14595,11 +15952,13 @@ impl PresentationRecord for FuturesOptionTickDataV2ReadModel {
     }
 }
 impl Serialize for FuturesOptionTickDataV2ReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FuturesOptionTickDataV2ReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -14609,6 +15968,7 @@ impl PresentationValue for FuturesOptionTickDataV2ReadModel {
     }
 }
 impl BackendRecord for FuturesOptionTickDataV2ReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Volume", &BackendDocument(&self.volume))?;
@@ -14672,6 +16032,7 @@ impl BackendRecord for FuturesOptionTickDataV2ReadModel {
     }
 }
 impl Cells for FuturesOptionTickDataV2ReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "volume" | "Volume" => self.volume.scalar_cell(),
@@ -14719,6 +16080,9 @@ impl Cells for FuturesOptionTickDataV2ReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Shared.ViewModels.OptionContractExpiryReadModel`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct OptionContractExpiryReadModel {
     /// C# Symbol, wire slot 0.
@@ -14743,6 +16107,9 @@ pub struct OptionContractExpiryReadModel {
 impl FromBackend for OptionContractExpiryReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.OptionContractExpiryReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -14766,6 +16133,7 @@ impl FromBackend for OptionContractExpiryReadModel {
     }
 }
 impl PresentationRecord for OptionContractExpiryReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -14824,11 +16192,13 @@ impl PresentationRecord for OptionContractExpiryReadModel {
     }
 }
 impl Serialize for OptionContractExpiryReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for OptionContractExpiryReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -14838,12 +16208,14 @@ impl PresentationValue for OptionContractExpiryReadModel {
     }
 }
 impl PresentationExtras for OptionContractExpiryReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for OptionContractExpiryReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Symbol", &BackendDocument(&self.symbol))?;
@@ -14856,6 +16228,7 @@ impl BackendRecord for OptionContractExpiryReadModel {
     }
 }
 impl Cells for OptionContractExpiryReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "symbol" | "Symbol" => self.symbol.scalar_cell(),
@@ -14869,6 +16242,9 @@ impl Cells for OptionContractExpiryReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Shared.ViewModels.OptionTickPricingInputs`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct OptionTickPricingInputs {
     /// C# Currency, wire slot 0.
@@ -14909,6 +16285,9 @@ pub struct OptionTickPricingInputs {
 impl FromBackend for OptionTickPricingInputs {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.OptionTickPricingInputs";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -14940,6 +16319,7 @@ impl FromBackend for OptionTickPricingInputs {
     }
 }
 impl PresentationRecord for OptionTickPricingInputs {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -15026,11 +16406,13 @@ impl PresentationRecord for OptionTickPricingInputs {
     }
 }
 impl Serialize for OptionTickPricingInputs {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for OptionTickPricingInputs {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -15040,12 +16422,14 @@ impl PresentationValue for OptionTickPricingInputs {
     }
 }
 impl PresentationExtras for OptionTickPricingInputs {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for OptionTickPricingInputs {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Currency", &BackendDocument(&self.currency))?;
@@ -15071,6 +16455,7 @@ impl BackendRecord for OptionTickPricingInputs {
     }
 }
 impl Cells for OptionTickPricingInputs {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "currency" | "Currency" => self.currency.scalar_cell(),
@@ -15090,6 +16475,9 @@ impl Cells for OptionTickPricingInputs {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceReviewState`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReferenceReviewState {
     Unknown,
@@ -15098,6 +16486,7 @@ pub enum ReferenceReviewState {
     Unrecognized(i64),
 }
 impl ReferenceReviewState {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -15110,6 +16499,9 @@ impl ReferenceReviewState {
 impl FromBackend for ReferenceReviewState {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceReviewState";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -15122,6 +16514,7 @@ impl FromBackend for ReferenceReviewState {
     }
 }
 impl Serialize for ReferenceReviewState {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15130,19 +16523,33 @@ impl Serialize for ReferenceReviewState {
     }
 }
 impl<'de> Deserialize<'de> for ReferenceReviewState {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ReferenceReviewState;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<ReferenceReviewState, E> {
                 ReferenceReviewState::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<ReferenceReviewState, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -15159,6 +16566,7 @@ impl<'de> Deserialize<'de> for ReferenceReviewState {
     }
 }
 impl ScalarCell for ReferenceReviewState {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -15167,6 +16575,7 @@ impl ScalarCell for ReferenceReviewState {
     }
 }
 impl PresentationValue for ReferenceReviewState {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -15180,6 +16589,7 @@ impl PresentationValue for ReferenceReviewState {
     }
 }
 impl BackendRecord for ReferenceReviewState {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15188,6 +16598,7 @@ impl BackendRecord for ReferenceReviewState {
     }
 }
 impl PublishedEnum for ReferenceReviewState {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -15196,6 +16607,9 @@ impl PublishedEnum for ReferenceReviewState {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceSettlementStyle`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReferenceSettlementStyle {
     Unknown,
@@ -15205,6 +16619,7 @@ pub enum ReferenceSettlementStyle {
     Unrecognized(i64),
 }
 impl ReferenceSettlementStyle {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -15218,6 +16633,9 @@ impl ReferenceSettlementStyle {
 impl FromBackend for ReferenceSettlementStyle {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceSettlementStyle";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -15231,6 +16649,7 @@ impl FromBackend for ReferenceSettlementStyle {
     }
 }
 impl Serialize for ReferenceSettlementStyle {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15239,25 +16658,39 @@ impl Serialize for ReferenceSettlementStyle {
     }
 }
 impl<'de> Deserialize<'de> for ReferenceSettlementStyle {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ReferenceSettlementStyle;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<ReferenceSettlementStyle, E> {
                 ReferenceSettlementStyle::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<ReferenceSettlementStyle, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -15277,6 +16710,7 @@ impl<'de> Deserialize<'de> for ReferenceSettlementStyle {
     }
 }
 impl ScalarCell for ReferenceSettlementStyle {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -15285,6 +16719,7 @@ impl ScalarCell for ReferenceSettlementStyle {
     }
 }
 impl PresentationValue for ReferenceSettlementStyle {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -15298,6 +16733,7 @@ impl PresentationValue for ReferenceSettlementStyle {
     }
 }
 impl BackendRecord for ReferenceSettlementStyle {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15306,6 +16742,7 @@ impl BackendRecord for ReferenceSettlementStyle {
     }
 }
 impl PublishedEnum for ReferenceSettlementStyle {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -15314,6 +16751,8 @@ impl PublishedEnum for ReferenceSettlementStyle {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Contracts.CompositionOrigin`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CompositionOrigin {
     Unknown,
@@ -15323,6 +16762,7 @@ pub enum CompositionOrigin {
     Unrecognized(i64),
 }
 impl CompositionOrigin {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -15335,6 +16775,9 @@ impl CompositionOrigin {
 }
 impl FromBackend for CompositionOrigin {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.CompositionOrigin";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -15348,6 +16791,7 @@ impl FromBackend for CompositionOrigin {
     }
 }
 impl Serialize for CompositionOrigin {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15356,19 +16800,33 @@ impl Serialize for CompositionOrigin {
     }
 }
 impl<'de> Deserialize<'de> for CompositionOrigin {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = CompositionOrigin;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<CompositionOrigin, E> {
                 CompositionOrigin::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<CompositionOrigin, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<CompositionOrigin, E> {
                 Ok(match value {
                     "Unknown" => CompositionOrigin::Unknown,
@@ -15383,6 +16841,7 @@ impl<'de> Deserialize<'de> for CompositionOrigin {
     }
 }
 impl ScalarCell for CompositionOrigin {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -15391,6 +16850,7 @@ impl ScalarCell for CompositionOrigin {
     }
 }
 impl PresentationValue for CompositionOrigin {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -15404,6 +16864,7 @@ impl PresentationValue for CompositionOrigin {
     }
 }
 impl BackendRecord for CompositionOrigin {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15412,6 +16873,7 @@ impl BackendRecord for CompositionOrigin {
     }
 }
 impl PublishedEnum for CompositionOrigin {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -15420,6 +16882,8 @@ impl PublishedEnum for CompositionOrigin {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCapacityState`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FundCapacityState {
     Unknown,
@@ -15430,6 +16894,7 @@ pub enum FundCapacityState {
     Unrecognized(i64),
 }
 impl FundCapacityState {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -15443,6 +16908,9 @@ impl FundCapacityState {
 }
 impl FromBackend for FundCapacityState {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCapacityState";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -15457,6 +16925,7 @@ impl FromBackend for FundCapacityState {
     }
 }
 impl Serialize for FundCapacityState {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15465,19 +16934,33 @@ impl Serialize for FundCapacityState {
     }
 }
 impl<'de> Deserialize<'de> for FundCapacityState {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = FundCapacityState;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<FundCapacityState, E> {
                 FundCapacityState::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<FundCapacityState, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<FundCapacityState, E> {
                 Ok(match value {
                     "Unknown" => FundCapacityState::Unknown,
@@ -15493,6 +16976,7 @@ impl<'de> Deserialize<'de> for FundCapacityState {
     }
 }
 impl ScalarCell for FundCapacityState {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -15501,6 +16985,7 @@ impl ScalarCell for FundCapacityState {
     }
 }
 impl PresentationValue for FundCapacityState {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -15514,6 +16999,7 @@ impl PresentationValue for FundCapacityState {
     }
 }
 impl BackendRecord for FundCapacityState {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15522,6 +17008,7 @@ impl BackendRecord for FundCapacityState {
     }
 }
 impl PublishedEnum for FundCapacityState {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -15530,6 +17017,8 @@ impl PublishedEnum for FundCapacityState {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundOperatingState`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FundOperatingState {
     Unknown,
@@ -15541,6 +17030,7 @@ pub enum FundOperatingState {
     Unrecognized(i64),
 }
 impl FundOperatingState {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -15555,6 +17045,9 @@ impl FundOperatingState {
 }
 impl FromBackend for FundOperatingState {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundOperatingState";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -15570,6 +17063,7 @@ impl FromBackend for FundOperatingState {
     }
 }
 impl Serialize for FundOperatingState {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15578,19 +17072,33 @@ impl Serialize for FundOperatingState {
     }
 }
 impl<'de> Deserialize<'de> for FundOperatingState {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = FundOperatingState;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<FundOperatingState, E> {
                 FundOperatingState::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<FundOperatingState, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<FundOperatingState, E> {
                 Ok(match value {
                     "Unknown" => FundOperatingState::Unknown,
@@ -15607,6 +17115,7 @@ impl<'de> Deserialize<'de> for FundOperatingState {
     }
 }
 impl ScalarCell for FundOperatingState {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -15615,6 +17124,7 @@ impl ScalarCell for FundOperatingState {
     }
 }
 impl PresentationValue for FundOperatingState {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -15628,6 +17138,7 @@ impl PresentationValue for FundOperatingState {
     }
 }
 impl BackendRecord for FundOperatingState {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15636,6 +17147,7 @@ impl BackendRecord for FundOperatingState {
     }
 }
 impl PublishedEnum for FundOperatingState {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -15644,6 +17156,9 @@ impl PublishedEnum for FundOperatingState {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FundTradeSetupReference {
     /// C# OrderId, wire slot 0.
@@ -15659,6 +17174,9 @@ pub struct FundTradeSetupReference {
 impl FromBackend for FundTradeSetupReference {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -15674,6 +17192,7 @@ impl FromBackend for FundTradeSetupReference {
     }
 }
 impl PresentationRecord for FundTradeSetupReference {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -15711,11 +17230,13 @@ impl PresentationRecord for FundTradeSetupReference {
     }
 }
 impl Serialize for FundTradeSetupReference {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FundTradeSetupReference {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -15725,12 +17246,14 @@ impl PresentationValue for FundTradeSetupReference {
     }
 }
 impl PresentationExtras for FundTradeSetupReference {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FundTradeSetupReference {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("OrderId", &BackendDocument(&self.order_id))?;
@@ -15740,6 +17263,7 @@ impl BackendRecord for FundTradeSetupReference {
     }
 }
 impl Cells for FundTradeSetupReference {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "orderId" | "OrderId" => self.order_id.scalar_cell(),
@@ -15750,6 +17274,9 @@ impl Cells for FundTradeSetupReference {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFinancialPolicyState`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PortfolioFinancialPolicyState {
     Unknown,
@@ -15761,6 +17288,7 @@ pub enum PortfolioFinancialPolicyState {
     Unrecognized(i64),
 }
 impl PortfolioFinancialPolicyState {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -15776,6 +17304,9 @@ impl PortfolioFinancialPolicyState {
 impl FromBackend for PortfolioFinancialPolicyState {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFinancialPolicyState";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -15791,6 +17322,7 @@ impl FromBackend for PortfolioFinancialPolicyState {
     }
 }
 impl Serialize for PortfolioFinancialPolicyState {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15799,25 +17331,39 @@ impl Serialize for PortfolioFinancialPolicyState {
     }
 }
 impl<'de> Deserialize<'de> for PortfolioFinancialPolicyState {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = PortfolioFinancialPolicyState;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<PortfolioFinancialPolicyState, E> {
                 PortfolioFinancialPolicyState::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<PortfolioFinancialPolicyState, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -15839,6 +17385,7 @@ impl<'de> Deserialize<'de> for PortfolioFinancialPolicyState {
     }
 }
 impl ScalarCell for PortfolioFinancialPolicyState {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -15847,6 +17394,7 @@ impl ScalarCell for PortfolioFinancialPolicyState {
     }
 }
 impl PresentationValue for PortfolioFinancialPolicyState {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -15860,6 +17408,7 @@ impl PresentationValue for PortfolioFinancialPolicyState {
     }
 }
 impl BackendRecord for PortfolioFinancialPolicyState {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15868,6 +17417,7 @@ impl BackendRecord for PortfolioFinancialPolicyState {
     }
 }
 impl PublishedEnum for PortfolioFinancialPolicyState {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -15876,6 +17426,9 @@ impl PublishedEnum for PortfolioFinancialPolicyState {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioOperatingState`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PortfolioOperatingState {
     Unknown,
@@ -15888,6 +17441,7 @@ pub enum PortfolioOperatingState {
     Unrecognized(i64),
 }
 impl PortfolioOperatingState {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -15904,6 +17458,9 @@ impl PortfolioOperatingState {
 impl FromBackend for PortfolioOperatingState {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioOperatingState";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -15920,6 +17477,7 @@ impl FromBackend for PortfolioOperatingState {
     }
 }
 impl Serialize for PortfolioOperatingState {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15928,25 +17486,39 @@ impl Serialize for PortfolioOperatingState {
     }
 }
 impl<'de> Deserialize<'de> for PortfolioOperatingState {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = PortfolioOperatingState;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<PortfolioOperatingState, E> {
                 PortfolioOperatingState::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<PortfolioOperatingState, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -15969,6 +17541,7 @@ impl<'de> Deserialize<'de> for PortfolioOperatingState {
     }
 }
 impl ScalarCell for PortfolioOperatingState {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -15977,6 +17550,7 @@ impl ScalarCell for PortfolioOperatingState {
     }
 }
 impl PresentationValue for PortfolioOperatingState {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -15990,6 +17564,7 @@ impl PresentationValue for PortfolioOperatingState {
     }
 }
 impl BackendRecord for PortfolioOperatingState {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -15998,6 +17573,7 @@ impl BackendRecord for PortfolioOperatingState {
     }
 }
 impl PublishedEnum for PortfolioOperatingState {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -16006,6 +17582,8 @@ impl PublishedEnum for PortfolioOperatingState {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityExposure`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct CapacityExposure {
     /// C# ScopeKind, wire slot 0.
@@ -16029,6 +17607,9 @@ pub struct CapacityExposure {
 }
 impl FromBackend for CapacityExposure {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityExposure";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -16050,6 +17631,7 @@ impl FromBackend for CapacityExposure {
     }
 }
 impl PresentationRecord for CapacityExposure {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -16108,11 +17690,13 @@ impl PresentationRecord for CapacityExposure {
     }
 }
 impl Serialize for CapacityExposure {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for CapacityExposure {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -16122,12 +17706,14 @@ impl PresentationValue for CapacityExposure {
     }
 }
 impl PresentationExtras for CapacityExposure {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for CapacityExposure {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ScopeKind", &BackendDocument(&self.scope_kind))?;
@@ -16140,6 +17726,7 @@ impl BackendRecord for CapacityExposure {
     }
 }
 impl Cells for CapacityExposure {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "scopeKind" | "ScopeKind" => self.scope_kind.scalar_cell(),
@@ -16153,6 +17740,8 @@ impl Cells for CapacityExposure {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityMeasure`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CapacityMeasure {
     Undefined,
@@ -16168,6 +17757,7 @@ pub enum CapacityMeasure {
     Unrecognized(i64),
 }
 impl CapacityMeasure {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Undefined => "Undefined".into(),
@@ -16186,6 +17776,9 @@ impl CapacityMeasure {
 }
 impl FromBackend for CapacityMeasure {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityMeasure";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -16205,6 +17798,7 @@ impl FromBackend for CapacityMeasure {
     }
 }
 impl Serialize for CapacityMeasure {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -16213,19 +17807,33 @@ impl Serialize for CapacityMeasure {
     }
 }
 impl<'de> Deserialize<'de> for CapacityMeasure {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = CapacityMeasure;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<CapacityMeasure, E> {
                 CapacityMeasure::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<CapacityMeasure, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<CapacityMeasure, E> {
                 Ok(match value {
                     "Undefined" => CapacityMeasure::Undefined,
@@ -16246,6 +17854,7 @@ impl<'de> Deserialize<'de> for CapacityMeasure {
     }
 }
 impl ScalarCell for CapacityMeasure {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -16254,6 +17863,7 @@ impl ScalarCell for CapacityMeasure {
     }
 }
 impl PresentationValue for CapacityMeasure {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -16267,6 +17877,7 @@ impl PresentationValue for CapacityMeasure {
     }
 }
 impl BackendRecord for CapacityMeasure {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -16275,6 +17886,7 @@ impl BackendRecord for CapacityMeasure {
     }
 }
 impl PublishedEnum for CapacityMeasure {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -16283,6 +17895,8 @@ impl PublishedEnum for CapacityMeasure {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityRequirements`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct CapacityRequirements {
     /// C# Currency, wire slot 0.
@@ -16331,6 +17945,9 @@ pub struct CapacityRequirements {
 }
 impl FromBackend for CapacityRequirements {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityRequirements";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -16368,6 +17985,7 @@ impl FromBackend for CapacityRequirements {
     }
 }
 impl PresentationRecord for CapacityRequirements {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -16475,11 +18093,13 @@ impl PresentationRecord for CapacityRequirements {
     }
 }
 impl Serialize for CapacityRequirements {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for CapacityRequirements {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -16489,12 +18109,14 @@ impl PresentationValue for CapacityRequirements {
     }
 }
 impl PresentationExtras for CapacityRequirements {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for CapacityRequirements {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Currency", &BackendDocument(&self.currency))?;
@@ -16523,6 +18145,7 @@ impl BackendRecord for CapacityRequirements {
     }
 }
 impl Cells for CapacityRequirements {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "currency" | "Currency" => self.currency.scalar_cell(),
@@ -16544,6 +18167,9 @@ impl Cells for CapacityRequirements {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityReservationReceipt`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct CapacityReservationReceipt {
     /// C# SchemaVersion, wire slot 0.
@@ -16624,6 +18250,9 @@ pub struct CapacityReservationReceipt {
 impl FromBackend for CapacityReservationReceipt {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityReservationReceipt";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -16689,6 +18318,7 @@ impl FromBackend for CapacityReservationReceipt {
     }
 }
 impl PresentationRecord for CapacityReservationReceipt {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -16859,11 +18489,13 @@ impl PresentationRecord for CapacityReservationReceipt {
     }
 }
 impl Serialize for CapacityReservationReceipt {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for CapacityReservationReceipt {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -16873,6 +18505,7 @@ impl PresentationValue for CapacityReservationReceipt {
     }
 }
 impl PublishedIdentity for CapacityReservationReceipt {
+    /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool {
         self.portfolio_id.is_some_and(|value| value > 0)
             && self.fund_id.is_some_and(|value| value > 0)
@@ -16880,6 +18513,7 @@ impl PublishedIdentity for CapacityReservationReceipt {
     }
 }
 impl PresentationExtras for CapacityReservationReceipt {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         map.serialize_entry("isValid", &self.published_is_valid())?;
@@ -16887,6 +18521,7 @@ impl PresentationExtras for CapacityReservationReceipt {
     }
 }
 impl BackendRecord for CapacityReservationReceipt {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -16933,6 +18568,7 @@ impl BackendRecord for CapacityReservationReceipt {
     }
 }
 impl Cells for CapacityReservationReceipt {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -16964,6 +18600,8 @@ impl Cells for CapacityReservationReceipt {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityScopeKind`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CapacityScopeKind {
     Undefined,
@@ -16974,6 +18612,7 @@ pub enum CapacityScopeKind {
     Unrecognized(i64),
 }
 impl CapacityScopeKind {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Undefined => "Undefined".into(),
@@ -16987,6 +18626,9 @@ impl CapacityScopeKind {
 }
 impl FromBackend for CapacityScopeKind {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityScopeKind";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -17001,6 +18643,7 @@ impl FromBackend for CapacityScopeKind {
     }
 }
 impl Serialize for CapacityScopeKind {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -17009,19 +18652,33 @@ impl Serialize for CapacityScopeKind {
     }
 }
 impl<'de> Deserialize<'de> for CapacityScopeKind {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = CapacityScopeKind;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<CapacityScopeKind, E> {
                 CapacityScopeKind::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<CapacityScopeKind, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<CapacityScopeKind, E> {
                 Ok(match value {
                     "Undefined" => CapacityScopeKind::Undefined,
@@ -17037,6 +18694,7 @@ impl<'de> Deserialize<'de> for CapacityScopeKind {
     }
 }
 impl ScalarCell for CapacityScopeKind {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -17045,6 +18703,7 @@ impl ScalarCell for CapacityScopeKind {
     }
 }
 impl PresentationValue for CapacityScopeKind {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17058,6 +18717,7 @@ impl PresentationValue for CapacityScopeKind {
     }
 }
 impl BackendRecord for CapacityScopeKind {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -17066,6 +18726,7 @@ impl BackendRecord for CapacityScopeKind {
     }
 }
 impl PublishedEnum for CapacityScopeKind {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -17074,6 +18735,8 @@ impl PublishedEnum for CapacityScopeKind {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityUnit`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CapacityUnit {
     Undefined,
@@ -17086,6 +18749,7 @@ pub enum CapacityUnit {
     Unrecognized(i64),
 }
 impl CapacityUnit {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Undefined => "Undefined".into(),
@@ -17101,6 +18765,9 @@ impl CapacityUnit {
 }
 impl FromBackend for CapacityUnit {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityUnit";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -17117,6 +18784,7 @@ impl FromBackend for CapacityUnit {
     }
 }
 impl Serialize for CapacityUnit {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -17125,19 +18793,33 @@ impl Serialize for CapacityUnit {
     }
 }
 impl<'de> Deserialize<'de> for CapacityUnit {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = CapacityUnit;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<CapacityUnit, E> {
                 CapacityUnit::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<CapacityUnit, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<CapacityUnit, E> {
                 Ok(match value {
                     "Undefined" => CapacityUnit::Undefined,
@@ -17155,6 +18837,7 @@ impl<'de> Deserialize<'de> for CapacityUnit {
     }
 }
 impl ScalarCell for CapacityUnit {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -17163,6 +18846,7 @@ impl ScalarCell for CapacityUnit {
     }
 }
 impl PresentationValue for CapacityUnit {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17176,6 +18860,7 @@ impl PresentationValue for CapacityUnit {
     }
 }
 impl BackendRecord for CapacityUnit {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -17184,6 +18869,7 @@ impl BackendRecord for CapacityUnit {
     }
 }
 impl PublishedEnum for CapacityUnit {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -17192,6 +18878,8 @@ impl PublishedEnum for CapacityUnit {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityUsed`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct CapacityUsed {
     /// C# ScopeKind, wire slot 0.
@@ -17218,6 +18906,9 @@ pub struct CapacityUsed {
 }
 impl FromBackend for CapacityUsed {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityUsed";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -17241,6 +18932,7 @@ impl FromBackend for CapacityUsed {
     }
 }
 impl PresentationRecord for CapacityUsed {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17306,11 +18998,13 @@ impl PresentationRecord for CapacityUsed {
     }
 }
 impl Serialize for CapacityUsed {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for CapacityUsed {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17320,12 +19014,14 @@ impl PresentationValue for CapacityUsed {
     }
 }
 impl PresentationExtras for CapacityUsed {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for CapacityUsed {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ScopeKind", &BackendDocument(&self.scope_kind))?;
@@ -17339,6 +19035,7 @@ impl BackendRecord for CapacityUsed {
     }
 }
 impl Cells for CapacityUsed {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "scopeKind" | "ScopeKind" => self.scope_kind.scalar_cell(),
@@ -17353,6 +19050,9 @@ impl Cells for CapacityUsed {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialAccountBalance`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FinancialAccountBalance {
     /// C# AccountId, wire slot 0.
@@ -17377,6 +19077,9 @@ pub struct FinancialAccountBalance {
 impl FromBackend for FinancialAccountBalance {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialAccountBalance";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -17398,6 +19101,7 @@ impl FromBackend for FinancialAccountBalance {
     }
 }
 impl PresentationRecord for FinancialAccountBalance {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17456,11 +19160,13 @@ impl PresentationRecord for FinancialAccountBalance {
     }
 }
 impl Serialize for FinancialAccountBalance {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FinancialAccountBalance {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17470,12 +19176,14 @@ impl PresentationValue for FinancialAccountBalance {
     }
 }
 impl PresentationExtras for FinancialAccountBalance {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FinancialAccountBalance {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("AccountId", &BackendDocument(&self.account_id))?;
@@ -17488,6 +19196,7 @@ impl BackendRecord for FinancialAccountBalance {
     }
 }
 impl Cells for FinancialAccountBalance {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "accountId" | "AccountId" => self.account_id.scalar_cell(),
@@ -17501,6 +19210,9 @@ impl Cells for FinancialAccountBalance {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialBalanceSnapshot`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FinancialBalanceSnapshot {
     /// C# BookId, wire slot 0.
@@ -17525,6 +19237,9 @@ pub struct FinancialBalanceSnapshot {
 impl FromBackend for FinancialBalanceSnapshot {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialBalanceSnapshot";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -17546,6 +19261,7 @@ impl FromBackend for FinancialBalanceSnapshot {
     }
 }
 impl PresentationRecord for FinancialBalanceSnapshot {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17604,11 +19320,13 @@ impl PresentationRecord for FinancialBalanceSnapshot {
     }
 }
 impl Serialize for FinancialBalanceSnapshot {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FinancialBalanceSnapshot {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17618,12 +19336,14 @@ impl PresentationValue for FinancialBalanceSnapshot {
     }
 }
 impl PresentationExtras for FinancialBalanceSnapshot {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FinancialBalanceSnapshot {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("BookId", &BackendDocument(&self.book_id))?;
@@ -17642,6 +19362,7 @@ impl BackendRecord for FinancialBalanceSnapshot {
     }
 }
 impl Cells for FinancialBalanceSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "bookId" | "BookId" => self.book_id.scalar_cell(),
@@ -17654,6 +19375,9 @@ impl Cells for FinancialBalanceSnapshot {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialCapacityUsage`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FinancialCapacityUsage {
     /// C# Scopes, wire slot 0.
@@ -17670,6 +19394,9 @@ pub struct FinancialCapacityUsage {
 impl FromBackend for FinancialCapacityUsage {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialCapacityUsage";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -17685,6 +19412,7 @@ impl FromBackend for FinancialCapacityUsage {
     }
 }
 impl PresentationRecord for FinancialCapacityUsage {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17715,11 +19443,13 @@ impl PresentationRecord for FinancialCapacityUsage {
     }
 }
 impl Serialize for FinancialCapacityUsage {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FinancialCapacityUsage {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17729,12 +19459,14 @@ impl PresentationValue for FinancialCapacityUsage {
     }
 }
 impl PresentationExtras for FinancialCapacityUsage {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FinancialCapacityUsage {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Scopes", &BackendDocument(&self.scopes))?;
@@ -17746,6 +19478,7 @@ impl BackendRecord for FinancialCapacityUsage {
     }
 }
 impl Cells for FinancialCapacityUsage {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "reservedFundLossCapital" | "ReservedFundLossCapital" => {
@@ -17756,6 +19489,9 @@ impl Cells for FinancialCapacityUsage {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialReservationView`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FinancialReservationView {
     /// C# OriginalReceipt, wire slot 0.
@@ -17768,6 +19504,9 @@ pub struct FinancialReservationView {
 impl FromBackend for FinancialReservationView {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialReservationView";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -17781,6 +19520,7 @@ impl FromBackend for FinancialReservationView {
     }
 }
 impl PresentationRecord for FinancialReservationView {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17811,11 +19551,13 @@ impl PresentationRecord for FinancialReservationView {
     }
 }
 impl Serialize for FinancialReservationView {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FinancialReservationView {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -17825,12 +19567,14 @@ impl PresentationValue for FinancialReservationView {
     }
 }
 impl PresentationExtras for FinancialReservationView {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FinancialReservationView {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("OriginalReceipt", &BackendDocument(&self.original_receipt))?;
@@ -17839,6 +19583,7 @@ impl BackendRecord for FinancialReservationView {
     }
 }
 impl Cells for FinancialReservationView {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             _ => Cell::Missing,
@@ -17846,6 +19591,9 @@ impl Cells for FinancialReservationView {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.Financial.FundRiskAuthorizationReference`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FundRiskAuthorizationReference {
     /// C# SchemaVersion, wire slot 0.
@@ -17928,6 +19676,9 @@ pub struct FundRiskAuthorizationReference {
 impl FromBackend for FundRiskAuthorizationReference {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FundRiskAuthorizationReference";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -18013,6 +19764,7 @@ impl FromBackend for FundRiskAuthorizationReference {
     }
 }
 impl PresentationRecord for FundRiskAuthorizationReference {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -18169,11 +19921,13 @@ impl PresentationRecord for FundRiskAuthorizationReference {
     }
 }
 impl Serialize for FundRiskAuthorizationReference {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FundRiskAuthorizationReference {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -18183,6 +19937,7 @@ impl PresentationValue for FundRiskAuthorizationReference {
     }
 }
 impl PublishedIdentity for FundRiskAuthorizationReference {
+    /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool {
         self.portfolio_id.is_some_and(|value| value > 0)
             && self.fund_id.is_some_and(|value| value > 0)
@@ -18190,6 +19945,7 @@ impl PublishedIdentity for FundRiskAuthorizationReference {
     }
 }
 impl PresentationExtras for FundRiskAuthorizationReference {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         map.serialize_entry("isValid", &self.published_is_valid())?;
@@ -18197,6 +19953,7 @@ impl PresentationExtras for FundRiskAuthorizationReference {
     }
 }
 impl BackendRecord for FundRiskAuthorizationReference {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -18250,6 +20007,7 @@ impl BackendRecord for FundRiskAuthorizationReference {
     }
 }
 impl Cells for FundRiskAuthorizationReference {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -18285,6 +20043,8 @@ impl Cells for FundRiskAuthorizationReference {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Financial.ReservationSnapshot`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ReservationSnapshot {
     /// C# ReservationId, wire slot 0.
@@ -18326,6 +20086,9 @@ pub struct ReservationSnapshot {
 }
 impl FromBackend for ReservationSnapshot {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Financial.ReservationSnapshot";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -18359,6 +20122,7 @@ impl FromBackend for ReservationSnapshot {
     }
 }
 impl PresentationRecord for ReservationSnapshot {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -18459,11 +20223,13 @@ impl PresentationRecord for ReservationSnapshot {
     }
 }
 impl Serialize for ReservationSnapshot {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ReservationSnapshot {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -18473,12 +20239,14 @@ impl PresentationValue for ReservationSnapshot {
     }
 }
 impl PresentationExtras for ReservationSnapshot {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ReservationSnapshot {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ReservationId", &BackendDocument(&self.reservation_id))?;
@@ -18503,6 +20271,7 @@ impl BackendRecord for ReservationSnapshot {
     }
 }
 impl Cells for ReservationSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "reservationId" | "ReservationId" => self.reservation_id.scalar_cell(),
@@ -18522,6 +20291,8 @@ impl Cells for ReservationSnapshot {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Financial.ReservationStatus`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReservationStatus {
     Undefined,
@@ -18537,6 +20308,7 @@ pub enum ReservationStatus {
     Unrecognized(i64),
 }
 impl ReservationStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Undefined => "Undefined".into(),
@@ -18555,6 +20327,9 @@ impl ReservationStatus {
 }
 impl FromBackend for ReservationStatus {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Financial.ReservationStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -18574,6 +20349,7 @@ impl FromBackend for ReservationStatus {
     }
 }
 impl Serialize for ReservationStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -18582,19 +20358,33 @@ impl Serialize for ReservationStatus {
     }
 }
 impl<'de> Deserialize<'de> for ReservationStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ReservationStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<ReservationStatus, E> {
                 ReservationStatus::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<ReservationStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<ReservationStatus, E> {
                 Ok(match value {
                     "Undefined" => ReservationStatus::Undefined,
@@ -18615,6 +20405,7 @@ impl<'de> Deserialize<'de> for ReservationStatus {
     }
 }
 impl ScalarCell for ReservationStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -18623,6 +20414,7 @@ impl ScalarCell for ReservationStatus {
     }
 }
 impl PresentationValue for ReservationStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -18636,6 +20428,7 @@ impl PresentationValue for ReservationStatus {
     }
 }
 impl BackendRecord for ReservationStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -18644,6 +20437,7 @@ impl BackendRecord for ReservationStatus {
     }
 }
 impl PublishedEnum for ReservationStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -18652,6 +20446,8 @@ impl PublishedEnum for ReservationStatus {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.Financial.RiskTerminalEvidence`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct RiskTerminalEvidence {
     /// C# SourceCommandId, wire slot 0.
@@ -18693,6 +20489,9 @@ pub struct RiskTerminalEvidence {
 }
 impl FromBackend for RiskTerminalEvidence {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.Financial.RiskTerminalEvidence";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -18726,6 +20525,7 @@ impl FromBackend for RiskTerminalEvidence {
     }
 }
 impl PresentationRecord for RiskTerminalEvidence {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -18826,11 +20626,13 @@ impl PresentationRecord for RiskTerminalEvidence {
     }
 }
 impl Serialize for RiskTerminalEvidence {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for RiskTerminalEvidence {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -18840,6 +20642,7 @@ impl PresentationValue for RiskTerminalEvidence {
     }
 }
 impl PublishedIdentity for RiskTerminalEvidence {
+    /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool {
         self.portfolio_id.is_some_and(|value| value > 0)
             && self.fund_id.is_some_and(|value| value > 0)
@@ -18847,6 +20650,7 @@ impl PublishedIdentity for RiskTerminalEvidence {
     }
 }
 impl PresentationExtras for RiskTerminalEvidence {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         map.serialize_entry("isValid", &self.published_is_valid())?;
@@ -18854,6 +20658,7 @@ impl PresentationExtras for RiskTerminalEvidence {
     }
 }
 impl BackendRecord for RiskTerminalEvidence {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SourceCommandId", &BackendDocument(&self.source_command_id))?;
@@ -18872,6 +20677,7 @@ impl BackendRecord for RiskTerminalEvidence {
     }
 }
 impl Cells for RiskTerminalEvidence {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "sourceCommandId" | "SourceCommandId" => self.source_command_id.scalar_cell(),
@@ -18891,6 +20697,9 @@ impl Cells for RiskTerminalEvidence {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundAllocationReadModel`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FundAllocationReadModel {
     /// C# PortfolioId, wire slot 0.
@@ -18948,6 +20757,9 @@ pub struct FundAllocationReadModel {
 impl FromBackend for FundAllocationReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundAllocationReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -18995,6 +20807,7 @@ impl FromBackend for FundAllocationReadModel {
     }
 }
 impl PresentationRecord for FundAllocationReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -19130,11 +20943,13 @@ impl PresentationRecord for FundAllocationReadModel {
     }
 }
 impl Serialize for FundAllocationReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FundAllocationReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -19144,12 +20959,14 @@ impl PresentationValue for FundAllocationReadModel {
     }
 }
 impl PresentationExtras for FundAllocationReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FundAllocationReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PortfolioId", &BackendDocument(&self.portfolio_id))?;
@@ -19194,6 +21011,7 @@ impl BackendRecord for FundAllocationReadModel {
     }
 }
 impl Cells for FundAllocationReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "portfolioId" | "PortfolioId" => self.portfolio_id.scalar_cell(),
@@ -19220,6 +21038,9 @@ impl Cells for FundAllocationReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel`; preserves its pinned wire
+/// layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FundMandateReadModel {
     /// C# PortfolioId, wire slot 0.
@@ -19304,6 +21125,9 @@ pub struct FundMandateReadModel {
 impl FromBackend for FundMandateReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -19369,6 +21193,7 @@ impl FromBackend for FundMandateReadModel {
     }
 }
 impl PresentationRecord for FundMandateReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -19539,11 +21364,13 @@ impl PresentationRecord for FundMandateReadModel {
     }
 }
 impl Serialize for FundMandateReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FundMandateReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -19553,12 +21380,14 @@ impl PresentationValue for FundMandateReadModel {
     }
 }
 impl PresentationExtras for FundMandateReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FundMandateReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PortfolioId", &BackendDocument(&self.portfolio_id))?;
@@ -19620,6 +21449,7 @@ impl BackendRecord for FundMandateReadModel {
     }
 }
 impl Cells for FundMandateReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "portfolioId" | "PortfolioId" => self.portfolio_id.scalar_cell(),
@@ -19645,6 +21475,9 @@ impl Cells for FundMandateReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FundOrderProjectionReadModel {
     /// C# PortfolioId, wire slot 0.
@@ -19767,6 +21600,9 @@ pub struct FundOrderProjectionReadModel {
 impl FromBackend for FundOrderProjectionReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -19876,6 +21712,7 @@ impl FromBackend for FundOrderProjectionReadModel {
     }
 }
 impl PresentationRecord for FundOrderProjectionReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -20088,11 +21925,13 @@ impl PresentationRecord for FundOrderProjectionReadModel {
     }
 }
 impl Serialize for FundOrderProjectionReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FundOrderProjectionReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -20102,6 +21941,7 @@ impl PresentationValue for FundOrderProjectionReadModel {
     }
 }
 impl PublishedIdentity for FundOrderProjectionReadModel {
+    /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool {
         self.portfolio_id.is_some_and(|value| value > 0)
             && self.fund_id.is_some_and(|value| value > 0)
@@ -20109,6 +21949,7 @@ impl PublishedIdentity for FundOrderProjectionReadModel {
     }
 }
 impl PresentationExtras for FundOrderProjectionReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         map.serialize_entry("isValid", &self.published_is_valid())?;
@@ -20116,6 +21957,7 @@ impl PresentationExtras for FundOrderProjectionReadModel {
     }
 }
 impl BackendRecord for FundOrderProjectionReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PortfolioId", &BackendDocument(&self.portfolio_id))?;
@@ -20189,6 +22031,7 @@ impl BackendRecord for FundOrderProjectionReadModel {
     }
 }
 impl Cells for FundOrderProjectionReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "portfolioId" | "PortfolioId" => self.portfolio_id.scalar_cell(),
@@ -20240,6 +22083,9 @@ impl Cells for FundOrderProjectionReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FundOrderTradeProjectionReadModel {
     /// C# PortfolioId, wire slot 0.
@@ -20329,6 +22175,9 @@ pub struct FundOrderTradeProjectionReadModel {
 impl FromBackend for FundOrderTradeProjectionReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -20423,6 +22272,7 @@ impl FromBackend for FundOrderTradeProjectionReadModel {
     }
 }
 impl PresentationRecord for FundOrderTradeProjectionReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -20614,11 +22464,13 @@ impl PresentationRecord for FundOrderTradeProjectionReadModel {
     }
 }
 impl Serialize for FundOrderTradeProjectionReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FundOrderTradeProjectionReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -20628,6 +22480,7 @@ impl PresentationValue for FundOrderTradeProjectionReadModel {
     }
 }
 impl PublishedIdentity for FundOrderTradeProjectionReadModel {
+    /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool {
         self.portfolio_id.is_some_and(|value| value > 0)
             && self.fund_id.is_some_and(|value| value > 0)
@@ -20636,6 +22489,7 @@ impl PublishedIdentity for FundOrderTradeProjectionReadModel {
     }
 }
 impl PresentationExtras for FundOrderTradeProjectionReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         map.serialize_entry("isValid", &self.published_is_valid())?;
@@ -20643,6 +22497,7 @@ impl PresentationExtras for FundOrderTradeProjectionReadModel {
     }
 }
 impl BackendRecord for FundOrderTradeProjectionReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PortfolioId", &BackendDocument(&self.portfolio_id))?;
@@ -20698,6 +22553,7 @@ impl BackendRecord for FundOrderTradeProjectionReadModel {
     }
 }
 impl Cells for FundOrderTradeProjectionReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "portfolioId" | "PortfolioId" => self.portfolio_id.scalar_cell(),
@@ -20734,6 +22590,9 @@ impl Cells for FundOrderTradeProjectionReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundRiskEnvelopeReadModel`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FundRiskEnvelopeReadModel {
     /// C# PortfolioId, wire slot 0.
@@ -20844,6 +22703,9 @@ pub struct FundRiskEnvelopeReadModel {
 impl FromBackend for FundRiskEnvelopeReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundRiskEnvelopeReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -20929,6 +22791,7 @@ impl FromBackend for FundRiskEnvelopeReadModel {
     }
 }
 impl PresentationRecord for FundRiskEnvelopeReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -21141,11 +23004,13 @@ impl PresentationRecord for FundRiskEnvelopeReadModel {
     }
 }
 impl Serialize for FundRiskEnvelopeReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FundRiskEnvelopeReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -21155,12 +23020,14 @@ impl PresentationValue for FundRiskEnvelopeReadModel {
     }
 }
 impl PresentationExtras for FundRiskEnvelopeReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FundRiskEnvelopeReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PortfolioId", &BackendDocument(&self.portfolio_id))?;
@@ -21240,6 +23107,7 @@ impl BackendRecord for FundRiskEnvelopeReadModel {
     }
 }
 impl Cells for FundRiskEnvelopeReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "portfolioId" | "PortfolioId" => self.portfolio_id.scalar_cell(),
@@ -21293,6 +23161,9 @@ impl Cells for FundRiskEnvelopeReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundTradeTemplateAssignmentReadModel`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct FundTradeTemplateAssignmentReadModel {
     /// C# PortfolioId, wire slot 0.
@@ -21388,6 +23259,9 @@ pub struct FundTradeTemplateAssignmentReadModel {
 impl FromBackend for FundTradeTemplateAssignmentReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundTradeTemplateAssignmentReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -21494,6 +23368,7 @@ impl FromBackend for FundTradeTemplateAssignmentReadModel {
     }
 }
 impl PresentationRecord for FundTradeTemplateAssignmentReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -21671,11 +23546,13 @@ impl PresentationRecord for FundTradeTemplateAssignmentReadModel {
     }
 }
 impl Serialize for FundTradeTemplateAssignmentReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for FundTradeTemplateAssignmentReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -21685,12 +23562,14 @@ impl PresentationValue for FundTradeTemplateAssignmentReadModel {
     }
 }
 impl PresentationExtras for FundTradeTemplateAssignmentReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for FundTradeTemplateAssignmentReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PortfolioId", &BackendDocument(&self.portfolio_id))?;
@@ -21756,6 +23635,7 @@ impl BackendRecord for FundTradeTemplateAssignmentReadModel {
     }
 }
 impl Cells for FundTradeTemplateAssignmentReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "portfolioId" | "PortfolioId" => self.portfolio_id.scalar_cell(),
@@ -21794,6 +23674,9 @@ impl Cells for FundTradeTemplateAssignmentReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct PortfolioFinancialPolicyReadModel {
     /// C# PortfolioId, wire slot 0.
@@ -21892,6 +23775,9 @@ pub struct PortfolioFinancialPolicyReadModel {
 impl FromBackend for PortfolioFinancialPolicyReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -22001,6 +23887,7 @@ impl FromBackend for PortfolioFinancialPolicyReadModel {
     }
 }
 impl PresentationRecord for PortfolioFinancialPolicyReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -22185,11 +24072,13 @@ impl PresentationRecord for PortfolioFinancialPolicyReadModel {
     }
 }
 impl Serialize for PortfolioFinancialPolicyReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for PortfolioFinancialPolicyReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -22199,12 +24088,14 @@ impl PresentationValue for PortfolioFinancialPolicyReadModel {
     }
 }
 impl PresentationExtras for PortfolioFinancialPolicyReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for PortfolioFinancialPolicyReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PortfolioId", &BackendDocument(&self.portfolio_id))?;
@@ -22268,6 +24159,7 @@ impl BackendRecord for PortfolioFinancialPolicyReadModel {
     }
 }
 impl Cells for PortfolioFinancialPolicyReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "portfolioId" | "PortfolioId" => self.portfolio_id.scalar_cell(),
@@ -22310,6 +24202,8 @@ impl Cells for PortfolioFinancialPolicyReadModel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct PortfolioReadModel {
     /// C# PortfolioId, wire slot 0.
@@ -22360,6 +24254,9 @@ pub struct PortfolioReadModel {
 }
 impl FromBackend for PortfolioReadModel {
     const KIND: &'static str = "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -22401,6 +24298,7 @@ impl FromBackend for PortfolioReadModel {
     }
 }
 impl PresentationRecord for PortfolioReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -22522,11 +24420,13 @@ impl PresentationRecord for PortfolioReadModel {
     }
 }
 impl Serialize for PortfolioReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for PortfolioReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -22536,12 +24436,14 @@ impl PresentationValue for PortfolioReadModel {
     }
 }
 impl PresentationExtras for PortfolioReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for PortfolioReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PortfolioId", &BackendDocument(&self.portfolio_id))?;
@@ -22578,6 +24480,7 @@ impl BackendRecord for PortfolioReadModel {
     }
 }
 impl Cells for PortfolioReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "portfolioId" | "PortfolioId" => self.portfolio_id.scalar_cell(),
@@ -22601,6 +24504,9 @@ impl Cells for PortfolioReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.TradeFamilyRiskLimitReadModel`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeFamilyRiskLimitReadModel {
     /// C# TradeStrategyFamilyId, wire slot 0.
@@ -22650,6 +24556,9 @@ pub struct TradeFamilyRiskLimitReadModel {
 impl FromBackend for TradeFamilyRiskLimitReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.TradeFamilyRiskLimitReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -22693,6 +24602,7 @@ impl FromBackend for TradeFamilyRiskLimitReadModel {
     }
 }
 impl PresentationRecord for TradeFamilyRiskLimitReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -22772,11 +24682,13 @@ impl PresentationRecord for TradeFamilyRiskLimitReadModel {
     }
 }
 impl Serialize for TradeFamilyRiskLimitReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeFamilyRiskLimitReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -22786,12 +24698,14 @@ impl PresentationValue for TradeFamilyRiskLimitReadModel {
     }
 }
 impl PresentationExtras for TradeFamilyRiskLimitReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeFamilyRiskLimitReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry(
@@ -22828,6 +24742,7 @@ impl BackendRecord for TradeFamilyRiskLimitReadModel {
     }
 }
 impl Cells for TradeFamilyRiskLimitReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "tradeStrategyFamilyId" | "TradeStrategyFamilyId" => {
@@ -22853,6 +24768,9 @@ impl Cells for TradeFamilyRiskLimitReadModel {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterApplicationPolicy`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ParameterApplicationPolicy {
     Unknown,
@@ -22862,6 +24780,7 @@ pub enum ParameterApplicationPolicy {
     Unrecognized(i64),
 }
 impl ParameterApplicationPolicy {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -22875,6 +24794,9 @@ impl ParameterApplicationPolicy {
 impl FromBackend for ParameterApplicationPolicy {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterApplicationPolicy";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -22888,6 +24810,7 @@ impl FromBackend for ParameterApplicationPolicy {
     }
 }
 impl Serialize for ParameterApplicationPolicy {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -22896,25 +24819,39 @@ impl Serialize for ParameterApplicationPolicy {
     }
 }
 impl<'de> Deserialize<'de> for ParameterApplicationPolicy {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ParameterApplicationPolicy;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<ParameterApplicationPolicy, E> {
                 ParameterApplicationPolicy::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<ParameterApplicationPolicy, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -22934,6 +24871,7 @@ impl<'de> Deserialize<'de> for ParameterApplicationPolicy {
     }
 }
 impl ScalarCell for ParameterApplicationPolicy {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -22942,6 +24880,7 @@ impl ScalarCell for ParameterApplicationPolicy {
     }
 }
 impl PresentationValue for ParameterApplicationPolicy {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -22955,6 +24894,7 @@ impl PresentationValue for ParameterApplicationPolicy {
     }
 }
 impl BackendRecord for ParameterApplicationPolicy {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -22963,6 +24903,7 @@ impl BackendRecord for ParameterApplicationPolicy {
     }
 }
 impl PublishedEnum for ParameterApplicationPolicy {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -22971,6 +24912,9 @@ impl PublishedEnum for ParameterApplicationPolicy {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentEntityId`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterAssignmentEntityId {
     /// C# AssignmentId, wire slot 0.
@@ -22980,6 +24924,9 @@ pub struct ParameterAssignmentEntityId {
 impl FromBackend for ParameterAssignmentEntityId {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentEntityId";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -22991,6 +24938,7 @@ impl FromBackend for ParameterAssignmentEntityId {
     }
 }
 impl PresentationRecord for ParameterAssignmentEntityId {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23014,11 +24962,13 @@ impl PresentationRecord for ParameterAssignmentEntityId {
     }
 }
 impl Serialize for ParameterAssignmentEntityId {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterAssignmentEntityId {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23028,12 +24978,14 @@ impl PresentationValue for ParameterAssignmentEntityId {
     }
 }
 impl PresentationExtras for ParameterAssignmentEntityId {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterAssignmentEntityId {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("AssignmentId", &BackendDocument(&self.assignment_id))?;
@@ -23041,6 +24993,7 @@ impl BackendRecord for ParameterAssignmentEntityId {
     }
 }
 impl Cells for ParameterAssignmentEntityId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "assignmentId" | "AssignmentId" => self.assignment_id.scalar_cell(),
@@ -23049,6 +25002,9 @@ impl Cells for ParameterAssignmentEntityId {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentRevision`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterAssignmentRevision {
     /// C# AssignmentId, wire slot 0.
@@ -23079,6 +25035,9 @@ pub struct ParameterAssignmentRevision {
 impl FromBackend for ParameterAssignmentRevision {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentRevision";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -23106,6 +25065,7 @@ impl FromBackend for ParameterAssignmentRevision {
     }
 }
 impl PresentationRecord for ParameterAssignmentRevision {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23178,11 +25138,13 @@ impl PresentationRecord for ParameterAssignmentRevision {
     }
 }
 impl Serialize for ParameterAssignmentRevision {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterAssignmentRevision {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23192,12 +25154,14 @@ impl PresentationValue for ParameterAssignmentRevision {
     }
 }
 impl PresentationExtras for ParameterAssignmentRevision {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterAssignmentRevision {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("AssignmentId", &BackendDocument(&self.assignment_id))?;
@@ -23215,6 +25179,7 @@ impl BackendRecord for ParameterAssignmentRevision {
     }
 }
 impl Cells for ParameterAssignmentRevision {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "assignmentId" | "AssignmentId" => self.assignment_id.scalar_cell(),
@@ -23228,6 +25193,9 @@ impl Cells for ParameterAssignmentRevision {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentScope`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterAssignmentScope {
     /// C# ConsumerKindCode, wire slot 0.
@@ -23261,6 +25229,9 @@ pub struct ParameterAssignmentScope {
 impl FromBackend for ParameterAssignmentScope {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentScope";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -23288,6 +25259,7 @@ impl FromBackend for ParameterAssignmentScope {
     }
 }
 impl PresentationRecord for ParameterAssignmentScope {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23367,11 +25339,13 @@ impl PresentationRecord for ParameterAssignmentScope {
     }
 }
 impl Serialize for ParameterAssignmentScope {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterAssignmentScope {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23381,12 +25355,14 @@ impl PresentationValue for ParameterAssignmentScope {
     }
 }
 impl PresentationExtras for ParameterAssignmentScope {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterAssignmentScope {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry(
@@ -23405,6 +25381,7 @@ impl BackendRecord for ParameterAssignmentScope {
     }
 }
 impl Cells for ParameterAssignmentScope {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "consumerKindCode" | "ConsumerKindCode" => self.consumer_kind_code.scalar_cell(),
@@ -23421,6 +25398,9 @@ impl Cells for ParameterAssignmentScope {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentSnapshot`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterAssignmentSnapshot {
     /// C# EntityId, wire slot 0.
@@ -23442,6 +25422,9 @@ pub struct ParameterAssignmentSnapshot {
 impl FromBackend for ParameterAssignmentSnapshot {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentSnapshot";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -23461,6 +25444,7 @@ impl FromBackend for ParameterAssignmentSnapshot {
     }
 }
 impl PresentationRecord for ParameterAssignmentSnapshot {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23512,11 +25496,13 @@ impl PresentationRecord for ParameterAssignmentSnapshot {
     }
 }
 impl Serialize for ParameterAssignmentSnapshot {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterAssignmentSnapshot {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23526,12 +25512,14 @@ impl PresentationValue for ParameterAssignmentSnapshot {
     }
 }
 impl PresentationExtras for ParameterAssignmentSnapshot {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterAssignmentSnapshot {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("EntityId", &BackendDocument(&self.entity_id))?;
@@ -23543,6 +25531,7 @@ impl BackendRecord for ParameterAssignmentSnapshot {
     }
 }
 impl Cells for ParameterAssignmentSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "revision" | "Revision" => self.revision.scalar_cell(),
@@ -23551,6 +25540,9 @@ impl Cells for ParameterAssignmentSnapshot {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAuditEntry`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterAuditEntry {
     /// C# OperationId, wire slot 0.
@@ -23587,6 +25579,9 @@ pub struct ParameterAuditEntry {
 impl FromBackend for ParameterAuditEntry {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAuditEntry";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -23616,6 +25611,7 @@ impl FromBackend for ParameterAuditEntry {
     }
 }
 impl PresentationRecord for ParameterAuditEntry {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23702,11 +25698,13 @@ impl PresentationRecord for ParameterAuditEntry {
     }
 }
 impl Serialize for ParameterAuditEntry {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterAuditEntry {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23716,12 +25714,14 @@ impl PresentationValue for ParameterAuditEntry {
     }
 }
 impl PresentationExtras for ParameterAuditEntry {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterAuditEntry {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("OperationId", &BackendDocument(&self.operation_id))?;
@@ -23738,6 +25738,7 @@ impl BackendRecord for ParameterAuditEntry {
     }
 }
 impl Cells for ParameterAuditEntry {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "operationId" | "OperationId" => self.operation_id.scalar_cell(),
@@ -23753,6 +25754,9 @@ impl Cells for ParameterAuditEntry {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAuditValue`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterAuditValue {
     /// C# Reference, wire slot 0.
@@ -23777,6 +25781,9 @@ pub struct ParameterAuditValue {
 impl FromBackend for ParameterAuditValue {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAuditValue";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -23798,6 +25805,7 @@ impl FromBackend for ParameterAuditValue {
     }
 }
 impl PresentationRecord for ParameterAuditValue {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23856,11 +25864,13 @@ impl PresentationRecord for ParameterAuditValue {
     }
 }
 impl Serialize for ParameterAuditValue {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterAuditValue {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -23870,12 +25880,14 @@ impl PresentationValue for ParameterAuditValue {
     }
 }
 impl PresentationExtras for ParameterAuditValue {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterAuditValue {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Reference", &BackendDocument(&self.reference))?;
@@ -23888,6 +25900,7 @@ impl BackendRecord for ParameterAuditValue {
     }
 }
 impl Cells for ParameterAuditValue {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "name" | "Name" => self.name.scalar_cell(),
@@ -23899,6 +25912,9 @@ impl Cells for ParameterAuditValue {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterComponentSummary`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterComponentSummary {
     /// C# AreaCode, wire slot 0.
@@ -23923,6 +25939,9 @@ pub struct ParameterComponentSummary {
 impl FromBackend for ParameterComponentSummary {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterComponentSummary";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -23944,6 +25963,7 @@ impl FromBackend for ParameterComponentSummary {
     }
 }
 impl PresentationRecord for ParameterComponentSummary {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24002,11 +26022,13 @@ impl PresentationRecord for ParameterComponentSummary {
     }
 }
 impl Serialize for ParameterComponentSummary {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterComponentSummary {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24016,12 +26038,14 @@ impl PresentationValue for ParameterComponentSummary {
     }
 }
 impl PresentationExtras for ParameterComponentSummary {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterComponentSummary {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("AreaCode", &BackendDocument(&self.area_code))?;
@@ -24034,6 +26058,7 @@ impl BackendRecord for ParameterComponentSummary {
     }
 }
 impl Cells for ParameterComponentSummary {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "areaCode" | "AreaCode" => self.area_code.scalar_cell(),
@@ -24046,6 +26071,9 @@ impl Cells for ParameterComponentSummary {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterIssueSeverity`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ParameterIssueSeverity {
     Unknown,
@@ -24055,6 +26083,7 @@ pub enum ParameterIssueSeverity {
     Unrecognized(i64),
 }
 impl ParameterIssueSeverity {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -24068,6 +26097,9 @@ impl ParameterIssueSeverity {
 impl FromBackend for ParameterIssueSeverity {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterIssueSeverity";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -24081,6 +26113,7 @@ impl FromBackend for ParameterIssueSeverity {
     }
 }
 impl Serialize for ParameterIssueSeverity {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -24089,25 +26122,39 @@ impl Serialize for ParameterIssueSeverity {
     }
 }
 impl<'de> Deserialize<'de> for ParameterIssueSeverity {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ParameterIssueSeverity;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<ParameterIssueSeverity, E> {
                 ParameterIssueSeverity::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<ParameterIssueSeverity, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -24127,6 +26174,7 @@ impl<'de> Deserialize<'de> for ParameterIssueSeverity {
     }
 }
 impl ScalarCell for ParameterIssueSeverity {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -24135,6 +26183,7 @@ impl ScalarCell for ParameterIssueSeverity {
     }
 }
 impl PresentationValue for ParameterIssueSeverity {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24148,6 +26197,7 @@ impl PresentationValue for ParameterIssueSeverity {
     }
 }
 impl BackendRecord for ParameterIssueSeverity {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -24156,6 +26206,7 @@ impl BackendRecord for ParameterIssueSeverity {
     }
 }
 impl PublishedEnum for ParameterIssueSeverity {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -24164,6 +26215,9 @@ impl PublishedEnum for ParameterIssueSeverity {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterLegacyReference`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterLegacyReference {
     /// C# Kind, wire slot 0.
@@ -24185,6 +26239,9 @@ pub struct ParameterLegacyReference {
 impl FromBackend for ParameterLegacyReference {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterLegacyReference";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -24204,6 +26261,7 @@ impl FromBackend for ParameterLegacyReference {
     }
 }
 impl PresentationRecord for ParameterLegacyReference {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24255,11 +26313,13 @@ impl PresentationRecord for ParameterLegacyReference {
     }
 }
 impl Serialize for ParameterLegacyReference {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterLegacyReference {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24269,12 +26329,14 @@ impl PresentationValue for ParameterLegacyReference {
     }
 }
 impl PresentationExtras for ParameterLegacyReference {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterLegacyReference {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Kind", &BackendDocument(&self.kind))?;
@@ -24286,6 +26348,7 @@ impl BackendRecord for ParameterLegacyReference {
     }
 }
 impl Cells for ParameterLegacyReference {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "kind" | "Kind" => self.kind.scalar_cell(),
@@ -24298,6 +26361,9 @@ impl Cells for ParameterLegacyReference {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterLegacyVersion`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterLegacyVersion {
     /// C# Reference, wire slot 0.
@@ -24319,6 +26385,9 @@ pub struct ParameterLegacyVersion {
 impl FromBackend for ParameterLegacyVersion {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterLegacyVersion";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -24338,6 +26407,7 @@ impl FromBackend for ParameterLegacyVersion {
     }
 }
 impl PresentationRecord for ParameterLegacyVersion {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24389,11 +26459,13 @@ impl PresentationRecord for ParameterLegacyVersion {
     }
 }
 impl Serialize for ParameterLegacyVersion {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterLegacyVersion {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24403,12 +26475,14 @@ impl PresentationValue for ParameterLegacyVersion {
     }
 }
 impl PresentationExtras for ParameterLegacyVersion {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterLegacyVersion {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Reference", &BackendDocument(&self.reference))?;
@@ -24420,6 +26494,7 @@ impl BackendRecord for ParameterLegacyVersion {
     }
 }
 impl Cells for ParameterLegacyVersion {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -24431,6 +26506,9 @@ impl Cells for ParameterLegacyVersion {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalDemand`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterSignalDemand {
     /// C# Key, wire slot 0.
@@ -24455,6 +26533,9 @@ pub struct ParameterSignalDemand {
 impl FromBackend for ParameterSignalDemand {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalDemand";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -24476,6 +26557,7 @@ impl FromBackend for ParameterSignalDemand {
     }
 }
 impl PresentationRecord for ParameterSignalDemand {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24534,11 +26616,13 @@ impl PresentationRecord for ParameterSignalDemand {
     }
 }
 impl Serialize for ParameterSignalDemand {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterSignalDemand {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24548,12 +26632,14 @@ impl PresentationValue for ParameterSignalDemand {
     }
 }
 impl PresentationExtras for ParameterSignalDemand {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterSignalDemand {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Key", &BackendDocument(&self.key))?;
@@ -24569,6 +26655,7 @@ impl BackendRecord for ParameterSignalDemand {
     }
 }
 impl Cells for ParameterSignalDemand {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "consumer" | "Consumer" => self.consumer.scalar_cell(),
@@ -24581,6 +26668,9 @@ impl Cells for ParameterSignalDemand {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalMonitoringRow`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterSignalMonitoringRow {
     /// C# AssignmentId, wire slot 0.
@@ -24605,6 +26695,9 @@ pub struct ParameterSignalMonitoringRow {
 impl FromBackend for ParameterSignalMonitoringRow {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalMonitoringRow";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -24630,6 +26723,7 @@ impl FromBackend for ParameterSignalMonitoringRow {
     }
 }
 impl PresentationRecord for ParameterSignalMonitoringRow {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24688,11 +26782,13 @@ impl PresentationRecord for ParameterSignalMonitoringRow {
     }
 }
 impl Serialize for ParameterSignalMonitoringRow {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterSignalMonitoringRow {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24702,12 +26798,14 @@ impl PresentationValue for ParameterSignalMonitoringRow {
     }
 }
 impl PresentationExtras for ParameterSignalMonitoringRow {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterSignalMonitoringRow {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("AssignmentId", &BackendDocument(&self.assignment_id))?;
@@ -24726,6 +26824,7 @@ impl BackendRecord for ParameterSignalMonitoringRow {
     }
 }
 impl Cells for ParameterSignalMonitoringRow {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "assignmentId" | "AssignmentId" => self.assignment_id.scalar_cell(),
@@ -24738,6 +26837,9 @@ impl Cells for ParameterSignalMonitoringRow {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalMonitoringSnapshot`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterSignalMonitoringSnapshot {
     /// C# RunId, wire slot 0.
@@ -24756,6 +26858,9 @@ pub struct ParameterSignalMonitoringSnapshot {
 impl FromBackend for ParameterSignalMonitoringSnapshot {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalMonitoringSnapshot";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -24776,6 +26881,7 @@ impl FromBackend for ParameterSignalMonitoringSnapshot {
     }
 }
 impl PresentationRecord for ParameterSignalMonitoringSnapshot {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24820,11 +26926,13 @@ impl PresentationRecord for ParameterSignalMonitoringSnapshot {
     }
 }
 impl Serialize for ParameterSignalMonitoringSnapshot {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterSignalMonitoringSnapshot {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24834,12 +26942,14 @@ impl PresentationValue for ParameterSignalMonitoringSnapshot {
     }
 }
 impl PresentationExtras for ParameterSignalMonitoringSnapshot {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterSignalMonitoringSnapshot {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("RunId", &BackendDocument(&self.run_id))?;
@@ -24850,6 +26960,7 @@ impl BackendRecord for ParameterSignalMonitoringSnapshot {
     }
 }
 impl Cells for ParameterSignalMonitoringSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "runId" | "RunId" => self.run_id.scalar_cell(),
@@ -24860,6 +26971,9 @@ impl Cells for ParameterSignalMonitoringSnapshot {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalPreparationOutcome`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterSignalPreparationOutcome {
     /// C# Key, wire slot 0.
@@ -24875,6 +26989,9 @@ pub struct ParameterSignalPreparationOutcome {
 impl FromBackend for ParameterSignalPreparationOutcome {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalPreparationOutcome";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -24890,6 +27007,7 @@ impl FromBackend for ParameterSignalPreparationOutcome {
     }
 }
 impl PresentationRecord for ParameterSignalPreparationOutcome {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24927,11 +27045,13 @@ impl PresentationRecord for ParameterSignalPreparationOutcome {
     }
 }
 impl Serialize for ParameterSignalPreparationOutcome {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterSignalPreparationOutcome {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -24941,12 +27061,14 @@ impl PresentationValue for ParameterSignalPreparationOutcome {
     }
 }
 impl PresentationExtras for ParameterSignalPreparationOutcome {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterSignalPreparationOutcome {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Key", &BackendDocument(&self.key))?;
@@ -24956,6 +27078,7 @@ impl BackendRecord for ParameterSignalPreparationOutcome {
     }
 }
 impl Cells for ParameterSignalPreparationOutcome {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "status" | "Status" => self.status.scalar_cell(),
@@ -24965,6 +27088,9 @@ impl Cells for ParameterSignalPreparationOutcome {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalPreparationStatus`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ParameterSignalPreparationStatus {
     NotRequested,
@@ -24977,6 +27103,7 @@ pub enum ParameterSignalPreparationStatus {
     Unrecognized(i64),
 }
 impl ParameterSignalPreparationStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::NotRequested => "NotRequested".into(),
@@ -24993,6 +27120,9 @@ impl ParameterSignalPreparationStatus {
 impl FromBackend for ParameterSignalPreparationStatus {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalPreparationStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -25009,6 +27139,7 @@ impl FromBackend for ParameterSignalPreparationStatus {
     }
 }
 impl Serialize for ParameterSignalPreparationStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -25017,13 +27148,21 @@ impl Serialize for ParameterSignalPreparationStatus {
     }
 }
 impl<'de> Deserialize<'de> for ParameterSignalPreparationStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ParameterSignalPreparationStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
@@ -25031,12 +27170,18 @@ impl<'de> Deserialize<'de> for ParameterSignalPreparationStatus {
                 ParameterSignalPreparationStatus::from_backend(&Value::from(value))
                     .map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<ParameterSignalPreparationStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -25059,6 +27204,7 @@ impl<'de> Deserialize<'de> for ParameterSignalPreparationStatus {
     }
 }
 impl ScalarCell for ParameterSignalPreparationStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -25067,6 +27213,7 @@ impl ScalarCell for ParameterSignalPreparationStatus {
     }
 }
 impl PresentationValue for ParameterSignalPreparationStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25080,6 +27227,7 @@ impl PresentationValue for ParameterSignalPreparationStatus {
     }
 }
 impl BackendRecord for ParameterSignalPreparationStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -25088,6 +27236,7 @@ impl BackendRecord for ParameterSignalPreparationStatus {
     }
 }
 impl PublishedEnum for ParameterSignalPreparationStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -25096,6 +27245,9 @@ impl PublishedEnum for ParameterSignalPreparationStatus {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalProducer`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ParameterSignalProducer {
     ClosedBars,
@@ -25111,6 +27263,7 @@ pub enum ParameterSignalProducer {
     Unrecognized(i64),
 }
 impl ParameterSignalProducer {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::ClosedBars => "ClosedBars".into(),
@@ -25130,6 +27283,9 @@ impl ParameterSignalProducer {
 impl FromBackend for ParameterSignalProducer {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalProducer";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -25149,6 +27305,7 @@ impl FromBackend for ParameterSignalProducer {
     }
 }
 impl Serialize for ParameterSignalProducer {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -25157,25 +27314,39 @@ impl Serialize for ParameterSignalProducer {
     }
 }
 impl<'de> Deserialize<'de> for ParameterSignalProducer {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ParameterSignalProducer;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<ParameterSignalProducer, E> {
                 ParameterSignalProducer::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<ParameterSignalProducer, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -25201,6 +27372,7 @@ impl<'de> Deserialize<'de> for ParameterSignalProducer {
     }
 }
 impl ScalarCell for ParameterSignalProducer {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -25209,6 +27381,7 @@ impl ScalarCell for ParameterSignalProducer {
     }
 }
 impl PresentationValue for ParameterSignalProducer {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25222,6 +27395,7 @@ impl PresentationValue for ParameterSignalProducer {
     }
 }
 impl BackendRecord for ParameterSignalProducer {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -25230,6 +27404,7 @@ impl BackendRecord for ParameterSignalProducer {
     }
 }
 impl PublishedEnum for ParameterSignalProducer {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -25238,6 +27413,9 @@ impl PublishedEnum for ParameterSignalProducer {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalProducerKey`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterSignalProducerKey {
     /// C# Producer, wire slot 0.
@@ -25253,6 +27431,9 @@ pub struct ParameterSignalProducerKey {
 impl FromBackend for ParameterSignalProducerKey {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalProducerKey";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -25268,6 +27449,7 @@ impl FromBackend for ParameterSignalProducerKey {
     }
 }
 impl PresentationRecord for ParameterSignalProducerKey {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25305,11 +27487,13 @@ impl PresentationRecord for ParameterSignalProducerKey {
     }
 }
 impl Serialize for ParameterSignalProducerKey {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterSignalProducerKey {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25319,12 +27503,14 @@ impl PresentationValue for ParameterSignalProducerKey {
     }
 }
 impl PresentationExtras for ParameterSignalProducerKey {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterSignalProducerKey {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Producer", &BackendDocument(&self.producer))?;
@@ -25334,6 +27520,7 @@ impl BackendRecord for ParameterSignalProducerKey {
     }
 }
 impl Cells for ParameterSignalProducerKey {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "producer" | "Producer" => self.producer.scalar_cell(),
@@ -25344,6 +27531,9 @@ impl Cells for ParameterSignalProducerKey {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalStartupPlan`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterSignalStartupPlan {
     /// C# StartupRunId, wire slot 0.
@@ -25369,6 +27559,9 @@ pub struct ParameterSignalStartupPlan {
 impl FromBackend for ParameterSignalStartupPlan {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalStartupPlan";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -25390,6 +27583,7 @@ impl FromBackend for ParameterSignalStartupPlan {
     }
 }
 impl PresentationRecord for ParameterSignalStartupPlan {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25441,11 +27635,13 @@ impl PresentationRecord for ParameterSignalStartupPlan {
     }
 }
 impl Serialize for ParameterSignalStartupPlan {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterSignalStartupPlan {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25455,12 +27651,14 @@ impl PresentationValue for ParameterSignalStartupPlan {
     }
 }
 impl PresentationExtras for ParameterSignalStartupPlan {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterSignalStartupPlan {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("StartupRunId", &BackendDocument(&self.startup_run_id))?;
@@ -25475,6 +27673,7 @@ impl BackendRecord for ParameterSignalStartupPlan {
     }
 }
 impl Cells for ParameterSignalStartupPlan {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "startupRunId" | "StartupRunId" => self.startup_run_id.scalar_cell(),
@@ -25487,6 +27686,9 @@ impl Cells for ParameterSignalStartupPlan {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalStartupReport`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterSignalStartupReport {
     /// C# RunId, wire slot 0.
@@ -25511,6 +27713,9 @@ pub struct ParameterSignalStartupReport {
 impl FromBackend for ParameterSignalStartupReport {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalStartupReport";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -25534,6 +27739,7 @@ impl FromBackend for ParameterSignalStartupReport {
     }
 }
 impl PresentationRecord for ParameterSignalStartupReport {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25592,11 +27798,13 @@ impl PresentationRecord for ParameterSignalStartupReport {
     }
 }
 impl Serialize for ParameterSignalStartupReport {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterSignalStartupReport {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25606,12 +27814,14 @@ impl PresentationValue for ParameterSignalStartupReport {
     }
 }
 impl PresentationExtras for ParameterSignalStartupReport {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterSignalStartupReport {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("RunId", &BackendDocument(&self.run_id))?;
@@ -25624,6 +27834,7 @@ impl BackendRecord for ParameterSignalStartupReport {
     }
 }
 impl Cells for ParameterSignalStartupReport {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "runId" | "RunId" => self.run_id.scalar_cell(),
@@ -25636,6 +27847,9 @@ impl Cells for ParameterSignalStartupReport {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalStartupStep`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterSignalStartupStep {
     /// C# Key, wire slot 0.
@@ -25654,6 +27868,9 @@ pub struct ParameterSignalStartupStep {
 impl FromBackend for ParameterSignalStartupStep {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalStartupStep";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -25671,6 +27888,7 @@ impl FromBackend for ParameterSignalStartupStep {
     }
 }
 impl PresentationRecord for ParameterSignalStartupStep {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25715,11 +27933,13 @@ impl PresentationRecord for ParameterSignalStartupStep {
     }
 }
 impl Serialize for ParameterSignalStartupStep {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterSignalStartupStep {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25729,12 +27949,14 @@ impl PresentationValue for ParameterSignalStartupStep {
     }
 }
 impl PresentationExtras for ParameterSignalStartupStep {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterSignalStartupStep {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Key", &BackendDocument(&self.key))?;
@@ -25745,6 +27967,7 @@ impl BackendRecord for ParameterSignalStartupStep {
     }
 }
 impl Cells for ParameterSignalStartupStep {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "prepare" | "Prepare" => self.prepare.scalar_cell(),
@@ -25754,6 +27977,9 @@ impl Cells for ParameterSignalStartupStep {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterValidationIssue`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterValidationIssue {
     /// C# Code, wire slot 0.
@@ -25772,6 +27998,9 @@ pub struct ParameterValidationIssue {
 impl FromBackend for ParameterValidationIssue {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterValidationIssue";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -25789,6 +28018,7 @@ impl FromBackend for ParameterValidationIssue {
     }
 }
 impl PresentationRecord for ParameterValidationIssue {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25833,11 +28063,13 @@ impl PresentationRecord for ParameterValidationIssue {
     }
 }
 impl Serialize for ParameterValidationIssue {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterValidationIssue {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25847,12 +28079,14 @@ impl PresentationValue for ParameterValidationIssue {
     }
 }
 impl PresentationExtras for ParameterValidationIssue {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterValidationIssue {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Code", &BackendDocument(&self.code))?;
@@ -25863,6 +28097,7 @@ impl BackendRecord for ParameterValidationIssue {
     }
 }
 impl Cells for ParameterValidationIssue {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "code" | "Code" => self.code.scalar_cell(),
@@ -25874,6 +28109,9 @@ impl Cells for ParameterValidationIssue {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterValidationReport`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterValidationReport {
     /// C# CandidateSha256, wire slot 0.
@@ -25886,6 +28124,9 @@ pub struct ParameterValidationReport {
 impl FromBackend for ParameterValidationReport {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterValidationReport";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -25899,6 +28140,7 @@ impl FromBackend for ParameterValidationReport {
     }
 }
 impl PresentationRecord for ParameterValidationReport {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25929,11 +28171,13 @@ impl PresentationRecord for ParameterValidationReport {
     }
 }
 impl Serialize for ParameterValidationReport {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterValidationReport {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -25943,12 +28187,14 @@ impl PresentationValue for ParameterValidationReport {
     }
 }
 impl PresentationExtras for ParameterValidationReport {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterValidationReport {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("CandidateSha256", &BackendDocument(&self.candidate_sha256))?;
@@ -25957,6 +28203,7 @@ impl BackendRecord for ParameterValidationReport {
     }
 }
 impl Cells for ParameterValidationReport {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "candidateSha256" | "CandidateSha256" => self.candidate_sha256.scalar_cell(),
@@ -25965,6 +28212,9 @@ impl Cells for ParameterValidationReport {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterVersionRef`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ParameterVersionRef {
     /// C# SetId, wire slot 0.
@@ -25983,6 +28233,9 @@ pub struct ParameterVersionRef {
 impl FromBackend for ParameterVersionRef {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterVersionRef";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -26000,6 +28253,7 @@ impl FromBackend for ParameterVersionRef {
     }
 }
 impl PresentationRecord for ParameterVersionRef {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26044,11 +28298,13 @@ impl PresentationRecord for ParameterVersionRef {
     }
 }
 impl Serialize for ParameterVersionRef {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ParameterVersionRef {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26058,12 +28314,14 @@ impl PresentationValue for ParameterVersionRef {
     }
 }
 impl PresentationExtras for ParameterVersionRef {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ParameterVersionRef {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SetId", &BackendDocument(&self.set_id))?;
@@ -26074,6 +28332,7 @@ impl BackendRecord for ParameterVersionRef {
     }
 }
 impl Cells for ParameterVersionRef {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "setId" | "SetId" => self.set_id.scalar_cell(),
@@ -26085,6 +28344,9 @@ impl Cells for ParameterVersionRef {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterVersionStatus`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ParameterVersionStatus {
     Draft,
@@ -26093,6 +28355,7 @@ pub enum ParameterVersionStatus {
     Unrecognized(i64),
 }
 impl ParameterVersionStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Draft => "Draft".into(),
@@ -26105,6 +28368,9 @@ impl ParameterVersionStatus {
 impl FromBackend for ParameterVersionStatus {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterVersionStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -26117,6 +28383,7 @@ impl FromBackend for ParameterVersionStatus {
     }
 }
 impl Serialize for ParameterVersionStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -26125,25 +28392,39 @@ impl Serialize for ParameterVersionStatus {
     }
 }
 impl<'de> Deserialize<'de> for ParameterVersionStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ParameterVersionStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<ParameterVersionStatus, E> {
                 ParameterVersionStatus::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<ParameterVersionStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -26162,6 +28443,7 @@ impl<'de> Deserialize<'de> for ParameterVersionStatus {
     }
 }
 impl ScalarCell for ParameterVersionStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -26170,6 +28452,7 @@ impl ScalarCell for ParameterVersionStatus {
     }
 }
 impl PresentationValue for ParameterVersionStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26183,6 +28466,7 @@ impl PresentationValue for ParameterVersionStatus {
     }
 }
 impl BackendRecord for ParameterVersionStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -26191,6 +28475,7 @@ impl BackendRecord for ParameterVersionStatus {
     }
 }
 impl PublishedEnum for ParameterVersionStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -26199,6 +28484,8 @@ impl PublishedEnum for ParameterVersionStatus {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct CatalogKey {
     /// C# Kind, wire slot 0.
@@ -26213,6 +28500,9 @@ pub struct CatalogKey {
 }
 impl FromBackend for CatalogKey {
     const KIND: &'static str = "TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -26228,6 +28518,7 @@ impl FromBackend for CatalogKey {
     }
 }
 impl PresentationRecord for CatalogKey {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26265,11 +28556,13 @@ impl PresentationRecord for CatalogKey {
     }
 }
 impl Serialize for CatalogKey {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for CatalogKey {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26279,12 +28572,14 @@ impl PresentationValue for CatalogKey {
     }
 }
 impl PresentationExtras for CatalogKey {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for CatalogKey {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Kind", &BackendDocument(&self.kind))?;
@@ -26294,6 +28589,7 @@ impl BackendRecord for CatalogKey {
     }
 }
 impl Cells for CatalogKey {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "kind" | "Kind" => self.kind.scalar_cell(),
@@ -26304,6 +28600,9 @@ impl Cells for CatalogKey {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StrategyCatalogKind {
     Family,
@@ -26316,6 +28615,7 @@ pub enum StrategyCatalogKind {
     Unrecognized(i64),
 }
 impl StrategyCatalogKind {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Family => "Family".into(),
@@ -26332,6 +28632,9 @@ impl StrategyCatalogKind {
 impl FromBackend for StrategyCatalogKind {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -26348,6 +28651,7 @@ impl FromBackend for StrategyCatalogKind {
     }
 }
 impl Serialize for StrategyCatalogKind {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -26356,19 +28660,33 @@ impl Serialize for StrategyCatalogKind {
     }
 }
 impl<'de> Deserialize<'de> for StrategyCatalogKind {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = StrategyCatalogKind;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<StrategyCatalogKind, E> {
                 StrategyCatalogKind::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<StrategyCatalogKind, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<StrategyCatalogKind, E> {
                 Ok(match value {
                     "Family" => StrategyCatalogKind::Family,
@@ -26386,6 +28704,7 @@ impl<'de> Deserialize<'de> for StrategyCatalogKind {
     }
 }
 impl ScalarCell for StrategyCatalogKind {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -26394,6 +28713,7 @@ impl ScalarCell for StrategyCatalogKind {
     }
 }
 impl PresentationValue for StrategyCatalogKind {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26407,6 +28727,7 @@ impl PresentationValue for StrategyCatalogKind {
     }
 }
 impl BackendRecord for StrategyCatalogKind {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -26415,6 +28736,7 @@ impl BackendRecord for StrategyCatalogKind {
     }
 }
 impl PublishedEnum for StrategyCatalogKind {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -26423,6 +28745,9 @@ impl PublishedEnum for StrategyCatalogKind {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyReference`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeStrategyFamilyReference {
     /// C# TradeStrategyFamilyId, wire slot 0.
@@ -26442,6 +28767,9 @@ pub struct TradeStrategyFamilyReference {
 impl FromBackend for TradeStrategyFamilyReference {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyReference";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -26465,6 +28793,7 @@ impl FromBackend for TradeStrategyFamilyReference {
     }
 }
 impl PresentationRecord for TradeStrategyFamilyReference {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26502,11 +28831,13 @@ impl PresentationRecord for TradeStrategyFamilyReference {
     }
 }
 impl Serialize for TradeStrategyFamilyReference {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeStrategyFamilyReference {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26516,12 +28847,14 @@ impl PresentationValue for TradeStrategyFamilyReference {
     }
 }
 impl PresentationExtras for TradeStrategyFamilyReference {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeStrategyFamilyReference {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry(
@@ -26540,6 +28873,7 @@ impl BackendRecord for TradeStrategyFamilyReference {
     }
 }
 impl Cells for TradeStrategyFamilyReference {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "tradeStrategyFamilyId" | "TradeStrategyFamilyId" => {
@@ -26551,6 +28885,9 @@ impl Cells for TradeStrategyFamilyReference {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ScheduledTaskCatalog {
     /// C# Id, wire slot 0.
@@ -26575,6 +28912,9 @@ pub struct ScheduledTaskCatalog {
 impl FromBackend for ScheduledTaskCatalog {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -26596,6 +28936,7 @@ impl FromBackend for ScheduledTaskCatalog {
     }
 }
 impl PresentationRecord for ScheduledTaskCatalog {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26654,11 +28995,13 @@ impl PresentationRecord for ScheduledTaskCatalog {
     }
 }
 impl Serialize for ScheduledTaskCatalog {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ScheduledTaskCatalog {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26668,12 +29011,14 @@ impl PresentationValue for ScheduledTaskCatalog {
     }
 }
 impl PresentationExtras for ScheduledTaskCatalog {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ScheduledTaskCatalog {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Id", &BackendDocument(&self.id))?;
@@ -26686,6 +29031,7 @@ impl BackendRecord for ScheduledTaskCatalog {
     }
 }
 impl Cells for ScheduledTaskCatalog {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "revision" | "Revision" => self.revision.scalar_cell(),
@@ -26696,6 +29042,9 @@ impl Cells for ScheduledTaskCatalog {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskDefinition`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ScheduledTaskDefinition {
     /// C# Id, wire slot 0.
@@ -26764,6 +29113,9 @@ pub struct ScheduledTaskDefinition {
 impl FromBackend for ScheduledTaskDefinition {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskDefinition";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -26815,6 +29167,7 @@ impl FromBackend for ScheduledTaskDefinition {
     }
 }
 impl PresentationRecord for ScheduledTaskDefinition {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26957,11 +29310,13 @@ impl PresentationRecord for ScheduledTaskDefinition {
     }
 }
 impl Serialize for ScheduledTaskDefinition {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ScheduledTaskDefinition {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -26971,12 +29326,14 @@ impl PresentationValue for ScheduledTaskDefinition {
     }
 }
 impl PresentationExtras for ScheduledTaskDefinition {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ScheduledTaskDefinition {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Id", &BackendDocument(&self.id))?;
@@ -27019,6 +29376,7 @@ impl BackendRecord for ScheduledTaskDefinition {
     }
 }
 impl Cells for ScheduledTaskDefinition {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "revision" | "Revision" => self.revision.scalar_cell(),
@@ -27048,6 +29406,9 @@ impl Cells for ScheduledTaskDefinition {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ScheduledTaskHostCapability {
     /// C# HostId, wire slot 0.
@@ -27075,6 +29436,9 @@ pub struct ScheduledTaskHostCapability {
 impl FromBackend for ScheduledTaskHostCapability {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -27098,6 +29462,7 @@ impl FromBackend for ScheduledTaskHostCapability {
     }
 }
 impl PresentationRecord for ScheduledTaskHostCapability {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -27163,11 +29528,13 @@ impl PresentationRecord for ScheduledTaskHostCapability {
     }
 }
 impl Serialize for ScheduledTaskHostCapability {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ScheduledTaskHostCapability {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -27177,12 +29544,14 @@ impl PresentationValue for ScheduledTaskHostCapability {
     }
 }
 impl PresentationExtras for ScheduledTaskHostCapability {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ScheduledTaskHostCapability {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("HostId", &BackendDocument(&self.host_id))?;
@@ -27196,6 +29565,7 @@ impl BackendRecord for ScheduledTaskHostCapability {
     }
 }
 impl Cells for ScheduledTaskHostCapability {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "hostId" | "HostId" => self.host_id.scalar_cell(),
@@ -27210,6 +29580,9 @@ impl Cells for ScheduledTaskHostCapability {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ScheduledTaskId {
     /// C# Value, wire slot 0.
@@ -27219,6 +29592,9 @@ pub struct ScheduledTaskId {
 impl FromBackend for ScheduledTaskId {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -27230,6 +29606,7 @@ impl FromBackend for ScheduledTaskId {
     }
 }
 impl PresentationRecord for ScheduledTaskId {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -27253,11 +29630,13 @@ impl PresentationRecord for ScheduledTaskId {
     }
 }
 impl Serialize for ScheduledTaskId {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ScheduledTaskId {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -27267,12 +29646,14 @@ impl PresentationValue for ScheduledTaskId {
     }
 }
 impl PresentationExtras for ScheduledTaskId {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ScheduledTaskId {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Value", &BackendDocument(&self.value))?;
@@ -27280,6 +29661,7 @@ impl BackendRecord for ScheduledTaskId {
     }
 }
 impl Cells for ScheduledTaskId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "value" | "Value" => self.value.scalar_cell(),
@@ -27288,6 +29670,9 @@ impl Cells for ScheduledTaskId {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskInstallationStatus`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ScheduledTaskInstallationStatus {
     Pending,
@@ -27296,6 +29681,7 @@ pub enum ScheduledTaskInstallationStatus {
     Unrecognized(i64),
 }
 impl ScheduledTaskInstallationStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Pending => "Pending".into(),
@@ -27307,6 +29693,9 @@ impl ScheduledTaskInstallationStatus {
 }
 impl FromBackend for ScheduledTaskInstallationStatus {
     const KIND: &'static str = "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskInstallationStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -27319,6 +29708,7 @@ impl FromBackend for ScheduledTaskInstallationStatus {
     }
 }
 impl Serialize for ScheduledTaskInstallationStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -27327,13 +29717,21 @@ impl Serialize for ScheduledTaskInstallationStatus {
     }
 }
 impl<'de> Deserialize<'de> for ScheduledTaskInstallationStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ScheduledTaskInstallationStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
@@ -27341,12 +29739,18 @@ impl<'de> Deserialize<'de> for ScheduledTaskInstallationStatus {
                 ScheduledTaskInstallationStatus::from_backend(&Value::from(value))
                     .map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<ScheduledTaskInstallationStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -27365,6 +29769,7 @@ impl<'de> Deserialize<'de> for ScheduledTaskInstallationStatus {
     }
 }
 impl ScalarCell for ScheduledTaskInstallationStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -27373,6 +29778,7 @@ impl ScalarCell for ScheduledTaskInstallationStatus {
     }
 }
 impl PresentationValue for ScheduledTaskInstallationStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -27386,6 +29792,7 @@ impl PresentationValue for ScheduledTaskInstallationStatus {
     }
 }
 impl BackendRecord for ScheduledTaskInstallationStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -27394,6 +29801,7 @@ impl BackendRecord for ScheduledTaskInstallationStatus {
     }
 }
 impl PublishedEnum for ScheduledTaskInstallationStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -27402,6 +29810,9 @@ impl PublishedEnum for ScheduledTaskInstallationStatus {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskOutputPage`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ScheduledTaskOutputPage {
     /// C# Text, wire slot 0.
@@ -27420,6 +29831,9 @@ pub struct ScheduledTaskOutputPage {
 impl FromBackend for ScheduledTaskOutputPage {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskOutputPage";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -27437,6 +29851,7 @@ impl FromBackend for ScheduledTaskOutputPage {
     }
 }
 impl PresentationRecord for ScheduledTaskOutputPage {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -27481,11 +29896,13 @@ impl PresentationRecord for ScheduledTaskOutputPage {
     }
 }
 impl Serialize for ScheduledTaskOutputPage {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ScheduledTaskOutputPage {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -27495,12 +29912,14 @@ impl PresentationValue for ScheduledTaskOutputPage {
     }
 }
 impl PresentationExtras for ScheduledTaskOutputPage {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ScheduledTaskOutputPage {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Text", &BackendDocument(&self.text))?;
@@ -27511,6 +29930,7 @@ impl BackendRecord for ScheduledTaskOutputPage {
     }
 }
 impl Cells for ScheduledTaskOutputPage {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "text" | "Text" => self.text.scalar_cell(),
@@ -27522,6 +29942,9 @@ impl Cells for ScheduledTaskOutputPage {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ScheduledTaskProject {
     /// C# TaskKey, wire slot 0.
@@ -27562,6 +29985,9 @@ pub struct ScheduledTaskProject {
 impl FromBackend for ScheduledTaskProject {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -27593,6 +30019,7 @@ impl FromBackend for ScheduledTaskProject {
     }
 }
 impl PresentationRecord for ScheduledTaskProject {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -27679,11 +30106,13 @@ impl PresentationRecord for ScheduledTaskProject {
     }
 }
 impl Serialize for ScheduledTaskProject {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ScheduledTaskProject {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -27693,12 +30122,14 @@ impl PresentationValue for ScheduledTaskProject {
     }
 }
 impl PresentationExtras for ScheduledTaskProject {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ScheduledTaskProject {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("TaskKey", &BackendDocument(&self.task_key))?;
@@ -27721,6 +30152,7 @@ impl BackendRecord for ScheduledTaskProject {
     }
 }
 impl Cells for ScheduledTaskProject {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "taskKey" | "TaskKey" => self.task_key.scalar_cell(),
@@ -27740,6 +30172,9 @@ impl Cells for ScheduledTaskProject {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ScheduledTaskRun {
     /// C# Id, wire slot 0.
@@ -27819,6 +30254,9 @@ pub struct ScheduledTaskRun {
 impl FromBackend for ScheduledTaskRun {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -27878,6 +30316,7 @@ impl FromBackend for ScheduledTaskRun {
     }
 }
 impl PresentationRecord for ScheduledTaskRun {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -28055,11 +30494,13 @@ impl PresentationRecord for ScheduledTaskRun {
     }
 }
 impl Serialize for ScheduledTaskRun {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ScheduledTaskRun {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -28069,12 +30510,14 @@ impl PresentationValue for ScheduledTaskRun {
     }
 }
 impl PresentationExtras for ScheduledTaskRun {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ScheduledTaskRun {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Id", &BackendDocument(&self.id))?;
@@ -28122,6 +30565,7 @@ impl BackendRecord for ScheduledTaskRun {
     }
 }
 impl Cells for ScheduledTaskRun {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "revision" | "Revision" => self.revision.scalar_cell(),
@@ -28154,6 +30598,9 @@ impl Cells for ScheduledTaskRun {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRunStatus`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ScheduledTaskRunStatus {
     Requested,
@@ -28166,6 +30613,7 @@ pub enum ScheduledTaskRunStatus {
     Unrecognized(i64),
 }
 impl ScheduledTaskRunStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Requested => "Requested".into(),
@@ -28182,6 +30630,9 @@ impl ScheduledTaskRunStatus {
 impl FromBackend for ScheduledTaskRunStatus {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRunStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -28198,6 +30649,7 @@ impl FromBackend for ScheduledTaskRunStatus {
     }
 }
 impl Serialize for ScheduledTaskRunStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -28206,25 +30658,39 @@ impl Serialize for ScheduledTaskRunStatus {
     }
 }
 impl<'de> Deserialize<'de> for ScheduledTaskRunStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ScheduledTaskRunStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<ScheduledTaskRunStatus, E> {
                 ScheduledTaskRunStatus::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<ScheduledTaskRunStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -28247,6 +30713,7 @@ impl<'de> Deserialize<'de> for ScheduledTaskRunStatus {
     }
 }
 impl ScalarCell for ScheduledTaskRunStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -28255,6 +30722,7 @@ impl ScalarCell for ScheduledTaskRunStatus {
     }
 }
 impl PresentationValue for ScheduledTaskRunStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -28268,6 +30736,7 @@ impl PresentationValue for ScheduledTaskRunStatus {
     }
 }
 impl BackendRecord for ScheduledTaskRunStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -28276,6 +30745,7 @@ impl BackendRecord for ScheduledTaskRunStatus {
     }
 }
 impl PublishedEnum for ScheduledTaskRunStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -28284,6 +30754,9 @@ impl PublishedEnum for ScheduledTaskRunStatus {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskSchedule`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ScheduledTaskSchedule {
     /// C# TaskKey, wire slot 0.
@@ -28334,6 +30807,9 @@ pub struct ScheduledTaskSchedule {
 impl FromBackend for ScheduledTaskSchedule {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskSchedule";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -28371,6 +30847,7 @@ impl FromBackend for ScheduledTaskSchedule {
     }
 }
 impl PresentationRecord for ScheduledTaskSchedule {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -28471,11 +30948,13 @@ impl PresentationRecord for ScheduledTaskSchedule {
     }
 }
 impl Serialize for ScheduledTaskSchedule {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ScheduledTaskSchedule {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -28485,12 +30964,14 @@ impl PresentationValue for ScheduledTaskSchedule {
     }
 }
 impl PresentationExtras for ScheduledTaskSchedule {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ScheduledTaskSchedule {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("TaskKey", &BackendDocument(&self.task_key))?;
@@ -28515,6 +30996,7 @@ impl BackendRecord for ScheduledTaskSchedule {
     }
 }
 impl Cells for ScheduledTaskSchedule {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "taskKey" | "TaskKey" => self.task_key.scalar_cell(),
@@ -28538,6 +31020,9 @@ impl Cells for ScheduledTaskSchedule {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskSchedulePreview`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ScheduledTaskSchedulePreview {
     /// C# Valid, wire slot 0.
@@ -28555,6 +31040,9 @@ pub struct ScheduledTaskSchedulePreview {
 }
 impl FromBackend for ScheduledTaskSchedulePreview {
     const KIND: &'static str = "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskSchedulePreview";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -28574,6 +31062,7 @@ impl FromBackend for ScheduledTaskSchedulePreview {
     }
 }
 impl PresentationRecord for ScheduledTaskSchedulePreview {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -28618,11 +31107,13 @@ impl PresentationRecord for ScheduledTaskSchedulePreview {
     }
 }
 impl Serialize for ScheduledTaskSchedulePreview {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ScheduledTaskSchedulePreview {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -28632,12 +31123,14 @@ impl PresentationValue for ScheduledTaskSchedulePreview {
     }
 }
 impl PresentationExtras for ScheduledTaskSchedulePreview {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ScheduledTaskSchedulePreview {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Valid", &BackendDocument(&self.valid))?;
@@ -28651,6 +31144,7 @@ impl BackendRecord for ScheduledTaskSchedulePreview {
     }
 }
 impl Cells for ScheduledTaskSchedulePreview {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "valid" | "Valid" => self.valid.scalar_cell(),
@@ -28660,6 +31154,9 @@ impl Cells for ScheduledTaskSchedulePreview {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskTiming`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ScheduledTaskTiming {
     Cron,
@@ -28667,6 +31164,7 @@ pub enum ScheduledTaskTiming {
     Unrecognized(i64),
 }
 impl ScheduledTaskTiming {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Cron => "Cron".into(),
@@ -28678,6 +31176,9 @@ impl ScheduledTaskTiming {
 impl FromBackend for ScheduledTaskTiming {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskTiming";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -28689,6 +31190,7 @@ impl FromBackend for ScheduledTaskTiming {
     }
 }
 impl Serialize for ScheduledTaskTiming {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -28697,19 +31199,33 @@ impl Serialize for ScheduledTaskTiming {
     }
 }
 impl<'de> Deserialize<'de> for ScheduledTaskTiming {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ScheduledTaskTiming;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<ScheduledTaskTiming, E> {
                 ScheduledTaskTiming::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<ScheduledTaskTiming, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<ScheduledTaskTiming, E> {
                 Ok(match value {
                     "Cron" => ScheduledTaskTiming::Cron,
@@ -28722,6 +31238,7 @@ impl<'de> Deserialize<'de> for ScheduledTaskTiming {
     }
 }
 impl ScalarCell for ScheduledTaskTiming {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -28730,6 +31247,7 @@ impl ScalarCell for ScheduledTaskTiming {
     }
 }
 impl PresentationValue for ScheduledTaskTiming {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -28743,6 +31261,7 @@ impl PresentationValue for ScheduledTaskTiming {
     }
 }
 impl BackendRecord for ScheduledTaskTiming {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -28751,6 +31270,7 @@ impl BackendRecord for ScheduledTaskTiming {
     }
 }
 impl PublishedEnum for ScheduledTaskTiming {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -28759,6 +31279,9 @@ impl PublishedEnum for ScheduledTaskTiming {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTasksDashboard`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ScheduledTasksDashboard {
     /// C# Catalog, wire slot 0.
@@ -28777,6 +31300,9 @@ pub struct ScheduledTasksDashboard {
 impl FromBackend for ScheduledTasksDashboard {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTasksDashboard";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -28794,6 +31320,7 @@ impl FromBackend for ScheduledTasksDashboard {
     }
 }
 impl PresentationRecord for ScheduledTasksDashboard {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -28838,11 +31365,13 @@ impl PresentationRecord for ScheduledTasksDashboard {
     }
 }
 impl Serialize for ScheduledTasksDashboard {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ScheduledTasksDashboard {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -28852,12 +31381,14 @@ impl PresentationValue for ScheduledTasksDashboard {
     }
 }
 impl PresentationExtras for ScheduledTasksDashboard {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ScheduledTasksDashboard {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Catalog", &BackendDocument(&self.catalog))?;
@@ -28868,6 +31399,7 @@ impl BackendRecord for ScheduledTasksDashboard {
     }
 }
 impl Cells for ScheduledTasksDashboard {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "readAtUtc" | "ReadAtUtc" => self.read_at_utc.scalar_cell(),
@@ -28876,6 +31408,8 @@ impl Cells for ScheduledTasksDashboard {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.AssetType`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AssetType {
     Futures,
@@ -28888,6 +31422,7 @@ pub enum AssetType {
     Unrecognized(i64),
 }
 impl AssetType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Futures => "Futures".into(),
@@ -28903,6 +31438,9 @@ impl AssetType {
 }
 impl FromBackend for AssetType {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.AssetType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -28919,6 +31457,7 @@ impl FromBackend for AssetType {
     }
 }
 impl Serialize for AssetType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -28927,19 +31466,33 @@ impl Serialize for AssetType {
     }
 }
 impl<'de> Deserialize<'de> for AssetType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = AssetType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<AssetType, E> {
                 AssetType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<AssetType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<AssetType, E> {
                 Ok(match value {
                     "Futures" => AssetType::Futures,
@@ -28957,6 +31510,7 @@ impl<'de> Deserialize<'de> for AssetType {
     }
 }
 impl ScalarCell for AssetType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -28965,6 +31519,7 @@ impl ScalarCell for AssetType {
     }
 }
 impl PresentationValue for AssetType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -28978,6 +31533,7 @@ impl PresentationValue for AssetType {
     }
 }
 impl BackendRecord for AssetType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -28986,6 +31542,7 @@ impl BackendRecord for AssetType {
     }
 }
 impl PublishedEnum for AssetType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -28994,6 +31551,7 @@ impl PublishedEnum for AssetType {
     }
 }
 
+/// Broker Algorithm used by the trade contracts component.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BrokerAlgorithm {
     None,
@@ -29001,6 +31559,7 @@ pub enum BrokerAlgorithm {
     Unrecognized(i64),
 }
 impl BrokerAlgorithm {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::None => "None".into(),
@@ -29011,6 +31570,9 @@ impl BrokerAlgorithm {
 }
 impl FromBackend for BrokerAlgorithm {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.BrokerAlgorithm";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -29022,6 +31584,7 @@ impl FromBackend for BrokerAlgorithm {
     }
 }
 impl Serialize for BrokerAlgorithm {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -29030,19 +31593,33 @@ impl Serialize for BrokerAlgorithm {
     }
 }
 impl<'de> Deserialize<'de> for BrokerAlgorithm {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = BrokerAlgorithm;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<BrokerAlgorithm, E> {
                 BrokerAlgorithm::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<BrokerAlgorithm, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<BrokerAlgorithm, E> {
                 Ok(match value {
                     "None" => BrokerAlgorithm::None,
@@ -29055,6 +31632,7 @@ impl<'de> Deserialize<'de> for BrokerAlgorithm {
     }
 }
 impl ScalarCell for BrokerAlgorithm {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -29063,6 +31641,7 @@ impl ScalarCell for BrokerAlgorithm {
     }
 }
 impl PresentationValue for BrokerAlgorithm {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -29076,6 +31655,7 @@ impl PresentationValue for BrokerAlgorithm {
     }
 }
 impl BackendRecord for BrokerAlgorithm {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -29084,6 +31664,7 @@ impl BackendRecord for BrokerAlgorithm {
     }
 }
 impl PublishedEnum for BrokerAlgorithm {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -29092,6 +31673,7 @@ impl PublishedEnum for BrokerAlgorithm {
     }
 }
 
+/// Broker Environment used by the trade contracts component.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BrokerEnvironment {
     Unknown,
@@ -29101,6 +31683,7 @@ pub enum BrokerEnvironment {
     Unrecognized(i64),
 }
 impl BrokerEnvironment {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -29113,6 +31696,9 @@ impl BrokerEnvironment {
 }
 impl FromBackend for BrokerEnvironment {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -29126,6 +31712,7 @@ impl FromBackend for BrokerEnvironment {
     }
 }
 impl Serialize for BrokerEnvironment {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -29134,19 +31721,33 @@ impl Serialize for BrokerEnvironment {
     }
 }
 impl<'de> Deserialize<'de> for BrokerEnvironment {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = BrokerEnvironment;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<BrokerEnvironment, E> {
                 BrokerEnvironment::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<BrokerEnvironment, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<BrokerEnvironment, E> {
                 Ok(match value {
                     "Unknown" => BrokerEnvironment::Unknown,
@@ -29161,6 +31762,7 @@ impl<'de> Deserialize<'de> for BrokerEnvironment {
     }
 }
 impl ScalarCell for BrokerEnvironment {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -29169,6 +31771,7 @@ impl ScalarCell for BrokerEnvironment {
     }
 }
 impl PresentationValue for BrokerEnvironment {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -29182,6 +31785,7 @@ impl PresentationValue for BrokerEnvironment {
     }
 }
 impl BackendRecord for BrokerEnvironment {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -29190,6 +31794,7 @@ impl BackendRecord for BrokerEnvironment {
     }
 }
 impl PublishedEnum for BrokerEnvironment {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -29198,6 +31803,8 @@ impl PublishedEnum for BrokerEnvironment {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.BrokerOrderId`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct BrokerOrderId {
     /// C# Execution, wire slot 0.
@@ -29209,6 +31816,9 @@ pub struct BrokerOrderId {
 }
 impl FromBackend for BrokerOrderId {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.BrokerOrderId";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -29222,6 +31832,7 @@ impl FromBackend for BrokerOrderId {
     }
 }
 impl PresentationRecord for BrokerOrderId {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -29252,11 +31863,13 @@ impl PresentationRecord for BrokerOrderId {
     }
 }
 impl Serialize for BrokerOrderId {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for BrokerOrderId {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -29266,6 +31879,7 @@ impl PresentationValue for BrokerOrderId {
     }
 }
 impl PublishedIdentity for BrokerOrderId {
+    /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool {
         self.execution
             .as_ref()
@@ -29278,6 +31892,7 @@ impl PublishedIdentity for BrokerOrderId {
     }
 }
 impl PresentationExtras for BrokerOrderId {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         map.serialize_entry("isValid", &self.published_is_valid())?;
@@ -29285,6 +31900,7 @@ impl PresentationExtras for BrokerOrderId {
     }
 }
 impl BackendRecord for BrokerOrderId {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Execution", &BackendDocument(&self.execution))?;
@@ -29293,6 +31909,7 @@ impl BackendRecord for BrokerOrderId {
     }
 }
 impl Cells for BrokerOrderId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "componentId" | "ComponentId" => self.component_id.scalar_cell(),
@@ -29301,6 +31918,7 @@ impl Cells for BrokerOrderId {
     }
 }
 
+/// Broker Order Type used by the trade contracts component.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BrokerOrderType {
     Unknown,
@@ -29309,6 +31927,7 @@ pub enum BrokerOrderType {
     Unrecognized(i64),
 }
 impl BrokerOrderType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -29320,6 +31939,9 @@ impl BrokerOrderType {
 }
 impl FromBackend for BrokerOrderType {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.BrokerOrderType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -29332,6 +31954,7 @@ impl FromBackend for BrokerOrderType {
     }
 }
 impl Serialize for BrokerOrderType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -29340,19 +31963,33 @@ impl Serialize for BrokerOrderType {
     }
 }
 impl<'de> Deserialize<'de> for BrokerOrderType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = BrokerOrderType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<BrokerOrderType, E> {
                 BrokerOrderType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<BrokerOrderType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<BrokerOrderType, E> {
                 Ok(match value {
                     "Unknown" => BrokerOrderType::Unknown,
@@ -29366,6 +32003,7 @@ impl<'de> Deserialize<'de> for BrokerOrderType {
     }
 }
 impl ScalarCell for BrokerOrderType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -29374,6 +32012,7 @@ impl ScalarCell for BrokerOrderType {
     }
 }
 impl PresentationValue for BrokerOrderType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -29387,6 +32026,7 @@ impl PresentationValue for BrokerOrderType {
     }
 }
 impl BackendRecord for BrokerOrderType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -29395,6 +32035,7 @@ impl BackendRecord for BrokerOrderType {
     }
 }
 impl PublishedEnum for BrokerOrderType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -29403,6 +32044,8 @@ impl PublishedEnum for BrokerOrderType {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.EstablishedTradeDefinition`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct EstablishedTradeDefinition {
     /// C# SchemaVersion, wire slot 0.
@@ -29470,6 +32113,9 @@ pub struct EstablishedTradeDefinition {
 }
 impl FromBackend for EstablishedTradeDefinition {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.EstablishedTradeDefinition";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -29529,6 +32175,7 @@ impl FromBackend for EstablishedTradeDefinition {
     }
 }
 impl PresentationRecord for EstablishedTradeDefinition {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -29671,11 +32318,13 @@ impl PresentationRecord for EstablishedTradeDefinition {
     }
 }
 impl Serialize for EstablishedTradeDefinition {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for EstablishedTradeDefinition {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -29685,6 +32334,7 @@ impl PresentationValue for EstablishedTradeDefinition {
     }
 }
 impl BackendRecord for EstablishedTradeDefinition {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -29733,6 +32383,7 @@ impl BackendRecord for EstablishedTradeDefinition {
     }
 }
 impl Cells for EstablishedTradeDefinition {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -29751,6 +32402,8 @@ impl Cells for EstablishedTradeDefinition {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.EstablishedTradeMonitoringLimits`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct EstablishedTradeMonitoringLimits {
     /// C# PortfolioApprovalId, wire slot 0.
@@ -29771,6 +32424,9 @@ pub struct EstablishedTradeMonitoringLimits {
 }
 impl FromBackend for EstablishedTradeMonitoringLimits {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.EstablishedTradeMonitoringLimits";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -29798,6 +32454,7 @@ impl FromBackend for EstablishedTradeMonitoringLimits {
     }
 }
 impl PresentationRecord for EstablishedTradeMonitoringLimits {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -29849,11 +32506,13 @@ impl PresentationRecord for EstablishedTradeMonitoringLimits {
     }
 }
 impl Serialize for EstablishedTradeMonitoringLimits {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for EstablishedTradeMonitoringLimits {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -29863,12 +32522,14 @@ impl PresentationValue for EstablishedTradeMonitoringLimits {
     }
 }
 impl PresentationExtras for EstablishedTradeMonitoringLimits {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for EstablishedTradeMonitoringLimits {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry(
@@ -29883,6 +32544,7 @@ impl BackendRecord for EstablishedTradeMonitoringLimits {
     }
 }
 impl Cells for EstablishedTradeMonitoringLimits {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "portfolioApprovalId" | "PortfolioApprovalId" => {
@@ -29895,6 +32557,8 @@ impl Cells for EstablishedTradeMonitoringLimits {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.EstablishedTradeStatus`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EstablishedTradeStatus {
     Open,
@@ -29904,6 +32568,7 @@ pub enum EstablishedTradeStatus {
     Unrecognized(i64),
 }
 impl EstablishedTradeStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Open => "Open".into(),
@@ -29916,6 +32581,9 @@ impl EstablishedTradeStatus {
 }
 impl FromBackend for EstablishedTradeStatus {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.EstablishedTradeStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -29929,6 +32597,7 @@ impl FromBackend for EstablishedTradeStatus {
     }
 }
 impl Serialize for EstablishedTradeStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -29937,25 +32606,39 @@ impl Serialize for EstablishedTradeStatus {
     }
 }
 impl<'de> Deserialize<'de> for EstablishedTradeStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = EstablishedTradeStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<EstablishedTradeStatus, E> {
                 EstablishedTradeStatus::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<EstablishedTradeStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -29975,6 +32658,7 @@ impl<'de> Deserialize<'de> for EstablishedTradeStatus {
     }
 }
 impl ScalarCell for EstablishedTradeStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -29983,6 +32667,7 @@ impl ScalarCell for EstablishedTradeStatus {
     }
 }
 impl PresentationValue for EstablishedTradeStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -29996,6 +32681,7 @@ impl PresentationValue for EstablishedTradeStatus {
     }
 }
 impl BackendRecord for EstablishedTradeStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -30004,6 +32690,7 @@ impl BackendRecord for EstablishedTradeStatus {
     }
 }
 impl PublishedEnum for EstablishedTradeStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -30012,6 +32699,8 @@ impl PublishedEnum for EstablishedTradeStatus {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.ExecutionChannel`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutionChannel {
     Manual,
@@ -30019,6 +32708,7 @@ pub enum ExecutionChannel {
     Unrecognized(i64),
 }
 impl ExecutionChannel {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Manual => "Manual".into(),
@@ -30029,6 +32719,9 @@ impl ExecutionChannel {
 }
 impl FromBackend for ExecutionChannel {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.ExecutionChannel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -30040,6 +32733,7 @@ impl FromBackend for ExecutionChannel {
     }
 }
 impl Serialize for ExecutionChannel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -30048,19 +32742,33 @@ impl Serialize for ExecutionChannel {
     }
 }
 impl<'de> Deserialize<'de> for ExecutionChannel {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ExecutionChannel;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<ExecutionChannel, E> {
                 ExecutionChannel::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<ExecutionChannel, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<ExecutionChannel, E> {
                 Ok(match value {
                     "Manual" => ExecutionChannel::Manual,
@@ -30073,6 +32781,7 @@ impl<'de> Deserialize<'de> for ExecutionChannel {
     }
 }
 impl ScalarCell for ExecutionChannel {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -30081,6 +32790,7 @@ impl ScalarCell for ExecutionChannel {
     }
 }
 impl PresentationValue for ExecutionChannel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -30094,6 +32804,7 @@ impl PresentationValue for ExecutionChannel {
     }
 }
 impl BackendRecord for ExecutionChannel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -30102,6 +32813,7 @@ impl BackendRecord for ExecutionChannel {
     }
 }
 impl PublishedEnum for ExecutionChannel {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -30110,6 +32822,8 @@ impl PublishedEnum for ExecutionChannel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.ExecutionFillEvidence`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ExecutionFillEvidence {
     /// C# ExecutionFillId, wire slot 0.
@@ -30152,6 +32866,9 @@ pub struct ExecutionFillEvidence {
 }
 impl FromBackend for ExecutionFillEvidence {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.ExecutionFillEvidence";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -30187,6 +32904,7 @@ impl FromBackend for ExecutionFillEvidence {
     }
 }
 impl PresentationRecord for ExecutionFillEvidence {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -30280,11 +32998,13 @@ impl PresentationRecord for ExecutionFillEvidence {
     }
 }
 impl Serialize for ExecutionFillEvidence {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ExecutionFillEvidence {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -30294,12 +33014,14 @@ impl PresentationValue for ExecutionFillEvidence {
     }
 }
 impl PresentationExtras for ExecutionFillEvidence {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ExecutionFillEvidence {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ExecutionFillId", &BackendDocument(&self.execution_fill_id))?;
@@ -30326,6 +33048,7 @@ impl BackendRecord for ExecutionFillEvidence {
     }
 }
 impl Cells for ExecutionFillEvidence {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "executionFillId" | "ExecutionFillId" => self.execution_fill_id.scalar_cell(),
@@ -30348,6 +33071,9 @@ impl Cells for ExecutionFillEvidence {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardPrice`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct IronCondorForwardPrice {
     /// C# ForwardPrice, wire slot 0.
@@ -30407,6 +33133,9 @@ pub struct IronCondorForwardPrice {
 }
 impl FromBackend for IronCondorForwardPrice {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardPrice";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -30452,6 +33181,7 @@ impl FromBackend for IronCondorForwardPrice {
     }
 }
 impl PresentationRecord for IronCondorForwardPrice {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -30566,11 +33296,13 @@ impl PresentationRecord for IronCondorForwardPrice {
     }
 }
 impl Serialize for IronCondorForwardPrice {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for IronCondorForwardPrice {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -30580,12 +33312,14 @@ impl PresentationValue for IronCondorForwardPrice {
     }
 }
 impl PresentationExtras for IronCondorForwardPrice {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for IronCondorForwardPrice {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ForwardPrice", &BackendDocument(&self.forward_price))?;
@@ -30627,6 +33361,7 @@ impl BackendRecord for IronCondorForwardPrice {
     }
 }
 impl Cells for IronCondorForwardPrice {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "forwardPrice" | "ForwardPrice" => self.forward_price.scalar_cell(),
@@ -30650,6 +33385,9 @@ impl Cells for IronCondorForwardPrice {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardPriceInputs`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct IronCondorForwardPriceInputs {
     /// C# TradeDate, wire slot 0.
@@ -30664,6 +33402,9 @@ pub struct IronCondorForwardPriceInputs {
 }
 impl FromBackend for IronCondorForwardPriceInputs {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardPriceInputs";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -30679,6 +33420,7 @@ impl FromBackend for IronCondorForwardPriceInputs {
     }
 }
 impl PresentationRecord for IronCondorForwardPriceInputs {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -30716,11 +33458,13 @@ impl PresentationRecord for IronCondorForwardPriceInputs {
     }
 }
 impl Serialize for IronCondorForwardPriceInputs {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for IronCondorForwardPriceInputs {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -30730,12 +33474,14 @@ impl PresentationValue for IronCondorForwardPriceInputs {
     }
 }
 impl PresentationExtras for IronCondorForwardPriceInputs {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for IronCondorForwardPriceInputs {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("TradeDate", &BackendDocument(&self.trade_date))?;
@@ -30745,6 +33491,7 @@ impl BackendRecord for IronCondorForwardPriceInputs {
     }
 }
 impl Cells for IronCondorForwardPriceInputs {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "tradeDate" | "TradeDate" => self.trade_date.scalar_cell(),
@@ -30754,6 +33501,9 @@ impl Cells for IronCondorForwardPriceInputs {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardPriceLeg`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct IronCondorForwardPriceLeg {
     /// C# TradeLegId, wire slot 0.
@@ -30786,6 +33536,9 @@ pub struct IronCondorForwardPriceLeg {
 }
 impl FromBackend for IronCondorForwardPriceLeg {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardPriceLeg";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -30815,6 +33568,7 @@ impl FromBackend for IronCondorForwardPriceLeg {
     }
 }
 impl PresentationRecord for IronCondorForwardPriceLeg {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -30894,11 +33648,13 @@ impl PresentationRecord for IronCondorForwardPriceLeg {
     }
 }
 impl Serialize for IronCondorForwardPriceLeg {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for IronCondorForwardPriceLeg {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -30908,12 +33664,14 @@ impl PresentationValue for IronCondorForwardPriceLeg {
     }
 }
 impl PresentationExtras for IronCondorForwardPriceLeg {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for IronCondorForwardPriceLeg {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("TradeLegId", &BackendDocument(&self.trade_leg_id))?;
@@ -30935,6 +33693,7 @@ impl BackendRecord for IronCondorForwardPriceLeg {
     }
 }
 impl Cells for IronCondorForwardPriceLeg {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "tradeLegId" | "TradeLegId" => self.trade_leg_id.scalar_cell(),
@@ -30951,6 +33710,9 @@ impl Cells for IronCondorForwardPriceLeg {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardRisk`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct IronCondorForwardRisk {
     /// C# IronCondorForwardPrice, wire slot 0.
@@ -30994,6 +33756,9 @@ pub struct IronCondorForwardRisk {
 }
 impl FromBackend for IronCondorForwardRisk {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardRisk";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -31027,6 +33792,7 @@ impl FromBackend for IronCondorForwardRisk {
     }
 }
 impl PresentationRecord for IronCondorForwardRisk {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -31113,11 +33879,13 @@ impl PresentationRecord for IronCondorForwardRisk {
     }
 }
 impl Serialize for IronCondorForwardRisk {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for IronCondorForwardRisk {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -31127,12 +33895,14 @@ impl PresentationValue for IronCondorForwardRisk {
     }
 }
 impl PresentationExtras for IronCondorForwardRisk {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for IronCondorForwardRisk {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry(
@@ -31167,6 +33937,7 @@ impl BackendRecord for IronCondorForwardRisk {
     }
 }
 impl Cells for IronCondorForwardRisk {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "forwardLoss" | "ForwardLoss" => self.forward_loss.scalar_cell(),
@@ -31187,6 +33958,9 @@ impl Cells for IronCondorForwardRisk {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct IronCondorPositionChangedEvent {
     /// C# Subject, wire slot 0.
@@ -31227,6 +34001,9 @@ pub struct IronCondorPositionChangedEvent {
 impl FromBackend for IronCondorPositionChangedEvent {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -31262,6 +34039,7 @@ impl FromBackend for IronCondorPositionChangedEvent {
     }
 }
 impl PresentationRecord for IronCondorPositionChangedEvent {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -31348,11 +34126,13 @@ impl PresentationRecord for IronCondorPositionChangedEvent {
     }
 }
 impl Serialize for IronCondorPositionChangedEvent {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for IronCondorPositionChangedEvent {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -31362,12 +34142,14 @@ impl PresentationValue for IronCondorPositionChangedEvent {
     }
 }
 impl PresentationExtras for IronCondorPositionChangedEvent {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for IronCondorPositionChangedEvent {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry(
@@ -31390,6 +34172,7 @@ impl BackendRecord for IronCondorPositionChangedEvent {
     }
 }
 impl Cells for IronCondorPositionChangedEvent {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "isRealtimeMarketObservation" | "IsRealtimeMarketObservation" => {
@@ -31406,6 +34189,8 @@ impl Cells for IronCondorPositionChangedEvent {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.OptionLegAction`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OptionLegAction {
     Short,
@@ -31413,6 +34198,7 @@ pub enum OptionLegAction {
     Unrecognized(i64),
 }
 impl OptionLegAction {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Short => "Short".into(),
@@ -31423,6 +34209,9 @@ impl OptionLegAction {
 }
 impl FromBackend for OptionLegAction {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.OptionLegAction";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -31434,6 +34223,7 @@ impl FromBackend for OptionLegAction {
     }
 }
 impl Serialize for OptionLegAction {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -31442,19 +34232,33 @@ impl Serialize for OptionLegAction {
     }
 }
 impl<'de> Deserialize<'de> for OptionLegAction {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = OptionLegAction;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<OptionLegAction, E> {
                 OptionLegAction::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<OptionLegAction, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<OptionLegAction, E> {
                 Ok(match value {
                     "Short" => OptionLegAction::Short,
@@ -31467,6 +34271,7 @@ impl<'de> Deserialize<'de> for OptionLegAction {
     }
 }
 impl ScalarCell for OptionLegAction {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -31475,6 +34280,7 @@ impl ScalarCell for OptionLegAction {
     }
 }
 impl PresentationValue for OptionLegAction {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -31488,6 +34294,7 @@ impl PresentationValue for OptionLegAction {
     }
 }
 impl BackendRecord for OptionLegAction {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -31496,6 +34303,7 @@ impl BackendRecord for OptionLegAction {
     }
 }
 impl PublishedEnum for OptionLegAction {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -31504,6 +34312,8 @@ impl PublishedEnum for OptionLegAction {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerMutationKind`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BrokerMutationKind {
     Unknown,
@@ -31513,6 +34323,7 @@ pub enum BrokerMutationKind {
     Unrecognized(i64),
 }
 impl BrokerMutationKind {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -31525,6 +34336,9 @@ impl BrokerMutationKind {
 }
 impl FromBackend for BrokerMutationKind {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerMutationKind";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -31538,6 +34352,7 @@ impl FromBackend for BrokerMutationKind {
     }
 }
 impl Serialize for BrokerMutationKind {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -31546,19 +34361,33 @@ impl Serialize for BrokerMutationKind {
     }
 }
 impl<'de> Deserialize<'de> for BrokerMutationKind {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = BrokerMutationKind;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<BrokerMutationKind, E> {
                 BrokerMutationKind::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<BrokerMutationKind, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<BrokerMutationKind, E> {
                 Ok(match value {
                     "Unknown" => BrokerMutationKind::Unknown,
@@ -31573,6 +34402,7 @@ impl<'de> Deserialize<'de> for BrokerMutationKind {
     }
 }
 impl ScalarCell for BrokerMutationKind {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -31581,6 +34411,7 @@ impl ScalarCell for BrokerMutationKind {
     }
 }
 impl PresentationValue for BrokerMutationKind {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -31594,6 +34425,7 @@ impl PresentationValue for BrokerMutationKind {
     }
 }
 impl BackendRecord for BrokerMutationKind {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -31602,6 +34434,7 @@ impl BackendRecord for BrokerMutationKind {
     }
 }
 impl PublishedEnum for BrokerMutationKind {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -31610,6 +34443,8 @@ impl PublishedEnum for BrokerMutationKind {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderDefinition`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct BrokerOrderDefinition {
     /// C# SchemaVersion, wire slot 0.
@@ -31668,6 +34503,9 @@ pub struct BrokerOrderDefinition {
 }
 impl FromBackend for BrokerOrderDefinition {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderDefinition";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -31713,6 +34551,7 @@ impl FromBackend for BrokerOrderDefinition {
     }
 }
 impl PresentationRecord for BrokerOrderDefinition {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -31834,11 +34673,13 @@ impl PresentationRecord for BrokerOrderDefinition {
     }
 }
 impl Serialize for BrokerOrderDefinition {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for BrokerOrderDefinition {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -31848,12 +34689,14 @@ impl PresentationValue for BrokerOrderDefinition {
     }
 }
 impl PresentationExtras for BrokerOrderDefinition {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for BrokerOrderDefinition {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -31887,6 +34730,7 @@ impl BackendRecord for BrokerOrderDefinition {
     }
 }
 impl Cells for BrokerOrderDefinition {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -31910,6 +34754,9 @@ impl Cells for BrokerOrderDefinition {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderObservationEvidence`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct BrokerOrderObservationEvidence {
     /// C# ObservationId, wire slot 0.
@@ -31970,6 +34817,9 @@ pub struct BrokerOrderObservationEvidence {
 impl FromBackend for BrokerOrderObservationEvidence {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderObservationEvidence";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -32027,6 +34877,7 @@ impl FromBackend for BrokerOrderObservationEvidence {
     }
 }
 impl PresentationRecord for BrokerOrderObservationEvidence {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -32169,11 +35020,13 @@ impl PresentationRecord for BrokerOrderObservationEvidence {
     }
 }
 impl Serialize for BrokerOrderObservationEvidence {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for BrokerOrderObservationEvidence {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -32183,12 +35036,14 @@ impl PresentationValue for BrokerOrderObservationEvidence {
     }
 }
 impl PresentationExtras for BrokerOrderObservationEvidence {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for BrokerOrderObservationEvidence {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ObservationId", &BackendDocument(&self.observation_id))?;
@@ -32216,6 +35071,7 @@ impl BackendRecord for BrokerOrderObservationEvidence {
     }
 }
 impl Cells for BrokerOrderObservationEvidence {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "observationId" | "ObservationId" => self.observation_id.scalar_cell(),
@@ -32243,6 +35099,9 @@ impl Cells for BrokerOrderObservationEvidence {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderObservationKind`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BrokerOrderObservationKind {
     Unknown,
@@ -32255,6 +35114,7 @@ pub enum BrokerOrderObservationKind {
     Unrecognized(i64),
 }
 impl BrokerOrderObservationKind {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -32271,6 +35131,9 @@ impl BrokerOrderObservationKind {
 impl FromBackend for BrokerOrderObservationKind {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderObservationKind";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -32287,6 +35150,7 @@ impl FromBackend for BrokerOrderObservationKind {
     }
 }
 impl Serialize for BrokerOrderObservationKind {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -32295,25 +35159,39 @@ impl Serialize for BrokerOrderObservationKind {
     }
 }
 impl<'de> Deserialize<'de> for BrokerOrderObservationKind {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = BrokerOrderObservationKind;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<BrokerOrderObservationKind, E> {
                 BrokerOrderObservationKind::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<BrokerOrderObservationKind, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -32336,6 +35214,7 @@ impl<'de> Deserialize<'de> for BrokerOrderObservationKind {
     }
 }
 impl ScalarCell for BrokerOrderObservationKind {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -32344,6 +35223,7 @@ impl ScalarCell for BrokerOrderObservationKind {
     }
 }
 impl PresentationValue for BrokerOrderObservationKind {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -32357,6 +35237,7 @@ impl PresentationValue for BrokerOrderObservationKind {
     }
 }
 impl BackendRecord for BrokerOrderObservationKind {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -32365,6 +35246,7 @@ impl BackendRecord for BrokerOrderObservationKind {
     }
 }
 impl PublishedEnum for BrokerOrderObservationKind {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -32373,6 +35255,8 @@ impl PublishedEnum for BrokerOrderObservationKind {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderStatus`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BrokerOrderStatus {
     Unknown,
@@ -32389,6 +35273,7 @@ pub enum BrokerOrderStatus {
     Unrecognized(i64),
 }
 impl BrokerOrderStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -32408,6 +35293,9 @@ impl BrokerOrderStatus {
 }
 impl FromBackend for BrokerOrderStatus {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -32428,6 +35316,7 @@ impl FromBackend for BrokerOrderStatus {
     }
 }
 impl Serialize for BrokerOrderStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -32436,19 +35325,33 @@ impl Serialize for BrokerOrderStatus {
     }
 }
 impl<'de> Deserialize<'de> for BrokerOrderStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = BrokerOrderStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<BrokerOrderStatus, E> {
                 BrokerOrderStatus::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<BrokerOrderStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<BrokerOrderStatus, E> {
                 Ok(match value {
                     "Unknown" => BrokerOrderStatus::Unknown,
@@ -32470,6 +35373,7 @@ impl<'de> Deserialize<'de> for BrokerOrderStatus {
     }
 }
 impl ScalarCell for BrokerOrderStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -32478,6 +35382,7 @@ impl ScalarCell for BrokerOrderStatus {
     }
 }
 impl PresentationValue for BrokerOrderStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -32491,6 +35396,7 @@ impl PresentationValue for BrokerOrderStatus {
     }
 }
 impl BackendRecord for BrokerOrderStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -32499,6 +35405,7 @@ impl BackendRecord for BrokerOrderStatus {
     }
 }
 impl PublishedEnum for BrokerOrderStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -32507,6 +35414,8 @@ impl PublishedEnum for BrokerOrderStatus {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.Order.TradeEndOfDayDisplay`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeEndOfDayDisplay {
     /// C# PositionId, wire slot 0.
@@ -32524,6 +35433,9 @@ pub struct TradeEndOfDayDisplay {
 }
 impl FromBackend for TradeEndOfDayDisplay {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Order.TradeEndOfDayDisplay";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -32541,6 +35453,7 @@ impl FromBackend for TradeEndOfDayDisplay {
     }
 }
 impl PresentationRecord for TradeEndOfDayDisplay {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -32585,11 +35498,13 @@ impl PresentationRecord for TradeEndOfDayDisplay {
     }
 }
 impl Serialize for TradeEndOfDayDisplay {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeEndOfDayDisplay {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -32599,12 +35514,14 @@ impl PresentationValue for TradeEndOfDayDisplay {
     }
 }
 impl PresentationExtras for TradeEndOfDayDisplay {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeEndOfDayDisplay {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PositionId", &BackendDocument(&self.position_id))?;
@@ -32618,6 +35535,7 @@ impl BackendRecord for TradeEndOfDayDisplay {
     }
 }
 impl Cells for TradeEndOfDayDisplay {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "positionSequence" | "PositionSequence" => self.position_sequence.scalar_cell(),
@@ -32628,6 +35546,8 @@ impl Cells for TradeEndOfDayDisplay {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.Order.TradeEndOfDayDisplayRequest`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeEndOfDayDisplayRequest {
     /// C# Position, wire slot 0.
@@ -32639,6 +35559,9 @@ pub struct TradeEndOfDayDisplayRequest {
 }
 impl FromBackend for TradeEndOfDayDisplayRequest {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Order.TradeEndOfDayDisplayRequest";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -32652,6 +35575,7 @@ impl FromBackend for TradeEndOfDayDisplayRequest {
     }
 }
 impl PresentationRecord for TradeEndOfDayDisplayRequest {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -32682,11 +35606,13 @@ impl PresentationRecord for TradeEndOfDayDisplayRequest {
     }
 }
 impl Serialize for TradeEndOfDayDisplayRequest {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeEndOfDayDisplayRequest {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -32696,12 +35622,14 @@ impl PresentationValue for TradeEndOfDayDisplayRequest {
     }
 }
 impl PresentationExtras for TradeEndOfDayDisplayRequest {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeEndOfDayDisplayRequest {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Position", &BackendDocument(&self.position))?;
@@ -32710,6 +35638,7 @@ impl BackendRecord for TradeEndOfDayDisplayRequest {
     }
 }
 impl Cells for TradeEndOfDayDisplayRequest {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "availableCash" | "AvailableCash" => self.available_cash.scalar_cell(),
@@ -32718,6 +35647,8 @@ impl Cells for TradeEndOfDayDisplayRequest {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreview`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeOrderPreview {
     /// C# InputRevision, wire slot 0.
@@ -32794,6 +35725,9 @@ pub struct TradeOrderPreview {
 }
 impl FromBackend for TradeOrderPreview {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreview";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -32851,6 +35785,7 @@ impl FromBackend for TradeOrderPreview {
     }
 }
 impl PresentationRecord for TradeOrderPreview {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -33014,11 +35949,13 @@ impl PresentationRecord for TradeOrderPreview {
     }
 }
 impl Serialize for TradeOrderPreview {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeOrderPreview {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -33028,12 +35965,14 @@ impl PresentationValue for TradeOrderPreview {
     }
 }
 impl PresentationExtras for TradeOrderPreview {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeOrderPreview {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("InputRevision", &BackendDocument(&self.input_revision))?;
@@ -33079,6 +36018,7 @@ impl BackendRecord for TradeOrderPreview {
     }
 }
 impl Cells for TradeOrderPreview {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "inputRevision" | "InputRevision" => self.input_revision.scalar_cell(),
@@ -33111,6 +36051,8 @@ impl Cells for TradeOrderPreview {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.OrderExecutionDefinition`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct OrderExecutionDefinition {
     /// C# SchemaVersion, wire slot 0.
@@ -33168,6 +36110,9 @@ pub struct OrderExecutionDefinition {
 }
 impl FromBackend for OrderExecutionDefinition {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionDefinition";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -33215,6 +36160,7 @@ impl FromBackend for OrderExecutionDefinition {
     }
 }
 impl PresentationRecord for OrderExecutionDefinition {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -33343,11 +36289,13 @@ impl PresentationRecord for OrderExecutionDefinition {
     }
 }
 impl Serialize for OrderExecutionDefinition {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for OrderExecutionDefinition {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -33357,6 +36305,7 @@ impl PresentationValue for OrderExecutionDefinition {
     }
 }
 impl PresentationExtras for OrderExecutionDefinition {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         map.serialize_entry(
@@ -33370,6 +36319,7 @@ impl PresentationExtras for OrderExecutionDefinition {
     }
 }
 impl BackendRecord for OrderExecutionDefinition {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -33404,6 +36354,7 @@ impl BackendRecord for OrderExecutionDefinition {
     }
 }
 impl Cells for OrderExecutionDefinition {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -33423,6 +36374,8 @@ impl Cells for OrderExecutionDefinition {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct OrderExecutionId {
     /// C# TradeOrder, wire slot 0.
@@ -33434,6 +36387,9 @@ pub struct OrderExecutionId {
 }
 impl FromBackend for OrderExecutionId {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -33449,6 +36405,7 @@ impl FromBackend for OrderExecutionId {
     }
 }
 impl PresentationRecord for OrderExecutionId {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -33479,11 +36436,13 @@ impl PresentationRecord for OrderExecutionId {
     }
 }
 impl Serialize for OrderExecutionId {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for OrderExecutionId {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -33493,6 +36452,7 @@ impl PresentationValue for OrderExecutionId {
     }
 }
 impl PublishedIdentity for OrderExecutionId {
+    /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool {
         self.trade_order
             .as_ref()
@@ -33505,6 +36465,7 @@ impl PublishedIdentity for OrderExecutionId {
     }
 }
 impl PresentationExtras for OrderExecutionId {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         map.serialize_entry("isValid", &self.published_is_valid())?;
@@ -33512,6 +36473,7 @@ impl PresentationExtras for OrderExecutionId {
     }
 }
 impl BackendRecord for OrderExecutionId {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("TradeOrder", &BackendDocument(&self.trade_order))?;
@@ -33523,6 +36485,7 @@ impl BackendRecord for OrderExecutionId {
     }
 }
 impl Cells for OrderExecutionId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "executionAttemptId" | "ExecutionAttemptId" => self.execution_attempt_id.scalar_cell(),
@@ -33531,6 +36494,8 @@ impl Cells for OrderExecutionId {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.OrderExecutionStatus`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OrderExecutionStatus {
     Pending,
@@ -33543,6 +36508,7 @@ pub enum OrderExecutionStatus {
     Unrecognized(i64),
 }
 impl OrderExecutionStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Pending => "Pending".into(),
@@ -33558,6 +36524,9 @@ impl OrderExecutionStatus {
 }
 impl FromBackend for OrderExecutionStatus {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -33574,6 +36543,7 @@ impl FromBackend for OrderExecutionStatus {
     }
 }
 impl Serialize for OrderExecutionStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -33582,19 +36552,33 @@ impl Serialize for OrderExecutionStatus {
     }
 }
 impl<'de> Deserialize<'de> for OrderExecutionStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = OrderExecutionStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<OrderExecutionStatus, E> {
                 OrderExecutionStatus::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<OrderExecutionStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -33615,6 +36599,7 @@ impl<'de> Deserialize<'de> for OrderExecutionStatus {
     }
 }
 impl ScalarCell for OrderExecutionStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -33623,6 +36608,7 @@ impl ScalarCell for OrderExecutionStatus {
     }
 }
 impl PresentationValue for OrderExecutionStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -33636,6 +36622,7 @@ impl PresentationValue for OrderExecutionStatus {
     }
 }
 impl BackendRecord for OrderExecutionStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -33644,6 +36631,7 @@ impl BackendRecord for OrderExecutionStatus {
     }
 }
 impl PublishedEnum for OrderExecutionStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -33652,6 +36640,8 @@ impl PublishedEnum for OrderExecutionStatus {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.PendingExecutionCostEvidence`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct PendingExecutionCostEvidence {
     /// C# ExternalExecutionId, wire slot 0.
@@ -33663,6 +36653,9 @@ pub struct PendingExecutionCostEvidence {
 }
 impl FromBackend for PendingExecutionCostEvidence {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.PendingExecutionCostEvidence";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -33678,6 +36671,7 @@ impl FromBackend for PendingExecutionCostEvidence {
     }
 }
 impl PresentationRecord for PendingExecutionCostEvidence {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -33708,11 +36702,13 @@ impl PresentationRecord for PendingExecutionCostEvidence {
     }
 }
 impl Serialize for PendingExecutionCostEvidence {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for PendingExecutionCostEvidence {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -33722,12 +36718,14 @@ impl PresentationValue for PendingExecutionCostEvidence {
     }
 }
 impl PresentationExtras for PendingExecutionCostEvidence {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for PendingExecutionCostEvidence {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry(
@@ -33739,6 +36737,7 @@ impl BackendRecord for PendingExecutionCostEvidence {
     }
 }
 impl Cells for PendingExecutionCostEvidence {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "externalExecutionId" | "ExternalExecutionId" => {
@@ -33750,6 +36749,9 @@ impl Cells for PendingExecutionCostEvidence {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.IronCondorRiskParameters`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct IronCondorRiskParameters {
     /// C# DailyLossLimit, wire slot 0.
@@ -33815,6 +36817,9 @@ pub struct IronCondorRiskParameters {
 impl FromBackend for IronCondorRiskParameters {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.IronCondorRiskParameters";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -33868,6 +36873,7 @@ impl FromBackend for IronCondorRiskParameters {
     }
 }
 impl PresentationRecord for IronCondorRiskParameters {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -33947,11 +36953,13 @@ impl PresentationRecord for IronCondorRiskParameters {
     }
 }
 impl Serialize for IronCondorRiskParameters {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for IronCondorRiskParameters {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -33961,12 +36969,14 @@ impl PresentationValue for IronCondorRiskParameters {
     }
 }
 impl PresentationExtras for IronCondorRiskParameters {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for IronCondorRiskParameters {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("DailyLossLimit", &BackendDocument(&self.daily_loss_limit))?;
@@ -34006,6 +37016,7 @@ impl BackendRecord for IronCondorRiskParameters {
     }
 }
 impl Cells for IronCondorRiskParameters {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "dailyLossLimit" | "DailyLossLimit" => self.daily_loss_limit.scalar_cell(),
@@ -34039,6 +37050,9 @@ impl Cells for IronCondorRiskParameters {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct StrategyRiskParameterSet {
     /// C# SchemaVersion, wire slot 0.
@@ -34069,6 +37083,9 @@ pub struct StrategyRiskParameterSet {
 impl FromBackend for StrategyRiskParameterSet {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -34094,6 +37111,7 @@ impl FromBackend for StrategyRiskParameterSet {
     }
 }
 impl PresentationRecord for StrategyRiskParameterSet {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -34166,11 +37184,13 @@ impl PresentationRecord for StrategyRiskParameterSet {
     }
 }
 impl Serialize for StrategyRiskParameterSet {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for StrategyRiskParameterSet {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -34180,12 +37200,14 @@ impl PresentationValue for StrategyRiskParameterSet {
     }
 }
 impl PresentationExtras for StrategyRiskParameterSet {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for StrategyRiskParameterSet {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -34200,6 +37222,7 @@ impl BackendRecord for StrategyRiskParameterSet {
     }
 }
 impl Cells for StrategyRiskParameterSet {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -34214,6 +37237,9 @@ impl Cells for StrategyRiskParameterSet {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.CompositionContractSelection`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct CompositionContractSelection {
     /// C# PricingPlanId, wire slot 0.
@@ -34225,6 +37251,9 @@ pub struct CompositionContractSelection {
 }
 impl FromBackend for CompositionContractSelection {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.CompositionContractSelection";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -34238,6 +37267,7 @@ impl FromBackend for CompositionContractSelection {
     }
 }
 impl PresentationRecord for CompositionContractSelection {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -34268,11 +37298,13 @@ impl PresentationRecord for CompositionContractSelection {
     }
 }
 impl Serialize for CompositionContractSelection {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for CompositionContractSelection {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -34282,12 +37314,14 @@ impl PresentationValue for CompositionContractSelection {
     }
 }
 impl PresentationExtras for CompositionContractSelection {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for CompositionContractSelection {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PricingPlanId", &BackendDocument(&self.pricing_plan_id))?;
@@ -34296,6 +37330,7 @@ impl BackendRecord for CompositionContractSelection {
     }
 }
 impl Cells for CompositionContractSelection {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "pricingPlanId" | "PricingPlanId" => self.pricing_plan_id.scalar_cell(),
@@ -34304,6 +37339,8 @@ impl Cells for CompositionContractSelection {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.StrategyPositionHistoryValuation`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct StrategyPositionHistoryValuation {
     /// C# ValueDate, wire slot 0.
@@ -34324,6 +37361,9 @@ pub struct StrategyPositionHistoryValuation {
 }
 impl FromBackend for StrategyPositionHistoryValuation {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionHistoryValuation";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -34345,6 +37385,7 @@ impl FromBackend for StrategyPositionHistoryValuation {
     }
 }
 impl PresentationRecord for StrategyPositionHistoryValuation {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -34396,11 +37437,13 @@ impl PresentationRecord for StrategyPositionHistoryValuation {
     }
 }
 impl Serialize for StrategyPositionHistoryValuation {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for StrategyPositionHistoryValuation {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -34410,12 +37453,14 @@ impl PresentationValue for StrategyPositionHistoryValuation {
     }
 }
 impl PresentationExtras for StrategyPositionHistoryValuation {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for StrategyPositionHistoryValuation {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ValueDate", &BackendDocument(&self.value_date))?;
@@ -34427,6 +37472,7 @@ impl BackendRecord for StrategyPositionHistoryValuation {
     }
 }
 impl Cells for StrategyPositionHistoryValuation {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "valueDate" | "ValueDate" => self.value_date.scalar_cell(),
@@ -34439,6 +37485,8 @@ impl Cells for StrategyPositionHistoryValuation {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.StrategyPositionId`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct StrategyPositionId {
     /// C# Trade, wire slot 0.
@@ -34450,6 +37498,9 @@ pub struct StrategyPositionId {
 }
 impl FromBackend for StrategyPositionId {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionId";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -34463,6 +37514,7 @@ impl FromBackend for StrategyPositionId {
     }
 }
 impl PresentationRecord for StrategyPositionId {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -34493,11 +37545,13 @@ impl PresentationRecord for StrategyPositionId {
     }
 }
 impl Serialize for StrategyPositionId {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for StrategyPositionId {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -34507,6 +37561,7 @@ impl PresentationValue for StrategyPositionId {
     }
 }
 impl PublishedIdentity for StrategyPositionId {
+    /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool {
         self.trade
             .as_ref()
@@ -34519,6 +37574,7 @@ impl PublishedIdentity for StrategyPositionId {
     }
 }
 impl BackendRecord for StrategyPositionId {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Trade", &BackendDocument(&self.trade))?;
@@ -34527,6 +37583,7 @@ impl BackendRecord for StrategyPositionId {
     }
 }
 impl Cells for StrategyPositionId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "positionId" | "PositionId" => self.position_id.scalar_cell(),
@@ -34535,6 +37592,8 @@ impl Cells for StrategyPositionId {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.StrategyPositionLeg`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct StrategyPositionLeg {
     /// C# TradeLegId, wire slot 0.
@@ -34595,6 +37654,9 @@ pub struct StrategyPositionLeg {
 }
 impl FromBackend for StrategyPositionLeg {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionLeg";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -34642,6 +37704,7 @@ impl FromBackend for StrategyPositionLeg {
     }
 }
 impl PresentationRecord for StrategyPositionLeg {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -34777,11 +37840,13 @@ impl PresentationRecord for StrategyPositionLeg {
     }
 }
 impl Serialize for StrategyPositionLeg {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for StrategyPositionLeg {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -34791,12 +37856,14 @@ impl PresentationValue for StrategyPositionLeg {
     }
 }
 impl PresentationExtras for StrategyPositionLeg {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for StrategyPositionLeg {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("TradeLegId", &BackendDocument(&self.trade_leg_id))?;
@@ -34826,6 +37893,7 @@ impl BackendRecord for StrategyPositionLeg {
     }
 }
 impl Cells for StrategyPositionLeg {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "tradeLegId" | "TradeLegId" => self.trade_leg_id.scalar_cell(),
@@ -34849,6 +37917,8 @@ impl Cells for StrategyPositionLeg {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.StrategyPositionPhase`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StrategyPositionPhase {
     Open,
@@ -34859,6 +37929,7 @@ pub enum StrategyPositionPhase {
     Unrecognized(i64),
 }
 impl StrategyPositionPhase {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Open => "Open".into(),
@@ -34872,6 +37943,9 @@ impl StrategyPositionPhase {
 }
 impl FromBackend for StrategyPositionPhase {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionPhase";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -34886,6 +37960,7 @@ impl FromBackend for StrategyPositionPhase {
     }
 }
 impl Serialize for StrategyPositionPhase {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -34894,25 +37969,39 @@ impl Serialize for StrategyPositionPhase {
     }
 }
 impl<'de> Deserialize<'de> for StrategyPositionPhase {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = StrategyPositionPhase;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<StrategyPositionPhase, E> {
                 StrategyPositionPhase::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<StrategyPositionPhase, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -34931,6 +38020,7 @@ impl<'de> Deserialize<'de> for StrategyPositionPhase {
     }
 }
 impl ScalarCell for StrategyPositionPhase {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -34939,6 +38029,7 @@ impl ScalarCell for StrategyPositionPhase {
     }
 }
 impl PresentationValue for StrategyPositionPhase {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -34952,6 +38043,7 @@ impl PresentationValue for StrategyPositionPhase {
     }
 }
 impl BackendRecord for StrategyPositionPhase {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -34960,6 +38052,7 @@ impl BackendRecord for StrategyPositionPhase {
     }
 }
 impl PublishedEnum for StrategyPositionPhase {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -34968,6 +38061,8 @@ impl PublishedEnum for StrategyPositionPhase {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.StrategyPositionSnapshot`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct StrategyPositionSnapshot {
     /// C# SchemaVersion, wire slot 0.
@@ -35067,6 +38162,9 @@ pub struct StrategyPositionSnapshot {
 }
 impl FromBackend for StrategyPositionSnapshot {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionSnapshot";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -35140,6 +38238,7 @@ impl FromBackend for StrategyPositionSnapshot {
     }
 }
 impl PresentationRecord for StrategyPositionSnapshot {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -35338,11 +38437,13 @@ impl PresentationRecord for StrategyPositionSnapshot {
     }
 }
 impl Serialize for StrategyPositionSnapshot {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for StrategyPositionSnapshot {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -35352,12 +38453,14 @@ impl PresentationValue for StrategyPositionSnapshot {
     }
 }
 impl PresentationExtras for StrategyPositionSnapshot {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for StrategyPositionSnapshot {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -35417,6 +38520,7 @@ impl BackendRecord for StrategyPositionSnapshot {
     }
 }
 impl Cells for StrategyPositionSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -35454,6 +38558,7 @@ impl Cells for StrategyPositionSnapshot {
     }
 }
 
+/// Iron Condor Trade Plan Id used by the trade contracts component.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct IronCondorTradePlanId {
     /// C# Position, wire slot 0.
@@ -35466,6 +38571,9 @@ pub struct IronCondorTradePlanId {
 impl FromBackend for IronCondorTradePlanId {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanId";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -35479,6 +38587,7 @@ impl FromBackend for IronCondorTradePlanId {
     }
 }
 impl PresentationRecord for IronCondorTradePlanId {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -35509,11 +38618,13 @@ impl PresentationRecord for IronCondorTradePlanId {
     }
 }
 impl Serialize for IronCondorTradePlanId {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for IronCondorTradePlanId {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -35523,12 +38634,14 @@ impl PresentationValue for IronCondorTradePlanId {
     }
 }
 impl PresentationExtras for IronCondorTradePlanId {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for IronCondorTradePlanId {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Position", &BackendDocument(&self.position))?;
@@ -35537,6 +38650,7 @@ impl BackendRecord for IronCondorTradePlanId {
     }
 }
 impl Cells for IronCondorTradePlanId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "valueDate" | "ValueDate" => self.value_date.scalar_cell(),
@@ -35545,6 +38659,9 @@ impl Cells for IronCondorTradePlanId {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanLegObservation`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct IronCondorTradePlanLegObservation {
     /// C# TradeLegId, wire slot 0.
@@ -35611,6 +38728,9 @@ pub struct IronCondorTradePlanLegObservation {
 impl FromBackend for IronCondorTradePlanLegObservation {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanLegObservation";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -35678,6 +38798,7 @@ impl FromBackend for IronCondorTradePlanLegObservation {
     }
 }
 impl PresentationRecord for IronCondorTradePlanLegObservation {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -35834,11 +38955,13 @@ impl PresentationRecord for IronCondorTradePlanLegObservation {
     }
 }
 impl Serialize for IronCondorTradePlanLegObservation {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for IronCondorTradePlanLegObservation {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -35848,12 +38971,14 @@ impl PresentationValue for IronCondorTradePlanLegObservation {
     }
 }
 impl PresentationExtras for IronCondorTradePlanLegObservation {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for IronCondorTradePlanLegObservation {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("TradeLegId", &BackendDocument(&self.trade_leg_id))?;
@@ -35889,6 +39014,7 @@ impl BackendRecord for IronCondorTradePlanLegObservation {
     }
 }
 impl Cells for IronCondorTradePlanLegObservation {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "tradeLegId" | "TradeLegId" => self.trade_leg_id.scalar_cell(),
@@ -35918,6 +39044,9 @@ impl Cells for IronCondorTradePlanLegObservation {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanSnapshot`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct IronCondorTradePlanSnapshot {
     /// C# OrderId, wire slot 0.
@@ -36223,6 +39352,9 @@ pub struct IronCondorTradePlanSnapshot {
 impl FromBackend for IronCondorTradePlanSnapshot {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanSnapshot";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -36490,6 +39622,7 @@ impl FromBackend for IronCondorTradePlanSnapshot {
     }
 }
 impl PresentationRecord for IronCondorTradePlanSnapshot {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -37080,11 +40213,13 @@ impl PresentationRecord for IronCondorTradePlanSnapshot {
     }
 }
 impl Serialize for IronCondorTradePlanSnapshot {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for IronCondorTradePlanSnapshot {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -37094,6 +40229,7 @@ impl PresentationValue for IronCondorTradePlanSnapshot {
     }
 }
 impl BackendRecord for IronCondorTradePlanSnapshot {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("OrderId", &BackendDocument(&self.order_id))?;
@@ -37283,6 +40419,7 @@ impl BackendRecord for IronCondorTradePlanSnapshot {
     }
 }
 impl Cells for IronCondorTradePlanSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "orderId" | "OrderId" => self.order_id.scalar_cell(),
@@ -37405,6 +40542,7 @@ impl Cells for IronCondorTradePlanSnapshot {
     }
 }
 
+/// Iron Condor Trade Plan Updated Event used by the trade contracts component.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct IronCondorTradePlanUpdatedEvent {
     /// C# Subject, wire slot 0.
@@ -37444,6 +40582,9 @@ pub struct IronCondorTradePlanUpdatedEvent {
 impl FromBackend for IronCondorTradePlanUpdatedEvent {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanUpdatedEvent";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -37479,6 +40620,7 @@ impl FromBackend for IronCondorTradePlanUpdatedEvent {
     }
 }
 impl PresentationRecord for IronCondorTradePlanUpdatedEvent {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -37572,11 +40714,13 @@ impl PresentationRecord for IronCondorTradePlanUpdatedEvent {
     }
 }
 impl Serialize for IronCondorTradePlanUpdatedEvent {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for IronCondorTradePlanUpdatedEvent {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -37586,12 +40730,14 @@ impl PresentationValue for IronCondorTradePlanUpdatedEvent {
     }
 }
 impl PresentationExtras for IronCondorTradePlanUpdatedEvent {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for IronCondorTradePlanUpdatedEvent {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Subject", &BackendDocument(&self.subject))?;
@@ -37612,6 +40758,7 @@ impl BackendRecord for IronCondorTradePlanUpdatedEvent {
     }
 }
 impl Cells for IronCondorTradePlanUpdatedEvent {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "id" | "Id" => self.id.scalar_cell(),
@@ -37627,6 +40774,9 @@ impl Cells for IronCondorTradePlanUpdatedEvent {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanChartPoint`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct StrategyTradePlanChartPoint {
     /// C# AtUtc, wire slot 0.
@@ -37642,6 +40792,9 @@ pub struct StrategyTradePlanChartPoint {
 impl FromBackend for StrategyTradePlanChartPoint {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanChartPoint";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -37657,6 +40810,7 @@ impl FromBackend for StrategyTradePlanChartPoint {
     }
 }
 impl PresentationRecord for StrategyTradePlanChartPoint {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -37694,11 +40848,13 @@ impl PresentationRecord for StrategyTradePlanChartPoint {
     }
 }
 impl Serialize for StrategyTradePlanChartPoint {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for StrategyTradePlanChartPoint {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -37708,12 +40864,14 @@ impl PresentationValue for StrategyTradePlanChartPoint {
     }
 }
 impl PresentationExtras for StrategyTradePlanChartPoint {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for StrategyTradePlanChartPoint {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("AtUtc", &BackendDocument(&self.at_utc))?;
@@ -37723,6 +40881,7 @@ impl BackendRecord for StrategyTradePlanChartPoint {
     }
 }
 impl Cells for StrategyTradePlanChartPoint {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "atUtc" | "AtUtc" => self.at_utc.scalar_cell(),
@@ -37733,6 +40892,9 @@ impl Cells for StrategyTradePlanChartPoint {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanHistoryPage`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct StrategyTradePlanHistoryPage {
     /// C# Items, wire slot 0.
@@ -37760,6 +40922,9 @@ pub struct StrategyTradePlanHistoryPage {
 impl FromBackend for StrategyTradePlanHistoryPage {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanHistoryPage";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -37785,6 +40950,7 @@ impl FromBackend for StrategyTradePlanHistoryPage {
     }
 }
 impl PresentationRecord for StrategyTradePlanHistoryPage {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -37850,11 +41016,13 @@ impl PresentationRecord for StrategyTradePlanHistoryPage {
     }
 }
 impl Serialize for StrategyTradePlanHistoryPage {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for StrategyTradePlanHistoryPage {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -37864,12 +41032,14 @@ impl PresentationValue for StrategyTradePlanHistoryPage {
     }
 }
 impl PresentationExtras for StrategyTradePlanHistoryPage {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for StrategyTradePlanHistoryPage {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Items", &BackendDocument(&self.items))?;
@@ -37883,6 +41053,7 @@ impl BackendRecord for StrategyTradePlanHistoryPage {
     }
 }
 impl Cells for StrategyTradePlanHistoryPage {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "chartEndUtc" | "ChartEndUtc" => self.chart_end_utc.scalar_cell(),
@@ -37894,6 +41065,9 @@ impl Cells for StrategyTradePlanHistoryPage {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct StrategyTradePlanSnapshot {
     /// C# SchemaVersion, wire slot 0.
@@ -37964,6 +41138,9 @@ pub struct StrategyTradePlanSnapshot {
 impl FromBackend for StrategyTradePlanSnapshot {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -38017,6 +41194,7 @@ impl FromBackend for StrategyTradePlanSnapshot {
     }
 }
 impl PresentationRecord for StrategyTradePlanSnapshot {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -38178,11 +41356,13 @@ impl PresentationRecord for StrategyTradePlanSnapshot {
     }
 }
 impl Serialize for StrategyTradePlanSnapshot {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for StrategyTradePlanSnapshot {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -38192,12 +41372,14 @@ impl PresentationValue for StrategyTradePlanSnapshot {
     }
 }
 impl PresentationExtras for StrategyTradePlanSnapshot {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for StrategyTradePlanSnapshot {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -38230,6 +41412,7 @@ impl BackendRecord for StrategyTradePlanSnapshot {
     }
 }
 impl Cells for StrategyTradePlanSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -38254,6 +41437,9 @@ impl Cells for StrategyTradePlanSnapshot {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.TradePlanAction`; preserves its pinned wire
+/// layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradePlanAction {
     None,
@@ -38264,6 +41450,7 @@ pub enum TradePlanAction {
     Unrecognized(i64),
 }
 impl TradePlanAction {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::None => "None".into(),
@@ -38278,6 +41465,9 @@ impl TradePlanAction {
 impl FromBackend for TradePlanAction {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.TradePlanAction";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -38292,6 +41482,7 @@ impl FromBackend for TradePlanAction {
     }
 }
 impl Serialize for TradePlanAction {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -38300,19 +41491,33 @@ impl Serialize for TradePlanAction {
     }
 }
 impl<'de> Deserialize<'de> for TradePlanAction {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradePlanAction;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TradePlanAction, E> {
                 TradePlanAction::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TradePlanAction, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TradePlanAction, E> {
                 Ok(match value {
                     "None" => TradePlanAction::None,
@@ -38328,6 +41533,7 @@ impl<'de> Deserialize<'de> for TradePlanAction {
     }
 }
 impl ScalarCell for TradePlanAction {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -38336,6 +41542,7 @@ impl ScalarCell for TradePlanAction {
     }
 }
 impl PresentationValue for TradePlanAction {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -38349,6 +41556,7 @@ impl PresentationValue for TradePlanAction {
     }
 }
 impl BackendRecord for TradePlanAction {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -38357,6 +41565,7 @@ impl BackendRecord for TradePlanAction {
     }
 }
 impl PublishedEnum for TradePlanAction {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -38365,6 +41574,9 @@ impl PublishedEnum for TradePlanAction {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.TradePlanParameters`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradePlanParameters {
     /// C# Version, wire slot 0.
@@ -38396,6 +41608,9 @@ pub struct TradePlanParameters {
 impl FromBackend for TradePlanParameters {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.TradePlanParameters";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -38421,6 +41636,7 @@ impl FromBackend for TradePlanParameters {
     }
 }
 impl PresentationRecord for TradePlanParameters {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -38486,11 +41702,13 @@ impl PresentationRecord for TradePlanParameters {
     }
 }
 impl Serialize for TradePlanParameters {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradePlanParameters {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -38500,12 +41718,14 @@ impl PresentationValue for TradePlanParameters {
     }
 }
 impl PresentationExtras for TradePlanParameters {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradePlanParameters {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Version", &BackendDocument(&self.version))?;
@@ -38528,6 +41748,7 @@ impl BackendRecord for TradePlanParameters {
     }
 }
 impl Cells for TradePlanParameters {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "version" | "Version" => self.version.scalar_cell(),
@@ -38546,6 +41767,8 @@ impl Cells for TradePlanParameters {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.TradePlanState`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradePlanState {
     Normal,
@@ -38558,6 +41781,7 @@ pub enum TradePlanState {
     Unrecognized(i64),
 }
 impl TradePlanState {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Normal => "Normal".into(),
@@ -38573,6 +41797,9 @@ impl TradePlanState {
 }
 impl FromBackend for TradePlanState {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.TradePlanState";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -38589,6 +41816,7 @@ impl FromBackend for TradePlanState {
     }
 }
 impl Serialize for TradePlanState {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -38597,19 +41825,33 @@ impl Serialize for TradePlanState {
     }
 }
 impl<'de> Deserialize<'de> for TradePlanState {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradePlanState;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TradePlanState, E> {
                 TradePlanState::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TradePlanState, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TradePlanState, E> {
                 Ok(match value {
                     "Normal" => TradePlanState::Normal,
@@ -38627,6 +41869,7 @@ impl<'de> Deserialize<'de> for TradePlanState {
     }
 }
 impl ScalarCell for TradePlanState {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -38635,6 +41878,7 @@ impl ScalarCell for TradePlanState {
     }
 }
 impl PresentationValue for TradePlanState {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -38648,6 +41892,7 @@ impl PresentationValue for TradePlanState {
     }
 }
 impl BackendRecord for TradePlanState {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -38656,6 +41901,7 @@ impl BackendRecord for TradePlanState {
     }
 }
 impl PublishedEnum for TradePlanState {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -38664,6 +41910,9 @@ impl PublishedEnum for TradePlanState {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeLegRealtimeSnapshot`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeLegRealtimeSnapshot {
     /// C# Definition, wire slot 0.
@@ -38700,6 +41949,9 @@ pub struct TradeLegRealtimeSnapshot {
 impl FromBackend for TradeLegRealtimeSnapshot {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeLegRealtimeSnapshot";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -38729,6 +41981,7 @@ impl FromBackend for TradeLegRealtimeSnapshot {
     }
 }
 impl PresentationRecord for TradeLegRealtimeSnapshot {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -38815,11 +42068,13 @@ impl PresentationRecord for TradeLegRealtimeSnapshot {
     }
 }
 impl Serialize for TradeLegRealtimeSnapshot {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeLegRealtimeSnapshot {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -38829,12 +42084,14 @@ impl PresentationValue for TradeLegRealtimeSnapshot {
     }
 }
 impl PresentationExtras for TradeLegRealtimeSnapshot {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeLegRealtimeSnapshot {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Definition", &BackendDocument(&self.definition))?;
@@ -38854,6 +42111,7 @@ impl BackendRecord for TradeLegRealtimeSnapshot {
     }
 }
 impl Cells for TradeLegRealtimeSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "quoteStatus" | "QuoteStatus" => self.quote_status.scalar_cell(),
@@ -38866,6 +42124,9 @@ impl Cells for TradeLegRealtimeSnapshot {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshot`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeRealtimeSnapshot {
     /// C# SchemaVersion, wire slot 0.
@@ -38927,6 +42188,9 @@ pub struct TradeRealtimeSnapshot {
 impl FromBackend for TradeRealtimeSnapshot {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshot";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -38974,6 +42238,7 @@ impl FromBackend for TradeRealtimeSnapshot {
     }
 }
 impl PresentationRecord for TradeRealtimeSnapshot {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -39109,11 +42374,13 @@ impl PresentationRecord for TradeRealtimeSnapshot {
     }
 }
 impl Serialize for TradeRealtimeSnapshot {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeRealtimeSnapshot {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -39123,12 +42390,14 @@ impl PresentationValue for TradeRealtimeSnapshot {
     }
 }
 impl PresentationExtras for TradeRealtimeSnapshot {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeRealtimeSnapshot {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -39164,6 +42433,7 @@ impl BackendRecord for TradeRealtimeSnapshot {
     }
 }
 impl Cells for TradeRealtimeSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -39182,6 +42452,9 @@ impl Cells for TradeRealtimeSnapshot {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeRealtimeSnapshotChangedEvent {
     /// C# Subject, wire slot 0.
@@ -39215,6 +42488,9 @@ pub struct TradeRealtimeSnapshotChangedEvent {
 impl FromBackend for TradeRealtimeSnapshotChangedEvent {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -39245,6 +42521,7 @@ impl FromBackend for TradeRealtimeSnapshotChangedEvent {
     }
 }
 impl PresentationRecord for TradeRealtimeSnapshotChangedEvent {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -39324,11 +42601,13 @@ impl PresentationRecord for TradeRealtimeSnapshotChangedEvent {
     }
 }
 impl Serialize for TradeRealtimeSnapshotChangedEvent {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeRealtimeSnapshotChangedEvent {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -39338,12 +42617,14 @@ impl PresentationValue for TradeRealtimeSnapshotChangedEvent {
     }
 }
 impl PresentationExtras for TradeRealtimeSnapshotChangedEvent {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeRealtimeSnapshotChangedEvent {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("Subject", &BackendDocument(&self.subject))?;
@@ -39359,6 +42640,7 @@ impl BackendRecord for TradeRealtimeSnapshotChangedEvent {
     }
 }
 impl Cells for TradeRealtimeSnapshotChangedEvent {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "id" | "Id" => self.id.scalar_cell(),
@@ -39372,6 +42654,9 @@ impl Cells for TradeRealtimeSnapshotChangedEvent {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSummary`; preserves its pinned wire
+/// layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeRealtimeSummary {
     /// C# UnderlyingPrice, wire slot 0.
@@ -39405,6 +42690,9 @@ pub struct TradeRealtimeSummary {
 impl FromBackend for TradeRealtimeSummary {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSummary";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -39432,6 +42720,7 @@ impl FromBackend for TradeRealtimeSummary {
     }
 }
 impl PresentationRecord for TradeRealtimeSummary {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -39511,11 +42800,13 @@ impl PresentationRecord for TradeRealtimeSummary {
     }
 }
 impl Serialize for TradeRealtimeSummary {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeRealtimeSummary {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -39525,12 +42816,14 @@ impl PresentationValue for TradeRealtimeSummary {
     }
 }
 impl PresentationExtras for TradeRealtimeSummary {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeRealtimeSummary {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("UnderlyingPrice", &BackendDocument(&self.underlying_price))?;
@@ -39546,6 +42839,7 @@ impl BackendRecord for TradeRealtimeSummary {
     }
 }
 impl Cells for TradeRealtimeSummary {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "underlyingPrice" | "UnderlyingPrice" => self.underlying_price.scalar_cell(),
@@ -39562,6 +42856,9 @@ impl Cells for TradeRealtimeSummary {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeSpreadRealtimeSnapshot`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeSpreadRealtimeSnapshot {
     /// C# PutCall, wire slot 0.
@@ -39586,6 +42883,9 @@ pub struct TradeSpreadRealtimeSnapshot {
 impl FromBackend for TradeSpreadRealtimeSnapshot {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeSpreadRealtimeSnapshot";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -39607,6 +42907,7 @@ impl FromBackend for TradeSpreadRealtimeSnapshot {
     }
 }
 impl PresentationRecord for TradeSpreadRealtimeSnapshot {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -39665,11 +42966,13 @@ impl PresentationRecord for TradeSpreadRealtimeSnapshot {
     }
 }
 impl Serialize for TradeSpreadRealtimeSnapshot {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeSpreadRealtimeSnapshot {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -39679,12 +42982,14 @@ impl PresentationValue for TradeSpreadRealtimeSnapshot {
     }
 }
 impl PresentationExtras for TradeSpreadRealtimeSnapshot {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeSpreadRealtimeSnapshot {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PutCall", &BackendDocument(&self.put_call))?;
@@ -39697,6 +43002,7 @@ impl BackendRecord for TradeSpreadRealtimeSnapshot {
     }
 }
 impl Cells for TradeSpreadRealtimeSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "putCall" | "PutCall" => self.put_call.scalar_cell(),
@@ -39710,6 +43016,8 @@ impl Cells for TradeSpreadRealtimeSnapshot {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeAction`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradeAction {
     Buy,
@@ -39717,6 +43025,7 @@ pub enum TradeAction {
     Unrecognized(i64),
 }
 impl TradeAction {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Buy => "Buy".into(),
@@ -39727,6 +43036,9 @@ impl TradeAction {
 }
 impl FromBackend for TradeAction {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeAction";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -39738,6 +43050,7 @@ impl FromBackend for TradeAction {
     }
 }
 impl Serialize for TradeAction {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -39746,19 +43059,33 @@ impl Serialize for TradeAction {
     }
 }
 impl<'de> Deserialize<'de> for TradeAction {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradeAction;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TradeAction, E> {
                 TradeAction::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TradeAction, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TradeAction, E> {
                 Ok(match value {
                     "Buy" => TradeAction::Buy,
@@ -39771,6 +43098,7 @@ impl<'de> Deserialize<'de> for TradeAction {
     }
 }
 impl ScalarCell for TradeAction {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -39779,6 +43107,7 @@ impl ScalarCell for TradeAction {
     }
 }
 impl PresentationValue for TradeAction {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -39792,6 +43121,7 @@ impl PresentationValue for TradeAction {
     }
 }
 impl BackendRecord for TradeAction {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -39800,6 +43130,7 @@ impl BackendRecord for TradeAction {
     }
 }
 impl PublishedEnum for TradeAction {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -39808,6 +43139,8 @@ impl PublishedEnum for TradeAction {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeAssetFamily`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradeAssetFamily {
     Unknown,
@@ -39819,6 +43152,7 @@ pub enum TradeAssetFamily {
     Unrecognized(i64),
 }
 impl TradeAssetFamily {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -39833,6 +43167,9 @@ impl TradeAssetFamily {
 }
 impl FromBackend for TradeAssetFamily {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeAssetFamily";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -39848,6 +43185,7 @@ impl FromBackend for TradeAssetFamily {
     }
 }
 impl Serialize for TradeAssetFamily {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -39856,19 +43194,33 @@ impl Serialize for TradeAssetFamily {
     }
 }
 impl<'de> Deserialize<'de> for TradeAssetFamily {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradeAssetFamily;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TradeAssetFamily, E> {
                 TradeAssetFamily::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TradeAssetFamily, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TradeAssetFamily, E> {
                 Ok(match value {
                     "Unknown" => TradeAssetFamily::Unknown,
@@ -39885,6 +43237,7 @@ impl<'de> Deserialize<'de> for TradeAssetFamily {
     }
 }
 impl ScalarCell for TradeAssetFamily {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -39893,6 +43246,7 @@ impl ScalarCell for TradeAssetFamily {
     }
 }
 impl PresentationValue for TradeAssetFamily {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -39906,6 +43260,7 @@ impl PresentationValue for TradeAssetFamily {
     }
 }
 impl BackendRecord for TradeAssetFamily {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -39914,6 +43269,7 @@ impl BackendRecord for TradeAssetFamily {
     }
 }
 impl PublishedEnum for TradeAssetFamily {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -39922,6 +43278,8 @@ impl PublishedEnum for TradeAssetFamily {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeEntityId`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeEntityId {
     /// C# PortfolioId, wire slot 0.
@@ -39939,6 +43297,9 @@ pub struct TradeEntityId {
 }
 impl FromBackend for TradeEntityId {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeEntityId";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -39956,6 +43317,7 @@ impl FromBackend for TradeEntityId {
     }
 }
 impl PresentationRecord for TradeEntityId {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -40000,11 +43362,13 @@ impl PresentationRecord for TradeEntityId {
     }
 }
 impl Serialize for TradeEntityId {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeEntityId {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -40014,6 +43378,7 @@ impl PresentationValue for TradeEntityId {
     }
 }
 impl PublishedIdentity for TradeEntityId {
+    /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool {
         self.portfolio_id.is_some_and(|value| value > 0)
             && self.fund_id.is_some_and(|value| value > 0)
@@ -40022,6 +43387,7 @@ impl PublishedIdentity for TradeEntityId {
     }
 }
 impl BackendRecord for TradeEntityId {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PortfolioId", &BackendDocument(&self.portfolio_id))?;
@@ -40032,6 +43398,7 @@ impl BackendRecord for TradeEntityId {
     }
 }
 impl Cells for TradeEntityId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "portfolioId" | "PortfolioId" => self.portfolio_id.scalar_cell(),
@@ -40043,6 +43410,8 @@ impl Cells for TradeEntityId {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeLegDefinition`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeLegDefinition {
     /// C# TradeLegId, wire slot 0.
@@ -40085,6 +43454,9 @@ pub struct TradeLegDefinition {
 }
 impl FromBackend for TradeLegDefinition {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeLegDefinition";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -40118,6 +43490,7 @@ impl FromBackend for TradeLegDefinition {
     }
 }
 impl PresentationRecord for TradeLegDefinition {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -40211,11 +43584,13 @@ impl PresentationRecord for TradeLegDefinition {
     }
 }
 impl Serialize for TradeLegDefinition {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeLegDefinition {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -40225,12 +43600,14 @@ impl PresentationValue for TradeLegDefinition {
     }
 }
 impl PresentationExtras for TradeLegDefinition {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeLegDefinition {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("TradeLegId", &BackendDocument(&self.trade_leg_id))?;
@@ -40251,6 +43628,7 @@ impl BackendRecord for TradeLegDefinition {
     }
 }
 impl Cells for TradeLegDefinition {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "tradeLegId" | "TradeLegId" => self.trade_leg_id.scalar_cell(),
@@ -40271,6 +43649,8 @@ impl Cells for TradeLegDefinition {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeOrderComponentDefinition`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeOrderComponentDefinition {
     /// C# ComponentId, wire slot 0.
@@ -40315,6 +43695,9 @@ pub struct TradeOrderComponentDefinition {
 }
 impl FromBackend for TradeOrderComponentDefinition {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeOrderComponentDefinition";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -40358,6 +43741,7 @@ impl FromBackend for TradeOrderComponentDefinition {
     }
 }
 impl PresentationRecord for TradeOrderComponentDefinition {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -40437,11 +43821,13 @@ impl PresentationRecord for TradeOrderComponentDefinition {
     }
 }
 impl Serialize for TradeOrderComponentDefinition {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeOrderComponentDefinition {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -40451,12 +43837,14 @@ impl PresentationValue for TradeOrderComponentDefinition {
     }
 }
 impl PresentationExtras for TradeOrderComponentDefinition {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeOrderComponentDefinition {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ComponentId", &BackendDocument(&self.component_id))?;
@@ -40484,6 +43872,7 @@ impl BackendRecord for TradeOrderComponentDefinition {
     }
 }
 impl Cells for TradeOrderComponentDefinition {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "componentId" | "ComponentId" => self.component_id.scalar_cell(),
@@ -40507,6 +43896,8 @@ impl Cells for TradeOrderComponentDefinition {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeOrderDefinition`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeOrderDefinition {
     /// C# SchemaVersion, wire slot 0.
@@ -40626,6 +44017,9 @@ pub struct TradeOrderDefinition {
 }
 impl FromBackend for TradeOrderDefinition {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeOrderDefinition";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -40715,6 +44109,7 @@ impl FromBackend for TradeOrderDefinition {
     }
 }
 impl PresentationRecord for TradeOrderDefinition {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -40941,11 +44336,13 @@ impl PresentationRecord for TradeOrderDefinition {
     }
 }
 impl Serialize for TradeOrderDefinition {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeOrderDefinition {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -40955,12 +44352,14 @@ impl PresentationValue for TradeOrderDefinition {
     }
 }
 impl PresentationExtras for TradeOrderDefinition {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeOrderDefinition {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("SchemaVersion", &BackendDocument(&self.schema_version))?;
@@ -41036,6 +44435,7 @@ impl BackendRecord for TradeOrderDefinition {
     }
 }
 impl Cells for TradeOrderDefinition {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "schemaVersion" | "SchemaVersion" => self.schema_version.scalar_cell(),
@@ -41083,6 +44483,8 @@ impl Cells for TradeOrderDefinition {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeOrderId`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeOrderId {
     /// C# PortfolioId, wire slot 0.
@@ -41097,6 +44499,9 @@ pub struct TradeOrderId {
 }
 impl FromBackend for TradeOrderId {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeOrderId";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -41112,6 +44517,7 @@ impl FromBackend for TradeOrderId {
     }
 }
 impl PresentationRecord for TradeOrderId {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -41149,11 +44555,13 @@ impl PresentationRecord for TradeOrderId {
     }
 }
 impl Serialize for TradeOrderId {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeOrderId {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -41163,6 +44571,7 @@ impl PresentationValue for TradeOrderId {
     }
 }
 impl PublishedIdentity for TradeOrderId {
+    /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool {
         self.portfolio_id.is_some_and(|value| value > 0)
             && self.fund_id.is_some_and(|value| value > 0)
@@ -41170,6 +44579,7 @@ impl PublishedIdentity for TradeOrderId {
     }
 }
 impl PresentationExtras for TradeOrderId {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         map.serialize_entry("isValid", &self.published_is_valid())?;
@@ -41177,6 +44587,7 @@ impl PresentationExtras for TradeOrderId {
     }
 }
 impl BackendRecord for TradeOrderId {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("PortfolioId", &BackendDocument(&self.portfolio_id))?;
@@ -41186,6 +44597,7 @@ impl BackendRecord for TradeOrderId {
     }
 }
 impl Cells for TradeOrderId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "portfolioId" | "PortfolioId" => self.portfolio_id.scalar_cell(),
@@ -41196,6 +44608,8 @@ impl Cells for TradeOrderId {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeOrderPositionType`; preserves
+/// its pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradeOrderPositionType {
     Unknown,
@@ -41204,6 +44618,7 @@ pub enum TradeOrderPositionType {
     Unrecognized(i64),
 }
 impl TradeOrderPositionType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -41215,6 +44630,9 @@ impl TradeOrderPositionType {
 }
 impl FromBackend for TradeOrderPositionType {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeOrderPositionType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -41227,6 +44645,7 @@ impl FromBackend for TradeOrderPositionType {
     }
 }
 impl Serialize for TradeOrderPositionType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41235,25 +44654,39 @@ impl Serialize for TradeOrderPositionType {
     }
 }
 impl<'de> Deserialize<'de> for TradeOrderPositionType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradeOrderPositionType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(
                 self,
                 value: i64,
             ) -> Result<TradeOrderPositionType, E> {
                 TradeOrderPositionType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(
                 self,
                 value: u64,
             ) -> Result<TradeOrderPositionType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(
                 self,
                 value: &str,
@@ -41272,6 +44705,7 @@ impl<'de> Deserialize<'de> for TradeOrderPositionType {
     }
 }
 impl ScalarCell for TradeOrderPositionType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -41280,6 +44714,7 @@ impl ScalarCell for TradeOrderPositionType {
     }
 }
 impl PresentationValue for TradeOrderPositionType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -41293,6 +44728,7 @@ impl PresentationValue for TradeOrderPositionType {
     }
 }
 impl BackendRecord for TradeOrderPositionType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41301,6 +44737,7 @@ impl BackendRecord for TradeOrderPositionType {
     }
 }
 impl PublishedEnum for TradeOrderPositionType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -41309,6 +44746,8 @@ impl PublishedEnum for TradeOrderPositionType {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeOrderStatus`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradeOrderStatus {
     Draft,
@@ -41321,6 +44760,7 @@ pub enum TradeOrderStatus {
     Unrecognized(i64),
 }
 impl TradeOrderStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Draft => "Draft".into(),
@@ -41336,6 +44776,9 @@ impl TradeOrderStatus {
 }
 impl FromBackend for TradeOrderStatus {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeOrderStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -41352,6 +44795,7 @@ impl FromBackend for TradeOrderStatus {
     }
 }
 impl Serialize for TradeOrderStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41360,19 +44804,33 @@ impl Serialize for TradeOrderStatus {
     }
 }
 impl<'de> Deserialize<'de> for TradeOrderStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradeOrderStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TradeOrderStatus, E> {
                 TradeOrderStatus::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TradeOrderStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TradeOrderStatus, E> {
                 Ok(match value {
                     "Draft" => TradeOrderStatus::Draft,
@@ -41390,6 +44848,7 @@ impl<'de> Deserialize<'de> for TradeOrderStatus {
     }
 }
 impl ScalarCell for TradeOrderStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -41398,6 +44857,7 @@ impl ScalarCell for TradeOrderStatus {
     }
 }
 impl PresentationValue for TradeOrderStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -41411,6 +44871,7 @@ impl PresentationValue for TradeOrderStatus {
     }
 }
 impl BackendRecord for TradeOrderStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41419,6 +44880,7 @@ impl BackendRecord for TradeOrderStatus {
     }
 }
 impl PublishedEnum for TradeOrderStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -41427,6 +44889,8 @@ impl PublishedEnum for TradeOrderStatus {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeState`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradeState {
     NewTrade,
@@ -41443,6 +44907,7 @@ pub enum TradeState {
     Unrecognized(i64),
 }
 impl TradeState {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::NewTrade => "NewTrade".into(),
@@ -41462,6 +44927,9 @@ impl TradeState {
 }
 impl FromBackend for TradeState {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeState";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -41482,6 +44950,7 @@ impl FromBackend for TradeState {
     }
 }
 impl Serialize for TradeState {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41490,19 +44959,33 @@ impl Serialize for TradeState {
     }
 }
 impl<'de> Deserialize<'de> for TradeState {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradeState;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TradeState, E> {
                 TradeState::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TradeState, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TradeState, E> {
                 Ok(match value {
                     "NewTrade" => TradeState::NewTrade,
@@ -41524,6 +45007,7 @@ impl<'de> Deserialize<'de> for TradeState {
     }
 }
 impl ScalarCell for TradeState {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -41532,6 +45016,7 @@ impl ScalarCell for TradeState {
     }
 }
 impl PresentationValue for TradeState {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -41545,6 +45030,7 @@ impl PresentationValue for TradeState {
     }
 }
 impl BackendRecord for TradeState {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41553,6 +45039,7 @@ impl BackendRecord for TradeState {
     }
 }
 impl PublishedEnum for TradeState {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -41561,6 +45048,8 @@ impl PublishedEnum for TradeState {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeStatus`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradeStatus {
     Open,
@@ -41570,6 +45059,7 @@ pub enum TradeStatus {
     Unrecognized(i64),
 }
 impl TradeStatus {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Open => "Open".into(),
@@ -41582,6 +45072,9 @@ impl TradeStatus {
 }
 impl FromBackend for TradeStatus {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -41595,6 +45088,7 @@ impl FromBackend for TradeStatus {
     }
 }
 impl Serialize for TradeStatus {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41603,19 +45097,33 @@ impl Serialize for TradeStatus {
     }
 }
 impl<'de> Deserialize<'de> for TradeStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradeStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TradeStatus, E> {
                 TradeStatus::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TradeStatus, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TradeStatus, E> {
                 Ok(match value {
                     "Open" => TradeStatus::Open,
@@ -41630,6 +45138,7 @@ impl<'de> Deserialize<'de> for TradeStatus {
     }
 }
 impl ScalarCell for TradeStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -41638,6 +45147,7 @@ impl ScalarCell for TradeStatus {
     }
 }
 impl PresentationValue for TradeStatus {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -41651,6 +45161,7 @@ impl PresentationValue for TradeStatus {
     }
 }
 impl BackendRecord for TradeStatus {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41659,6 +45170,7 @@ impl BackendRecord for TradeStatus {
     }
 }
 impl PublishedEnum for TradeStatus {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -41667,6 +45179,8 @@ impl PublishedEnum for TradeStatus {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeStrategyKind`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradeStrategyKind {
     Unknown,
@@ -41678,6 +45192,7 @@ pub enum TradeStrategyKind {
     Unrecognized(i64),
 }
 impl TradeStrategyKind {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -41692,6 +45207,9 @@ impl TradeStrategyKind {
 }
 impl FromBackend for TradeStrategyKind {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeStrategyKind";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -41707,6 +45225,7 @@ impl FromBackend for TradeStrategyKind {
     }
 }
 impl Serialize for TradeStrategyKind {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41715,19 +45234,33 @@ impl Serialize for TradeStrategyKind {
     }
 }
 impl<'de> Deserialize<'de> for TradeStrategyKind {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradeStrategyKind;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TradeStrategyKind, E> {
                 TradeStrategyKind::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TradeStrategyKind, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TradeStrategyKind, E> {
                 Ok(match value {
                     "Unknown" => TradeStrategyKind::Unknown,
@@ -41744,6 +45277,7 @@ impl<'de> Deserialize<'de> for TradeStrategyKind {
     }
 }
 impl ScalarCell for TradeStrategyKind {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -41752,6 +45286,7 @@ impl ScalarCell for TradeStrategyKind {
     }
 }
 impl PresentationValue for TradeStrategyKind {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -41765,6 +45300,7 @@ impl PresentationValue for TradeStrategyKind {
     }
 }
 impl BackendRecord for TradeStrategyKind {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41773,6 +45309,7 @@ impl BackendRecord for TradeStrategyKind {
     }
 }
 impl PublishedEnum for TradeStrategyKind {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -41781,6 +45318,8 @@ impl PublishedEnum for TradeStrategyKind {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.TradeType`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TradeType {
     Unknown,
@@ -41798,6 +45337,7 @@ pub enum TradeType {
     Unrecognized(i64),
 }
 impl TradeType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -41818,6 +45358,9 @@ impl TradeType {
 }
 impl FromBackend for TradeType {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -41839,6 +45382,7 @@ impl FromBackend for TradeType {
     }
 }
 impl Serialize for TradeType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41847,19 +45391,33 @@ impl Serialize for TradeType {
     }
 }
 impl<'de> Deserialize<'de> for TradeType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = TradeType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<TradeType, E> {
                 TradeType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<TradeType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<TradeType, E> {
                 Ok(match value {
                     "Unknown" => TradeType::Unknown,
@@ -41882,6 +45440,7 @@ impl<'de> Deserialize<'de> for TradeType {
     }
 }
 impl ScalarCell for TradeType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -41890,6 +45449,7 @@ impl ScalarCell for TradeType {
     }
 }
 impl PresentationValue for TradeType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -41903,6 +45463,7 @@ impl PresentationValue for TradeType {
     }
 }
 impl BackendRecord for TradeType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -41911,6 +45472,7 @@ impl BackendRecord for TradeType {
     }
 }
 impl PublishedEnum for TradeType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -41919,6 +45481,9 @@ impl PublishedEnum for TradeType {
     }
 }
 
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.Trade.Shared.ViewModels.OptionTradeLegDataReadModel`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct OptionTradeLegDataReadModel {
     /// C# OrderId, wire slot 0.
@@ -41982,6 +45547,9 @@ pub struct OptionTradeLegDataReadModel {
 impl FromBackend for OptionTradeLegDataReadModel {
     const KIND: &'static str =
         "TomasAI.IFM.Domain.Trade.Shared.ViewModels.OptionTradeLegDataReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -42031,6 +45599,7 @@ impl FromBackend for OptionTradeLegDataReadModel {
     }
 }
 impl PresentationRecord for OptionTradeLegDataReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -42180,11 +45749,13 @@ impl PresentationRecord for OptionTradeLegDataReadModel {
     }
 }
 impl Serialize for OptionTradeLegDataReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for OptionTradeLegDataReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -42194,12 +45765,14 @@ impl PresentationValue for OptionTradeLegDataReadModel {
     }
 }
 impl PresentationExtras for OptionTradeLegDataReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for OptionTradeLegDataReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("OrderId", &BackendDocument(&self.order_id))?;
@@ -42228,6 +45801,7 @@ impl BackendRecord for OptionTradeLegDataReadModel {
     }
 }
 impl Cells for OptionTradeLegDataReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "orderId" | "OrderId" => self.order_id.scalar_cell(),
@@ -42254,6 +45828,8 @@ impl Cells for OptionTradeLegDataReadModel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.ViewModels.OptionTradeLegReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct OptionTradeLegReadModel {
     /// C# OrderId, wire slot 0.
@@ -42292,6 +45868,9 @@ pub struct OptionTradeLegReadModel {
 }
 impl FromBackend for OptionTradeLegReadModel {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.ViewModels.OptionTradeLegReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -42323,6 +45902,7 @@ impl FromBackend for OptionTradeLegReadModel {
     }
 }
 impl PresentationRecord for OptionTradeLegReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -42416,11 +45996,13 @@ impl PresentationRecord for OptionTradeLegReadModel {
     }
 }
 impl Serialize for OptionTradeLegReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for OptionTradeLegReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -42430,12 +46012,14 @@ impl PresentationValue for OptionTradeLegReadModel {
     }
 }
 impl PresentationExtras for OptionTradeLegReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for OptionTradeLegReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("OrderId", &BackendDocument(&self.order_id))?;
@@ -42453,6 +46037,7 @@ impl BackendRecord for OptionTradeLegReadModel {
     }
 }
 impl Cells for OptionTradeLegReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "orderId" | "OrderId" => self.order_id.scalar_cell(),
@@ -42471,6 +46056,8 @@ impl Cells for OptionTradeLegReadModel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.ViewModels.OptionTradeReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct OptionTradeReadModel {
     /// C# OrderId, wire slot 0.
@@ -42550,6 +46137,9 @@ pub struct OptionTradeReadModel {
 }
 impl FromBackend for OptionTradeReadModel {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.ViewModels.OptionTradeReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -42603,6 +46193,7 @@ impl FromBackend for OptionTradeReadModel {
     }
 }
 impl PresentationRecord for OptionTradeReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -42773,11 +46364,13 @@ impl PresentationRecord for OptionTradeReadModel {
     }
 }
 impl Serialize for OptionTradeReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for OptionTradeReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -42787,12 +46380,14 @@ impl PresentationValue for OptionTradeReadModel {
     }
 }
 impl PresentationExtras for OptionTradeReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for OptionTradeReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("OrderId", &BackendDocument(&self.order_id))?;
@@ -42830,6 +46425,7 @@ impl BackendRecord for OptionTradeReadModel {
     }
 }
 impl Cells for OptionTradeReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "orderId" | "OrderId" => self.order_id.scalar_cell(),
@@ -42857,6 +46453,8 @@ impl Cells for OptionTradeReadModel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeFillDataReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeFillDataReadModel {
     /// C# OrderId, wire slot 0.
@@ -42892,6 +46490,9 @@ pub struct TradeFillDataReadModel {
 }
 impl FromBackend for TradeFillDataReadModel {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeFillDataReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -42921,6 +46522,7 @@ impl FromBackend for TradeFillDataReadModel {
     }
 }
 impl PresentationRecord for TradeFillDataReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -43007,11 +46609,13 @@ impl PresentationRecord for TradeFillDataReadModel {
     }
 }
 impl Serialize for TradeFillDataReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeFillDataReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -43021,12 +46625,14 @@ impl PresentationValue for TradeFillDataReadModel {
     }
 }
 impl PresentationExtras for TradeFillDataReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeFillDataReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("OrderId", &BackendDocument(&self.order_id))?;
@@ -43043,6 +46649,7 @@ impl BackendRecord for TradeFillDataReadModel {
     }
 }
 impl Cells for TradeFillDataReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "orderId" | "OrderId" => self.order_id.scalar_cell(),
@@ -43060,6 +46667,8 @@ impl Cells for TradeFillDataReadModel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeFillReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeFillReadModel {
     /// C# OrderId, wire slot 0.
@@ -43086,6 +46695,9 @@ pub struct TradeFillReadModel {
 }
 impl FromBackend for TradeFillReadModel {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeFillReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -43109,6 +46721,7 @@ impl FromBackend for TradeFillReadModel {
     }
 }
 impl PresentationRecord for TradeFillReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -43174,11 +46787,13 @@ impl PresentationRecord for TradeFillReadModel {
     }
 }
 impl Serialize for TradeFillReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeFillReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -43188,12 +46803,14 @@ impl PresentationValue for TradeFillReadModel {
     }
 }
 impl PresentationExtras for TradeFillReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeFillReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("OrderId", &BackendDocument(&self.order_id))?;
@@ -43207,6 +46824,7 @@ impl BackendRecord for TradeFillReadModel {
     }
 }
 impl Cells for TradeFillReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "orderId" | "OrderId" => self.order_id.scalar_cell(),
@@ -43220,6 +46838,8 @@ impl Cells for TradeFillReadModel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeLimitReadModel {
     /// C# TradeId, wire slot 0.
@@ -43270,6 +46890,9 @@ pub struct TradeLimitReadModel {
 }
 impl FromBackend for TradeLimitReadModel {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -43311,6 +46934,7 @@ impl FromBackend for TradeLimitReadModel {
     }
 }
 impl PresentationRecord for TradeLimitReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -43432,11 +47056,13 @@ impl PresentationRecord for TradeLimitReadModel {
     }
 }
 impl Serialize for TradeLimitReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeLimitReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -43446,12 +47072,14 @@ impl PresentationValue for TradeLimitReadModel {
     }
 }
 impl PresentationExtras for TradeLimitReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeLimitReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("TradeId", &BackendDocument(&self.trade_id))?;
@@ -43476,6 +47104,7 @@ impl BackendRecord for TradeLimitReadModel {
     }
 }
 impl Cells for TradeLimitReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "tradeId" | "TradeId" => self.trade_id.scalar_cell(),
@@ -43498,6 +47127,8 @@ impl Cells for TradeLimitReadModel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePositionReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradePositionReadModel {
     /// C# OrderId, wire slot 0.
@@ -43569,6 +47200,9 @@ pub struct TradePositionReadModel {
 }
 impl FromBackend for TradePositionReadModel {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradePositionReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -43622,6 +47256,7 @@ impl FromBackend for TradePositionReadModel {
     }
 }
 impl PresentationRecord for TradePositionReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -43792,11 +47427,13 @@ impl PresentationRecord for TradePositionReadModel {
     }
 }
 impl Serialize for TradePositionReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradePositionReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -43806,12 +47443,14 @@ impl PresentationValue for TradePositionReadModel {
     }
 }
 impl PresentationExtras for TradePositionReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradePositionReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("OrderId", &BackendDocument(&self.order_id))?;
@@ -43843,6 +47482,7 @@ impl BackendRecord for TradePositionReadModel {
     }
 }
 impl Cells for TradePositionReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "orderId" | "OrderId" => self.order_id.scalar_cell(),
@@ -43871,6 +47511,8 @@ impl Cells for TradePositionReadModel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct TradeTypeLimitReadModel {
     /// C# TradeId, wire slot 0.
@@ -43891,6 +47533,9 @@ pub struct TradeTypeLimitReadModel {
 }
 impl FromBackend for TradeTypeLimitReadModel {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -43910,6 +47555,7 @@ impl FromBackend for TradeTypeLimitReadModel {
     }
 }
 impl PresentationRecord for TradeTypeLimitReadModel {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -43961,11 +47607,13 @@ impl PresentationRecord for TradeTypeLimitReadModel {
     }
 }
 impl Serialize for TradeTypeLimitReadModel {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for TradeTypeLimitReadModel {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -43975,12 +47623,14 @@ impl PresentationValue for TradeTypeLimitReadModel {
     }
 }
 impl PresentationExtras for TradeTypeLimitReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for TradeTypeLimitReadModel {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("TradeId", &BackendDocument(&self.trade_id))?;
@@ -43992,6 +47642,7 @@ impl BackendRecord for TradeTypeLimitReadModel {
     }
 }
 impl Cells for TradeTypeLimitReadModel {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "tradeId" | "TradeId" => self.trade_id.scalar_cell(),
@@ -44004,6 +47655,8 @@ impl Cells for TradeTypeLimitReadModel {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Shared.EventModelActor.ActorSubject`; preserves its
+/// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ActorSubject {
     /// C# ActorType, wire slot 0.
@@ -44021,6 +47674,9 @@ pub struct ActorSubject {
 }
 impl FromBackend for ActorSubject {
     const KIND: &'static str = "TomasAI.IFM.Shared.EventModelActor.ActorSubject";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let fields = value
             .as_array()
@@ -44038,6 +47694,7 @@ impl FromBackend for ActorSubject {
     }
 }
 impl PresentationRecord for ActorSubject {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -44082,11 +47739,13 @@ impl PresentationRecord for ActorSubject {
     }
 }
 impl Serialize for ActorSubject {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.serialize_presentation(serializer, PresentationMode::Native)
     }
 }
 impl PresentationValue for ActorSubject {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -44096,12 +47755,14 @@ impl PresentationValue for ActorSubject {
     }
 }
 impl PresentationExtras for ActorSubject {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let _ = map;
         Ok(())
     }
 }
 impl BackendRecord for ActorSubject {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("ActorType", &BackendDocument(&self.actor_type))?;
@@ -44112,6 +47773,7 @@ impl BackendRecord for ActorSubject {
     }
 }
 impl Cells for ActorSubject {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "actorType" | "ActorType" => self.actor_type.scalar_cell(),
@@ -44123,6 +47785,8 @@ impl Cells for ActorSubject {
     }
 }
 
+/// Typed backend contract for `TomasAI.IFM.Shared.EventModelActor.ActorType`; preserves its pinned
+/// wire layout.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ActorType {
     Unknown,
@@ -44135,6 +47799,7 @@ pub enum ActorType {
     Unrecognized(i64),
 }
 impl ActorType {
+    /// Returns the user-facing label for this value.
     pub fn label(&self) -> std::borrow::Cow<'static, str> {
         match self {
             Self::Unknown => "Unknown".into(),
@@ -44150,6 +47815,9 @@ impl ActorType {
 }
 impl FromBackend for ActorType {
     const KIND: &'static str = "TomasAI.IFM.Shared.EventModelActor.ActorType";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         Ok(
             match value.as_i64().ok_or("Expected contract enum integer")? {
@@ -44166,6 +47834,7 @@ impl FromBackend for ActorType {
     }
 }
 impl Serialize for ActorType {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -44174,19 +47843,33 @@ impl Serialize for ActorType {
     }
 }
 impl<'de> Deserialize<'de> for ActorType {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
         struct Visitor;
         impl<'de> serde::de::Visitor<'de> for Visitor {
             type Value = ActorType;
+
+
+            /// Describes the accepted input shape in deserialization errors.
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a declared enum name or integer")
             }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<ActorType, E> {
                 ActorType::from_backend(&Value::from(value)).map_err(E::custom)
             }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<ActorType, E> {
                 self.visit_i64(i64::try_from(value).map_err(E::custom)?)
             }
+
+
+            /// Accepts text through this value's deserialization rules.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<ActorType, E> {
                 Ok(match value {
                     "Unknown" => ActorType::Unknown,
@@ -44204,6 +47887,7 @@ impl<'de> Deserialize<'de> for ActorType {
     }
 }
 impl ScalarCell for ActorType {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         match self {
             Self::Unrecognized(value) => Cell::Signed(*value),
@@ -44212,6 +47896,7 @@ impl ScalarCell for ActorType {
     }
 }
 impl PresentationValue for ActorType {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -44225,6 +47910,7 @@ impl PresentationValue for ActorType {
     }
 }
 impl BackendRecord for ActorType {
+    /// Writes the backend representation using the declared wire layout.
     fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Unrecognized(value) => serializer.serialize_i64(*value),
@@ -44233,6 +47919,7 @@ impl BackendRecord for ActorType {
     }
 }
 impl PublishedEnum for ActorType {
+    /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
             Self::Unrecognized(value) => Label::Number(*value),
@@ -44241,6 +47928,256 @@ impl PublishedEnum for ActorType {
     }
 }
 
+impl IronCondorTradePlanSnapshot {
+    /// Builds the compact history view, omitting fields excluded by the wire policy.
+    pub fn history_view(&self) -> Self {
+        Self {
+            order_id: self.order_id.clone(),
+            trade_id: self.trade_id.clone(),
+            value_date: self.value_date.clone(),
+            sequence_id: self.sequence_id.clone(),
+            action_date: self.action_date.clone(),
+            trade_date: self.trade_date.clone(),
+            maturity_date: self.maturity_date.clone(),
+            trade_type: self.trade_type.clone(),
+            action_type: self.action_type.clone(),
+            action_sub_type: self.action_sub_type.clone(),
+            action_state: self.action_state.clone(),
+            action_reason: self.action_reason.clone(),
+            trade_pnl: self.trade_pnl.clone(),
+            forward_loss_ratio: self.forward_loss_ratio.clone(),
+            max_profit: self.max_profit.clone(),
+            max_loss: self.max_loss.clone(),
+            min_profit_target: self.min_profit_target.clone(),
+            daily_profit_target: self.daily_profit_target.clone(),
+            asset_price: self.asset_price.clone(),
+            put_otm_probability: self.put_otm_probability.clone(),
+            call_otm_probability: self.call_otm_probability.clone(),
+            short_put_gamma: self.short_put_gamma.clone(),
+            short_call_gamma: self.short_call_gamma.clone(),
+            net_price: self.net_price.clone(),
+            forward_price: self.forward_price.clone(),
+            forward_delta: self.forward_delta.clone(),
+            stop_loss_limit: self.stop_loss_limit.clone(),
+            position: None,
+            source_event_id: self.source_event_id.clone(),
+            unavailable_reasons: self.unavailable_reasons.clone(),
+            calculation_version: self.calculation_version.clone(),
+            action_date_time: self.action_date_time.clone(),
+            daily_pnl: self.daily_pnl.clone(),
+            daily_loss: self.daily_loss.clone(),
+            daily_loss_limit: self.daily_loss_limit.clone(),
+            loss_headroom: self.loss_headroom.clone(),
+            forward_daily_pnl: self.forward_daily_pnl.clone(),
+            forward_loss: self.forward_loss.clone(),
+            forward_loss_headroom: self.forward_loss_headroom.clone(),
+            projected_position_value_change: self.projected_position_value_change.clone(),
+            estimated_exit_commission: self.estimated_exit_commission.clone(),
+            estimated_exit_slippage: self.estimated_exit_slippage.clone(),
+            estimated_exit_costs: self.estimated_exit_costs.clone(),
+            put_spread_price: self.put_spread_price.clone(),
+            call_spread_price: self.call_spread_price.clone(),
+            combined_spread_price: self.combined_spread_price.clone(),
+            put_forward_price: self.put_forward_price.clone(),
+            call_forward_price: self.call_forward_price.clone(),
+            combined_forward_price: self.combined_forward_price.clone(),
+            current_position_value: self.current_position_value.clone(),
+            forward_position_value: self.forward_position_value.clone(),
+            estimated_close_value: self.estimated_close_value.clone(),
+            net_delta: self.net_delta.clone(),
+            net_gamma: self.net_gamma.clone(),
+            net_vega: self.net_vega.clone(),
+            net_theta: self.net_theta.clone(),
+            underlying_price: self.underlying_price.clone(),
+            distance_to_short_put: self.distance_to_short_put.clone(),
+            distance_to_short_call: self.distance_to_short_call.clone(),
+            time_to_expiry_days: self.time_to_expiry_days.clone(),
+            scenario_horizon_seconds: self.scenario_horizon_seconds.clone(),
+            scenario_underlying_price: self.scenario_underlying_price.clone(),
+            scenario_underlying_move: self.scenario_underlying_move.clone(),
+            scenario_volatility_shift: self.scenario_volatility_shift.clone(),
+            scenario_kind: self.scenario_kind.clone(),
+            pricing_model_version: self.pricing_model_version.clone(),
+            oldest_quote_at_utc: self.oldest_quote_at_utc.clone(),
+            risk_valid_until_utc: self.risk_valid_until_utc.clone(),
+            calculation_status: self.calculation_status.clone(),
+            exit_recommended: self.exit_recommended.clone(),
+            exit_reason: self.exit_reason.clone(),
+            quantity: self.quantity.clone(),
+            contract_multiplier: self.contract_multiplier.clone(),
+            currency: self.currency.clone(),
+            legacy_legs: None,
+            strategy_risk_parameter_set: None,
+            risk_parameter_set_hash: self.risk_parameter_set_hash.clone(),
+            current_price_basis: self.current_price_basis.clone(),
+            volatility_price: self.volatility_price.clone(),
+            iron_condor_forward_risk: self.iron_condor_forward_risk.clone(),
+            forward_price_calculation_error: self.forward_price_calculation_error.clone(),
+        }
+    }
+
+
+    /// Compares only fields retained in the compact history representation.
+    pub fn history_equivalent(&self, other: &Self) -> bool {
+        self.order_id == other.order_id
+            && self.trade_id == other.trade_id
+            && self.value_date == other.value_date
+            && self.sequence_id == other.sequence_id
+            && self.action_date == other.action_date
+            && self.trade_date == other.trade_date
+            && self.maturity_date == other.maturity_date
+            && self.trade_type == other.trade_type
+            && self.action_type == other.action_type
+            && self.action_sub_type == other.action_sub_type
+            && self.action_state == other.action_state
+            && self.action_reason == other.action_reason
+            && self.trade_pnl == other.trade_pnl
+            && self.forward_loss_ratio == other.forward_loss_ratio
+            && self.max_profit == other.max_profit
+            && self.max_loss == other.max_loss
+            && self.min_profit_target == other.min_profit_target
+            && self.daily_profit_target == other.daily_profit_target
+            && self.asset_price == other.asset_price
+            && self.put_otm_probability == other.put_otm_probability
+            && self.call_otm_probability == other.call_otm_probability
+            && self.short_put_gamma == other.short_put_gamma
+            && self.short_call_gamma == other.short_call_gamma
+            && self.net_price == other.net_price
+            && self.forward_price == other.forward_price
+            && self.forward_delta == other.forward_delta
+            && self.stop_loss_limit == other.stop_loss_limit
+            && self.source_event_id == other.source_event_id
+            && self.unavailable_reasons == other.unavailable_reasons
+            && self.calculation_version == other.calculation_version
+            && self.action_date_time == other.action_date_time
+            && self.daily_pnl == other.daily_pnl
+            && self.daily_loss == other.daily_loss
+            && self.daily_loss_limit == other.daily_loss_limit
+            && self.loss_headroom == other.loss_headroom
+            && self.forward_daily_pnl == other.forward_daily_pnl
+            && self.forward_loss == other.forward_loss
+            && self.forward_loss_headroom == other.forward_loss_headroom
+            && self.projected_position_value_change == other.projected_position_value_change
+            && self.estimated_exit_commission == other.estimated_exit_commission
+            && self.estimated_exit_slippage == other.estimated_exit_slippage
+            && self.estimated_exit_costs == other.estimated_exit_costs
+            && self.put_spread_price == other.put_spread_price
+            && self.call_spread_price == other.call_spread_price
+            && self.combined_spread_price == other.combined_spread_price
+            && self.put_forward_price == other.put_forward_price
+            && self.call_forward_price == other.call_forward_price
+            && self.combined_forward_price == other.combined_forward_price
+            && self.current_position_value == other.current_position_value
+            && self.forward_position_value == other.forward_position_value
+            && self.estimated_close_value == other.estimated_close_value
+            && self.net_delta == other.net_delta
+            && self.net_gamma == other.net_gamma
+            && self.net_vega == other.net_vega
+            && self.net_theta == other.net_theta
+            && self.underlying_price == other.underlying_price
+            && self.distance_to_short_put == other.distance_to_short_put
+            && self.distance_to_short_call == other.distance_to_short_call
+            && self.time_to_expiry_days == other.time_to_expiry_days
+            && self.scenario_horizon_seconds == other.scenario_horizon_seconds
+            && self.scenario_underlying_price == other.scenario_underlying_price
+            && self.scenario_underlying_move == other.scenario_underlying_move
+            && self.scenario_volatility_shift == other.scenario_volatility_shift
+            && self.scenario_kind == other.scenario_kind
+            && self.pricing_model_version == other.pricing_model_version
+            && self.oldest_quote_at_utc == other.oldest_quote_at_utc
+            && self.risk_valid_until_utc == other.risk_valid_until_utc
+            && self.calculation_status == other.calculation_status
+            && self.exit_recommended == other.exit_recommended
+            && self.exit_reason == other.exit_reason
+            && self.quantity == other.quantity
+            && self.contract_multiplier == other.contract_multiplier
+            && self.currency == other.currency
+            && self.risk_parameter_set_hash == other.risk_parameter_set_hash
+            && self.current_price_basis == other.current_price_basis
+            && self.volatility_price == other.volatility_price
+            && self.iron_condor_forward_risk == other.iron_condor_forward_risk
+            && self.forward_price_calculation_error == other.forward_price_calculation_error
+    }
+
+
+    /// Checks whether the fields omitted from history are already absent.
+    pub fn is_history_view(&self) -> bool {
+        self.legacy_legs.is_none()
+            && self.position.is_none()
+            && self.strategy_risk_parameter_set.is_none()
+    }
+}
+impl StrategyTradePlanSnapshot {
+    /// Builds the compact history view, omitting fields excluded by the wire policy.
+    pub fn history_view(&self) -> Self {
+        Self {
+            schema_version: self.schema_version.clone(),
+            position: None,
+            value_date: self.value_date.clone(),
+            plan_revision: self.plan_revision.clone(),
+            opening_value: self.opening_value.clone(),
+            current_value: self.current_value.clone(),
+            total_pnl: self.total_pnl.clone(),
+            forward_trade_price: self.forward_trade_price.clone(),
+            forward_pnl: self.forward_pnl.clone(),
+            forward_loss: self.forward_loss.clone(),
+            state: self.state.clone(),
+            action: self.action.clone(),
+            requires_exit: self.requires_exit.clone(),
+            material_change: self.material_change.clone(),
+            reason_code: self.reason_code.clone(),
+            explanation: self.explanation.clone(),
+            parameters: None,
+            content_hash: self.content_hash.clone(),
+            calculated_at_utc: self.calculated_at_utc.clone(),
+            iron_condor_trade_plan_snapshot: self
+                .iron_condor_trade_plan_snapshot
+                .as_ref()
+                .map(|v| Box::new(v.history_view())),
+        }
+    }
+
+
+    /// Compares only fields retained in the compact history representation.
+    pub fn history_equivalent(&self, other: &Self) -> bool {
+        self.schema_version == other.schema_version
+            && self.value_date == other.value_date
+            && self.plan_revision == other.plan_revision
+            && self.opening_value == other.opening_value
+            && self.current_value == other.current_value
+            && self.total_pnl == other.total_pnl
+            && self.forward_trade_price == other.forward_trade_price
+            && self.forward_pnl == other.forward_pnl
+            && self.forward_loss == other.forward_loss
+            && self.state == other.state
+            && self.action == other.action
+            && self.requires_exit == other.requires_exit
+            && self.material_change == other.material_change
+            && self.reason_code == other.reason_code
+            && self.explanation == other.explanation
+            && self.content_hash == other.content_hash
+            && self.calculated_at_utc == other.calculated_at_utc
+            && (match (
+                &self.iron_condor_trade_plan_snapshot,
+                &other.iron_condor_trade_plan_snapshot,
+            ) {
+                (Some(a), Some(b)) => a.history_equivalent(b),
+                (None, None) => true,
+                _ => false,
+            })
+    }
+
+
+    /// Checks whether the fields omitted from history are already absent.
+    pub fn is_history_view(&self) -> bool {
+        self.parameters.is_none()
+            && self.position.is_none()
+            && self
+                .iron_condor_trade_plan_snapshot
+                .as_ref()
+                .is_none_or(|v| v.is_history_view())
+    }
+}
 pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
     (
         "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountDefinition",

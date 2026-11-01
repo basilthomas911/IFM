@@ -45,6 +45,7 @@ struct Path {
     #[serde(default)]
     index: usize,
 }
+
 /// One patch mutation, including its target path and replacement or array-splice data.
 #[derive(Debug, Deserialize)]
 struct Operation {
@@ -65,6 +66,7 @@ struct Operation {
     #[serde(default)]
     items: Option<Vec<serde_bytes::ByteBuf>>,
 }
+
 /// Ordered mutations tied to an exact base publication sequence.
 #[derive(Debug, Deserialize)]
 struct Patch {
@@ -76,6 +78,7 @@ struct Patch {
     /// Ordered mutations applied to the publication base.
     operations: Vec<Operation>,
 }
+
 /// Publication identity and source/production/native-receipt timestamps in .NET UTC ticks.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Stamp {
@@ -90,6 +93,7 @@ pub struct Stamp {
     /// Native receipt timestamp in .NET UTC ticks.
     pub received_ticks: i64,
 }
+
 /// One publication kind's reconstructed bytes and delivery/resynchronization state.
 #[derive(Default)]
 struct Slot {
@@ -104,6 +108,7 @@ struct Slot {
     /// Identity and timing of the last accepted publication.
     stamp: Stamp,
 }
+
 /// Nine independent publication slots and a reusable managed-copy buffer. Supported ABI kinds must index these slots.
 #[derive(Default)]
 pub struct TransferCache {
@@ -117,26 +122,38 @@ impl TransferCache {
     pub fn sequence(&self, kind: u32) -> u64 {
         self.slots[kind as usize].sequence
     }
+
+
     /// Reset the requested kind's sequence to zero to force full resynchronization. Retained bytes are not a newly accepted publication; the kind must be valid.
     pub fn reset(&mut self, kind: u32) {
         self.slots[kind as usize].sequence = 0;
     }
+
+
     /// Report whether reconstructed bytes for this kind still await successful UI-queue delivery. The kind must be a valid cache index.
     pub fn pending(&self, kind: u32) -> bool {
         self.slots[kind as usize].pending
     }
+
+
     /// Borrow reconstructed MessagePack bytes for a supported publication kind. Consume them only after successful reconstruction.
     pub fn bytes(&self, kind: u32) -> &[u8] {
         &self.slots[kind as usize].bytes
     }
+
+
     /// Return the cached publication identity and latency timestamps for a supported kind.
     pub fn stamp(&self, kind: u32) -> Stamp {
         self.slots[kind as usize].stamp
     }
+
+
     /// Clear pending delivery after the application has successfully queued the decoded publication. The kind must be a valid cache index.
     pub fn acknowledge(&mut self, kind: u32) {
         self.slots[kind as usize].pending = false;
     }
+
+
     /// Compare legacy full-document bytes, advancing the local sequence and delivery flag only when content changes. Returns whether delivery remains pending.
     pub fn legacy(&mut self, kind: u32, bytes: Vec<u8>) -> bool {
         let slot = &mut self.slots[kind as usize];
@@ -148,6 +165,8 @@ impl TransferCache {
         }
         slot.pending
     }
+
+
     /// Consume the scratch payload as a full document (mode 0) or exact-base patch (mode 3), then stamp it pending. On failure resets sequence/tree state; returns the validation/decoding error.
     pub fn complete(
         &mut self,
@@ -199,6 +218,8 @@ impl TransferCache {
         result
     }
 }
+
+
 /// Return current UTC time as .NET ticks: 100-nanosecond intervals since 0001-01-01. A pre-Unix system-clock failure contributes zero Unix duration.
 pub fn utc_ticks() -> i64 {
     621355968000000000
@@ -208,6 +229,8 @@ pub fn utc_ticks() -> i64 {
             .as_nanos()
             / 100) as i64
 }
+
+
 /// Decode exactly one MessagePack value, rejecting trailing bytes and malformed data.
 fn decode(bytes: &[u8]) -> Result<Value, String> {
     let mut cursor = Cursor::new(bytes);
@@ -217,6 +240,8 @@ fn decode(bytes: &[u8]) -> Result<Value, String> {
     }
     Ok(value)
 }
+
+
 /// Resolve a patch path to a mutable map/array value. Reject missing keys, invalid indexes, and incompatible container kinds.
 fn target<'a>(value: &'a mut Value, path: &[Path]) -> Result<&'a mut Value, String> {
     let mut current = value;
@@ -235,6 +260,8 @@ fn target<'a>(value: &'a mut Value, path: &[Path]) -> Result<&'a mut Value, Stri
     }
     Ok(current)
 }
+
+
 /// Apply ordered replacement/removal/array-splice operations, recursively decoding binary document boundaries. Reject invalid paths, kinds, and payloads.
 fn apply(value: &mut Value, operations: &[Operation], skip: usize) -> Result<(), String> {
     let mut index = 0;

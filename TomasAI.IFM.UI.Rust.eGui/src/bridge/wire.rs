@@ -18,15 +18,18 @@
 //! ABI v4 uses ordinary uncompressed MessagePack maps; no LZ4 or .NET typeless extensions.
 use serde::{Serialize, de::DeserializeOwned};
 
+
 /// Serialize a value into named-field MessagePack bytes and return serialization errors as text.
 pub fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>, String> {
     rmp_serde::to_vec_named(value).map_err(|e| format!("MessagePack encode: {e}"))
 }
 
+
 /// Deserialize MessagePack bytes into the requested Rust type and return decoding errors as text.
 pub fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, String> {
     rmp_serde::from_slice(bytes).map_err(|e| format!("MessagePack decode: {e}"))
 }
+
 
 /// Editors currently compose JSON document values internally. Only binary MessagePack crosses the ABI.
 pub fn encode_intent(document: &str) -> Result<Vec<u8>, String> {
@@ -34,6 +37,7 @@ pub fn encode_intent(document: &str) -> Result<Vec<u8>, String> {
         serde_json::from_str(document).map_err(|e| format!("Invalid editor intent: {e}"))?;
     encode_value(&value)
 }
+
 
 /// Serialize a JSON-shaped value through the standard-number/binary-document MessagePack adapter.
 pub fn encode_value(value: &serde_json::Value) -> Result<Vec<u8>, String> {
@@ -43,7 +47,10 @@ pub fn encode_value(value: &serde_json::Value) -> Result<Vec<u8>, String> {
 // serde_json's arbitrary_precision feature has a private serialization token. Emit standard
 // MessagePack numbers explicitly, rather than leaking that JSON-specific representation.
 /// Serde adapter emitting ordinary MessagePack scalar numbers and named binary documents from JSON-shaped intents.
-struct WireValue<'a>(&'a serde_json::Value);
+struct WireValue<'a>(
+    /// Borrowed JSON value adapted at the existing compatibility boundary.
+    &'a serde_json::Value,
+);
 impl Serialize for WireValue<'_> {
     /// Serialize JSON values recursively as standard MessagePack scalars; reject numbers outside i64/u64/f64 range and encode named documents as binary payloads.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

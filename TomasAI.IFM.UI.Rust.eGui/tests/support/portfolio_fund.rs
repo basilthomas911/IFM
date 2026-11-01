@@ -1,6 +1,9 @@
 use super::*;
 use ifm_ui_egui::{backend::schema::Registry, state::portfolio::PortfolioController};
 use serde_json::{Value as Json, json};
+
+
+/// Provides mode for the portfolio fund implementation.
 async fn mode(backend: &Backend, name: &str) {
     service_result(
         &backend
@@ -15,6 +18,9 @@ async fn mode(backend: &Backend, name: &str) {
     )
     .unwrap();
 }
+
+
+/// Provides act for the portfolio fund implementation.
 async fn act(
     controller: &mut PortfolioController,
     backend: &Backend,
@@ -25,9 +31,15 @@ async fn act(
 ) -> ifm_ui_egui::contract_editor::ContractPublication {
     controller.execute(backend,registry,&json!({"schema":1,"requestId":uuid::Uuid::new_v4().to_string(),"view":"portfolio","intent":intent,"expectedGeneration":generation,"originalId":null,"fields":fields})).await.unwrap()
 }
+
+
+/// Provides document for the portfolio fund implementation.
 fn document(p: &ifm_ui_egui::contract_editor::ContractPublication) -> Json {
     ifm_ui_egui::wire::decode(&p.result.documents["portfolio"]).unwrap()
 }
+
+
+/// Verifies that portfolio fund configuration preserves catalog scope and partial create.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn portfolio_fund_configuration_preserves_catalog_scope_and_partial_create() {

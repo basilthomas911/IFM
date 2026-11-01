@@ -248,6 +248,14 @@ async fn exact_current_context_and_manifest_contents_and_hashes() {
             123,
         )
         .unwrap();
+        let limited = context.limited(1, 0).unwrap();
+        assert_eq!(
+            limited.digest().unwrap(),
+            ifm_market_data_native::reference::semantic::compute(&limited.semantic().unwrap())
+                .unwrap()
+        );
+        assert_ne!(limited.digest().unwrap(), context.digest().unwrap());
+        assert_eq!(context.clone().digest().unwrap(), context.digest().unwrap());
         assert_eq!(
             codec::encode(&context.value().unwrap()).unwrap(),
             wire(row, "context"),

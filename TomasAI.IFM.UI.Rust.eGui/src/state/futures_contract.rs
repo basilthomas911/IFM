@@ -24,9 +24,15 @@ const REVIEW: [(&str, &str); 10] = [
     ("settlementStyle", "SettlementStyle"),
     ("description", "Description"),
 ];
+
+
+/// Reads the text representation expected by this component.
 fn string(value: &Json) -> String {
     value.as_str().unwrap_or_default().into()
 }
+
+
+/// Provides identity for the futures contract implementation.
 fn identity(row: &Json) -> Result<String, String> {
     let date = chrono::NaiveDate::parse_from_str(
         row["LastTradeDate"]
@@ -42,6 +48,9 @@ fn identity(row: &Json) -> Result<String, String> {
         date.format("%Y%m%d")
     ))
 }
+
+
+/// Provides id wire for the futures contract implementation.
 fn id_wire(row: &Json) -> Result<Value, String> {
     let date = chrono::NaiveDate::parse_from_str(
         row["LastTradeDate"].as_str().ok_or("Missing maturity")?,
@@ -54,6 +63,9 @@ fn id_wire(row: &Json) -> Result<Value, String> {
         date_only_wire(date),
     ]))
 }
+
+
+/// Provides display for the futures contract implementation.
 fn display(value: &Json) -> String {
     match value {
         Json::Null => String::new(),
@@ -62,6 +74,9 @@ fn display(value: &Json) -> String {
         _ => value.to_string(),
     }
 }
+
+
+/// Provides display offset for the futures contract implementation.
 fn display_offset(value: &Json) -> String {
     value
         .as_str()
@@ -76,6 +91,8 @@ fn display_offset(value: &Json) -> String {
         })
         .unwrap_or_default()
 }
+
+
 /// Shared convention-form fields; option editors replace the option defaults
 /// with their typed values. These strings are never used as provider evidence.
 pub fn review_fields(row: &Json) -> BTreeMap<String, String> {
@@ -107,6 +124,9 @@ pub fn review_fields(row: &Json) -> BTreeMap<String, String> {
     }
     fields
 }
+
+
+/// Provides display row for the futures contract implementation.
 pub fn display_row(row: &Json) -> Result<ContractRow, String> {
     let mut fields = BTreeMap::new();
     for (key, field) in [
@@ -140,6 +160,9 @@ pub fn display_row(row: &Json) -> Result<ContractRow, String> {
         data: None,
     })
 }
+
+
+/// Provides display contract for the futures contract implementation.
 pub fn display_contract(registry: &Registry, wire: &Value) -> Result<ContractRow, String> {
     let mut row = display_row(&registry.project(MODEL, wire)?)?;
     // These are the explicit C# keys. Preserve the original offset when showing
@@ -177,15 +200,23 @@ pub fn display_contract(registry: &Registry, wire: &Value) -> Result<ContractRow
     }
     Ok(row)
 }
+
+/// Futures Contract Controller used by the futures contract component.
 #[derive(Default)]
 pub struct FuturesContractController {
+    /// Generation associated with this futures contract controller.
     generation: u64,
+    /// Whether loaded is enabled or currently true.
     loaded: bool,
+    /// Keyed models retained by FuturesContractController.
     models: BTreeMap<String, Value>,
+    /// Result associated with this futures contract controller.
     result: ContractResult,
+    /// Retained historical data used by this component.
     history: BTreeMap<String, (Json, EditorOutcome)>,
 }
 impl FuturesContractController {
+    /// Loads futures contract for futures contract controller.
     async fn load(&mut self, backend: &Backend, registry: &Registry) -> Result<(), String> {
         let query_kind = format!("{ROOT}Queries.GetFuturesContractsQuery");
         let (models, lookups) = tokio::try_join!(
@@ -245,6 +276,9 @@ impl FuturesContractController {
         };
         Ok(())
     }
+
+
+    /// Provides mutate for the futures contract controller implementation.
     async fn mutate(
         &mut self,
         backend: &Backend,
@@ -441,6 +475,9 @@ impl FuturesContractController {
             }
         }
     }
+
+
+    /// Handles a futures contract intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,

@@ -12,32 +12,7 @@ impl TradeWorkspace {
     ) -> Option<&'static str> {
         let p = ui.ctx().pixels_per_point();
         let display = self.display_cache.as_ref().unwrap().model.clone();
-        let mut tabs: Vec<_> = display
-            .values("workspace-tab")
-            .iter()
-            .filter_map(crate::models::trade_presentation::TradeDisplayRow::tab)
-            .cloned()
-            .collect();
-        // Older publications and offline layout fixtures contain the active document only.
-        if tabs.is_empty() {
-            if let Some(trade) = display
-                .values("established")
-                .iter()
-                .find_map(crate::models::trade_presentation::TradeDisplayRow::established)
-            {
-                let id = trade.id.as_ref();
-                tabs.push(crate::models::trade_presentation::WorkspaceTabRow {
-                    key: format!("{:?}", trade.id),
-                    title: format!(
-                        "{}:{}",
-                        id.and_then(|id| id.order_id).unwrap_or_default(),
-                        id.and_then(|id| id.trade_id).unwrap_or_default()
-                    ),
-                    kind: "trade".into(),
-                    active: true,
-                });
-            }
-        }
+        let tabs = &display.tabs;
         let mut action = None;
         let strip = egui::Rect::from_min_size(bounds.min, egui::vec2(bounds.width(), 32. / p));
         ui.painter().hline(
@@ -53,9 +28,10 @@ impl TradeWorkspace {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.;
-                        for tab in tabs {
-                            let key = tab.key;
-                            let title = tab.title;
+                        for prepared in tabs {
+                            let tab = &prepared.tab;
+                            let key = &tab.key;
+                            let title = &tab.title;
                             let active = tab.active;
                             let font = egui::TextStyle::Button.resolve(ui.style());
                             let width = (ui
@@ -96,11 +72,12 @@ impl TradeWorkspace {
                             );
                             let enabled = self.interaction_ready(s);
                             ui.push_id(&key, |ui| {
-                                let mut caption = egui::RichText::new(&title).color(if active {
-                                    Color32::WHITE
-                                } else {
-                                    Color32::LIGHT_GRAY
-                                });
+                                let mut caption =
+                                    egui::RichText::new(title.as_str()).color(if active {
+                                        Color32::WHITE
+                                    } else {
+                                        Color32::LIGHT_GRAY
+                                    });
                                 if active {
                                     caption = caption.strong();
                                 }
@@ -112,21 +89,21 @@ impl TradeWorkspace {
                                 }
                                 let response = ui
                                     .put(close, egui::Button::new("\u{00d7}").frame(false))
-                                    .on_hover_text(format!("Close trade {title}"));
+                                    .on_hover_text(prepared.close_caption.clone());
                                 response.widget_info(|| {
                                     egui::WidgetInfo::labeled(
                                         egui::WidgetType::Button,
                                         enabled,
-                                        format!("Close trade {title}"),
+                                        prepared.close_caption.clone(),
                                     )
                                 });
-                                self.controls.insert(format!("close-trade:{key}"), close);
+                                self.controls.insert(prepared.close_id.clone(), close);
                                 if enabled && response.clicked() {
                                     self.draft.insert("tradeTabId".into(), key.clone());
                                     action = Some("close-trade");
                                 }
                             });
-                            self.controls.insert(format!("trade-tab:{key}"), r);
+                            self.controls.insert(prepared.tab_id.clone(), r);
                         }
                     });
                 });

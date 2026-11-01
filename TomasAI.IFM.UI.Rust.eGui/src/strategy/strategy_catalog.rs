@@ -5,6 +5,7 @@ use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_re
 use eframe::egui;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+
 /// Versioned strategy-definition browser/editor with local JSON draft and lifecycle confirmation.
 #[derive(Default)]
 pub struct StrategyCatalog {
@@ -54,6 +55,8 @@ impl StrategyCatalog {
         });
         result
     }
+
+
     /// Render with the original Reference selector and command rail.
     pub fn draw_reference(
         &mut self,
@@ -82,6 +85,8 @@ impl StrategyCatalog {
             self.draw_inside(ui, s, c, live, command, true)
         })
     }
+
+
     /// Render inside the Reference manager, accepting its original command-rail action.
     pub fn draw_inside(
         &mut self,
@@ -173,6 +178,8 @@ impl StrategyCatalog {
                 .show_inside(ui, |ui| {
                     ui.add_enabled_ui(enabled && !self.editing, |ui| {
                         ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                             ui.add(crate::presentation::caption_widget("Manage"));
                             let previous = self.kind.clone();
                             egui::ComboBox::from_id_salt("catalog-kind")
@@ -589,6 +596,8 @@ impl StrategyCatalog {
         }
         action.map(|intent|{if matches!(intent,"load"|"catalog-section"|"catalog-discard"){self.auto_selection=None;}let request_id=new_request_id();self.pending=Some(request_id.clone());json!({"schema":1,"requestId":request_id,"view":"strategy-catalog","intent":intent,"expectedGeneration":s.generation,"originalId":target,"fields":fields}).to_string()})
     }
+
+
     /// Render the original catalog definition tabs and fields without standalone editor commands.
     fn reference_details(&mut self, ui: &mut egui::Ui, s: &ContractPublication, enabled: bool) {
         let mut tabs = vec![("Definition", "Definition")];
@@ -648,16 +657,12 @@ impl StrategyCatalog {
                 }
                 _ => {}
             }
-            egui::Grid::new("reference-catalog-definition")
+            crate::presentation::form_grid(ui, "reference-catalog-definition")
                 .num_columns(2)
-                .spacing([8., 8.])
                 .show(ui, |ui| {
                     for (key, caption) in fields {
                         let height = if key == "Description" { 77. } else { 30. };
-                        let label = ui.add_sized(
-                            [157., height],
-                            crate::presentation::caption_widget(caption),
-                        );
+                        let label = crate::presentation::form_caption(ui, caption);
                         let width = ui.available_width();
                         if key == "Version" {
                             ui.add_sized(
@@ -697,6 +702,7 @@ impl StrategyCatalog {
                                 egui::TextEdit::multiline(&mut text)
                             } else {
                                 egui::TextEdit::singleline(&mut text)
+                                    .vertical_align(egui::Align::Center)
                             };
                             if ui
                                 .add_sized([width, height], widget.interactive(mutable))
@@ -710,9 +716,8 @@ impl StrategyCatalog {
                     }
                 });
         } else if self.section == "Variant" {
-            egui::Grid::new("reference-catalog-variant")
+            crate::presentation::form_grid(ui, "reference-catalog-variant")
                 .num_columns(2)
-                .spacing([8., 8.])
                 .show(ui, |ui| {
                     for (key, caption, choices) in [
                         ("Side", "Structure side", vec!["Long", "Short", "Custom"]),
@@ -727,8 +732,7 @@ impl StrategyCatalog {
                             vec!["None", "Credit", "Debit", "Custom"],
                         ),
                     ] {
-                        let label =
-                            ui.add_sized([157., 30.], crate::presentation::caption_widget(caption));
+                        let label = crate::presentation::form_caption(ui, caption);
                         let mut text = self.definition[key].as_str().unwrap_or("").to_owned();
                         ui.add_enabled_ui(editable, |ui| {
                             egui::ComboBox::from_id_salt(key)
@@ -753,8 +757,7 @@ impl StrategyCatalog {
                         ("MinimumWingWidth", "Minimum wing width"),
                         ("MaximumWingWidth", "Maximum wing width"),
                     ] {
-                        let label =
-                            ui.add_sized([157., 30.], crate::presentation::caption_widget(caption));
+                        let label = crate::presentation::form_caption(ui, caption);
                         if key == "SymmetricWings" {
                             let mut value =
                                 self.definition["Settings"][key].as_bool().unwrap_or(false);
@@ -853,6 +856,8 @@ impl StrategyCatalog {
         }
     }
 }
+
+
 /// Decode the requested named managed document into a JSON-shaped editing/display value, using the local empty-value fallback on failure.
 fn parse(s: &ContractPublication, key: &str) -> Value {
     s.result
@@ -861,6 +866,8 @@ fn parse(s: &ContractPublication, key: &str) -> Value {
         .and_then(|x| serde_json::from_str(x).ok())
         .unwrap_or(Value::Null)
 }
+
+
 /// Build a stable display/selection identity from a published strategy-catalog key.
 fn identity(key: &Value) -> String {
     let kind = key["Kind"]
@@ -887,6 +894,8 @@ fn identity(key: &Value) -> String {
         key["Version"]
     )
 }
+
+
 /// Return the editor section names appropriate to the selected strategy-catalog definition kind.
 fn sections(kind: &str) -> Vec<&'static str> {
     let mut rows = vec!["Definition"];
@@ -911,6 +920,8 @@ fn sections(kind: &str) -> Vec<&'static str> {
     }
     rows
 }
+
+
 /// Render schema-aware strategy definition editors using published references and separate numeric text buffers.
 fn edit(
     ui: &mut egui::Ui,
@@ -1034,6 +1045,7 @@ fn edit(
                     ui.add_enabled(
                         enabled,
                         egui::TextEdit::singleline(&mut name)
+                            .vertical_align(egui::Align::Center)
                             .hint_text(c.text("catalog_property_name")),
                     );
                     let type_id = id.with("type");
@@ -1127,7 +1139,10 @@ fn edit(
                     .entry(path.into())
                     .or_insert_with(|| value.to_string());
                 if ui
-                    .add_enabled(enabled, egui::TextEdit::singleline(text))
+                    .add_enabled(
+                        enabled,
+                        egui::TextEdit::singleline(text).vertical_align(egui::Align::Center),
+                    )
                     .labelled_by(label.id)
                     .changed()
                 {
@@ -1139,13 +1154,19 @@ fn edit(
                 }
             }
             Value::String(v) => {
-                ui.add_enabled(enabled, egui::TextEdit::singleline(v))
-                    .labelled_by(label.id);
+                ui.add_enabled(
+                    enabled,
+                    egui::TextEdit::singleline(v).vertical_align(egui::Align::Center),
+                )
+                .labelled_by(label.id);
             }
             Value::Null => {
                 let mut text = String::new();
                 if ui
-                    .add_enabled(enabled, egui::TextEdit::singleline(&mut text))
+                    .add_enabled(
+                        enabled,
+                        egui::TextEdit::singleline(&mut text).vertical_align(egui::Align::Center),
+                    )
                     .labelled_by(label.id)
                     .changed()
                 {
@@ -1155,6 +1176,8 @@ fn edit(
         }
     });
 }
+
+
 /// Construct a local strategy-definition draft using the selected template and published reference/product choices.
 fn template(key: &str, refs: &Value, products: &Value) -> Value {
     match key {
@@ -1192,6 +1215,7 @@ fn template(key: &str, refs: &Value, products: &Value) -> Value {
         _ => Value::String(String::new()),
     }
 }
+
 
 /// Select an exact versioned reference using the same filtered catalogue as WinForms.
 fn catalog_reference_choice(
@@ -1255,6 +1279,8 @@ fn catalog_reference_choice(
     });
     changed
 }
+
+
 /// Select one published enum value without interpreting its numeric discriminator in the UI.
 fn catalog_enum_choice(
     ui: &mut egui::Ui,
@@ -1288,6 +1314,8 @@ fn catalog_enum_choice(
             .labelled_by(label)
     });
 }
+
+
 /// Original catalog row grids, including the native blank insertion row and keyboard deletion.
 fn catalog_rows_grid(
     ui: &mut egui::Ui,
@@ -1450,6 +1478,7 @@ fn catalog_rows_grid(
                                 };
                                 let response = ui.add(
                                     egui::TextEdit::singleline(text)
+                                        .vertical_align(egui::Align::Center)
                                         .desired_width(ui.available_width())
                                         .interactive(editable && section != "Products"),
                                 );
@@ -1488,6 +1517,7 @@ fn catalog_rows_grid(
     }
 }
 
+
 /// Display and edit leaf parameter paths with the original three-column name/type/value grid.
 fn catalog_settings_grid(
     ui: &mut egui::Ui,
@@ -1500,6 +1530,9 @@ fn catalog_settings_grid(
         catalog_shape_grid(ui, settings, editable, buffers);
         return;
     }
+
+
+    /// Provides leaves for the strategy catalog implementation.
     fn leaves(value: &Value, path: String, rows: &mut Vec<Value>) {
         match value{Value::Object(map)=>for(key,value)in map{leaves(value,format!("{path}/{}",key.replace('~',"~0").replace('/',"~1")),rows);},Value::Array(items)=>for(index,value)in items.iter().enumerate(){leaves(value,format!("{path}/{index}"),rows);},_=>rows.push(json!({"Path":path,"Type":if value.is_number(){"Number"}else if value.is_boolean(){"Boolean"}else if value.is_null(){"Null"}else{"String"},"Value":value}))}
     }
@@ -1539,6 +1572,8 @@ fn catalog_settings_grid(
     }
     ui.data_mut(|data| data.insert_temp(draft_id, (settings.clone(), value)));
 }
+
+
 /// Keep schema fields in the source path/type/constraints grid and rebuild their nested shape.
 fn catalog_shape_grid(
     ui: &mut egui::Ui,
@@ -1546,6 +1581,7 @@ fn catalog_shape_grid(
     editable: bool,
     buffers: &mut BTreeMap<String, String>,
 ) {
+    /// Flattens strategy catalog for strategy catalog.
     fn flatten(value: &Value, path: String, required: bool, rows: &mut Vec<Value>) {
         rows.push(json!({"Path":path,"Type":match value["Type"].as_i64(){Some(1)=>"Object",Some(2)=>"Array",Some(3)=>"String",Some(4)=>"Decimal",Some(5)=>"Integer",Some(6)=>"Boolean",_=>"Object"},"Required":required,"Unit":value["Unit"],"Minimum":value["Minimum"],"Maximum":value["Maximum"],"MinLength":value["MinLength"],"MaxLength":value["MaxLength"],"Choices":value["Choices"].as_array().into_iter().flatten().filter_map(Value::as_str).collect::<Vec<_>>().join(",")}));
         if let Some(properties) = value["Properties"].as_object() {
@@ -1606,6 +1642,8 @@ fn catalog_shape_grid(
     }
     ui.data_mut(|data| data.insert_temp(draft_id, (shape.clone(), value)));
 }
+
+
 /// Reconstruct the bounded schema DSL, preserving property membership and optional constraints.
 fn rebuild_shape(rows: &Value) -> Option<Value> {
     let rows = rows.as_array()?;
@@ -1619,6 +1657,9 @@ fn rebuild_shape(rows: &Value) -> Option<Value> {
             return None;
         }
     }
+
+
+    /// Builds strategy catalog for strategy catalog.
     fn build(path: &str, rows: &BTreeMap<&str, &Value>, depth: usize) -> Option<Value> {
         if depth > 12 {
             return None;
@@ -1677,6 +1718,7 @@ fn rebuild_shape(rows: &Value) -> Option<Value> {
     build("$", &by_path, 0)
 }
 
+
 /// Build parameter values from path/type/value rows; an invalid draft never replaces the last valid object.
 fn rebuild_settings(rows: &Value) -> Option<Value> {
     let mut root = json!({});
@@ -1706,6 +1748,8 @@ fn rebuild_settings(rows: &Value) -> Option<Value> {
     }
     Some(root)
 }
+
+
 /// Insert a bounded JSON parameter path, creating intermediate objects and arrays as required.
 fn write_parameter_path(root: &mut Value, path: &[String], value: Value) -> bool {
     let Some((key, remaining)) = path.split_first() else {
@@ -1753,6 +1797,9 @@ fn write_parameter_path(root: &mut Value, path: &[String], value: Value) -> bool
 #[cfg(test)]
 mod reference_grid_tests {
     use super::*;
+
+
+    /// Verifies that parameter paths rebuild nested arrays without losing decimal precision.
     #[test]
     fn parameter_paths_rebuild_nested_arrays_without_losing_decimal_precision() {
         let rows = json!([{"Path":"/Risk/Target","Type":"Number","Value":"0.1234567890123456789012345678"},{"Path":"/Names/0","Type":"String","Value":"ES"},{"Path":"/Enabled","Type":"Boolean","Value":"true"}]);
@@ -1761,6 +1808,9 @@ mod reference_grid_tests {
         assert_eq!(value["Names"][0], "ES");
         assert_eq!(value["Enabled"], true);
     }
+
+
+    /// Verifies that schema rebuild preserves required fields and nullable constraints.
     #[test]
     fn schema_rebuild_preserves_required_fields_and_nullable_constraints() {
         let rows = json!([{"Path":"$","Type":"Object","Required":false,"Unit":"","Minimum":null,"Maximum":null,"MinLength":null,"MaxLength":null,"Choices":""},{"Path":"$/properties/Target","Type":"Decimal","Required":true,"Unit":"delta","Minimum":"0.1","Maximum":"1","MinLength":"","MaxLength":"","Choices":""}]);

@@ -5,20 +5,34 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+/// Accepts realtime snapshots only when identity, composition and monitoring generation remain
+/// valid.
 pub struct Realtime {
+    /// Identity and routing scope against which requests and incoming results are checked.
     scope: Scope,
+    /// Date associated with this realtime.
     date: String,
+    /// Position associated with this realtime.
     position: StrategyPositionId,
+    /// Optional initial revision; `None` represents an absent value.
     initial_revision: Option<i32>,
+    /// Optional initial legs; `None` represents an absent value.
     initial_legs: Option<Vec<TradeLegDefinition>>,
+    /// Optional current; `None` represents an absent value.
     pub current: Option<TradeRealtimeSnapshot>,
+    /// Retired associated with this realtime.
     retired: BTreeSet<String>,
+    /// Retired order associated with this realtime.
     retired_order: VecDeque<String>,
 }
+
+
+/// Provides stamp for the monitor cache implementation.
 fn stamp(value: Option<&str>) -> Option<chrono::DateTime<chrono::FixedOffset>> {
     value.and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
 }
 impl Realtime {
+    /// Constructs Realtime from the supplied inputs.
     pub fn new(
         scope: Scope,
         date: chrono::NaiveDate,
@@ -41,6 +55,9 @@ impl Realtime {
             retired_order: VecDeque::new(),
         })
     }
+
+
+    /// Accepts an incoming value only when this component's identity and revision checks pass.
     pub fn accept(&mut self, snapshot: TradeRealtimeSnapshot) -> bool {
         let Some(generation) = snapshot
             .monitoring_generation
@@ -149,12 +166,27 @@ impl Realtime {
     }
 }
 
+/// Retains accepted history snapshots and their stable chronological display order.
 pub struct History {
+    /// Trade associated with this history.
     trade: EstablishedTradeDefinition,
+    /// Trade type associated with this history.
     trade_type: String,
+    /// Keyed positions retained by History.
     positions: BTreeMap<(String, String), StrategyPositionSnapshot>,
+    /// Keyed insertion retained by History.
     insertion: BTreeMap<(String, String), usize>,
+    /// Ordered associated with this history.
+    ordered: std::collections::BTreeSet<(
+        String,
+        Option<chrono::DateTime<chrono::FixedOffset>>,
+        usize,
+        (String, String),
+    )>,
 }
+
+
+/// Builds the stable key used to deduplicate retained history snapshots.
 fn history_key(position: &StrategyPositionSnapshot) -> (String, String) {
     let date = position
         .history_valuation
@@ -171,6 +203,9 @@ fn history_key(position: &StrategyPositionSnapshot) -> (String, String) {
     };
     (date, phase)
 }
+
+
+/// Reads the published history time used for chronological ordering.
 fn history_time(
     position: &StrategyPositionSnapshot,
 ) -> Option<chrono::DateTime<chrono::FixedOffset>> {
@@ -181,14 +216,19 @@ fn history_time(
     stamp(value.map(|value| value.as_str()))
 }
 impl History {
+    /// Constructs History from the supplied inputs.
     pub fn new(trade: EstablishedTradeDefinition, trade_type: String) -> Self {
         Self {
             trade,
             trade_type,
             positions: BTreeMap::new(),
             insertion: BTreeMap::new(),
+            ordered: Default::default(),
         }
     }
+
+
+    /// Retains an accepted history snapshot while preserving replacement and ordering rules.
     pub fn remember(&mut self, position: StrategyPositionSnapshot) -> bool {
         if position.history_valuation.is_none()
             || position.id.as_ref().and_then(|id| id.trade.as_ref()) != self.trade.id.as_ref()
@@ -228,40 +268,39 @@ impl History {
             }
         }
         let next = self.insertion.len();
-        self.insertion.entry(key.clone()).or_insert(next);
+        let ordinal = *self.insertion.entry(key.clone()).or_insert(next);
+        if let Some(old) = self.positions.get(&key) {
+            self.ordered
+                .remove(&(key.0.clone(), history_time(old), ordinal, key.clone()));
+        }
+        if position.phase != Some(StrategyPositionPhase::Open) {
+            self.ordered
+                .insert((key.0.clone(), history_time(&position), ordinal, key.clone()));
+        }
         self.positions.insert(key, position);
         true
     }
-    pub fn positions(&self) -> Vec<StrategyPositionSnapshot> {
-        let mut rows = self
-            .positions
-            .values()
-            .filter(|position| {
-                position.phase != Some(StrategyPositionPhase::Open)
-                    && position.history_valuation.is_some()
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        rows.sort_by(|a, b| {
-            history_key(a)
-                .0
-                .cmp(&history_key(b).0)
-                .then_with(|| history_time(a).cmp(&history_time(b)))
-                .then_with(|| {
-                    self.insertion
-                        .get(&history_key(a))
-                        .cmp(&self.insertion.get(&history_key(b)))
-                })
-        });
-        rows
+
+
+    /// Iterates retained position snapshots in their prepared chronological order.
+    pub fn positions(&self) -> impl Iterator<Item = &StrategyPositionSnapshot> + '_ {
+        self.ordered
+            .iter()
+            .filter_map(|(_, _, _, key)| self.positions.get(key))
     }
+
+
+    /// Clones only the selected retained snapshot for the requested history index.
     pub fn saved(&self, index: usize) -> Option<StrategyPositionSnapshot> {
         if index == 0 {
             self.trade.opening_position_snapshot.as_deref().cloned()
         } else {
-            self.positions().get(index - 1).cloned()
+            self.positions().nth(index - 1).cloned()
         }
     }
+
+
+    /// Provides rows for the history implementation.
     pub fn rows(&self) -> Vec<PositionHistoryRow> {
         let Some(opening) = self.trade.opening_history_valuation.as_ref() else {
             return vec![];

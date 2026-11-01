@@ -1,0 +1,201 @@
+{
+  "controls": [
+    {
+      "verb": "FeedScenario",
+      "value": "Stopped"
+    },
+    {
+      "verb": "TradeWorkspaceMode",
+      "value": "ComposeCloseOptions"
+    },
+    {
+      "verb": "BrokerInitMode",
+      "value": "Normal"
+    },
+    {
+      "verb": "BrokerReadMode",
+      "value": "Empty"
+    },
+    {
+      "verb": "OptionChainMode",
+      "value": "ComposeCloseOptions"
+    },
+    {
+      "verb": "CloseOrderMode",
+      "value": "Options"
+    },
+    {
+      "verb": "OrderPreparationMode",
+      "value": "Normal"
+    },
+    {
+      "verb": "TradeLifecycleMode",
+      "value": "Normal"
+    },
+    {
+      "verb": "OptionChainOffline",
+      "value": "Enabled"
+    },
+    {
+      "verb": "MonitorMode",
+      "value": "ClosedEmulator"
+    },
+    {
+      "verb": "DesktopOutlookAvailable",
+      "value": "true"
+    }
+  ],
+  "steps": [
+    {
+      "action": "invoke",
+      "name": "Trade Orders",
+      "type": "Button",
+      "enabled": true
+    },
+    {
+      "action": "wait",
+      "name": "LongIronCondor",
+      "type": "Text",
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "wait",
+      "name": "Trade Blotter",
+      "type": "Button",
+      "enabled": true,
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "snapshot",
+      "name": "orders-before-selection",
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "click",
+      "name": "456",
+      "type": "Text",
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "pause",
+      "milliseconds": 750
+    },
+    {
+      "action": "wait",
+      "name": "Load Trade",
+      "type": "Button",
+      "enabled": false,
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "snapshot",
+      "name": "closing-row-selected",
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "invoke",
+      "name": "Trade Blotter",
+      "type": "Button",
+      "enabled": true,
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "wait",
+      "name": "Selected legs: 4 / 4",
+      "contains": true,
+      "type": "Text"
+    },
+    {
+      "action": "wait",
+      "name": "parentOrderAction: Close",
+      "enabled": false
+    },
+    {
+      "action": "wait",
+      "name": "expiry: 2026-10-28",
+      "enabled": false
+    },
+    {
+      "action": "wait",
+      "name": "callDelta",
+      "type": "Spinner",
+      "enabled": false
+    },
+    {
+      "action": "wait",
+      "name": "callWidth",
+      "type": "Spinner",
+      "enabled": false
+    },
+    {
+      "action": "wait",
+      "name": "putDelta",
+      "type": "Spinner",
+      "enabled": false
+    },
+    {
+      "action": "wait",
+      "name": "putWidth",
+      "type": "Spinner",
+      "enabled": false
+    },
+    {
+      "action": "assert-legs",
+      "name": "closing-original-four-legs",
+      "legs": [
+        {
+          "role": "+LC",
+          "strike": 6050
+        },
+        {
+          "role": "-SC",
+          "strike": 6100
+        },
+        {
+          "role": "+LP",
+          "strike": 5950
+        },
+        {
+          "role": "-SP",
+          "strike": 5900
+        }
+      ]
+    },
+    {
+      "action": "snapshot",
+      "name": "closing-original-four-legs",
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "invoke",
+      "name": "Broker Trade",
+      "type": "Button",
+      "enabled": true,
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "wait",
+      "name": "quantity",
+      "type": "Spinner",
+      "enabled": false
+    },
+    {
+      "action": "wait",
+      "name": "action: Close"
+    },
+    {
+      "action": "wait",
+      "name": "Place Order",
+      "type": "Button",
+      "enabled": true
+    },
+    {
+      "action": "snapshot",
+      "name": "closing-broker-trade",
+      "scope": "Trade Order Editor"
+    },
+    {
+      "action": "close"
+    }
+  ]
+}

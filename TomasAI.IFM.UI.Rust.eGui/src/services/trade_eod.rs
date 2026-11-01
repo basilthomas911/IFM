@@ -11,17 +11,28 @@ use crate::models::{
 use rmpv::Value;
 use std::collections::BTreeMap;
 const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared";
+
+/// Session used by the trade eod component.
 pub struct Session {
+    /// Identity and routing scope against which requests and incoming results are checked.
     pub scope: Scope,
+    /// Strategy associated with this session.
     pub strategy: String,
+    /// Contract associated with this session.
     pub contract: String,
+    /// Date associated with this session.
     pub date: chrono::NaiveDate,
+    /// Reference associated with this session.
     pub reference: String,
+    /// Optional display; `None` represents an absent value.
     pub display: Option<EodInputs>,
+    /// Whether pending is enabled or currently true.
     pub pending: bool,
+    /// Whether completed is enabled or currently true.
     pub completed: bool,
 }
 impl Session {
+    /// Constructs Session from the supplied inputs.
     pub fn new(
         scope: Scope,
         strategy: String,
@@ -43,6 +54,9 @@ impl Session {
             completed: false,
         })
     }
+
+
+    /// Provides document for the session implementation.
     pub fn document(&self) -> EodDocument {
         EodDocument {
             portfolio_id: Some(self.scope.portfolio),
@@ -55,6 +69,9 @@ impl Session {
             inputs: self.display.clone(),
         }
     }
+
+
+    /// Loads trade eod for session.
     pub async fn load(
         &mut self,
         b: &Backend,
@@ -176,6 +193,9 @@ impl Session {
         });
         Ok(())
     }
+
+
+    /// Provides run for the session implementation.
     pub async fn run(
         &mut self,
         b: &Backend,

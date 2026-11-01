@@ -18,25 +18,43 @@ use rmpv::Value;
 use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
 const ROOT: &str = "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.";
+
+
+/// Provides model for the scheduled tasks implementation.
 fn model(name: &str) -> String {
     format!("{ROOT}Contracts.{name}")
 }
+
+
+/// Resolves the requested field in the supplied record.
 fn field<'a>(intent: &'a Json, name: &str) -> &'a str {
     intent["fields"][name].as_str().unwrap_or_default().trim()
 }
+
+
+/// Returns the display text for the requested value or field.
 fn text(row: &impl Cells, name: &str) -> String {
     row.cell(name).text()
 }
+
+
+/// Provides display for the scheduled tasks implementation.
 fn display(v: Cell<'_>) -> String {
     match v {
         Cell::Boolean(v) => if v { "True" } else { "False" }.into(),
         _ => v.text(),
     }
 }
+
+
+/// Provides id wire for the scheduled tasks implementation.
 fn id_wire(id: &str) -> Result<Value, String> {
     let id = uuid::Uuid::parse_str(id).map_err(|_| "Invalid scheduled task identity")?;
     Ok(Value::Array(vec![id.to_string().into()]))
 }
+
+
+/// Provides id for the scheduled tasks implementation.
 fn id(identity: &Option<ScheduledTaskId>) -> Result<String, String> {
     identity
         .as_ref()
@@ -45,11 +63,17 @@ fn id(identity: &Option<ScheduledTaskId>) -> Result<String, String> {
         .map(str::to_string)
         .ok_or("Missing scheduled task identity".into())
 }
+
+
+/// Looks up the requested member in the supplied record.
 fn member<'a>(wire: &'a Value, index: usize) -> Result<&'a Value, String> {
     wire.as_array()
         .and_then(|v| v.get(index))
         .ok_or("Incomplete scheduled-task payload".into())
 }
+
+
+/// Provides offset for the scheduled tasks implementation.
 fn offset(wire: &Value, index: usize) -> Result<Option<String>, String> {
     let value = member(wire, index)?;
     Ok(if value.is_nil() {
@@ -58,9 +82,14 @@ fn offset(wire: &Value, index: usize) -> Result<Option<String>, String> {
         Some(crate::backend::contracts::reference_offset(value)?)
     })
 }
+
+
+/// Provides document for the scheduled tasks implementation.
 fn document<T: serde::Serialize>(value: &T) -> Result<serde_bytes::ByteBuf, String> {
     crate::wire::encode(value).map(Into::into)
 }
+
+
 /// Map one persisted run exactly as the hybrid service; no business outcomes or
 /// EOD receipts are recomputed on the client. Raw timestamps retain their zones.
 pub fn run_document(_registry: &Registry, wire: &Value) -> Result<Run, String> {
@@ -83,6 +112,9 @@ pub fn run_document(_registry: &Registry, wire: &Value) -> Result<Run, String> {
         finished_at_utc: offset(wire, 11)?,
     })
 }
+
+
+/// Schedules input for scheduled tasks.
 pub fn schedule_input(registry: &Registry, intent: &Json) -> Result<Value, String> {
     let boolean = match field(intent, "oneTime").to_ascii_lowercase().as_str() {
         "true" => true,
@@ -131,29 +163,51 @@ pub fn schedule_input(registry: &Registry, intent: &Json) -> Result<Value, Strin
     let kind = model("ScheduledTaskSchedule");
     registry.patch(&kind, &registry.encode(&kind, &BTreeMap::new())?, &input)
 }
+
+/// Scheduled Controller used by the scheduled tasks component.
 #[derive(Default)]
 pub struct ScheduledController {
+    /// Generation associated with this scheduled controller.
     generation: u64,
+    /// Whether loaded is enabled or currently true.
     loaded: bool,
+    /// Environment associated with this scheduled controller.
     environment: String,
+    /// Host associated with this scheduled controller.
     host: String,
+    /// Result associated with this scheduled controller.
     result: ContractResult,
+    /// Keyed definitions retained by ScheduledController.
     definitions: BTreeMap<String, Value>,
+    /// Keyed histories retained by ScheduledController.
     histories: BTreeMap<String, Vec<Value>>,
+    /// Keyed cursors retained by ScheduledController.
     cursors: BTreeMap<String, Option<Vec<u8>>>,
+    /// Keyed next fires retained by ScheduledController.
     next_fires: BTreeMap<String, String>,
+    /// Optional history schedule; `None` represents an absent value.
     history_schedule: Option<String>,
+    /// Optional preview; `None` represents an absent value.
     preview: Option<Preview>,
+    /// Output associated with this scheduled controller.
     output: String,
+    /// Optional output run; `None` represents an absent value.
     output_run: Option<String>,
+    /// Output offset associated with this scheduled controller.
     output_offset: i64,
+    /// Whether output end is enabled or currently true.
     output_end: bool,
+    /// Retained historical data used by this component.
     history: BTreeMap<String, (Json, EditorOutcome)>,
+    /// Optional subscription; `None` represents an absent value.
     subscription: Option<async_nats::Subscriber>,
+    /// Whether subscribed is enabled or currently true.
     subscribed: bool,
+    /// Optional observer; `None` represents an absent value.
     observer: Option<tokio::task::JoinHandle<()>>,
 }
 impl Drop for ScheduledController {
+    /// Releases resources owned by this value when its lifetime ends.
     fn drop(&mut self) {
         if let Some(task) = self.observer.take() {
             task.abort();
@@ -161,17 +215,27 @@ impl Drop for ScheduledController {
     }
 }
 impl ScheduledController {
+    /// Transfers the owned subscription so cleanup has one responsible owner.
     pub fn take_subscription(&mut self) -> Option<async_nats::Subscriber> {
         self.subscription.take()
     }
+
+
+    /// Sets observer for scheduled controller.
     pub fn set_observer(&mut self, task: tokio::task::JoinHandle<()>) {
         if let Some(previous) = self.observer.replace(task) {
             previous.abort();
         }
     }
+
+
+    /// Provides observer unavailable for the scheduled controller implementation.
     pub fn observer_unavailable(&mut self) {
         self.subscribed = false;
     }
+
+
+    /// Provides query for the scheduled controller implementation.
     async fn query(
         &self,
         backend: &Backend,
@@ -203,6 +267,9 @@ impl ScheduledController {
         )
         .await
     }
+
+
+    /// Provides preview for the scheduled controller implementation.
     async fn preview(
         &self,
         backend: &Backend,
@@ -231,6 +298,9 @@ impl ScheduledController {
             next_fire_times_utc: times,
         })
     }
+
+
+    /// Builds the current history page using its accepted backend paging state.
     async fn history_page(
         &mut self,
         backend: &Backend,
@@ -314,6 +384,9 @@ impl ScheduledController {
 
         Ok(())
     }
+
+
+    /// Loads dashboard for scheduled controller.
     async fn load_dashboard(
         &mut self,
         backend: &Backend,
@@ -464,6 +537,9 @@ impl ScheduledController {
         self.loaded = true;
         Ok(())
     }
+
+
+    /// Provides enrich for the scheduled controller implementation.
     async fn enrich(&mut self, backend: &Backend, registry: &Registry) -> Result<(), String> {
         let definitions = self
             .definitions
@@ -492,6 +568,9 @@ impl ScheduledController {
         }
         Ok(())
     }
+
+
+    /// Provides publication result for the scheduled controller implementation.
     fn publication_result(&self, registry: &Registry) -> Result<ContractResult, String> {
         let mut result = self.result.clone();
         result.has_more = self
@@ -554,6 +633,9 @@ impl ScheduledController {
             .insert("preview".into(), document(&self.preview)?);
         Ok(result)
     }
+
+
+    /// Provides selected for the scheduled controller implementation.
     fn selected(&self, intent: &Json) -> Result<(String, Value), String> {
         let id = intent["originalId"]
             .as_str()
@@ -563,6 +645,9 @@ impl ScheduledController {
             .map(|v| (id.into(), v.clone()))
             .ok_or("Select a current schedule".into())
     }
+
+
+    /// Reads output for scheduled controller.
     async fn read_output(
         &mut self,
         backend: &Backend,
@@ -637,6 +722,9 @@ impl ScheduledController {
         self.history_schedule = Some(schedule);
         Ok(())
     }
+
+
+    /// Provides mutate for the scheduled controller implementation.
     async fn mutate(
         &mut self,
         backend: &Backend,
@@ -827,6 +915,9 @@ impl ScheduledController {
             )),
         }
     }
+
+
+    /// Applies scheduled tasks for scheduled controller.
     async fn apply(
         &mut self,
         backend: &Backend,
@@ -901,6 +992,9 @@ impl ScheduledController {
         }
         Ok("Completed".into())
     }
+
+
+    /// Refreshes if loaded for scheduled controller.
     pub async fn refresh_if_loaded(
         &mut self,
         backend: &Backend,
@@ -942,6 +1036,9 @@ impl ScheduledController {
             ..Default::default()
         })
     }
+
+
+    /// Handles a scheduled tasks intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,

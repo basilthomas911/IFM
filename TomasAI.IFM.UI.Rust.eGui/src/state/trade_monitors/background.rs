@@ -3,6 +3,7 @@
 use super::*;
 use crate::diagnostics::trade_load::{background, current_id, measure};
 impl Hub {
+    /// Installs background for hub.
     fn install_background(
         &self,
         key: &str,
@@ -27,6 +28,8 @@ impl Hub {
         }
         Ok(())
     }
+
+
     /// Host connectivity is only required for live control, never for stored trade reads.
     pub(super) async fn connect_feed(
         &self,
@@ -62,6 +65,9 @@ impl Hub {
         owner.feed = Client::new(connection, &self.host_scope)?;
         Ok(())
     }
+
+
+    /// Cancels saved feed for hub.
     pub(super) fn cancel_saved_feed(&self, key: &str) -> Result<(), String> {
         let mut state = self
             .state
@@ -74,6 +80,8 @@ impl Hub {
         }
         Ok(())
     }
+
+
     /// Phase two starts only after the stored view has been published and its
     /// optional database hydration has finished. Weak ownership and incarnation
     /// checks prevent a closed/reopened tab receiving this task's late result.
@@ -193,6 +201,9 @@ impl Hub {
             .key()?;
         self.install_background(&key, "saved_feed", &identity, job)
     }
+
+
+    /// Schedules chart for hub.
     pub(super) fn schedule_chart(&self, backend: &Backend, key: &str) -> Result<(), String> {
         let data = self.owner(key)?;
         let (scope, date, incarnation, generation) = {
@@ -253,7 +264,7 @@ impl Hub {
                                     state.chart_loading = false;
                                     match result {
                                         Ok(chart) => {
-                                            state.chart = Some(chart);
+                                            state.set_chart(Some(chart));
                                             state.chart_error.clear()
                                         }
                                         Err(error) => state.chart_error = error,
@@ -272,6 +283,9 @@ impl Hub {
         ));
         self.install_background(key, "chart", &identity, job)
     }
+
+
+    /// Schedules details for hub.
     pub(super) fn schedule_details(&self, backend: &Backend, key: &str) -> Result<(), String> {
         let data = self.owner(key)?;
         let (scope, date, incarnation, generation, selected, trade) = {

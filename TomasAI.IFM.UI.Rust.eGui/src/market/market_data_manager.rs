@@ -57,6 +57,8 @@ impl MarketDataManager {
         self.open = true;
         self.load_requested = false;
     }
+
+
     /// Return the managed view key corresponding to the currently selected editor mode.
     fn view(&self) -> &str {
         match self.selection {
@@ -65,6 +67,8 @@ impl MarketDataManager {
             _ => "yield-curve",
         }
     }
+
+
     /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     fn request(&mut self, action: &str, publication: &ContractPublication) -> String {
         self.pending_action = action.into();
@@ -76,12 +80,16 @@ impl MarketDataManager {
             self.contract.request(action, publication)
         }
     }
+
+
     /// Release the current pending UI submission after the host reports a queue rejection.
     pub fn reject_submission(&mut self) {
         self.contract.pending = None;
         self.rates.pending = None;
         self.error = "The request queue is full. Close and reopen to retry.".into();
     }
+
+
     /// Release only the matching request that failed before backend execution and expose its submission error.
     pub fn submission_rejected(&mut self, id: &str, error: &str) {
         if self.contract.pending.as_deref() == Some(id) || self.rates.pending.as_deref() == Some(id)
@@ -91,12 +99,15 @@ impl MarketDataManager {
             self.error = error.into();
         }
     }
+
+
     /// Record a transport error and release local pending UI state; this does not confirm a business command's outcome.
     pub fn transport_failed(&mut self, error: &str) {
         self.contract.pending = None;
         self.rates.pending = None;
         self.error = error.into();
     }
+
 
     /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
     ///
@@ -215,10 +226,12 @@ impl MarketDataManager {
                         .max_rect(selector),
                     |ui| {
                         ui.horizontal_centered(|ui| {
+                            ui.spacing_mut().item_spacing.x = presentation::field_gap(ui);
                             ui.add_space(35. / p);
-                            ui.add_sized(
+                            crate::presentation::caption_cell(
+                                ui,
+                                "Selection:",
                                 egui::vec2(79., 24.) / p,
-                                presentation::caption_widget("Selection:"),
                             );
                             let previous = self.selection;
                             ui.add_enabled_ui(ready && !self.editing, |ui| {
@@ -425,6 +438,7 @@ impl MarketDataManager {
         action.map(|action| self.request(action, publication))
     }
 
+
     /// Lay out the selected futures/option contract list and details using the reused contract editor's draft and eligibility.
     fn draw_contract(
         &mut self,
@@ -537,11 +551,6 @@ impl MarketDataManager {
                     .get("provider")
                     .is_some_and(|v| v == "true");
                 for (key, title, y) in fields {
-                    let caption = egui::Rect::from_min_size(
-                        origin + egui::vec2(2., y + 2.) * scale,
-                        egui::vec2(157., 26.) * scale,
-                    );
-                    let caption_id = ui.put(caption, presentation::caption_widget(title)).id;
                     let width = if key == "description" {
                         (ui.available_width() - 163. * scale.x).max(229. * scale.x)
                     } else {
@@ -558,6 +567,11 @@ impl MarketDataManager {
                             },
                         ),
                     );
+                    let caption_row =
+                        egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), 24.));
+                    let caption = presentation::field_caption(ui, caption_row, title);
+                    let caption_id = caption.id;
+                    self.controls.insert(format!("caption:{key}"), caption.rect);
                     self.controls.insert(key.into(), rect);
                     let symbol_filter = self.selection == 1 && key == "symbol" && !self.editing;
                     let editable = enabled
@@ -573,7 +587,10 @@ impl MarketDataManager {
                     ui.scope_builder(
                         egui::UiBuilder::new()
                             .id_salt(("manager-field-pane", key))
-                            .max_rect(rect),
+                            .max_rect(rect)
+                            .layout(egui::Layout::centered_and_justified(
+                                egui::Direction::LeftToRight,
+                            )),
                         |ui| {
                             ui.add_enabled_ui(editable, |ui| {
                                 if key == "onTheRun" || key == "rollover" {
@@ -605,8 +622,12 @@ impl MarketDataManager {
                                     ui.add_sized(rect.size(), egui::TextEdit::multiline(value))
                                         .labelled_by(caption_id);
                                 } else {
-                                    ui.add_sized(rect.size(), egui::TextEdit::singleline(value))
-                                        .labelled_by(caption_id);
+                                    ui.add_sized(
+                                        rect.size(),
+                                        egui::TextEdit::singleline(value)
+                                            .vertical_align(egui::Align::Center),
+                                    )
+                                    .labelled_by(caption_id);
                                 }
                             });
                         },
@@ -616,6 +637,7 @@ impl MarketDataManager {
         );
         border(ui, fields);
     }
+
 
     /// Render the yield-rate report list and inline editor; use backend eligibility and emit the requested edit/save/cancel action.
     fn draw_rates(
@@ -634,14 +656,14 @@ impl MarketDataManager {
                 egui::vec2(w, h) * scale,
             )
         };
-        ui.put(
-            at(14., 2., 103., 24.),
-            presentation::caption_widget("Time Period:"),
-        );
+        presentation::field_caption(ui, at(121., 2., 248., 24.), "Time Period:");
         ui.scope_builder(
             egui::UiBuilder::new()
                 .id_salt("manager-rate-period-pane")
-                .max_rect(at(121., 2., 248., 24.)),
+                .max_rect(at(121., 2., 248., 24.))
+                .layout(egui::Layout::centered_and_justified(
+                    egui::Direction::LeftToRight,
+                )),
             |ui| {
                 egui::ComboBox::from_id_salt("manager-rate-period")
                     .width(248. * scale.x)
@@ -666,13 +688,11 @@ impl MarketDataManager {
                     });
             },
         );
-        ui.put(
-            at(421., 2., 101., 24.),
-            presentation::caption_widget("Import Date:"),
-        );
+        presentation::field_caption(ui, at(526., 2., 120., 24.), "Import Date:");
         ui.put(
             at(526., 2., 120., 24.),
-            egui::TextEdit::singleline(&mut self.rates.import_date),
+            egui::TextEdit::singleline(&mut self.rates.import_date)
+                .vertical_align(egui::Align::Center),
         );
         if self.rates.period.is_empty() {
             self.rates.period = publication
@@ -783,6 +803,7 @@ impl MarketDataManager {
                                                                 .entry(key.into())
                                                                 .or_default(),
                                                         )
+                                                        .vertical_align(egui::Align::Center)
                                                         .desired_width(ui.available_width()),
                                                     );
                                                 } else if let Some(item) = item {
@@ -818,6 +839,8 @@ impl MarketDataManager {
         border(ui, grid);
     }
 }
+
+
 /// Paint a one-pixel inside border clipped to the control's visible bounds.
 fn border(ui: &egui::Ui, rect: egui::Rect) {
     ui.painter().rect_stroke(

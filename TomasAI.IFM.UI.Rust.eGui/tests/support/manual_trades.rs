@@ -1,6 +1,9 @@
 use super::*;
 use ifm_ui_egui::{backend::schema::Registry, state::trades::TradeController};
 use serde_json::{Value as Json, json};
+
+
+/// Provides backend for the manual trades implementation.
 async fn backend() -> Backend {
     Backend::connect(Settings {
         url: std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),
@@ -11,6 +14,9 @@ async fn backend() -> Backend {
     .await
     .unwrap()
 }
+
+
+/// Provides mode for the manual trades implementation.
 async fn mode(backend: &Backend, name: &str) {
     service_result(
         &backend
@@ -25,6 +31,9 @@ async fn mode(backend: &Backend, name: &str) {
     )
     .unwrap();
 }
+
+
+/// Provides count for the manual trades implementation.
 async fn count(backend: &Backend) -> i64 {
     service_result(
         &backend
@@ -43,9 +52,15 @@ async fn count(backend: &Backend) -> i64 {
         .as_i64()
         .unwrap()
 }
+
+
+/// Provides request for the manual trades implementation.
 fn request(generation: u64, action: &str, fields: Json, original: Option<&str>) -> Json {
     json!({"schema":1,"requestId":uuid::Uuid::new_v4().to_string(),"view":"trade-orders","intent":action,"expectedGeneration":generation,"originalId":original,"fields":fields})
 }
+
+
+/// Provides act for the manual trades implementation.
 async fn act(
     state: &mut TradeController,
     backend: &Backend,
@@ -64,6 +79,9 @@ async fn act(
         .await
         .unwrap()
 }
+
+
+/// Verifies that trade manual commands use backend ids versions and projection receipts.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn trade_manual_commands_use_backend_ids_versions_and_projection_receipts() {
@@ -165,6 +183,9 @@ async fn trade_manual_commands_use_backend_ids_versions_and_projection_receipts(
     );
     mode(&backend, "Disabled").await;
 }
+
+
+/// Verifies that trade manual lost acknowledgement reconciles without another command.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn trade_manual_lost_acknowledgement_reconciles_without_another_command() {
@@ -239,6 +260,9 @@ async fn trade_manual_lost_acknowledgement_reconciles_without_another_command() 
     assert_eq!(count(&backend).await, 1);
     mode(&backend, "Disabled").await;
 }
+
+
+/// Verifies that trade manual deletion requires not found and not an unavailable read.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn trade_manual_deletion_requires_not_found_and_not_an_unavailable_read() {

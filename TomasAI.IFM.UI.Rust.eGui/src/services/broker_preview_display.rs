@@ -1,14 +1,15 @@
 //! Formats the backend's provisional economics for copied Blotter controls.
 //! No payoff, exposure, capital usage or risk approval is calculated here.
-use super::{
-    broker_initialization::Initialization, option_draft::Selected, outlook::decimal_fixed,
-};
+use super::{broker_initialization::Initialization, option_draft::Selected, outlook::decimal_fixed};
 use crate::models::{
     broker_presentation::PreviewDisplay,
     cells::{Cell, Cells},
     trade_contracts::TradeOrderPreview,
 };
 use std::collections::BTreeMap;
+
+
+/// Provides amount for the broker preview display implementation.
 fn amount(value: Cell<'_>) -> Result<String, String> {
     if value.is_missing() {
         return Ok("Unavailable".into());
@@ -34,6 +35,9 @@ fn amount(value: Cell<'_>) -> Result<String, String> {
     }
     Ok(result)
 }
+
+
+/// Provides exposure for the broker preview display implementation.
 fn exposure(value: Cell<'_>) -> Result<String, String> {
     let Some(number) = value.number() else {
         return Ok("Unavailable".into());
@@ -45,9 +49,15 @@ fn exposure(value: Cell<'_>) -> Result<String, String> {
     let result = result.trim_end_matches('0').trim_end_matches('.');
     Ok(if result == "-0" { "0" } else { result }.into())
 }
+
+
+/// Provides nullable for the broker preview display implementation.
 fn nullable<'a>(value: Option<&'a impl Cells>, key: &str) -> Cell<'a> {
     value.map(|v| v.cell(key)).unwrap_or(Cell::Missing)
 }
+
+
+/// Provides document for the broker preview display implementation.
 pub fn document(
     legs: &[Selected],
     preview: &TradeOrderPreview,

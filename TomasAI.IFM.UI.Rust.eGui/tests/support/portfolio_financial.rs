@@ -1,6 +1,9 @@
 use super::*;
 use ifm_ui_egui::{backend::schema::Registry, state::portfolio::PortfolioController};
 use serde_json::{Value as Json, json};
+
+
+/// Provides mode for the portfolio financial implementation.
 async fn mode(backend: &Backend, owner: &str, name: &str) {
     service_result(
         &backend
@@ -15,6 +18,9 @@ async fn mode(backend: &Backend, owner: &str, name: &str) {
     )
     .unwrap();
 }
+
+
+/// Provides act for the portfolio financial implementation.
 async fn act(
     controller: &mut PortfolioController,
     backend: &Backend,
@@ -25,9 +31,15 @@ async fn act(
 ) -> ifm_ui_egui::contract_editor::ContractPublication {
     controller.execute(backend,registry,&json!({"schema":1,"requestId":uuid::Uuid::new_v4().to_string(),"view":"portfolio","intent":intent,"expectedGeneration":generation,"originalId":null,"fields":fields})).await.unwrap()
 }
+
+
+/// Provides document for the portfolio financial implementation.
 fn document(p: &ifm_ui_egui::contract_editor::ContractPublication) -> Json {
     ifm_ui_egui::wire::decode(&p.result.documents["portfolio"]).unwrap()
 }
+
+
+/// Verifies that portfolio financial panels match managed reads and reject cross cut pages.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn portfolio_financial_panels_match_managed_reads_and_reject_cross_cut_pages() {

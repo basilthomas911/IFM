@@ -2,6 +2,9 @@ use ifm_ui_egui::backend::{codec, schema::Registry};
 use rmpv::Value;
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path};
+
+
+/// Provides fixture for the model edit implementation.
 fn fixture(name: &str) -> Value {
     codec::decode(
         &std::fs::read(
@@ -12,6 +15,9 @@ fn fixture(name: &str) -> Value {
     )
     .unwrap()
 }
+
+
+/// Verifies that typed contract edits match csharp and preserve all unedited provider evidence.
 #[test]
 fn typed_contract_edits_match_csharp_and_preserve_all_unedited_provider_evidence() {
     let registry = Registry::compiled().unwrap();
@@ -47,6 +53,9 @@ fn typed_contract_edits_match_csharp_and_preserve_all_unedited_provider_evidence
         Some("future-backend-evidence")
     );
 }
+
+
+/// Verifies that input types reject unknown fields rounding overflow and ambiguous unions.
 #[test]
 fn input_types_reject_unknown_fields_rounding_overflow_and_ambiguous_unions() {
     let registry = Registry::compiled().unwrap();
@@ -87,6 +96,9 @@ fn input_types_reject_unknown_fields_rounding_overflow_and_ambiguous_unions() {
         Some(65535)
     );
 }
+
+
+/// Verifies that convention display matches hybrid and preserves original timestamp offsets.
 #[test]
 fn convention_display_matches_hybrid_and_preserves_original_timestamp_offsets() {
     let registry = Registry::compiled().unwrap();
@@ -115,6 +127,9 @@ fn convention_display_matches_hybrid_and_preserves_original_timestamp_offsets() 
         "2026-10-26T08:30:00.0000000-04:00"
     );
 }
+
+
+/// Verifies that timezone validation accepts windows and iana names without using a local clock.
 #[test]
 fn timezone_validation_accepts_windows_and_iana_names_without_using_a_local_clock() {
     assert!(ifm_ui_egui::backend::time_zone::is_known(
@@ -127,6 +142,8 @@ fn timezone_validation_accepts_windows_and_iana_names_without_using_a_local_cloc
     assert!(!ifm_ui_egui::backend::time_zone::is_known("Not a timezone"));
 }
 
+
+/// Verifies that typed edits reject wrong shapes and dates whose utc instant overflows dotnet.
 #[test]
 fn typed_edits_reject_wrong_shapes_and_dates_whose_utc_instant_overflows_dotnet() {
     let registry = Registry::compiled().unwrap();
@@ -156,6 +173,8 @@ fn typed_edits_reject_wrong_shapes_and_dates_whose_utc_instant_overflows_dotnet(
     }
 }
 
+
+/// Verifies that malformed reference offsets are errors instead of arithmetic panics.
 #[test]
 fn malformed_reference_offsets_are_errors_instead_of_arithmetic_panics() {
     use ifm_ui_egui::backend::contracts::{reference_offset, timestamp_wire};

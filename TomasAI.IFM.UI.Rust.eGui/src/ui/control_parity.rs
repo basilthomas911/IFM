@@ -9,6 +9,7 @@
 //! Native equivalents for WinForms report lists. Selection belongs to the row,
 //! while data retrieval remains owned by the managed view model.
 use eframe::egui::{self, Color32};
+
 /// Keep headers, body and both scrollbars inside a one-physical-pixel grid border.
 pub fn grid_viewport<R>(
     ui: &mut egui::Ui,
@@ -26,6 +27,7 @@ pub fn grid_viewport<R>(
     ui.advance_cursor_after_rect(bounds);
     result
 }
+
 /// Fill the allotted grid area; reserve a vertical gutter only when rows overflow.
 pub trait FilledGrid {
     /// Use row height/spacing and allotted body height to fill the viewport and enable vertical scrolling only on overflow.
@@ -41,6 +43,7 @@ impl FilledGrid for egui_extras::TableBuilder<'_> {
             .max_scroll_height(body_height.max(0.))
     }
 }
+
 /// Render a report list with resizable columns and full-row selection. Column widths are physical reference pixels divided by DPI scale; returns clicked index and rendered-row count.
 pub fn report_list(
     ui: &mut egui::Ui,
@@ -72,6 +75,8 @@ pub fn report_list(
     );
     result
 }
+
+/// Provides report list content for the control parity implementation.
 fn report_list_content(
     ui: &mut egui::Ui,
     id: &str,
@@ -172,13 +177,21 @@ fn report_list_content(
                         row.set_selected(selected == Some(index));
                         for column in 0..columns.len() {
                             row.col(|ui| {
-                                ui.add(
-                                    crate::presentation::label_widget(
-                                        egui::RichText::new(text(index, column))
-                                            .color(Color32::WHITE),
+                                // Handle the cell itself: text can consume the click
+                                // before the table's combined row response sees it.
+                                if ui
+                                    .add(
+                                        crate::presentation::label_widget(
+                                            egui::RichText::new(text(index, column))
+                                                .color(Color32::WHITE),
+                                        )
+                                        .truncate()
+                                        .sense(egui::Sense::click()),
                                     )
-                                    .truncate(),
-                                );
+                                    .clicked()
+                                {
+                                    clicked = Some(index);
+                                }
                             });
                         }
                         row.col(|_| {});
@@ -223,6 +236,7 @@ pub fn native_parent_center(scale: f32) -> Option<egui::Pos2> {
         /** Bottom edge in the native/logical coordinate system specified by the enclosing structure. */
         bottom: i32,
     }
+
     /// C-layout Windows point measured in physical pixels.
     #[repr(C)]
     struct Point {
@@ -235,8 +249,10 @@ pub fn native_parent_center(scale: f32) -> Option<egui::Pos2> {
     unsafe extern "system" {
         /** Return the calling thread's active native window handle, or null when none exists. */
         fn GetActiveWindow() -> *mut std::ffi::c_void;
+
         /** Read the native window bounds into caller-owned C-layout storage; zero indicates failure. */
         fn GetWindowRect(window: *mut std::ffi::c_void, rect: *mut Rect) -> i32;
+
         /** Translate a caller-owned point from client coordinates into physical screen coordinates; zero indicates failure. */
         fn ClientToScreen(window: *mut std::ffi::c_void, point: *mut Point) -> i32;
     }
@@ -261,6 +277,7 @@ pub fn native_parent_center(scale: f32) -> Option<egui::Pos2> {
         ))
     }
 }
+
 /// Return the native parent center in egui logical coordinates when available; unsupported platforms return None.
 #[cfg(not(target_os = "windows"))]
 pub fn native_parent_center(_: f32) -> Option<egui::Pos2> {
@@ -279,6 +296,7 @@ pub trait BorderedTable {
     where
         F: for<'b> FnOnce(egui_extras::TableBody<'b>);
 }
+
 /// Captured column-rule positions and painter state, finalized after body layout.
 struct ColumnBorders {
     /// Painter retained to draw grid rules after viewport geometry is final.
@@ -317,6 +335,7 @@ impl ColumnBorders {
             ),
         }
     }
+
     /// Clip captured column rules to the final header/body viewport, including empty body space without drawing past the grid border.
     fn paint(self, viewport: egui::Rect, header_height: f32) {
         let mut grid = viewport;
@@ -340,6 +359,7 @@ impl ColumnBorders {
 macro_rules! bordered_table {
     ($table:ty) => {
         impl BorderedTable for $table {
+            /// Captures column boundaries and paints rules clipped to the final viewport.
             fn bordered_body<F>(
                 self,
                 header_height: f32,

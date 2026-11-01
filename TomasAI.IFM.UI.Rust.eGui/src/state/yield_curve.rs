@@ -26,18 +26,32 @@ const RATES: [&str; 12] = [
     "twentyYear",
     "thirtyYear",
 ];
+
+/// Yield Controller used by the yield curve component.
 #[derive(Default)]
 pub struct YieldController {
+    /// Ordered rows retained by YieldController.
     rows: Vec<ContractRow>,
+    /// Ordered periods retained by YieldController.
     periods: Vec<String>,
+    /// Current selection retained by this state or view.
     selected: String,
+    /// Optional range; `None` represents an absent value.
     range: Option<(NaiveDate, NaiveDate)>,
+    /// Generation associated with this yield controller.
     generation: u64,
+    /// Retained historical data used by this component.
     history: BTreeMap<String, (Json, EditorOutcome)>,
 }
+
+
+/// Provides date for the yield curve implementation.
 fn date(text: &str) -> Result<NaiveDate, String> {
     NaiveDate::parse_from_str(text, "%Y-%m-%d").map_err(|_| "Enter dates as yyyy-MM-dd".into())
 }
+
+
+/// Provides range for the yield curve implementation.
 pub fn range(period: &str, now: NaiveDate) -> Result<(NaiveDate, NaiveDate), String> {
     let (start, end) = if period == "Current Month" {
         let start =
@@ -63,6 +77,7 @@ pub fn range(period: &str, now: NaiveDate) -> Result<(NaiveDate, NaiveDate), Str
     Ok((start, end))
 }
 impl YieldController {
+    /// Loads yield curve for yield controller.
     async fn load(
         &mut self,
         backend: &Backend,
@@ -110,6 +125,9 @@ impl YieldController {
         self.rows = rows;
         Ok(())
     }
+
+
+    /// Reads rates for yield controller.
     async fn read_rates(
         &self,
         backend: &Backend,
@@ -152,6 +170,9 @@ impl YieldController {
             })
             .collect()
     }
+
+
+    /// Handles a yield curve intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,
@@ -248,6 +269,9 @@ impl YieldController {
         self.generation += 1;
         Ok(self.snapshot(context.value_date, outcome))
     }
+
+
+    /// Provides mutate for the yield controller implementation.
     async fn mutate(
         &mut self,
         backend: &Backend,
@@ -382,6 +406,9 @@ impl YieldController {
         })?
         .map_err(|e| format!("OutcomeUnknown: curve command completed but refresh failed: {e}"))
     }
+
+
+    /// Provides snapshot for the yield controller implementation.
     fn snapshot(&self, now: NaiveDate, outcome: EditorOutcome) -> ContractPublication {
         let mut context = BTreeMap::from([
             ("timePeriod".into(), self.selected.clone()),

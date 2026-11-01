@@ -3,6 +3,9 @@
 use crate::backend::{schema::Registry, transport::Backend};
 use serde_json::{Value as Json, json};
 use std::collections::{BTreeMap, BTreeSet};
+
+
+/// Provides deployments for the portfolio reference implementation.
 pub async fn deployments(
     backend: &Backend,
     registry: &Registry,

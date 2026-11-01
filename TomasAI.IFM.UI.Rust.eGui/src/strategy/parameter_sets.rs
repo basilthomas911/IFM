@@ -2,13 +2,12 @@
 
 use crate::models::trade_contracts::ParameterComponentSummary;
 use crate::presentation::TradingLabelUi as _;
-use crate::{
-    Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
-};
+use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+
 /// Flattened managed parameter field with a stable nested path, scalar kind, group, and editable textual value.
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct Field {
@@ -28,6 +27,7 @@ pub struct Field {
     #[serde(rename = "Name")]
     pub name: String,
 }
+
 /// Parameter-set browser/editor with nested drafts, comparison identities, and confirmation generation.
 #[derive(Default)]
 pub struct ParameterSets {
@@ -41,7 +41,9 @@ pub struct ParameterSets {
     pub editing: bool,
     /// Tracks which original Reference command owns the edit session.
     pub changing: bool,
+    /// Area associated with this parameter sets.
     area: String,
+    /// Main section associated with this parameter sets.
     main_section: String,
     /// Parent inspections restored when nested startup evidence/monitoring dialogs close.
     dialog_stack: Vec<String>,
@@ -99,6 +101,8 @@ impl ParameterSets {
         });
         result
     }
+
+
     /// Render with the original Reference selector and command rail.
     pub fn draw_reference(
         &mut self,
@@ -141,6 +145,8 @@ impl ParameterSets {
             self.draw_inside(ui, s, c, live, command, true)
         })
     }
+
+
     /// Render inside the Reference manager, accepting its original command-rail action.
     pub fn draw_inside(
         &mut self,
@@ -542,6 +548,8 @@ impl ParameterSets {
                         },
                     );
                 ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                     let caption = ui.add(crate::presentation::caption_widget("New horizon"));
                     ui.add_enabled_ui(enabled && !self.editing, |ui| {
                         egui::ComboBox::from_id_salt("reference-new-horizon")
@@ -558,6 +566,7 @@ impl ParameterSets {
                     let caption = ui.add(crate::presentation::caption_widget("Name"));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.name)
+                            .vertical_align(egui::Align::Center)
                             .interactive(enabled && self.editing)
                             .desired_width(260.),
                     )
@@ -606,6 +615,8 @@ impl ParameterSets {
                     );
                 }
                 ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                     ui.trading_caption(c.text(strings::PARAM_HORIZON));
                     egui::ComboBox::from_id_salt("new-parameter-horizon")
                         .selected_text(&self.horizon)
@@ -761,14 +772,24 @@ impl ParameterSets {
                 });
                 ui.add_enabled_ui(enabled && self.editing, |ui| {
                     ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                         let label = ui.trading_caption(c.text(strings::PARAM_NAME));
-                        ui.text_edit_singleline(&mut self.name)
-                            .labelled_by(label.id);
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.name)
+                                .vertical_align(egui::Align::Center),
+                        )
+                        .labelled_by(label.id);
                     });
                     ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                         let label = ui.trading_caption(c.text(strings::PARAM_DESCRIPTION));
-                        ui.text_edit_singleline(&mut self.description)
-                            .labelled_by(label.id);
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.description)
+                                .vertical_align(egui::Align::Center),
+                        )
+                        .labelled_by(label.id);
                     });
                 });
             }
@@ -899,6 +920,8 @@ impl ParameterSets {
         }
         action.map(|intent|{if reference&&matches!(intent,"startup-report"|"signal-monitoring"){self.dialog_stack.push(self.section.clone());}if self.last_action!="legacy-import"{self.last_action=intent.into();}self.section=match intent{"validate-parameter"=>"validation","schema-parameter"=>"schema","payload-parameter"=>"payload","compare-parameter"=>"compare","audit-parameter"=>"audit","assignment"|"assign-parameter"|"disable-assignment"=>"assignment","startup-preview"=>"startupPreview","startup-runs"=>"startupRuns","startup-report"=>"startupReport","signal-monitoring"=>"signalMonitoring","legacy-parameters"|"legacy-prev"|"legacy-next"|"legacy-preview"=>"legacy",_=>&self.section}.into();let id=new_request_id();self.pending=Some(id.clone());let mut documents = serde_json::Map::new();if ["validate-parameter","save-draft","intervals"].contains(&intent)&&self.editing{documents.insert("changes".into(),serde_json::to_value(&self.fields).unwrap());documents.insert("signals".into(),self.signals.clone());documents.insert("observations".into(),self.observations.clone());}extra.insert("name".into(),self.name.clone());extra.insert("description".into(),self.description.clone());extra.insert("horizon".into(),self.horizon.clone());documents.insert("intervals".into(),self.intervals.clone());extra.insert("runId".into(),self.run_id.clone());extra.insert("legacyId".into(),self.legacy_id.clone());serde_json::json!({"schema":1,"requestId":id,"view":"parameter-sets","intent":intent,"expectedGeneration":s.generation,"originalId":target,"fields":extra,"documents":documents}).to_string()})
     }
+
+
     /// Render one parameter section without moving query or persistence work onto the UI thread.
     fn render_section(
         &mut self,
@@ -989,6 +1012,7 @@ impl ParameterSets {
                                     ui.add_enabled(
                                         enabled && self.editing,
                                         egui::TextEdit::singleline(&mut field.value)
+                                            .vertical_align(egui::Align::Center)
                                             .id_salt(&field.path)
                                             .desired_width(f32::INFINITY),
                                     );
@@ -1032,6 +1056,7 @@ impl ParameterSets {
                                 ui.add_enabled(
                                     enabled && self.editing,
                                     egui::TextEdit::singleline(&mut field.value)
+                                        .vertical_align(egui::Align::Center)
                                         .id_salt(&field.path)
                                         .desired_width(220.),
                                 )
@@ -1124,8 +1149,25 @@ impl ParameterSets {
             }
             "rename" => {
                 ui.trading_caption(c.text(strings::PARAM_RENAME));
-                ui.text_edit_singleline(&mut self.name);
-                ui.text_edit_multiline(&mut self.description);
+                crate::presentation::form_grid(ui, "parameter-metadata-fields")
+                    .num_columns(2)
+                    .show(ui, |ui| {
+                        let name =
+                            crate::presentation::form_caption(ui, c.text(strings::PARAM_NAME));
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.name)
+                                .vertical_align(egui::Align::Center),
+                        )
+                        .labelled_by(name.id);
+                        ui.end_row();
+                        let description = crate::presentation::form_caption(
+                            ui,
+                            c.text(strings::PARAM_DESCRIPTION),
+                        );
+                        ui.text_edit_multiline(&mut self.description)
+                            .labelled_by(description.id);
+                        ui.end_row();
+                    });
                 button(
                     ui,
                     c,
@@ -1619,14 +1661,20 @@ impl ParameterSets {
         }
     }
 }
+
+
 /// Decode the requested named managed document into a JSON-shaped editing/display value, using the local empty-value fallback on failure.
 fn parse(result: &crate::contract_editor::ContractResult, key: &str) -> Value {
     result.document(key).unwrap_or(json!([]))
 }
+
+
 /// Render a parameter value recursively as read-only data with a stable widget identity.
 fn read_value(ui: &mut egui::Ui, value: &Value, id: &str) {
     read_json(ui, &value.to_string(), id);
 }
+
+
 /// Draw a localized eligible button and store its action key when clicked.
 fn button(
     ui: &mut egui::Ui,
@@ -1643,6 +1691,8 @@ fn button(
         *action = Some(intent);
     }
 }
+
+
 /// Render parameter/component rows, preserving incomplete numeric text separately from the structured draft.
 fn edit_rows(
     ui: &mut egui::Ui,
@@ -1664,103 +1714,115 @@ fn edit_rows(
             for i in range {
                 ui.push_id((kind, i), |ui| {
                     ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                         if let Some(object) = rows[i].as_object_mut() {
                             for (key, value) in object.iter_mut().filter(|(key, _)| {
                                 key.as_str() != "RequirementId" && key.as_str() != "IsRequired"
                             }) {
-                                ui.vertical(|ui| {
-                                    ui.trading_caption(c.text(&format!("param_field_{}", key)));
-                                    ui.add_enabled_ui(editable, |ui| {
-                                        let choice_key = match key.as_str() {
-                                            "Metric" => Some(if kind == "signals" {
-                                                "signalMetric"
-                                            } else {
-                                                "observationMetric"
-                                            }),
-                                            "TimeFrame" => Some("timeframe"),
-                                            _ => None,
-                                        };
-                                        if let Some(choice) = choice_key {
-                                            let ids = s
-                                                .result
-                                                .choices
-                                                .get(&format!("{}Ids", choice))
-                                                .or_else(|| {
-                                                    if choice == "timeframe" {
-                                                        s.result.choices.get("timeframes")
-                                                    } else {
-                                                        None
-                                                    }
-                                                });
-                                            let names =
-                                                s.result.choices.get(&format!("{}Names", choice));
-                                            let current = value.to_string();
-                                            let label = ids
-                                                .and_then(|ids| {
-                                                    ids.iter().position(|v| v == &current)
-                                                })
-                                                .and_then(|index| {
-                                                    names.and_then(|names| names.get(index))
-                                                })
-                                                .cloned()
-                                                .unwrap_or(current);
-                                            egui::ComboBox::from_id_salt(key)
-                                                .width(130.)
-                                                .selected_text(label)
-                                                .show_ui(ui, |ui| {
-                                                    if let (Some(ids), Some(names)) = (ids, names) {
-                                                        for (id, name) in ids.iter().zip(names) {
-                                                            if ui
-                                                                .selectable_label(
-                                                                    value.to_string() == *id,
-                                                                    name,
-                                                                )
-                                                                .clicked()
+                                crate::presentation::field_pair(
+                                    ui,
+                                    c.text(&format!("param_field_{}", key)),
+                                    egui::vec2(150., 30.),
+                                    |ui| {
+                                        ui.add_enabled_ui(editable, |ui| {
+                                            let choice_key = match key.as_str() {
+                                                "Metric" => Some(if kind == "signals" {
+                                                    "signalMetric"
+                                                } else {
+                                                    "observationMetric"
+                                                }),
+                                                "TimeFrame" => Some("timeframe"),
+                                                _ => None,
+                                            };
+                                            if let Some(choice) = choice_key {
+                                                let ids = s
+                                                    .result
+                                                    .choices
+                                                    .get(&format!("{}Ids", choice))
+                                                    .or_else(|| {
+                                                        if choice == "timeframe" {
+                                                            s.result.choices.get("timeframes")
+                                                        } else {
+                                                            None
+                                                        }
+                                                    });
+                                                let names = s
+                                                    .result
+                                                    .choices
+                                                    .get(&format!("{}Names", choice));
+                                                let current = value.to_string();
+                                                let label = ids
+                                                    .and_then(|ids| {
+                                                        ids.iter().position(|v| v == &current)
+                                                    })
+                                                    .and_then(|index| {
+                                                        names.and_then(|names| names.get(index))
+                                                    })
+                                                    .cloned()
+                                                    .unwrap_or(current);
+                                                egui::ComboBox::from_id_salt(key)
+                                                    .width(130.)
+                                                    .selected_text(label)
+                                                    .show_ui(ui, |ui| {
+                                                        if let (Some(ids), Some(names)) =
+                                                            (ids, names)
+                                                        {
+                                                            for (id, name) in ids.iter().zip(names)
                                                             {
-                                                                if let Ok(number) =
-                                                                    id.parse::<i64>()
+                                                                if ui
+                                                                    .selectable_label(
+                                                                        value.to_string() == *id,
+                                                                        name,
+                                                                    )
+                                                                    .clicked()
                                                                 {
-                                                                    *value = json!(number);
+                                                                    if let Ok(number) =
+                                                                        id.parse::<i64>()
+                                                                    {
+                                                                        *value = json!(number);
+                                                                    }
                                                                 }
                                                             }
                                                         }
-                                                    }
-                                                });
-                                        } else if let Some(boolean) = value.as_bool() {
-                                            let mut b = boolean;
-                                            if ui
-                                                .add(crate::presentation::checkbox(&mut b, ""))
-                                                .changed()
-                                            {
-                                                *value = json!(b);
-                                            }
-                                        } else {
-                                            let text = buffers
-                                                .entry(format!("{kind}/{i}/{key}"))
-                                                .or_insert_with(|| {
-                                                    value
-                                                        .as_str()
-                                                        .map(str::to_owned)
-                                                        .unwrap_or_else(|| value.to_string())
-                                                });
-                                            let response = ui.add(
-                                                egui::TextEdit::singleline(text)
-                                                    .desired_width(100.),
-                                            );
-                                            if response.changed() {
-                                                if value.is_string() {
-                                                    *value = json!(text.clone());
-                                                } else if let Ok(parsed) =
-                                                    serde_json::from_str::<Value>(text)
+                                                    });
+                                            } else if let Some(boolean) = value.as_bool() {
+                                                let mut b = boolean;
+                                                if ui
+                                                    .add(crate::presentation::checkbox(&mut b, ""))
+                                                    .changed()
                                                 {
-                                                    if parsed.is_number() {
-                                                        *value = parsed;
+                                                    *value = json!(b);
+                                                }
+                                            } else {
+                                                let text = buffers
+                                                    .entry(format!("{kind}/{i}/{key}"))
+                                                    .or_insert_with(|| {
+                                                        value
+                                                            .as_str()
+                                                            .map(str::to_owned)
+                                                            .unwrap_or_else(|| value.to_string())
+                                                    });
+                                                let response = ui.add(
+                                                    egui::TextEdit::singleline(text)
+                                                        .vertical_align(egui::Align::Center)
+                                                        .desired_width(100.),
+                                                );
+                                                if response.changed() {
+                                                    if value.is_string() {
+                                                        *value = json!(text.clone());
+                                                    } else if let Ok(parsed) =
+                                                        serde_json::from_str::<Value>(text)
+                                                    {
+                                                        if parsed.is_number() {
+                                                            *value = parsed;
+                                                        }
                                                     }
                                                 }
                                             }
-                                        }
-                                    });
-                                });
+                                        });
+                                    },
+                                );
                             }
                             if ui
                                 .add_enabled(
@@ -1787,6 +1849,8 @@ fn edit_rows(
         rows.push(match kind{"signals"=>json!({"RequirementId":"00000000-0000-0000-0000-000000000000","Enabled":true,"Metric":0,"TimeFrame":0,"PeriodLength":0,"MaximumAgeSeconds":0,"PrepareAtStartup":true,"Monitor":true}),"observations"=>json!({"RequirementId":"00000000-0000-0000-0000-000000000000","Enabled":true,"Metric":0,"MaximumAgeSeconds":0,"PrepareAtStartup":true,"Monitor":true}),_=>json!({"TimeFrame":0,"Weight":1,"MaximumAgeSeconds":0,"IsRequired":true})});
     }
 }
+
+
 /// Parse evidence text into a read-only tree when possible, otherwise show the original text.
 fn read_json(ui: &mut egui::Ui, text: &str, salt: &str) {
     if let Ok(value) = serde_json::from_str::<Value>(text) {
@@ -1799,6 +1863,8 @@ fn read_json(ui: &mut egui::Ui, text: &str, salt: &str) {
         ui.trading_label(text);
     }
 }
+
+
 /// Render a nested JSON object/array/scalar using its full path as stable widget identity.
 fn json_node(ui: &mut egui::Ui, path: &str, value: &Value) {
     match value {
@@ -1836,6 +1902,7 @@ fn json_node(ui: &mut egui::Ui, path: &str, value: &Value) {
         }
     }
 }
+
 
 /// Render the unchanged WinForms requirements grid, retaining exact JSON property identities for saves.
 fn edit_reference_rows(
@@ -1953,6 +2020,7 @@ fn edit_reference_rows(
                                 if ui
                                     .add(
                                         egui::TextEdit::singleline(text)
+                                            .vertical_align(egui::Align::Center)
                                             .desired_width(ui.available_width()),
                                     )
                                     .changed()
@@ -1970,6 +2038,7 @@ fn edit_reference_rows(
             })
         });
 }
+
 
 /// Preserve read-only tabular reference inspections instead of flattening them into one JSON editor.
 fn reference_table(ui: &mut egui::Ui, value: &Value, id: &str) {
@@ -2033,6 +2102,7 @@ fn reference_table(ui: &mut egui::Ui, value: &Value, id: &str) {
         });
 }
 
+
 /// Render the original read-only report grid; activation is double-click for startup evidence.
 fn reference_grid(
     ui: &mut egui::Ui,
@@ -2094,6 +2164,7 @@ fn reference_grid(
         });
     selected
 }
+
 
 /// Edit interval rows with the source grid's three columns, blank insertion row, and Delete key.
 fn edit_interval_grid(
@@ -2194,7 +2265,9 @@ fn edit_interval_grid(
                             });
                         let response = ui.add_enabled(
                             editable,
-                            egui::TextEdit::singleline(text).desired_width(ui.available_width()),
+                            egui::TextEdit::singleline(text)
+                                .vertical_align(egui::Align::Center)
+                                .desired_width(ui.available_width()),
                         );
                         if response.changed() {
                             if let Ok(number) = serde_json::from_str::<Value>(text) {
@@ -2223,6 +2296,7 @@ fn edit_interval_grid(
         rows.push(appended);
     }
 }
+
 
 /// Reserve the original report information strip below its fill-sized grid.
 fn report_footer(ui: &mut egui::Ui, id: &str, height: f32, text: &str) {

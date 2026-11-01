@@ -83,7 +83,7 @@ public class FuturesItiSignalQueryTests
         // Arrange - Given an ITI signal exists for the requested contract/value date
         var (dbFactory, marketDataDb) = CreateDbFactory();
         var expected = CreateReadModel(timePeriod);
-        marketDataDb.GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod).Returns(expected);
+        marketDataDb.GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, CancellationToken.None).Returns(expected);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
         var query = WithSubject(new GetFuturesItiSignalQuery(SampleData.ContractId, SampleData.ValueDate, timePeriod), GetFuturesItiSignalQuery.Verb);
@@ -107,7 +107,7 @@ public class FuturesItiSignalQueryTests
     {
         // Arrange - Given no ITI signal exists for the requested contract/value date (edge case)
         var (dbFactory, marketDataDb) = CreateDbFactory();
-        marketDataDb.GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod)
+        marketDataDb.GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, CancellationToken.None)
             .Returns((FuturesItiSignalV2ReadModel?)null);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
@@ -130,7 +130,7 @@ public class FuturesItiSignalQueryTests
         const string otherContractId = "CLZ25";
         var (dbFactory, marketDataDb) = CreateDbFactory();
         var expected = CreateReadModel(TimeFrameType.Daily) with { ContractId = otherContractId };
-        marketDataDb.GetLastFuturesItiSignalAsync(otherContractId, SampleData.ValueDate, TimeFrameType.Daily).Returns(expected);
+        marketDataDb.GetLastFuturesItiSignalAsync(otherContractId, SampleData.ValueDate, TimeFrameType.Daily, CancellationToken.None).Returns(expected);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
         var query = WithSubject(new GetFuturesItiSignalQuery(otherContractId, SampleData.ValueDate, TimeFrameType.Daily), GetFuturesItiSignalQuery.Verb);
@@ -139,8 +139,8 @@ public class FuturesItiSignalQueryTests
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert - Then the correct contract is requested and returned
-        await marketDataDb.Received(1).GetLastFuturesItiSignalAsync(otherContractId, SampleData.ValueDate, TimeFrameType.Daily);
-        await marketDataDb.DidNotReceive().GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily);
+        await marketDataDb.Received(1).GetLastFuturesItiSignalAsync(otherContractId, SampleData.ValueDate, TimeFrameType.Daily, CancellationToken.None);
+        await marketDataDb.DidNotReceive().GetLastFuturesItiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             Arg.Any<ActorThreadId>(),
             Arg.Any<string>(),
@@ -159,9 +159,9 @@ public class FuturesItiSignalQueryTests
         var directionChange = CreateReadModel(timePeriod) with { IntrinsicTimeMode = IntrinsicTimeModeType.TrendDirectionChanged };
         var extremeChange = CreateReadModel(timePeriod) with { IntrinsicTimeMode = IntrinsicTimeModeType.TrendExtremeChanged };
         var reversalChange = CreateReadModel(timePeriod) with { IntrinsicTimeMode = IntrinsicTimeModeType.TrendReversalChanged };
-        marketDataDb.GetLastFuturesItiSignalTrendDirectionChangeAsync(SampleData.ContractId, SampleData.ValueDate).Returns(directionChange);
-        marketDataDb.GetLastFuturesItiSignalTrendExtremeChangeAsync(SampleData.ContractId, SampleData.ValueDate).Returns(extremeChange);
-        marketDataDb.GetLastFuturesItiSignalTrendReversalChangeAsync(SampleData.ContractId, SampleData.ValueDate).Returns(reversalChange);
+        marketDataDb.GetLastFuturesItiSignalTrendDirectionChangeAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None).Returns(directionChange);
+        marketDataDb.GetLastFuturesItiSignalTrendExtremeChangeAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None).Returns(extremeChange);
+        marketDataDb.GetLastFuturesItiSignalTrendReversalChangeAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None).Returns(reversalChange);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
         var query = WithSubject(new GetFuturesItiSignalDataQuery(SampleData.ContractId, SampleData.ValueDate, timePeriod), GetFuturesItiSignalDataQuery.Verb);
@@ -189,11 +189,11 @@ public class FuturesItiSignalQueryTests
     {
         // Arrange - Given no change-event signals exist for the requested contract/value date (edge case)
         var (dbFactory, marketDataDb) = CreateDbFactory();
-        marketDataDb.GetLastFuturesItiSignalTrendDirectionChangeAsync(SampleData.ContractId, SampleData.ValueDate)
+        marketDataDb.GetLastFuturesItiSignalTrendDirectionChangeAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None)
             .Returns((FuturesItiSignalV2ReadModel?)null);
-        marketDataDb.GetLastFuturesItiSignalTrendExtremeChangeAsync(SampleData.ContractId, SampleData.ValueDate)
+        marketDataDb.GetLastFuturesItiSignalTrendExtremeChangeAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None)
             .Returns((FuturesItiSignalV2ReadModel?)null);
-        marketDataDb.GetLastFuturesItiSignalTrendReversalChangeAsync(SampleData.ContractId, SampleData.ValueDate)
+        marketDataDb.GetLastFuturesItiSignalTrendReversalChangeAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None)
             .Returns((FuturesItiSignalV2ReadModel?)null);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
@@ -219,10 +219,10 @@ public class FuturesItiSignalQueryTests
         // Arrange - Given only the trend direction change signal exists (edge case: partial data)
         var (dbFactory, marketDataDb) = CreateDbFactory();
         var directionChange = CreateReadModel(TimeFrameType.Daily) with { IntrinsicTimeMode = IntrinsicTimeModeType.TrendDirectionChanged };
-        marketDataDb.GetLastFuturesItiSignalTrendDirectionChangeAsync(SampleData.ContractId, SampleData.ValueDate).Returns(directionChange);
-        marketDataDb.GetLastFuturesItiSignalTrendExtremeChangeAsync(SampleData.ContractId, SampleData.ValueDate)
+        marketDataDb.GetLastFuturesItiSignalTrendDirectionChangeAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None).Returns(directionChange);
+        marketDataDb.GetLastFuturesItiSignalTrendExtremeChangeAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None)
             .Returns((FuturesItiSignalV2ReadModel?)null);
-        marketDataDb.GetLastFuturesItiSignalTrendReversalChangeAsync(SampleData.ContractId, SampleData.ValueDate)
+        marketDataDb.GetLastFuturesItiSignalTrendReversalChangeAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None)
             .Returns((FuturesItiSignalV2ReadModel?)null);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
@@ -256,7 +256,7 @@ public class FuturesItiSignalQueryTests
             CreateReadModel(timePeriod),
             CreateReadModel(timePeriod) with { IntrinsicTimeTrend = IntrinsicTimeTrendType.DownTrend }
         ];
-        marketDataDb.GetFuturesItiTrendDirectionChangedSignalsAsync(SampleData.ContractId, SampleData.ValueDate).Returns(signals);
+        marketDataDb.GetFuturesItiTrendDirectionChangedSignalsAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None).Returns(signals);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
         var query = WithSubject(new GetFuturesItiTrendDirectionChangedSignalsQuery(SampleData.ContractId, SampleData.ValueDate, timePeriod), GetFuturesItiTrendDirectionChangedSignalsQuery.Verb);
@@ -280,7 +280,7 @@ public class FuturesItiSignalQueryTests
     {
         // Arrange - Given no trend direction changed signals exist (edge case)
         var (dbFactory, marketDataDb) = CreateDbFactory();
-        marketDataDb.GetFuturesItiTrendDirectionChangedSignalsAsync(SampleData.ContractId, SampleData.ValueDate)
+        marketDataDb.GetFuturesItiTrendDirectionChangedSignalsAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None)
             .Returns((ICollection<FuturesItiSignalV2ReadModel>)[]);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
@@ -302,7 +302,7 @@ public class FuturesItiSignalQueryTests
         // Arrange - Given exactly one trend direction changed signal exists (boundary edge case)
         var (dbFactory, marketDataDb) = CreateDbFactory();
         ICollection<FuturesItiSignalV2ReadModel> signals = [CreateReadModel(TimeFrameType.Weekly)];
-        marketDataDb.GetFuturesItiTrendDirectionChangedSignalsAsync(SampleData.ContractId, SampleData.ValueDate).Returns(signals);
+        marketDataDb.GetFuturesItiTrendDirectionChangedSignalsAsync(SampleData.ContractId, SampleData.ValueDate, CancellationToken.None).Returns(signals);
         var actor = CreateActor(dbFactory);
         var context = CreateContext();
         var query = WithSubject(new GetFuturesItiTrendDirectionChangedSignalsQuery(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Weekly), GetFuturesItiTrendDirectionChangedSignalsQuery.Verb);

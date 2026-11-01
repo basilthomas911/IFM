@@ -13,6 +13,7 @@ use std::{
     ops::Range,
     sync::{Arc, mpsc},
 };
+
 /// Display-ready fixture row used to exercise virtual rendering and navigation.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,6 +29,7 @@ pub struct GridRow {
     /// Published/formatted forward-loss ratio text in the fixture grid.
     pub forward_loss_ratio: String,
 }
+
 /// Locally virtualized fixture grid with immutable source rows, background index filtering, and stable ID selection.
 pub struct GridView {
     /// Complete immutable fixture dataset shared with background filter/sort workers.
@@ -65,6 +67,8 @@ impl GridView {
             cursor: None,
         }
     }
+
+
     /// Filter/sort row indexes on a background thread while keeping the full immutable fixture rows shared.
     pub fn rebuild(&mut self) {
         let rows = self.rows.clone();
@@ -90,6 +94,8 @@ impl GridView {
             let _ = tx.send(order);
         });
     }
+
+
     /// Accept completed background index work, render only visible fixture rows, and maintain ID-based selection and bounded keyboard/scroll navigation.
     pub fn draw(&mut self, ctx: &egui::Context, catalog: &crate::Catalog) {
         if let Some(rx) = &self.pending {
@@ -110,9 +116,14 @@ impl GridView {
             ));
             let mut editing = false;
             ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                 let label = ui.trading_caption(catalog.text(crate::strings::FILTER));
                 editing = ui
-                    .text_edit_singleline(&mut self.filter)
+                    .add(
+                        egui::TextEdit::singleline(&mut self.filter)
+                            .vertical_align(egui::Align::Center),
+                    )
                     .labelled_by(label.id)
                     .has_focus();
                 if ui.button(catalog.text(crate::strings::APPLY)).clicked() {

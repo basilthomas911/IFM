@@ -21,6 +21,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSig
 public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> factory, MarketDataAnalyticsFixture dbFixture)
     : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<MarketDataAnalyticsFixture>
 {
+    readonly string _contractId = $"ES-ITI-COMMAND-{Guid.NewGuid():N}";
+    static readonly DateTime Timestamp = DateTime.SpecifyKind(SampleData.Timestamp, DateTimeKind.Utc);
+
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
@@ -35,10 +38,10 @@ public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
         var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 
-        var contractId = SampleData.ContractId;
+        var contractId = _contractId;
         var valueDate = SampleData.ValueDate;
 
-        var entityId = SampleData.EntityId;
+        var entityId = new FuturesItiSignalEntityId(contractId, valueDate, SampleData.TimePeriod);
         var subject = new ActorSubject(ActorType.Command, GenerateFuturesItiSignalCommand.Actor, GenerateFuturesItiSignalCommand.Verb, entityId.Format());
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
@@ -65,7 +68,7 @@ public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
 
         var sw = Stopwatch.StartNew();
         var response = await marketDataAnalyticsApi.GenerateFuturesItiSignalAsync(
-            contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp, SampleData.FuturesPrice, SampleData.VixFuturesPrice);
+            contractId, valueDate, SampleData.TimePeriod, Timestamp, SampleData.FuturesPrice, SampleData.VixFuturesPrice);
 
         await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
@@ -109,6 +112,9 @@ public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
 
             IEvent SetEvent(IEvent @event)
             {
+                if (@event is IEvent<FuturesItiSignalEntityId> typed && typed.EntityId.ContractId != _contractId)
+                    return @event;
+
                 if (@event is FuturesItiSignalGeneratedEvent generated)
                     futuresItiSignalGeneratedEvent = generated;
                 if (@event is FuturesItiSignalGeneratedCompleteEvent generatedComplete)
@@ -155,10 +161,10 @@ public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
             EventHandlerAsync
         );
 
-        var contractId = SampleData.ContractId;
+        var contractId = _contractId;
         var valueDate = SampleData.ValueDate;
 
-        var entityId = SampleData.EntityId;
+        var entityId = new FuturesItiSignalEntityId(contractId, valueDate, SampleData.TimePeriod);
         var generateSubject = new ActorSubject(ActorType.Command, GenerateFuturesItiSignalCommand.Actor, GenerateFuturesItiSignalCommand.Verb, entityId.Format());
         var generateStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{generateSubject.ThreadId}");
         if (generateStreamId > 0)
@@ -174,7 +180,7 @@ public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
 
         var generateResponse = await marketDataAnalyticsApi.GenerateFuturesItiSignalAsync(
-            contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp,
+            contractId, valueDate, SampleData.TimePeriod, Timestamp,
             SampleData.FuturesPrice, SampleData.VixFuturesPrice);
         await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
         generateResponse.Success.Should().BeTrue();
@@ -186,7 +192,7 @@ public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
         terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         // act...
-        var itiSignalId = new FuturesItiSignalId(contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp);
+        var itiSignalId = new FuturesItiSignalId(contractId, valueDate, SampleData.TimePeriod, Timestamp);
         var response = await marketDataAnalyticsApi.SetFuturesItiSignalHoldTradeAsync(itiSignalId);
 
         await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -222,6 +228,9 @@ public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
 
             IEvent SetEvent(IEvent @event)
             {
+                if (@event is IEvent<FuturesItiSignalEntityId> typed && typed.EntityId.ContractId != _contractId)
+                    return @event;
+
                 if (@event is FuturesItiSignalGeneratedCompleteEvent generatedComplete)
                 {
                     futuresItiSignalGeneratedCompleteEvent = generatedComplete;
@@ -284,10 +293,10 @@ public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
             EventHandlerAsync
         );
 
-        var contractId = SampleData.ContractId;
+        var contractId = _contractId;
         var valueDate = SampleData.ValueDate;
 
-        var entityId = SampleData.EntityId;
+        var entityId = new FuturesItiSignalEntityId(contractId, valueDate, SampleData.TimePeriod);
         var generateSubject = new ActorSubject(ActorType.Command, GenerateFuturesItiSignalCommand.Actor, GenerateFuturesItiSignalCommand.Verb, entityId.Format());
         var generateStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{generateSubject.ThreadId}");
         if (generateStreamId > 0)
@@ -307,10 +316,10 @@ public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
 
         var marketDataAnalyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
 
-        var itiSignalId = new FuturesItiSignalId(contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp);
+        var itiSignalId = new FuturesItiSignalId(contractId, valueDate, SampleData.TimePeriod, Timestamp);
 
         var generateResponse = await marketDataAnalyticsApi.GenerateFuturesItiSignalAsync(
-            contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp,
+            contractId, valueDate, SampleData.TimePeriod, Timestamp,
             SampleData.FuturesPrice, SampleData.VixFuturesPrice);
         await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
@@ -369,6 +378,9 @@ public class FuturesItiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
 
             IEvent SetEvent(IEvent @event)
             {
+                if (@event is IEvent<FuturesItiSignalEntityId> typed && typed.EntityId.ContractId != _contractId)
+                    return @event;
+
                 if (@event is FuturesItiSignalGeneratedCompleteEvent generatedComplete)
                 {
                     futuresItiSignalGeneratedCompleteEvent = generatedComplete;

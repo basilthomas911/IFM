@@ -22,7 +22,7 @@ internal static class FrozenEmulatorOptionChain
             .ConfigureAwait(false);
         var definitionsMs = timer.Elapsed.TotalMilliseconds;
         var inputs = await OptionChainWindowInputs.GetAsync(
-            context, query.UnderlyingSymbol, query.UnderlyingContractId, token).ConfigureAwait(false);
+            context, query.UnderlyingSymbol, query.UnderlyingContractId, token, useLivePrice: false).ConfigureAwait(false);
         var window = OptionChainStrikeWindow.Select(definitions.Select(row => row.Definition),
             inputs.Price, inputs.Deviation, query.StandardDeviationMultiplier, query.RequiredContractIds);
         if (window.Contracts.Length == 0 || inputs.Price is not > 0)

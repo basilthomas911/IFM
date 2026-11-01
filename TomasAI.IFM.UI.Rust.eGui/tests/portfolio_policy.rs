@@ -1,6 +1,9 @@
 //! Backend commands are exercised by backend_nats; these cases protect input
 //! semantics that must be decided before any command can be emitted.
 use ifm_ui_egui::backend::schema::Registry;
+
+
+/// Verifies that policy contract separates version from aggregate revision.
 #[test]
 fn policy_contract_separates_version_from_aggregate_revision() {
     let registry = Registry::compiled().unwrap();

@@ -2,6 +2,7 @@
 use crate::contract_editor::ContractRow;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+
 /// Managed field-choice value, display label, and selection eligibility.
 #[derive(Default, Clone, Deserialize, serde::Serialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -13,6 +14,7 @@ pub(crate) struct Choice {
     /// Published control/action eligibility; local pending state can further restrict it.
     pub(crate) enabled: bool,
 }
+
 /// Managed property editor definition. Kind chooses the widget; numeric bounds/decimals and choices come from the managed form contract.
 #[derive(Default, Clone, Deserialize, serde::Serialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -36,6 +38,7 @@ pub(crate) struct Field {
     /// Configured number of decimal places for a numeric editor.
     pub(crate) decimals: usize,
 }
+
 /// Managed grid definition: ordered columns, stable rows, selection, and editability.
 #[derive(Default, Clone, Deserialize, serde::Serialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -51,6 +54,7 @@ pub(crate) struct Grid {
     /// Whether the managed contract allows local cell editing.
     pub(crate) editable: bool,
 }
+
 /// Managed form definition with reference dimensions, fields, grids, buttons, and eligibility.
 #[derive(Default, Clone, Deserialize, serde::Serialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -76,6 +80,7 @@ pub(crate) struct Dialog {
     /// Managed action eligibility keyed by the original action caption.
     pub(crate) button_enabled: Option<BTreeMap<String, bool>>,
 }
+
 /// Portfolio administration projection, including optional embedded policy and child dialogs.
 #[derive(Default, Clone, Deserialize, serde::Serialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -96,29 +101,35 @@ pub(crate) struct Document {
 
 /// Scalar editor conversion; already typed text never passes through a JSON value.
 pub(crate) trait FieldText {
+    /// Provides field text for the field text implementation.
     fn field_text(self) -> String;
 }
 impl FieldText for String {
+    /// Provides field text for the string implementation.
     fn field_text(self) -> String {
         self
     }
 }
 impl FieldText for &String {
+    /// Provides field text for the &string implementation.
     fn field_text(self) -> String {
         self.clone()
     }
 }
 impl FieldText for &str {
+    /// Provides field text for the &str implementation.
     fn field_text(self) -> String {
         self.to_string()
     }
 }
 impl FieldText for serde_json::Value {
+    /// Provides field text for the serde json::value implementation.
     fn field_text(self) -> String {
         (&self).field_text()
     }
 }
 impl FieldText for &serde_json::Value {
+    /// Provides field text for the &serde json::value implementation.
     fn field_text(self) -> String {
         self.as_str().map(str::to_string).unwrap_or_else(|| {
             if self.is_null() {
@@ -130,16 +141,19 @@ impl FieldText for &serde_json::Value {
     }
 }
 impl FieldText for bool {
+    /// Provides field text for the bool implementation.
     fn field_text(self) -> String {
         self.to_string()
     }
 }
 impl FieldText for i32 {
+    /// Provides field text for the i32 implementation.
     fn field_text(self) -> String {
         self.to_string()
     }
 }
 impl FieldText for i64 {
+    /// Provides field text for the i64 implementation.
     fn field_text(self) -> String {
         self.to_string()
     }
@@ -148,6 +162,9 @@ impl FieldText for i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    /// Verifies that all managed portfolio session documents preserve typed values.
     #[test]
     fn all_managed_portfolio_session_documents_preserve_typed_values() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/backend");
@@ -167,6 +184,9 @@ mod tests {
             let document: Document = crate::wire::decode(&bytes).unwrap();
             let mut expected: serde_json::Value = crate::wire::decode(&bytes).unwrap();
             let mut actual = serde_json::to_value(&document).unwrap();
+
+
+            /// Normalizes numbers for portfolio.
             fn normalize_numbers(value: &mut serde_json::Value) {
                 match value {
                     serde_json::Value::Array(values) => {

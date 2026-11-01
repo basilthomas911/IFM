@@ -9,6 +9,10 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared
         TrendReversalChanged,
         PredictedIntervalChanged,
         HoldTradeChanged,
-        InTradeChanged
+        InTradeChanged,
+        /// <summary>A band-qualified new extreme with calculated BandLevel greater than one.</summary>
+        TrendOvershootExtended = 7,
+        /// <summary>A band-qualified retracement with calculated BandLevel greater than one.</summary>
+        TrendOvershootReversal = 8
     }
 }

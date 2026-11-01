@@ -4,14 +4,22 @@
 use crate::backend::contracts::ExactDecimal;
 use std::cmp::Ordering;
 
+/// Contract used by the option selection component.
 #[derive(Clone, Debug)]
 pub struct Contract {
+    /// Id associated with this contract.
     pub id: String,
+    /// Strike associated with this contract.
     pub strike: ExactDecimal,
+    /// Whether call is enabled or currently true.
     pub is_call: bool,
+    /// Optional delta; `None` represents an absent value.
     pub delta: Option<f64>,
+    /// Whether stale is enabled or currently true.
     pub stale: bool,
+    /// Whether greeks valid is enabled or currently true.
     pub greeks_valid: bool,
+    /// Whether selection valid is enabled or currently true.
     pub selection_valid: bool,
 }
 
@@ -19,7 +27,13 @@ pub struct Contract {
 /// 29 integral plus 28 fractional digits. The extra digit holds a subtraction
 /// across zero. This is selection arithmetic, never an order price formatter.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
-struct Magnitude([u8; 58]);
+struct Magnitude(
+    /// Fixed-width decimal digits used by exact comparison and tick arithmetic.
+    [u8; 58],
+);
+
+
+/// Provides parts for the option selection implementation.
 fn parts(value: &ExactDecimal) -> (bool, Magnitude) {
     let negative = value.as_str().starts_with('-');
     let unsigned = value.as_str().trim_start_matches('-');
@@ -36,6 +50,9 @@ fn parts(value: &ExactDecimal) -> (bool, Magnitude) {
         Magnitude(digits),
     )
 }
+
+
+/// Provides distance for the option selection implementation.
 fn distance(a: &ExactDecimal, b: &ExactDecimal) -> Magnitude {
     let (an, mut a) = parts(a);
     let (bn, mut b) = parts(b);
@@ -60,6 +77,9 @@ fn distance(a: &ExactDecimal, b: &ExactDecimal) -> Magnitude {
     }
     Magnitude(result)
 }
+
+
+/// Compares option selection for option selection.
 pub fn compare(a: &ExactDecimal, b: &ExactDecimal) -> Ordering {
     let (an, a) = parts(a);
     let (bn, b) = parts(b);
@@ -70,6 +90,7 @@ pub fn compare(a: &ExactDecimal, b: &ExactDecimal) -> Ordering {
         _ => a.cmp(&b),
     }
 }
+
 
 /// The backend delta is a double; using a double here is intentional parity
 /// with ShortCandidates. Strike distance and width retain decimal precision.
@@ -108,10 +129,15 @@ pub fn short_candidates<'a>(
     });
     values
 }
+
+
 // .NET StringComparer.Ordinal compares UTF-16 code units, including astral IDs.
 fn ordinal(a: &str, b: &str) -> Ordering {
     a.encode_utf16().cmp(b.encode_utf16())
 }
+
+
+/// Provides wing for the option selection implementation.
 pub fn wing<'a>(
     contracts: &'a [Contract],
     short: &ExactDecimal,

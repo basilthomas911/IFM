@@ -105,9 +105,11 @@ impl Delivery {
                             let budget=*pending.get_or_insert_with(Deadline::recovery);
                             status.send_modify(|state|state.deadline=Some(budget));
                             for publication in batch.values() {
-                                for index in 0..publication.chunks() {
-                                    publisher.try_option_cache(publication,index)?;
-                                    sequence=sequence.checked_add(1).ok_or("Native cache flush ordinal overflow")?;
+                                let mut index=0;
+                                while index<publication.chunks() {
+                                    let count=publisher.try_option_cache_pair(publication,index)?;
+                                    index+=count;
+                                    sequence=sequence.checked_add(count as u64).ok_or("Native cache flush ordinal overflow")?;
                                     budget.run(&stopping,async {
                                         loop {
                                             let socket=changes.borrow_and_update().clone();

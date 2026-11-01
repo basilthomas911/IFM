@@ -10,18 +10,30 @@ const OBSERVATION: &str = "TomasAI.IFM.Domain.MarketData.Shared.ObservationMetri
 const LEGACY: &str =
     "TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery.RegimeDiscoverySignalMetric";
 pub const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery";
+
+
+/// Returns the display text for the requested value or field.
 fn text<'a>(row: &'a Json, key: &str) -> &'a str {
     row[key].as_str().unwrap_or_default()
 }
+
+
+/// Provides stable for the parameter metrics implementation.
 fn stable(value: &str) -> String {
     let hash = Sha256::digest(value.as_bytes());
     uuid::Uuid::from_bytes_le(hash[..16].try_into().unwrap()).to_string()
 }
+
+
+/// Sets n for parameter metrics.
 fn set_n(set: &str) -> Result<String, String> {
     uuid::Uuid::parse_str(set)
         .map(|v| v.simple().to_string())
         .map_err(|_| "Invalid metric parameter set identity".into())
 }
+
+
+/// Provides duration for the parameter metrics implementation.
 fn duration(frame: &str) -> Option<u32> {
     Some(match frame {
         "FifteenSeconds" => 15,
@@ -35,6 +47,9 @@ fn duration(frame: &str) -> Option<u32> {
         _ => return None,
     })
 }
+
+
+/// Provides legacy for the parameter metrics implementation.
 pub fn legacy(
     registry: &Registry,
     set: &str,
@@ -111,6 +126,9 @@ pub fn legacy(
     }
     Ok(rows.into_values().collect())
 }
+
+
+/// Provides definition for the parameter metrics implementation.
 fn definition(metric: &str) -> Option<(&'static str, i64)> {
     Some(match metric {
         "Ema20" | "Ema20Slope" => ("Ema", 20),
@@ -130,6 +148,9 @@ fn definition(metric: &str) -> Option<(&'static str, i64)> {
         _ => return None,
     })
 }
+
+
+/// Provides from legacy for the parameter metrics implementation.
 pub fn from_legacy(
     registry: &Registry,
     set: &str,

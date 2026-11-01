@@ -5,6 +5,8 @@ use crate::services::{
     business_context::BusinessContext, parameters::overlay_type, portfolio_commands as commands,
 };
 
+
+/// Provides input for the editors implementation.
 pub(super) fn input(
     key: &str,
     caption: &str,
@@ -27,6 +29,9 @@ pub(super) fn input(
         ..Default::default()
     }
 }
+
+
+/// Provides editor for the editors implementation.
 pub(super) fn editor(
     key: &str,
     title: &str,
@@ -50,6 +55,9 @@ pub(super) fn editor(
         ..Default::default()
     }
 }
+
+
+/// Provides enum choices for the editors implementation.
 pub(super) fn enum_choices(registry: &Registry, kind: &str) -> Result<Vec<Choice>, String> {
     Ok(registry
         .enum_names(kind)?
@@ -63,6 +71,9 @@ pub(super) fn enum_choices(registry: &Registry, kind: &str) -> Result<Vec<Choice
         })
         .collect())
 }
+
+
+/// Provides defaults for the editors implementation.
 pub(super) fn defaults(name: &str) -> Result<Value, String> {
     let models: BTreeMap<String, Vec<u8>> = serde_json::from_str(include_str!(
         "../../../tests/fixtures/backend/portfolio-model-defaults.json"
@@ -75,6 +86,7 @@ pub(super) fn defaults(name: &str) -> Result<Value, String> {
     )
 }
 impl PortfolioController {
+    /// Opens editor for portfolio controller.
     pub(super) async fn open_editor(
         &mut self,
         backend: &Backend,
@@ -363,6 +375,9 @@ impl PortfolioController {
         self.message.clear();
         Ok("Editor opened".into())
     }
+
+
+    /// Saves editor for portfolio controller.
     pub(super) async fn save_editor(
         &mut self,
         backend: &Backend,
@@ -606,6 +621,9 @@ impl PortfolioController {
         }
     }
 }
+
+
+/// Provides prepared dto for the editors implementation.
 fn prepared_dto(
     registry: &Registry,
     prepared: &commands::Prepared,

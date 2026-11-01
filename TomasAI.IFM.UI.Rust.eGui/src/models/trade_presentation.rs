@@ -3,41 +3,67 @@ use super::cells::{Cell, Cells, ScalarCell};
 use super::{trade_contracts::*, wire_types::*};
 use serde::{Deserialize, Serialize, ser::SerializeMap};
 
+/// Position History Row used by the trade presentation component.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PositionHistoryRow {
+    /// Optional order id; `None` represents an absent value.
     pub order_id: Option<i32>,
+    /// Optional trade id; `None` represents an absent value.
     pub trade_id: Option<i32>,
+    /// Trade type associated with this position history row.
     pub trade_type: String,
+    /// Optional value date; `None` represents an absent value.
     pub value_date: Option<DateText>,
+    /// Optional days to expiry; `None` represents an absent value.
     pub days_to_expiry: Option<i32>,
+    /// Trade status associated with this position history row.
     pub trade_status: String,
+    /// Optional commission; `None` represents an absent value.
     pub commission: Option<DecimalText>,
+    /// Optional net spread; `None` represents an absent value.
     pub net_spread: Option<DecimalText>,
+    /// Optional trade pnl; `None` represents an absent value.
     pub trade_pnl: Option<DecimalText>,
+    /// Whether valid is enabled or currently true.
     pub is_valid: bool,
 }
+
+/// Limit Display Row used by the trade presentation component.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LimitDisplayRow {
+    /// Order id associated with this limit display row.
     pub order_id: i32,
+    /// Optional trade limit; `None` represents an absent value.
     #[serde(serialize_with = "serialize_monitor")]
     pub trade_limit: Option<TradeLimitReadModel>,
+    /// Optional fund balance; `None` represents an absent value.
     pub fund_balance: Option<DecimalText>,
 }
+
+/// Observation Row used by the trade presentation component.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ObservationRow {
+    /// Key associated with this observation row.
     pub key: String,
+    /// Value associated with this observation row.
     #[serde(serialize_with = "serialize_monitor")]
     pub value: FuturesOptionTickDataV2ReadModel,
 }
+
+/// Workspace Tab Row used by the trade presentation component.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct WorkspaceTabRow {
+    /// Key associated with this workspace tab row.
     pub key: String,
+    /// Title associated with this workspace tab row.
     pub title: String,
+    /// Kind associated with this workspace tab row.
     pub kind: String,
+    /// Whether active is enabled or currently true.
     pub active: bool,
 }
 
@@ -46,16 +72,17 @@ pub struct WorkspaceTabRow {
 pub enum TradeDisplayRow {
     #[default]
     Empty,
-    Established(Box<EstablishedTradeDefinition>),
-    Position(Box<PositionHistoryRow>),
-    PositionDetails(Box<StrategyPositionSnapshot>),
-    Limits(Box<LimitDisplayRow>),
+    Established(std::sync::Arc<EstablishedTradeDefinition>),
+    Position(std::sync::Arc<PositionHistoryRow>),
+    PositionDetails(std::sync::Arc<Option<StrategyPositionSnapshot>>),
+    Limits(std::sync::Arc<LimitDisplayRow>),
     Plan(std::sync::Arc<StrategyTradePlanSnapshot>),
-    Realtime(Box<TradeRealtimeSnapshot>),
-    Observation(Box<ObservationRow>),
-    WorkspaceTab(Box<WorkspaceTabRow>),
+    Realtime(std::sync::Arc<TradeRealtimeSnapshot>),
+    Observation(std::sync::Arc<ObservationRow>),
+    WorkspaceTab(std::sync::Arc<WorkspaceTabRow>),
 }
 impl Cells for TradeDisplayRow {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match self {
             Self::Established(value) => value.cell(column),
@@ -69,6 +96,7 @@ impl Cells for TradeDisplayRow {
     }
 }
 impl TradeDisplayRow {
+    /// Provides established for the trade display row implementation.
     pub fn established(&self) -> Option<&EstablishedTradeDefinition> {
         if let Self::Established(value) = self {
             Some(value)
@@ -76,13 +104,19 @@ impl TradeDisplayRow {
             None
         }
     }
+
+
+    /// Provides position for the trade display row implementation.
     pub fn position(&self) -> Option<&StrategyPositionSnapshot> {
         if let Self::PositionDetails(value) = self {
-            Some(value)
+            value.as_ref().as_ref()
         } else {
             None
         }
     }
+
+
+    /// Provides plan for the trade display row implementation.
     pub fn plan(&self) -> Option<&StrategyTradePlanSnapshot> {
         if let Self::Plan(value) = self {
             Some(value)
@@ -90,6 +124,9 @@ impl TradeDisplayRow {
             None
         }
     }
+
+
+    /// Provides realtime for the trade display row implementation.
     pub fn realtime(&self) -> Option<&TradeRealtimeSnapshot> {
         if let Self::Realtime(value) = self {
             Some(value)
@@ -97,6 +134,9 @@ impl TradeDisplayRow {
             None
         }
     }
+
+
+    /// Provides limits for the trade display row implementation.
     pub fn limits(&self) -> Option<&LimitDisplayRow> {
         if let Self::Limits(value) = self {
             Some(value)
@@ -104,6 +144,9 @@ impl TradeDisplayRow {
             None
         }
     }
+
+
+    /// Provides observation for the trade display row implementation.
     pub fn observation(&self) -> Option<&ObservationRow> {
         if let Self::Observation(value) = self {
             Some(value)
@@ -111,6 +154,9 @@ impl TradeDisplayRow {
             None
         }
     }
+
+
+    /// Provides tab for the trade display row implementation.
     pub fn tab(&self) -> Option<&WorkspaceTabRow> {
         if let Self::WorkspaceTab(value) = self {
             Some(value)
@@ -120,6 +166,7 @@ impl TradeDisplayRow {
     }
 }
 impl Cells for PositionHistoryRow {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "orderId" => self.order_id.scalar_cell(),
@@ -137,6 +184,7 @@ impl Cells for PositionHistoryRow {
     }
 }
 impl Cells for LimitDisplayRow {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         if self.trade_limit.is_none() {
             return Cell::Missing;
@@ -149,13 +197,18 @@ impl Cells for LimitDisplayRow {
     }
 }
 
+/// Plan Grid Row used by the trade presentation component.
 #[derive(Clone, Debug, Default)]
 pub struct PlanGridRow {
+    /// Plan associated with this plan grid row.
     pub plan: std::sync::Arc<StrategyTradePlanSnapshot>,
+    /// Whether action time overridden is enabled or currently true.
     pub action_time_overridden: bool,
+    /// Optional action time; `None` represents an absent value.
     pub action_time: Option<String>,
 }
 impl PlanGridRow {
+    /// Constructs PlanGridRow from the supplied inputs.
     pub fn new(plan: std::sync::Arc<StrategyTradePlanSnapshot>, action_time: Option<&str>) -> Self {
         Self {
             plan,
@@ -165,6 +218,9 @@ impl PlanGridRow {
                 .map(str::to_owned),
         }
     }
+
+
+    /// Checks has action reason against the current trade presentation state.
     pub fn has_action_reason(&self) -> bool {
         if let Some(detail) = &self.plan.iron_condor_trade_plan_snapshot {
             detail.action_reason.is_some()
@@ -174,6 +230,7 @@ impl PlanGridRow {
     }
 }
 impl Cells for PlanGridRow {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         if column == "actionDateTime" && self.action_time_overridden {
             return self.action_time.scalar_cell();
@@ -192,20 +249,32 @@ impl Cells for PlanGridRow {
     }
 }
 
+/// Leg Display used by the trade presentation component.
 #[derive(Clone, Debug, Default)]
 pub struct LegDisplay {
+    /// Optional strike; `None` represents an absent value.
     pub strike: Option<DecimalText>,
+    /// Optional price; `None` represents an absent value.
     pub price: Option<DecimalText>,
+    /// Optional bid; `None` represents an absent value.
     pub bid: Option<f64>,
+    /// Optional ask; `None` represents an absent value.
     pub ask: Option<f64>,
+    /// Optional delta; `None` represents an absent value.
     pub delta: Option<f64>,
+    /// Optional gamma; `None` represents an absent value.
     pub gamma: Option<f64>,
+    /// Optional theta; `None` represents an absent value.
     pub theta: Option<f64>,
+    /// Optional vega; `None` represents an absent value.
     pub vega: Option<f64>,
+    /// Optional rho; `None` represents an absent value.
     pub rho: Option<f64>,
+    /// Optional iv; `None` represents an absent value.
     pub iv: Option<f64>,
 }
 impl Cells for LegDisplay {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "Strike" => self.strike.scalar_cell(),
@@ -222,18 +291,29 @@ impl Cells for LegDisplay {
         }
     }
 }
+
+/// Spread Display Row used by the trade presentation component.
 #[derive(Clone, Debug, Default)]
 pub struct SpreadDisplayRow {
+    /// Spread associated with this spread display row.
     pub spread: String,
+    /// Short associated with this spread display row.
     pub short: LegDisplay,
+    /// Long associated with this spread display row.
     pub long: LegDisplay,
+    /// Optional net spread; `None` represents an absent value.
     pub net_spread: Option<f64>,
+    /// Optional trade value; `None` represents an absent value.
     pub trade_value: Option<f64>,
+    /// Optional trade pnl; `None` represents an absent value.
     pub trade_pnl: Option<f64>,
+    /// Optional otm probability; `None` represents an absent value.
     pub otm_probability: Option<f64>,
+    /// Optional forward price; `None` represents an absent value.
     pub forward_price: Option<f64>,
 }
 impl Cells for SpreadDisplayRow {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         if let Some(field) = column.strip_prefix("short") {
             return self.short.cell(field);
@@ -261,32 +341,57 @@ pub enum PresentationMode {
     Monitor,
     History,
 }
+
+/// Defines the presentation record operations shared by its implementations.
 pub trait PresentationRecord {
+    /// Writes the presentation fields, applying the requested history omission policy.
     fn serialize_presentation<S: serde::Serializer>(
         &self,
         serializer: S,
         mode: PresentationMode,
     ) -> Result<S::Ok, S::Error>;
 }
+
+/// Defines the presentation value operations shared by its implementations.
 pub trait PresentationValue {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
         mode: PresentationMode,
     ) -> Result<S::Ok, S::Error>;
 }
+
+/// Field Value used by the trade presentation component.
 pub struct FieldValue<'a, T: ?Sized> {
+    /// Value associated with this field value.
     pub value: &'a T,
+    /// Mode associated with this field value.
     pub mode: PresentationMode,
 }
 impl<T: PresentationValue + ?Sized> Serialize for FieldValue<'_, T> {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.value.serialize_value(serializer, self.mode)
     }
 }
-macro_rules! presentation_scalar{($($ty:ty),*)=>{$(impl PresentationValue for $ty{
- fn serialize_value<S:serde::Serializer>(&self,serializer:S,_mode:PresentationMode)->Result<S::Ok,S::Error>{self.serialize(serializer)}
-})*};}
+// Primitive scalar values do not vary with the enclosing presentation mode.
+macro_rules! presentation_scalar {
+    ($($ty:ty),*) => {
+        $(
+            impl PresentationValue for $ty {
+                /// Serializes the scalar unchanged for every presentation mode.
+                fn serialize_value<S: serde::Serializer>(
+                    &self,
+                    serializer: S,
+                    _mode: PresentationMode,
+                ) -> Result<S::Ok, S::Error> {
+                    self.serialize(serializer)
+                }
+            }
+        )*
+    };
+}
 presentation_scalar!(
     String,
     bool,
@@ -308,6 +413,7 @@ presentation_scalar!(
     ByteBuffer
 );
 impl<T: PresentationValue> PresentationValue for Option<T> {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -320,6 +426,7 @@ impl<T: PresentationValue> PresentationValue for Option<T> {
     }
 }
 impl<T: PresentationValue> PresentationValue for Vec<T> {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -334,6 +441,7 @@ impl<T: PresentationValue> PresentationValue for Vec<T> {
     }
 }
 impl<T: PresentationValue + ?Sized> PresentationValue for Box<T> {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -343,6 +451,7 @@ impl<T: PresentationValue + ?Sized> PresentationValue for Box<T> {
     }
 }
 impl<T: PresentationValue + ?Sized> PresentationValue for &T {
+    /// Serializes this value using the requested presentation mode.
     fn serialize_value<S: serde::Serializer>(
         &self,
         serializer: S,
@@ -351,16 +460,24 @@ impl<T: PresentationValue + ?Sized> PresentationValue for &T {
         (**self).serialize_value(serializer, mode)
     }
 }
+
+/// Defines the presentation extras operations shared by its implementations.
 pub trait PresentationExtras {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, _map: &mut M) -> Result<(), M::Error> {
         Ok(())
     }
 }
+
+/// Display Record used by the trade presentation component.
 pub struct DisplayRecord<'a, T> {
+    /// Value associated with this display record.
     pub value: &'a T,
+    /// Retained historical data used by this component.
     pub history: bool,
 }
 impl<T: PresentationValue> Serialize for DisplayRecord<'_, T> {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.value.serialize_value(
             serializer,
@@ -372,6 +489,9 @@ impl<T: PresentationValue> Serialize for DisplayRecord<'_, T> {
         )
     }
 }
+
+
+/// Writes the compact monitor presentation while keeping backend financial values authoritative.
 pub fn serialize_monitor<T: PresentationValue, S: serde::Serializer>(
     value: &T,
     serializer: S,
@@ -379,6 +499,7 @@ pub fn serialize_monitor<T: PresentationValue, S: serde::Serializer>(
     value.serialize_value(serializer, PresentationMode::Monitor)
 }
 impl TradeEntityId {
+    /// Checks is valid against the current trade presentation state.
     pub fn is_valid(&self) -> bool {
         [
             self.portfolio_id,
@@ -391,11 +512,13 @@ impl TradeEntityId {
     }
 }
 impl PresentationExtras for TradeEntityId {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         map.serialize_entry("isValid", &self.is_valid())
     }
 }
 impl StrategyPositionId {
+    /// Checks is valid against the current trade presentation state.
     pub fn is_valid(&self) -> bool {
         self.trade.as_ref().is_some_and(TradeEntityId::is_valid)
             && self
@@ -406,11 +529,13 @@ impl StrategyPositionId {
     }
 }
 impl PresentationExtras for StrategyPositionId {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         map.serialize_entry("isValid", &self.is_valid())
     }
 }
 impl PresentationExtras for EstablishedTradeDefinition {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         map.serialize_entry(
             "tradeDate",
@@ -428,6 +553,7 @@ impl PresentationExtras for EstablishedTradeDefinition {
     }
 }
 impl IronCondorTradePlanSnapshot {
+    /// Projects published forward-risk values into the compatible display fields.
     pub fn present_forward_risk(&mut self) {
         if let Some(risk) = self.iron_condor_forward_risk.as_ref() {
             self.forward_loss = risk.forward_loss.clone();
@@ -435,6 +561,9 @@ impl IronCondorTradePlanSnapshot {
             self.loss_headroom = risk.forward_loss_headroom.clone();
         }
     }
+
+
+    /// Checks is complete against the current trade presentation state.
     pub fn is_complete(&self) -> bool {
         self.calculation_status
             .as_deref()
@@ -451,6 +580,9 @@ impl IronCondorTradePlanSnapshot {
                     && self.max_loss.is_some()
             })
     }
+
+
+    /// Provides forward spread for chart for the iron condor trade plan snapshot implementation.
     pub fn forward_spread_for_chart(&self) -> Option<DecimalText> {
         let price = self.combined_forward_price.as_ref()?;
         if self.calculation_version.as_deref() != Some("IronCondor/EntryCreditForwardPnl/v2") {
@@ -468,20 +600,28 @@ impl IronCondorTradePlanSnapshot {
     }
 }
 impl PresentationExtras for IronCondorTradePlanSnapshot {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         map.serialize_entry("isComplete", &self.is_complete())?;
         map.serialize_entry("forwardSpreadForChart", &self.forward_spread_for_chart())
     }
 }
+
+/// Tick Identity used by the trade presentation component.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TickIdentity<'a> {
+    /// Contract id associated with this tick identity.
     contract_id: &'a Option<String>,
+    /// Value date associated with this tick identity.
     value_date: &'a Option<DateText>,
+    /// Monitoring owner id associated with this tick identity.
     monitoring_owner_id: &'static str,
+    /// Whether valid is enabled or currently true.
     is_valid: bool,
 }
 impl PresentationExtras for FuturesOptionTickDataV2ReadModel {
+    /// Appends the computed presentation fields without changing backend values.
     fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
         let date_valid = self
             .value_date
@@ -511,6 +651,8 @@ impl PresentationExtras for FuturesOptionTickDataV2ReadModel {
     }
 }
 
+
+/// Formats the published action timestamp for the trade display.
 pub fn action_time(plan: &StrategyTradePlanSnapshot) -> Result<String, String> {
     let value = plan
         .iron_condor_trade_plan_snapshot
@@ -531,12 +673,17 @@ pub fn action_time(plan: &StrategyTradePlanSnapshot) -> Result<String, String> {
 
 /// Borrowed summary cells for the trade header.
 pub struct TradeInfoRow<'a> {
+    /// Trade associated with this trade info row.
     pub trade: &'a EstablishedTradeDefinition,
+    /// Optional trade type; `None` represents an absent value.
     pub trade_type: Option<&'a str>,
+    /// Optional action; `None` represents an absent value.
     pub action: Option<&'a str>,
+    /// Optional quantity; `None` represents an absent value.
     pub quantity: Option<f64>,
 }
 impl Cells for TradeInfoRow<'_> {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "orderId" | "tradeId" => self.trade.id.cell(column),
@@ -571,5 +718,6 @@ impl Cells for TradeInfoRow<'_> {
 
 /// Managed display identity getter; never execution authority.
 pub trait PublishedIdentity {
+    /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool;
 }

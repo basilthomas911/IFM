@@ -4,6 +4,9 @@ use super::*;
 use crate::services::{
     business_context::BusinessContext, parameters::overlay_type, portfolio_commands as commands,
 };
+
+
+/// Checks same deployment against the current policy state.
 pub(super) fn same_deployment(a: &Json, b: &Json) -> bool {
     let valid = |v: &Json| v["Kind"] == 7 || v["Kind"] == "Deployment";
     valid(a)
@@ -17,6 +20,9 @@ pub(super) fn same_deployment(a: &Json, b: &Json) -> bool {
             })
         && a["Version"] == b["Version"]
 }
+
+
+/// Checks the supplied value against the required positive-value constraint.
 fn positive(row: &Json, key: &str) -> Result<i32, String> {
     i32::try_from(
         row[key]
@@ -26,6 +32,9 @@ fn positive(row: &Json, key: &str) -> Result<i32, String> {
     )
     .map_err(|_| format!("{key} overflow"))
 }
+
+
+/// Reads the signed integer representation of the requested field.
 fn integer(value: &str) -> Result<i32, String> {
     ExactDecimal::parse(value)?;
     let whole = value.split('.').next().unwrap_or(value);
@@ -35,6 +44,9 @@ fn integer(value: &str) -> Result<i32, String> {
         .and_then(|v| i32::try_from(v).ok())
         .ok_or("Integer input exceeds its published range".into())
 }
+
+
+/// Applies only the edited fields to the retained draft representation.
 fn patch_fields(
     registry: &Registry,
     kind: &str,
@@ -81,6 +93,7 @@ fn patch_fields(
     overlay_type(registry, kind, wire, &changes)
 }
 impl PortfolioController {
+    /// Returns the selected policy's original backend representation.
     fn selected_policy_wire(&self, registry: &Registry) -> Result<Value, String> {
         let parent = self.data.portfolio.as_ref().ok_or("Select a Portfolio")?;
         let parent = registry.project(&kind("PortfolioReadModel"), parent)?;
@@ -112,6 +125,9 @@ impl PortfolioController {
             .map(|(wire, _)| (*wire).clone())
             .ok_or("Select a policy".into())
     }
+
+
+    /// Provides new limits for the portfolio controller implementation.
     fn new_limits(&self, registry: &Registry, prior: Option<&Value>) -> Result<Value, String> {
         let old = prior
             .map(|v| {
@@ -147,6 +163,9 @@ impl PortfolioController {
         }
         Ok(Value::Array(limits))
     }
+
+
+    /// Provides policy submit for the portfolio controller implementation.
     async fn policy_submit(
         &mut self,
         backend: &Backend,
@@ -211,6 +230,9 @@ impl PortfolioController {
             }
         }
     }
+
+
+    /// Provides policy action for the portfolio controller implementation.
     pub(super) async fn policy_action(
         &mut self,
         backend: &Backend,

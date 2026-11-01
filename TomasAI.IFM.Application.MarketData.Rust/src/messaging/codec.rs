@@ -24,16 +24,20 @@ pub fn compress(content: Vec<u8>) -> Result<Vec<u8>, &'static str> {
         return Ok(content);
     }
     let length = i32::try_from(content.len()).map_err(|_| "Event length exceeded")?;
-    let mut size = Vec::new();
-    rmpv::encode::write_value(&mut size, &Value::from(length))
+    let mut size = Vec::with_capacity(5);
+    rmp::encode::write_sint(&mut size, i64::from(length))
         .map_err(|_| "Event length encoding failed")?;
-    let value = Value::Array(vec![
-        Value::Ext(98, size),
-        Value::Binary(lz4_flex::block::compress(&content)),
-    ]);
-    let mut output = Vec::new();
-    rmpv::encode::write_value(&mut output, &value)
-        .map_err(|_| "Event compression framing failed")?;
+    let compressed = lz4_flex::block::compress(&content);
+    // The input is owned and no longer needed. Reuse its allocation for the wire frame.
+    let mut output = content;
+    output.clear();
+    let encoded = (|| {
+        rmp::encode::write_array_len(&mut output, 2)?;
+        rmp::encode::write_ext_meta(&mut output, size.len() as u32, 98)?;
+        output.extend_from_slice(&size);
+        rmp::encode::write_bin(&mut output, &compressed)
+    })();
+    encoded.map_err(|_| "Event compression framing failed")?;
     Ok(output)
 }
 

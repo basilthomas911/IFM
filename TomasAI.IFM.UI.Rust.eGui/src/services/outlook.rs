@@ -13,17 +13,29 @@ use crate::{
 use chrono::{DateTime, Utc};
 use std::collections::BTreeMap;
 
+/// Outlook used by the outlook component.
 pub struct Outlook {
+    /// Keyed cells retained by Outlook.
     pub cells: BTreeMap<String, OutlookCell>,
+    /// Current status text or state exposed by this component.
     pub status: String,
+    /// Summary associated with this outlook.
     pub summary: String,
 }
+
+
+/// Returns the display text for the requested value or field.
 fn text(value: &Cell<'_>) -> String {
     value.text()
 }
+
+
+/// Provides numeric for the outlook implementation.
 fn numeric(value: &Cell<'_>) -> Option<f64> {
     value.number()
 }
+
+
 /// Decimal display rounding works on the preserved 96-bit coefficient. Even a
 /// very large price retains its cents; conversion to f64 is only used for color
 /// comparisons against small thresholds, never to format the decimal itself.
@@ -88,6 +100,9 @@ pub fn decimal_fixed(text: &str, places: u32, percent: bool) -> Result<String, S
     }
     Ok(format!("{grouped}%"))
 }
+
+
+/// Provides fixed for the outlook implementation.
 fn fixed(value: &Cell<'_>, places: u32) -> String {
     if let Some(s) = value.as_str() {
         return decimal_fixed(s, places, false).unwrap_or_else(|_| "N/A".into());
@@ -96,6 +111,9 @@ fn fixed(value: &Cell<'_>, places: u32) -> String {
         .map(|n| format!("{n:.precision$}", precision = places as usize))
         .unwrap_or_else(|| "N/A".into())
 }
+
+
+/// Resolves a named display cell; unsupported columns remain missing.
 fn cell(
     cells: &mut BTreeMap<String, OutlookCell>,
     key: &str,
@@ -112,9 +130,15 @@ fn cell(
         },
     );
 }
+
+
+/// Provides simple for the outlook implementation.
 fn simple(cells: &mut BTreeMap<String, OutlookCell>, key: &str, value: String) {
     cell(cells, key, value, "LightText", "DarkSurface")
 }
+
+
+/// Provides mood for the outlook implementation.
 fn mood(value: Option<f64>, up: f64, down: f64) -> &'static str {
     match value {
         Some(n) if n > up => "Positive",
@@ -122,6 +146,9 @@ fn mood(value: Option<f64>, up: f64, down: f64) -> &'static str {
         _ => "Caution",
     }
 }
+
+
+/// Projects backend data into the UI's display representation.
 pub fn project(
     snapshot: &MarketOutlookReadModel,
     live: bool,
@@ -514,6 +541,9 @@ pub fn project(
         cells,
     })
 }
+
+
+/// Loads outlook for outlook.
 pub async fn load(backend: &Backend, registry: &Registry) -> Result<Outlook, String> {
     tokio::time::timeout(backend.default_timeout(), async {
         let context = BusinessContext::load(backend).await?;

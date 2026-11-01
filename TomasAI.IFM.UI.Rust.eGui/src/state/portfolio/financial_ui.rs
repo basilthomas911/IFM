@@ -3,9 +3,15 @@
 use super::*;
 use super::{editors::input, financial_data::LedgerData};
 use crate::services::{business_context::BusinessContext, financial};
+
+
+/// Provides fk for the financial ui implementation.
 fn fk(name: &str) -> String {
     format!("{}.{name}", financial::ROOT)
 }
+
+
+/// Provides amount for the financial ui implementation.
 pub(super) fn amount(value: &Json) -> Result<String, String> {
     let raw = value.as_str().ok_or("Missing exact financial amount")?;
     let fixed = crate::services::outlook::decimal_fixed(raw, 2, false)?;
@@ -25,6 +31,9 @@ pub(super) fn amount(value: &Json) -> Result<String, String> {
     }
     Ok(output)
 }
+
+
+/// Provides typed grid for the financial ui implementation.
 pub(super) fn typed_grid(
     registry: &Registry,
     key: &str,
@@ -50,6 +59,9 @@ pub(super) fn typed_grid(
     }
     Ok(grid(key, columns, rows, None))
 }
+
+
+/// Provides rows member for the financial ui implementation.
 fn rows_member(
     registry: &Registry,
     name: &str,
@@ -66,6 +78,7 @@ fn rows_member(
         .ok_or("Invalid financial row collection".into())
 }
 impl PortfolioController {
+    /// Opens financials for portfolio controller.
     pub(super) async fn open_financials(
         &mut self,
         backend: &Backend,
@@ -101,6 +114,9 @@ impl PortfolioController {
         self.refresh_financial_journals(registry).await?;
         Ok("Financial panels loaded".into())
     }
+
+
+    /// Refreshes financial journals for portfolio controller.
     pub(super) async fn refresh_financial_journals(
         &mut self,
         registry: &Registry,
@@ -147,6 +163,9 @@ impl PortfolioController {
         self.update_financial_dialog(registry)?;
         Ok(())
     }
+
+
+    /// Updates financial dialog for portfolio controller.
     pub(super) fn update_financial_dialog(&mut self, registry: &Registry) -> Result<(), String> {
         let state = self.ledger_data.as_ref().ok_or("Load Financials first")?;
         let fund = registry.project(
@@ -388,6 +407,9 @@ impl PortfolioController {
         }
         Ok(())
     }
+
+
+    /// Provides financial page action for the portfolio controller implementation.
     pub(super) async fn financial_page_action(
         &mut self,
         backend: &Backend,

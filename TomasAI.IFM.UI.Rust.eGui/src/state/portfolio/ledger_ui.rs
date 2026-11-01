@@ -4,9 +4,15 @@ use super::editors::{editor, input};
 use super::financial_ui::{amount, typed_grid};
 use super::*;
 use crate::services::{business_context::BusinessContext, financial, financial_controls};
+
+
+/// Provides fk for the ledger ui implementation.
 fn fk(name: &str) -> String {
     format!("{}.{name}", financial::ROOT)
 }
+
+
+/// Provides choice for the ledger ui implementation.
 fn choice(value: impl crate::models::portfolio::FieldText, label: impl Into<String>) -> Choice {
     Choice {
         value: value.field_text(),
@@ -15,9 +21,15 @@ fn choice(value: impl crate::models::portfolio::FieldText, label: impl Into<Stri
         ..Default::default()
     }
 }
+
+
+/// Looks up the requested member in the supplied record.
 fn member(registry: &Registry, kind: &str, value: &Value, name: &str) -> Result<Value, String> {
     crate::services::strategy::member(registry, &fk(kind), value, name)
 }
+
+
+/// Provides rows for the ledger ui implementation.
 fn rows(
     registry: &Registry,
     name: &str,
@@ -33,10 +45,14 @@ fn rows(
         .cloned()
         .ok_or("Invalid ledger configuration rows".into())
 }
+
+
+/// Provides day for the ledger ui implementation.
 fn day(text: &Json) -> Result<chrono::NaiveDate, String> {
     crate::backend::date_input::parse(text.as_str().ok_or("Missing ledger date")?)
 }
 impl PortfolioController {
+    /// Opens ledger version for portfolio controller.
     fn open_ledger_version(
         &mut self,
         registry: &Registry,
@@ -247,6 +263,9 @@ impl PortfolioController {
         self.put_ledger_dialog(dialog);
         Ok("Exact version editor opened".into())
     }
+
+
+    /// Provides configuration outcome dialog for the portfolio controller implementation.
     fn configuration_outcome_dialog(&mut self) -> Result<(), String> {
         let pending = self
             .pending_configuration
@@ -279,6 +298,9 @@ impl PortfolioController {
         dialog.status = text(&pending["Message"]);
         Ok(())
     }
+
+
+    /// Submits configuration for portfolio controller.
     pub(super) async fn submit_configuration(
         &mut self,
         backend: &Backend,
@@ -313,6 +335,9 @@ impl PortfolioController {
             }
         }
     }
+
+
+    /// Provides ledger action for the portfolio controller implementation.
     pub(super) async fn ledger_action(
         &mut self,
         backend: &Backend,
@@ -477,6 +502,9 @@ impl PortfolioController {
         }
         Err("Unsupported ledger administration action".into())
     }
+
+
+    /// Opens ledger editor for portfolio controller.
     pub(super) async fn open_ledger_editor(
         &mut self,
         backend: &Backend,
@@ -619,6 +647,9 @@ impl PortfolioController {
             _ => Err("Unsupported ledger editor".into()),
         }
     }
+
+
+    /// Chooses ledger for portfolio controller.
     pub(super) async fn choose_ledger(&mut self, intent: &Json) -> Result<String, String> {
         let fields = intent["fields"]
             .as_object()
@@ -659,6 +690,9 @@ impl PortfolioController {
         }
         Ok("Ledger selection updated".into())
     }
+
+
+    /// Provides ledger review for the portfolio controller implementation.
     fn ledger_review(&mut self, review: String) -> Result<(), String> {
         let dialog = self.dialogs.last_mut().ok_or("Ledger editor closed")?;
         for field in dialog.fields.iter_mut() {
@@ -675,6 +709,9 @@ impl PortfolioController {
             "Review the prepared configuration and enter an audit reason before saving.".into();
         Ok(())
     }
+
+
+    /// Prepares ledger draft for portfolio controller.
     async fn prepare_ledger_draft(
         &mut self,
         backend: &Backend,
@@ -862,6 +899,9 @@ impl PortfolioController {
         self.data.context = Some(context);
         Ok("Configuration draft prepared for review".into())
     }
+
+
+    /// Provides ledger portfolio for the portfolio controller implementation.
     fn ledger_portfolio(&self, registry: &Registry) -> Result<i32, String> {
         let row = registry.project(
             &kind("PortfolioReadModel"),
@@ -875,6 +915,9 @@ impl PortfolioController {
         )
         .map_err(|_| "Portfolio identity overflow".into())
     }
+
+
+    /// Provides put ledger dialog for the portfolio controller implementation.
     fn put_ledger_dialog(&mut self, dialog: Dialog) {
         if let Some(index) = self.dialogs.iter().position(|d| d.key == dialog.key) {
             self.dialogs[index] = dialog;
@@ -882,6 +925,9 @@ impl PortfolioController {
             self.dialogs.push(dialog);
         }
     }
+
+
+    /// Opens ledger for portfolio controller.
     pub(super) async fn open_ledger(
         &mut self,
         backend: &Backend,
@@ -1251,6 +1297,9 @@ impl PortfolioController {
         }
         Ok("Ledger configuration loaded".into())
     }
+
+
+    /// Updates ledger fields for portfolio controller.
     pub(super) fn update_ledger_fields(&mut self) -> Result<(), String> {
         let configured = self
             .ledger_configuration

@@ -6,6 +6,8 @@ use std::io::Cursor;
 pub const MAX_MESSAGE: usize = 16 * 1024 * 1024;
 const MAX_DEPTH: usize = 64;
 
+
+/// Reads codec for codec.
 fn read(bytes: &[u8]) -> Result<Value, String> {
     if bytes.len() > MAX_MESSAGE {
         return Err("Message exceeds 16 MiB".into());
@@ -19,6 +21,8 @@ fn read(bytes: &[u8]) -> Result<Value, String> {
     Ok(value)
 }
 
+
+/// Encodes a MessagePack value without adding a compression frame.
 pub fn raw(value: &Value) -> Result<Vec<u8>, String> {
     let mut bytes = Vec::new();
     rmpv::encode::write_value(&mut bytes, value).map_err(|e| e.to_string())?;
@@ -27,6 +31,7 @@ pub fn raw(value: &Value) -> Result<Vec<u8>, String> {
     }
     Ok(bytes)
 }
+
 
 /// Same framing as C#, with one LZ4 block. Block boundaries need not match C#.
 pub fn encode(value: &Value) -> Result<Vec<u8>, String> {
@@ -41,7 +46,35 @@ pub fn encode(value: &Value) -> Result<Vec<u8>, String> {
     ]))
 }
 
+
+/// Decodes codec for codec.
 pub fn decode(bytes: &[u8]) -> Result<Value, String> {
+    read(message_bytes(bytes)?.as_ref())
+}
+
+
+/// Remove only the supported outer compression frame. Plain payloads stay
+/// borrowed so streaming readers do not construct a generic business-data tree.
+pub fn message_bytes(bytes: &[u8]) -> Result<std::borrow::Cow<'_, [u8]>, String> {
+    use std::borrow::Cow;
+    if bytes.len() > MAX_MESSAGE {
+        return Err("Message exceeds 16 MiB".into());
+    }
+    let ext = |tag: u8| matches!(tag,0xc7..=0xc9|0xd4..=0xd8);
+    let array_offset = match bytes.first().copied() {
+        Some(0x90..=0x9f) => Some(1),
+        Some(0xdc) => Some(3),
+        Some(0xdd) => Some(5),
+        _ => None,
+    };
+    if !bytes.first().copied().is_some_and(ext)
+        && !array_offset
+            .and_then(|i| bytes.get(i))
+            .copied()
+            .is_some_and(ext)
+    {
+        return Ok(Cow::Borrowed(bytes));
+    }
     let value = read(bytes)?;
     let expanded = match &value {
         Value::Ext(99, data) => {
@@ -72,11 +105,14 @@ pub fn decode(bytes: &[u8]) -> Result<Value, String> {
             }
             result
         }
-        _ => return Ok(value),
+        _ => return Ok(Cow::Borrowed(bytes)),
     };
     // Compression applies once at the message boundary, not recursively to user extensions.
-    read(&expanded)
+    Ok(Cow::Owned(expanded))
 }
+
+
+/// Provides checked length for the codec implementation.
 fn checked_length(value: &Value, remaining: usize) -> Result<usize, String> {
     let length = value.as_u64().ok_or("Invalid decompressed length")?;
     if length > remaining as u64 {
@@ -84,6 +120,9 @@ fn checked_length(value: &Value, remaining: usize) -> Result<usize, String> {
     }
     Ok(length as usize)
 }
+
+
+/// Expands a bounded compressed MessagePack payload.
 fn expand(bytes: &[u8], length: usize) -> Result<Vec<u8>, String> {
     let value = lz4_flex::block::decompress(bytes, length)
         .map_err(|e| format!("Invalid LZ4 block: {e}"))?;

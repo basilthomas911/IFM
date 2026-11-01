@@ -1,9 +1,15 @@
 use egui_kittest::{Harness, kittest::Queryable};
 use ifm_ui_egui::{contract_editor::ContractPublication, trade_workspace::TradeWorkspace};
+
+/// State used by the trade workspace test fixtures.
 struct State {
+    /// View associated with this state.
     view: TradeWorkspace,
+    /// Ordered requests retained by State.
     requests: Vec<String>,
 }
+
+/// Provides fixture for the trade workspace implementation.
 fn fixture(count: usize) -> ContractPublication {
     let mut rows:Vec<_>=(0..count).map(|i|serde_json::json!({"id":format!("trade:{i}"),"fields":{"kind":"trade","data":serde_json::json!({"index":i,"tradeId":i,"tradeType":"ShortIronCondor","tradeState":"NewTrade","effectiveDate":"2026-10-13"}).to_string()}})).collect();
     if count > 0 {
@@ -19,6 +25,8 @@ fn fixture(count: usize) -> ContractPublication {
     }
     serde_json::from_value(serde_json::json!({"schema":1,"generation":3,"busy":false,"status":"Completed","outcomes":[],"result":{"view":"trade-orders","rows":rows,"choices":{"portfolio":["1 - Development"],"fund":["2 - Test fund"]},"hasMore":false,"context":{"portfolioIndex":"0","fundIndex":"0","orderId":"27","valueDate":"2026-10-13","canAddTrade":"True","canCreateOrder":"True","canLoadTrade":"False"}}})).unwrap()
 }
+
+/// Verifies that editor matches order workspace and new trade cannot load.
 #[test]
 fn editor_matches_order_workspace_and_new_trade_cannot_load() {
     let s = fixture(1);
@@ -63,6 +71,8 @@ fn editor_matches_order_workspace_and_new_trade_cannot_load() {
     assert_eq!(h.state().requests.len(), 2);
     assert!(h.state().requests[0].contains("prepare-trade"));
 }
+
+/// Verifies that trade history only draws viewport rows.
 #[test]
 fn trade_history_only_draws_viewport_rows() {
     let s = fixture(100000);
@@ -83,6 +93,7 @@ fn trade_history_only_draws_viewport_rows() {
     assert!(h.state().view.drawn_rows < 50);
 }
 
+/// Verifies that editor fits central trade pane after shell panels.
 #[test]
 fn editor_fits_central_trade_pane_after_shell_panels() {
     let s = fixture(1);
@@ -121,6 +132,7 @@ fn editor_fits_central_trade_pane_after_shell_panels() {
     assert!(bounds.height() > 1050., "{bounds:?}");
 }
 
+/// Verifies that order date ranges use calendar dropdowns.
 #[test]
 fn order_date_ranges_use_calendar_dropdowns() {
     let s = fixture(1);
@@ -153,6 +165,7 @@ fn order_date_ranges_use_calendar_dropdowns() {
     assert_eq!(request["fields"]["to"], "2026-10-31");
 }
 
+/// Verifies that empty editor has only create order enabled and no completed label.
 #[test]
 fn empty_editor_has_only_create_order_enabled_and_no_completed_label() {
     let mut s = fixture(0);
@@ -185,4 +198,34 @@ fn empty_editor_has_only_create_order_enabled_and_no_completed_label() {
     h.get_by_label("Create Order...").click();
     h.run();
     assert!(h.state().requests[0].contains("prepare-order"));
+}
+
+#[test]
+fn selecting_the_second_trade_row_emits_its_index() {
+    let s = fixture(2);
+    let mut v = TradeWorkspace::default();
+    v.open = true;
+    let mut h = Harness::new_state(
+        move |ctx, state: &mut State| {
+            if let Some(request) = state.view.draw(ctx, &s) {
+                state.requests.push(request);
+            }
+        },
+        State {
+            view: v,
+            requests: vec![],
+        },
+    );
+    h.set_size(eframe::egui::vec2(1500., 1000.));
+    h.run();
+    h.get_by_label("1").click();
+    h.run();
+    assert!(
+        h.state().requests.iter().any(|raw| {
+            let request: serde_json::Value = serde_json::from_str(raw).unwrap();
+            request["intent"] == "trade" && request["fields"]["index"] == "1"
+        }),
+        "{:?}",
+        h.state().requests
+    );
 }

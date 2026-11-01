@@ -1,18 +1,37 @@
 //! Market-selection lifecycle for a single native Blotter incarnation. Applied
 //! startup defaults and business dates are API inputs; there is no local clock,
-//! pricing engine, global subscription stop or guessed parameter fallback.
+//! pricing engine or global subscription stop. Development emulator sessions
+//! can start with explicit editable delta/width inputs without an applied run.
 use super::{business_context::BusinessContext, option_chain, option_draft, parameters};
 use crate::backend::{contracts::*, schema::Registry, transport::Backend};
 use crate::models::trade_contracts::{FuturesContractV3ReadModel, OptionContractExpiryReadModel};
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
 
+/// Defaults used by the composer market component.
 pub struct Defaults {
+    /// Call delta associated with this defaults.
     pub call_delta: ExactDecimal,
+    /// Put delta associated with this defaults.
     pub put_delta: ExactDecimal,
+    /// Call width associated with this defaults.
     pub call_width: ExactDecimal,
+    /// Put width associated with this defaults.
     pub put_width: ExactDecimal,
 }
+impl Defaults {
+    /// Provides emulator for the defaults implementation.
+    pub fn emulator() -> Result<Self, String> {
+        Ok(Self {
+            call_delta: ExactDecimal::parse("16")?,
+            put_delta: ExactDecimal::parse("16")?,
+            call_width: ExactDecimal::parse("50")?,
+            put_width: ExactDecimal::parse("50")?,
+        })
+    }
+}
+
+/// Reads the numeric representation supported by the supplied value.
 fn number(row: &Json, key: &str) -> Result<ExactDecimal, String> {
     ExactDecimal::parse(
         &row[key]
@@ -21,6 +40,7 @@ fn number(row: &Json, key: &str) -> Result<ExactDecimal, String> {
             .unwrap_or_else(|| row[key].to_string()),
     )
 }
+
 /// Resolve the same latest applied run, enabled component and exact referenced
 /// version as the hybrid. Ambiguous assignments/symbols fail explicitly.
 pub fn applied_defaults(
@@ -101,6 +121,9 @@ pub fn applied_defaults(
                 .is_some_and(|v| v.eq_ignore_ascii_case(symbol))
         })
         .collect();
+    if rows.is_empty() {
+        return Ok(None);
+    }
     if rows.len() != 1 {
         return Err("Applied market defaults require exactly one matching symbol".into());
     }
@@ -121,20 +144,36 @@ pub fn applied_defaults(
         }
     }))
 }
+
+/// Market used by the composer market component.
 pub struct Market {
+    /// Lease associated with this market.
     pub lease: option_chain::Lease,
+    /// Draft associated with this market.
     pub draft: option_draft::Draft,
+    /// Ordered expirations retained by Market.
     pub expirations: Vec<OptionContractExpiryReadModel>,
+    /// Expiry associated with this market.
     pub expiry: chrono::NaiveDate,
+    /// A close must retain the opening position's expiry.
+    pub fixed_expiry: Option<chrono::NaiveDate>,
+    /// Optional defaults; `None` represents an absent value.
     pub defaults: Option<Defaults>,
+    /// Underlying associated with this market.
     pub underlying: FuturesContractV3ReadModel,
+    /// Strategy associated with this market.
     pub strategy: String,
+    /// Whether live is enabled or currently true.
     pub live: bool,
+    /// Whether editable is enabled or currently true.
     pub editable: bool,
+    /// Whether development is enabled or currently true.
     pub development: bool,
+    /// Current status text or state exposed by this component.
     pub status: String,
 }
 impl Market {
+    /// Constructs Market from the supplied inputs.
     pub fn new(
         underlying: FuturesContractV3ReadModel,
         strategy: String,
@@ -147,6 +186,7 @@ impl Market {
             draft: Default::default(),
             expirations: vec![],
             expiry: context.value_date,
+            fixed_expiry: None,
             defaults: None,
             underlying,
             strategy,
@@ -156,6 +196,8 @@ impl Market {
             status: String::new(),
         }
     }
+
+    /// Provides initialize for the market implementation.
     pub async fn initialize(
         &mut self,
         backend: &Backend,
@@ -184,7 +226,10 @@ impl Market {
                 .as_deref()
                 .ok_or("Missing underlying symbol")?,
         )?;
-        self.status = if self.defaults.is_none() {
+        self.status = if self.defaults.is_none() && self.development {
+            self.defaults = Some(Defaults::emulator()?);
+            "Development emulator: editable delta and width inputs".into()
+        } else if self.defaults.is_none() {
             "No applied startup defaults are available for this strategy".into()
         } else {
             String::new()
@@ -199,6 +244,15 @@ impl Market {
             deadline,
         )
         .await?;
+        if let Some(expiry) = self.fixed_expiry {
+            self.expirations.retain(|row| {
+                row.expiry_date.as_ref().map(|date| date.as_str())
+                    == Some(expiry.to_string().as_str())
+            });
+            if self.expirations.is_empty() {
+                return Err("The opening trade's expiry is unavailable; a closing order cannot use another expiry".into());
+            }
+        }
         if let Some(first) = self.expirations.first() {
             self.expiry = crate::backend::date_input::parse(
                 first
@@ -211,6 +265,8 @@ impl Market {
         }
         Ok(())
     }
+
+    /// Refreshes composer market for market.
     pub async fn refresh(
         &mut self,
         backend: &Backend,
@@ -289,6 +345,31 @@ impl Market {
             },
         )
     }
+
+    /// Selecting display liquidity does not require an editable order or applied
+    /// strategy defaults. Missing defaults still prohibit order entry.
+    pub async fn select_source(
+        &mut self,
+        backend: &Backend,
+        registry: &Registry,
+        live: bool,
+        deadline: tokio::time::Instant,
+    ) -> Result<(), String> {
+        if !self.development {
+            return Err("Emulator liquidity is available only in Development".into());
+        }
+        if live != self.live {
+            self.lease.release(backend, registry, deadline).await?;
+            if self.fixed_expiry.is_none() {
+                self.draft = Default::default();
+            }
+            self.draft.entered_price = None;
+        }
+        self.live = live;
+        self.refresh(backend, registry, deadline).await
+    }
+
+    /// Provides change for the market implementation.
     pub async fn change(
         &mut self,
         backend: &Backend,
@@ -299,10 +380,13 @@ impl Market {
         defaults: Defaults,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
+        if self.fixed_expiry.is_some_and(|fixed| fixed != expiry) {
+            return Err("A closing order must use the opening trade's expiry".into());
+        }
         if !self.editable {
             return Err("Market selection is read-only".into());
         }
-        if self.defaults.is_none() {
+        if self.defaults.is_none() && self.fixed_expiry.is_none() {
             return Err(
                 "Applied startup defaults are unavailable; configure them and reopen the Blotter"
                     .into(),
@@ -338,13 +422,18 @@ impl Market {
         }
         if expiry != self.expiry || live != self.live {
             self.lease.release(backend, registry, deadline).await?;
-            self.draft = Default::default();
+            if self.fixed_expiry.is_none() {
+                self.draft = Default::default();
+            }
+            self.draft.entered_price = None;
         }
         self.expiry = expiry;
         self.live = live;
         self.defaults = Some(defaults);
         self.refresh(backend, registry, deadline).await
     }
+
+    /// Closes composer market for market.
     pub async fn close(
         &mut self,
         backend: &Backend,

@@ -1,23 +1,552 @@
+use eframe::egui;
 use egui_kittest::kittest::NodeT;
 use egui_kittest::{Harness, kittest::Queryable};
 use ifm_ui_egui::{contract_editor::ContractPublication, trade_workspace::TradeWorkspace};
+
+
+/// Collect the painted baseline of each text run inside the requested field.
+fn text_baselines(shapes: &[egui::epaint::ClippedShape], bounds: egui::Rect) -> Vec<(String, f32)> {
+    /// Provides visit for the trade blotter implementation.
+    fn visit(shape: &egui::Shape, bounds: egui::Rect, values: &mut Vec<(String, f32)>) {
+        match shape {
+            egui::Shape::Vec(shapes) => {
+                for shape in shapes {
+                    visit(shape, bounds, values);
+                }
+            }
+            egui::Shape::Text(text) if bounds.expand(0.5).contains(text.pos) => {
+                if let Some(row) = text.galley.rows.first() {
+                    if let Some(glyph) = row.glyphs.first() {
+                        values.push((
+                            text.galley.text().into(),
+                            text.pos.y + row.pos.y + glyph.pos.y,
+                        ));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut values = Vec::new();
+    for shape in shapes {
+        visit(&shape.shape, bounds, &mut values);
+    }
+    values
+}
+
+
+/// Captions retain a twenty-pixel gap and share the painted baseline of each field.
+#[test]
+fn editor_caption_gaps_and_font_baselines_follow_display_scale() {
+    for dpi in [1., 1.5, 2.] {
+        let mut h = harness();
+        h.state_mut()
+            .snapshot
+            .result
+            .context
+            .insert("effectiveDate".into(), "2026-10-14".into());
+        for key in ["portfolioIndex", "fundIndex"] {
+            h.state_mut()
+                .snapshot
+                .result
+                .context
+                .insert(key.into(), "0".into());
+        }
+        h.input_mut()
+            .viewports
+            .get_mut(&egui::ViewportId::ROOT)
+            .unwrap()
+            .native_pixels_per_point = Some(dpi);
+        h.run();
+        for (caption_id, control_id) in [
+            ("portfolio", "ddlPortfolio"),
+            ("fund", "ddlFund"),
+            ("source", "ddlCompositionSource"),
+            ("Trade Id:", "Trade Id:"),
+            ("Effective Date:", "dtpTradeDate"),
+            ("Order Action:", "parentOrderAction"),
+            ("expiry", "expiry"),
+            ("callDelta", "callDelta"),
+            ("liquiditySelector", "liquiditySelector"),
+        ] {
+            let controls = &h.state().view.controls;
+            let caption = controls[&format!("caption:{caption_id}")];
+            let control = controls[control_id];
+            assert!(
+                ((control.left() - caption.right()) * dpi - 20.).abs() < 1.,
+                "gap {caption_id} at {dpi}"
+            );
+            let labels = text_baselines(&h.output().shapes, caption);
+            let values = text_baselines(&h.output().shapes, control);
+            assert!(!labels.is_empty(), "missing caption {caption_id}");
+            assert!(!values.is_empty(), "missing field {control_id}");
+            assert!(
+                ((labels[0].1 - values[0].1) * dpi).abs() <= 1.,
+                "baseline {caption_id} at {dpi}: {labels:?} {values:?}"
+            );
+        }
+        let reference =
+            text_baselines(&h.output().shapes, h.state().view.controls["Trade Id:"])[0].1;
+        for id in ["dtpTradeDate", "parentOrderAction"] {
+            let baseline = text_baselines(&h.output().shapes, h.state().view.controls[id])[0].1;
+            assert!(
+                ((reference - baseline) * dpi).abs() <= 1.,
+                "header row baseline {id} at {dpi}"
+            );
+        }
+        let live_baseline = text_baselines(&h.output().shapes, h.ctx.screen_rect())
+            .into_iter()
+            .find(|(text, _)| text == "Live Feed")
+            .unwrap()
+            .1;
+        assert!(
+            ((reference - live_baseline) * dpi).abs() <= 1.,
+            "live-feed baseline at {dpi}"
+        );
+        if let Ok(directory) = std::env::var("IFM_ALIGNMENT_SCREENSHOTS") {
+            h.render()
+                .unwrap()
+                .save(std::path::Path::new(&directory).join(format!("market-{dpi}.png")))
+                .unwrap();
+        }
+        // Accessibility bounds are physical pixels; send logical pointer coordinates at non-unit DPI.
+        let tab = h.state().view.controls["tab:Broker Trade"].center();
+        h.input_mut().events.push(egui::Event::PointerMoved(tab));
+        h.input_mut().events.push(egui::Event::PointerButton {
+            pos: tab,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.run();
+        h.input_mut().events.push(egui::Event::PointerButton {
+            pos: tab,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.run();
+        if let Ok(directory) = std::env::var("IFM_ALIGNMENT_SCREENSHOTS") {
+            h.render()
+                .unwrap()
+                .save(std::path::Path::new(&directory).join(format!("broker-{dpi}.png")))
+                .unwrap();
+        }
+        for caption in [
+            "Contracts",
+            "Order type",
+            "Time in force",
+            "Action",
+            "Directed venue",
+            "OrderPrice",
+        ] {
+            let id = format!("broker-field-{caption}");
+            let control = *h.state().view.controls.get(&id).unwrap_or_else(|| {
+                panic!(
+                    "missing {id} at {dpi}: {:?}",
+                    h.state().view.controls.keys()
+                )
+            });
+            let label = h.state().view.controls[&format!("caption:{id}")];
+            assert!(((control.left() - label.right()) * dpi - 20.).abs() < 1.);
+            let labels = text_baselines(&h.output().shapes, label);
+            let values = text_baselines(&h.output().shapes, control);
+            assert!(!values.is_empty(), "missing broker field {caption}");
+            assert!(
+                ((labels[0].1 - values[0].1) * dpi).abs() <= 1.,
+                "broker baseline {caption} at {dpi}: {labels:?} {values:?}"
+            );
+        }
+    }
+}
+
+
+/// Broker captions wrap with their controls instead of overlapping neighboring fields.
+#[test]
+fn broker_field_groups_fit_a_narrow_editor() {
+    let mut h = harness();
+    h.set_size(egui::vec2(1200., 800.));
+    h.run();
+    h.get_by_label("Broker Trade").click();
+    h.run();
+    let controls = &h.state().view.controls;
+    let client = controls["blotter-client"];
+    for (id, field) in controls
+        .iter()
+        .filter(|(id, _)| id.starts_with("broker-field-"))
+    {
+        let caption = controls[&format!("caption:{id}")];
+        assert!(caption.left() >= client.left(), "left overflow {id}");
+        assert!(field.right() <= client.right(), "right overflow {id}");
+        assert!((field.left() - caption.right() - 20.).abs() < 1.);
+    }
+    assert!(
+        controls["broker-field-Call spread"].top() > controls["broker-field-Available funds"].top(),
+        "long rows should wrap"
+    );
+}
+
+
+/// Broker fields share compact widths and column starts while retaining the twenty-pixel caption gap.
+#[test]
+fn broker_fields_use_uniform_responsive_columns() {
+    for size in [
+        egui::vec2(1200., 800.),
+        egui::vec2(1500., 1000.),
+        egui::vec2(2100., 1300.),
+    ] {
+        for dpi in [1., 1.5, 2.] {
+            let mut h = harness();
+            h.set_size(size);
+            h.input_mut()
+                .viewports
+                .get_mut(&egui::ViewportId::ROOT)
+                .unwrap()
+                .native_pixels_per_point = Some(dpi);
+            h.run();
+            let point = h.state().view.controls["tab:Broker Trade"].center();
+            for pressed in [true, false] {
+                h.input_mut().events.extend([
+                    egui::Event::PointerMoved(point),
+                    egui::Event::PointerButton {
+                        pos: point,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ]);
+                h.run();
+            }
+            let controls = &h.state().view.controls;
+            let viewport = controls["broker-fields-viewport"];
+            let fields: Vec<_> = controls
+                .iter()
+                .filter(|(id, _)| id.starts_with("broker-field-"))
+                .collect();
+            assert_eq!(fields.len(), 38);
+            let width = fields[0].1.width();
+            assert!(width <= 180. + 1. / dpi, "controls should remain compact");
+            let mut columns: Vec<f32> = Vec::new();
+            for (id, field) in &fields {
+                let caption = controls[&format!("caption:{id}")];
+                assert!(
+                    ((field.width() - width) * dpi).abs() <= 1.,
+                    "width {id} at {size:?}, {dpi}"
+                );
+                assert!(
+                    ((field.left() - caption.right()) * dpi - 20.).abs() <= 1.,
+                    "caption gap {id}"
+                );
+                assert!(
+                    caption.left() >= viewport.left() - 1. / dpi
+                        && field.right() <= viewport.right() + 1. / dpi,
+                    "horizontal overflow {id} at {size:?}, {dpi}"
+                );
+                if !columns
+                    .iter()
+                    .any(|left| ((field.left() - left) * dpi).abs() <= 1.)
+                {
+                    columns.push(field.left());
+                }
+            }
+            assert!(
+                (2..=5).contains(&columns.len()),
+                "column count at {size:?}, {dpi}: {columns:?}"
+            );
+            for (_, field) in &fields {
+                for (other_id, other) in &fields {
+                    if ((field.top() - other.top()) * dpi).abs() <= 1.
+                        && field.left() < other.left()
+                    {
+                        let caption = controls[&format!("caption:{other_id}")];
+                        assert!(
+                            caption.left() > field.right(),
+                            "adjacent field groups overlap"
+                        );
+                    }
+                }
+            }
+            if dpi == 1. && size.x != 1500. {
+                if let Ok(directory) = std::env::var("IFM_ALIGNMENT_SCREENSHOTS") {
+                    h.render()
+                        .unwrap()
+                        .save(
+                            std::path::Path::new(&directory)
+                                .join(format!("aligned-broker-{}.png", size.x)),
+                        )
+                        .unwrap();
+                }
+            }
+            if size.x == 1200. && dpi == 1. {
+                h.input_mut().events.extend([
+                    egui::Event::PointerMoved(viewport.center()),
+                    egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::vec2(0., -2000.),
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ]);
+                // Let the smooth-scroll animation settle before checking the final visible row.
+                h.run_steps(30);
+                let last = h.state().view.controls["broker-field-Risk approval"];
+                let visible = h.state().view.controls["broker-fields-viewport"];
+                assert!(
+                    last.top() >= visible.top() && last.bottom() <= visible.bottom() + 1.,
+                    "last fields must remain reachable by scrolling"
+                );
+                assert!(
+                    visible.bottom() < h.state().view.controls["brokerPreviewPlaceOrder"].top(),
+                    "field scrolling must leave the action buttons accessible"
+                );
+            }
+        }
+    }
+}
+
+
+/// Draft windows fit their content once, keep their actions centered, and left-align the order identity values.
+#[test]
+fn order_draft_is_compact_with_left_aligned_values_and_centered_actions() {
+    for order in [true, false] {
+        for dpi in [1., 1.5, 2.] {
+            let mut h = harness();
+            h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({"id":"order-draft:42","fields":{"kind":"order-draft","data":serde_json::json!({"orderId":42,"orderDate":"2026-10-31","orderStatus":"Open"}).to_string()}})).unwrap());
+            h.state_mut()
+                .snapshot
+                .result
+                .context
+                .insert("preparedTradeId".into(), "84".into());
+            h.state_mut().snapshot.invalidate_render_cache();
+            h.input_mut()
+                .viewports
+                .get_mut(&egui::ViewportId::ROOT)
+                .unwrap()
+                .native_pixels_per_point = Some(dpi);
+            h.run();
+            let point = h.get_by_label("Trade Orders").rect().center() / dpi;
+            for pressed in [true, false] {
+                h.input_mut().events.extend([
+                    egui::Event::PointerMoved(point),
+                    egui::Event::PointerButton {
+                        pos: point,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ]);
+                h.run();
+            }
+            let point = h.state().view.controls[if order {
+                "btnCreateOrder"
+            } else {
+                "btnAddTrade"
+            }]
+            .center();
+            for pressed in [true, false] {
+                h.input_mut().events.extend([
+                    egui::Event::PointerMoved(point),
+                    egui::Event::PointerButton {
+                        pos: point,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ]);
+                h.run();
+            }
+            let controls = &h.state().view.controls;
+            let dialog = controls["draft-dialog"];
+            let client = controls["draft-client"];
+            let save = controls["draft-save"];
+            let cancel = controls["draft-cancel"];
+            assert!(
+                ((save.center().x + cancel.center().x) * 0.5 - client.center().x).abs() * dpi <= 1.,
+                "footer center at {dpi}"
+            );
+            assert!((save.width() - cancel.width()).abs() * dpi <= 1.);
+            assert!(save.bottom() <= client.bottom() && cancel.bottom() <= client.bottom());
+            assert!(
+                dialog.height() <= client.height() + 60.,
+                "content must not reserve a second block below its controls"
+            );
+            if order {
+                assert!(
+                    client.height() * dpi < 340.,
+                    "compact content height at {dpi}: {client:?}"
+                );
+                let reference = controls["draft-reference"];
+                assert!(
+                    (12. ..=24.).contains(&((save.top() - reference.bottom()) * dpi)),
+                    "reference/footer gap at {dpi}"
+                );
+                for (i, value) in ["42", "2026-10-31", "Open"].iter().enumerate() {
+                    let field = controls[&format!("draft-field-{i}")];
+                    let label = controls[&format!("caption:draft-field-{i}")];
+                    assert!(((field.left() - label.right()) * dpi - 20.).abs() <= 1.);
+                    let painted = h
+                        .output()
+                        .shapes
+                        .iter()
+                        .find_map(|shape| match &shape.shape {
+                            egui::Shape::Text(text)
+                                if text.galley.text() == *value && field.contains(text.pos) =>
+                            {
+                                Some(text.pos.x + text.galley.rect.left())
+                            }
+                            _ => None,
+                        })
+                        .unwrap_or_else(|| panic!("missing value {value} at {dpi}"));
+                    assert!(
+                        ((painted - field.left()) * dpi - 4.).abs() <= 1.,
+                        "left-aligned value {value} at {dpi}"
+                    );
+                }
+                if dpi == 1. {
+                    if let Ok(directory) = std::env::var("IFM_ALIGNMENT_SCREENSHOTS") {
+                        h.render()
+                            .unwrap()
+                            .save(std::path::Path::new(&directory).join("add-fund-order.png"))
+                            .unwrap();
+                    }
+                }
+            }
+            let point = cancel.center();
+            for pressed in [true, false] {
+                h.input_mut().events.extend([
+                    egui::Event::PointerMoved(point),
+                    egui::Event::PointerButton {
+                        pos: point,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ]);
+                h.run();
+            }
+            assert!(
+                h.state()
+                    .requests
+                    .iter()
+                    .any(|request| request["intent"] == "cancel-draft")
+            );
+            assert!(
+                !h.state()
+                    .requests
+                    .iter()
+                    .any(|request| request["intent"] == "create-order"
+                        || request["intent"] == "create-trade")
+            );
+        }
+    }
+}
+
+
+/// Date fields and list headers share their caption baseline in the order editor.
+#[test]
+fn order_dates_and_lists_align_with_their_captions() {
+    let mut h = harness();
+    h.get_by_label("Trade Orders").click();
+    h.run();
+    for (caption_id, control_id, header) in [
+        ("dtpFrom", "dtpFrom", ""),
+        ("dtpTo", "dtpTo", ""),
+        ("order", "lstTradeOrders", "Order Id"),
+        ("trade", "lstTrades", "Trade Id"),
+    ] {
+        let control = h.state().view.controls[control_id];
+        let label = h.state().view.controls[&format!("caption:{caption_id}")];
+        assert!((control.left() - label.right() - 20.).abs() < 1.);
+        let caption = text_baselines(&h.output().shapes, label)[0].1;
+        let texts = text_baselines(&h.output().shapes, control);
+        let value = if header.is_empty() {
+            texts[0].1
+        } else {
+            texts.iter().find(|(text, _)| text == header).unwrap().1
+        };
+        assert!(
+            (caption - value).abs() <= 1.,
+            "baseline {caption_id}: {caption} {value}"
+        );
+    }
+}
+
+
+/// Grid heights fill the tab in a 2:1 ratio, with their captions and action groups anchored to each grid.
+#[test]
+fn order_editor_grid_split_and_actions_follow_available_height() {
+    for size in [egui::vec2(1500., 1000.), egui::vec2(1200., 800.)] {
+        let mut h = harness();
+        h.set_size(size);
+        h.run();
+        h.get_by_label("Trade Orders").click();
+        h.run();
+        h.state_mut().snapshot.status = "Editor status bar must be removed".into();
+        h.run();
+        assert!(
+            h.query_by_label("Editor status bar must be removed")
+                .is_none()
+        );
+        let controls = &h.state().view.controls;
+        let orders = controls["lstTradeOrders"];
+        let trades = controls["lstTrades"];
+        assert!((orders.height() - 2. * trades.height()).abs() < 1.);
+        assert!((trades.top() - orders.bottom() - 20.).abs() < 1.);
+        for (grid, ids) in [
+            (orders, &["btnCreateOrder", "btnDeleteOrder"][..]),
+            (
+                trades,
+                &["btnLoadOrder", "btnAddTrade", "btnRemoveTrade"][..],
+            ),
+        ] {
+            assert!((controls[ids[0]].top() - grid.top()).abs() < 1.);
+            for id in ids {
+                assert!(
+                    controls[*id].bottom() <= grid.bottom(),
+                    "{id} below its grid at {size:?}"
+                );
+            }
+        }
+        assert!(trades.bottom() <= h.state().view.bounds.unwrap().bottom());
+        if let Ok(directory) = std::env::var("IFM_ALIGNMENT_SCREENSHOTS") {
+            h.render()
+                .unwrap()
+                .save(std::path::Path::new(&directory).join(format!("orders-{}.png", size.y)))
+                .unwrap();
+        }
+    }
+}
+
+/// State used by the trade blotter test fixtures.
 struct State {
+    /// View associated with this state.
     view: TradeWorkspace,
+    /// Snapshot associated with this state.
     snapshot: ContractPublication,
+    /// Ordered requests retained by State.
     requests: Vec<serde_json::Value>,
+    /// Whether fail load is enabled or currently true.
     fail_load: bool,
 }
+
+
+/// Provides snapshot for the trade blotter implementation.
 fn snapshot() -> ContractPublication {
     let mut rows = vec![
         serde_json::json!({"id":"order:27","fields":{"kind":"order","data":"{\"orderId\":27}"}}),
     ];
     rows.push(serde_json::json!({"id":"trade:1","fields":{"kind":"trade","data":"{\"index\":0,\"tradeId\":1,\"tradeState\":\"NewTrade\"}"}}));
     rows.push(serde_json::json!({"id":"market:0","fields":{"kind":"market","data":serde_json::json!({"windowMethod":"Frozen emulator preview","underlyingPrice":"100","contracts":[{"contractId":"SC","isCall":true,"strike":"110","bid":"2","ask":"2.4","delta":0.16}]}).to_string()}}));
-    serde_json::from_value(serde_json::json!({"schema":1,"generation":3,"busy":false,"status":"Completed","outcomes":[],"result":{"view":"trade-orders","rows":rows,"choices":{"portfolio":["Development"],"fund":["Test Fund"],"expiry":["2026-11-20","2026-12-18"]},"hasMore":false,"context":{"orderId":"27","tradeId":"1","tradeState":"NewTrade","valueDate":"2026-10-14","expiry":"2026-11-20","editable":"True","compositionType":"ShortIronCondor","brokerMode":"Emulator","quantity":"1","price":"-3.20","previewKey":"SC","canPlaceOrder":"True"}}})).unwrap()
+    serde_json::from_value(serde_json::json!({"schema":1,"generation":3,"busy":false,"status":"Completed","outcomes":[],"result":{"view":"trade-orders","rows":rows,"choices":{"portfolio":["Development"],"fund":["Test Fund"],"expiry":["2026-11-20","2026-12-18"]},"hasMore":false,"context":{"orderId":"27","tradeId":"1","tradeState":"NewTrade","valueDate":"2026-10-14","expiry":"2026-11-20","editable":"True","compositionType":"ShortIronCondor","brokerMode":"Emulator","canSelectChainSource":"True","quantity":"1","price":"-3.20","previewKey":"SC","canPlaceOrder":"True"}}})).unwrap()
 }
+
+
+/// Provides harness for the trade blotter implementation.
 fn harness() -> Harness<'static, State> {
     harness_with_market(true)
 }
+
+
+/// Provides harness with market for the trade blotter implementation.
 fn harness_with_market(managed_decimal_text: bool) -> Harness<'static, State> {
     let mut initial = snapshot();
     if !managed_decimal_text {
@@ -124,6 +653,9 @@ fn harness_with_market(managed_decimal_text: bool) -> Harness<'static, State> {
     h.run();
     h
 }
+
+
+/// Verifies that iron condor tabs and broker fields match the source inventory.
 #[test]
 fn iron_condor_tabs_and_broker_fields_match_the_source_inventory() {
     let mut h = harness();
@@ -165,6 +697,9 @@ fn iron_condor_tabs_and_broker_fields_match_the_source_inventory() {
         assert!(h.query_by_label(label).is_some(), "Missing {label}");
     }
 }
+
+
+/// Verifies that expiry selection refreshes without a load button.
 #[test]
 fn expiry_selection_refreshes_without_a_load_button() {
     let mut h = harness();
@@ -179,6 +714,9 @@ fn expiry_selection_refreshes_without_a_load_button() {
             .any(|v| v["intent"] == "chain" && v["fields"]["expiry"] == "2026-12-18")
     );
 }
+
+
+/// Verifies that switching to fills requests durable evidence and empty actions are disabled.
 #[test]
 fn switching_to_fills_requests_durable_evidence_and_empty_actions_are_disabled() {
     let mut h = harness();
@@ -200,6 +738,9 @@ fn switching_to_fills_requests_durable_evidence_and_empty_actions_are_disabled()
             .any(|v| v["intent"] == "cancel-unfilled")
     );
 }
+
+
+/// Verifies that live checkbox uses the same chain intent.
 #[test]
 fn live_checkbox_uses_the_same_chain_intent() {
     let mut h = harness();
@@ -213,6 +754,117 @@ fn live_checkbox_uses_the_same_chain_intent() {
     );
 }
 
+
+/// A failed live read must stop timed polling before dismissal, retain its error,
+/// and let the operator explicitly re-enable the unchecked checkbox afterward.
+#[test]
+fn failed_live_feed_read_stops_polling_until_explicit_retry() {
+    const ERROR: &str = "Backend error 503: Native browser source is unavailable";
+    for action in ["chain", "chain-source", "refresh-chain"] {
+        let mut h = harness();
+        h.get_by_label("Live Feed").click();
+        h.run();
+        let original = h.state().requests.last().unwrap().clone();
+        assert_eq!(original["fields"]["live"], "true");
+        let publication = snapshot();
+        let request: serde_json::Value =
+            serde_json::from_str(&h.state_mut().view.request(action, &publication)).unwrap();
+        h.state_mut().snapshot.outcomes = serde_json::from_value(serde_json::json!([
+            {"requestId":request["requestId"],"state":"Failed","message":ERROR}
+        ]))
+        .unwrap();
+        // A failed backend may still publish its previous live flag. It must
+        // not re-check the local control on a later paint of this same session.
+        h.state_mut()
+            .snapshot
+            .result
+            .context
+            .insert("live".into(), "True".into());
+        let mut errors = ifm_ui_egui::ui::errors::ErrorDialogs::default();
+        errors.outcomes("trade-orders", &h.state().snapshot.outcomes);
+        let before = h.state().requests.len();
+        h.run();
+        assert_eq!(errors.message(), Some(ERROR));
+        errors.acknowledge();
+        let now = h.ctx.input(|input| input.time);
+        for elapsed in [2., 4., 6.] {
+            h.input_mut().time = Some(now + elapsed);
+            h.run();
+        }
+        assert_eq!(h.state().requests.len(), before, "Retried {action}");
+        assert_eq!(errors.message(), None);
+        h.get_by_label("Live Feed").click();
+        h.run();
+        // Polling may resume after the explicit retry completes; inspect the
+        // first new request rather than any subsequent healthy quote refresh.
+        let retry = &h.state().requests[before];
+        assert_eq!(retry["intent"], "chain");
+        assert_eq!(retry["fields"]["live"], "true");
+        assert_eq!(retry["fields"]["expiry"], original["fields"]["expiry"]);
+        assert_eq!(retry["fields"]["price"], original["fields"]["price"]);
+    }
+}
+
+
+/// Discard a deferred live selection when its outstanding quote read fails;
+/// otherwise the queued selection would restart the same failing provider.
+#[test]
+fn failed_live_feed_read_does_not_replay_a_deferred_chain_selection() {
+    let mut h = harness();
+    let publication = snapshot();
+    let request: serde_json::Value =
+        serde_json::from_str(&h.state_mut().view.request("refresh-chain", &publication)).unwrap();
+    h.state_mut().snapshot.busy = true;
+    h.get_by_label("Live Feed").click();
+    h.run();
+    let before = h.state().requests.len();
+    h.state_mut().snapshot.busy = false;
+    h.state_mut().snapshot.outcomes = serde_json::from_value(serde_json::json!([
+        {"requestId":request["requestId"],"state":"Failed","message":"Source unavailable"}
+    ]))
+    .unwrap();
+    h.run();
+    assert_eq!(h.state().requests.len(), before);
+    h.get_by_label("Live Feed").click();
+    h.run();
+    assert_eq!(h.state().requests.last().unwrap()["fields"]["live"], "true");
+}
+
+
+/// Unrelated order failures must leave live mode enabled. A rejected feed read
+/// disables it only when the rejection matches the pending request identity.
+#[test]
+fn only_the_matching_failed_feed_request_unchecks_live_feed() {
+    for (action, reject) in [("refresh-execution", false), ("refresh-chain", true)] {
+        let mut h = harness();
+        h.get_by_label("Live Feed").click();
+        h.run();
+        let publication = snapshot();
+        let request: serde_json::Value =
+            serde_json::from_str(&h.state_mut().view.request(action, &publication)).unwrap();
+        h.state_mut().view.submission_rejected("stale-request");
+        if reject {
+            h.state_mut()
+                .view
+                .submission_rejected(request["requestId"].as_str().unwrap());
+        } else {
+            h.state_mut().snapshot.outcomes = serde_json::from_value(serde_json::json!([
+                {"requestId":request["requestId"],"state":"Failed","message":"Order evidence unavailable"}
+            ]))
+            .unwrap();
+        }
+        h.run();
+        h.get_by_label("Live Feed").click();
+        h.run();
+        assert_eq!(
+            h.state().requests.last().unwrap()["fields"]["live"],
+            if reject { "true" } else { "false" }
+        );
+    }
+}
+
+
+/// Verifies that order type change updates preview without submitting.
 #[test]
 fn order_type_change_updates_preview_without_submitting() {
     let mut h = harness();
@@ -235,6 +887,9 @@ fn order_type_change_updates_preview_without_submitting() {
             .any(|v| v["intent"] == "submit-order")
     );
 }
+
+
+/// Verifies that read only trade disables live feed and place order.
 #[test]
 fn read_only_trade_disables_live_feed_and_place_order() {
     let mut h = harness();
@@ -257,6 +912,9 @@ fn read_only_trade_disables_live_feed_and_place_order() {
             .any(|v| matches!(v["intent"].as_str(), Some("chain" | "submit-order")))
     );
 }
+
+
+/// Verifies that vertical strategy has the five source tabs and staging controls.
 #[test]
 fn vertical_strategy_has_the_five_source_tabs_and_staging_controls() {
     let mut h = harness();
@@ -291,6 +949,9 @@ fn vertical_strategy_has_the_five_source_tabs_and_staging_controls() {
     assert!(h.query_by_label("Broker orders: none submitted").is_some());
     assert!(h.query_by_label("End Of Day...").is_some());
 }
+
+
+/// Verifies that qualification exposes report and durable actions.
 #[test]
 fn qualification_exposes_report_and_durable_actions() {
     let mut h = harness();
@@ -319,6 +980,8 @@ fn qualification_exposes_report_and_durable_actions() {
     );
 }
 
+
+/// Verifies that working order mutations target the selected broker identity.
 #[test]
 fn working_order_mutations_target_the_selected_broker_identity() {
     let mut h = harness();
@@ -354,6 +1017,8 @@ fn working_order_mutations_target_the_selected_broker_identity() {
     );
 }
 
+
+/// Verifies that load trade closes the editor and keeps monitoring outside the blotter.
 #[test]
 fn load_trade_closes_the_editor_and_keeps_monitoring_outside_the_blotter() {
     let mut h = harness();
@@ -404,6 +1069,8 @@ fn load_trade_closes_the_editor_and_keeps_monitoring_outside_the_blotter() {
     );
 }
 
+
+/// Verifies that late composer snapshot replaces the initial empty draft.
 #[test]
 fn late_composer_snapshot_replaces_the_initial_empty_draft() {
     let mut h = harness();
@@ -431,6 +1098,9 @@ fn late_composer_snapshot_replaces_the_initial_empty_draft() {
         && v["fields"]["putDelta"] == "20"));
 }
 
+
+/// Verifies that background quote refresh keeps controls bright and queues edits until
+/// acknowledged.
 #[test]
 fn background_quote_refresh_keeps_controls_bright_and_queues_edits_until_acknowledged() {
     let mut h = harness();
@@ -460,6 +1130,8 @@ fn background_quote_refresh_keeps_controls_bright_and_queues_edits_until_acknowl
     assert_eq!(request["expectedGeneration"], 4);
 }
 
+
+/// Verifies that rejected submission releases controls without an outcome or replaying a mutation.
 #[test]
 fn rejected_submission_releases_controls_without_an_outcome_or_replaying_a_mutation() {
     let mut h = harness();
@@ -476,6 +1148,8 @@ fn rejected_submission_releases_controls_without_an_outcome_or_replaying_a_mutat
     assert!(h.state().requests.iter().any(|r| r["intent"] == "chain"));
 }
 
+
+/// Verifies that physical pointer click switches the blotter tab.
 #[test]
 fn physical_pointer_click_switches_the_blotter_tab() {
     use eframe::egui::{Event, Modifiers, PointerButton};
@@ -500,6 +1174,8 @@ fn physical_pointer_click_switches_the_blotter_tab() {
     assert!(h.query_by_label("Cancel Unfilled").is_some());
 }
 
+
+/// Verifies that accepted submission selects fills before evidence refresh completes.
 #[test]
 fn accepted_submission_selects_fills_before_evidence_refresh_completes() {
     let mut h = harness();
@@ -527,6 +1203,8 @@ fn accepted_submission_selects_fills_before_evidence_refresh_completes() {
     assert!(h.query_by_label("Broker accepted").is_some());
 }
 
+
+/// Verifies that confirmation waits for broker result and rejection closes before error.
 #[test]
 fn confirmation_waits_for_broker_result_and_rejection_closes_before_error() {
     let mut h = harness();
@@ -568,8 +1246,8 @@ fn confirmation_waits_for_broker_result_and_rejection_closes_before_error() {
         .bounding_box()
         .unwrap();
     assert!(
-        (quantity.x0 - broker.x0).abs() < 1.,
-        "Summary captions must share one column"
+        (quantity.x1 - broker.x1).abs() < 1.,
+        "Summary captions must align at their right edge before the control column"
     );
     assert!(broker.y0 > quantity.y0);
     assert!(h.query_by_label("Total Commission:").is_some());
@@ -596,6 +1274,8 @@ fn confirmation_waits_for_broker_result_and_rejection_closes_before_error() {
     assert!(h.query_by_label("BROKER.123: Order rejected").is_none());
 }
 
+
+/// Verifies that confirmation leg rows follow broker trade display order.
 #[test]
 fn confirmation_leg_rows_follow_broker_trade_display_order() {
     let mut h = harness();
@@ -634,6 +1314,8 @@ fn confirmation_leg_rows_follow_broker_trade_display_order() {
     );
 }
 
+
+/// Verifies that broker leg delta precision and grid bounds survive value updates.
 #[test]
 fn broker_leg_delta_precision_and_grid_bounds_survive_value_updates() {
     let mut h = harness();
@@ -666,6 +1348,8 @@ fn broker_leg_delta_precision_and_grid_bounds_survive_value_updates() {
     assert_eq!(before, h.state().view.controls["brokerPreviewLegGrid"]);
 }
 
+
+/// Verifies that failed load closes editor and shows a separate error.
 #[test]
 fn failed_load_closes_editor_and_shows_a_separate_error() {
     let mut h = harness();
@@ -705,6 +1389,8 @@ fn failed_load_closes_editor_and_shows_a_separate_error() {
     assert!(h.state().requests.iter().any(|v| v["intent"] == "close"));
 }
 
+
+/// Verifies that established iron condor dashboard displays saved limits and leg marks.
 #[test]
 fn established_iron_condor_dashboard_displays_saved_limits_and_leg_marks() {
     let mut h = harness();
@@ -790,6 +1476,8 @@ fn established_iron_condor_dashboard_displays_saved_limits_and_leg_marks() {
     assert!(h.query_by_label("Close trade 27:1").is_some());
 }
 
+
+/// Provides loaded tabs harness for the trade blotter implementation.
 fn loaded_tabs_harness() -> Harness<'static, State> {
     let mut h = harness_with_market(false);
     h.state_mut()
@@ -831,9 +1519,14 @@ fn loaded_tabs_harness() -> Harness<'static, State> {
     h
 }
 
+
+/// Provides scrolling trade plans harness for the trade blotter implementation.
 fn scrolling_trade_plans_harness() -> Harness<'static, State> {
     trade_plans_harness(200)
 }
+
+
+/// Provides trade plans harness for the trade blotter implementation.
 fn trade_plans_harness(count: usize) -> Harness<'static, State> {
     let mut h = loaded_tabs_harness();
     ifm_ui_egui::presentation::apply(&h.ctx);
@@ -851,6 +1544,8 @@ fn trade_plans_harness(count: usize) -> Harness<'static, State> {
     h
 }
 
+
+/// Verifies that benchmark trade view mouse frames.
 #[test]
 #[ignore = "Explicit CPU frame benchmark; run alone in debug and release"]
 fn benchmark_trade_view_mouse_frames() {
@@ -896,6 +1591,8 @@ fn benchmark_trade_view_mouse_frames() {
     }
 }
 
+
+/// Verifies that trade plan grid scrolls both axes inside its bounds.
 #[test]
 fn trade_plan_grid_scrolls_both_axes_inside_its_bounds() {
     use eframe::egui::{Event, Modifiers, MouseWheelUnit, vec2};
@@ -936,6 +1633,8 @@ fn trade_plan_grid_scrolls_both_axes_inside_its_bounds() {
     );
 }
 
+
+/// Verifies that trade plan scrollbars are clickable inside the grid.
 #[test]
 fn trade_plan_scrollbars_are_clickable_inside_the_grid() {
     use eframe::egui::{Event, Modifiers, PointerButton, pos2};
@@ -990,6 +1689,9 @@ fn trade_plan_scrollbars_are_clickable_inside_the_grid() {
         "Horizontal scrollbar must move the columns: {header:?}"
     );
 }
+
+
+/// Verifies that center tabs switch and close only the requested trade.
 #[test]
 fn center_tabs_switch_and_close_only_the_requested_trade() {
     let mut h = loaded_tabs_harness();
@@ -1024,6 +1726,9 @@ fn center_tabs_switch_and_close_only_the_requested_trade() {
             == 2
     );
 }
+
+
+/// Verifies that a failed additional load keeps existing center tabs open.
 #[test]
 fn a_failed_additional_load_keeps_existing_center_tabs_open() {
     let mut h = loaded_tabs_harness();
@@ -1037,6 +1742,9 @@ fn a_failed_additional_load_keeps_existing_center_tabs_open() {
     assert!(h.query_by_label("28:2").is_some());
     assert!(h.state().view.loaded_bounds.is_some());
 }
+
+
+/// Verifies that live plan publications update the grid without a user refresh.
 #[test]
 fn live_plan_publications_update_the_grid_without_a_user_refresh() {
     let mut h = loaded_tabs_harness();
@@ -1076,6 +1784,8 @@ fn live_plan_publications_update_the_grid_without_a_user_refresh() {
     assert_eq!(h.state().requests.len(), requests_before);
 }
 
+
+/// Verifies that load trade transfer failure remains visible after editor closes.
 #[test]
 fn load_trade_transfer_failure_remains_visible_after_editor_closes() {
     let mut view = TradeWorkspace::default();
@@ -1096,6 +1806,8 @@ fn load_trade_transfer_failure_remains_visible_after_editor_closes() {
     );
 }
 
+
+/// Verifies that virtual plan grid requests only visible rows after trade is loaded.
 #[test]
 fn virtual_plan_grid_requests_only_visible_rows_after_trade_is_loaded() {
     let mut publication = snapshot();
@@ -1188,6 +1900,8 @@ fn virtual_plan_grid_requests_only_visible_rows_after_trade_is_loaded() {
     );
 }
 
+
+/// Verifies that spread chart shows price limits and forward spread without forward limit.
 #[test]
 fn spread_chart_shows_price_limits_and_forward_spread_without_forward_limit() {
     let mut h = loaded_tabs_harness();
@@ -1200,6 +1914,8 @@ fn spread_chart_shows_price_limits_and_forward_spread_without_forward_limit() {
     assert!(h.query_all_by_label("ForwardSpreadLimit").next().is_none());
 }
 
+
+/// Verifies that live plan grid never requests database pages and stopped grid does.
 #[test]
 fn live_plan_grid_never_requests_database_pages_and_stopped_grid_does() {
     let mut publication = snapshot();
@@ -1267,4 +1983,75 @@ fn live_plan_grid_never_requests_database_pages_and_stopped_grid_does() {
             .iter()
             .any(|request| request["intent"] == "plans-page")
     );
+}
+
+
+/// Verifies that emulator liquidity can be reloaded when order entry and market data are
+/// unavailable.
+#[test]
+fn emulator_liquidity_can_be_reloaded_when_order_entry_and_market_data_are_unavailable() {
+    let mut h = harness();
+    h.state_mut()
+        .snapshot
+        .result
+        .context
+        .insert("editable".into(), "False".into());
+    h.state_mut()
+        .snapshot
+        .result
+        .rows
+        .retain(|row| row.id != "market:0");
+    h.state_mut().snapshot.invalidate_render_cache();
+    h.run();
+    h.get_by_label("liquiditySelector: Emulator").click();
+    h.run();
+    h.query_all_by_label("Emulator").last().unwrap().click();
+    h.run();
+    assert!(
+        h.state()
+            .requests
+            .iter()
+            .any(|request| request["intent"] == "chain-source"
+                && request["fields"]["liquiditySelector"] == "Emulator"
+                && request["fields"]["live"] == "false")
+    );
+}
+
+
+/// Verifies that liquidity source selection requests live quotes explicitly.
+#[test]
+fn liquidity_source_selection_requests_live_quotes_explicitly() {
+    let mut h = harness();
+    h.get_by_label("liquiditySelector: Emulator").click();
+    h.run();
+    h.get_by_label("Live").click();
+    h.run();
+    assert!(
+        h.state()
+            .requests
+            .iter()
+            .any(|request| request["intent"] == "chain-source"
+                && request["fields"]["liquiditySelector"] == "Live"
+                && request["fields"]["live"] == "true")
+    );
+}
+
+
+/// Verifies that closing blotter preserves close action and locks the inherited expiry.
+#[test]
+fn closing_blotter_preserves_close_action_and_locks_the_inherited_expiry() {
+    let mut h = harness();
+    let context = &mut h.state_mut().snapshot.result.context;
+    context.insert("executionAction".into(), "Close".into());
+    context.insert("closingTrade".into(), "True".into());
+    context.insert("composerSessionId".into(), "closing-session".into());
+    h.run();
+    assert!(h.query_by_label("parentOrderAction: Close").is_some());
+    let mut snapshot = snapshot();
+    snapshot.result.context = h.state().snapshot.result.context.clone();
+    let request: serde_json::Value =
+        serde_json::from_str(&h.state_mut().view.request("preview-draft", &snapshot)).unwrap();
+    assert_eq!(request["fields"]["action"], "Close");
+    assert_eq!(request["fields"]["parentOrderAction"], "Close");
+    assert_eq!(request["fields"]["expiry"], "2026-11-20");
 }

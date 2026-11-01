@@ -1922,7 +1922,9 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         {
             IntrinsicTimeModeType.TrendExtremeChanged,
             IntrinsicTimeModeType.TrendReversalChanged,
-            IntrinsicTimeModeType.TrendDirectionChanged
+            IntrinsicTimeModeType.TrendDirectionChanged,
+            IntrinsicTimeModeType.TrendOvershootExtended,
+            IntrinsicTimeModeType.TrendOvershootReversal
         };
         var latest = await (Task.WhenAll(modes.Select(mode => this.ReadLastFuturesItiTrendModeAsync(contractId, valueDate, IntrinsicTimeTrendType.UpTrend, mode))))
                 .ConfigureAwait(false);
@@ -1945,7 +1947,9 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         {
             IntrinsicTimeModeType.TrendExtremeChanged,
             IntrinsicTimeModeType.TrendReversalChanged,
-            IntrinsicTimeModeType.TrendDirectionChanged
+            IntrinsicTimeModeType.TrendDirectionChanged,
+            IntrinsicTimeModeType.TrendOvershootExtended,
+            IntrinsicTimeModeType.TrendOvershootReversal
         };
         var latest = await (Task.WhenAll(modes.Select(mode => this.ReadLastFuturesItiTrendModeAsync(contractId, valueDate, IntrinsicTimeTrendType.UpTrend, mode, cancellationToken))))
                 .ConfigureAwait(false);
@@ -1972,7 +1976,9 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         {
             IntrinsicTimeModeType.TrendExtremeChanged,
             IntrinsicTimeModeType.TrendReversalChanged,
-            IntrinsicTimeModeType.TrendDirectionChanged
+            IntrinsicTimeModeType.TrendDirectionChanged,
+            IntrinsicTimeModeType.TrendOvershootExtended,
+            IntrinsicTimeModeType.TrendOvershootReversal
         };
         var latest = await (Task.WhenAll(modes.Select(mode => this.ReadLastFuturesItiTrendModeAsync(contractId, valueDate, intrinsicTimeTrend, mode))))
                 .ConfigureAwait(false);
@@ -1998,7 +2004,9 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         {
             IntrinsicTimeModeType.TrendExtremeChanged,
             IntrinsicTimeModeType.TrendReversalChanged,
-            IntrinsicTimeModeType.TrendDirectionChanged
+            IntrinsicTimeModeType.TrendDirectionChanged,
+            IntrinsicTimeModeType.TrendOvershootExtended,
+            IntrinsicTimeModeType.TrendOvershootReversal
         };
         var latest = await (Task.WhenAll(modes.Select(mode => this.ReadLastFuturesItiTrendModeAsync(contractId, valueDate, intrinsicTimeTrend, mode, cancellationToken))))
                 .ConfigureAwait(false);
@@ -2076,15 +2084,15 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     /// <param name="contractId">The contract id used by this operation.</param>
     /// <param name="valueDate">The value date used by this operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
-    public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate) => (await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged))
-                .ConfigureAwait(false)).FirstOrDefault();
+    public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate)
+        => await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal).ConfigureAwait(false);
     /// <summary>Get Last Futures Iti Signal using the MarketDataDb persistence.</summary>
     /// <param name="contractId">The contract id used by this operation.</param>
     /// <param name="valueDate">The value date used by this operation.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
-    public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken) => (await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, cancellationToken: cancellationToken)
-        .ConfigureAwait(false)).FirstOrDefault();
+    public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken)
+        => await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal, cancellationToken: cancellationToken).ConfigureAwait(false);
     /// <summary>Get Last Futures Iti Signal using the MarketDataDb persistence.</summary>
     /// <param name="contractId">The contract id used by this operation.</param>
     /// <param name="valueDate">The value date used by this operation.</param>
@@ -2129,8 +2137,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     {
         var direction = (await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged))
                 .ConfigureAwait(false)).FirstOrDefault();
-        return (await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendExtremeChanged, direction?.SequenceId ?? 0))
-                .ConfigureAwait(false)).FirstOrDefault();
+        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendExtremeChanged, IntrinsicTimeModeType.TrendOvershootExtended, direction?.SequenceId ?? 0).ConfigureAwait(false);
     }
 
     /// <summary>Get Last Futures Iti Signal Trend Extreme Change using the MarketDataDb persistence.</summary>
@@ -2142,8 +2149,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     {
         var direction = (await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged, cancellationToken: cancellationToken)
             .ConfigureAwait(false)).FirstOrDefault();
-        return (await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendExtremeChanged, direction?.SequenceId ?? 0, cancellationToken)
-            .ConfigureAwait(false)).FirstOrDefault();
+        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendExtremeChanged, IntrinsicTimeModeType.TrendOvershootExtended, direction?.SequenceId ?? 0, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -2156,8 +2162,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     {
         var direction = (await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged))
                 .ConfigureAwait(false)).FirstOrDefault();
-        return (await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, direction?.SequenceId ?? 0))
-                .ConfigureAwait(false)).FirstOrDefault();
+        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal, direction?.SequenceId ?? 0).ConfigureAwait(false);
     }
 
     /// <summary>Get Last Futures Iti Signal Trend Reversal Change using the MarketDataDb persistence.</summary>
@@ -2169,8 +2174,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     {
         var direction = (await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged, cancellationToken: cancellationToken)
             .ConfigureAwait(false)).FirstOrDefault();
-        return (await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, direction?.SequenceId ?? 0, cancellationToken)
-            .ConfigureAwait(false)).FirstOrDefault();
+        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal, direction?.SequenceId ?? 0, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

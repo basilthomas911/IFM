@@ -13,6 +13,8 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared
             IntrinsicTimeModeType.PredictedIntervalChanged => nameof(IntrinsicTimeModeType.PredictedIntervalChanged),
             IntrinsicTimeModeType.HoldTradeChanged => nameof(IntrinsicTimeModeType.HoldTradeChanged),
             IntrinsicTimeModeType.InTradeChanged => nameof(IntrinsicTimeModeType.InTradeChanged),
+            IntrinsicTimeModeType.TrendOvershootExtended => nameof(IntrinsicTimeModeType.TrendOvershootExtended),
+            IntrinsicTimeModeType.TrendOvershootReversal => nameof(IntrinsicTimeModeType.TrendOvershootReversal),
             _ => value.ToString()
         };
     }

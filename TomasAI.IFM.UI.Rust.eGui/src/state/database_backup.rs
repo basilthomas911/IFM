@@ -13,20 +13,35 @@ use crate::{
 use rmpv::Value;
 use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
+
+
+/// Provides f for the database backup implementation.
 fn f<'a>(intent: &'a Json, key: &str) -> &'a str {
     intent["fields"][key].as_str().unwrap_or_default().trim()
 }
+
+
+/// Provides s for the database backup implementation.
 fn s<'a>(row: &'a (impl TextFields + ?Sized), key: &str) -> &'a str {
     row.string(key)
 }
+
+
+/// Provides created for the database backup implementation.
 fn created(row: &Operation) -> Option<chrono::DateTime<chrono::FixedOffset>> {
     chrono::DateTime::parse_from_rfc3339(s(row, "createdUtc")).ok()
 }
+
+
+/// Looks up the requested member in the supplied record.
 fn member(wire: &Value, index: usize) -> Result<&Value, String> {
     wire.as_array()
         .and_then(|v| v.get(index))
         .ok_or("Incomplete backup payload".into())
 }
+
+
+/// Provides offset for the database backup implementation.
 fn offset(wire: &Value, index: usize) -> Result<Option<String>, String> {
     let value = member(wire, index)?;
     if value.is_nil() {
@@ -35,12 +50,21 @@ fn offset(wire: &Value, index: usize) -> Result<Option<String>, String> {
         reference_offset(value).map(Some)
     }
 }
+
+
+/// Projects backend data into the UI's display representation.
 fn project(registry: &Registry, name: &str, wire: &Value) -> Result<Json, String> {
     registry.project(&api::kind("ReadModels", name), wire)
 }
+
+
+/// Provides scalar for the database backup implementation.
 fn scalar<T: FromBackend>(value: Field<'_>) -> Result<Option<T>, String> {
     Option::<T>::from_backend(value.value)
 }
+
+
+/// Returns the user-facing label for this value.
 fn label(value: Field<'_>) -> Result<Option<Label>, String> {
     if value.is_nil() {
         return Ok(None);
@@ -53,6 +77,9 @@ fn label(value: Field<'_>) -> Result<Option<Label>, String> {
         Label::Text(text)
     }))
 }
+
+
+/// Provides labels for the database backup implementation.
 fn labels(value: Field<'_>) -> Result<Option<Vec<Label>>, String> {
     if value.is_nil() {
         return Ok(None);
@@ -64,6 +91,9 @@ fn labels(value: Field<'_>) -> Result<Option<Vec<Label>>, String> {
         .collect::<Result<Vec<_>, String>>()
         .map(Some)
 }
+
+
+/// Provides operation document for the database backup implementation.
 pub fn operation_document(registry: &Registry, wire: &Value) -> Result<Operation, String> {
     let kind = api::kind("ReadModels", "DatabaseBackupOperationReadModel");
     let row = Field::new(registry, &kind, wire);
@@ -103,6 +133,9 @@ pub fn operation_document(registry: &Registry, wire: &Value) -> Result<Operation
         engine,
     })
 }
+
+
+/// Provides protection document for the database backup implementation.
 fn protection_document(registry: &Registry, wire: &Value) -> Result<ProtectionSet, String> {
     let kind = api::kind("ReadModels", "DatabaseProtectionSetReadModel");
     let row = Field::new(registry, &kind, wire);
@@ -114,6 +147,9 @@ fn protection_document(registry: &Registry, wire: &Value) -> Result<ProtectionSe
         policy_revision: scalar(row.field("PolicyRevision")?)?,
     })
 }
+
+
+/// Restores document for database backup.
 fn restore_document(registry: &Registry, wire: &Value) -> Result<Option<RestorePoint>, String> {
     if wire.is_nil() {
         return Ok(None);
@@ -129,6 +165,9 @@ fn restore_document(registry: &Registry, wire: &Value) -> Result<Option<RestoreP
         eligible: scalar(row.field("Eligible")?)?,
     }))
 }
+
+
+/// Provides setup document for the database backup implementation.
 fn setup_document(registry: &Registry, wire: &Value) -> Result<Setup, String> {
     let kind = api::kind("ReadModels", "DatabaseBackupSetupReadModel");
     let row = Field::new(registry, &kind, wire);
@@ -152,6 +191,9 @@ fn setup_document(registry: &Registry, wire: &Value) -> Result<Setup, String> {
         available: scalar(row.field("Available")?)?,
     })
 }
+
+
+/// Provides health document for the database backup implementation.
 fn health_document(registry: &Registry, wire: &Value) -> Result<Health, String> {
     let kind = api::kind("ReadModels", "DatabaseBackupHealthReadModel");
     let row = Field::new(registry, &kind, wire);
@@ -163,11 +205,16 @@ fn health_document(registry: &Registry, wire: &Value) -> Result<Health, String> 
         diagnostic: scalar(row.field("SafeDiagnosticReference")?)?,
     })
 }
+
+
+/// Provides list for the database backup implementation.
 fn list(wire: &Value, max: usize) -> Result<&Vec<Value>, String> {
     wire.as_array()
         .filter(|v| v.len() <= max)
         .ok_or("Invalid or oversized backup result".into())
 }
+
+
 /// Build the same configured sets as the hybrid API service, including disabled
 /// persisted sets which no longer occur in host configuration.
 pub fn configured_sets(
@@ -213,29 +260,51 @@ pub fn configured_sets(
     }
     sets
 }
+
+/// Backup Controller used by the database backup component.
 #[derive(Default)]
 pub struct BackupController {
+    /// Source associated with this backup controller.
     source: String,
+    /// Current status text or state exposed by this component.
     status: String,
+    /// Dashboard associated with this backup controller.
     dashboard: Dashboard,
+    /// Setup associated with this backup controller.
     setup: Setup,
+    /// Ordered health retained by BackupController.
     health: Vec<Health>,
+    /// Retained historical data used by this component.
     history: BTreeMap<String, BTreeMap<String, Operation>>,
+    /// Keyed cursors retained by BackupController.
     cursors: BTreeMap<String, String>,
+    /// Keyed policies retained by BackupController.
     policies: BTreeMap<String, Value>,
+    /// Current selection retained by this state or view.
     selected: Option<(String, String)>,
+    /// Output associated with this backup controller.
     output: String,
+    /// Offset associated with this backup controller.
     offset: i64,
+    /// Phase associated with this backup controller.
     phase: i64,
+    /// Whether ended is enabled or currently true.
     ended: bool,
+    /// Optional subscription; `None` represents an absent value.
     subscription: Option<async_nats::Subscriber>,
+    /// Optional observer; `None` represents an absent value.
     observer: Option<tokio::task::JoinHandle<()>>,
+    /// Whether loaded is enabled or currently true.
     loaded: bool,
+    /// Whether acknowledged action is enabled or currently true.
     acknowledged_action: bool,
+    /// Generation associated with this backup controller.
     generation: u64,
+    /// Keyed receipts retained by BackupController.
     receipts: BTreeMap<String, (Json, crate::lookup_editor::EditorOutcome)>,
 }
 impl Drop for BackupController {
+    /// Releases resources owned by this value when its lifetime ends.
     fn drop(&mut self) {
         if let Some(task) = self.observer.take() {
             task.abort();
@@ -243,12 +312,19 @@ impl Drop for BackupController {
     }
 }
 impl BackupController {
+    /// Transfers the owned subscription so cleanup has one responsible owner.
     pub fn take_subscription(&mut self) -> Option<async_nats::Subscriber> {
         self.subscription.take()
     }
+
+
+    /// Sets observer for backup controller.
     pub fn set_observer(&mut self, task: tokio::task::JoinHandle<()>) {
         self.observer = Some(task);
     }
+
+
+    /// Provides query for the backup controller implementation.
     async fn query(
         &self,
         backend: &Backend,
@@ -261,6 +337,9 @@ impl BackupController {
     ) -> Result<Value, String> {
         api::query(backend, registry, context, name, source, fields, deadline).await
     }
+
+
+    /// Provides dashboard for the backup controller implementation.
     async fn dashboard(
         &mut self,
         backend: &Backend,
@@ -365,6 +444,9 @@ impl BackupController {
         };
         Ok(())
     }
+
+
+    /// Builds the current history page using its accepted backend paging state.
     async fn history_page(
         &mut self,
         backend: &Backend,
@@ -449,6 +531,9 @@ impl BackupController {
         }
         Ok(())
     }
+
+
+    /// Reads output for backup controller.
     async fn read_output(
         &mut self,
         backend: &Backend,
@@ -544,6 +629,9 @@ impl BackupController {
         self.ended = ended;
         Ok(())
     }
+
+
+    /// Refreshes database backup for backup controller.
     async fn refresh(
         &mut self,
         backend: &Backend,
@@ -592,6 +680,9 @@ impl BackupController {
         self.loaded = true;
         Ok(())
     }
+
+
+    /// Refreshes if loaded for backup controller.
     pub async fn refresh_if_loaded(
         &mut self,
         backend: &Backend,
@@ -614,6 +705,9 @@ impl BackupController {
         self.generation += 1;
         self.publication(registry, "", "", "").ok()
     }
+
+
+    /// Finds operation for backup controller.
     fn find_operation(&self, intent: &Json) -> Result<Operation, String> {
         let source = f(intent, "operationSource");
         let id = f(intent, "operationId");
@@ -631,6 +725,9 @@ impl BackupController {
         }
         Ok(row)
     }
+
+
+    /// Provides publication for the backup controller implementation.
     pub fn publication(
         &self,
         registry: &Registry,
@@ -666,6 +763,9 @@ impl BackupController {
         } else {
             (None, PolicyEditor::default())
         };
+
+
+        /// Provides add for the backup controller implementation.
         fn add<T: serde::Serialize>(
             result: &mut ContractResult,
             key: &str,
@@ -700,6 +800,9 @@ impl BackupController {
             ..Default::default()
         })
     }
+
+
+    /// Applies database backup for backup controller.
     async fn apply(
         &mut self,
         backend: &Backend,
@@ -1011,6 +1114,9 @@ impl BackupController {
         }
         Ok(self.status.clone())
     }
+
+
+    /// Handles a database backup intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,
@@ -1101,6 +1207,8 @@ impl BackupController {
         self.publication(registry, &id_string, &outcome.state, &outcome.message)
     }
 }
+
+
 /// TimeSpan ticks remain exact on the wire. This display mirrors the hybrid
 /// policy model while editable durations are converted only when saved.
 pub fn policy_document(
@@ -1152,6 +1260,9 @@ pub fn policy_document(
         },
     ))
 }
+
+
+/// Formats the supplied duration for display.
 fn timespan(ticks: i64) -> String {
     let n = ticks.unsigned_abs();
     let days = n / 864_000_000_000;

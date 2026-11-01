@@ -7,15 +7,22 @@ use crate::{
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 
+/// Pipeline Health used by the dashboard health component.
 #[derive(Clone, Debug)]
 pub struct PipelineHealth {
+    /// Optional running; `None` represents an absent value.
     pub running: Option<bool>,
+    /// Health associated with this pipeline health.
     pub health: String,
+    /// Reason associated with this pipeline health.
     pub reason: String,
+    /// Options health associated with this pipeline health.
     pub options_health: String,
+    /// Options reason associated with this pipeline health.
     pub options_reason: String,
 }
 impl PipelineHealth {
+    /// Constructs the explicit unknown state without treating it as a confirmed result.
     pub fn unknown(running: Option<bool>) -> Self {
         Self {
             running,
@@ -30,6 +37,9 @@ impl PipelineHealth {
             reason: "Current pipeline health has not been verified.".into(),
         }
     }
+
+
+    /// Constructs the unavailable result while retaining its failure reason.
     pub fn unavailable(error: &str) -> Self {
         Self {
             running: None,
@@ -40,6 +50,8 @@ impl PipelineHealth {
         }
     }
 }
+
+
 /// Match the existing dashboard's presentation classification. A stale response
 /// cannot retain an earlier green status, even when its HTTP request succeeds.
 pub fn project(
@@ -91,21 +103,31 @@ pub fn project(
         .into();
     Ok(result)
 }
+
+/// Dashboard Health used by the dashboard health component.
 pub struct DashboardHealth {
+    /// Client associated with this dashboard health.
     client: HealthClient,
+    /// Optional endpoint; `None` represents an absent value.
     endpoint: Option<String>,
 }
 impl DashboardHealth {
+    /// Constructs DashboardHealth from the supplied inputs.
     pub fn new(endpoint: Option<String>) -> Result<Self, String> {
         Ok(Self {
             client: HealthClient::new()?,
             endpoint,
         })
     }
+
+
+    /// Loads configuration from the supported environment settings.
     pub fn from_env() -> Result<Self, String> {
         let endpoint = crate::backend::configuration::value("IFM_UI_LIVE_PIPELINE_HEALTH_URL")?
             .or_else(|| {
-                crate::backend::configuration::value("IFM_UI_OPERATIONS_HEALTH_URL").ok().flatten()
+                crate::backend::configuration::value("IFM_UI_OPERATIONS_HEALTH_URL")
+                    .ok()
+                    .flatten()
                     .and_then(|value| {
                         reqwest::Url::parse(&value)
                             .ok()?
@@ -116,6 +138,9 @@ impl DashboardHealth {
             });
         Self::new(endpoint)
     }
+
+
+    /// Loads dashboard health for dashboard health.
     pub async fn load(&self, backend: &Backend) -> Result<PipelineHealth, String> {
         let deadline = tokio::time::Instant::now() + backend.default_timeout();
         let observation = tokio::time::timeout_at(deadline, FeedObservation::load(backend))
@@ -141,27 +166,88 @@ impl DashboardHealth {
             value.reason = format!("Pipeline health unavailable: {error}");
             value
         });
-        if let Ok(url) = reqwest::Url::parse(endpoint).and_then(|u| u.join("/api/market-data/options-health")) {
+        if let Ok(url) =
+            reqwest::Url::parse(endpoint).and_then(|u| u.join("/api/market-data/options-health"))
+        {
             match self.client.get(url.as_str(), 256 * 1024, deadline).await {
-                Ok(value) => { let (state, reason) = options_health(&value); health.options_health=state.into(); health.options_reason=reason.into(); },
-                Err(error) => health.options_reason=format!("Options status unavailable: {error}"),
+                Ok(value) => {
+                    let (state, reason) = options_health(&value);
+                    health.options_health = state.into();
+                    health.options_reason = reason.into();
+                }
+                Err(error) => {
+                    health.options_reason = format!("Options status unavailable: {error}")
+                }
             }
         }
         Ok(health)
     }
 }
+
+
 /// Only current-generation scope/resource proofs permit green. Quote silence
 /// does not imply a broken connection and never initiates recovery from this UI.
 pub fn options_health(value: &Value) -> (&'static str, &'static str) {
-    let Some(datasets)=value["datasets"].as_array() else {return ("Yellow", "Options status unavailable");};
-    if datasets.is_empty() {return ("Inactive", "Options inactive");}
-    if datasets.iter().any(|d| matches!(d["lifecycle"].as_str(),Some("StoppedError"|"Failed"|"Down"))) {return ("Red", "Options dataset is down");}
-    if datasets.iter().all(|d| !d["running"].as_bool().unwrap_or(false) && matches!(d["lifecycle"].as_str(),Some("Stopped"|"Inactive"|"Idle"))) {return ("Inactive", "Options inactive");}
-    if datasets.iter().any(|d| matches!(d["lifecycle"].as_str(),Some("Starting"|"Recovering"|"Resetting")) || d["running"]!=true || d["healthy"]!=true) {return ("Yellow", "Options starting or recovering");}
-    if datasets.iter().any(|d| matches!(d["lifecycle"].as_str(),Some("Idle"))) {return ("Inactive", "Options inactive");}
-    let proof=&value["workload"];
-    let scopes=proof["scopes"].as_array(); let ready=proof["readyScopes"].as_array();
-    if datasets.len()==1 && proof["generationId"]==datasets[0]["generationId"] && proof["generationId"].as_str().is_some_and(|s|s!="00000000-0000-0000-0000-000000000000") && proof["replacementPending"]==false && proof["nativeResourceProofsComplete"]==true && scopes.zip(ready).is_some_and(|(s,r)| !s.is_empty() && s.iter().all(|x|r.contains(x))) {
-        ("Green", "Current Options generation and monitoring scopes verified")
-    } else { ("Yellow", "Options connected; waiting for verified live data") }
+    let Some(datasets) = value["datasets"].as_array() else {
+        return ("Yellow", "Options status unavailable");
+    };
+    if datasets.is_empty() {
+        return ("Inactive", "Options inactive");
+    }
+    if datasets.iter().any(|d| {
+        matches!(
+            d["lifecycle"].as_str(),
+            Some("StoppedError" | "Failed" | "Down")
+        )
+    }) {
+        return ("Red", "Options dataset is down");
+    }
+    if datasets.iter().all(|d| {
+        !d["running"].as_bool().unwrap_or(false)
+            && matches!(
+                d["lifecycle"].as_str(),
+                Some("Stopped" | "Inactive" | "Idle")
+            )
+    }) {
+        return ("Inactive", "Options inactive");
+    }
+    if datasets.iter().any(|d| {
+        matches!(
+            d["lifecycle"].as_str(),
+            Some("Starting" | "Recovering" | "Resetting")
+        ) || d["running"] != true
+            || d["healthy"] != true
+    }) {
+        return ("Yellow", "Options starting or recovering");
+    }
+    if datasets
+        .iter()
+        .any(|d| matches!(d["lifecycle"].as_str(), Some("Idle")))
+    {
+        return ("Inactive", "Options inactive");
+    }
+    let proof = &value["workload"];
+    let scopes = proof["scopes"].as_array();
+    let ready = proof["readyScopes"].as_array();
+    if datasets.len() == 1
+        && proof["generationId"] == datasets[0]["generationId"]
+        && proof["generationId"]
+            .as_str()
+            .is_some_and(|s| s != "00000000-0000-0000-0000-000000000000")
+        && proof["replacementPending"] == false
+        && proof["nativeResourceProofsComplete"] == true
+        && scopes
+            .zip(ready)
+            .is_some_and(|(s, r)| !s.is_empty() && s.iter().all(|x| r.contains(x)))
+    {
+        (
+            "Green",
+            "Current Options generation and monitoring scopes verified",
+        )
+    } else {
+        (
+            "Yellow",
+            "Options connected; waiting for verified live data",
+        )
+    }
 }

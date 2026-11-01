@@ -119,15 +119,13 @@ pub async fn calculate(
         );
         return Ok(evidence);
     };
-    let dto = context.value()?;
-    let c = dto.as_array().ok_or("Invalid native trade context")?;
-    let convention = c[0].as_array().ok_or("Invalid native trade convention")?;
-    if convention[1].as_str() != Some(&source.contract)
-        || convention[2].as_str() != Some(&source.dataset)
-        || convention[3].as_u64() != Some(u64::from(source.publisher))
-        || convention[4].as_u64() != Some(u64::from(source.instrument))
-        || convention[5].as_str() != Some(&source.symbol)
-        || c[4].as_str() != Some(&super::wire::guid(source.generation))
+    let convention = context.convention();
+    if convention.contract() != source.contract
+        || convention.dataset() != source.dataset
+        || convention.publisher() != source.publisher
+        || convention.instrument() != source.instrument
+        || convention.raw_symbol() != source.symbol
+        || context.generation() != source.generation
     {
         evidence.context = None;
         evidence.outcome = failed(
@@ -148,10 +146,7 @@ pub async fn calculate(
         return Ok(evidence);
     };
     let underlying = Quote {
-        contract: convention[9]
-            .as_str()
-            .ok_or("Missing underlying identity")?
-            .into(),
+        contract: convention.underlying().into(),
         quote: underlying,
     };
     evidence.underlying = Some(underlying.clone());

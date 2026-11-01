@@ -1,11 +1,16 @@
 //! Trade blotter and Broker Trade panels. Published option-chain cells, selected legs, reports, and reconciliation evidence are arranged with stable widget IDs; file selection chooses a local report path without importing it directly.
 
-use super::order_layout::{at, rect};
+use super::order_layout::{at, form_at, form_rect, rect};
 use super::*;
 use crate::models::cells::Cells;
+
+
+/// Provides cell text for the blotter implementation.
 pub(super) fn cell_text(value: &impl Cells, key: &str) -> String {
     value.cell(key).text()
 }
+
+
 /// Borrow a published trade context value; absent keys produce an empty string.
 fn context<'a>(s: &'a ContractPublication, key: &str) -> &'a str {
     s.result.context.get(key).map(String::as_str).unwrap_or("")
@@ -15,6 +20,8 @@ pub(super) const OPTION_COLUMNS: [&str; 13] = [
     "Selected", "Delta", "OI", "Vol", "Bid", "Ask", "Strike", "Bid", "Ask", "Vol", "OI", "Delta",
     "Selected",
 ];
+
+
 /// Paint an option-chain column heading with the selected-side highlight convention.
 pub(super) fn option_header(ui: &mut egui::Ui, label: &str, center_selected: bool) {
     ui.painter()
@@ -37,6 +44,8 @@ pub(super) fn option_header(ui: &mut egui::Ui, label: &str, center_selected: boo
         );
     }
 }
+
+
 /// Draw a strike cell using its published display text and requested color.
 pub(super) fn strike_cell(ui: &mut egui::Ui, strike: &str, color: Color32) {
     ui.add_sized(
@@ -46,41 +55,21 @@ pub(super) fn strike_cell(ui: &mut egui::Ui, strike: &str, color: Color32) {
             .truncate(),
     );
 }
+
+
 /// Format one option-chain property for display without recalculating quote or risk values.
 pub(super) fn option_cell(v: &impl Cells, key: &str) -> String {
-    let Some(number) = v.cell(key).number() else {
-        return if v.cell(key).is_missing() {
-            "-".into()
-        } else {
-            cell_text(v, key)
-        };
-    };
-    match key {
-        "delta" => {
-            if number == 0. {
-                "0.000".into()
-            } else {
-                format!("{number:+.3}")
-            }
-        }
-        "openInterest" | "volume" => {
-            if number >= 1_000_000. {
-                format!("{:.1}M", number / 1_000_000.)
-            } else if number >= 1_000. {
-                format!("{:.1}K", number / 1_000.)
-            } else {
-                format!("{number:.0}")
-            }
-        }
-        "bid" | "ask" | "strike" => format!("{number:.2}"),
-        _ => cell_text(v, key),
-    }
+    crate::models::prepared_views::option_text(v, key)
 }
+
+
 // Position caption/value glyphs on the same text line, independent of control padding.
 /// Draw a market/Broker Trade header value within fixed bounds using the default foreground.
 fn market_header_text(ui: &mut egui::Ui, bounds: egui::Rect, text: &str, align: egui::Align) {
     market_header_text_colored(ui, bounds, text, align, None);
 }
+
+
 /// Draw an aligned header value using the optional explicit foreground color.
 fn market_header_text_colored(
     ui: &mut egui::Ui,
@@ -125,13 +114,12 @@ impl TradeWorkspace {
                 egui::Stroke::new(1. / ui.ctx().pixels_per_point(), Color32::from_gray(80)),
                 egui::StrokeKind::Inside,
             );
-            ui.add(
-                crate::presentation::label_widget(egui::RichText::new(value).color(Color32::WHITE))
-                    .truncate(),
-            );
+            market_header_text_colored(ui, r, value, egui::Align::LEFT, Some(Color32::WHITE));
         });
         self.controls.insert(id.into(), r);
     }
+
+
     /// Draw a market-panel header field with its stable control identity.
     fn header_display(&mut self, ui: &mut egui::Ui, bounds: egui::Rect, id: &str, value: &str) {
         at(ui, bounds, id, |ui| {
@@ -146,6 +134,8 @@ impl TradeWorkspace {
         });
         self.controls.insert(id.into(), bounds);
     }
+
+
     /// Draw a bounded choice control backed by the local trade draft; return whether its selection changed.
     fn choice(
         &mut self,
@@ -160,7 +150,8 @@ impl TradeWorkspace {
             .entry(key.into())
             .or_insert_with(|| values.first().copied().unwrap_or("").into());
         let old = selected.clone();
-        at(ui, r, key, |ui| {
+        let mut reselected_source = false;
+        form_at(ui, r, key, |ui| {
             ui.add_enabled_ui(enabled, |ui| {
                 ui.spacing_mut().interact_size.y = r.height();
                 ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::BLACK;
@@ -169,7 +160,11 @@ impl TradeWorkspace {
                     .selected_text(&*selected)
                     .show_ui(ui, |ui| {
                         for v in values {
-                            ui.selectable_value(selected, (*v).into(), *v);
+                            if ui.selectable_value(selected, (*v).into(), *v).clicked()
+                                && key == "liquiditySelector"
+                            {
+                                reselected_source = true;
+                            }
                         }
                     });
                 response.response.widget_info(|| {
@@ -182,8 +177,10 @@ impl TradeWorkspace {
             });
         });
         self.controls.insert(key.into(), r);
-        old != *selected
+        old != *selected || reselected_source
     }
+
+
     /// Compose the trade blotter tabs/panels from the current publication and return a requested action key.
     pub(super) fn draw_blotter(
         &mut self,
@@ -193,9 +190,9 @@ impl TradeWorkspace {
         let display = self.prepare_trade_display(s);
         let p = ui.ctx().pixels_per_point();
         let parent_o = ui.cursor().min;
-        let o = parent_o + egui::vec2(0., 50.) / p;
+        let o = parent_o + egui::vec2(0., 62.) / p;
         let w = ui.available_width() * p;
-        let h = ui.available_height() * p - 50.;
+        let h = ui.available_height() * p - 62.;
         let mut action = None;
         self.controls.insert(
             "blotter-client".into(),
@@ -298,7 +295,37 @@ impl TradeWorkspace {
             };
             self.draft.entry(key.into()).or_insert(initial.into());
         }
-        for (i, (label, x, width, v)) in [
+        let execution_action = context(s, "executionAction");
+        if matches!(execution_action, "Open" | "Close") {
+            self.draft.insert("action".into(), execution_action.into());
+            self.draft
+                .insert("parentOrderAction".into(), execution_action.into());
+        }
+        let font = egui::TextStyle::Body.resolve(ui.style());
+        let mut header_x = [0.; 3];
+        let mut right = 0.;
+        for (i, captions) in [
+            ["Trade Id:", "Trade Strategy:"],
+            ["Effective Date:", "Trade Type:"],
+            ["Order Action:", "Broker Mode:"],
+        ]
+        .iter()
+        .enumerate()
+        {
+            let width = captions
+                .iter()
+                .map(|caption| {
+                    ui.painter()
+                        .layout_no_wrap((*caption).into(), font.clone(), Color32::WHITE)
+                        .size()
+                        .x
+                        * p
+                })
+                .fold(0., f32::max);
+            header_x[i] = right + width + 20.;
+            right = header_x[i] + [166., 219., 171.][i] + 40.;
+        }
+        for (i, (label, _x, _width, v)) in [
             ("Trade Id:", 0., 124., trade_key),
             ("Effective Date:", 320., 118., context(s, "effectiveDate")),
             ("Order Action:", 687., 110., context(s, "executionAction")),
@@ -306,9 +333,19 @@ impl TradeWorkspace {
         .into_iter()
         .enumerate()
         {
-            at(ui, rect(parent_o, p, x, 9., width, 27.), label, |ui| {
-                market_header_text(ui, ui.max_rect(), label, egui::Align::RIGHT);
-            });
+            let field = form_rect(
+                ui,
+                rect(parent_o, p, header_x[i], 9., [166., 217., 171.][i], 27.),
+            );
+            self.field_caption(ui, field, label, label);
+            self.controls.insert(
+                if i == 1 {
+                    "dtpTradeDate".into()
+                } else {
+                    label.into()
+                },
+                field,
+            );
             if i == 1 {
                 let initial = context(s, "effectiveDate");
                 let stored = self
@@ -318,34 +355,28 @@ impl TradeWorkspace {
                 if stored.is_empty() {
                     *stored = initial.into();
                 }
-                at(
-                    ui,
-                    rect(parent_o, p, x + width + 10., 11.5, 217., 22.),
-                    "dtpTradeDate",
-                    |ui| {
-                        if let Ok(mut date) = chrono::NaiveDate::parse_from_str(stored, "%Y-%m-%d")
-                        {
-                            ui.add_enabled_ui(editable, |ui| {
-                                ui.add_sized(
-                                    ui.available_size(),
-                                    crate::date_picker::DatePickerButton::new(&mut date)
-                                        .id_salt("blotter-effective-date")
-                                        .calendar_week(false),
-                                );
-                            });
-                            *stored = date.to_string();
-                        } else {
-                            market_header_text(ui, ui.max_rect(), initial, egui::Align::LEFT);
-                        }
-                    },
-                );
+                form_at(ui, field, "dtpTradeDate", |ui| {
+                    if let Ok(mut date) = chrono::NaiveDate::parse_from_str(stored, "%Y-%m-%d") {
+                        ui.add_enabled_ui(editable, |ui| {
+                            ui.add_sized(
+                                ui.available_size(),
+                                crate::date_picker::DatePickerButton::new(&mut date)
+                                    .id_salt("blotter-effective-date")
+                                    .calendar_week(false),
+                            );
+                        });
+                        *stored = date.to_string();
+                    } else {
+                        market_header_text(ui, ui.max_rect(), initial, egui::Align::LEFT);
+                    }
+                });
             } else if i == 2 {
                 if self.choice(
                     ui,
-                    rect(parent_o, p, x + width + 10., 9., 171., 27.),
+                    field,
                     "parentOrderAction",
                     &["Open", "Close"],
-                    editable,
+                    editable && execution_action.is_empty(),
                 ) {
                     self.draft.insert(
                         "action".into(),
@@ -357,30 +388,12 @@ impl TradeWorkspace {
                     action = Some("preview-draft");
                 }
             } else {
-                self.header_display(
-                    ui,
-                    rect(
-                        parent_o,
-                        p,
-                        x + width + 10.,
-                        9.5,
-                        if i == 0 {
-                            166.
-                        } else if i == 1 {
-                            217.
-                        } else {
-                            171.
-                        },
-                        26.,
-                    ),
-                    label,
-                    v,
-                );
+                self.header_display(ui, field, label, v);
             }
         }
-        at(
+        form_at(
             ui,
-            rect(parent_o, p, 1004., 8.5, 112., 28.),
+            form_rect(ui, rect(parent_o, p, right, 9., 112., 27.)),
             "live-feed",
             |ui| {
                 let mut checked = self.draft.get("live").is_some_and(|v| v == "true");
@@ -409,7 +422,7 @@ impl TradeWorkspace {
                 }
             },
         );
-        for (label, x, width, v, value_width) in [
+        for (i, (label, _x, _width, v, value_width)) in [
             (
                 "Trade Strategy:",
                 0.,
@@ -425,16 +438,13 @@ impl TradeWorkspace {
             ),
             ("Trade Type:", 320., 119., kind, 219.),
             ("Broker Mode:", 687., 113., context(s, "brokerMode"), 169.),
-        ] {
-            at(ui, rect(o, p, x, 10., width, 30.), label, |ui| {
-                market_header_text(ui, ui.max_rect(), label, egui::Align::RIGHT);
-            });
-            self.header_display(
-                ui,
-                rect(o, p, x + width + 10., 10., value_width, 30.),
-                label,
-                v,
-            );
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let field = form_rect(ui, rect(o, p, header_x[i], 10., value_width, 30.));
+            self.field_caption(ui, field, label, label);
+            self.header_display(ui, field, label, v);
         }
         at(
             ui,
@@ -521,7 +531,10 @@ impl TradeWorkspace {
                             };
                     if ui
                         .add_enabled(
-                            editable && correct_mode && (!submit || flag(s, "canPlaceOrder")),
+                            editable
+                                && correct_mode
+                                && (intent != "clear-staged" || !flag(s, "closingTrade"))
+                                && (!submit || flag(s, "canPlaceOrder")),
                             egui::Button::new(label).min_size(ui.available_size()),
                         )
                         .clicked()
@@ -544,16 +557,9 @@ impl TradeWorkspace {
                     &["Limit", "Market"][..],
                 ),
             ] {
-                at(ui, rect(o, p, x, h - 45., 80., 27.), caption, |ui| {
-                    ui.trading_caption(caption);
-                });
-                if self.choice(
-                    ui,
-                    rect(o, p, x + 80., h - 45., 105., 27.),
-                    key,
-                    choices,
-                    editable,
-                ) {
+                let field = form_rect(ui, rect(o, p, x + 100., h - 45., 105., 27.));
+                self.field_caption(ui, field, key, caption);
+                if self.choice(ui, field, key, choices, editable) {
                     action = Some("preview-draft");
                 }
             }
@@ -604,6 +610,8 @@ impl TradeWorkspace {
         }
         action
     }
+
+
     /// Lay out market-trade selectors, option-chain data, and staging controls within the supplied scaled panel.
     fn market_panel(
         &mut self,
@@ -621,185 +629,232 @@ impl TradeWorkspace {
         let display = self.prepare_trade_display(s);
         let empty_market = crate::models::broker_presentation::MarketDisplay::default();
         let empty_metrics = crate::models::broker_presentation::MarketMetrics::default();
-        let market = display.market.as_deref().unwrap_or(&empty_market);
+        let market = display
+            .market
+            .as_deref()
+            .map(|market| &market.value)
+            .unwrap_or(&empty_market);
         let metrics = display.market_metrics.as_deref().unwrap_or(&empty_metrics);
-        // Add ten physical pixels between successive header groups.
-        let xs = [166., 387., 643., 907., 1082., 1360.];
+        // Reserve measured caption widths so adjacent groups cannot overlap at higher DPI.
+        let font = egui::TextStyle::Body.resolve(ui.style());
+        let captions = [
+            "SHORT CALL DELTA:",
+            "WIDTH:",
+            "Daily Price Change:",
+            "MULTIPLIER:",
+            "LIQUIDITY:",
+            "SETTLEMENT:",
+        ];
         let widths = [130., 86., 141., 64., 115., 88.];
-        let labels = [151., 65., 146., 100., 87., 100.];
-        at(
-            ui,
-            rect(o, p, 11., 109., w - 22., 116.),
-            "market-information",
-            |ui| {
-                ui.painter()
-                    .rect_filled(ui.max_rect(), 0., Color32::from_rgb(20, 20, 20));
-            },
-        );
-        let row1 = [
-            ("EXPIRY:", "expiry"),
-            ("DTE:", "DTE"),
-            ("UNDERLYING:", "Underlying"),
-            ("MULTIPLIER:", "Multiplier"),
-            ("TICK:", "Tick"),
-            ("SETTLEMENT:", "Settlement"),
-        ];
-        let row2 = [
-            ("DAILY STD DEV:", "Daily Std Dev"),
-            ("LAST:", "Last"),
-            ("Daily Price Change:", "Daily Price Change"),
-            ("IV:", "IV"),
-            ("IV RANK:", "IV Rank"),
-            ("QUOTE AGE:", "Quote Age"),
-        ];
-        for (row, items) in [row1, row2].iter().enumerate() {
-            for (i, (caption, key)) in items.iter().enumerate() {
-                let y = 116. + row as f32 * 30.;
-                at(
-                    ui,
-                    rect(o, p, xs[i] - labels[i], y, labels[i] - 10., 27.),
-                    caption,
-                    |ui| {
-                        market_header_text_colored(
-                            ui,
-                            ui.max_rect(),
-                            caption,
-                            egui::Align::RIGHT,
-                            Some(crate::presentation::CAPTION_FOREGROUND),
-                        );
-                    },
-                );
-                let r = rect(o, p, xs[i], y, widths[i], 27.);
-                if *key == "expiry" {
-                    let values = s.result.choices.get("expiry").cloned().unwrap_or_default();
-                    let values: Vec<_> = values.iter().map(String::as_str).collect();
-                    if self.choice(ui, r, "expiry", &values, editable) {
-                        action = Some("chain");
-                    }
-                } else {
-                    at(ui, r, key, |ui| {
-                        ui.painter().rect_filled(r, 0., Color32::BLACK);
-                        ui.painter().rect_stroke(
-                            r,
-                            0.,
-                            egui::Stroke::new(1. / p, Color32::from_gray(80)),
-                            egui::StrokeKind::Inside,
-                        );
-                        market_header_text(ui, r, &cell_text(metrics, key), egui::Align::LEFT);
-                    });
-                    self.controls.insert((*key).into(), r);
-                }
-            }
+        let mut xs = [0.; 6];
+        let mut right = 0.;
+        for i in 0..xs.len() {
+            let caption_width = ui
+                .painter()
+                .layout_no_wrap(captions[i].into(), font.clone(), Color32::WHITE)
+                .size()
+                .x
+                * p;
+            xs[i] = right + caption_width + 20.;
+            right = xs[i] + widths[i] + 32.;
         }
-        let iron = context(s, "compositionType").contains("IronCondor");
-        for (i, (caption, key, default)) in [
-            (
-                if iron {
-                    "SHORT CALL DELTA:"
-                } else {
-                    "SHORT LEG DELTA:"
-                },
-                "callDelta",
-                "16",
-            ),
-            ("WIDTH:", "callWidth", "50"),
-            ("SHORT PUT DELTA:", "putDelta", "16"),
-            ("WIDTH:", "putWidth", "50"),
-        ]
-        .iter()
-        .enumerate()
-        {
-            if !iron && i >= 2 {
-                continue;
-            }
-            at(
-                ui,
-                rect(o, p, xs[i] - labels[i], 176., labels[i] - 10., 27.),
-                caption,
-                |ui| {
-                    market_header_text_colored(
-                        ui,
-                        ui.max_rect(),
-                        caption,
-                        egui::Align::RIGHT,
-                        Some(crate::presentation::CAPTION_FOREGROUND),
-                    );
-                },
-            );
-            let r = rect(
-                o,
-                p,
-                xs[i] + if i == 0 { 2. } else { 0. },
-                178.5,
-                widths[i] - if i == 0 { 4. } else { 0. },
-                22.,
-            );
-            let before = self.draft.get(*key).cloned();
-            at(ui, r, key, |ui| {
-                ui.add_enabled_ui(editable, |ui| {
-                    self.numeric(
-                        ui,
-                        key,
-                        default,
-                        if key.ends_with("Delta") { 1. } else { 0.01 },
-                        if key.ends_with("Delta") {
-                            100.
+        let field_height = form_rect(ui, rect(o, p, 0., 0., 100., 27.)).height() * p;
+        let row_step = (field_height + 12.).max(40.);
+        let information_height = row_step * 3. + 26.;
+        let information = rect(o, p, 11., 109., w - 22., information_height);
+        at(ui, information, "market-information", |ui| {
+            ui.painter()
+                .rect_filled(information, 0., Color32::from_rgb(20, 20, 20));
+            egui::ScrollArea::horizontal()
+                .id_salt("market-fields-scroll")
+                .show(ui, |ui| {
+                    let o = ui.cursor().min - egui::vec2(0., 109.) / p;
+                    let row1 = [
+                        ("EXPIRY:", "expiry"),
+                        ("DTE:", "DTE"),
+                        ("UNDERLYING:", "Underlying"),
+                        ("MULTIPLIER:", "Multiplier"),
+                        ("TICK:", "Tick"),
+                        ("SETTLEMENT:", "Settlement"),
+                    ];
+                    let row2 = [
+                        ("DAILY STD DEV:", "Daily Std Dev"),
+                        ("LAST:", "Last"),
+                        ("Daily Price Change:", "Daily Price Change"),
+                        ("IV:", "IV"),
+                        ("IV RANK:", "IV Rank"),
+                        ("QUOTE AGE:", "Quote Age"),
+                    ];
+                    for (row, items) in [row1, row2].iter().enumerate() {
+                        for (i, (caption, key)) in items.iter().enumerate() {
+                            let y = 116. + row as f32 * row_step;
+                            let r = form_rect(ui, rect(o, p, xs[i], y, widths[i], 27.));
+                            self.field_caption(ui, r, key, caption);
+                            if *key == "expiry" {
+                                let values =
+                                    s.result.choices.get("expiry").cloned().unwrap_or_default();
+                                let values: Vec<_> = values.iter().map(String::as_str).collect();
+                                if self.choice(
+                                    ui,
+                                    r,
+                                    "expiry",
+                                    &values,
+                                    editable && !flag(s, "closingTrade"),
+                                ) {
+                                    action = Some("chain");
+                                }
+                            } else {
+                                form_at(ui, r, key, |ui| {
+                                    ui.painter().rect_filled(r, 0., Color32::BLACK);
+                                    ui.painter().rect_stroke(
+                                        r,
+                                        0.,
+                                        egui::Stroke::new(1. / p, Color32::from_gray(80)),
+                                        egui::StrokeKind::Inside,
+                                    );
+                                    market_header_text(
+                                        ui,
+                                        r,
+                                        &cell_text(metrics, key),
+                                        egui::Align::LEFT,
+                                    );
+                                });
+                                self.controls.insert((*key).into(), r);
+                            }
+                        }
+                    }
+                    let iron = context(s, "compositionType").contains("IronCondor");
+                    for (i, (caption, key, default)) in [
+                        (
+                            if iron {
+                                "SHORT CALL DELTA:"
+                            } else {
+                                "SHORT LEG DELTA:"
+                            },
+                            "callDelta",
+                            "16",
+                        ),
+                        ("WIDTH:", "callWidth", "50"),
+                        ("SHORT PUT DELTA:", "putDelta", "16"),
+                        ("WIDTH:", "putWidth", "50"),
+                    ]
+                    .iter()
+                    .enumerate()
+                    {
+                        if !iron && i >= 2 {
+                            continue;
+                        }
+                        let r =
+                            form_rect(ui, rect(o, p, xs[i], 116. + 2. * row_step, widths[i], 27.));
+                        self.field_caption(ui, r, key, caption);
+                        let before = self.draft.get(*key).cloned();
+                        form_at(ui, r, key, |ui| {
+                            ui.add_enabled_ui(editable && !flag(s, "closingTrade"), |ui| {
+                                self.numeric(
+                                    ui,
+                                    key,
+                                    default,
+                                    if key.ends_with("Delta") { 1. } else { 0.01 },
+                                    if key.ends_with("Delta") {
+                                        100.
+                                    } else {
+                                        100000.
+                                    },
+                                    1.,
+                                    if key.ends_with("Delta") { 0 } else { 2 },
+                                );
+                            });
+                        });
+                        self.controls.insert((*key).into(), r);
+                        if before != self.draft.get(*key).cloned() {
+                            if !iron {
+                                self.draft.insert(
+                                    "putDelta".into(),
+                                    self.draft.get("callDelta").unwrap().clone(),
+                                );
+                                self.draft.insert(
+                                    "putWidth".into(),
+                                    self.draft.get("callWidth").unwrap().clone(),
+                                );
+                            }
+                            action = Some("chain");
+                        }
+                    }
+                    let liquidity_bounds =
+                        form_rect(ui, rect(o, p, xs[4], 116. + 2. * row_step, widths[4], 27.));
+                    self.field_caption(ui, liquidity_bounds, "liquiditySelector", "LIQUIDITY:");
+                    let emulator = context(s, "brokerMode") == "Emulator";
+                    let liquidity = if emulator {
+                        if flag(s, "live") {
+                            "Live".to_owned()
                         } else {
-                            100000.
+                            "Emulator".to_owned()
+                        }
+                    } else {
+                        cell_text(market, "windowMethod")
+                    };
+                    self.draft
+                        .insert("liquiditySelector".into(), liquidity.clone());
+                    let reported_liquidity = [liquidity.as_str()];
+                    if self.choice(
+                        ui,
+                        liquidity_bounds,
+                        "liquiditySelector",
+                        if emulator {
+                            &["Emulator", "Live"]
+                        } else {
+                            &reported_liquidity
                         },
-                        1.,
-                        if key.ends_with("Delta") { 0 } else { 2 },
+                        if emulator {
+                            flag(s, "canSelectChainSource") && self.interaction_ready(s)
+                        } else {
+                            editable
+                        },
+                    ) && emulator
+                    {
+                        self.draft.insert(
+                            "live".into(),
+                            (self
+                                .draft
+                                .get("liquiditySelector")
+                                .is_some_and(|v| v == "Live"))
+                            .to_string(),
+                        );
+                        action = Some("chain-source");
+                    }
+                    ui.allocate_rect(
+                        rect(o, p, 0., 109., right, information_height - 16.),
+                        egui::Sense::hover(),
                     );
                 });
-            });
-            self.controls.insert((*key).into(), r);
-            if before != self.draft.get(*key).cloned() {
-                if !iron {
-                    self.draft.insert(
-                        "putDelta".into(),
-                        self.draft.get("callDelta").unwrap().clone(),
-                    );
-                    self.draft.insert(
-                        "putWidth".into(),
-                        self.draft.get("callWidth").unwrap().clone(),
-                    );
-                }
-                action = Some("chain");
-            }
-        }
-        at(
-            ui,
-            rect(o, p, xs[4] - labels[4], 176., labels[4] - 10., 27.),
-            "liquidity-label",
-            |ui| {
-                market_header_text_colored(
-                    ui,
-                    ui.max_rect(),
-                    "LIQUIDITY:",
-                    egui::Align::RIGHT,
-                    Some(crate::presentation::CAPTION_FOREGROUND),
-                );
-            },
+        });
+        let iron = context(s, "compositionType").contains("IronCondor");
+        let grid_top = 109. + information_height + 8.;
+        let market_viewport = rect(
+            o,
+            p,
+            14.,
+            grid_top,
+            w - 28.,
+            (h - grid_top - 195.).max(100.),
         );
-        let liquidity = cell_text(market, "windowMethod");
-        self.draft
-            .insert("liquiditySelector".into(), liquidity.clone());
-        self.choice(
-            ui,
-            rect(o, p, xs[4], 176., widths[4], 27.),
-            "liquiditySelector",
-            &[liquidity.as_str()],
-            editable,
-        );
-        let market_viewport = rect(o, p, 14., 233., w - 28., (h - 233. - 195.).max(100.));
         at(ui, market_viewport, "marketSelectionGrid", |ui| {
             ui.set_clip_rect(ui.clip_rect().intersect(market_viewport.shrink(1. / p)));
             action = ui
-                .add_enabled_ui(editable, |ui| self.option_grid(ui, s, &market))
+                .add_enabled_ui(editable && !flag(s, "closingTrade"), |ui| {
+                    self.option_grid(ui, s, &market)
+                })
                 .inner
                 .or(action);
         });
-        let grid_bounds = rect(o, p, 14., 261., w - 28., (h - 261. - 195.).max(100.));
+        let grid_bounds = rect(
+            o,
+            p,
+            14.,
+            grid_top + 28.,
+            w - 28.,
+            (h - grid_top - 28. - 195.).max(100.),
+        );
         ui.painter().rect_stroke(
             grid_bounds,
             0.,
@@ -819,14 +874,16 @@ impl TradeWorkspace {
                     .iter()
                     .filter(|r| r.fields.get("kind").is_some_and(|k| k == "leg"))
                     .count();
-                ui.trading_label(if context(s, "composerStatus").is_empty() {
-                    format!(
-                        "Selected legs: {count} / {}     Click Call or Put side to stage a leg",
-                        if iron { 4 } else { 2 }
-                    )
-                } else {
-                    context(s, "composerStatus").into()
-                });
+                let status = context(s, "composerStatus");
+                ui.trading_label(format!(
+                    "Selected legs: {count} / {}     {}",
+                    if iron { 4 } else { 2 },
+                    if status.is_empty() {
+                        "Click Call or Put side to stage a leg"
+                    } else {
+                        status
+                    }
+                ));
             },
         );
         at(
@@ -862,6 +919,8 @@ impl TradeWorkspace {
         );
         action
     }
+
+
     /// Lay out broker-trade selected legs, order controls, fills tree, and fill details using published execution state.
     fn broker_panel(
         &mut self,
@@ -905,198 +964,259 @@ impl TradeWorkspace {
         });
         self.controls
             .insert("brokerPreviewLegGrid".into(), leg_grid_bounds);
-        let rows: Vec<Vec<(&str, &str, f32)>> = vec![
+        let rows: Vec<Vec<(&str, &str)>> = vec![
             vec![
-                ("Contracts", "quantity", 86.),
-                ("Order type", "orderType", 105.),
-                ("Time in force", "timeInForce", 115.),
-                ("Action", "action", 95.),
-                ("Directed venue", "", 100.),
+                ("Contracts", "quantity"),
+                ("Order type", "orderType"),
+                ("Time in force", "timeInForce"),
+                ("Action", "action"),
+                ("Directed venue", ""),
             ],
             vec![
-                ("Net bid", "", 90.),
-                ("Net mid", "", 90.),
-                ("Net ask", "", 90.),
-                ("OrderPrice", "price", 126.),
-                ("Combo tick", "", 100.),
+                ("Net bid", ""),
+                ("Net mid", ""),
+                ("Net ask", ""),
+                ("OrderPrice", "price"),
+                ("Combo tick", ""),
             ],
             vec![
-                ("IFM algorithm", "algorithm", 125.),
-                ("Pace", "pace", 125.),
-                ("Broker route", "", 190.),
-                ("SMART", "", 75.),
-                ("Worst approved limit", "", 150.),
+                ("IFM algorithm", "algorithm"),
+                ("Pace", "pace"),
+                ("Broker route", ""),
+                ("SMART", ""),
+                ("Worst approved limit", ""),
             ],
             vec![
-                ("Est. credit", "", 105.),
-                ("Max profit", "", 110.),
-                ("Max loss", "", 105.),
-                ("Buying power", "", 120.),
-                ("Est. fees", "", 95.),
-                ("Fund capacity", "", 120.),
+                ("Est. credit", ""),
+                ("Max profit", ""),
+                ("Max loss", ""),
+                ("Buying power", ""),
+                ("Est. fees", ""),
+                ("Fund capacity", ""),
             ],
             vec![
-                ("Put width", "", 90.),
-                ("Call width", "", 90.),
-                ("Net delta", "", 95.),
-                ("Net vega", "", 95.),
-                ("Fund risk limit", "", 130.),
-                ("Validation", "", 150.),
+                ("Put width", ""),
+                ("Call width", ""),
+                ("Net delta", ""),
+                ("Net vega", ""),
+                ("Fund risk limit", ""),
+                ("Validation", ""),
             ],
             vec![
-                ("Available funds", "", 120.),
-                ("Reserved capital", "", 120.),
-                ("Risk margin", "", 115.),
-                ("Max return", "", 105.),
-                ("Minimum profit", "", 120.),
-                ("Put spread", "", 105.),
-                ("Call spread", "", 105.),
+                ("Available funds", ""),
+                ("Reserved capital", ""),
+                ("Risk margin", ""),
+                ("Max return", ""),
+                ("Minimum profit", ""),
+                ("Put spread", ""),
+                ("Call spread", ""),
             ],
             vec![
-                ("Value source", "", 210.),
-                ("As of", "", 135.),
-                ("Route check", "", 175.),
-                ("Risk approval", "", 145.),
+                ("Value source", ""),
+                ("As of", ""),
+                ("Route check", ""),
+                ("Risk approval", ""),
             ],
         ];
-        for (index, row) in rows.iter().enumerate() {
-            let y = 279. + index as f32 * 69. + if index >= 3 { 27. } else { 0. };
-            let total: f32 = row.iter().map(|(_, _, v)| v).sum();
-            let budget = w - 58. - 10. * (row.len() - 1) as f32;
-            let mut x = 29.;
-            for (caption, key, weight) in row {
-                let width = (budget * weight / total).round();
-                // Keep captions just above their fields on a shared text baseline.
-                at(ui, rect(o, p, x, y + 17., width, 17.), caption, |ui| {
-                    market_header_text(
-                        ui,
-                        ui.max_rect(),
-                        &format!("{caption}:"),
-                        egui::Align::LEFT,
+        let field_region = rect(o, p, 26., 297., w - 52., (h - 365.).max(80.));
+        self.controls
+            .insert("broker-fields-viewport".into(), field_region);
+        at(ui, field_region, "broker-fields", |ui| {
+            egui::ScrollArea::vertical()
+                .id_salt("broker-field-scroll")
+                .show(ui, |ui| {
+                    let origin = ui.cursor().min;
+                    let available = ui.available_width();
+                    let font = egui::TextStyle::Body.resolve(ui.style());
+                    let height = form_rect(ui, rect(origin, p, 0., 0., 100., 30.)).height();
+                    // Every row uses the same caption band, control width, and column starts.
+                    let caption_width = rows
+                        .iter()
+                        .flatten()
+                        .map(|(caption, _)| {
+                            ui.painter()
+                                .layout_no_wrap(format!("{caption}:"), font.clone(), Color32::WHITE)
+                                .size()
+                                .x
+                        })
+                        .fold(0_f32, f32::max);
+                    let caption_width = (caption_width * p).ceil() / p;
+                    let caption_gap = crate::presentation::field_gap(ui);
+                    let column_gap = 28. / p;
+                    let minimum_width = 120.;
+                    let columns = (((available + column_gap)
+                        / (caption_width + caption_gap + minimum_width + column_gap))
+                        .floor() as usize)
+                        .clamp(1, 5);
+                    let column_width =
+                        (available - (columns - 1) as f32 * column_gap) / columns as f32;
+                    let width = ((column_width - caption_width - caption_gap) * p).floor() / p;
+                    let width = width.min(180.).max(40.);
+                    let stride = caption_width + caption_gap + width + column_gap;
+                    let sections = [
+                        rows[..3].iter().flatten().copied().collect::<Vec<_>>(),
+                        rows[3..].iter().flatten().copied().collect::<Vec<_>>(),
+                    ];
+                    let mut y = 0.;
+                    for (section, section_fields) in sections.iter().enumerate() {
+                        if section == 1 {
+                            at(
+                                ui,
+                                egui::Rect::from_min_size(
+                                    origin + egui::vec2(0., y),
+                                    egui::vec2(available, height),
+                                ),
+                                "broker-economics-header",
+                                |ui| {
+                                    ui.trading_caption("Fund Economics and Limits:");
+                                },
+                            );
+                            y += height + 16. / p;
+                        }
+                        for row in section_fields.chunks(columns) {
+                            for (column, (caption, key)) in row.iter().enumerate() {
+                                let x = column as f32 * stride + caption_width + caption_gap;
+                                let r = egui::Rect::from_min_size(
+                                    origin + egui::vec2(x, y),
+                                    egui::vec2(width, height),
+                                );
+                                self.field_caption(
+                                    ui,
+                                    r,
+                                    &format!("broker-field-{caption}"),
+                                    &format!("{caption}:"),
+                                );
+                                let old = self.draft.get(*key).cloned();
+                                match *key {
+                                    "quantity" => {
+                                        form_at(ui, r, key, |ui| {
+                                            ui.add_enabled_ui(
+                                                editable && !flag(s, "closingTrade"),
+                                                |ui| {
+                                                    self.numeric(
+                                                        ui, "quantity", "1", 1., 100000., 1., 0,
+                                                    )
+                                                },
+                                            );
+                                        });
+                                    }
+                                    "price" => {
+                                        form_at(ui, r, key, |ui| {
+                                            ui.visuals_mut().extreme_bg_color = Color32::YELLOW;
+                                            ui.visuals_mut().override_text_color =
+                                                Some(Color32::BLACK);
+                                            ui.add_enabled_ui(editable, |ui| {
+                                                ui.add_sized(
+                                                    r.size(),
+                                                    egui::TextEdit::singleline(
+                                                        self.draft
+                                                            .entry("price".into())
+                                                            .or_default(),
+                                                    )
+                                                    .text_color(Color32::BLACK)
+                                                    .vertical_align(egui::Align::Center)
+                                                    .margin(egui::vec2(4. / p, 0.))
+                                                    .desired_width(r.width()),
+                                                )
+                                            });
+                                        });
+                                    }
+                                    "orderType" | "timeInForce" | "algorithm" | "pace"
+                                    | "action" => {
+                                        let choices: &[&str] = match *key {
+                                            "orderType" => &["Limit", "Market"],
+                                            "timeInForce" => &["Day", "GTC"],
+                                            "algorithm" => &["None", "Adaptive"],
+                                            "pace" => &["Patient", "Normal", "Urgent"],
+                                            _ => {
+                                                if context(s, "executionAction") == "Close" {
+                                                    &["Close"]
+                                                } else {
+                                                    &["Open"]
+                                                }
+                                            }
+                                        };
+                                        if *key == "pace" {
+                                            self.draft
+                                                .entry("pace".into())
+                                                .or_insert("Normal".into());
+                                        }
+                                        if self.choice(
+                                            ui,
+                                            r,
+                                            key,
+                                            choices,
+                                            editable
+                                                && (*key != "pace"
+                                                    || self
+                                                        .draft
+                                                        .get("algorithm")
+                                                        .is_some_and(|v| v != "None")),
+                                        ) {
+                                            action = Some("preview-draft");
+                                        }
+                                    }
+                                    _ => {
+                                        let displayed = match *caption {
+                                            "Directed venue" => context(s, "venue").into(),
+                                            "Combo tick" => {
+                                                if context(s, "compositionType")
+                                                    == "FuturesOutright"
+                                                {
+                                                    "0.25".into()
+                                                } else {
+                                                    "0.05".into()
+                                                }
+                                            }
+                                            "Broker route" => {
+                                                if context(s, "brokerMode") == "Emulator" {
+                                                    "InteractiveBrokersEmulator".into()
+                                                } else {
+                                                    "InteractiveBrokers".into()
+                                                }
+                                            }
+                                            "SMART" => "Not configured".into(),
+                                            _ => fields
+                                                .and_then(|v| v.get(*caption))
+                                                .cloned()
+                                                .unwrap_or_default(),
+                                        };
+                                        self.display(
+                                            ui,
+                                            r,
+                                            caption,
+                                            if displayed.is_empty() {
+                                                "Unavailable"
+                                            } else {
+                                                &displayed
+                                            },
+                                        );
+                                    }
+                                }
+                                self.controls.insert(format!("broker-field-{caption}"), r);
+                                let id = match *key {
+                                    "quantity" => "brokerPreviewContractsValue".to_string(),
+                                    "price" => "brokerPreviewNetLimitTicks".into(),
+                                    "orderType" | "timeInForce" | "action" | "algorithm"
+                                    | "pace" => {
+                                        format!("brokerPreview{}Selector", caption.replace(" ", ""))
+                                    }
+                                    _ => format!("brokerPreview{}Value", caption.replace(" ", "")),
+                                };
+                                self.controls.insert(id, r);
+                                if !key.is_empty() && old != self.draft.get(*key).cloned() {
+                                    action = Some("preview-draft");
+                                }
+                            }
+                            y += height + 16. / p;
+                        }
+                    }
+                    ui.allocate_rect(
+                        egui::Rect::from_min_size(origin, egui::vec2(available, y)),
+                        egui::Sense::hover(),
                     );
                 });
-                let r = rect(
-                    o,
-                    p,
-                    x,
-                    y + if *key == "quantity" { 37. } else { 36. },
-                    width,
-                    if *key == "quantity" { 24. } else { 30. },
-                );
-                let old = self.draft.get(*key).cloned();
-                match *key {
-                    "quantity" => {
-                        at(ui, r, key, |ui| {
-                            ui.add_enabled_ui(editable, |ui| {
-                                self.numeric(ui, "quantity", "1", 1., 100000., 1., 0)
-                            });
-                        });
-                    }
-                    "price" => {
-                        at(ui, r, key, |ui| {
-                            ui.visuals_mut().extreme_bg_color = Color32::YELLOW;
-                            ui.visuals_mut().override_text_color = Some(Color32::BLACK);
-                            ui.add_enabled_ui(editable, |ui| {
-                                ui.add_sized(
-                                    r.size(),
-                                    egui::TextEdit::singleline(
-                                        self.draft.entry("price".into()).or_default(),
-                                    )
-                                    .text_color(Color32::BLACK)
-                                    .desired_width(r.width()),
-                                )
-                            });
-                        });
-                    }
-                    "orderType" | "timeInForce" | "algorithm" | "pace" | "action" => {
-                        let choices: &[&str] = match *key {
-                            "orderType" => &["Limit", "Market"],
-                            "timeInForce" => &["Day", "GTC"],
-                            "algorithm" => &["None", "Adaptive"],
-                            "pace" => &["Patient", "Normal", "Urgent"],
-                            _ => {
-                                if context(s, "executionAction") == "Close" {
-                                    &["Close"]
-                                } else {
-                                    &["Open"]
-                                }
-                            }
-                        };
-                        if *key == "pace" {
-                            self.draft.entry("pace".into()).or_insert("Normal".into());
-                        }
-                        if self.choice(
-                            ui,
-                            r,
-                            key,
-                            choices,
-                            editable
-                                && (*key != "pace"
-                                    || self.draft.get("algorithm").is_some_and(|v| v != "None")),
-                        ) {
-                            action = Some("preview-draft");
-                        }
-                    }
-                    _ => {
-                        let displayed = match *caption {
-                            "Directed venue" => context(s, "venue").into(),
-                            "Combo tick" => {
-                                if context(s, "compositionType") == "FuturesOutright" {
-                                    "0.25".into()
-                                } else {
-                                    "0.05".into()
-                                }
-                            }
-                            "Broker route" => {
-                                if context(s, "brokerMode") == "Emulator" {
-                                    "InteractiveBrokersEmulator".into()
-                                } else {
-                                    "InteractiveBrokers".into()
-                                }
-                            }
-                            "SMART" => "Not configured".into(),
-                            _ => fields
-                                .and_then(|v| v.get(*caption))
-                                .cloned()
-                                .unwrap_or_default(),
-                        };
-                        self.display(
-                            ui,
-                            r,
-                            caption,
-                            if displayed.is_empty() {
-                                "Unavailable"
-                            } else {
-                                &displayed
-                            },
-                        );
-                    }
-                }
-                self.controls.insert(format!("broker-field-{caption}"), r);
-                let id = match *key {
-                    "quantity" => "brokerPreviewContractsValue".to_string(),
-                    "price" => "brokerPreviewNetLimitTicks".into(),
-                    "orderType" | "timeInForce" | "action" | "algorithm" | "pace" => {
-                        format!("brokerPreview{}Selector", caption.replace(" ", ""))
-                    }
-                    _ => format!("brokerPreview{}Value", caption.replace(" ", "")),
-                };
-                self.controls.insert(id, r);
-                if !key.is_empty() && old != self.draft.get(*key).cloned() {
-                    action = Some("preview-draft");
-                }
-                x += width + 10.;
-            }
-        }
-        at(
-            ui,
-            rect(o, p, 26., 486., w - 52., 27.),
-            "broker-economics-header",
-            |ui| {
-                ui.painter().rect_filled(ui.max_rect(), 0., Color32::BLACK);
-                ui.trading_caption("Fund Economics and Limits:");
-            },
-        );
+        });
         at(
             ui,
             rect(o, p, w - 343., h - 52., 180., 29.),
@@ -1149,6 +1269,8 @@ impl TradeWorkspace {
         );
         action
     }
+
+
     /// Show managed inspection properties, falling back to the supplied published value when detailed data is absent.
     pub(super) fn inspection_properties(
         &mut self,
@@ -1218,6 +1340,8 @@ impl TradeWorkspace {
             }
         }
     }
+
+
     /// Render the managed staged-order rows and their selection state.
     fn staging_grid(&mut self, ui: &mut egui::Ui, s: &ContractPublication) {
         let p = ui.ctx().pixels_per_point();
@@ -1297,6 +1421,8 @@ impl TradeWorkspace {
                 });
             });
     }
+
+
     /// Render the selected broker/reconciliation evidence from published data.
     fn evidence_panel(&mut self, ui: &mut egui::Ui, s: &ContractPublication) {
         let display = self.prepare_trade_display(s);
@@ -1321,6 +1447,8 @@ impl TradeWorkspace {
             }
         });
     }
+
+
     /// Draw editable option-leg rows within the allotted height and report whether the leg selection changed.
     fn leg_grid(
         &mut self,
@@ -1390,7 +1518,7 @@ impl TradeWorkspace {
                                 .unwrap_or_default();
                             if column == 5 {
                                 let before = self.draft.get("quantity").cloned();
-                                ui.add_enabled_ui(editable, |ui| {
+                                ui.add_enabled_ui(editable && !flag(s, "closingTrade"), |ui| {
                                     self.numeric(ui, "quantity", "1", 1., 100000., 1., 0)
                                 });
                                 changed |= before != self.draft.get("quantity").cloned();
@@ -1434,12 +1562,18 @@ impl TradeWorkspace {
             });
         changed
     }
+
+
     /// Render selected trade legs from the current managed publication.
     fn selected_grid(&mut self, ui: &mut egui::Ui, s: &ContractPublication) {
         let p = ui.ctx().pixels_per_point();
         let prepared = self.prepare_trade_display(s);
         let empty_market = crate::models::broker_presentation::MarketDisplay::default();
-        let market = prepared.market.as_deref().unwrap_or(&empty_market);
+        let market = prepared
+            .market
+            .as_deref()
+            .map(|market| &market.value)
+            .unwrap_or(&empty_market);
         let display = self.prepare_trade_display(s);
         let legs = &display.selected_legs;
         let row_spacing = ui.spacing().item_spacing.y;
@@ -1511,6 +1645,7 @@ impl TradeWorkspace {
             });
     }
 }
+
 
 /// Uses the Windows common file dialog; file contents are read and hashed by the managed adapter.
 #[cfg(target_os = "windows")]
@@ -1599,6 +1734,8 @@ pub(super) fn pick_report() -> Option<String> {
         None
     }
 }
+
+
 /// Choose an existing local report file with the platform file dialog; cancellation or an unsupported platform returns None.
 #[cfg(not(target_os = "windows"))]
 pub(super) fn pick_report() -> Option<String> {

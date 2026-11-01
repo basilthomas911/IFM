@@ -3,6 +3,9 @@ use ifm_ui_egui::{
     state::option_contract::{display_contract, draft},
 };
 use std::path::Path;
+
+
+/// Reads option editor for option editor.
 fn read(name: &str) -> Vec<u8> {
     std::fs::read(
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -11,9 +14,15 @@ fn read(name: &str) -> Vec<u8> {
     )
     .unwrap()
 }
+
+
+/// Provides wire for the option editor implementation.
 fn wire(name: &str) -> rmpv::Value {
     codec::decode(&read(&format!("{name}.wire.msgpack"))).unwrap()
 }
+
+
+/// Verifies that option drafts match hybrid exact strikes and preserve provider identity.
 #[test]
 fn option_drafts_match_hybrid_exact_strikes_and_preserve_provider_identity() {
     let registry = Registry::compiled().unwrap();
@@ -45,6 +54,9 @@ fn option_drafts_match_hybrid_exact_strikes_and_preserve_provider_identity() {
         );
     }
 }
+
+
+/// Verifies that existing legacy option identity cannot be edited into another instrument.
 #[test]
 fn existing_legacy_option_identity_cannot_be_edited_into_another_instrument() {
     let registry = Registry::compiled().unwrap();

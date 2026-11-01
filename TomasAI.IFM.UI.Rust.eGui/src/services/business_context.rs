@@ -2,16 +2,24 @@ use crate::backend::{contracts::*, transport::Backend};
 use chrono::{Datelike, NaiveDate};
 use rmpv::Value;
 
+/// Business Context used by the business context component.
 #[derive(Clone, Debug)]
 pub struct BusinessContext {
+    /// Value date associated with this business context.
     pub value_date: NaiveDate,
+    /// Optional active value date; `None` represents an absent value.
     pub active_value_date: Option<NaiveDate>,
+    /// As of utc associated with this business context.
     pub as_of_utc: chrono::DateTime<chrono::Utc>,
+    /// Revision associated with this business context.
     pub revision: i64,
+    /// Market state associated with this business context.
     pub market_state: i64,
+    /// Whether allow development emulator is enabled or currently true.
     pub allow_development_emulator: bool,
 }
 impl BusinessContext {
+    /// Loads business context for business context.
     pub async fn load(backend: &Backend) -> Result<Self, String> {
         let subject = ActorSubject::query("MarketDataQuery", "GetMarketSession", "marketSession");
         let reply = backend
@@ -59,6 +67,8 @@ impl BusinessContext {
         }
         Ok(context)
     }
+
+
     /// API startup can precede actor readiness. Retry read-only hydration within
     /// one absolute budget, never start feeds or synthesize a business date.
     pub async fn await_ready(

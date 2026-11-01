@@ -20,6 +20,28 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesItiSignal;
 
 public sealed class FuturesItiSignalGeneratedCompleteTests
 {
+    [Theory]
+    [InlineData(IntrinsicTimeModeType.TrendOvershootExtended)]
+    [InlineData(IntrinsicTimeModeType.TrendOvershootReversal)]
+    public async Task Overshoot_completions_preserve_mode_and_stable_workflow_trigger_and_child_identities(IntrinsicTimeModeType mode)
+    {
+        var original = CreateCompletion(TimeFrameType.Daily);
+        var source = original with { FuturesItiSignal = original.FuturesItiSignal! with { IntrinsicTimeMode = mode, BandLevel = 1.4, BandPercentage = 0.20, Threshold = 10, BandSize = 2 } };
+        var first = CreateSuccessfulContext();
+        var second = CreateSuccessfulContext();
+        await FuturesItiSignalGeneratedComplete.StartStrategyWorkflowAsync(source, first);
+        await FuturesItiSignalGeneratedComplete.StartStrategyWorkflowAsync(source, second);
+        var workflow = GetWorkflowCommand(first);
+        Assert.Equal(mode, workflow.TriggerEvent.FuturesItiSignal!.IntrinsicTimeMode);
+        Assert.Equal(source.CommandId, workflow.TriggerEventId);
+        Assert.Equal(workflow.TriggerEventId, GetWorkflowCommand(second).TriggerEventId);
+        Assert.Equal(workflow.EntityId, GetWorkflowCommand(second).EntityId);
+        Assert.True(await FuturesItiSignalGeneratedComplete.GenerateDerivedPeriodsAsync(source, first, Substitute.For<ILogger<FuturesItiSignalEventActor>>()));
+        Assert.True(await FuturesItiSignalGeneratedComplete.GenerateDerivedPeriodsAsync(source, second, Substitute.For<ILogger<FuturesItiSignalEventActor>>()));
+        Assert.Equal(GetCommands(first).Select(command => command.CommandId), GetCommands(second).Select(command => command.CommandId));
+        Assert.Equal(2, GetCommands(first).Length);
+    }
+
     [Fact]
     public async Task DailyCompletion_RequestsWeeklyAndMonthlyFromPersistedSignal()
     {
@@ -196,6 +218,9 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
             || name == "FuturesItiSignalStreamOwnership"
             || name == "FuturesItiSignalRealtimeProjector");
     }
+
+    static ExecuteIntrinsicTimeStrategyWorkflowCommand GetWorkflowCommand(IEventActorContext<FuturesItiSignalEventActor> context)
+        => context.ReceivedCalls().SelectMany(call => call.GetArguments()).OfType<ExecuteIntrinsicTimeStrategyWorkflowCommand>().Single();
 
     static GenerateFuturesItiSignalCommand[] GetCommands(
         IEventActorContext<FuturesItiSignalEventActor> context) =>

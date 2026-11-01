@@ -1,6 +1,7 @@
 use super::*;
 use crate::diagnostics::trade_load::{mark, measure};
 impl Hub {
+    /// Opens commands for hub.
     pub async fn open(
         &self,
         backend: &Backend,
@@ -95,6 +96,8 @@ impl Hub {
         self.schedule_saved_feed(backend, &key)?;
         Ok("Trade loaded".into())
     }
+
+
     /// Start optional history work after publishing the core trade. Background
     /// requests use their own bounded read budget, not the completed UI command.
     pub async fn refresh_chart(
@@ -106,6 +109,9 @@ impl Hub {
     ) -> Result<(), String> {
         self.schedule_chart(backend, key)
     }
+
+
+    /// Selects position for hub.
     pub async fn select_position(
         &self,
         backend: &Backend,
@@ -132,7 +138,7 @@ impl Hub {
                     .ok_or("Missing saved position date")?,
             )?;
             if state.plan_date != date {
-                state.chart = None;
+                state.set_chart(None);
             }
             state.plan_date = date;
             state.detail_generation += 1;
@@ -146,6 +152,9 @@ impl Hub {
         self.schedule_details(backend, key)?;
         self.schedule_chart(backend, key)
     }
+
+
+    /// Provides plans page for the hub implementation.
     pub async fn plans_page(
         &self,
         backend: &Backend,
@@ -192,6 +201,9 @@ impl Hub {
         }
         self.publish()
     }
+
+
+    /// Sets live for hub.
     pub async fn set_live(
         &self,
         backend: &Backend,
@@ -206,6 +218,8 @@ impl Hub {
         self.change_live(backend, registry, key, enabled, context, deadline, false)
             .await
     }
+
+
     /// A saved-feed Load already reconciles subscriptions. Do not enable them a second time.
     pub(super) async fn change_live(
         &self,
@@ -231,7 +245,7 @@ impl Hub {
             }
             scope = state.scope;
             chart_needed = state.plan_date != context.value_date
-                || (state.chart.is_none() && !state.chart_loading);
+                || (!state.has_chart() && !state.chart_loading);
             state.detail_generation += 1;
             state.observations_loading = false;
             state.context = context.clone();
@@ -239,7 +253,7 @@ impl Hub {
             state.collecting = enabled;
             if enabled {
                 if state.plan_date != context.value_date {
-                    state.chart = None;
+                    state.set_chart(None);
                 }
                 state.plan_date = context.value_date;
                 state.live_plans.clear();
@@ -329,6 +343,9 @@ impl Hub {
         }
         self.publish()
     }
+
+
+    /// Handles a commands intent and returns the resulting publication or error.
     pub async fn execute(
         &self,
         backend: &Backend,

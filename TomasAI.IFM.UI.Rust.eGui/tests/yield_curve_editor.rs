@@ -5,11 +5,19 @@ use ifm_ui_egui::{
     yield_curve_editor::*,
 };
 use std::collections::BTreeMap;
+
+/// State used by the yield curve editor test fixtures.
 struct State {
+    /// View associated with this state.
     view: YieldCurveEditor,
+    /// Snapshot associated with this state.
     snapshot: ContractPublication,
+    /// Ordered intents retained by State.
     intents: Vec<String>,
 }
+
+
+/// Provides setup for the yield curve editor implementation.
 fn setup() -> Harness<'static, State> {
     let c: Catalog = serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap();
     let mut fields = BTreeMap::from([("valueDate".into(), "2026-10-13".into())]);
@@ -50,6 +58,9 @@ fn setup() -> Harness<'static, State> {
         },
     )
 }
+
+
+/// Verifies that editing a curve sends all twelve exact rates once.
 #[test]
 fn editing_a_curve_sends_all_twelve_exact_rates_once() {
     let mut h = setup();
@@ -68,6 +79,9 @@ fn editing_a_curve_sends_all_twelve_exact_rates_once() {
         assert_eq!(input["fields"][key], "4.25");
     }
 }
+
+
+/// Verifies that remove is confirmed and new date uses operational snapshot.
 #[test]
 fn remove_is_confirmed_and_new_date_uses_operational_snapshot() {
     let mut h = setup();

@@ -7,6 +7,8 @@ use crate::models::{
     wire_types::{DecimalText, OffsetText, UtcText},
 };
 
+
+/// Provides stamp for the broker market display implementation.
 fn stamp(value: Option<&OffsetText>) -> Result<Option<OffsetText>, String> {
     let Some(value) = value else { return Ok(None) };
     let at = chrono::DateTime::parse_from_rfc3339(value.as_str())
@@ -18,6 +20,9 @@ fn stamp(value: Option<&OffsetText>) -> Result<Option<OffsetText>, String> {
         at.format("%:z")
     ))))
 }
+
+
+/// Provides market for the broker market display implementation.
 pub fn market(row: &EvaluatedOptionChainReadModel) -> Result<MarketDisplay, String> {
     row.contracts
         .as_ref()
@@ -51,6 +56,9 @@ pub fn market(row: &EvaluatedOptionChainReadModel) -> Result<MarketDisplay, Stri
     }
     Ok(result)
 }
+
+
+/// Provides leg for the broker market display implementation.
 pub fn leg(value: &Selected) -> Result<LegDisplay, String> {
     let decimal = |value: &Option<crate::backend::contracts::ExactDecimal>| {
         value
@@ -73,31 +81,55 @@ pub fn leg(value: &Selected) -> Result<LegDisplay, String> {
         sign: Some(value.quote.side),
     })
 }
+
+/// Account Display used by the broker market display component.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountDisplay<'a> {
+    /// Schema version associated with this account display.
     pub schema_version: &'a Option<u16>,
+    /// Id associated with this account display.
     pub id: AccountIdentity<'a>,
+    /// Environment associated with this account display.
     pub environment: &'a Option<AccountBrokerEnvironment>,
+    /// Snapshot associated with this account display.
     pub snapshot: &'a Option<BrokerAccountSnapshotEvidence>,
+    /// Qualification status associated with this account display.
     pub qualification_status: &'a Option<BrokerAccountQualificationStatus>,
+    /// Gate associated with this account display.
     pub gate: &'a Option<BrokerAccountOperationalGate>,
+    /// Manual hold associated with this account display.
     pub manual_hold: &'a Option<bool>,
+    /// Manifest hash associated with this account display.
     pub manifest_hash: &'a Option<String>,
+    /// Evidence reference associated with this account display.
     pub evidence_reference: &'a Option<String>,
+    /// Approval id associated with this account display.
     pub approval_id: &'a Option<String>,
+    /// Authorized by associated with this account display.
     pub authorized_by: &'a Option<String>,
+    /// Changed at utc associated with this account display.
     pub changed_at_utc: &'a Option<UtcText>,
+    /// Revision associated with this account display.
     pub revision: &'a Option<i32>,
+    /// Reason associated with this account display.
     pub reason: &'a Option<String>,
+    /// Development qualifications exempt associated with this account display.
     pub development_qualifications_exempt: &'a Option<bool>,
 }
+
+/// Account Identity used by the broker market display component.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountIdentity<'a> {
+    /// Optional account alias; `None` represents an absent value.
     pub account_alias: Option<&'a str>,
+    /// Whether valid is enabled or currently true.
     pub is_valid: bool,
 }
+
+
+/// Provides account for the broker market display implementation.
 pub fn account(
     value: &crate::models::trade_contracts::BrokerAccountDefinition,
 ) -> Result<AccountDisplay<'_>, String> {
@@ -123,6 +155,8 @@ pub fn account(
         development_qualifications_exempt: &value.development_qualifications_exempt,
     })
 }
+
+
 /// Quote age advances only with API publications. A disconnected workstation
 /// clock cannot change a backtest's age or manufacture a fresh timestamp.
 pub fn quote_age(as_of: &str, quote: &str) -> String {
@@ -138,6 +172,7 @@ pub fn quote_age(as_of: &str, quote: &str) -> String {
         })
         .unwrap_or("Unavailable".into())
 }
+
 
 /// Preserve the original sorted JSON text at the sealed command boundary.
 /// Native quote state and publications remain concrete records.

@@ -181,6 +181,7 @@ impl Bias {
 /// Complete native strategy policy with original exact MessagePack identity.
 pub struct Parameters {
     value: Value,
+    hash: std::sync::OnceLock<Result<String, &'static str>>,
     /// Three explicitly validated directions, in configured order.
     pub biases: Vec<Bias>,
     /// Native physical coverage multiplier.
@@ -239,6 +240,7 @@ impl Parameters {
         let maximum_expirations = int(&v[11])? as usize;
         Ok(Self {
             value,
+            hash: std::sync::OnceLock::new(),
             biases,
             multiplier,
             maximum_contracts,
@@ -267,7 +269,9 @@ impl Parameters {
     /// # Errors
     /// Encoding failure is explicit.
     pub fn hash(&self) -> Result<String, &'static str> {
-        Ok(format!("{:x}", Sha256::digest(codec::encode(&self.value)?)))
+        self.hash
+            .get_or_init(|| Ok(format!("{:x}", Sha256::digest(codec::encode(&self.value)?))))
+            .clone()
     }
     /// Current typed canonical pricing-hash graph.
     ///

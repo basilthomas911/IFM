@@ -20,6 +20,11 @@ static class QualifiedEvaluatedOptionChain
     static readonly ConcurrentDictionary<(string ContractId, string MappingVersion), byte> PublishedReferences = new();
     public static async Task<ServiceResult<EvaluatedOptionChainReadModel>> ExecuteAsync(GetEvaluatedOptionChainQuery query, IMarketDataQueryContext context, CancellationToken token)
     {
+        // Frozen emulator quotes come from persisted inputs, independently of
+        // the live Host's worker admission and active feed ValueDate.
+        if (query.AllowFrozenEmulatorPreview && !query.ReleaseOnly
+            && (query.FrozenEmulatorPreviewOnly || context.MarketDataApi?.GetRuntimeStatus().ActiveValueDate is null))
+            return await FrozenEmulatorOptionChain.ExecuteAsync(query, context, token).ConfigureAwait(false);
         if (context.MarketDataApi is null) return new ServiceFailed<EvaluatedOptionChainReadModel>(503, "Market-data Host client is unavailable.");
         var result = await context.MarketDataApi.EvaluateOptionChainAsync(query, token).ConfigureAwait(false);
         // Emulator matching consumes the backend-generated display quotes without repricing them.

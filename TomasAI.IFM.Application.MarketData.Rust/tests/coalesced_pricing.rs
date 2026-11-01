@@ -780,3 +780,123 @@ fn queued_trade_context_and_binary_evidence_survive_reference_and_physical_repla
     drop(queued);
     assert_eq!(budget.used(), 0);
 }
+
+/// A bounded pass freezes one shared underlying observation rather than rereading it per option.
+#[tokio::test]
+async fn shared_underlying_is_read_once_per_bounded_pass() {
+    let engine = Coalesced::new(4, 4, 5000).unwrap();
+    for id in 1..=4 {
+        engine.register(id, 100, context(id as u128), true).unwrap();
+        engine.observe(id, 100, quote(100, AT, 1)).unwrap();
+    }
+    let calls = std::sync::atomic::AtomicUsize::new(0);
+    engine
+        .pass(
+            false,
+            AT,
+            |_| {
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                Some(quote(5000, AT, 1))
+            },
+            &CancellationToken::new(),
+            Deadline::recovery(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 1);
+    for id in 1..=4 {
+        assert!(
+            engine
+                .read(id, false, AT)
+                .unwrap()
+                .unwrap()
+                .selection
+                .is_some()
+        );
+    }
+}
+
+/// Membership changes invalidate both cached fair-traversal lists without clearing source observations.
+#[tokio::test]
+async fn cached_membership_tracks_risk_changes_registration_and_exact_removal() {
+    let engine = Coalesced::new(4, 4, 5000).unwrap();
+    for id in 1..=2 {
+        engine
+            .register(id, 100, context(id as u128), id == 1)
+            .unwrap();
+        engine.observe(id, 100, quote(100, AT, 1)).unwrap();
+    }
+    // Use explicit tokens because each future retains its borrowed cancellation authority.
+    let token = CancellationToken::new();
+    assert_eq!(
+        engine
+            .pass(
+                true,
+                AT,
+                |_| Some(quote(5000, AT, 1)),
+                &token,
+                Deadline::recovery()
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    engine.require_risk(2, true).unwrap();
+    assert_eq!(
+        engine
+            .pass(
+                true,
+                AT,
+                |_| Some(quote(5000, AT, 1)),
+                &token,
+                Deadline::recovery()
+            )
+            .await
+            .unwrap(),
+        2
+    );
+    engine.require_risk(1, false).unwrap();
+    engine.remove(2, 99).unwrap();
+    assert_eq!(
+        engine
+            .pass(
+                true,
+                AT,
+                |_| Some(quote(5000, AT, 1)),
+                &token,
+                Deadline::recovery()
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    engine.remove(2, 100).unwrap();
+    assert_eq!(
+        engine
+            .pass(
+                true,
+                AT,
+                |_| Some(quote(5000, AT, 1)),
+                &token,
+                Deadline::recovery()
+            )
+            .await
+            .unwrap(),
+        0
+    );
+    engine.register(3, 100, context(3), true).unwrap();
+    engine.observe(3, 100, quote(100, AT, 1)).unwrap();
+    assert_eq!(
+        engine
+            .pass(
+                true,
+                AT,
+                |_| Some(quote(5000, AT, 1)),
+                &token,
+                Deadline::recovery()
+            )
+            .await
+            .unwrap(),
+        1
+    );
+}

@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Model
 /// <summary>
 /// Pure transition evaluator shared by the realtime pre-filter and durable ITI
 /// command actor. Direction changes remain trigger-driven; all other recurring
-/// publications require movement of ten percent of the calculated ITI threshold.
+/// publications require movement of twenty percent of the calculated ITI threshold.
 /// </summary>
 public sealed class FuturesItiSignalCompute
 {
@@ -235,11 +235,13 @@ public sealed class FuturesItiSignalCompute
             }
         }
 
+        var bandLevel = CalculateBandLevel(signal, threshold);
         return signal with
         {
+            IntrinsicTimeMode = ClassifyMode(signal.IntrinsicTimeMode, bandLevel),
             Lambda = lambda,
             Threshold = threshold,
-            BandLevel = CalculateBandLevel(signal, threshold),
+            BandLevel = bandLevel,
             ReversalLevel = CalculateReversalLevel(signal),
             BandAnchorPrice = _command.FuturesPrice,
             BandPercentage = DefaultBandPercentage,
@@ -248,6 +250,17 @@ public sealed class FuturesItiSignalCompute
             DownTrendTrigger = downTrendTrigger
         };
     }
+
+    /// <summary>Classifies the enriched structural result without changing its anchors or trailing triggers.</summary>
+    internal static IntrinsicTimeModeType ClassifyMode(IntrinsicTimeModeType structuralMode, double bandLevel)
+        => double.IsFinite(bandLevel) && bandLevel > 1.0
+            ? structuralMode switch
+            {
+                IntrinsicTimeModeType.TrendExtremeChanged => IntrinsicTimeModeType.TrendOvershootExtended,
+                IntrinsicTimeModeType.TrendReversalChanged => IntrinsicTimeModeType.TrendOvershootReversal,
+                _ => structuralMode
+            }
+            : structuralMode;
 
     /// <summary>
     /// Calculates signed directional progress from the trend's direction-change price as a multiple of the full threshold.

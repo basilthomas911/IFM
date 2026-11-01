@@ -17,6 +17,22 @@ use crate::models::{
 };
 #[cfg(test)]
 use serde_json::json;
+
+/// Spread Plot Cache used by the iron condor component.
+pub(super) struct SpreadPlotCache {
+    /// Optional trade; `None` represents an absent value.
+    trade: Option<std::sync::Arc<EstablishedTradeDefinition>>,
+    /// Optional chart; `None` represents an absent value.
+    chart: Option<std::sync::Arc<crate::models::trade_chart::PreparedTradeChart>>,
+    /// Whether live is enabled or currently true.
+    live: bool,
+    /// Optional end; `None` represents an absent value.
+    end: Option<f64>,
+    /// Ordered net retained by SpreadPlotCache.
+    net: Vec<egui_plot::PlotPoint>,
+    /// Ordered forward retained by SpreadPlotCache.
+    forward: Vec<egui_plot::PlotPoint>,
+}
 /// Black trade-panel background color.
 const BLACK: Color32 = Color32::BLACK;
 /// White ordinary trade-value foreground.
@@ -27,11 +43,15 @@ const GRAY: Color32 = Color32::GRAY;
 const COMMAND: Color32 = Color32::from_rgb(45, 45, 48);
 /// Lime-green trade highlight color.
 const LIME: Color32 = Color32::from_rgb(50, 205, 50);
+
 /// Per-cell live direction, advanced only by a new market publication, never by repainting.
 #[derive(Clone)]
 struct LegValueChange {
+    /// Revision associated with this leg value change.
     revision: u64,
+    /// Optional value; `None` represents an absent value.
     value: Option<f64>,
+    /// Background associated with this leg value change.
     background: Color32,
 }
 impl LegValueChange {
@@ -55,6 +75,8 @@ impl LegValueChange {
         self.background
     }
 }
+
+
 /// Normalize the displayed trade P&L against its corresponding maximum payoff magnitude.
 /// Only the drawn fill is capped; the accompanying percentage can exceed 100%.
 fn trade_pnl_fraction(pnl: Option<f64>, trade_limit: &(impl Cells + ?Sized)) -> Option<f64> {
@@ -67,20 +89,29 @@ fn trade_pnl_fraction(pnl: Option<f64>, trade_limit: &(impl Cells + ?Sized)) -> 
     fraction.is_finite().then_some(fraction)
 }
 
+
 /// Clone the first decoded trade row in a group, or return null when the group is absent.
 fn one<'a>(display: &'a super::display_cache::TradeDisplayData, kind: &str) -> &'a TradeDisplayRow {
     static EMPTY: TradeDisplayRow = TradeDisplayRow::Empty;
     values(display, kind).first().unwrap_or(&EMPTY)
 }
+
+
+/// Provides values for the iron condor implementation.
 fn values<'a>(
     display: &'a super::display_cache::TradeDisplayData,
     kind: &str,
 ) -> &'a [TradeDisplayRow] {
     display.values(kind)
 }
+
+
+/// Returns the display text for the requested value or field.
 fn text(value: &(impl Cells + ?Sized), key: &str) -> String {
     value.cell(key).text()
 }
+
+
 /// Read a boolean eligibility/state flag from the published monitor context.
 fn monitor_flag(s: &ContractPublication, key: &str) -> bool {
     let name = format!("monitor{}{}", key[..1].to_uppercase(), &key[1..]);
@@ -90,6 +121,8 @@ fn monitor_flag(s: &ContractPublication, key: &str) -> bool {
         .map(|value| value == "True")
         .unwrap_or_else(|| flag(s, key))
 }
+
+
 // The live path renders one managed cache revision; historical rows retain their saved-data path.
 /// Shape authoritative realtime position-leg data into call/put spread display rows. Does not calculate Greeks or revalue the position.
 fn realtime_spreads(snapshot: &TradeRealtimeSnapshot, long: bool) -> Vec<SpreadDisplayRow> {
@@ -165,6 +198,9 @@ fn realtime_spreads(snapshot: &TradeRealtimeSnapshot, long: bool) -> Vec<SpreadD
 #[cfg(test)]
 mod realtime_cache_tests {
     use super::*;
+
+
+    /// Verifies that leg value colors follow updates not repaints and preserve valid baselines.
     #[test]
     fn leg_value_colors_follow_updates_not_repaints_and_preserve_valid_baselines() {
         let mut cell = LegValueChange {
@@ -180,6 +216,9 @@ mod realtime_cache_tests {
         assert_eq!(cell.update(6, None), BLACK);
         assert_eq!(cell.update(7, Some(0.)), BLACK);
     }
+
+
+    /// Verifies that pending and stale pricing keep valid greeks and new zero values are displayed.
     #[test]
     fn pending_and_stale_pricing_keep_valid_greeks_and_new_zero_values_are_displayed() {
         let mut snapshot = json!({"legs":[{"definition":{"putCall":2,"signedQuantity":-1,"strike":"5000"},
@@ -207,6 +246,8 @@ mod realtime_cache_tests {
         assert_eq!(number(&detail, "dailyPnl").unwrap(), 0.0);
     }
 
+
+    /// Verifies that missing current plan retains only numeric cells and keeps readiness unknown.
     #[test]
     fn missing_current_plan_retains_only_numeric_cells_and_keeps_readiness_unknown() {
         let previous:IronCondorTradePlanSnapshot=serde_json::from_value(json!({"forwardLossRatio":0.25,"calculationStatus":"Complete","actionReason":"Previous reason"})).unwrap();
@@ -215,6 +256,8 @@ mod realtime_cache_tests {
         assert!(retained.cell("isComplete").is_missing());
         assert!(retained.cell("actionReason").is_missing());
     }
+
+
     /// Regression check: whole snapshot binds all greeks and forward values without local valuation.
     #[test]
     fn whole_snapshot_binds_all_greeks_and_forward_values_without_local_valuation() {
@@ -236,13 +279,17 @@ mod realtime_cache_tests {
         assert_eq!(number(&rows[0], "shortBid").unwrap(), 9.0);
     }
 }
+
 /// Retain available numeric plan fields for display; current plan status still reports readiness.
 #[derive(Clone, Copy)]
 struct RetainedPlanValues<'a> {
+    /// Optional current; `None` represents an absent value.
     current: Option<&'a IronCondorTradePlanSnapshot>,
+    /// Optional previous; `None` represents an absent value.
     previous: Option<&'a IronCondorTradePlanSnapshot>,
 }
 impl Cells for RetainedPlanValues<'_> {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         let current = self.current.cell(column);
         if !current.is_missing() {
@@ -258,15 +305,22 @@ impl Cells for RetainedPlanValues<'_> {
     }
 }
 impl RetainedPlanValues<'_> {
+    /// Checks is complete against the current iron condor state.
     fn is_complete(&self) -> bool {
         self.current
             .is_some_and(IronCondorTradePlanSnapshot::is_complete)
     }
+
+
+    /// Provides unavailable reasons for the retained plan values<' > implementation.
     fn unavailable_reasons(&self) -> Option<&[String]> {
         self.current
             .and_then(|value| value.unavailable_reasons.as_deref())
     }
 }
+
+
+/// Provides retained plan values for the iron condor implementation.
 fn retained_plan_values<'a>(
     current: Option<&'a IronCondorTradePlanSnapshot>,
     previous: Option<&'a IronCondorTradePlanSnapshot>,
@@ -274,9 +328,14 @@ fn retained_plan_values<'a>(
     RetainedPlanValues { current, previous }
 }
 
+
+/// Reads the numeric representation supported by the supplied value.
 fn number(value: &(impl Cells + ?Sized), key: &str) -> Option<f64> {
     value.cell(key).number()
 }
+
+
+/// Provides formatted for the iron condor implementation.
 fn formatted(value: &(impl Cells + ?Sized), key: &str) -> String {
     if value.cell(key).is_missing() {
         return "N/A".into();
@@ -297,6 +356,8 @@ fn formatted(value: &(impl Cells + ?Sized), key: &str) -> String {
     }
     text(value, key)
 }
+
+
 /// Paint a bounded trade-view label with explicit foreground, alignment, and font emphasis.
 fn label(
     ui: &mut egui::Ui,
@@ -336,6 +397,8 @@ fn label(
         });
     });
 }
+
+
 /// Draw a read-only trade metric within fixed bounds using explicit background, foreground, and emphasis.
 fn field(
     ui: &mut egui::Ui,
@@ -355,6 +418,8 @@ fn field(
     );
     ui.push_id(id, |ui| label(ui, r.shrink(2.), value, fg, true, bold));
 }
+
+
 /// Render an already loaded read-only trade table and return its selected row index; delegates geometry/scrolling to the window-aware table helper.
 fn table<T: Cells>(
     ui: &mut egui::Ui,
@@ -366,6 +431,8 @@ fn table<T: Cells>(
 ) -> Option<usize> {
     table_window(ui, r, id, rows, columns, selected, None).0
 }
+
+
 /// Render a logical table using the loaded page. The window argument is (loaded offset, total row count); return clicked global index, missing (offset, page size), and first visible global index.
 fn table_window<T: Cells>(
     ui: &mut egui::Ui,
@@ -518,6 +585,8 @@ fn table_window<T: Cells>(
     });
     (clicked, missing, first_visible)
 }
+
+
 /// Choose an indicator color from the published monitor severity/state.
 fn severity(v: &(impl Cells + ?Sized)) -> Color32 {
     if !matches!(v.cell("isComplete"), Cell::Boolean(true)) {
@@ -531,9 +600,11 @@ fn severity(v: &(impl Cells + ?Sized)) -> Color32 {
         _ => BLACK,
     }
 }
+
 /// Limits chart sampling using monotonic time, independent of quote timestamps and repaint frequency.
 #[derive(Clone, Default)]
 struct SpreadChartClock {
+    /// Optional last sample; `None` represents an absent value.
     last_sample: Option<std::time::Instant>,
 }
 impl SpreadChartClock {
@@ -549,6 +620,7 @@ impl SpreadChartClock {
         true
     }
 }
+
 
 /// Merge the history/live boundary while retaining the latest sample in each UTC minute.
 fn coalesce_chart_minutes(points: &mut Vec<[f64; 2]>) {
@@ -1105,6 +1177,8 @@ impl TradeWorkspace {
         self.loaded_bounds = Some(panel.response.rect);
         action
     }
+
+
     /// Render the published call/put spread and leg metrics within the fixed trade-view region.
     fn draw_condor_spreads(
         &self,
@@ -1219,6 +1293,8 @@ impl TradeWorkspace {
             x += cw;
         }
     }
+
+
     /// Plot the published recent forward-spread series and trade-limit guides with Eastern-time labels.
     fn condor_chart(
         &mut self,
@@ -1258,8 +1334,8 @@ impl TradeWorkspace {
             false,
         );
         let display = self.display_cache.as_ref().unwrap().model.clone();
-        let mut points = display.chart_points.clone();
-        let mut forward_points = display.forward_chart_points.clone();
+        let live = monitor_flag(s, "live");
+        let mut chart_dirty = false;
         let limit = one(&display, "limits").limits();
         let loss = number(
             &limit.and_then(|limit| limit.trade_limit.as_ref()),
@@ -1272,7 +1348,7 @@ impl TradeWorkspace {
         )
         .map(f64::abs);
         let mut end = display.chart_end_utc_seconds;
-        if monitor_flag(s, "live") {
+        if live {
             let realtime = one(&display, "realtime").realtime();
             let clock_id = egui::Id::new((
                 "condor-chart-clock",
@@ -1295,6 +1371,7 @@ impl TradeWorkspace {
             ) {
                 if let Ok(at) = chrono::DateTime::parse_from_rfc3339(at) {
                     if clock.accept(std::time::Instant::now()) {
+                        chart_dirty = true;
                         let time = at.timestamp_millis() as f64 / 1000.;
                         if self
                             .loaded_spread_points
@@ -1337,21 +1414,58 @@ impl TradeWorkspace {
                 self.loaded_spread_points
                     .retain(|point| point[0] >= end - 21600.);
             }
-            points.extend_from_slice(&self.loaded_spread_points);
             if let Some(end) = end {
                 self.loaded_forward_points
                     .retain(|point| point[0] >= end - 21600.);
             }
-            forward_points.extend_from_slice(&self.loaded_forward_points);
         }
-        if let Some(end) = end {
-            points.retain(|point| point[0] >= end - 21600. && point[0] <= end);
+        if chart_dirty
+            || self.spread_plot.as_ref().is_none_or(|cached| {
+                !match (&cached.trade, display.established_arc()) {
+                    (Some(a), Some(b)) => std::sync::Arc::ptr_eq(a, b),
+                    (None, None) => true,
+                    _ => false,
+                } || cached.live != live
+                    || cached.end != end
+                    || !match (&cached.chart, &display.chart) {
+                        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(a, b),
+                        (None, None) => true,
+                        _ => false,
+                    }
+            })
+        {
+            let mut points = display
+                .chart
+                .as_ref()
+                .map(|c| c.net.clone())
+                .unwrap_or_default();
+            let mut forward_points = display
+                .chart
+                .as_ref()
+                .map(|c| c.forward.clone())
+                .unwrap_or_default();
+            if live {
+                points.extend_from_slice(&self.loaded_spread_points);
+                forward_points.extend_from_slice(&self.loaded_forward_points);
+            }
+            if let Some(end) = end {
+                points.retain(|point| point[0] >= end - 21600. && point[0] <= end);
+                forward_points.retain(|point| point[0] >= end - 21600. && point[0] <= end);
+            }
+            coalesce_chart_minutes(&mut points);
+            coalesce_chart_minutes(&mut forward_points);
+            self.spread_plot = Some(SpreadPlotCache {
+                trade: display.established_arc().cloned(),
+                chart: display.chart.clone(),
+                live,
+                end,
+                net: points.into_iter().map(Into::into).collect(),
+                forward: forward_points.into_iter().map(Into::into).collect(),
+            });
         }
-        if let Some(end) = end {
-            forward_points.retain(|point| point[0] >= end - 21600. && point[0] <= end);
-        }
-        coalesce_chart_minutes(&mut forward_points);
-        coalesce_chart_minutes(&mut points);
+        let cached = self.spread_plot.as_ref().unwrap();
+        let points = cached.net.as_slice();
+        let forward_points = cached.forward.as_slice();
         at(
             ui,
             rect(o, p, 16., 47., w - 32., h - 145.),
@@ -1395,7 +1509,7 @@ impl TradeWorkspace {
                         }
                         if !forward_points.is_empty() {
                             plot.points(
-                                egui_plot::Points::new("ForwardSpread", forward_points.clone())
+                                egui_plot::Points::new("ForwardSpread", forward_points)
                                     .color(Color32::from_rgb(0, 191, 255))
                                     .radius(2.0_f32),
                             );
@@ -1405,7 +1519,7 @@ impl TradeWorkspace {
                             );
                         }
                         plot.points(
-                            egui_plot::Points::new("NetSpread", points.clone())
+                            egui_plot::Points::new("NetSpread", points)
                                 .color(Color32::YELLOW)
                                 .radius(3.0_f32),
                         );
@@ -1452,6 +1566,8 @@ impl TradeWorkspace {
             );
         }
     }
+
+
     /// Select/shape the published spread data for this trade, preferring the authoritative realtime snapshot when available.
     fn condor_spreads(
         &self,
@@ -1606,6 +1722,7 @@ mod eastern_chart_time_tests {
 
 #[cfg(test)]
 mod spread_chart_sampling_tests {
+    /// Verifies that database baseline survives new session live points and boundary duplicates.
     #[test]
     fn database_baseline_survives_new_session_live_points_and_boundary_duplicates() {
         let mut points = vec![[60., -1.], [120., -2.], [180., -3.]];
@@ -1619,6 +1736,8 @@ mod spread_chart_sampling_tests {
     use super::{SpreadChartClock, coalesce_chart_minutes};
     use std::time::{Duration, Instant};
 
+
+    /// Verifies that history and live points keep only the latest sample per minute.
     #[test]
     fn history_and_live_points_keep_only_the_latest_sample_per_minute() {
         let mut points = vec![[61., -11.], [40., -10.], [65., -12.], [120., -13.]];
@@ -1626,6 +1745,21 @@ mod spread_chart_sampling_tests {
         assert_eq!(points, vec![[40., -10.], [65., -12.], [120., -13.]]);
     }
 
+
+    /// Verifies that six hour window bounds even dense input to at most 361 plot samples.
+    #[test]
+    fn six_hour_window_bounds_even_dense_input_to_at_most_361_plot_samples() {
+        let mut points: Vec<_> = (0..100_000)
+            .map(|i| [i as f64 * 21600. / 99999., i as f64])
+            .collect();
+        coalesce_chart_minutes(&mut points);
+        assert!(points.len() <= 361);
+        assert_eq!(points.first().unwrap()[0].floor() as i64 / 60, 0);
+        assert_eq!(points.last().unwrap()[0], 21600.);
+    }
+
+
+    /// Verifies that chart accepts first point then waits sixty seconds.
     #[test]
     fn chart_accepts_first_point_then_waits_sixty_seconds() {
         let mut clock = SpreadChartClock::default();
@@ -1645,6 +1779,8 @@ mod trade_pnl_bar_tests {
     use super::trade_pnl_fraction;
     use serde_json::json;
 
+
+    /// Verifies that gain and loss use their own trade maximum not fund or exit limits.
     #[test]
     fn gain_and_loss_use_their_own_trade_maximum_not_fund_or_exit_limits() {
         let limits = json!({"maxProfit": 2000., "maxLoss": -8000.,
@@ -1658,6 +1794,8 @@ mod trade_pnl_bar_tests {
         );
     }
 
+
+    /// Verifies that preserves over limit percentage and requires valid pnl and maximum.
     #[test]
     fn preserves_over_limit_percentage_and_requires_valid_pnl_and_maximum() {
         assert_eq!(

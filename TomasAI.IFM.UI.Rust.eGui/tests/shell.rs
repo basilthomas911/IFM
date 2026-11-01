@@ -2,6 +2,8 @@ use eframe::egui;
 use egui_kittest::{Harness, kittest::Queryable};
 use ifm_ui_egui::{Catalog, DetailsView, shell::MainShell, strategy_workspace::StrategyWorkspace};
 
+
+/// Verifies that main shell has three regions with winforms side widths.
 #[test]
 fn main_shell_has_three_regions_with_winforms_side_widths() {
     let catalog: Catalog =
@@ -35,10 +37,8 @@ fn main_shell_has_three_regions_with_winforms_side_widths() {
         assert_eq!(harness.state().0.time_frame, 0);
         for label in [
             "Strategy",
-            "Latency",
-            "Traffic",
-            "Errors",
-            "Saturation",
+            "Operations",
+            "Actors",
             "Time Frame:",
             "Market Direction",
             "ES",
@@ -48,7 +48,12 @@ fn main_shell_has_three_regions_with_winforms_side_widths() {
         ] {
             assert!(harness.query_by_label(label).is_some(), "Missing {label}");
         }
-        assert!(harness.query_by_label("Operations").is_none());
+        for removed in ["Latency", "Traffic", "Errors", "Saturation"] {
+            assert!(
+                harness.query_by_label(removed).is_none(),
+                "removed tab {removed}"
+            );
+        }
         assert!(harness.query_by_label("Status Console").is_none());
         let left = egui::containers::panel::PanelState::load(
             &harness.ctx,
@@ -74,6 +79,9 @@ fn main_shell_has_three_regions_with_winforms_side_widths() {
     }
 }
 
+
+/// Verifies that both splitters match status border at rest and are three physical pixels cyan
+/// while dragging.
 #[test]
 fn both_splitters_match_status_border_at_rest_and_are_three_physical_pixels_cyan_while_dragging() {
     for scale in [1., 2.] {

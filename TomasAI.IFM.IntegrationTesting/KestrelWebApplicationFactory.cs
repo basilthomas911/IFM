@@ -78,6 +78,11 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
     }
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1000",Justification="The assembly-shared integration host is scoped by its generic entry point type.")]
 
+    /// <summary>Gets the ready shared host, if started, without creating a host during cleanup.</summary>
+    public static IServiceProvider? StartedSharedServices
+        => Shared.IsValueCreated ? Shared.Value.readyServices : null;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1000",Justification="The assembly-shared integration host is scoped by its generic entry point type.")]
+
     /// <summary>Starts the assembly-shared host and waits for the actor runtime to become ready.</summary>
     /// <returns>The ready shared host service provider.</returns>
     public static IServiceProvider StartShared()
@@ -91,7 +96,7 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
         ArgumentNullException.ThrowIfNull(configuration);
         if (Shared.IsValueCreated)
             throw new InvalidOperationException("The shared integration host has already been created.");
-        configureSharedServices = configuration;
+        configureSharedServices += configuration;
     }
     /// <summary>Creates an HTTP client for the assembly-shared default host.</summary>
     /// <returns>A client bound to the shared host's isolated Kestrel port.</returns>

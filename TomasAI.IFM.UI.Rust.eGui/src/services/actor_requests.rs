@@ -4,6 +4,8 @@ use rmpv::Value;
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
 
+
+/// Provides query for the actor requests implementation.
 pub async fn query(
     backend: &Backend,
     registry: &Registry,
@@ -18,6 +20,9 @@ pub async fn query(
     let result = backend.request(&subject, &body, None, None).await?;
     Ok(service_result(&result)?.clone())
 }
+
+
+/// Provides command for the actor requests implementation.
 pub async fn command(
     backend: &Backend,
     registry: &Registry,

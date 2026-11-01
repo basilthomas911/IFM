@@ -3,19 +3,29 @@ use crate::backend::contracts;
 use rmpv::Value;
 use serde::{Deserialize, Serialize};
 
+/// Defines the from backend operations shared by its implementations.
 pub trait FromBackend: Sized {
     const KIND: &'static str;
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String>;
 }
 
 impl<T: FromBackend> FromBackend for Box<T> {
     const KIND: &'static str = T::KIND;
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         T::from_backend(value).map(Box::new)
     }
 }
 impl<T: FromBackend> FromBackend for Option<T> {
     const KIND: &'static str = T::KIND;
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         if value.is_nil() {
             Ok(None)
@@ -27,6 +37,9 @@ impl<T: FromBackend> FromBackend for Option<T> {
 
 impl<T: FromBackend> FromBackend for Vec<T> {
     const KIND: &'static str = "bounded contract collection";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         let values = value
             .as_array()
@@ -40,6 +53,7 @@ macro_rules! integer {
     ($kind:ty, $read:ident) => {
         impl FromBackend for $kind {
             const KIND: &'static str = stringify!($kind);
+            /// Reads the declared integer width and rejects out-of-range backend values.
             fn from_backend(value: &Value) -> Result<Self, String> {
                 value
                     .$read()
@@ -56,6 +70,9 @@ integer!(u16, as_u64);
 integer!(u32, as_u64);
 impl FromBackend for f64 {
     const KIND: &'static str = "finite double";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         value
             .as_f64()
@@ -65,12 +82,18 @@ impl FromBackend for f64 {
 }
 impl FromBackend for bool {
     const KIND: &'static str = "boolean";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         value.as_bool().ok_or("Invalid contract boolean".into())
     }
 }
 impl FromBackend for String {
     const KIND: &'static str = "string";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         value
             .as_str()
@@ -81,21 +104,28 @@ impl FromBackend for String {
 
 macro_rules! text_scalar {
     ($name:ident, $kind:literal, $decode:expr) => {
+        /// Exact text for the declared backend scalar, validated before construction.
         #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
         #[serde(transparent)]
-        pub struct $name(pub String);
+        pub struct $name(
+            /// Original validated scalar text retained without floating-point conversion.
+            pub String,
+        );
         impl $name {
+            /// Borrows the exact stored scalar text.
             pub fn as_str(&self) -> &str {
                 &self.0
             }
         }
         impl std::fmt::Display for $name {
+            /// Writes the stored scalar text without changing its precision or spelling.
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 self.0.fmt(f)
             }
         }
         impl FromBackend for $name {
             const KIND: &'static str = $kind;
+            /// Validates the backend scalar and retains its exact text representation.
             fn from_backend(value: &Value) -> Result<Self, String> {
                 ($decode)(value).map(Self)
             }
@@ -134,9 +164,15 @@ text_scalar!(TimeText, "System.TimeOnly", |value: &Value| {
 /// Positional backend binary is kept as bytes; presentation compatibility uses a numeric array.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ByteBuffer(pub Vec<u8>);
+pub struct ByteBuffer(
+    /// Owned backend bytes serialized as a binary buffer.
+    pub Vec<u8>,
+);
 impl FromBackend for ByteBuffer {
     const KIND: &'static str = "System.Byte[]";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
     fn from_backend(value: &Value) -> Result<Self, String> {
         match value {
             Value::Binary(value) if value.len() <= 16 * 1024 * 1024 => Ok(Self(value.clone())),

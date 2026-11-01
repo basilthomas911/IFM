@@ -33,20 +33,20 @@ pub struct Frame {
 
 /// Formats the .NET little-endian Guid fields without changing their identity.
 pub fn guid(bytes: [u8; 16]) -> String {
-    format!(
-        "{:08x}-{:04x}-{:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
-        u16::from_le_bytes([bytes[4], bytes[5]]),
-        u16::from_le_bytes([bytes[6], bytes[7]]),
-        bytes[8],
-        bytes[9],
-        bytes[10],
-        bytes[11],
-        bytes[12],
-        bytes[13],
-        bytes[14],
-        bytes[15]
-    )
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let ordered = [
+        bytes[3], bytes[2], bytes[1], bytes[0], bytes[5], bytes[4], bytes[7], bytes[6], bytes[8],
+        bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15],
+    ];
+    let mut output = String::with_capacity(36);
+    for (index, byte) in ordered.into_iter().enumerate() {
+        if matches!(index, 4 | 6 | 8 | 10) {
+            output.push('-');
+        }
+        output.push(char::from(HEX[usize::from(byte >> 4)]));
+        output.push(char::from(HEX[usize::from(byte & 15)]));
+    }
+    output
 }
 
 impl Frame {
@@ -113,7 +113,21 @@ impl Frame {
     /// # Errors
     /// Invalid identity, source data or encoding failure.
     pub fn content(&self) -> Result<Vec<u8>, &'static str> {
-        super::codec::encode(&self.value()?)
+        self.validate()?;
+        let mut output = Vec::with_capacity(self.payload.len() + 128);
+        let encoded = (|| {
+            rmp::encode::write_array_len(&mut output, 8)?;
+            rmp::encode::write_str(&mut output, self.lane.dataset())?;
+            rmp::encode::write_sint(&mut output, i64::from(self.value_date))?;
+            rmp::encode::write_str(&mut output, &guid(self.worker))?;
+            rmp::encode::write_str(&mut output, &guid(self.generation))?;
+            rmp::encode::write_sint(&mut output, self.manifest_revision)?;
+            rmp::encode::write_sint(&mut output, self.sequence)?;
+            rmp::encode::write_uint(&mut output, u64::from(self.kind))?;
+            rmp::encode::write_bin(&mut output, &self.payload)
+        })();
+        encoded.map_err(|_| "Event encoding failed")?;
+        Ok(output)
     }
 
     /// Applies MessagePack-CSharp Lz4BlockArray (extension 98) transport framing.

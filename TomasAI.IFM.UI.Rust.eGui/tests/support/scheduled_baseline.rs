@@ -4,15 +4,27 @@ use ifm_ui_egui::backend::schema::Registry;
 use rmpv::Value;
 use serde_json::{Value as Json, json};
 const ROOT: &str = "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.";
+
+
+/// Provides model for the scheduled baseline implementation.
 fn model(name: &str) -> String {
     format!("{ROOT}Contracts.{name}")
 }
+
+
+/// Provides field for the scheduled baseline implementation.
 fn field<'a>(intent: &'a Json, name: &str) -> &'a str {
     intent["fields"][name].as_str().unwrap_or_default().trim()
 }
+
+
+/// Provides text for the scheduled baseline implementation.
 fn text(row: &Json, name: &str) -> String {
     row[name].as_str().unwrap_or_default().into()
 }
+
+
+/// Provides display for the scheduled baseline implementation.
 fn display(v: &Json) -> String {
     match v {
         Json::Null => String::new(),
@@ -21,10 +33,16 @@ fn display(v: &Json) -> String {
         _ => v.to_string(),
     }
 }
+
+
+/// Provides id wire for the scheduled baseline implementation.
 fn id_wire(id: &str) -> Result<Value, String> {
     let id = uuid::Uuid::parse_str(id).map_err(|_| "Invalid scheduled task identity")?;
     Ok(Value::Array(vec![id.to_string().into()]))
 }
+
+
+/// Provides id for the scheduled baseline implementation.
 fn id(row: &Json) -> Result<String, String> {
     row["Id"]["Value"]
         .as_str()
@@ -32,11 +50,17 @@ fn id(row: &Json) -> Result<String, String> {
         .map(str::to_string)
         .ok_or("Missing scheduled task identity".into())
 }
+
+
+/// Provides member for the scheduled baseline implementation.
 fn member<'a>(wire: &'a Value, index: usize) -> Result<&'a Value, String> {
     wire.as_array()
         .and_then(|v| v.get(index))
         .ok_or("Incomplete scheduled-task payload".into())
 }
+
+
+/// Provides offset for the scheduled baseline implementation.
 fn offset(wire: &Value, index: usize) -> Result<Json, String> {
     let value = member(wire, index)?;
     Ok(if value.is_nil() {
@@ -45,10 +69,15 @@ fn offset(wire: &Value, index: usize) -> Result<Json, String> {
         json!(ifm_ui_egui::backend::contracts::reference_offset(value)?)
     })
 }
+
+
+/// Provides document for the scheduled baseline implementation.
 fn document<T: serde::Serialize>(value: &T) -> Result<serde_bytes::ByteBuf, String> {
     ifm_ui_egui::wire::encode_value(&serde_json::to_value(value).map_err(|e| e.to_string())?)
         .map(Into::into)
 }
+
+
 /// Map one persisted run exactly as the hybrid service; no business outcomes or
 /// EOD receipts are recomputed on the client. Raw timestamps retain their zones.
 pub fn run_document(registry: &Registry, wire: &Value) -> Result<Json, String> {

@@ -20,53 +20,102 @@ mod ledger_ui;
 mod policy;
 mod posting_ui;
 mod risk_history;
+
+/// Portfolio Controller used by the portfolio component.
 #[derive(Default)]
 pub struct PortfolioController {
+    /// Data associated with this portfolio controller.
     pub data: PortfolioData,
+    /// Optional from; `None` represents an absent value.
     from: Option<chrono::NaiveDate>,
+    /// Optional through; `None` represents an absent value.
     through: Option<chrono::NaiveDate>,
+    /// Optional metrics; `None` represents an absent value.
     metrics: Option<Value>,
+    /// Ordered policies retained by PortfolioController.
     policies: Vec<Value>,
+    /// Ordered deployments retained by PortfolioController.
     deployments: Vec<Json>,
+    /// Optional selected policy; `None` represents an absent value.
     selected_policy: Option<String>,
+    /// Optional editing policy; `None` represents an absent value.
     editing_policy: Option<Value>,
+    /// Whether policy version is enabled or currently true.
     policy_version: bool,
+    /// Whether policy dirty is enabled or currently true.
     policy_dirty: bool,
+    /// Optional policy key; `None` represents an absent value.
     policy_key: Option<uuid::Uuid>,
+    /// Whether requires reload is enabled or currently true.
     requires_reload: bool,
+    /// Whether write in flight is enabled or currently true.
     write_in_flight: bool,
+    /// Whether accepted write is enabled or currently true.
     accepted_write: bool,
+    /// Ordered dialogs retained by PortfolioController.
     dialogs: Vec<Dialog>,
+    /// Optional editing; `None` represents an absent value.
     editing: Option<(String, Value)>,
+    /// Optional edit key; `None` represents an absent value.
     edit_key: Option<uuid::Uuid>,
+    /// Optional selections; `None` represents an absent value.
     selections: Option<crate::services::fund_selections::Selections>,
+    /// Optional pending attachment; `None` represents an absent value.
     pending_attachment: Option<crate::services::portfolio_commands::Prepared>,
+    /// Whether attachment rejected is enabled or currently true.
     attachment_rejected: bool,
+    /// Optional ledger data; `None` represents an absent value.
     ledger_data: Option<financial_data::LedgerData>,
+    /// Ordered pending postings retained by PortfolioController.
     pending_postings: Vec<Json>,
+    /// Optional journal root; `None` represents an absent value.
     journal_root: Option<std::path::PathBuf>,
+    /// Optional posting configuration; `None` represents an absent value.
     posting_configuration: Option<financial::Read>,
+    /// Optional related transaction; `None` represents an absent value.
     related_transaction: Option<Value>,
+    /// Optional related receipt; `None` represents an absent value.
     related_receipt: Option<Value>,
+    /// Optional pending posting; `None` represents an absent value.
     pending_posting: Option<Json>,
+    /// Optional ledger configuration; `None` represents an absent value.
     ledger_configuration: Option<financial::Read>,
+    /// Optional pending configuration; `None` represents an absent value.
     pending_configuration: Option<Json>,
+    /// Ordered pending configurations retained by PortfolioController.
     pending_configurations: Vec<Json>,
+    /// Optional book draft; `None` represents an absent value.
     book_draft: Option<Value>,
+    /// Optional authority draft; `None` represents an absent value.
     authority_draft: Option<financial::Read>,
+    /// Optional editing account; `None` represents an absent value.
     editing_account: Option<i32>,
+    /// Optional editing rule; `None` represents an absent value.
     editing_rule: Option<uuid::Uuid>,
+    /// Optional inline fund view; `None` represents an absent value.
     inline_fund_view: Option<String>,
+    /// Ordered risk rows retained by PortfolioController.
     risk_rows: Vec<Value>,
+    /// Optional risk cursor; `None` represents an absent value.
     risk_cursor: Option<String>,
+    /// Optional risk date; `None` represents an absent value.
     risk_date: Option<chrono::NaiveDate>,
+    /// Generation associated with this portfolio controller.
     generation: u64,
+    /// Keyed receipts retained by PortfolioController.
     receipts: BTreeMap<String, (Json, EditorOutcome)>,
+    /// Message associated with this portfolio controller.
     message: String,
 }
+
+
+/// Resolves the requested field in the supplied record.
 fn field<'a>(intent: &'a Json, name: &str) -> &'a str {
     intent["fields"][name].as_str().unwrap_or_default()
 }
+
+
+/// Returns the display text for the requested value or field.
 fn text(value: &Json) -> String {
     value.as_str().map(str::to_string).unwrap_or_else(|| {
         if value.is_null() {
@@ -76,6 +125,9 @@ fn text(value: &Json) -> String {
         }
     })
 }
+
+
+/// Provides cell row for the portfolio implementation.
 fn cell_row(
     id: impl Into<String>,
     fields: BTreeMap<String, String>,
@@ -87,6 +139,9 @@ fn cell_row(
         ..Default::default()
     }
 }
+
+
+/// Provides grid for the portfolio implementation.
 fn grid(
     key: &str,
     columns: Vec<String>,
@@ -111,6 +166,9 @@ impl PortfolioController {
             ..Default::default()
         }
     }
+
+
+    /// Loads metrics for portfolio controller.
     async fn load_metrics(
         &mut self,
         backend: &Backend,
@@ -156,6 +214,9 @@ impl PortfolioController {
         self.metrics = Some(wire.clone());
         Ok(())
     }
+
+
+    /// Loads policies for portfolio controller.
     async fn load_policies(
         &mut self,
         backend: &Backend,
@@ -250,6 +311,9 @@ impl PortfolioController {
             });
         Ok(())
     }
+
+
+    /// Applies portfolio for portfolio controller.
     async fn apply(
         &mut self,
         backend: &Backend,
@@ -543,6 +607,9 @@ impl PortfolioController {
         }
         Ok("Portfolio action completed".into())
     }
+
+
+    /// Provides row grid for the portfolio controller implementation.
     fn row_grid(
         &self,
         registry: &Registry,
@@ -587,6 +654,9 @@ impl PortfolioController {
             selected,
         ))
     }
+
+
+    /// Provides details grid for the portfolio controller implementation.
     fn details_grid(
         &self,
         registry: &Registry,
@@ -615,6 +685,9 @@ impl PortfolioController {
             None,
         ))
     }
+
+
+    /// Provides fund summary for the portfolio controller implementation.
     fn fund_summary(&self, registry: &Registry, parent: &Json) -> Result<Grid, String> {
         let Some(fund) = &self.data.fund else {
             return Ok(grid(
@@ -685,6 +758,9 @@ impl PortfolioController {
             None,
         ))
     }
+
+
+    /// Provides result for the portfolio controller implementation.
     pub fn result(&self, registry: &Registry) -> Result<ContractResult, String> {
         let parent = self
             .data
@@ -858,6 +934,9 @@ impl PortfolioController {
             ..Default::default()
         })
     }
+
+
+    /// Provides policy document for the portfolio controller implementation.
     fn policy_document(&self, registry: &Registry, parent: &Json) -> Result<Dialog, String> {
         let selected = self
             .policies
@@ -1047,6 +1126,9 @@ impl PortfolioController {
             ..Default::default()
         })
     }
+
+
+    /// Handles a portfolio intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,

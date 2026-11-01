@@ -1,9 +1,14 @@
 use ifm_ui_egui::state::monitor_cache::History;
 use serde_json::json;
+
+
+/// Provides typed for the history currency implementation.
 fn typed<T: serde::de::DeserializeOwned>(value: serde_json::Value) -> T {
     serde_json::from_value(value).unwrap()
 }
 
+
+/// Provides history for the history currency implementation.
 fn history() -> History {
     History::new(
         typed(json!({
@@ -16,6 +21,8 @@ fn history() -> History {
     )
 }
 
+
+/// Verifies that every history row uses its own persisted currency without loading a plan.
 #[test]
 fn every_history_row_uses_its_own_persisted_currency_without_loading_a_plan() {
     let mut history = history();
@@ -37,6 +44,8 @@ fn every_history_row_uses_its_own_persisted_currency_without_loading_a_plan() {
     assert_eq!(rows[2]["netSpread"], "-10.40");
 }
 
+
+/// Verifies that missing currency is blank instead of substituting points or spread.
 #[test]
 fn missing_currency_is_blank_instead_of_substituting_points_or_spread() {
     let mut history = history();

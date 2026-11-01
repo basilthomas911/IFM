@@ -12,34 +12,54 @@ use chrono::Datelike;
 use rmpv::Value;
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
+
+/// Proof used by the manual orders component.
 #[derive(Clone, Copy)]
 pub enum Proof {
     Created {
+        /// Key associated with this proof.
         key: uuid::Uuid,
+        /// Month associated with this proof.
         month: chrono::NaiveDate,
     },
     Added {
+        /// Order associated with this proof.
         order: i32,
+        /// Version associated with this proof.
         version: i64,
+        /// Trade associated with this proof.
         trade: i32,
     },
     Removed {
+        /// Order associated with this proof.
         order: i32,
+        /// Version associated with this proof.
         version: i64,
+        /// Trade associated with this proof.
         trade: i32,
     },
     Deleted {
+        /// Order associated with this proof.
         order: i32,
     },
 }
+
+/// Operation used by the manual orders component.
 #[derive(Clone)]
 pub struct Operation {
+    /// Prepared associated with this operation.
     pub prepared: commands::Prepared,
+    /// Portfolio associated with this operation.
     pub portfolio: i32,
+    /// Fund associated with this operation.
     pub fund: i32,
+    /// Proof associated with this operation.
     pub proof: Proof,
+    /// Whether attempted is enabled or currently true.
     pub attempted: bool,
 }
+
+/// Checks the supplied value against the required positive-value constraint.
 fn positive(row: &Json, key: &str) -> Result<i32, String> {
     row[key]
         .as_i64()
@@ -47,12 +67,16 @@ fn positive(row: &Json, key: &str) -> Result<i32, String> {
         .filter(|v| *v > 0)
         .ok_or(format!("Invalid {key}"))
 }
+
+/// Provides revision for the manual orders implementation.
 fn revision(row: &Json, key: &str) -> Result<i64, String> {
     row[key]
         .as_i64()
         .filter(|v| *v > 0)
         .ok_or(format!("Invalid {key}"))
 }
+
+/// Provides request for the manual orders implementation.
 fn request(
     registry: &Registry,
     name: &str,
@@ -60,6 +84,8 @@ fn request(
 ) -> Result<Value, String> {
     registry.encode(&format!("{}.Contracts.{name}", api::ROOT), &fields)
 }
+
+/// Provides operation for the manual orders implementation.
 fn operation(
     registry: &Registry,
     context: &BusinessContext,
@@ -88,6 +114,8 @@ fn operation(
         attempted: false,
     })
 }
+
+/// Provides create for the manual orders implementation.
 pub fn create(
     registry: &Registry,
     context: &BusinessContext,
@@ -146,6 +174,8 @@ pub fn create(
         Proof::Created { key, month },
     )
 }
+
+/// Provides add for the manual orders implementation.
 pub fn add(
     registry: &Registry,
     context: &BusinessContext,
@@ -155,6 +185,7 @@ pub fn add(
     trade_type: &str,
     contract: &Json,
     effective: chrono::NaiveDate,
+    maturity: Option<chrono::NaiveDate>,
     correlation: uuid::Uuid,
 ) -> Result<Operation, String> {
     let p = positive(order, "PortfolioId")?;
@@ -204,7 +235,10 @@ pub fn add(
             ("TradeId".into(), trade.into()),
             ("TradeType".into(), trade_type.into()),
             ("TradeDate".into(), Value::Nil),
-            ("MaturityDate".into(), Value::Nil),
+            (
+                "MaturityDate".into(),
+                maturity.map(date_only_wire).unwrap_or(Value::Nil),
+            ),
             ("TradeState".into(), "NewTrade".into()),
             ("TradeAction".into(), action.into()),
             (
@@ -234,6 +268,8 @@ pub fn add(
         },
     )
 }
+
+/// Removes manual orders for manual orders.
 pub fn remove(
     registry: &Registry,
     context: &BusinessContext,
@@ -385,6 +421,8 @@ impl Operation {
         }
         Ok(if found == added { Some(order) } else { None })
     }
+
+    /// Submits manual orders for operation.
     pub async fn submit(
         &mut self,
         backend: &Backend,

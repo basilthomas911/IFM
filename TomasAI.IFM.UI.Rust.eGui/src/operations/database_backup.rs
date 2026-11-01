@@ -5,23 +5,38 @@ use crate::{contract_editor::ContractPublication, lookup_editor::new_request_id}
 use eframe::egui;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Weak};
+
 /// Local selection and source-specific drafts; no backup execution or policy enforcement lives here.
 pub struct DatabaseBackup {
+    /// Whether setup is enabled or currently true.
     pub setup: bool,
+    /// Source associated with this database backup.
     pub source: String,
+    /// Optional pending; `None` represents an absent value.
     pub pending: Option<String>,
+    /// Keyed drafts retained by DatabaseBackup.
     drafts: BTreeMap<String, BTreeMap<String, String>>,
+    /// Keyed checked retained by DatabaseBackup.
     checked: BTreeMap<String, BTreeSet<String>>,
+    /// Selected set associated with this database backup.
     selected_set: String,
+    /// Operation associated with this database backup.
     operation: String,
+    /// Operation source associated with this database backup.
     operation_source: String,
+    /// History source associated with this database backup.
     history_source: String,
+    /// Policy identity associated with this database backup.
     policy_identity: String,
+    /// Whether loaded is enabled or currently true.
     loaded: bool,
+    /// Error associated with this database backup.
     error: String,
+    /// Optional cache; `None` represents an absent value.
     cache: Option<(u64, Weak<()>, Arc<BackupDocuments>)>,
 }
 impl Default for DatabaseBackup {
+    /// Constructs the initial state used when no explicit value is supplied.
     fn default() -> Self {
         Self {
             setup: false,
@@ -40,6 +55,8 @@ impl Default for DatabaseBackup {
         }
     }
 }
+
+
 /// Defaults are created before the first load request as well as before the first rendered editor frame.
 fn default_fields(source: &str) -> BTreeMap<String, String> {
     let local = source == "LocalWorkstation";
@@ -55,34 +72,34 @@ fn default_fields(source: &str) -> BTreeMap<String, String> {
         ),
     ])
 }
+
+
+/// Returns the display text for the requested value or field.
 fn text(v: &(impl TextFields + ?Sized), key: &str) -> String {
     v.display(key)
 }
+
+/// Backup Documents used by the database backup component.
 #[derive(Default)]
 struct BackupDocuments {
+    /// Dashboard associated with this backup documents.
     dashboard: Dashboard,
+    /// Retained historical data used by this component.
     history: BTreeMap<String, Vec<Operation>>,
+    /// Keyed cursors retained by BackupDocuments.
     cursors: BTreeMap<String, String>,
+    /// Optional policy; `None` represents an absent value.
     policy: Option<Policy>,
+    /// Editor associated with this backup documents.
     editor: PolicyEditor,
+    /// Setup associated with this backup documents.
     setup: Setup,
+    /// Ordered health retained by BackupDocuments.
     health: Vec<Health>,
 }
-fn edit(
-    ui: &mut egui::Ui,
-    fields: &mut BTreeMap<String, String>,
-    key: &str,
-    label: &str,
-    width: f32,
-) {
-    ui.trading_caption(label);
-    let r = ui.add(
-        egui::TextEdit::singleline(fields.entry(key.into()).or_default())
-            .desired_width(width)
-            .id_salt(key),
-    );
-    r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::TextEdit, true, label));
-}
+
+
+/// Provides status for the database backup implementation.
 fn status(outcome: &str) -> egui::Color32 {
     match outcome {
         "Succeeded" => egui::Color32::GREEN,
@@ -92,6 +109,7 @@ fn status(outcome: &str) -> egui::Color32 {
     }
 }
 impl DatabaseBackup {
+    /// Returns the display documents associated with the current accepted state.
     fn documents(&mut self, s: &ContractPublication) -> Arc<BackupDocuments> {
         if let Some((generation, token, documents)) = &self.cache {
             if *generation == s.generation
@@ -118,6 +136,8 @@ impl DatabaseBackup {
         ));
         documents
     }
+
+
     /// Creates one correlated intent from the source-specific unsaved editor.
     pub fn request(&mut self, action: &str, s: &ContractPublication) -> String {
         let id = new_request_id();
@@ -147,10 +167,14 @@ impl DatabaseBackup {
         );
         serde_json::json!({"schema":1,"requestId":id,"view":"database-backup","intent":action,"expectedGeneration":s.generation,"fields":fields}).to_string()
     }
+
+
     /// Loads the selected source on entry; reopening never submits a backup automatically.
     pub fn reopen(&mut self) {
         self.loaded = false;
     }
+
+
     /// Renders original controls using shared Rust captions, black grids and semantic status colors.
     pub fn draw(
         &mut self,
@@ -355,6 +379,8 @@ impl DatabaseBackup {
         let command = egui::Rect::from_min_size(right.min, egui::vec2(right.width(), 52.));
         crate::system_admin::region(ui, command, |ui| {
             ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                 ui.trading_caption("Backup mode:");
                 ui.add_enabled_ui(idle, |ui| {
                     egui::ComboBox::from_id_salt("backup-mode")
@@ -394,6 +420,7 @@ impl DatabaseBackup {
                 ui.add_enabled_ui(idle, |ui| {
                     let r = ui.add(
                         egui::TextEdit::singleline(fields.entry("policyId".into()).or_default())
+                            .vertical_align(egui::Align::Center)
                             .hint_text("Policy identifier")
                             .desired_width(220.),
                     );
@@ -451,31 +478,49 @@ impl DatabaseBackup {
                 .show(ui, |ui| {
                     if policy.is_some() {
                         ui.add_enabled_ui(idle, |ui| {
-                            egui::Grid::new("backup-policy-properties").show(ui, |ui| {
-                                for (label, key) in [
-                                    ("Policy", "id"),
-                                    ("AcceptedRevision", "revision"),
-                                    ("Applied", "enforced"),
-                                    ("EnabledSources", "enabledSources"),
-                                    ("ProtectedSets", "protectionSets"),
-                                    ("Verification", "verificationLevels"),
-                                ] {
-                                    ui.trading_caption(label);
-                                    ui.trading_label(text(policy, key));
-                                    ui.end_row();
-                                }
-                                for (key, label) in [
-                                    ("daily", "Daily"),
-                                    ("weekly", "Weekly"),
-                                    ("monthly", "Monthly"),
-                                    ("rpoMinutes", "RpoMinutes"),
-                                    ("rtoMinutes", "RtoMinutes"),
-                                    ("maximumVerificationHours", "MaximumVerificationHours"),
-                                ] {
-                                    edit(ui, fields, key, label, 150.);
-                                    ui.end_row();
-                                }
-                            });
+                            crate::presentation::form_grid(ui, "backup-policy-properties").show(
+                                ui,
+                                |ui| {
+                                    for (label, key) in [
+                                        ("Policy", "id"),
+                                        ("AcceptedRevision", "revision"),
+                                        ("Applied", "enforced"),
+                                        ("EnabledSources", "enabledSources"),
+                                        ("ProtectedSets", "protectionSets"),
+                                        ("Verification", "verificationLevels"),
+                                    ] {
+                                        crate::presentation::form_caption(ui, label);
+                                        ui.trading_label(text(policy, key));
+                                        ui.end_row();
+                                    }
+                                    for (key, label) in [
+                                        ("daily", "Daily"),
+                                        ("weekly", "Weekly"),
+                                        ("monthly", "Monthly"),
+                                        ("rpoMinutes", "RpoMinutes"),
+                                        ("rtoMinutes", "RtoMinutes"),
+                                        ("maximumVerificationHours", "MaximumVerificationHours"),
+                                    ] {
+                                        crate::presentation::form_caption(ui, label);
+                                        let response = ui.add(
+                                            egui::TextEdit::singleline(
+                                                fields.entry(key.into()).or_default(),
+                                            )
+                                            .vertical_align(egui::Align::Center)
+                                            .desired_width(150.)
+                                            .id_salt(key),
+                                        );
+                                        response.widget_info(|| {
+                                            egui::WidgetInfo::labeled(
+                                                egui::WidgetType::TextEdit,
+                                                true,
+                                                label,
+                                            )
+                                        });
+                                        ui.end_row();
+                                    }
+                                },
+                            );
                         });
                     }
                 });
@@ -536,22 +581,40 @@ impl DatabaseBackup {
             egui::Rect::from_min_max(egui::pos2(right.left(), messages.bottom()), right.max);
         crate::system_admin::region(ui, restore, |ui| {
             ui.add_enabled_ui(idle, |ui| {
-                ui.columns(3, |cols| {
-                    for (ui, (key, label)) in cols.iter_mut().zip([
-                        ("restorePoint", "Verified restore point"),
-                        ("targetProfile", "Target profile"),
-                        ("validationProfile", "Restore copy name"),
-                    ]) {
-                        ui.trading_caption(label);
-                        let r = ui.add(
-                            egui::TextEdit::singleline(fields.entry(key.into()).or_default())
-                                .desired_width(f32::INFINITY),
-                        );
-                        r.widget_info(|| {
-                            egui::WidgetInfo::labeled(egui::WidgetType::TextEdit, true, label)
-                        });
-                    }
-                });
+                let fields_height = (ui.available_height() - 44.).max(30.);
+                egui::ScrollArea::vertical()
+                    .id_salt("backup-restore-field-scroll")
+                    .max_height(fields_height)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        crate::presentation::form_grid(ui, "backup-restore-fields")
+                            .num_columns(2)
+                            .show(ui, |ui| {
+                                for (key, label) in [
+                                    ("restorePoint", "Verified restore point"),
+                                    ("targetProfile", "Target profile"),
+                                    ("validationProfile", "Restore copy name"),
+                                ] {
+                                    let caption = crate::presentation::form_caption(ui, label);
+                                    let response = ui.add(
+                                        egui::TextEdit::singleline(
+                                            fields.entry(key.into()).or_default(),
+                                        )
+                                        .vertical_align(egui::Align::Center)
+                                        .desired_width(ui.available_width()),
+                                    );
+                                    response.widget_info(|| {
+                                        egui::WidgetInfo::labeled(
+                                            egui::WidgetType::TextEdit,
+                                            true,
+                                            label,
+                                        )
+                                    });
+                                    response.labelled_by(caption.id);
+                                    ui.end_row();
+                                }
+                            });
+                    });
                 if ui
                     .add_sized(
                         egui::vec2(ui.available_width(), 40.),
@@ -674,6 +737,9 @@ impl DatabaseBackup {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    /// Verifies that prepared documents reuse only the same publication identity and generation.
     #[test]
     fn prepared_documents_reuse_only_the_same_publication_identity_and_generation() {
         let mut view = DatabaseBackup::default();

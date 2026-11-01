@@ -3,17 +3,28 @@ use ifm_ui_egui::{
     Catalog, DetailsView, Snapshot,
     strategy_workspace::{StrategyTab, StrategyWorkspace},
 };
+
+/// State used by the strategy workspace test fixtures.
 struct State {
+    /// Workspace associated with this state.
     workspace: StrategyWorkspace,
+    /// Details associated with this state.
     details: DetailsView,
+    /// Ordered actions retained by State.
     actions: Vec<u32>,
 }
+
+
+/// Provides fixture for the strategy workspace implementation.
 fn fixture(rows: usize) -> (Catalog, Snapshot) {
     let catalog = serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap();
     let entries:Vec<_>=(0..rows).map(|i|serde_json::json!({"id":format!("workflow-{i}"),"action":1000+i,"triggerIdentity":"signal-1","occurredOn":format!("2026-10-13T00:00:{i:02}Z"),"signal":"TrendDirectionChanged","trend":"UpTrend","futuresPrice":"6200.25","outcome":"PipelineFailed","endState":"RegimeDiscovery","actors":[]})).collect();
     let snapshot=serde_json::from_value(serde_json::json!({"schema":1,"epoch":"workspace","generation":1,"mode":"Fixture","workflowId":"workflow-0","revision":1,"roots":[],"rows":entries,"pageNumber":1,"pageCount":2,"hasMore":true,"totalRows":rows,"signals":[{"identity":"signal-1","utcSeconds":1791849600.0,"price":6200.25,"direction":"Up","tooltip":"Signal"}],"summary":[{"title":"Regime Discovery","state":"Failed","summary":"Missing model","content":"Authoritative failure details"}],"header":"Workflow 0"})).unwrap();
     (catalog, snapshot)
 }
+
+
+/// Verifies that tabs match winforms summary placeholder and emit one paging action.
 #[test]
 fn tabs_match_winforms_summary_placeholder_and_emit_one_paging_action() {
     let (c, s) = fixture(10);
@@ -54,6 +65,9 @@ fn tabs_match_winforms_summary_placeholder_and_emit_one_paging_action() {
     h.run();
     assert_eq!(h.state().actions, vec![13]);
 }
+
+
+/// Verifies that workflow updates virtualize one hundred thousand rows.
 #[test]
 fn workflow_updates_virtualize_one_hundred_thousand_rows() {
     let (c, s) = fixture(100_000);
@@ -76,6 +90,8 @@ fn workflow_updates_virtualize_one_hundred_thousand_rows() {
     assert!(h.state().workspace.drawn_rows > 0 && h.state().workspace.drawn_rows < 60);
 }
 
+
+/// Verifies that graph keeps reserved height when initial snapshot has no signals.
 #[test]
 fn graph_keeps_reserved_height_when_initial_snapshot_has_no_signals() {
     let (catalog, mut snapshot) = fixture(0);
@@ -107,6 +123,8 @@ fn graph_keeps_reserved_height_when_initial_snapshot_has_no_signals() {
     );
 }
 
+
+/// Verifies that pipeline circles stop at first red and use requested colors.
 #[test]
 fn pipeline_circles_stop_at_first_red_and_use_requested_colors() {
     use eframe::egui::Color32;

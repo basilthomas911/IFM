@@ -2254,7 +2254,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             TimePeriod = TimeFrameType.Weekly,
             TimeFrameStartValueDate = frameStart,
             BandAnchorPrice = 5_432.25,
-            BandPercentage = 0.10,
+            BandPercentage = 0.20,
+            Threshold = 13.75,
             BandSize = 2.75,
             BandLevel = 1.20,
             ReversalLevel = 0.35
@@ -2273,7 +2274,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             result!.TimeFrameStartValueDate.Should().Be(frameStart);
             result.ValueDate.Should().Be(valueDate);
             result.BandAnchorPrice.Should().Be(5_432.25);
-            result.BandPercentage.Should().Be(0.10);
+            result.BandPercentage.Should().Be(0.20);
             result.BandSize.Should().Be(2.75);
             result.BandLevel.Should().Be(1.20);
             result.ReversalLevel.Should().Be(0.35);

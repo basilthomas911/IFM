@@ -5,6 +5,9 @@ use ifm_ui_egui::{
 };
 use rmpv::Value;
 use std::path::Path;
+
+
+/// Provides wire for the provider mapping implementation.
 fn wire(name: &str) -> Value {
     codec::decode(
         &std::fs::read(
@@ -16,6 +19,9 @@ fn wire(name: &str) -> Value {
     )
     .unwrap()
 }
+
+
+/// Verifies that provider drafts match hybrid exchange dates and exact provider evidence.
 #[test]
 fn provider_drafts_match_hybrid_exchange_dates_and_exact_provider_evidence() {
     let registry = Registry::compiled().unwrap();
@@ -72,6 +78,9 @@ fn provider_drafts_match_hybrid_exchange_dates_and_exact_provider_evidence() {
         );
     }
 }
+
+
+/// Verifies that windows and iana exchange dates match across dst and utc midnight.
 #[test]
 fn windows_and_iana_exchange_dates_match_across_dst_and_utc_midnight() {
     for instant in [
@@ -93,6 +102,9 @@ fn windows_and_iana_exchange_dates_match_across_dst_and_utc_midnight() {
     );
     assert!(time_zone::local_date("not/a-zone", "2026-12-18T00:30:00Z".parse().unwrap()).is_err());
 }
+
+
+/// Verifies that stale incomplete or wrong underlying definitions cannot be prepared.
 #[test]
 fn stale_incomplete_or_wrong_underlying_definitions_cannot_be_prepared() {
     let registry = Registry::compiled().unwrap();
@@ -142,6 +154,8 @@ fn stale_incomplete_or_wrong_underlying_definitions_cannot_be_prepared() {
     }
 }
 
+
+/// Verifies that existing import preserves review fields aliases and legacy exact strike.
 #[test]
 fn existing_import_preserves_review_fields_aliases_and_legacy_exact_strike() {
     let registry = Registry::compiled().unwrap();

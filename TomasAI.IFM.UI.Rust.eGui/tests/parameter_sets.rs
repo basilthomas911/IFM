@@ -6,6 +6,9 @@ use ifm_ui_egui::{
     parameter_sets::ParameterSets,
 };
 use std::collections::BTreeMap;
+
+
+/// Provides fixture for the parameter sets implementation.
 fn fixture(editing: bool) -> (Catalog, ContractPublication) {
     let mut context:BTreeMap<String,String>=BTreeMap::from([("editing".into(),if editing{"True"}else{"False"}.into()),("canEdit".into(),"True".into()),("hasPayload".into(),"True".into()),("name".into(),"Fixture parameters".into()),("selectedId".into(),"fixture:1".into()),("component".into(),"fixture".into()),("components".into(),r#"[{"AreaCode":"fixture","AreaName":"Fixture area","ComponentCode":"fixture","Name":"Fixture component"}]"#.into()),("fields".into(),r#"[{"Path":"/Risk/AdverseMove","Value":"0.20","Kind":4,"Group":"Risk","Name":"Adverse move"}]"#.into()),("signals".into(),"[]".into()),("observations".into(),"[]".into()),("intervals".into(),"[]".into())]);
     let mut documents = BTreeMap::new();
@@ -46,6 +49,9 @@ fn fixture(editing: bool) -> (Catalog, ContractPublication) {
         },
     )
 }
+
+
+/// Verifies that saving sends exact scalar working copy and correlated version once.
 #[test]
 fn saving_sends_exact_scalar_working_copy_and_correlated_version_once() {
     let (c, s) = fixture(true);
@@ -72,6 +78,9 @@ fn saving_sends_exact_scalar_working_copy_and_correlated_version_once() {
     assert_eq!(fields[0]["Kind"], 4);
     assert!(h.state().0.pending.is_some());
 }
+
+
+/// Verifies that cancelling publication does not write and tabs keep the same selected version.
 #[test]
 fn cancelling_publication_does_not_write_and_tabs_keep_the_same_selected_version() {
     let (c, s) = fixture(false);
@@ -99,6 +108,10 @@ fn cancelling_publication_does_not_write_and_tabs_keep_the_same_selected_version
     assert!(h.state().0.confirmation.is_none());
     assert_eq!(h.state().0.selected.as_deref(), Some("fixture:1"));
 }
+
+
+/// Verifies that returning to the editor requests its current working copy without a refresh or
+/// save.
 #[test]
 fn returning_to_the_editor_requests_its_current_working_copy_without_a_refresh_or_save() {
     let (c, mut s) = fixture(true);
@@ -120,6 +133,8 @@ fn returning_to_the_editor_requests_its_current_working_copy_without_a_refresh_o
     assert!(intent["fields"].get("changes").is_none());
 }
 
+
+/// Verifies that readonly publication preserves unsaved scalar and metadata.
 #[test]
 fn readonly_publication_preserves_unsaved_scalar_and_metadata() {
     let (c, s) = fixture(true);
@@ -152,6 +167,9 @@ fn readonly_publication_preserves_unsaved_scalar_and_metadata() {
     assert_eq!(h.state().0.fields[0].value, "0.20");
     assert!(!h.state().0.editing);
 }
+
+
+/// Verifies that newer publication prevents confirming an older publish selection.
 #[test]
 fn newer_publication_prevents_confirming_an_older_publish_selection() {
     let (c, s) = fixture(false);
@@ -175,6 +193,8 @@ fn newer_publication_prevents_confirming_an_older_publish_selection() {
     assert!(h.state().0.confirmation.is_none());
 }
 
+
+/// Verifies that reference parameters preserve navigation toolbar and exact four main tabs.
 #[test]
 fn reference_parameters_preserve_navigation_toolbar_and_exact_four_main_tabs() {
     let (c, s) = fixture(false);
@@ -234,6 +254,8 @@ fn reference_parameters_preserve_navigation_toolbar_and_exact_four_main_tabs() {
     assert!(h.query_by_label("Parameter values").is_none());
 }
 
+
+/// Verifies that reference startup history reads messagepack documents and uses grid double click.
 #[test]
 fn reference_startup_history_reads_messagepack_documents_and_uses_grid_double_click() {
     let (c, mut s) = fixture(false);
@@ -265,6 +287,8 @@ fn reference_startup_history_reads_messagepack_documents_and_uses_grid_double_cl
     assert!(h.query_by_label("Show preparation report").is_none());
 }
 
+
+/// Verifies that reference interval cancel restores working copy without submitting.
 #[test]
 fn reference_interval_cancel_restores_working_copy_without_submitting() {
     let (c, mut s) = fixture(true);
@@ -296,6 +320,8 @@ fn reference_interval_cancel_restores_working_copy_without_submitting() {
     assert!(h.state().1.is_none());
 }
 
+
+/// Verifies that published assignment dialog preserves information and three original actions.
 #[test]
 fn published_assignment_dialog_preserves_information_and_three_original_actions() {
     let (c, mut s) = fixture(false);

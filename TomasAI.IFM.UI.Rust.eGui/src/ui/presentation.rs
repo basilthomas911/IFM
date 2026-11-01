@@ -37,6 +37,7 @@ pub const DETAILS_TREE_RATIO: f32 = 140.0 / 300.0;
 /// Fraction of scheduler log space reserved for the execution tree.
 pub const SCHEDULE_LOG_TREE_RATIO: f32 = 0.4;
 
+
 /// Solid medium-gray handles shared by grids and their nested scroll areas.
 pub fn grid_scroll_style(pixels_per_point: f32) -> egui::style::ScrollStyle {
     let mut scroll = egui::style::ScrollStyle::solid();
@@ -46,6 +47,7 @@ pub fn grid_scroll_style(pixels_per_point: f32) -> egui::style::ScrollStyle {
     scroll.foreground_color = true;
     scroll
 }
+
 
 /// Set a deterministic dark palette for every editor, popup, tree and grid.
 /// Status and chart colors deliberately remain at the individual call sites.
@@ -101,6 +103,7 @@ pub fn apply(ctx: &egui::Context) {
     ctx.set_style(style);
 }
 
+
 /// WinForms IFMAppView.MarketDataFeedColors for a running/stopped feed.
 /// The Rust control is display-only until feed command parity is implemented.
 pub fn feed_command_palette(running: Option<bool>) -> (egui::Color32, egui::Color32) {
@@ -110,6 +113,7 @@ pub fn feed_command_palette(running: Option<bool>) -> (egui::Color32, egui::Colo
         None => (egui::Color32::from_rgb(105, 105, 105), egui::Color32::GRAY),
     }
 }
+
 
 /// Same semantic palette as WinForms IFMAppView.MarketDataFeedHealthColors.
 pub fn feed_health_palette(state: &str) -> (egui::Color32, egui::Color32) {
@@ -125,6 +129,7 @@ pub fn feed_health_palette(state: &str) -> (egui::Color32, egui::Color32) {
     }
 }
 
+
 /// Map a published feed-health state to the main-toolbar label, with an Unknown fallback.
 pub fn feed_health_text(state: &str) -> &'static str {
     match state {
@@ -138,6 +143,7 @@ pub fn feed_health_text(state: &str) -> &'static str {
         _ => "Feed Health: Unknown",
     }
 }
+
 
 /// Tab headers share the grid/header palette; selected tabs keep the blue highlight.
 pub fn tab_label(ui: &mut egui::Ui, selected: bool, label: &str) -> egui::Response {
@@ -166,6 +172,8 @@ pub fn tab_label(ui: &mut egui::Ui, selected: bool, label: &str) -> egui::Respon
         button.stroke(egui::Stroke::NONE)
     })
 }
+
+
 /// Draw a shared tab header, update the selected value on click, and mark the response changed only when selection changes.
 pub fn tab_value<T: PartialEq>(
     ui: &mut egui::Ui,
@@ -184,6 +192,7 @@ pub fn tab_value<T: PartialEq>(
 /// Shared foreground for field captions and grid headers in both desktop clients.
 pub const CAPTION_FOREGROUND: egui::Color32 = egui::Color32::from_rgb(174, 198, 239);
 
+
 /// Apply pastel-blue caption styling to text ending in a colon; leave ordinary values with their supplied styling.
 pub fn label_text(text: impl Into<egui::WidgetText>) -> egui::WidgetText {
     let text = text.into();
@@ -194,22 +203,155 @@ pub fn label_text(text: impl Into<egui::WidgetText>) -> egui::WidgetText {
     }
 }
 
+
 /// Retains the native label's sizing, wrapping and interaction options.
 pub fn label_widget(text: impl Into<egui::WidgetText>) -> egui::Label {
     egui::Label::new(label_text(text))
 }
+
 
 /// Field caption, including captions without trailing punctuation.
 pub fn caption_widget(text: impl Into<egui::WidgetText>) -> egui::Label {
     egui::Label::new(text.into().color(CAPTION_FOREGROUND))
 }
 
+
+/// The shared distance from a field caption's right edge to its control, in screen pixels.
+pub fn field_gap(ui: &egui::Ui) -> f32 {
+    20. / ui.ctx().pixels_per_point()
+}
+
+
+/// Build a form grid with consistent caption/control spacing and enough room for the active font.
+pub fn form_grid(ui: &egui::Ui, id: impl std::hash::Hash) -> egui::Grid {
+    egui::Grid::new(id)
+        .spacing(egui::vec2(field_gap(ui), 8. / ui.ctx().pixels_per_point()))
+        .min_row_height(
+            ui.text_style_height(&egui::TextStyle::Body) + 8. / ui.ctx().pixels_per_point(),
+        )
+}
+
+
+/// Right-align a caption inside its form-grid column; shorter captions retain the same twenty-pixel gap.
+pub fn form_caption(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> egui::Response {
+    form_caption_with_width(ui, text, 0.)
+}
+
+
+/// Reserve a published caption-column width while right-aligning the actual caption glyphs.
+pub fn form_caption_with_width(
+    ui: &mut egui::Ui,
+    text: impl Into<egui::WidgetText>,
+    minimum_width: f32,
+) -> egui::Response {
+    caption_cell(
+        ui,
+        text,
+        egui::vec2(
+            ui.available_width().max(minimum_width),
+            ui.spacing().interact_size.y,
+        ),
+    )
+}
+
+
+/// Allocate a fixed caption cell and paint its glyphs at the right edge rather than centering shorter text.
+pub fn caption_cell(
+    ui: &mut egui::Ui,
+    text: impl Into<egui::WidgetText>,
+    size: egui::Vec2,
+) -> egui::Response {
+    let text = text.into().color(CAPTION_FOREGROUND);
+    let galley = text.clone().into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Body,
+    );
+    let width = size.x.max(galley.size().x);
+    let (cell, _) = ui.allocate_exact_size(
+        egui::vec2(width, size.y.max(galley.size().y)),
+        egui::Sense::hover(),
+    );
+    let bounds = egui::Rect::from_min_size(
+        egui::pos2(
+            cell.right() - galley.size().x,
+            cell.center().y - galley.size().y * 0.5,
+        ),
+        galley.size(),
+    );
+    ui.place(
+        bounds,
+        egui::Label::new(text).wrap_mode(egui::TextWrapMode::Extend),
+    )
+}
+
+
+/// Paint a positioned caption on the control's font baseline, exactly twenty screen pixels to its left.
+/// For multiline controls, callers pass the first text row rather than the complete control rectangle.
+pub fn field_caption(
+    ui: &mut egui::Ui,
+    control: egui::Rect,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let text = text.into().color(CAPTION_FOREGROUND);
+    let galley = text.clone().into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Body,
+    );
+    let bounds = egui::Rect::from_min_size(
+        egui::pos2(
+            control.left() - field_gap(ui) - galley.size().x,
+            control.center().y - galley.size().y * 0.5,
+        ),
+        galley.size(),
+    );
+    ui.place(
+        bounds,
+        egui::Label::new(text).wrap_mode(egui::TextWrapMode::Extend),
+    )
+}
+
+
+/// Keep a flowing caption/control pair together when a form wraps to the next row.
+pub fn field_pair<R>(
+    ui: &mut egui::Ui,
+    text: impl Into<egui::WidgetText>,
+    size: egui::Vec2,
+    body: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let text = text.into().color(CAPTION_FOREGROUND);
+    let galley = text.clone().into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Body,
+    );
+    let gap = field_gap(ui);
+    ui.allocate_ui_with_layout(
+        egui::vec2(galley.size().x + gap + size.x, size.y.max(galley.size().y)),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            ui.add(egui::Label::new(text).wrap_mode(egui::TextWrapMode::Extend));
+            body(ui)
+        },
+    )
+    .inner
+}
+
 /// Shared caption/value label helpers implementing the native trading text conventions.
 pub trait TradingLabelUi {
     /// Draw a field caption with the shared pastel-blue foreground.
     fn trading_caption(&mut self, text: impl Into<egui::WidgetText>) -> egui::Response;
+
+
     /// Draw caption-aware trading text while retaining explicit value styling.
     fn trading_label(&mut self, text: impl Into<egui::WidgetText>) -> egui::Response;
+
+
     /// Draw trading text with the explicit foreground color requested by its caller.
     fn trading_colored_label(
         &mut self,
@@ -222,10 +364,14 @@ impl TradingLabelUi for egui::Ui {
     fn trading_caption(&mut self, text: impl Into<egui::WidgetText>) -> egui::Response {
         self.add(caption_widget(text))
     }
+
+
     /// Draw caption-aware trading text while retaining explicit value styling.
     fn trading_label(&mut self, text: impl Into<egui::WidgetText>) -> egui::Response {
         self.add(label_widget(text))
     }
+
+
     /// Draw trading text with the explicit foreground color requested by its caller.
     fn trading_colored_label(
         &mut self,
@@ -235,6 +381,7 @@ impl TradingLabelUi for egui::Ui {
         self.add(label_widget(text.into().color(color)))
     }
 }
+
 
 /// Mirrors the shared WinForms shell command state without issuing backend work during rendering.
 pub fn feed_command_button(ui: &mut egui::Ui, state: &crate::sidebar::FeedControl) -> bool {
@@ -263,10 +410,12 @@ pub fn feed_command_button(ui: &mut egui::Ui, state: &crate::sidebar::FeedContro
     .inner
 }
 
+
 /// Shared caption styling for every dialog title.
 pub fn dialog_title(text: impl Into<egui::RichText>) -> egui::RichText {
     text.into().color(CAPTION_FOREGROUND)
 }
+
 
 /// Checkbox with pastel-blue outline and check mark, preserving the supplied text color.
 /// Styling is local so scrollbar handles and other controls retain their own colors.

@@ -771,7 +771,7 @@ public static class MarketDataDbContextExtensions
         /// <returns>The typed result of the market-data query or mutation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal List<string> GetIntrinsicTimeModes() => [IntrinsicTimeModeType.TrendExtremeChanged.ToStringFast(), IntrinsicTimeModeType.TrendReversalChanged.ToStringFast(), IntrinsicTimeModeType.TrendDirectionChanged.ToStringFast(), ];
+        internal List<string> GetIntrinsicTimeModes() => [IntrinsicTimeModeType.TrendExtremeChanged.ToStringFast(), IntrinsicTimeModeType.TrendReversalChanged.ToStringFast(), IntrinsicTimeModeType.TrendDirectionChanged.ToStringFast(), IntrinsicTimeModeType.TrendOvershootExtended.ToStringFast(), IntrinsicTimeModeType.TrendOvershootReversal.ToStringFast()];
         /// <summary>
         /// Performs the <c>ReadCanonicalFuturesItiSignalsAsync</c> operation for MarketDataDb persistence.
         /// </summary>
@@ -818,6 +818,21 @@ public static class MarketDataDbContextExtensions
                 .SetParameters(new NativeItiDayMode(contractId,valueDate,intrinsicTimeMode.ToStringFast(),afterSequenceId ?? long.MinValue))
                 .ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!,cancellationToken)
                 .ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Reads the latest ordinary or overshoot result in one structural category, preserving sequence boundaries.
+        /// </summary>
+        internal async Task<FuturesItiSignalV2ReadModel?> ReadLastFuturesItiCategoryAsync(
+            string contractId, DateOnly valueDate, IntrinsicTimeModeType ordinaryMode,
+            IntrinsicTimeModeType overshootMode, long? afterSequenceId = null,
+            CancellationToken cancellationToken = default)
+        {
+            var rows = await Task.WhenAll(
+                context.ReadFuturesItiDayModeAsync(contractId, valueDate, ordinaryMode, afterSequenceId, cancellationToken),
+                context.ReadFuturesItiDayModeAsync(contractId, valueDate, overshootMode, afterSequenceId, cancellationToken))
+                .ConfigureAwait(false);
+            return rows.SelectMany(static values => values).OrderByDescending(static row => row.SequenceId).FirstOrDefault();
         }
 
         /// <summary>
@@ -1822,7 +1837,7 @@ public static class MarketDataDbContextExtensions
         /// <returns>The typed result of the market-data query or mutation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Zero is the explicit missing-value sentinel in the persisted pricing contract; approximate comparison would classify valid nonzero values as missing.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal UpsertFuturesItiTimeFrameState CreateFuturesItiTimeFrameStateParameters(long sequenceId) => new(e.ContractId, e.TimePeriod.ToStringFast(), MarketDataDbContextExtensions.GetFuturesItiCalendarBucketStart(e.ValueDate, e.TimePeriod), e.TimeFrameStartValueDate == default ? e.ValueDate : e.TimeFrameStartValueDate, e.ValueDate, sequenceId, e.IntrinsicTime, e.IntrinsicTimeGroupId, e.IntrinsicTimeLength, e.IntrinsicPrice, e.IntrinsicTimeTrend.ToStringFast(), e.IntrinsicTimeMode.ToStringFast(), e.TrendPrice, e.TrendExtreme, e.TrendReversal, e.TrendDelta, e.TargetDelta, e.Lambda, e.TradingDays, e.Threshold, e.UpTrendTrigger, e.DownTrendTrigger, e.TradeState.ToStringFast(), e.BandAnchorPrice == 0 ? e.IntrinsicPrice : e.BandAnchorPrice, e.BandPercentage == 0 ? 0.15 : e.BandPercentage, e.BandSize == 0 ? e.Threshold * 0.15 : e.BandSize, e.BandLevel, e.ReversalLevel);
+        internal UpsertFuturesItiTimeFrameState CreateFuturesItiTimeFrameStateParameters(long sequenceId) => new(e.ContractId, e.TimePeriod.ToStringFast(), MarketDataDbContextExtensions.GetFuturesItiCalendarBucketStart(e.ValueDate, e.TimePeriod), e.TimeFrameStartValueDate == default ? e.ValueDate : e.TimeFrameStartValueDate, e.ValueDate, sequenceId, e.IntrinsicTime, e.IntrinsicTimeGroupId, e.IntrinsicTimeLength, e.IntrinsicPrice, e.IntrinsicTimeTrend.ToStringFast(), e.IntrinsicTimeMode.ToStringFast(), e.TrendPrice, e.TrendExtreme, e.TrendReversal, e.TrendDelta, e.TargetDelta, e.Lambda, e.TradingDays, e.Threshold, e.UpTrendTrigger, e.DownTrendTrigger, e.TradeState.ToStringFast(), e.BandAnchorPrice == 0 ? e.IntrinsicPrice : e.BandAnchorPrice, e.BandPercentage == 0 ? 0.20 : e.BandPercentage, e.BandSize == 0 ? e.Threshold * 0.20 : e.BandSize, e.BandLevel, e.ReversalLevel);
     }
 
     extension(IObjectDataRecord value)

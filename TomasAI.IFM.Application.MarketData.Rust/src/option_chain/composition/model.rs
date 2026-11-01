@@ -282,6 +282,48 @@ impl Snapshot {
                 .collect::<Result<_, _>>()?,
         ))
     }
+    /// Encode the existing snapshot contract while retaining only one temporary instrument graph.
+    ///
+    /// # Errors
+    /// Invalid scalar data or content above the existing 4 MiB bound is rejected.
+    pub fn encode(&self) -> Result<Vec<u8>, &'static str> {
+        let mut output = Vec::new();
+        self.encode_into(&mut output)?;
+        Ok(output)
+    }
+
+    /// Append one bounded snapshot to its enclosing compatible publication.
+    pub(crate) fn encode_into(&self, output: &mut Vec<u8>) -> Result<(), &'static str> {
+        if self.instruments.len() > 2048 {
+            return Err("Native composition snapshot exceeds 4 MiB");
+        }
+        let start = output.len();
+        let Value::Array(fields) = self.value_with(Value::Nil)? else {
+            return Err("Invalid native snapshot DTO");
+        };
+        rmp::encode::write_array_len(output, fields.len() as u32)
+            .map_err(|_| "Event encoding failed")?;
+        for (index, field) in fields.iter().enumerate() {
+            if index == 8 {
+                rmp::encode::write_array_len(output, self.instruments.len() as u32)
+                    .map_err(|_| "Event encoding failed")?;
+                for item in &self.instruments {
+                    rmpv::encode::write_value(output, &item.value()?)
+                        .map_err(|_| "Event encoding failed")?;
+                    if output.len() - start > 4 * 1024 * 1024 {
+                        return Err("Native composition snapshot exceeds 4 MiB");
+                    }
+                }
+            } else {
+                rmpv::encode::write_value(output, field).map_err(|_| "Event encoding failed")?;
+            }
+            if output.len() - start > 4 * 1024 * 1024 {
+                return Err("Native composition snapshot exceeds 4 MiB");
+            }
+        }
+        Ok(())
+    }
+
     fn value_with(&self, instruments: Value) -> Result<Value, &'static str> {
         Ok(Value::Array(vec![
             self.schema.into(),
@@ -400,7 +442,8 @@ impl Snapshot {
             }
         }
         self.digest = semantic::compute(&self.semantic()?)?;
-        if codec::encode(&self.value()?)?.len() > 4 * 1024 * 1024 {
+        // Preflight already measured these exact fields. The canonical digest is always 64 ASCII bytes.
+        if measured > 4 * 1024 * 1024 {
             return Err("Native composition snapshot exceeds 4 MiB");
         }
         Ok(())

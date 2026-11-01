@@ -3,6 +3,9 @@ use chrono::{DateTime, NaiveDate, Utc};
 use ifm_ui_egui::market_charts::{ChartSeries, ChartSnapshot};
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
+
+
+/// Provides market seconds for the market history baseline implementation.
 pub fn market_seconds(time: DateTime<Utc>) -> f64 {
     time.with_timezone(&chrono_tz::America::New_York)
         .naive_local()
@@ -10,16 +13,25 @@ pub fn market_seconds(time: DateTime<Utc>) -> f64 {
         .timestamp_millis() as f64
         / 1000.0
 }
+
+
+/// Provides time for the market history baseline implementation.
 fn time(value: &Json) -> Result<DateTime<Utc>, String> {
     let text = value.as_str().ok_or("Missing history timestamp")?;
     DateTime::parse_from_rfc3339(text)
         .map(|t| t.with_timezone(&Utc))
         .map_err(|_| "Invalid history timestamp".into())
 }
+
+
+/// Provides day for the market history baseline implementation.
 fn day(value: &Json) -> Result<NaiveDate, String> {
     NaiveDate::parse_from_str(value.as_str().ok_or("Missing history date")?, "%Y-%m-%d")
         .map_err(|_| "Invalid history date".into())
 }
+
+
+/// Provides number for the market history baseline implementation.
 fn number(value: &Json) -> Result<f64, String> {
     value
         .as_f64()
@@ -27,6 +39,9 @@ fn number(value: &Json) -> Result<f64, String> {
         .filter(|v| v.is_finite())
         .ok_or("Invalid plotted price".into())
 }
+
+
+/// Provides rows for the market history baseline implementation.
 fn rows(value: &Json) -> Result<&Vec<Json>, String> {
     let values = value.as_array().ok_or("History reply is not an array")?;
     if values.len() > 100_000 {
@@ -34,6 +49,9 @@ fn rows(value: &Json) -> Result<&Vec<Json>, String> {
     }
     Ok(values)
 }
+
+
+/// Provides series for the market history baseline implementation.
 fn series(name: &str, color: &str, points: Vec<[f64; 2]>) -> ChartSeries {
     ChartSeries {
         name: name.into(),
@@ -41,6 +59,7 @@ fn series(name: &str, color: &str, points: Vec<[f64; 2]>) -> ChartSeries {
         points,
     }
 }
+
 
 /// Reproduce the existing display projection without deriving bars or triggers.
 pub fn bars(
@@ -111,6 +130,7 @@ pub fn bars(
         series: output,
     })
 }
+
 
 /// Select the newest valid Daily observation per date. Nullable band values stay
 /// absent; a warming indicator must never be rendered as an invented zero.

@@ -11,19 +11,34 @@ use crate::{
 };
 use rmpv::Value;
 use std::collections::BTreeMap;
+
+/// Initialization used by the broker initialization component.
 #[derive(Default)]
 pub struct Initialization {
+    /// Optional balances; `None` represents an absent value.
     pub balances: Option<FinancialBalanceSnapshot>,
+    /// Optional usage; `None` represents an absent value.
     pub usage: Option<FinancialCapacityUsage>,
+    /// Optional risk; `None` represents an absent value.
     pub risk: Option<FundRiskEnvelopeReadModel>,
+    /// Optional order; `None` represents an absent value.
     pub order: Option<FundOrderProjectionReadModel>,
+    /// Optional trade; `None` represents an absent value.
     pub trade: Option<OptionTradeReadModel>,
+    /// Optional underlying; `None` represents an absent value.
     pub underlying: Option<FuturesContractV3ReadModel>,
+    /// Optional price; `None` represents an absent value.
     pub price: Option<FuturesEodDataV2ReadModel>,
+    /// Optional account; `None` represents an absent value.
     pub account: Option<BrokerAccountDefinition>,
+    /// Optional reservation; `None` represents an absent value.
     pub reservation: Option<FinancialReservationView>,
+    /// Ordered errors retained by Initialization.
     pub errors: Vec<String>,
 }
+
+
+/// Provides basic for the broker initialization implementation.
 async fn basic<T: FromBackend>(
     backend: &Backend,
     registry: &Registry,
@@ -62,6 +77,9 @@ async fn basic<T: FromBackend>(
     }
     Option::<T>::from_backend(service_result(&reply)?)
 }
+
+
+/// Provides financial value for the broker initialization implementation.
 async fn financial_value<T: FromBackend>(
     backend: &Backend,
     registry: &Registry,
@@ -85,6 +103,9 @@ async fn financial_value<T: FromBackend>(
     .await?;
     read.value.as_ref().map(T::from_backend).transpose()
 }
+
+
+/// Provides stored price for the broker initialization implementation.
 async fn stored_price(
     backend: &Backend,
     registry: &Registry,
@@ -130,6 +151,9 @@ async fn stored_price(
     )
     .await
 }
+
+
+/// Retains broker initialization for broker initialization.
 fn retain<T>(name: &str, result: Result<Option<T>, String>, errors: &mut Vec<String>) -> Option<T> {
     match result {
         Ok(value) => value,
@@ -139,6 +163,9 @@ fn retain<T>(name: &str, result: Result<Option<T>, String>, errors: &mut Vec<Str
         }
     }
 }
+
+
+/// Loads broker initialization for broker initialization.
 pub async fn load(
     backend: &Backend,
     registry: &Registry,

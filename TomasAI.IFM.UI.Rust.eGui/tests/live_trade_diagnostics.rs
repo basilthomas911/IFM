@@ -14,6 +14,8 @@ use ifm_ui_egui::{
 };
 use std::time::Duration;
 
+
+/// Verifies that inspect current trade plan and saved option observations.
 #[tokio::test]
 #[ignore = "Explicit live read-only query; set IFM_LIVE_DIAGNOSTIC_NATS and IFM_LIVE_DIAGNOSTIC_TRADE"]
 async fn inspect_current_trade_plan_and_saved_option_observations() {
@@ -104,6 +106,7 @@ async fn inspect_current_trade_plan_and_saved_option_observations() {
     }
 }
 
+
 /// Explicit acceptance uses the same per-trade API as the UI, restoring saved
 /// intent even if the stop observation fails. No order command is reachable.
 #[tokio::test]
@@ -181,6 +184,7 @@ async fn live_trade_feed_stop_start_acceptance() {
     assert_eq!(stopped, Ok(false));
     assert_eq!(restored, Ok(true));
 }
+
 
 /// Passive push observer for a manually authorized stability window. The timer
 /// only stops this test; it neither polls production state nor triggers recovery.

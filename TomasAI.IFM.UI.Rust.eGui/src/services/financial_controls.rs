@@ -14,9 +14,15 @@ use serde_json::Value as Json;
 use std::collections::BTreeMap;
 mod rule_edit;
 pub use rule_edit::edit_rule;
+
+
+/// Resolves the requested field in the supplied record.
 fn field<'a>(fields: &'a serde_json::Map<String, Json>, name: &str) -> &'a str {
     fields.get(name).and_then(Json::as_str).unwrap_or_default()
 }
+
+
+/// Provides reason for the financial controls implementation.
 fn reason(fields: &serde_json::Map<String, Json>) -> Result<&str, String> {
     let text = field(fields, "reason").trim();
     if text.is_empty() || text.encode_utf16().count() > 1024 {
@@ -25,9 +31,15 @@ fn reason(fields: &serde_json::Map<String, Json>) -> Result<&str, String> {
         Ok(text)
     }
 }
+
+
+/// Looks up the requested member in the supplied record.
 fn member(registry: &Registry, kind: &str, value: &Value, name: &str) -> Result<Value, String> {
     crate::services::strategy::member(registry, &prep::kind(kind), value, name)
 }
+
+
+/// Provides selected for the financial controls implementation.
 fn selected(
     registry: &Registry,
     config: &Value,
@@ -52,6 +64,9 @@ fn selected(
     }
     member(registry, ty, values[0], "Definition")
 }
+
+
+/// Checks same amount against the current financial controls state.
 fn same_amount(a: &Json, b: &Json) -> bool {
     let canonical = |v: &Json| {
         v.as_str().map(|v| {
@@ -69,6 +84,9 @@ fn same_amount(a: &Json, b: &Json) -> bool {
     };
     canonical(a).is_some_and(|a| Some(a) == canonical(b))
 }
+
+
+/// Provides control for the financial controls implementation.
 pub fn control(
     registry: &Registry,
     context: &BusinessContext,
@@ -292,6 +310,9 @@ pub fn control(
         body,
     )
 }
+
+
+/// Provides backend draft for the financial controls implementation.
 pub fn backend_draft(
     registry: &Registry,
     context: &BusinessContext,
@@ -359,6 +380,9 @@ pub fn backend_draft(
         body,
     )
 }
+
+
+/// Edits account for financial controls.
 pub fn edit_account(
     registry: &Registry,
     context: &BusinessContext,

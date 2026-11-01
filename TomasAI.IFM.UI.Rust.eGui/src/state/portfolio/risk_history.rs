@@ -5,10 +5,14 @@ use super::*;
 use crate::services::{
     business_context::BusinessContext, inspection_queries as queries, strategy_display,
 };
+
+
+/// Provides rk for the risk history implementation.
 fn rk(name: &str) -> String {
     format!("{}.RiskManagement.{name}", queries::ROOT)
 }
 impl PortfolioController {
+    /// Provides show inline fund view for the portfolio controller implementation.
     pub(super) async fn show_inline_fund_view(
         &mut self,
         backend: &Backend,
@@ -39,6 +43,9 @@ impl PortfolioController {
                 .await
         }
     }
+
+
+    /// Chooses risk date for portfolio controller.
     pub(super) fn choose_risk_date(&mut self, intent: &Json) -> Result<String, String> {
         let date = crate::backend::date_input::parse(field(intent, "date"))?;
         self.risk_date = Some(date);
@@ -62,6 +69,9 @@ impl PortfolioController {
         ]));
         Ok("Risk history date changed; refresh to load".into())
     }
+
+
+    /// Provides risk grid action for the portfolio controller implementation.
     pub(super) async fn risk_grid_action(
         &mut self,
         backend: &Backend,
@@ -123,6 +133,9 @@ impl PortfolioController {
         }
         Ok("Risk evidence loaded".into())
     }
+
+
+    /// Opens risk history for portfolio controller.
     pub(super) async fn open_risk_history(
         &mut self,
         backend: &Backend,

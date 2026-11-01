@@ -50,7 +50,11 @@ impl Factory for QuietFactory {
         // No quote, reference, pricing or publication proof is supplied.
         let (_sender, status) = watch::channel(Readiness {
             setup_complete: self.reconstructed,
-            proofs: if self.reconstructed { vec![Proof::Transport] } else { vec![] },
+            proofs: if self.reconstructed {
+                vec![Proof::Transport]
+            } else {
+                vec![]
+            },
             ..Default::default()
         });
         parent.provider_received();
@@ -122,10 +126,17 @@ async fn bootstrap_activity_cannot_cancel_reconstruction_deadline_or_prevent_fin
     let root = Arc::new(Owner::default());
     let factory = Arc::new(QuietFactory {
         reconstructed: false,
-        source: Mutex::new(Weak::new()), starts: AtomicUsize::new(0),
+        source: Mutex::new(Weak::new()),
+        starts: AtomicUsize::new(0),
     });
-    let supervisor = Supervisor::start(root.clone(), factory.clone(), Some(Arc::new(())),
-        Requirements::new(&[Proof::Transport, Proof::Pricing]), Deadline::recovery()).unwrap();
+    let supervisor = Supervisor::start(
+        root.clone(),
+        factory.clone(),
+        Some(Arc::new(())),
+        Requirements::new(&[Proof::Transport, Proof::Pricing]),
+        Deadline::recovery(),
+    )
+    .unwrap();
     settle().await;
     let old = factory.source.lock().unwrap().upgrade().unwrap();
     for _ in 0..3 {
@@ -139,10 +150,19 @@ async fn bootstrap_activity_cannot_cancel_reconstruction_deadline_or_prevent_fin
     tokio::time::advance(std::time::Duration::from_secs(30)).await;
     settle().await;
     assert!(old.cancellation().is_cancelled());
-    assert_eq!(factory.starts.load(Ordering::SeqCst), 2, "Exactly one final replacement must occur");
+    assert_eq!(
+        factory.starts.load(Ordering::SeqCst),
+        2,
+        "Exactly one final replacement must occur"
+    );
     drop(old);
-    supervisor.cancel(); supervisor.join(Deadline::recovery()).await.unwrap();
-    drop(supervisor); drop(factory); root.stop().unwrap();
-    root.wait_idle(&CancellationToken::new(), Deadline::recovery()).await.unwrap();
+    supervisor.cancel();
+    supervisor.join(Deadline::recovery()).await.unwrap();
+    drop(supervisor);
+    drop(factory);
+    root.stop().unwrap();
+    root.wait_idle(&CancellationToken::new(), Deadline::recovery())
+        .await
+        .unwrap();
     assert!(root.disposable().unwrap());
 }

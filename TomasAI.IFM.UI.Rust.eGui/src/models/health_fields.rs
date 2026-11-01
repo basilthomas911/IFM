@@ -3,6 +3,8 @@
 use super::cells::{Cell, Cells, ScalarCell};
 use serde::{Deserialize, Deserializer};
 use std::collections::BTreeMap;
+
+/// Present used by the health fields component.
 #[derive(Clone, Debug)]
 pub enum Present<T> {
     Missing,
@@ -10,17 +12,20 @@ pub enum Present<T> {
     Value(T),
 }
 impl<T> Default for Present<T> {
+    /// Constructs the initial state used when no explicit value is supplied.
     fn default() -> Self {
         Self::Missing
     }
 }
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Present<T> {
+    /// Deserializes this value while preserving the declared field and scalar rules.
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Option::<T>::deserialize(deserializer)
             .map(|value| value.map(Self::Value).unwrap_or(Self::Null))
     }
 }
 impl<T> Present<T> {
+    /// Borrows the underlying representation without transferring ownership.
     pub fn as_ref(&self) -> Option<&T> {
         if let Self::Value(value) = self {
             Some(value)
@@ -28,14 +33,21 @@ impl<T> Present<T> {
             None
         }
     }
+
+
+    /// Checks is missing against the current health fields state.
     pub fn is_missing(&self) -> bool {
         matches!(self, Self::Missing)
     }
+
+
+    /// Checks is nil against the current health fields state.
     pub fn is_nil(&self) -> bool {
         self.as_ref().is_none()
     }
 }
 impl<T: ScalarCell> ScalarCell for Present<T> {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
     fn scalar_cell(&self) -> Cell<'_> {
         self.as_ref()
             .map(ScalarCell::scalar_cell)
@@ -43,16 +55,21 @@ impl<T: ScalarCell> ScalarCell for Present<T> {
     }
 }
 impl<T: Cells> Cells for Present<T> {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         self.as_ref()
             .map(|value| value.cell(column))
             .unwrap_or_default()
     }
 }
+
+/// Defines the health fields operations shared by its implementations.
 pub trait HealthFields: Cells {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>);
 }
 impl<T: HealthFields> HealthFields for Present<T> {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         if let Some(value) = self.as_ref() {
             value.fields(prefix, output)
@@ -61,6 +78,9 @@ impl<T: HealthFields> HealthFields for Present<T> {
         }
     }
 }
+
+
+/// Provides key for the health fields implementation.
 pub fn key(prefix: &str, name: &str) -> String {
     if prefix.is_empty() {
         name.into()
@@ -68,6 +88,9 @@ pub fn key(prefix: &str, name: &str) -> String {
         format!("{prefix}.{name}")
     }
 }
+
+
+/// Provides scalar for the health fields implementation.
 pub fn scalar<T: ScalarCell>(
     value: &Present<T>,
     key: String,

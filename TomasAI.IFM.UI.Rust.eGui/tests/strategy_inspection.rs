@@ -1,11 +1,19 @@
 use egui_kittest::{Harness, kittest::Queryable};
 use ifm_ui_egui::{Catalog, strategy_inspection::*};
 use std::collections::BTreeMap;
+
+/// State used by the strategy inspection test fixtures.
 struct State {
+    /// View associated with this state.
     view: StrategyInspection,
+    /// Publication associated with this state.
     publication: InspectionPublication,
+    /// Ordered intents retained by State.
     intents: Vec<String>,
 }
+
+
+/// Provides harness for the strategy inspection implementation.
 fn harness(risk: bool, count: usize) -> Harness<'static, State> {
     let c: Catalog = serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap();
     let mut view = StrategyInspection::default();
@@ -46,6 +54,9 @@ fn harness(risk: bool, count: usize) -> Harness<'static, State> {
         },
     )
 }
+
+
+/// Verifies that selecting history opens exact identity once.
 #[test]
 fn selecting_history_opens_exact_identity_once() {
     let mut h = harness(false, 3);
@@ -59,6 +70,9 @@ fn selecting_history_opens_exact_identity_once() {
     assert_eq!(request["intent"], "open");
     assert_eq!(request["fields"]["workflow"], "workflow-1");
 }
+
+
+/// Verifies that risk evidence and paging preserve filter values.
 #[test]
 fn risk_evidence_and_paging_preserve_filter_values() {
     let mut h = harness(true, 3);
@@ -74,6 +88,9 @@ fn risk_evidence_and_paging_preserve_filter_values() {
     assert_eq!(request["fields"]["cursor"], "cursor");
     assert_eq!(request["fields"]["portfolio"], "1");
 }
+
+
+/// Verifies that inspection history draws only the visible range.
 #[test]
 fn inspection_history_draws_only_the_visible_range() {
     let mut h = harness(true, 100_000);

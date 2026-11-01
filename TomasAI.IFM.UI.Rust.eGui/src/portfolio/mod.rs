@@ -27,6 +27,8 @@ impl Dialog {
     fn has_inline_status(&self) -> bool {
         self.key != "posting" && !self.status.is_empty()
     }
+
+
     /// Place actions directly below the last field in compact Portfolio and Fund editors.
     fn actions_follow_fields(&self) -> bool {
         matches!(
@@ -43,6 +45,8 @@ impl Dialog {
                 | "portfolio-state"
         )
     }
+
+
     /// Small editors share aligned captions, fixed sizing and a centered action footer.
     fn uses_compact_layout(&self) -> bool {
         matches!(
@@ -60,6 +64,7 @@ impl Dialog {
         )
     }
 }
+
 /// Native portfolio/fund administration state with local drafts, pending request, tabs, and control geometry.
 #[derive(Default)]
 pub struct PortfolioManager {
@@ -105,6 +110,8 @@ impl PortfolioManager {
         self.loaded = false;
         self.requested_fund_view = None;
     }
+
+
     /// Release only the matching request that failed before backend execution and expose its submission error.
     pub fn submission_rejected(&mut self, id: &str, error: &str) {
         if self.pending.as_deref() == Some(id) {
@@ -112,17 +119,23 @@ impl PortfolioManager {
             self.error = error.into();
         }
     }
+
+
     /// Record a transport error and release local pending UI state; this does not confirm a business command's outcome.
     pub fn transport_failed(&mut self, error: &str) {
         if self.pending.take().is_some() {
             self.error = error.into();
         }
     }
+
+
     /// Release the current pending UI submission after the host reports a queue rejection.
     pub fn reject_submission(&mut self) {
         self.pending = None;
         self.error = "The request queue is full. Close and reopen to retry.".into();
     }
+
+
     /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     fn request(&mut self, action: Action, publication: &ContractPublication) -> String {
         let id = crate::lookup_editor::new_request_id();
@@ -130,10 +143,14 @@ impl PortfolioManager {
         self.error.clear();
         serde_json::json!({"schema":1,"requestId":id,"view":"portfolio","intent":action.0,"expectedGeneration":publication.generation,"originalId":action.1,"fields":action.2}).to_string()
     }
+
+
     /// Create an action tuple with no row identity or additional fields.
     fn action(name: &str) -> Action {
         (name.into(), None, BTreeMap::new())
     }
+
+
     /// Draw an enabled/disabled action and record its control bounds for layout verification.
     fn button(
         ui: &mut egui::Ui,
@@ -149,6 +166,8 @@ impl PortfolioManager {
         controls.insert(key.into(), r.rect);
         r.clicked()
     }
+
+
     /// Consume a changed Portfolio document and matching outcomes, draw bounded administration/dialog views, and return a correlated user intent.
     pub fn draw(
         &mut self,
@@ -260,6 +279,8 @@ impl PortfolioManager {
                 ui.add_space(6.);
                 if self.section == 2 {
                     ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                         for (caption, key) in
                             [("Fund:", "fundName"), ("Portfolio:", "portfolioName")]
                         {
@@ -293,7 +314,53 @@ impl PortfolioManager {
                 };
                 let line_height = ui.text_style_height(&egui::TextStyle::Body);
                 let spacing = ui.spacing().item_spacing.y;
-                let metrics_height = line_height + spacing + ui.spacing().interact_size.y;
+                let metric_labels = [
+                    "Win Rate",
+                    "Avg Profit",
+                    "Loss Rate",
+                    "Avg Loss",
+                    "W/L Ratio",
+                    "Sharpe Ratio",
+                    "P&L",
+                    "P&L (%)",
+                    "Commission",
+                    "Max DD (%)",
+                ];
+                let font = egui::TextStyle::Body.resolve(ui.style());
+                let caption_width = metric_labels
+                    .iter()
+                    .map(|label| {
+                        ui.painter()
+                            .layout_no_wrap(
+                                (*label).into(),
+                                font.clone(),
+                                presentation::CAPTION_FOREGROUND,
+                            )
+                            .size()
+                            .x
+                    })
+                    .fold(0_f32, f32::max);
+                let caption_width =
+                    (caption_width * ctx.pixels_per_point()).ceil() / ctx.pixels_per_point();
+                let gap = presentation::field_gap(ui);
+                let metric_columns = (((bounds.width() + gap) / (caption_width + 90. + 2. * gap))
+                    .floor() as usize)
+                    .clamp(1, metric_labels.len());
+                let metric_rows = metric_labels.len().div_ceil(metric_columns);
+                let metric_value_width = ((bounds.width() - (2 * metric_columns - 1) as f32 * gap)
+                    / metric_columns as f32
+                    - caption_width)
+                    * ctx.pixels_per_point();
+                // Each grid column rounds independently; leave a small allowance at its value edge.
+                let metric_value_width =
+                    ((metric_value_width.floor() - 2.) / ctx.pixels_per_point()).max(40.);
+                let metric_row_height = ui
+                    .spacing()
+                    .interact_size
+                    .y
+                    .max(line_height + 8. / ctx.pixels_per_point());
+                let metrics_height = metric_rows as f32 * metric_row_height
+                    + metric_rows.saturating_sub(1) as f32 * 8. / ctx.pixels_per_point();
                 let footer_height = metrics_height + spacing + line_height;
                 let grid_height =
                     (bounds.bottom() - ui.cursor().top() - footer_height - spacing).max(50.);
@@ -376,24 +443,16 @@ impl PortfolioManager {
                 );
                 self.controls.insert("metrics-and-status".into(), footer);
                 ui.scope_builder(egui::UiBuilder::new().max_rect(footer), |ui| {
-                    ui.columns(10, |columns| {
-                        for (i, title) in [
-                            "Win Rate",
-                            "Avg Profit",
-                            "Loss Rate",
-                            "Avg Loss",
-                            "W/L Ratio",
-                            "Sharpe Ratio",
-                            "P&L",
-                            "P&L (%)",
-                            "Commission",
-                            "Max DD (%)",
-                        ]
-                        .iter()
-                        .enumerate()
-                        {
-                            columns[i]
-                                .add(presentation::caption_widget(*title))
+                    presentation::form_grid(ui, "portfolio-metrics")
+                        .num_columns(metric_columns * 2)
+                        .min_row_height(metric_row_height)
+                        .show(ui, |ui| {
+                            for (i, title) in metric_labels.iter().enumerate() {
+                                let caption = presentation::form_caption_with_width(
+                                    ui,
+                                    *title,
+                                    caption_width,
+                                )
                                 .on_hover_text(
                                     document
                                         .context
@@ -401,17 +460,30 @@ impl PortfolioManager {
                                         .map(String::as_str)
                                         .unwrap_or(""),
                                 );
-                            let mut value = document
-                                .context
-                                .get(&format!("metric{i}"))
-                                .cloned()
-                                .unwrap_or("N/A".into());
-                            columns[i].add_enabled(
-                                false,
-                                egui::TextEdit::singleline(&mut value).desired_width(f32::INFINITY),
-                            );
-                        }
-                    });
+                                let mut value = document
+                                    .context
+                                    .get(&format!("metric{i}"))
+                                    .cloned()
+                                    .unwrap_or("N/A".into());
+                                let response = ui
+                                    .add_enabled_ui(false, |ui| {
+                                        ui.add_sized(
+                                            [metric_value_width, metric_row_height],
+                                            egui::TextEdit::singleline(&mut value)
+                                                .vertical_align(egui::Align::Center),
+                                        )
+                                    })
+                                    .inner;
+                                self.controls
+                                    .insert(format!("metric-caption:{i}"), caption.rect);
+                                self.controls
+                                    .insert(format!("metric-value:{i}"), response.rect);
+                                if (i + 1) % metric_columns == 0 {
+                                    ui.end_row();
+                                }
+                            }
+                            ui.end_row();
+                        });
                     let status = document
                         .context
                         .get("status")
@@ -577,6 +649,8 @@ impl PortfolioManager {
         }
         action.map(|a| self.request(a, publication))
     }
+
+
     /// Shared action-rail width measured from the visible button captions and normal padding.
     fn portfolio_action_width(ui: &egui::Ui) -> f32 {
         let font = egui::TextStyle::Button.resolve(ui.style());
@@ -593,6 +667,8 @@ impl PortfolioManager {
             .fold(0.0_f32, f32::max);
         (text_width + 2. * ui.spacing().button_padding.x).ceil()
     }
+
+
     /// Allocate the upper Portfolio grid, right action controls, and lower embedded Risk Policy area within fixed bounds.
     fn draw_portfolio_page(
         &mut self,
@@ -702,6 +778,8 @@ impl PortfolioManager {
         self.draw_policy_tabs(ui, document.policy.as_ref(), policy_rect, ready, action);
         ui.allocate_rect(page, egui::Sense::hover());
     }
+
+
     /// Lay out the Funds grid and action rail above the embedded Financials/Risk History tabs.
     fn draw_funds_page(
         &mut self,
@@ -848,6 +926,8 @@ impl PortfolioManager {
         self.tabs.insert("inline-fund-view".into(), selected);
         ui.allocate_rect(page, egui::Sense::hover());
     }
+
+
     /// Render Risk Policy/Versions pages and the right action rail, with stacked Save/Cancel. Editing actions return to the policy form.
     fn draw_policy_tabs(
         &mut self,
@@ -966,6 +1046,8 @@ impl PortfolioManager {
         });
         self.tabs.insert("inline-policy-view".into(), selected);
     }
+
+
     /// Draw the managed policy fields and strategy-family limits without calculating risk values locally.
     fn policy_form(
         &mut self,
@@ -976,14 +1058,16 @@ impl PortfolioManager {
         embedded: bool,
     ) {
         let right = ui.available_rect_before_wrap();
-        self.policy_value_width = ((right.width() - 2. * d.caption_width - 24.) / 2.).max(80.);
-        egui::Grid::new("portfolio-policy-fields")
+        self.policy_value_width =
+            ((right.width() - 2. * d.caption_width - 3. * presentation::field_gap(ui)) / 2.)
+                .max(80.);
+        crate::presentation::form_grid(ui, "portfolio-policy-fields")
             .num_columns(4)
             .min_row_height(44.)
             .show(ui, |ui| {
                 for (i, f) in d.fields.iter().take(10).enumerate() {
                     if i == 9 {
-                        ui.add(presentation::caption_widget("Open Positions / Drawdown"));
+                        crate::presentation::form_caption(ui, "Open Positions / Drawdown");
                         let original_width = self.policy_value_width;
                         self.policy_value_width =
                             ((original_width - ui.spacing().item_spacing.x) / 2.).max(40.);
@@ -1022,6 +1106,8 @@ impl PortfolioManager {
             });
         }
     }
+
+
     /// Collect the current dialog's local fields and strip its namespace prefix for the managed command payload.
     fn dialog_fields(&self, d: &Dialog) -> BTreeMap<String, String> {
         let prefix = format!("{}.", d.key);
@@ -1030,6 +1116,8 @@ impl PortfolioManager {
             .filter_map(|(k, v)| k.strip_prefix(&prefix).map(|key| (key.into(), v.clone())))
             .collect()
     }
+
+
     /// Compare editable local policy/limit values against the published originals to determine whether Save is meaningful.
     fn policy_dirty(&self, d: &Dialog) -> bool {
         self.document
@@ -1056,6 +1144,8 @@ impl PortfolioManager {
                     })
                 })
     }
+
+
     /// Build the appropriate close/cancel intent, including dirty-policy information required for discard handling.
     fn cancel_action(&self, d: &Dialog) -> Action {
         (
@@ -1067,6 +1157,8 @@ impl PortfolioManager {
             )]),
         )
     }
+
+
     /// Render a managed dialog definition within its reference dimensions, dispatching specialized policy/financial/editor layouts.
     fn draw_dialog(
         &mut self,
@@ -1145,7 +1237,7 @@ impl PortfolioManager {
                 );
                 ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
                     ui.set_clip_rect(rect.intersect(ui.clip_rect()));
-                    egui::Grid::new(("ledger-bottom-fields", group))
+                    crate::presentation::form_grid(ui, ("ledger-bottom-fields", group))
                         .num_columns(2)
                         .min_row_height(24.)
                         .show(ui, |ui| {
@@ -1172,6 +1264,8 @@ impl PortfolioManager {
         } else if d.key == "risk-history" {
             if let Some(f) = d.fields.first() {
                 ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                     let caption = ui.add(presentation::caption_widget("Evaluation Date:"));
                     self.controls
                         .insert(format!("{}.{}.caption", d.key, f.key), caption.rect);
@@ -1248,6 +1342,8 @@ impl PortfolioManager {
         }
         ui.allocate_rect(bounds, egui::Sense::hover());
     }
+
+
     /// Render a compact creation form without an inner frame or resizable content.
     fn compact_editor_form(
         &mut self,
@@ -1343,6 +1439,8 @@ impl PortfolioManager {
             }
         }
     }
+
+
     /// Render cash captions, financial grid tabs, and their right-hand action menu.
     fn financials(
         &mut self,
@@ -1352,6 +1450,8 @@ impl PortfolioManager {
         action: &mut Option<Action>,
     ) {
         ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
             for field in &d.fields {
                 if !field.caption.is_empty() {
                     let response = ui.add(presentation::caption_widget(&field.caption));
@@ -1458,6 +1558,8 @@ impl PortfolioManager {
             }
         });
     }
+
+
     /// Render a dialog's managed field definitions and collect any resulting action.
     fn fields(&mut self, ui: &mut egui::Ui, d: &Dialog, ready: bool, action: &mut Option<Action>) {
         for field in d
@@ -1467,16 +1569,8 @@ impl PortfolioManager {
         {
             self.field(ui, d, field, ready);
         }
-        egui::Grid::new(("portfolio-fields", &d.key))
+        crate::presentation::form_grid(ui, ("portfolio-fields", &d.key))
             .num_columns(2)
-            .spacing(egui::vec2(
-                if d.uses_compact_layout() {
-                    20.
-                } else {
-                    ui.spacing().item_spacing.x
-                },
-                ui.spacing().item_spacing.y,
-            ))
             .min_row_height(if d.uses_compact_layout() {
                 24.
             } else if d.key == "version-fund" {
@@ -1496,6 +1590,8 @@ impl PortfolioManager {
                 }
             });
     }
+
+
     /// Render one typed field with published choices/bounds/eligibility; return whether a selection action should be sent.
     fn field(&mut self, ui: &mut egui::Ui, d: &Dialog, f: &Field, ready: bool) -> bool {
         let prefix = format!("{}.{}", d.key, f.key);
@@ -1506,22 +1602,7 @@ impl PortfolioManager {
             } else {
                 f.caption.clone()
             };
-            let response = if d.uses_compact_layout() {
-                ui.allocate_ui_with_layout(
-                    egui::vec2(d.caption_width, 24.),
-                    egui::Layout::right_to_left(egui::Align::Center),
-                    |ui| {
-                        ui.set_min_width(d.caption_width);
-                        ui.add(presentation::caption_widget(&caption))
-                    },
-                )
-                .inner
-            } else {
-                ui.add_sized(
-                    [d.caption_width, 24.],
-                    presentation::caption_widget(&caption).halign(egui::Align::Max),
-                )
-            };
+            let response = presentation::form_caption_with_width(ui, &caption, d.caption_width);
             self.controls
                 .insert(format!("{prefix}.caption"), response.rect);
             Some(response.id)
@@ -1600,6 +1681,7 @@ impl PortfolioManager {
                         if f.kind == "multi" {
                             ui.add(
                                 egui::TextEdit::singleline(filter)
+                                    .vertical_align(egui::Align::Center)
                                     .hint_text("Search values")
                                     .desired_width(width),
                             );
@@ -1726,7 +1808,10 @@ impl PortfolioManager {
                         4
                     }),
                 ),
-                _ => ui.add_sized([width, 24.], egui::TextEdit::singleline(value)),
+                _ => ui.add_sized(
+                    [width, 24.],
+                    egui::TextEdit::singleline(value).vertical_align(egui::Align::Center),
+                ),
             };
             if f.kind == "multiline" && response.has_focus() {
                 self.multiline_focus = true;
@@ -1752,6 +1837,8 @@ impl PortfolioManager {
                     | "date"
             )
     }
+
+
     /// Render eligible dialog actions and capture the selected intent. Embedded policy Save/Cancel use the action rail's width.
     fn dialog_buttons(
         &mut self,
@@ -1874,6 +1961,8 @@ impl PortfolioManager {
             );
         });
     }
+
+
     /// Render a dialog's grid tabs and the selected grid in the remaining body height.
     fn dialog_tabs(
         &mut self,
@@ -1909,6 +1998,8 @@ impl PortfolioManager {
             self.dialog_grid(ui, d, g, (height - 30.).max(40.), ready, action);
         }
     }
+
+
     /// Draw a managed grid and dispatch selection/double-click actions for the grid kinds that require them.
     fn dialog_grid(
         &mut self,
@@ -1951,16 +2042,20 @@ impl PortfolioManager {
         }
     }
 }
+
+
 /// Draw a selected/unselected tab using the shared native tab-header conventions.
 fn tab(ui: &mut egui::Ui, selected: bool, title: &str) -> egui::Response {
     presentation::tab_label(ui, selected, title)
 }
+
+
 /// Edit an ISO calendar date using the shared date picker and write back a changed date string.
 fn date_field(ui: &mut egui::Ui, value: &mut String) -> egui::Response {
     // An unavailable API date must remain unavailable. The workstation's date
     // cannot seed an accounting or replay range for the standalone client.
     let Ok(mut date) = chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d") else {
-        return ui.add(egui::TextEdit::singleline(value));
+        return ui.add(egui::TextEdit::singleline(value).vertical_align(egui::Align::Center));
     };
     let response = ui.add(crate::date_picker::DatePickerButton::new(&mut date));
     if response.changed() {
@@ -1968,6 +2063,8 @@ fn date_field(ui: &mut egui::Ui, value: &mut String) -> egui::Response {
     }
     response
 }
+
+
 /// Paint a one-pixel inside border clipped to the control's visible bounds.
 fn border(ui: &egui::Ui, rect: egui::Rect) {
     ui.painter().rect_stroke(
@@ -1977,6 +2074,8 @@ fn border(ui: &egui::Ui, rect: egui::Rect) {
         egui::StrokeKind::Inside,
     );
 }
+
+
 /// Render a bounded managed grid with stable scoped IDs, full-row selection, editable cells, and clipped column rules. Return the selected row ID and double-click flag.
 fn draw_grid(
     ui: &mut egui::Ui,
@@ -2134,6 +2233,7 @@ fn draw_grid(
                                         ui.add_enabled(
                                             enabled,
                                             egui::TextEdit::singleline(v)
+                                                .vertical_align(egui::Align::Center)
                                                 .desired_width(ui.available_width()),
                                         );
                                     } else {

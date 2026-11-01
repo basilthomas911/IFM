@@ -4,6 +4,9 @@ use ifm_ui_egui::{
     market_outlook::{self, OutlookCell},
     shell::Dashboard,
 };
+
+
+/// Verifies that compact outlook contains all winforms rows and live cell values.
 #[test]
 fn compact_outlook_contains_all_winforms_rows_and_live_cell_values() {
     let mut dashboard = Dashboard::default();
@@ -60,6 +63,9 @@ fn compact_outlook_contains_all_winforms_rows_and_live_cell_values() {
     }
     assert!(harness.query_by_label("Market Outlook").is_none());
 }
+
+
+/// Verifies that semantic colors match winforms palette.
 #[test]
 fn semantic_colors_match_winforms_palette() {
     assert_eq!(

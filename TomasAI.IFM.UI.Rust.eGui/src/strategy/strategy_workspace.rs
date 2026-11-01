@@ -10,6 +10,7 @@ use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, DetailsView, Snapshot, strings};
 use eframe::egui;
 use serde::Deserialize;
+
 /// One backend workflow execution row with its actor pipeline and selection action.
 #[derive(Clone, Debug, Default, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +37,7 @@ pub struct WorkflowRow {
     /// Published ordered actor-stage results for the pipeline indicator.
     pub actors: Vec<WorkflowActor>,
 }
+
 /// Published actor-stage result used to paint the pipeline indicator.
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct WorkflowActor {
@@ -47,6 +49,7 @@ pub struct WorkflowActor {
     #[serde(default)]
     pub state: String,
 }
+
 /// Published ITI point with UTC time, optional market-time coordinate, direction, and tooltip.
 #[derive(Clone, Debug, Default, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -65,6 +68,7 @@ pub struct GraphPoint {
     /// Backend-generated explanatory text for the chart point.
     pub tooltip: String,
 }
+
 /// Published workflow-summary section and its backend state/explanation.
 #[derive(Clone, Debug, Default, Deserialize, serde::Serialize)]
 pub struct SummarySection {
@@ -77,6 +81,7 @@ pub struct SummarySection {
     /// Detailed published workflow summary/evidence text.
     pub content: String,
 }
+
 /// Selected Strategy Updates, Details, or Summary page.
 #[derive(Default, PartialEq)]
 pub enum StrategyTab {
@@ -88,6 +93,7 @@ pub enum StrategyTab {
     /// Published summary sections for the selected workflow.
     Summary,
 }
+
 /// Strategy tab selection, graph cache, and deduplicated virtual history-page request state.
 #[derive(Default)]
 pub struct StrategyWorkspace {
@@ -120,6 +126,8 @@ impl StrategyWorkspace {
             ..Self::default()
         }
     }
+
+
     /// Render the ITI chart and workflow tabs as a standalone central panel; return a numeric selection/history action.
     pub fn draw(
         &mut self,
@@ -136,6 +144,8 @@ impl StrategyWorkspace {
             });
         result
     }
+
+
     /// Update the graph cache for new epoch/generation, draw the chart and virtual workflow tabs, and return a selection/history action without backend I/O.
     pub fn draw_inside(
         &mut self,
@@ -610,6 +620,7 @@ impl StrategyWorkspace {
     }
 }
 
+
 /// Map backend actor-stage state to the pipeline indicator palette.
 pub fn pipeline_color(state: &str) -> egui::Color32 {
     match state {
@@ -618,6 +629,7 @@ pub fn pipeline_color(state: &str) -> egui::Color32 {
         _ => egui::Color32::RED,
     }
 }
+
 
 /// Return the number of actor indicators through the first failed stage, including that stage.
 pub fn visible_pipeline_count(actors: &[WorkflowActor]) -> usize {

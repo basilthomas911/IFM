@@ -47,7 +47,7 @@ public sealed class FuturesItiSignalTimeFrameTests
             TrendExtreme = 5_000,
             TrendReversal = 5_000,
             BandAnchorPrice = 5_000,
-            BandSize = 1
+            BandSize = 2
         };
         var command = Command(TimeFrameType.Daily, 4_990);
 
@@ -76,7 +76,7 @@ public sealed class FuturesItiSignalTimeFrameTests
 
         FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 5_012), current, out var extreme)
             .Should().BeTrue();
-        extreme.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendExtremeChanged);
+        extreme.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootExtended);
         extreme.IntrinsicTimeGroupId.Should().Be(2);
 
         FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 4_988), current, out var reversal)
@@ -96,8 +96,8 @@ public sealed class FuturesItiSignalTimeFrameTests
     }
 
     [Theory]
-    [InlineData(IntrinsicTimeTrendType.UpTrend, 5_001, 0.85)]
-    [InlineData(IntrinsicTimeTrendType.DownTrend, 4_999, 1.15)]
+    [InlineData(IntrinsicTimeTrendType.UpTrend, 5_002, 0.85)]
+    [InlineData(IntrinsicTimeTrendType.DownTrend, 4_998, 1.15)]
     public void Evaluator_AppliesDirectionalFactorToThresholdTriggersAndBands(
         IntrinsicTimeTrendType trend, double price, double factor)
     {
@@ -249,14 +249,14 @@ public sealed class FuturesItiSignalTimeFrameTests
             0,
             0,
             0.003,
-            period == TimeFrameType.Daily ? 1 : period == TimeFrameType.Weekly ? 10 : 30,
+            period == TimeFrameType.Daily ? 1 : period == TimeFrameType.Weekly ? 20 : 60,
             10,
             5_000,
             4_990,
             IntrinsicTimeTradeState.Ready,
             frameStart,
             5_000,
-            0.10,
-            1);
+            0.20,
+            2);
 
 }

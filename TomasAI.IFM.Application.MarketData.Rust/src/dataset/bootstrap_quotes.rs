@@ -64,34 +64,60 @@ pub async fn acquire(
     stop: &CancellationToken,
     deadline: Deadline,
 ) -> Result<BTreeMap<String, Decimal>, String> {
-    acquire_with_progress(source,date,clock,parent,stop,deadline,|_|Ok(())).await
+    acquire_with_progress(source, date, clock, parent, stop, deadline, |_| Ok(())).await
 }
 // The progress observer receives copied contract names only. It cannot own or
 // delay the source socket, and is called only when the missing set changes.
 pub(super) async fn acquire_with_progress(
-    source: Start, date: time::Date, clock: Arc<Clock>, parent: Arc<Child>,
-    stop: &CancellationToken, deadline: Deadline,
-    progress: impl Fn(&[String])->Result<(),String> + Send,
+    source: Start,
+    date: time::Date,
+    clock: Arc<Clock>,
+    parent: Arc<Child>,
+    stop: &CancellationToken,
+    deadline: Deadline,
+    progress: impl Fn(&[String]) -> Result<(), String> + Send,
 ) -> Result<BTreeMap<String, Decimal>, String> {
-    collect(source,date,clock,parent,stop,deadline,progress,|_|Ok(()),true).await
+    collect(
+        source,
+        date,
+        clock,
+        parent,
+        stop,
+        deadline,
+        progress,
+        |_| Ok(()),
+        true,
+    )
+    .await
 }
 /// Observe qualified startup dependencies continuously without gating a dataset.
 /// Snapshots contain source timestamps so callers revalidate freshness on use.
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn observe(
-    source: Start, date: time::Date, clock: Arc<Clock>, parent: Arc<Child>,
-    stop: &CancellationToken, deadline: Deadline,
-    progress: impl Fn(&[String])->Result<(),String> + Send,
-    snapshot: impl Fn(BTreeMap<String, Tick<QuoteValue>>)->Result<(),String> + Send,
+    source: Start,
+    date: time::Date,
+    clock: Arc<Clock>,
+    parent: Arc<Child>,
+    stop: &CancellationToken,
+    deadline: Deadline,
+    progress: impl Fn(&[String]) -> Result<(), String> + Send,
+    snapshot: impl Fn(BTreeMap<String, Tick<QuoteValue>>) -> Result<(), String> + Send,
 ) -> Result<BTreeMap<String, Decimal>, String> {
-    collect(source,date,clock,parent,stop,deadline,progress,snapshot,false).await
+    collect(
+        source, date, clock, parent, stop, deadline, progress, snapshot, false,
+    )
+    .await
 }
 #[allow(clippy::too_many_arguments)]
 async fn collect(
-    mut source: Start, date: time::Date, clock: Arc<Clock>, parent: Arc<Child>,
-    stop: &CancellationToken, deadline: Deadline,
-    progress: impl Fn(&[String])->Result<(),String> + Send,
-    snapshot: impl Fn(BTreeMap<String, Tick<QuoteValue>>)->Result<(),String> + Send,
+    mut source: Start,
+    date: time::Date,
+    clock: Arc<Clock>,
+    parent: Arc<Child>,
+    stop: &CancellationToken,
+    deadline: Deadline,
+    progress: impl Fn(&[String]) -> Result<(), String> + Send,
+    snapshot: impl Fn(BTreeMap<String, Tick<QuoteValue>>) -> Result<(), String> + Send,
     finish_when_complete: bool,
 ) -> Result<BTreeMap<String, Decimal>, String> {
     if source.plan.lane != Lane::OptionsGlbx
@@ -125,7 +151,7 @@ async fn collect(
         let mut lifecycle = data
             .lifecycle(Lane::OptionsGlbx)?
             .ok_or("Native underlying lifecycle unavailable")?;
-        let mut previous_missing=None;
+        let mut previous_missing = None;
         loop {
             let status = lifecycle.borrow_and_update().clone();
             if matches!(
@@ -147,7 +173,9 @@ async fn collect(
             let mut quotes = BTreeMap::new();
             for id in &ids {
                 let quote = queries.raw_prices(id.instrument)?.and_then(|p| p.quote);
-                if let Some(quote) = quote { quotes.insert(id.contract.clone(), quote); }
+                if let Some(quote) = quote {
+                    quotes.insert(id.contract.clone(), quote);
+                }
                 if let Some(price) = quote.and_then(|q| midpoint(q, now))
                     && prices.insert(id.contract.clone(), price).is_some()
                 {
@@ -158,8 +186,15 @@ async fn collect(
             if finish_when_complete && prices.len() == ids.len() {
                 return Ok(prices);
             }
-            let missing=ids.iter().filter(|id|!prices.contains_key(&id.contract)).map(|id|id.contract.clone()).collect::<Vec<_>>();
-            if previous_missing.as_ref()!=Some(&missing) {progress(&missing)?;previous_missing=Some(missing);}
+            let missing = ids
+                .iter()
+                .filter(|id| !prices.contains_key(&id.contract))
+                .map(|id| id.contract.clone())
+                .collect::<Vec<_>>();
+            if previous_missing.as_ref() != Some(&missing) {
+                progress(&missing)?;
+                previous_missing = Some(missing);
+            }
             tokio::select! {
                 result=changed.changed()=>result.map_err(|_|"Native underlying observation closed")?,
                 result=lifecycle.changed()=>result.map_err(|_|"Native underlying lifecycle closed")?,

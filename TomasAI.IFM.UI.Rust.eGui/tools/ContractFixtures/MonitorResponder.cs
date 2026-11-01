@@ -13,7 +13,7 @@ internal static class MonitorResponder{
  static string mode="Disabled";static bool enabled;static int hostCalls;
  static bool Populated=>DesktopFixtureMode.Enabled&&mode=="Populated";
  static TradeRealtimeSnapshot Current=>Populated?PopulatedMonitorFixture.Create():MonitorFixtures.Realtime;
- public static bool Handles(string subject)=>subject.StartsWith("Query.NativeCompatibility.Monitor",StringComparison.Ordinal)||mode=="ClosedSession"&&subject=="Query.MarketDataQuery.GetMarketSession.marketSession"||subject=="ifm.nativecompat.marketdata.v1.control"||mode!="Disabled"&&(subject.StartsWith("Query.FuturesOptionTradeQuery.GetIronCondorOptionTrade.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTradePositionQuery.GetIronCondorOptionTradePositionHistory.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTradeQuery.GetTradeRealtimeSnapshot.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTradeQuery.GetTradeLimit.",StringComparison.Ordinal)||subject.StartsWith("Query.IronCondorTradePlanQuery.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTickDataQuery.GetLastFuturesOptionTickData.",StringComparison.Ordinal));
+ public static bool Handles(string subject)=>subject.StartsWith("Query.NativeCompatibility.Monitor",StringComparison.Ordinal)||(mode=="ClosedSession"||mode=="ClosedEmulator")&&subject=="Query.MarketDataQuery.GetMarketSession.marketSession"||subject=="ifm.nativecompat.marketdata.v1.control"||mode!="Disabled"&&(subject.StartsWith("Query.FuturesOptionTradeQuery.GetIronCondorOptionTrade.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTradePositionQuery.GetIronCondorOptionTradePositionHistory.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTradeQuery.GetTradeRealtimeSnapshot.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTradeQuery.GetTradeLimit.",StringComparison.Ordinal)||subject.StartsWith("Query.IronCondorTradePlanQuery.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTickDataQuery.GetLastFuturesOptionTickData.",StringComparison.Ordinal));
  // Deterministic optional-read barrier: core trade queries continue while the
  // test explicitly releases or fails queued chart/leg responses.
  static readonly List<(string Subject,byte[] Payload,string Reply)> pending=[];
@@ -32,7 +32,7 @@ internal static class MonitorResponder{
  }
  public static byte[]? Handle(string subject,byte[] payload){
   var options=MessagePackBinarySerializer.Options;byte[] Result<T>(T value)=>MessagePackSerializer.Serialize(new ServiceResult<T>{Success=true,Value=value,ErrorMessage=""},options);
-  if(subject=="Query.MarketDataQuery.GetMarketSession.marketSession")return Result(Session with{State=TomasAI.IFM.Domain.MarketData.Shared.FuturesMarketState.Closed,ActiveValueDate=null,AllowDevelopmentEmulator=false});
+  if(subject=="Query.MarketDataQuery.GetMarketSession.marketSession")return Result(Session with{State=TomasAI.IFM.Domain.MarketData.Shared.FuturesMarketState.Closed,ActiveValueDate=null,AllowDevelopmentEmulator=mode=="ClosedEmulator"});
   if(subject=="Query.NativeCompatibility.MonitorMode.none"){mode=MessagePackSerializer.Deserialize<string>(payload,options);enabled=false;hostCalls=0;return Result(new ScalarReadModel<bool>(true));}
   if(subject=="Query.NativeCompatibility.MonitorHostCount.none")return Result(new ScalarReadModel<int>(hostCalls));
   if(subject=="ifm.nativecompat.marketdata.v1.control"){

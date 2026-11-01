@@ -1,4 +1,7 @@
 use ifm_ui_egui::publication_transfer::TransferCache;
+
+
+/// Verifies that csharp incremental documents and recovery.
 #[test]
 #[ignore = "Requires IFM_TRANSFER_FIXTURES produced by PublicationTransferTests"]
 fn csharp_incremental_documents_and_recovery() {
@@ -7,6 +10,8 @@ fn csharp_incremental_documents_and_recovery() {
     verify_incremental_documents(&root);
 }
 
+
+/// Verifies that csharp cached trade history prepend trim and recovery.
 #[test]
 #[ignore = "Requires IFM_TRANSFER_FIXTURES produced by PublicationTransferTests"]
 fn csharp_cached_trade_history_prepend_trim_and_recovery() {
@@ -15,6 +20,8 @@ fn csharp_cached_trade_history_prepend_trim_and_recovery() {
     verify_incremental_documents(&root.join("trade-history"));
 }
 
+
+/// Provides verify incremental documents for the publication transfer implementation.
 fn verify_incremental_documents(root: &std::path::Path) {
     let mut cache = TransferCache::default();
     cache.scratch = std::fs::read(root.join("full.msgpack")).unwrap();
@@ -39,6 +46,8 @@ fn verify_incremental_documents(root: &std::path::Path) {
     assert_eq!(cache.sequence(8), 2);
 }
 
+
+/// Verifies that csharp dashboard contract keeps value colors and chart series.
 #[test]
 #[ignore = "Requires IFM_TRANSFER_FIXTURES produced by MarketOutlookPresentationTests"]
 fn csharp_dashboard_contract_keeps_value_colors_and_chart_series() {

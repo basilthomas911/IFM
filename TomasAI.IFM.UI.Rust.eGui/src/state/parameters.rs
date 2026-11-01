@@ -13,17 +13,29 @@ use crate::{
 use rmpv::Value;
 use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
+
+
+/// Provides f for the parameters implementation.
 fn f<'a>(intent: &'a Json, key: &str) -> &'a str {
     intent["fields"][key].as_str().unwrap_or_default()
 }
+
+
+/// Looks up the requested member in the supplied record.
 fn member(wire: &Value, index: usize) -> Result<&Value, String> {
     wire.as_array()
         .and_then(|v| v.get(index))
         .ok_or("Incomplete parameter model".into())
 }
+
+
+/// Provides model for the parameters implementation.
 fn model(registry: &Registry, name: &str, wire: &Value) -> Result<Json, String> {
     registry.project(&api::kind(name), wire)
 }
+
+
+/// Provides id for the parameters implementation.
 fn id(row: &Json) -> Result<String, String> {
     let set = row["Reference"]["SetId"]
         .as_str()
@@ -33,9 +45,15 @@ fn id(row: &Json) -> Result<String, String> {
         .ok_or("Missing parameter version")?;
     Ok(format!("{set}:{version}"))
 }
+
+
+/// Provides root value for the parameters implementation.
 fn root_value(wire: &Value) -> Result<&Value, String> {
     member(member(wire, 1)?, 0)
 }
+
+
+/// Provides parameter identity for the parameters implementation.
 fn parameter_identity(registry: &Registry, wire: &Value) -> Result<(uuid::Uuid, i64, i64), String> {
     let row = model(registry, "ParameterSetValue", wire)?;
     let value = &row["Value"];
@@ -62,34 +80,58 @@ fn parameter_identity(registry: &Registry, wire: &Value) -> Result<(uuid::Uuid, 
             .unwrap_or(1),
     ))
 }
+
+/// Parameter Controller used by the parameters component.
 #[derive(Default)]
 pub struct ParameterController {
+    /// Ordered components retained by ParameterController.
     components: Vec<ParameterComponentSummary>,
+    /// Ordered versions retained by ParameterController.
     versions: Vec<Value>,
+    /// Component associated with this parameter controller.
     component: String,
+    /// Current selection retained by this state or view.
     selected: Option<Value>,
+    /// Optional original; `None` represents an absent value.
     original: Option<Value>,
+    /// Optional working; `None` represents an absent value.
     working: Option<Value>,
+    /// Optional historical; `None` represents an absent value.
     historical: Option<String>,
+    /// Name associated with this parameter controller.
     name: String,
+    /// Description associated with this parameter controller.
     description: String,
+    /// Revision associated with this parameter controller.
     revision: i64,
+    /// Whether editing is enabled or currently true.
     editing: bool,
+    /// Whether awaiting is enabled or currently true.
     awaiting: bool,
+    /// Optional pending; `None` represents an absent value.
     pending: Option<(uuid::Uuid, uuid::Uuid)>,
     // An ambiguous assignment must be checked by its audit operation ID before
     // another write. Matching the requested value alone cannot prove acceptance.
     pending_assignment: Option<(uuid::Uuid, uuid::Uuid)>,
+    /// Keyed documents retained by ParameterController.
     documents: BTreeMap<String, serde_bytes::ByteBuf>,
+    /// Keyed extras retained by ParameterController.
     extras: BTreeMap<String, String>,
+    /// Generation associated with this parameter controller.
     generation: u64,
+    /// Keyed receipts retained by ParameterController.
     receipts: BTreeMap<String, (Json, EditorOutcome)>,
+    /// Optional assignment; `None` represents an absent value.
     assignment: Option<Value>,
+    /// Ordered legacy retained by ParameterController.
     legacy: Vec<Value>,
+    /// Legacy offset associated with this parameter controller.
     legacy_offset: i64,
+    /// Optional legacy preview; `None` represents an absent value.
     legacy_preview: Option<(String, Value)>,
 }
 impl ParameterController {
+    /// Replaces the selected regime while retaining the surrounding typed parameter state.
     fn replace_regime(
         &mut self,
         registry: &Registry,
@@ -111,6 +153,9 @@ impl ParameterController {
         self.working = Some(Value::Array(vec![0.into(), Value::Array(vec![value])]));
         Ok(())
     }
+
+
+    /// Captures metrics for parameter controller.
     fn capture_metrics(&mut self, registry: &Registry, intent: &Json) -> Result<(), String> {
         let docs = &intent["documents"];
         if docs.get("signals").is_none() && docs.get("observations").is_none() {
@@ -219,6 +264,9 @@ impl ParameterController {
         );
         self.replace_regime(registry, fields)
     }
+
+
+    /// Provides assignment for the parameter controller implementation.
     async fn assignment(
         &mut self,
         backend: &Backend,
@@ -256,6 +304,9 @@ impl ParameterController {
         self.assignment = Some(wire);
         Ok(())
     }
+
+
+    /// Builds the compatible page for legacy parameter versions.
     async fn legacy_page(
         &mut self,
         backend: &Backend,
@@ -293,6 +344,9 @@ impl ParameterController {
         );
         Ok(())
     }
+
+
+    /// Clears parameters for parameter controller.
     fn clear(&mut self) {
         self.selected = None;
         self.original = None;
@@ -307,6 +361,9 @@ impl ParameterController {
         self.extras.clear();
         self.assignment = None;
     }
+
+
+    /// Selects parameters for parameter controller.
     fn select(&mut self, registry: &Registry, wire: Value, revision: i64) -> Result<(), String> {
         self.clear();
         let row = model(registry, "ParameterSetVersion", &wire)?;
@@ -328,6 +385,9 @@ impl ParameterController {
         self.selected = Some(wire);
         Ok(())
     }
+
+
+    /// Loads versions for parameter controller.
     async fn load_versions(
         &mut self,
         backend: &Backend,
@@ -357,11 +417,17 @@ impl ParameterController {
         }
         Ok(())
     }
+
+
+    /// Provides document for the parameter controller implementation.
     fn document(&mut self, key: &str, value: &Json) -> Result<(), String> {
         self.documents
             .insert(key.into(), crate::wire::encode_value(value)?.into());
         Ok(())
     }
+
+
+    /// Provides payload for the parameter controller implementation.
     fn payload(&self) -> Result<&Value, String> {
         if self.editing {
             self.working.as_ref()
@@ -370,6 +436,9 @@ impl ParameterController {
         }
         .ok_or("No supported parameter values".into())
     }
+
+
+    /// Captures parameters for parameter controller.
     fn capture(&mut self, registry: &Registry, intent: &Json) -> Result<(), String> {
         let docs = intent["documents"].as_object();
         if !self.editing {
@@ -395,6 +464,9 @@ impl ParameterController {
         }
         Ok(())
     }
+
+
+    /// Provides preview for the parameter controller implementation.
     async fn preview(
         &self,
         backend: &Backend,
@@ -420,6 +492,9 @@ impl ParameterController {
         )
         .await
     }
+
+
+    /// Provides committed for the parameter controller implementation.
     async fn committed(
         &mut self,
         backend: &Backend,
@@ -474,6 +549,9 @@ impl ParameterController {
         )?;
         Ok(())
     }
+
+
+    /// Provides result for the parameter controller implementation.
     fn result(&mut self, registry: &Registry) -> Result<ContractResult, String> {
         self.documents.insert(
             "components".into(),
@@ -688,6 +766,9 @@ impl ParameterController {
             ..Default::default()
         })
     }
+
+
+    /// Applies parameters for parameter controller.
     async fn apply(
         &mut self,
         backend: &Backend,
@@ -1480,6 +1561,9 @@ impl ParameterController {
         }
         Ok("Parameter action completed".into())
     }
+
+
+    /// Handles a parameters intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,

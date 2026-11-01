@@ -7,12 +7,57 @@ use ifm_ui_egui::{
 };
 use std::collections::BTreeMap;
 
+
+/// Every positioned futures/option caption follows its real control rather than a separate fixed label band.
+#[test]
+fn manager_contract_fields_use_twenty_pixel_caption_gaps() {
+    for selection in [0, 1] {
+        let mut h = harness(selection, egui::vec2(1500., 1000.));
+        for dpi in [1., 1.5, 2.] {
+            h.input_mut()
+                .viewports
+                .get_mut(&egui::ViewportId::ROOT)
+                .unwrap()
+                .native_pixels_per_point = Some(dpi);
+            h.run();
+            for (key, caption) in h
+                .state()
+                .manager
+                .controls
+                .iter()
+                .filter(|(key, _)| key.starts_with("caption:"))
+            {
+                let control = h.state().manager.controls[&key[8..]];
+                assert!(
+                    ((control.left() - caption.right()) * dpi - 20.).abs() <= 1.,
+                    "{key} at {dpi}"
+                );
+            }
+        }
+        if let Ok(directory) = std::env::var("IFM_ALIGNMENT_SCREENSHOTS") {
+            h.render()
+                .unwrap()
+                .save(
+                    std::path::Path::new(&directory)
+                        .join(format!("market-manager-{selection}.png")),
+                )
+                .unwrap();
+        }
+    }
+}
+
+/// State used by the market data manager test fixtures.
 struct State {
+    /// Manager associated with this state.
     manager: MarketDataManager,
+    /// Publication associated with this state.
     publication: ContractPublication,
+    /// Ordered requests retained by State.
     requests: Vec<serde_json::Value>,
 }
 
+
+/// Provides harness for the market data manager implementation.
 fn harness(selection: usize, size: egui::Vec2) -> Harness<'static, State> {
     let mut manager = MarketDataManager::default();
     manager.selection = selection;
@@ -78,6 +123,8 @@ fn harness(selection: usize, size: egui::Vec2) -> Harness<'static, State> {
     h
 }
 
+
+/// Provides click for the market data manager implementation.
 fn click(h: &mut Harness<'_, State>, key: &str) {
     let pos = h.state().manager.controls[key].center();
     h.input_mut().events.extend([
@@ -99,6 +146,8 @@ fn click(h: &mut Harness<'_, State>, key: &str) {
     h.run();
 }
 
+
+/// Verifies that all three winforms views load their existing query and keep command rail.
 #[test]
 fn all_three_winforms_views_load_their_existing_query_and_keep_command_rail() {
     for selection in 0..3 {
@@ -125,6 +174,8 @@ fn all_three_winforms_views_load_their_existing_query_and_keep_command_rail() {
     }
 }
 
+
+/// Verifies that contract change preserves exact original identity and cancel does not send.
 #[test]
 fn contract_change_preserves_exact_original_identity_and_cancel_does_not_send() {
     let mut h = harness(0, egui::vec2(1400., 900.));
@@ -144,6 +195,8 @@ fn contract_change_preserves_exact_original_identity_and_cancel_does_not_send() 
     assert!(h.state().manager.open);
 }
 
+
+/// Verifies that compact dialog keeps commands inside window and rates editable.
 #[test]
 fn compact_dialog_keeps_commands_inside_window_and_rates_editable() {
     let mut h = harness(2, egui::vec2(900., 650.));
@@ -161,6 +214,8 @@ fn compact_dialog_keeps_commands_inside_window_and_rates_editable() {
     }
 }
 
+
+/// Verifies that yield double click starts inline change and preserves identity.
 #[test]
 fn yield_double_click_starts_inline_change_and_preserves_identity() {
     let mut h = harness(2, egui::vec2(1400., 900.));
@@ -177,6 +232,8 @@ fn yield_double_click_starts_inline_change_and_preserves_identity() {
     assert_eq!(request["fields"]["oneMonth"], "4.1");
 }
 
+
+/// Verifies that escape cancels inline add and change without submitting.
 #[test]
 fn escape_cancels_inline_add_and_change_without_submitting() {
     for command in ["add", "change"] {
@@ -201,6 +258,8 @@ fn escape_cancels_inline_add_and_change_without_submitting() {
     }
 }
 
+
+/// Verifies that yield change is inline and cancel does not submit.
 #[test]
 fn yield_change_is_inline_and_cancel_does_not_submit() {
     let mut h = harness(2, egui::vec2(1400., 900.));
@@ -216,6 +275,8 @@ fn yield_change_is_inline_and_cancel_does_not_submit() {
     assert!(h.query_by_label("Save").is_none());
 }
 
+
+/// Verifies that render market data manager layouts.
 #[test]
 #[ignore = "Exports rendered layout evidence; requires a graphics device"]
 fn render_market_data_manager_layouts() {

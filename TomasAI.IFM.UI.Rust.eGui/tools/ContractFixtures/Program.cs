@@ -306,7 +306,7 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
         }
         else if(request.Subject=="Query.NativeCompatibility.TradeWorkspaceMode.none"){
             var tradeMode=MessagePackSerializer.Deserialize<string>(request.Data!,MessagePackBinarySerializer.Options);
-            if(tradeMode is "Normal" or "ComposeFutures" or "ComposeOptions" or "ComposeCloseFutures" or "Monitor")futuresContracts.Reset();
+            if(tradeMode is "Normal" or "ComposeFutures" or "ComposeOptions" or "ComposeCloseFutures" or "ComposeCloseOptions" or "Monitor")futuresContracts.Reset();
             tradeWorkspace.Mode=tradeMode;
             response=MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<bool>>{Success=true,ErrorMessage="",Value=new(true)},MessagePackBinarySerializer.Options);
         }
@@ -447,6 +447,7 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
         }
         else if(request.Subject=="Query.NativeCompatibility.FeedScenario.none") {
             feedScenario=MessagePackSerializer.Deserialize<string>(request.Data!,MessagePackBinarySerializer.Options);
+            if(feedScenario=="Stopped")feedRuntime=feedRuntime with{IsRunning=false,ActiveValueDate=null};
             response=MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<bool>>{Success=true,ErrorMessage="",Value=new(true)},MessagePackBinarySerializer.Options);
         }
         else if(request.Subject.StartsWith("Command.MarketDataFeedCommand.",StringComparison.Ordinal)) {

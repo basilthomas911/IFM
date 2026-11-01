@@ -13,6 +13,7 @@ use crate::{
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::BTreeMap;
 
+
 /// The copied charts label Unix coordinates directly. Match the hybrid's Eastern
 /// wall-clock coordinate, including the offset at each observation (DST aware).
 pub fn market_seconds(time: DateTime<Utc>) -> f64 {
@@ -22,19 +23,31 @@ pub fn market_seconds(time: DateTime<Utc>) -> f64 {
         .timestamp_millis() as f64
         / 1000.0
 }
+
+
+/// Provides time for the market history implementation.
 fn time(value: &Cell<'_>) -> Result<DateTime<Utc>, String> {
     let text = value.as_str().ok_or("Missing history timestamp")?;
     DateTime::parse_from_rfc3339(text)
         .map(|t| t.with_timezone(&Utc))
         .map_err(|_| "Invalid history timestamp".into())
 }
+
+
+/// Provides day for the market history implementation.
 fn day(value: &Cell<'_>) -> Result<NaiveDate, String> {
     NaiveDate::parse_from_str(value.as_str().ok_or("Missing history date")?, "%Y-%m-%d")
         .map_err(|_| "Invalid history date".into())
 }
+
+
+/// Reads the numeric representation supported by the supplied value.
 fn number(value: &Cell<'_>) -> Result<f64, String> {
     value.number().ok_or("Invalid plotted price".into())
 }
+
+
+/// Provides rows for the market history implementation.
 fn rows<T>(source: &[T]) -> Result<&[T], String> {
     if source.len() > 100_000 {
         Err("History exceeds the display bound".into())
@@ -42,6 +55,9 @@ fn rows<T>(source: &[T]) -> Result<&[T], String> {
         Ok(source)
     }
 }
+
+
+/// Provides series for the market history implementation.
 fn series(name: &str, color: &str, points: Vec<[f64; 2]>) -> ChartSeries {
     ChartSeries {
         name: name.into(),
@@ -49,6 +65,7 @@ fn series(name: &str, color: &str, points: Vec<[f64; 2]>) -> ChartSeries {
         points,
     }
 }
+
 
 /// Reproduce the existing display projection without deriving bars or triggers.
 pub fn bars(
@@ -125,6 +142,7 @@ pub fn bars(
         series: output,
     })
 }
+
 
 /// Select the newest valid Daily observation per date. Nullable band values stay
 /// absent; a warming indicator must never be rendered as an invented zero.
@@ -206,6 +224,7 @@ pub fn bands(
     })
 }
 
+
 /// Failed refreshes retain the last useful series and visibly mark them stale.
 /// This is display continuity, never a substitute for feed health or trade data.
 pub fn retain_previous(
@@ -229,6 +248,8 @@ pub fn retain_previous(
     }
 }
 
+
+/// Provides current contract for the market history implementation.
 pub async fn current_contract(
     backend: &Backend,
     registry: &Registry,
@@ -254,6 +275,9 @@ pub async fn current_contract(
         .map(str::to_owned)
         .ok_or("Current futures contract unavailable".into())
 }
+
+
+/// Loads bars for market history.
 async fn load_bars(
     backend: &Backend,
     registry: &Registry,
@@ -291,6 +315,9 @@ async fn load_bars(
         &Vec::<FuturesBarDataReadModel>::from_backend(&wire)?,
     )
 }
+
+
+/// Loads bands for market history.
 async fn load_bands(
     backend: &Backend,
     registry: &Registry,
@@ -333,6 +360,8 @@ async fn load_bands(
     }
     bands(context.value_date, &source)
 }
+
+
 /// One absolute API-derived refresh window, with independent ES/VX/band results.
 /// A single unavailable dataset cannot suppress the other two charts.
 pub async fn load(

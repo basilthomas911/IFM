@@ -15,14 +15,25 @@ use crate::models::{
 use rmpv::Value;
 use std::collections::BTreeMap;
 const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared.Order.Broker";
+
+/// Operation used by the broker order commands component.
 pub struct Operation {
+    /// Prepared associated with this operation.
     pub prepared: Prepared,
+    /// Order key associated with this operation.
     pub order_key: String,
+    /// Whether attempted is enabled or currently true.
     pub attempted: bool,
+    /// Whether acknowledged is enabled or currently true.
     pub acknowledged: bool,
+    /// Entity associated with this operation.
     entity: Value,
+    /// Optional watch; `None` represents an absent value.
     watch: Option<Watch>,
 }
+
+
+/// Prepares broker order commands for broker order commands.
 pub fn prepare(
     registry: &Registry,
     context: &BusinessContext,
@@ -87,12 +98,16 @@ pub fn prepare(
     })
 }
 impl Operation {
+    /// Reconciles broker order commands for operation.
     pub fn reconcile(&mut self) -> bool {
         if self.watch.as_ref().is_some_and(Watch::committed) {
             self.acknowledged = true;
         }
         self.acknowledged
     }
+
+
+    /// Submits broker order commands for operation.
     pub async fn submit(
         &mut self,
         backend: &Backend,

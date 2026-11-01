@@ -9,6 +9,10 @@ use ifm_ui_egui::{
 };
 #[path = "support/eod_baseline.rs"]
 mod baseline;
+
+
+/// Verifies that typed eod document preserves exact prices volume presence and lifecycle
+/// eligibility.
 #[test]
 fn typed_eod_document_preserves_exact_prices_volume_presence_and_lifecycle_eligibility() {
     let scope = Scope {

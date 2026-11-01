@@ -170,6 +170,7 @@ struct Entry {
 }
 struct State {
     entries: BTreeMap<u32, Entry>,
+    memberships: Option<[Arc<Vec<u32>>; 2]>,
     selection_cursor: usize,
     risk_cursor: usize,
     observations: u64,
@@ -181,6 +182,7 @@ struct State {
 pub struct Coalesced {
     fenced: std::sync::atomic::AtomicBool,
     maximum: usize,
+    calculator: Calculator,
     batch: usize,
     iv_ticks: i64,
     policy: [u64; 4],
@@ -223,11 +225,14 @@ impl Coalesced {
         Ok(Self {
             fenced: std::sync::atomic::AtomicBool::new(false),
             maximum,
+            calculator: Calculator::new(Settings::default())
+                .map_err(|_| "Invalid numerical policy")?,
             batch,
             iv_ticks: i64::from(iv_milliseconds) * 10000,
             policy: policy_identity(version),
             state: Mutex::new(State {
                 entries: BTreeMap::new(),
+                memberships: None,
                 selection_cursor: 0,
                 risk_cursor: 0,
                 observations: 0,
@@ -294,6 +299,7 @@ impl Coalesced {
                 },
             );
         }
+        state.memberships = None;
         Ok(())
     }
     /// Event-driven demand to rebuild expired native reference assumptions.
@@ -703,14 +709,15 @@ impl Coalesced {
     /// Changes business/display full-risk demand without affecting selection or
     /// performing a calculation on ingress.
     pub fn require_risk(&self, instrument: u32, required: bool) -> Result<(), &'static str> {
-        if let Some(entry) = self
+        let mut state = self
             .state
             .lock()
-            .map_err(|_| "Option registry writer interrupted")?
-            .entries
-            .get_mut(&instrument)
+            .map_err(|_| "Option registry writer interrupted")?;
+        if let Some(entry) = state.entries.get_mut(&instrument)
+            && entry.required != required
         {
             entry.required = required;
+            state.memberships = None;
         }
         Ok(())
     }
@@ -739,10 +746,15 @@ impl Coalesced {
                 return Err("Risk requirement context compare-and-swap conflict");
             }
         }
+        let mut changed = false;
         for update in updates {
             if let Some(entry) = state.entries.get_mut(&update.instrument) {
+                changed |= entry.required != update.required;
                 entry.required = update.required;
             }
+        }
+        if changed {
+            state.memberships = None;
         }
         Ok(())
     }
@@ -758,6 +770,7 @@ impl Coalesced {
             .is_some_and(|entry| entry.physical == physical)
         {
             state.entries.remove(&instrument);
+            state.memberships = None;
         }
         Ok(())
     }
@@ -1123,6 +1136,65 @@ impl Coalesced {
         Ok(())
     }
 
+    /// Test-only rejected parallel-tier experiment: control p99 regressed despite higher throughput.
+    #[cfg(test)]
+    pub(crate) async fn run_parallel_checked(
+        self: &Arc<Self>,
+        cadence: [u32; 2],
+        at: Arc<dyn Fn() -> Result<i64, &'static str> + Send + Sync>,
+        underlying: Arc<dyn Fn(u32) -> Result<Option<Quote>, &'static str> + Send + Sync>,
+        parent: &crate::runtime::owner::PricingOwner,
+        token: &CancellationToken,
+    ) -> Result<(), &'static str> {
+        let [selection_ms, risk_ms] = cadence;
+        if !(10..=5000).contains(&selection_ms)
+            || !(10..=60000).contains(&risk_ms)
+            || i64::from(selection_ms) * 10000 > self.iv_ticks
+        {
+            return Err("Invalid option scheduler cadence");
+        }
+        let stop = token.child_token();
+        let _cancel_on_drop = stop.clone().drop_guard();
+        let task = |risk, milliseconds| {
+            let engine = self.clone();
+            let at = at.clone();
+            let read = underlying.clone();
+            let stop = stop.clone();
+            parent.spawn(async move {
+                let period = Duration::from_millis(milliseconds);
+                let mut timer = tokio::time::interval_at(tokio::time::Instant::now() + period, period);
+                timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                loop {
+                    tokio::select! { biased; ()=stop.cancelled()=>return Ok(()), _=timer.tick()=>{} }
+                    match engine.sweep_checked(risk, || at(), |id| read(id), &stop, Deadline::recovery()).await {
+                        Ok(_) => {}, Err(_) if stop.is_cancelled() => return Ok(()), Err(error) => return Err(error),
+                    }
+                }
+            }).map_err(|_| "Native pricing task admission failed")
+        };
+        let mut selection = task(false, u64::from(selection_ms))?;
+        let mut risk = match task(true, u64::from(risk_ms)) {
+            Ok(task) => task,
+            Err(error) => {
+                stop.cancel();
+                let _ = selection.await;
+                return Err(error);
+            }
+        };
+        let outcome =
+            |result: Result<Option<Result<(), &'static str>>, tokio::task::JoinError>| match result
+            {
+                Ok(Some(result)) => result,
+                Ok(None) if token.is_cancelled() => Ok(()),
+                _ => Err("Native pricing task terminated"),
+            };
+        tokio::select! { biased;
+            ()=token.cancelled()=>{ stop.cancel(); let _=tokio::join!(selection,risk); Ok(()) },
+            result=&mut selection=>{ stop.cancel(); let _=risk.await; outcome(result) },
+            result=&mut risk=>{ stop.cancel(); let _=selection.await; outcome(result) },
+        }
+    }
+
     async fn pass_count(
         &self,
         risk: bool,
@@ -1160,12 +1232,22 @@ impl Coalesced {
                     .send_modify(|version| *version = version.saturating_add(1));
                 return Err("Native option reference requires refresh");
             }
-            let ids: Vec<u32> = state
-                .entries
-                .iter()
-                .filter(|(_, entry)| !risk || entry.required)
-                .map(|(id, _)| *id)
-                .collect();
+            if state.memberships.is_none() {
+                state.memberships = Some([
+                    Arc::new(state.entries.keys().copied().collect()),
+                    Arc::new(
+                        state
+                            .entries
+                            .iter()
+                            .filter(|(_, entry)| entry.required)
+                            .map(|(id, _)| *id)
+                            .collect(),
+                    ),
+                ]);
+            }
+            let ids = state.memberships.as_ref().expect("Membership initialized")
+                [usize::from(risk)]
+            .clone();
             if ids.is_empty() {
                 return Ok(0);
             }
@@ -1187,8 +1269,15 @@ impl Coalesced {
                 })
                 .collect::<Vec<_>>()
         };
+        // One coherent copied observation per underlying within this bounded batch.
+        let mut underlyings = BTreeMap::new();
         for (id, physical, context, option, prior_iv) in &batch {
-            let observed = underlying(context.underlying)?;
+            let observed = match underlyings.entry(context.underlying) {
+                std::collections::btree_map::Entry::Occupied(entry) => *entry.get(),
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    *entry.insert(underlying(context.underlying)?)
+                }
+            };
             if observed.is_none() {
                 let mut state = self
                     .state
@@ -1240,8 +1329,7 @@ impl Coalesced {
                     nanounits(option.ask)?,
                 )
                 .ok_or("Qualified option midpoint is invalid")?;
-                let calculator =
-                    Calculator::new(Settings::default()).map_err(|_| "Invalid numerical policy")?;
+                let calculator = &self.calculator;
                 if risk {
                     match calculator.implied(model, mark, token, deadline).await {
                         Ok(result) => value.risk = Some(result),
@@ -1414,5 +1502,285 @@ mod retirement_fence_tests {
         assert!(engine.completed_risk(1, 0).unwrap().is_none());
         assert!(!engine.ready(0).unwrap());
         drop(writer);
+    }
+}
+
+#[cfg(test)]
+mod parallel_tier_tests {
+    use super::*;
+    use crate::runtime::owner::Owner;
+    const AT: i64 = 17_000_000_000_000_000;
+    fn decimal(value: u32) -> qualification::Decimal {
+        qualification::Decimal {
+            bits: [value, 0, 0, 0],
+        }
+    }
+    fn quote(price: u32) -> Quote {
+        Quote {
+            generation_low: 1,
+            event: AT,
+            received: AT,
+            sequence: 1,
+            bid: decimal(price),
+            ask: decimal(price),
+            bid_size: decimal(10),
+            ask_size: decimal(10),
+            ..Default::default()
+        }
+    }
+    fn engine() -> Arc<Coalesced> {
+        let engine = Arc::new(Coalesced::new(1, 1, 5000).unwrap());
+        engine
+            .register(
+                1,
+                100,
+                Context {
+                    identity: 1,
+                    underlying: 9,
+                    expiration: AT + 30 * 864000000000,
+                    days_in_year: 365,
+                    valid_until: AT + 864000000000,
+                    model: Request {
+                        forward: 0.,
+                        strike: 5000.,
+                        time: 0.,
+                        rate: 0.04,
+                        call: true,
+                        american: false,
+                        futures_style: false,
+                    },
+                    qualification: qualification::Request {
+                        size: 304,
+                        flags: 3 | 4 | 8 | 16,
+                        generation_low: 1,
+                        maximum_age: 5000,
+                        maximum_skew: 2000,
+                        maximum_lead: 0,
+                        strike: decimal(5000),
+                        definition_strike: decimal(5000),
+                        ..Default::default()
+                    },
+                },
+                true,
+            )
+            .unwrap();
+        engine.observe(1, 100, quote(100)).unwrap();
+        engine
+    }
+
+    /// Compare actual scheduler completion rates and timer delay; run explicitly in Release without competing builds.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "Explicit Release performance run after compilation ends"]
+    async fn actual_pricing_scheduler_before_after_timings() {
+        let mut samples = Vec::new();
+        for pair in 0..5 {
+            for parallel in if pair % 2 == 0 {
+                [false, true]
+            } else {
+                [true, false]
+            } {
+                let template = engine();
+                let mut context = *template.state.lock().unwrap().entries[&1].context;
+                context.model.american = true;
+                let engine = Arc::new(Coalesced::new(8, 8, 5000).unwrap());
+                for id in 1..=8 {
+                    engine.register(id, 100, context, true).unwrap();
+                    engine.observe(id, 100, quote(100)).unwrap();
+                }
+                let root = Arc::new(Owner::default());
+                let parent = root.child().unwrap();
+                let port = parent.pricing_owner();
+                let stop = CancellationToken::new();
+                engine
+                    .sweep_checked(
+                        false,
+                        || Ok(AT),
+                        |_| Ok(Some(quote(5000))),
+                        &stop,
+                        Deadline::recovery(),
+                    )
+                    .await
+                    .unwrap();
+                let selections = engine.counters().unwrap().1;
+                let changes = *engine.updates().borrow();
+                let running = engine.clone();
+                let stopping = stop.clone();
+                let started = std::time::Instant::now();
+                let task = tokio::spawn(async move {
+                    if parallel {
+                        running
+                            .run_parallel_checked(
+                                [10, 10],
+                                Arc::new(|| Ok(AT)),
+                                Arc::new(|_| Ok(Some(quote(5000)))),
+                                &port,
+                                &stopping,
+                            )
+                            .await
+                    } else {
+                        running
+                            .run_checked(10, 10, || Ok(AT), |_| Ok(Some(quote(5000))), &stopping)
+                            .await
+                    }
+                });
+                let until = tokio::time::Instant::now() + Duration::from_secs(1);
+                let mut timer = tokio::time::interval(Duration::from_millis(1));
+                timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                let mut delays = Vec::new();
+                loop {
+                    let due = timer.tick().await;
+                    delays.push(
+                        tokio::time::Instant::now()
+                            .saturating_duration_since(due)
+                            .as_nanos() as u64,
+                    );
+                    if due >= until {
+                        break;
+                    }
+                }
+                stop.cancel();
+                task.await.unwrap().unwrap();
+                let elapsed = started.elapsed().as_nanos() as u64;
+                let selected = engine.counters().unwrap().1 - selections;
+                let completed = *engine.updates().borrow() - changes;
+                assert!(selected > 0 && completed > selected);
+                assert!(
+                    engine
+                        .completed_risk(1, AT)
+                        .unwrap()
+                        .unwrap()
+                        .risk
+                        .is_some()
+                );
+                delays.sort_unstable();
+                samples.push(serde_json::json!({"parallel":parallel,"elapsedNs":elapsed,"selectionCompletions":selected,"riskCompletions":completed-selected,"timerP99Ns":delays[(delays.len()*99/100).min(delays.len()-1)],"timerSamples":delays.len()}));
+                parent
+                    .wait_nested(
+                        &CancellationToken::new(),
+                        Deadline::after(Duration::from_secs(2)),
+                    )
+                    .await
+                    .unwrap();
+                drop(parent);
+                root.stop().unwrap();
+                root.wait_idle(
+                    &CancellationToken::new(),
+                    Deadline::after(Duration::from_secs(2)),
+                )
+                .await
+                .unwrap();
+            }
+        }
+        println!(
+            "SCHEDULER_PERFORMANCE {}",
+            serde_json::json!({"scenario":"actual-american-selection-risk-scheduler","cadenceMs":10,"options":8,"runs":samples})
+        );
+    }
+
+    /// Both numerical tiers must make concurrent progress and be joined when their caller stops.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn parallel_tiers_progress_independently_and_join_on_stop() {
+        let root = Arc::new(Owner::default());
+        let parent = root.child().unwrap();
+        let port = parent.pricing_owner();
+        let engine = engine();
+        let barrier = Arc::new((Mutex::new(0usize), std::sync::Condvar::new()));
+        let gate = barrier.clone();
+        let read = Arc::new(move |_| {
+            let (count, changed) = (&gate.0, &gate.1);
+            let mut entered = count.lock().unwrap();
+            if *entered < 2 {
+                *entered += 1;
+                changed.notify_all();
+                let (result, wait) = changed
+                    .wait_timeout_while(entered, Duration::from_secs(2), |count| *count < 2)
+                    .unwrap();
+                entered = result;
+                if wait.timed_out() && *entered < 2 {
+                    return Err("Pricing tiers did not run concurrently");
+                }
+            }
+            Ok(Some(quote(5000)))
+        });
+        let stopping = CancellationToken::new();
+        let task_stop = stopping.clone();
+        let running = engine.clone();
+        let task = tokio::spawn(async move {
+            running
+                .run_parallel_checked([10, 10], Arc::new(|| Ok(AT)), read, &port, &task_stop)
+                .await
+        });
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                if engine
+                    .read(1, false, AT)
+                    .unwrap()
+                    .is_some_and(|value| value.selection.is_some())
+                    && engine
+                        .completed_risk(1, AT)
+                        .unwrap()
+                        .is_some_and(|value| value.risk.is_some())
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
+        .await
+        .unwrap();
+        stopping.cancel();
+        assert!(task.await.unwrap().is_ok());
+        parent
+            .wait_nested(
+                &CancellationToken::new(),
+                Deadline::after(Duration::from_secs(2)),
+            )
+            .await
+            .unwrap();
+        drop(parent);
+        root.stop().unwrap();
+        root.wait_idle(
+            &CancellationToken::new(),
+            Deadline::after(Duration::from_secs(2)),
+        )
+        .await
+        .unwrap();
+    }
+
+    /// One tier's infrastructure failure cancels and joins its sibling without renewing any recovery budget.
+    #[tokio::test]
+    async fn parallel_tier_failure_joins_the_other_tier() {
+        let root = Arc::new(Owner::default());
+        let parent = root.child().unwrap();
+        let port = parent.pricing_owner();
+        let engine = engine();
+        let result = tokio::time::timeout(
+            Duration::from_secs(2),
+            engine.run_parallel_checked(
+                [10, 10],
+                Arc::new(|| Ok(AT)),
+                Arc::new(|_| Err("Deliberate underlying failure")),
+                &port,
+                &CancellationToken::new(),
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, Err("Deliberate underlying failure"));
+        parent
+            .wait_nested(
+                &CancellationToken::new(),
+                Deadline::after(Duration::from_secs(2)),
+            )
+            .await
+            .unwrap();
+        drop(parent);
+        root.stop().unwrap();
+        root.wait_idle(
+            &CancellationToken::new(),
+            Deadline::after(Duration::from_secs(2)),
+        )
+        .await
+        .unwrap();
     }
 }

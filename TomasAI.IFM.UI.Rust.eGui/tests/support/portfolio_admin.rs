@@ -1,6 +1,9 @@
 use super::*;
 use ifm_ui_egui::{backend::schema::Registry, state::portfolio::PortfolioController};
 use serde_json::{Value as Json, json};
+
+
+/// Provides mode for the portfolio admin implementation.
 async fn mode(backend: &Backend, name: &str) {
     service_result(
         &backend
@@ -15,6 +18,9 @@ async fn mode(backend: &Backend, name: &str) {
     )
     .unwrap();
 }
+
+
+/// Provides act for the portfolio admin implementation.
 async fn act(
     controller: &mut PortfolioController,
     backend: &Backend,
@@ -25,6 +31,9 @@ async fn act(
 ) -> ifm_ui_egui::contract_editor::ContractPublication {
     controller.execute(backend,registry,&json!({"schema":1,"requestId":uuid::Uuid::new_v4().to_string(),"view":"portfolio","intent":intent,"expectedGeneration":generation,"originalId":null,"fields":fields})).await.unwrap()
 }
+
+
+/// Verifies that portfolio admin drafts use server ids clock and exact command revisions.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn portfolio_admin_drafts_use_server_ids_clock_and_exact_command_revisions() {

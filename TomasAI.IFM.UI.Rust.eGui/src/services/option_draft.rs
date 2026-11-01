@@ -12,14 +12,20 @@ use crate::models::{
 };
 use std::sync::Arc;
 
+/// Selected used by the option draft component.
 #[derive(Clone, Debug)]
 pub struct Selected {
+    /// Quote associated with this selected.
     pub quote: broker_preview::Leg,
+    /// Role associated with this selected.
     pub role: String,
+    /// Optional quote at; `None` represents an absent value.
     pub quote_at: Option<OffsetText>,
+    /// Whether frozen is enabled or currently true.
     pub frozen: bool,
 }
 impl Selected {
+    /// Provides from contract for the selected implementation.
     fn from_contract(
         row: &EvaluatedOptionContractReadModel,
         role: &str,
@@ -46,25 +52,46 @@ impl Selected {
         })
     }
 }
+
+/// Draft used by the option draft component.
 #[derive(Default)]
 pub struct Draft {
+    /// Optional raw; `None` represents an absent value.
     pub raw: Option<Arc<EvaluatedOptionChainReadModel>>,
+    /// Optional display; `None` represents an absent value.
     pub display: Option<Arc<EvaluatedOptionChainReadModel>>,
+    /// Ordered legs retained by Draft.
     pub legs: Vec<Selected>,
+    /// Optional entered price; `None` represents an absent value.
     pub entered_price: Option<ExactDecimal>,
+    /// Whether manual is enabled or currently true.
     pub manual: bool,
 }
+
+/// Settings used by the option draft component.
 pub struct Settings<'a> {
+    /// Strategy associated with this settings.
     pub strategy: &'a str,
+    /// Call delta associated with this settings.
     pub call_delta: &'a ExactDecimal,
+    /// Put delta associated with this settings.
     pub put_delta: &'a ExactDecimal,
+    /// Call width associated with this settings.
     pub call_width: &'a ExactDecimal,
+    /// Put width associated with this settings.
     pub put_width: &'a ExactDecimal,
+    /// Multiplier associated with this settings.
     pub multiplier: &'a ExactDecimal,
+    /// Whether live is enabled or currently true.
     pub live: bool,
+    /// Whether development is enabled or currently true.
     pub development: bool,
+    /// Whether editable is enabled or currently true.
     pub editable: bool,
 }
+
+
+/// Provides decimal for the option draft implementation.
 fn decimal(row: &impl Cells, key: &str) -> Result<Option<ExactDecimal>, String> {
     let value = row.cell(key);
     if value.is_missing() {
@@ -72,6 +99,8 @@ fn decimal(row: &impl Cells, key: &str) -> Result<Option<ExactDecimal>, String> 
     }
     ExactDecimal::parse(&value.text()).map(Some)
 }
+
+
 /// Delta targets are the hybrid's decimal percent divided by 100, then cast to
 /// double. Round scale 29/30 ties to even before the conversion, as .NET does.
 fn fraction(value: &ExactDecimal) -> f64 {
@@ -114,6 +143,9 @@ fn fraction(value: &ExactDecimal) -> f64 {
     let number: f64 = digits.parse().unwrap();
     if negative { -number } else { number }
 }
+
+
+/// Validates option draft for option draft.
 pub(crate) fn validate(settings: &Settings) -> Result<(), String> {
     if ![
         "ShortIronCondor",
@@ -147,6 +179,7 @@ pub(crate) fn validate(settings: &Settings) -> Result<(), String> {
     Ok(())
 }
 impl Draft {
+    /// Accepts an incoming value only when this component's identity and revision checks pass.
     pub fn accept(
         &mut self,
         incoming: EvaluatedOptionChainReadModel,
@@ -272,16 +305,25 @@ impl Draft {
         self.display = Some(display);
         Ok(())
     }
+
+
+    /// Clears option draft for draft.
     pub fn clear(&mut self) {
         self.legs.clear();
         self.manual = true;
         self.entered_price = None;
     }
+
+
+    /// Removes option draft for draft.
     pub fn remove(&mut self, id: &str) {
         self.legs.retain(|l| l.quote.contract != id);
         self.manual = true;
         self.entered_price = None;
     }
+
+
+    /// Selects option draft for draft.
     pub fn select(&mut self, id: &str, role: &str, settings: &Settings) -> Result<(), String> {
         validate(settings)?;
         if !settings.editable {

@@ -8,12 +8,16 @@ use rmpv::Value;
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
 
+/// Lookup Controller used by the lookup component.
 #[derive(Default)]
 pub struct LookupController {
+    /// Publication associated with this lookup controller.
     pub publication: EditorPublication,
+    /// Retained historical data used by this component.
     history: BTreeMap<String, (Json, EditorOutcome)>,
 }
 impl LookupController {
+    /// Handles a lookup intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,
@@ -87,6 +91,9 @@ impl LookupController {
         self.history.insert(id, (intent.clone(), outcome));
         Ok(self.publication.clone())
     }
+
+
+    /// Provides mutate for the lookup controller implementation.
     async fn mutate(
         &mut self,
         backend: &Backend,
@@ -129,7 +136,9 @@ impl LookupController {
         // timestamp supplied by a stale UI draft. Existing audit dates survive
         // changes/removals. Failure to read the API clock prevents submission.
         let created = if action == "add" {
-            crate::services::business_context::BusinessContext::load(backend).await?.as_of_utc
+            crate::services::business_context::BusinessContext::load(backend)
+                .await?
+                .as_of_utc
         } else {
             chrono::DateTime::parse_from_rfc3339(&row.created_on)
                 .map_err(|_| "Lookup CreatedOn must be an exact timestamp")?

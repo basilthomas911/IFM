@@ -495,8 +495,8 @@ public sealed class MarketOutlookUpdateProcessor(
         var milestone = signal.IntrinsicTimeMode switch
         {
             IntrinsicTimeModeType.TrendDirectionChanged => CacheComponentType.ItiDirection,
-            IntrinsicTimeModeType.TrendExtremeChanged => CacheComponentType.ItiExtreme,
-            IntrinsicTimeModeType.TrendReversalChanged => CacheComponentType.ItiReversal,
+            IntrinsicTimeModeType.TrendExtremeChanged or IntrinsicTimeModeType.TrendOvershootExtended => CacheComponentType.ItiExtreme,
+            IntrinsicTimeModeType.TrendReversalChanged or IntrinsicTimeModeType.TrendOvershootReversal => CacheComponentType.ItiReversal,
             _ => (CacheComponentType?)null
         };
         if (milestone is { } value)
@@ -511,9 +511,9 @@ public sealed class MarketOutlookUpdateProcessor(
             LatestItiTrendSignal = signal,
             TrendDirectionChange = signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendDirectionChanged
             ? signal : state.TrendDirectionChange,
-            TrendExtremeChange = signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendExtremeChanged
+            TrendExtremeChange = signal.IntrinsicTimeMode is IntrinsicTimeModeType.TrendExtremeChanged or IntrinsicTimeModeType.TrendOvershootExtended
             ? signal : state.TrendExtremeChange,
-            TrendReversalChange = signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendReversalChanged
+            TrendReversalChange = signal.IntrinsicTimeMode is IntrinsicTimeModeType.TrendReversalChanged or IntrinsicTimeModeType.TrendOvershootReversal
             ? signal : state.TrendReversalChange
         };
 

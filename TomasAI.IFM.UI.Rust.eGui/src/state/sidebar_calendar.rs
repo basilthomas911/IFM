@@ -9,6 +9,8 @@ use crate::{
 use chrono::{DateTime, Utc};
 use std::collections::BTreeMap;
 const ROOT: &str = "TomasAI.IFM.Domain.MarketData.Shared.";
+
+
 /// Match the existing English sidebar's short-time display (h:mm tt). Status
 /// console timestamps deliberately use a separate, zero-padded format.
 pub fn display_time(time: DateTime<Utc>) -> String {
@@ -23,14 +25,23 @@ const PERIODS: [(&str, &str); 5] = [
     ("This Week", "ThisWeek"),
     ("Next Week", "NextWeek"),
 ];
+
+/// Sidebar Calendar used by the sidebar calendar component.
 #[derive(Clone, Default)]
 pub struct SidebarCalendar {
+    /// Period associated with this sidebar calendar.
     period: usize,
+    /// Country associated with this sidebar calendar.
     pub country: String,
+    /// Ordered countries retained by SidebarCalendar.
     countries: Vec<String>,
+    /// Date associated with this sidebar calendar.
     date: String,
+    /// Ordered rows retained by SidebarCalendar.
     rows: Vec<CalendarRow>,
+    /// Ordered times retained by SidebarCalendar.
     times: Vec<DateTime<Utc>>,
+    /// Current selection retained by this state or view.
     selected: String,
 }
 impl SidebarCalendar {
@@ -70,6 +81,9 @@ impl SidebarCalendar {
             _ => Err("Unsupported calendar action".into()),
         }
     }
+
+
+    /// Refreshes sidebar calendar for sidebar calendar.
     pub async fn refresh(mut self, backend: &Backend, registry: &Registry) -> Result<Self, String> {
         let result = tokio::time::timeout(backend.default_timeout(), async {
             let session = BusinessContext::load(backend).await?;
@@ -190,6 +204,8 @@ impl SidebarCalendar {
         .map_err(|_| "Calendar refresh deadline expired".to_string())?;
         result
     }
+
+
     /// Merge calendar fields only. Status logs, feed state and errors have their
     /// own owners and cannot be overwritten by a late calendar reply.
     pub fn publish(&self, publication: &mut SidebarPublication) {

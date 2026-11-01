@@ -2,6 +2,9 @@ use ifm_ui_egui::{
     backend::{codec, schema::Registry},
     services::financial,
 };
+
+
+/// Verifies that financial report display preserves backend metrics and basis.
 #[test]
 fn financial_report_display_preserves_backend_metrics_and_basis() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/backend");

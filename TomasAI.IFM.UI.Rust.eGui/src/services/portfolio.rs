@@ -5,12 +5,18 @@ use crate::services::business_context::BusinessContext;
 use rmpv::Value;
 use std::collections::BTreeMap;
 pub const ROOT: &str = "TomasAI.IFM.Domain.Portfolio.Shared";
+
+
+/// Provides principal for the portfolio implementation.
 pub fn principal() -> String {
     format!(
         "interactive:{}",
         std::env::var("USERNAME").unwrap_or_default()
     )
 }
+
+
+/// Provides access for the portfolio implementation.
 pub fn access(administrator: bool) -> Value {
     Value::Array(vec![
         principal().into(),
@@ -24,6 +30,9 @@ pub fn access(administrator: bool) -> Value {
         ]),
     ])
 }
+
+
+/// Checks whether the requested query is permitted by the declared route policy.
 fn allowed_query(name: &str) -> bool {
     matches!(
         name,
@@ -48,6 +57,9 @@ fn allowed_query(name: &str) -> bool {
             | "AllocatePortfolioBusinessIdQuery"
     )
 }
+
+
+/// Provides query for the portfolio implementation.
 pub async fn query(
     backend: &Backend,
     registry: &Registry,
@@ -60,6 +72,8 @@ pub async fn query(
     let response = query_reply(backend, registry, context, name, key, fields, deadline).await?;
     Ok(service_result(&response)?.clone())
 }
+
+
 /// An absent order is distinct from an unavailable or unauthorized read. This
 /// distinction is required before a deletion can be considered committed.
 pub async fn optional_order(
@@ -93,6 +107,9 @@ pub async fn optional_order(
     }
     Ok(Some(value.clone()))
 }
+
+
+/// Builds the decoded reply for the requested backend query.
 async fn query_reply(
     backend: &Backend,
     registry: &Registry,
@@ -132,6 +149,8 @@ async fn query_reply(
         })?;
     Ok(response)
 }
+
+
 /// Build the exact stable identifier used by the managed create APIs from the
 /// immutable Portfolio/Fund DTO (not its normalized command envelope).
 pub fn create_command_id(key: uuid::Uuid, value: &Value) -> Result<uuid::Uuid, String> {

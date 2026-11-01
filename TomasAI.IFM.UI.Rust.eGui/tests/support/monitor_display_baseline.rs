@@ -2,8 +2,14 @@
 //! Read-only maps for the copied monitor. No price, P&L, Greek or risk value is
 //! computed here; these adapters add only source DTO display getters.
 use serde_json::{Value as Json, json};
+
+
+/// Provides document for the monitor display baseline implementation.
 pub fn document(value: &Json) -> Json {
     let mut result = display(value);
+
+
+    /// Provides enrich for the monitor display baseline implementation.
     fn enrich(source: &Json, target: &mut Json) {
         match (source, target) {
             (Json::Object(source), Json::Object(target)) => {
@@ -128,6 +134,9 @@ pub fn document(value: &Json) -> Json {
     enrich(value, &mut result);
     result
 }
+
+
+/// Provides plan history for the monitor display baseline implementation.
 pub fn plan_history(plan: &Json) -> Json {
     let mut result = document(plan);
     if let Some(root) = result.as_object_mut() {
@@ -141,6 +150,8 @@ pub fn plan_history(plan: &Json) -> Json {
     }
     result
 }
+
+
 /// Eastern time only, matching the status console's 12-hour millisecond display.
 pub fn action_time(plan: &Json) -> Result<String, String> {
     let value = plan["IronCondorTradePlanSnapshot"]
@@ -159,6 +170,7 @@ pub fn action_time(plan: &Json) -> Result<String, String> {
         .to_string())
 }
 
+
 /// The hybrid's enum-name projection uses Enum.ToString even for an unnamed
 /// numeric value. Normalize using compiled types, never by guessing that an
 /// arbitrary numeric amount/sequence is an enum.
@@ -167,6 +179,7 @@ pub fn named(
     kind: &str,
     wire: &rmpv::Value,
 ) -> Result<Json, String> {
+    /// Provides enums for the monitor display baseline implementation.
     fn enums(
         registry: &ifm_ui_egui::backend::schema::Registry,
         kind: &str,
@@ -211,6 +224,7 @@ pub fn named(
     enums(registry, kind, &mut value)?;
     Ok(value)
 }
+
 
 // Frozen compatibility oracle used by parity tests and before benchmarks.
 fn display(value: &Json) -> Json {

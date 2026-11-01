@@ -175,7 +175,7 @@ public class FuturesAtrSignalQueryTests
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrSignalQueryFor(timePeriod);
         var expected = SampleData.AtrReadModelFor(timePeriod);
-        db.GetLastFuturesAtrSignalAsync(query.ContractId, query.ValueDate, timePeriod, query.PeriodLength)
+        db.GetLastFuturesAtrSignalAsync(query.ContractId, query.ValueDate, timePeriod, query.PeriodLength, CancellationToken.None)
             .Returns(Task.FromResult<FuturesAtrSignalReadModel?>(expected));
 
         await actor.InvokeReceiveAsync(context, query);
@@ -184,7 +184,7 @@ public class FuturesAtrSignalQueryTests
             query.ContractId,
             query.ValueDate,
             timePeriod,
-            query.PeriodLength);
+            query.PeriodLength, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesAtrSignalQuery.Verb,
@@ -199,7 +199,7 @@ public class FuturesAtrSignalQueryTests
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrSignalQueryFor(timePeriod);
-        db.GetLastFuturesAtrSignalAsync(query.ContractId, query.ValueDate, timePeriod, query.PeriodLength)
+        db.GetLastFuturesAtrSignalAsync(query.ContractId, query.ValueDate, timePeriod, query.PeriodLength, CancellationToken.None)
             .Returns(Task.FromResult<FuturesAtrSignalReadModel?>(null));
 
         await actor.InvokeReceiveAsync(context, query);
@@ -230,7 +230,7 @@ public class FuturesAtrSignalQueryTests
             contractId,
             valueDate,
             TimeFrameType.Weekly,
-            periodLength);
+            periodLength, CancellationToken.None);
     }
 
     // Daily ATR signal query: happy paths and boundaries
@@ -243,7 +243,7 @@ public class FuturesAtrSignalQueryTests
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrDailySignalQueryFor(timePeriod);
         var expected = SampleData.AtrReadModelFor(timePeriod);
-        db.GetLastFuturesAtrDailySignalAsync(query.ContractId, timePeriod, query.PeriodLength)
+        db.GetLastFuturesAtrDailySignalAsync(query.ContractId, timePeriod, query.PeriodLength, CancellationToken.None)
             .Returns(Task.FromResult<FuturesAtrSignalReadModel?>(expected));
 
         await actor.InvokeReceiveAsync(context, query);
@@ -251,7 +251,7 @@ public class FuturesAtrSignalQueryTests
         await db.Received(1).GetLastFuturesAtrDailySignalAsync(
             query.ContractId,
             timePeriod,
-            query.PeriodLength);
+            query.PeriodLength, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesAtrDailySignalQuery.Verb,
@@ -266,7 +266,7 @@ public class FuturesAtrSignalQueryTests
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrDailySignalQueryFor(timePeriod);
-        db.GetLastFuturesAtrDailySignalAsync(query.ContractId, timePeriod, query.PeriodLength)
+        db.GetLastFuturesAtrDailySignalAsync(query.ContractId, timePeriod, query.PeriodLength, CancellationToken.None)
             .Returns(Task.FromResult<FuturesAtrSignalReadModel?>(null));
 
         await actor.InvokeReceiveAsync(context, query);
@@ -294,7 +294,7 @@ public class FuturesAtrSignalQueryTests
         await db.Received(1).GetLastFuturesAtrDailySignalAsync(
             contractId,
             TimeFrameType.Monthly,
-            periodLength);
+            periodLength, CancellationToken.None);
     }
 
     // Query dispatch failures
@@ -337,7 +337,7 @@ public class FuturesAtrSignalQueryTests
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrSignalQueryFor(TimeFrameType.Weekly);
-        db.GetLastFuturesAtrSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.PeriodLength)
+        db.GetLastFuturesAtrSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.PeriodLength, CancellationToken.None)
             .Returns<Task<FuturesAtrSignalReadModel?>>(_ => throw new InvalidOperationException("storage unavailable"));
 
         var act = async () => await actor.InvokeReceiveAsync(context, query);
@@ -352,7 +352,7 @@ public class FuturesAtrSignalQueryTests
     {
         var (actor, db, context) = CreateScenario();
         var query = SampleData.AtrDailySignalQueryFor(TimeFrameType.Monthly);
-        db.GetLastFuturesAtrDailySignalAsync(query.ContractId, query.TimePeriod, query.PeriodLength)
+        db.GetLastFuturesAtrDailySignalAsync(query.ContractId, query.TimePeriod, query.PeriodLength, CancellationToken.None)
             .Returns<Task<FuturesAtrSignalReadModel?>>(_ => throw new InvalidOperationException("daily storage unavailable"));
 
         var act = async () => await actor.InvokeReceiveAsync(context, query);

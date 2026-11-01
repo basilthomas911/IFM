@@ -5,9 +5,14 @@ use crate::backend::{codec, contracts::*, schema::Registry, transport::Backend};
 use rmpv::Value;
 use std::collections::BTreeMap;
 pub const ROOT: &str = "TomasAI.IFM.Domain.Reference.Shared.ParameterSets";
+
+
+/// Provides kind for the parameters implementation.
 pub fn kind(name: &str) -> String {
     format!("{ROOT}.{name}")
 }
+
+
 /// Convert named UI documents back into the typed backend model, accepting the
 /// numeric enum representation emitted by the unchanged hybrid bridge.
 pub fn from_document(
@@ -65,6 +70,9 @@ pub fn from_document(
     }
     registry.value_from_json(kind, json)
 }
+
+
+/// Provides document for the parameters implementation.
 pub fn document(
     registry: &Registry,
     kind: &str,
@@ -149,6 +157,9 @@ pub fn document(
         _ => registry.project(kind, wire),
     }
 }
+
+
+/// Provides overlay for the parameters implementation.
 pub fn overlay(
     registry: &Registry,
     name: &str,
@@ -157,6 +168,9 @@ pub fn overlay(
 ) -> Result<Value, String> {
     overlay_type(registry, &kind(name), original, fields)
 }
+
+
+/// Provides overlay type for the parameters implementation.
 pub fn overlay_type(
     registry: &Registry,
     kind: &str,
@@ -181,6 +195,9 @@ pub fn overlay_type(
     }
     Ok(copy)
 }
+
+
+/// Provides template for the parameters implementation.
 pub fn template(name: &str) -> Result<Value, String> {
     // Generated data is compiled into the executable, never read from an external
     // script/configuration at runtime. Unknown requests cannot gain a route.
@@ -190,6 +207,9 @@ pub fn template(name: &str) -> Result<Value, String> {
     .map_err(|e| e.to_string())?;
     codec::decode(values.get(name).ok_or("Unsupported parameter request")?)
 }
+
+
+/// Provides query for the parameters implementation.
 pub async fn query(
     backend: &Backend,
     registry: &Registry,
@@ -209,6 +229,9 @@ pub async fn query(
         .await?;
     Ok(service_result(&reply)?.clone())
 }
+
+
+/// Provides versions for the parameters implementation.
 pub async fn versions(
     backend: &Backend,
     registry: &Registry,
@@ -278,6 +301,9 @@ pub async fn versions(
     }
     Err("Parameter listing exceeds 10000 versions; select a specific set".into())
 }
+
+
+/// Provides command for the parameters implementation.
 pub async fn command(
     backend: &Backend,
     registry: &Registry,

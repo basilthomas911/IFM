@@ -1,4 +1,7 @@
 use ifm_ui_egui::{backend::codec, services::portfolio};
+
+
+/// Verifies that portfolio create identity matches managed idempotent api.
 #[test]
 fn portfolio_create_identity_matches_managed_idempotent_api() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/backend");
@@ -70,6 +73,8 @@ fn portfolio_create_identity_matches_managed_idempotent_api() {
     }
 }
 
+
+/// Verifies that typed fund selection preserves utf16 order versions and state filter.
 #[test]
 fn typed_fund_selection_preserves_utf16_order_versions_and_state_filter() {
     use ifm_ui_egui::{

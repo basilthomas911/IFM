@@ -2,6 +2,8 @@ use super::*;
 use ifm_ui_egui::{backend::schema::Registry, state::portfolio::PortfolioController};
 use serde_json::{Value as Json, json};
 
+
+/// Provides mode for the portfolio ledger implementation.
 async fn mode(backend: &Backend, owner: &str, value: &str) {
     service_result(
         &backend
@@ -16,6 +18,9 @@ async fn mode(backend: &Backend, owner: &str, value: &str) {
     )
     .unwrap();
 }
+
+
+/// Provides act for the portfolio ledger implementation.
 async fn act(
     state: &mut PortfolioController,
     backend: &Backend,
@@ -26,9 +31,15 @@ async fn act(
 ) -> ifm_ui_egui::contract_editor::ContractPublication {
     state.execute(backend, registry, &json!({"schema":1,"requestId":uuid::Uuid::new_v4().to_string(),"view":"portfolio","intent":intent,"expectedGeneration":generation,"originalId":null,"fields":fields})).await.unwrap()
 }
+
+
+/// Provides document for the portfolio ledger implementation.
 fn document(p: &ifm_ui_egui::contract_editor::ContractPublication) -> Json {
     ifm_ui_egui::wire::decode(&p.result.documents["portfolio"]).unwrap()
 }
+
+
+/// Provides controller for the portfolio ledger implementation.
 fn controller() -> PortfolioController {
     PortfolioController::with_journal_root(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -36,6 +47,9 @@ fn controller() -> PortfolioController {
             .join(uuid::Uuid::new_v4().to_string()),
     )
 }
+
+
+/// Provides dispatches for the portfolio ledger implementation.
 async fn dispatches(backend: &Backend) -> i64 {
     service_result(
         &backend
@@ -54,6 +68,9 @@ async fn dispatches(backend: &Backend) -> i64 {
         .as_i64()
         .unwrap()
 }
+
+
+/// Verifies that portfolio ledger invalid controls never dispatch.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn portfolio_ledger_invalid_controls_never_dispatch() {
@@ -95,6 +112,9 @@ async fn portfolio_ledger_invalid_controls_never_dispatch() {
     }
     mode(&backend, "FinancialOperationMode", "Normal").await;
 }
+
+
+/// Provides backend for the portfolio ledger implementation.
 async fn backend() -> Backend {
     Backend::connect(Settings {
         url: std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),
@@ -106,6 +126,8 @@ async fn backend() -> Backend {
     .unwrap()
 }
 
+
+/// Verifies that portfolio ledger dialogs match managed forms.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn portfolio_ledger_dialogs_match_managed_forms() {
@@ -202,6 +224,8 @@ async fn portfolio_ledger_dialogs_match_managed_forms() {
     }
 }
 
+
+/// Verifies that portfolio ledger controls match managed preparation.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn portfolio_ledger_controls_match_managed_preparation() {

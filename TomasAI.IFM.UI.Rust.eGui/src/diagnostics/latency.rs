@@ -10,6 +10,7 @@
 use crate::publication_transfer::{Stamp, utc_ticks};
 use eframe::{egui, egui_wgpu};
 use std::sync::{Arc, Mutex};
+
 /// Bounded latency rows, overflow count, and per-kind last-source timestamps.
 #[derive(Default)]
 struct Samples {
@@ -20,6 +21,7 @@ struct Samples {
     /// Most recently measured source timestamp for each publication kind.
     last_source: [i64; 9],
 }
+
 /// Optional shared CPU render-timing recorder and its shutdown output path.
 #[derive(Clone)]
 pub struct LatencyTrace {
@@ -40,6 +42,8 @@ impl LatencyTrace {
             path: path.into(),
         })
     }
+
+
     /// Schedule a bounded CPU render-pass timing callback for changed publication stamps; file output is deferred until finish.
     pub fn paint(&self, ctx: &egui::Context, stamps: [Option<Stamp>; 9]) {
         if stamps.iter().all(Option::is_none) {
@@ -57,6 +61,8 @@ impl LatencyTrace {
             },
         ));
     }
+
+
     /// Write the collected CPU render-timing report and dropped-sample count to the configured path. I/O failures are intentionally nonfatal.
     pub fn finish(&self) {
         let samples = self.inner.lock().unwrap();
@@ -66,6 +72,7 @@ impl LatencyTrace {
         }
     }
 }
+
 /// Wgpu render callback carrying the timing recorder and the frame's changed-publication stamps.
 struct Paint {
     /// Shared bounded latency recorder retained by the render callback.

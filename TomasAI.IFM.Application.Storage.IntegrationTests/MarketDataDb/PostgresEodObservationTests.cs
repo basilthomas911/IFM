@@ -50,6 +50,62 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 public sealed class PostgresEodObservationTests
 {
     [Fact]
+    public async Task Iti_overshoot_modes_roundtrip_and_latest_categories_merge_by_sequence_with_twenty_percent_bands()
+    {
+        await using var infrastructure = new IsolatedIntegrationInfrastructure("iti-overshoot");
+        await infrastructure.StartAsync();
+        var settings = new DbConnectionSettings().Add("MarketDataDbConnection", infrastructure.PostgresConnectionString, "System.Data.Postgres");
+        await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
+        var repositories = new Dictionary<Type, IObjectRepository>();
+        var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
+        var board = new BlackboardService(Substitute.For<IRedisCache>(), new SystemTextJsonSerializer());
+        var db = new Storage.MarketDataDb.MarketDataDbContext(settings, factory, board, Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+        repositories.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), db);
+        var date = new DateOnly(2026, 11, 2);
+        var first = SampleData.FuturesItiSignal1 with
+        {
+            ContractId = "ES-OVERSHOOT", ValueDate = date, TimeFrameStartValueDate = date,
+            TimePeriod = TimeFrameType.Daily, SequenceId = 100,
+            IntrinsicTime = new DateTime(2026, 11, 2, 15, 0, 0, DateTimeKind.Utc),
+            IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend,
+            IntrinsicTimeMode = IntrinsicTimeModeType.TrendDirectionChanged,
+            Threshold = 10, BandPercentage = 0.20, BandSize = 2,
+            BandAnchorPrice = 5000, IntrinsicPrice = 5000, TrendPrice = 5000,
+            TrendExtreme = 5000, TrendReversal = 5000, BandLevel = 0, ReversalLevel = 0
+        };
+        await db.InsertFuturesItiSignalAsync(first);
+        var extended = first with { SequenceId = 101, IntrinsicTimeMode = IntrinsicTimeModeType.TrendOvershootExtended, IntrinsicPrice = 5014, TrendExtreme = 5014, TrendReversal = 5014, BandLevel = 1.4 };
+        var reversal = extended with { SequenceId = 102, IntrinsicTimeMode = IntrinsicTimeModeType.TrendOvershootReversal, IntrinsicPrice = 5012, TrendReversal = 5012, BandLevel = 1.2, ReversalLevel = 2d / 14 };
+        await db.InsertFuturesItiSignalAsync(extended);
+        await db.InsertFuturesItiSignalAsync(reversal);
+        await db.InsertFuturesItiSignalAsync(reversal); // projection redelivery keeps the same durable identity
+        Assert.Equal(101, (await db.GetLastFuturesItiSignalTrendExtremeChangeAsync(first.ContractId, date))!.SequenceId);
+        Assert.Equal(102, (await db.GetLastFuturesItiSignalTrendReversalChangeAsync(first.ContractId, date, CancellationToken.None))!.SequenceId);
+        Assert.Equal(IntrinsicTimeModeType.TrendOvershootReversal, (await db.GetLastFuturesItiSignalAsync(first.ContractId, date))!.IntrinsicTimeMode);
+        var state = await db.GetFuturesItiTimeFrameStateAsync(first.ContractId, TimeFrameType.Daily, date);
+        Assert.Equal(0.20, state!.BandPercentage);
+        Assert.Equal(state.Threshold * 0.20, state.BandSize);
+        Assert.Equal(IntrinsicTimeModeType.TrendOvershootReversal, state.IntrinsicTimeMode);
+        Assert.Equal(reversal.BandLevel, state.BandLevel);
+        Assert.Equal(reversal.ReversalLevel, state.ReversalLevel);
+        var rows = await db.GetFuturesItiSignalsForContractAsync(first.ContractId, date, date);
+        Assert.Equal(new long[] { 100, 101, 102 }, rows.Select(row => row.SequenceId));
+        Assert.Equal(3, (await db.GetFuturesItiSignalMDIAsync(first.ContractId, date)).Count);
+        var ordinary = reversal with { SequenceId = 103, IntrinsicTimeMode = IntrinsicTimeModeType.TrendReversalChanged, IntrinsicPrice = 5008, TrendReversal = 5008, BandLevel = 0.8 };
+        await db.InsertFuturesItiSignalAsync(ordinary);
+        Assert.Equal(103, (await db.GetLastFuturesItiSignalTrendReversalChangeAsync(first.ContractId, date))!.SequenceId);
+        var newGroup = first with { SequenceId = 104, IntrinsicTimeGroupId = 1 };
+        await db.InsertFuturesItiSignalAsync(newGroup);
+        Assert.Null(await db.GetLastFuturesItiSignalTrendExtremeChangeAsync(first.ContractId, date));
+        Assert.Null(await db.GetLastFuturesItiSignalTrendReversalChangeAsync(first.ContractId, date));
+        var fallback = first with { ContractId = "ES-LEGACY-BAND", SequenceId = 105, BandSize = 0, BandPercentage = 0 };
+        await db.InsertFuturesItiSignalAsync(fallback);
+        var restored = await db.GetFuturesItiTimeFrameStateAsync(fallback.ContractId, TimeFrameType.Daily, date);
+        Assert.Equal(0.20, restored!.BandPercentage);
+        Assert.Equal(restored.Threshold * 0.20, restored.BandSize);
+    }
+
+    [Fact]
     public async Task Calendar_fractional_timestamp_lookup_update_and_delete_use_the_actor_identity()
     {
         await using var infrastructure = new IsolatedIntegrationInfrastructure("calendar-identity");
@@ -171,7 +227,7 @@ public sealed class PostgresEodObservationTests
     static async Task VerifyItiSignalsAsync(Storage.MarketDataDb.MarketDataDbContext db, DateOnly date, string connectionString)
     {
         var first = SampleData.FuturesItiSignal1 with { ContractId = "ES-ITI", ValueDate = date, TimePeriod = TimeFrameType.Daily, SequenceId = 800, IntrinsicTime = new DateTime(2026,10,7,14,0,0,DateTimeKind.Utc) };
-        var latest = first with { SequenceId = 801, IntrinsicPrice = 6001.25, BandAnchorPrice = 6000, BandPercentage = 0.15, BandSize = 1.5 };
+        var latest = first with { SequenceId = 801, IntrinsicPrice = 6001.25, BandAnchorPrice = 6000, BandPercentage = 0.20, Threshold = 10, BandSize = 2.0 };
         await db.InsertFuturesItiSignalAsync(first);
         await db.InsertFuturesItiSignalAsync(latest);
         await db.InsertFuturesItiSignalAsync(first);

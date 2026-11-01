@@ -4,6 +4,9 @@ use ifm_ui_egui::{
     wire,
 };
 use serde_json::Value as Json;
+
+
+/// Verifies that copied grid documents match hybrid decimal text offsets and fields.
 #[test]
 fn copied_grid_documents_match_hybrid_decimal_text_offsets_and_fields() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/backend");
@@ -61,6 +64,9 @@ fn copied_grid_documents_match_hybrid_decimal_text_offsets_and_fields() {
         serde_json::to_string(&serde_json::json!([expected])).unwrap()
     );
 }
+
+
+/// Verifies that quote age uses only api instants and never the workstation clock.
 #[test]
 fn quote_age_uses_only_api_instants_and_never_the_workstation_clock() {
     assert_eq!(

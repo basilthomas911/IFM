@@ -8,6 +8,8 @@ use ifm_ui_egui::backend::{
 use rmpv::Value;
 use std::time::Duration;
 
+
+/// Verifies that failures are durable correlated and success still preserves headers.
 #[tokio::test]
 #[ignore = "Set IFM_STANDALONE_TEST_NATS_URL to an isolated Core NATS broker"]
 async fn failures_are_durable_correlated_and_success_still_preserves_headers() {
@@ -34,8 +36,13 @@ async fn failures_are_durable_correlated_and_success_still_preserves_headers() {
     raw.flush().await.unwrap();
     // Flush writes locally; a same-connection round trip proves that the broker
     // has processed SUB before another connection starts the success request.
-    raw.publish(route.clone(),"subscription-ready".into()).await.unwrap();
-    assert_eq!(subscription.next().await.unwrap().payload.as_ref(),b"subscription-ready");
+    raw.publish(route.clone(), "subscription-ready".into())
+        .await
+        .unwrap();
+    assert_eq!(
+        subscription.next().await.unwrap().payload.as_ref(),
+        b"subscription-ready"
+    );
     let responder = tokio::spawn(async move {
         let request = subscription.next().await.unwrap();
         let headers = request.headers.unwrap();

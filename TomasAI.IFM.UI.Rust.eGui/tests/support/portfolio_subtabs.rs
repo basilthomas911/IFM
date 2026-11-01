@@ -1,6 +1,9 @@
 use super::*;
 use ifm_ui_egui::{backend::schema::Registry, state::portfolio::PortfolioController};
 use serde_json::{Value as Json, json};
+
+
+/// Provides act for the portfolio subtabs implementation.
 async fn act(
     state: &mut PortfolioController,
     backend: &Backend,
@@ -12,9 +15,15 @@ async fn act(
 ) -> ifm_ui_egui::contract_editor::ContractPublication {
     state.execute(backend,registry,&json!({"schema":1,"requestId":uuid::Uuid::new_v4().to_string(),"view":"portfolio","intent":intent,"expectedGeneration":generation,"originalId":original,"fields":fields})).await.unwrap()
 }
+
+
+/// Provides doc for the portfolio subtabs implementation.
 fn doc(p: &ifm_ui_egui::contract_editor::ContractPublication) -> Json {
     ifm_ui_egui::wire::decode(&p.result.documents["portfolio"]).unwrap()
 }
+
+
+/// Verifies that portfolio subtabs match managed financials and risk evidence.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn portfolio_subtabs_match_managed_financials_and_risk_evidence() {

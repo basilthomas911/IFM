@@ -26,6 +26,8 @@ const FIELDS: [&str; 12] = [
     "ChangePercentage",
 ];
 
+
+/// Resolves midnight in the market timezone, including daylight-saving rules.
 pub fn eastern_midnight(day: NaiveDate) -> Result<DateTime<Utc>, String> {
     chrono_tz::America::New_York
         .from_local_datetime(&day.and_hms_opt(0, 0, 0).ok_or("Invalid date")?)
@@ -33,10 +35,16 @@ pub fn eastern_midnight(day: NaiveDate) -> Result<DateTime<Utc>, String> {
         .map(|time| time.to_utc())
         .ok_or_else(|| "Eastern date has no unique midnight".into())
 }
+
+
+/// Provides day for the calendar implementation.
 fn day(text: &str) -> Result<NaiveDate, String> {
     NaiveDate::parse_from_str(text, "%Y-%m-%d")
         .map_err(|_| "Enter the filter date as yyyy-MM-dd".into())
 }
+
+
+/// Reads a timestamp as an instant while retaining the supported precision.
 pub fn instant(text: &str) -> Result<DateTime<Utc>, String> {
     DateTime::parse_from_rfc3339(text)
         .ok()
@@ -44,6 +52,9 @@ pub fn instant(text: &str) -> Result<DateTime<Utc>, String> {
         .map(|t| t.to_utc())
         .ok_or_else(|| "Enter an ISO UTC timestamp with at most seven fractional digits".into())
 }
+
+
+/// Returns the display text for the requested value or field.
 fn text(time: DateTime<Utc>) -> String {
     format!(
         "{}.{:07}Z",
@@ -51,19 +62,31 @@ fn text(time: DateTime<Utc>) -> String {
         time.timestamp_subsec_nanos() / 100
     )
 }
+
+
+/// Provides lower for the calendar implementation.
 fn lower(key: &str) -> String {
     format!("{}{}", key[..1].to_ascii_lowercase(), &key[1..])
 }
+
+/// Calendar Controller used by the calendar component.
 #[derive(Default)]
 pub struct CalendarController {
+    /// Ordered countries retained by CalendarController.
     countries: Vec<String>,
+    /// Ordered rows retained by CalendarController.
     rows: Vec<ContractRow>,
+    /// Optional date; `None` represents an absent value.
     date: Option<NaiveDate>,
+    /// Country associated with this calendar controller.
     country: String,
+    /// Generation associated with this calendar controller.
     generation: u64,
+    /// Retained historical data used by this component.
     history: BTreeMap<String, (Json, EditorOutcome)>,
 }
 impl CalendarController {
+    /// Provides countries for the calendar controller implementation.
     async fn countries(&mut self, backend: &Backend, registry: &Registry) -> Result<(), String> {
         let reply = actor_requests::query(
             backend,
@@ -94,6 +117,9 @@ impl CalendarController {
         self.countries = values;
         Ok(())
     }
+
+
+    /// Reads calendar for calendar controller.
     async fn read(
         &self,
         backend: &Backend,
@@ -153,6 +179,9 @@ impl CalendarController {
         rows.sort_by(|a, b| a.fields["eventDate"].cmp(&b.fields["eventDate"]));
         Ok(rows)
     }
+
+
+    /// Handles a calendar intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,
@@ -279,6 +308,9 @@ impl CalendarController {
         self.generation += 1;
         Ok(self.snapshot(session.as_of_utc, outcome))
     }
+
+
+    /// Provides mutate for the calendar controller implementation.
     async fn mutate(
         &self,
         backend: &Backend,
@@ -445,6 +477,9 @@ impl CalendarController {
             )
         })
     }
+
+
+    /// Provides snapshot for the calendar controller implementation.
     fn snapshot(&self, now: DateTime<Utc>, outcome: EditorOutcome) -> ContractPublication {
         ContractPublication {
             schema: 1,

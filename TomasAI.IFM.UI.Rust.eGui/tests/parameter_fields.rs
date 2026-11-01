@@ -3,6 +3,9 @@ use ifm_ui_egui::{
     services::parameter_fields::{self, ParameterField},
 };
 use serde_json::Value;
+
+
+/// Reads parameter fields for parameter fields.
 fn read(name: &str) -> Vec<u8> {
     std::fs::read(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -11,9 +14,15 @@ fn read(name: &str) -> Vec<u8> {
     )
     .unwrap()
 }
+
+
+/// Provides json for the parameter fields implementation.
 fn json(name: &str) -> Value {
     serde_json::from_slice(&read(name)).unwrap()
 }
+
+
+/// Verifies that all eight typed parameter variants preserve hybrid fields and leaf edits.
 #[test]
 fn all_eight_typed_parameter_variants_preserve_hybrid_fields_and_leaf_edits() {
     let registry = Registry::compiled().unwrap();

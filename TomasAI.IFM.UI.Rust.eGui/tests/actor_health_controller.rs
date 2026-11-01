@@ -1,8 +1,14 @@
 use ifm_ui_egui::state::actor_health::{ControlOptions, project};
 use serde_json::Value;
+
+
+/// Provides snapshot for the actor health controller implementation.
 fn snapshot() -> ifm_ui_egui::models::actor_health::ActorHealthSnapshot {
     serde_json::from_str(include_str!("fixtures/backend/actor-health-http.json")).unwrap()
 }
+
+
+/// Verifies that native actor explorer matches the unchanged hybrid controller projection.
 #[test]
 fn native_actor_explorer_matches_the_unchanged_hybrid_controller_projection() {
     let input = snapshot();
@@ -61,6 +67,9 @@ fn native_actor_explorer_matches_the_unchanged_hybrid_controller_projection() {
         );
     }
 }
+
+
+/// Verifies that unavailable authority and bad observations cannot expose actor controls.
 #[test]
 fn unavailable_authority_and_bad_observations_cannot_expose_actor_controls() {
     let mut input = snapshot();

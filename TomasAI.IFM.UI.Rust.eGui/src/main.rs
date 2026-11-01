@@ -18,6 +18,7 @@ use app::runtime;
 use eframe::egui;
 use ifm_ui_egui::{Catalog, DetailsView, Snapshot, strings};
 use std::{sync::mpsc, time::Duration};
+
 /// Owned message from the native service runtime to the application/UI thread.
 enum Update {
     /// A worker update paired with its source/publication/native-receipt timing stamp.
@@ -26,9 +27,9 @@ enum Update {
     Ready(Catalog, Snapshot),
     /// Changed strategy observation/details publication.
     Snapshot(Snapshot),
-    /// Startup-blocking failure; runtime warnings must not use this modal path.
+    /// Service or startup failure surfaced in the shared error dialog.
     Error(String),
-    /// Recoverable service or action failure, visible in status/console and logs.
+    /// Recoverable service or action failure, also surfaced in the error dialog.
     Warning(String),
     /// Request ID and error for an intent rejected before execution.
     SubmissionRejected(String, String),
@@ -55,6 +56,31 @@ enum Update {
     /// Changed feed/calendar/status publication.
     Sidebar(ifm_ui_egui::sidebar::SidebarPublication),
 }
+impl Update {
+    /// Extracts worker failures that must remain visible through the UI's error reporting path.
+    fn report_errors(&self, dialogs: &mut ifm_ui_egui::ui::errors::ErrorDialogs) {
+        match self {
+            Update::Error(error) | Update::Warning(error) => {
+                dialogs.report(format!("runtime:{error}"), error.clone());
+            }
+            Update::SubmissionRejected(id, error) => {
+                dialogs.report(format!("rejected:{id}"), error.clone());
+            }
+            Update::Trades(value) | Update::Contracts(value) => {
+                dialogs.outcomes(&value.result.view, &value.outcomes);
+                dialogs.context(&value.result.view, &value.result.context);
+            }
+            Update::TradeMonitor(value) => dialogs.context("trade-monitor", &value.result.context),
+            Update::Editor(value) => dialogs.outcomes("lookup", &value.outcomes),
+            Update::Inspection(value) => dialogs.outcomes("inspection", &value.outcomes),
+            Update::MarketOutlook(Err(error)) => {
+                dialogs.report(format!("outlook:{error}"), error.clone());
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Opt-in staged read-only profiling session; records start time, duration, and progress.
 struct ReadProfile {
     /** Monotonic time at which the profiling session began. */
@@ -64,16 +90,21 @@ struct ReadProfile {
     /** Current profiling or task-run stage. */
     stage: u8,
 }
+
 /// UI-thread application state. Owns cached publications/views and bounded channels to the native service runtime.
 struct App {
+    /// Shared shutdown flag observed by the background runtime.
     stopping: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    error_dialog: Option<String>,
+    /// Dispatch wake associated with this app.
+    dispatch_wake: std::sync::Arc<tokio::sync::Notify>,
+    /// Error dialog associated with this app.
+    error_dialog: ifm_ui_egui::ui::errors::ErrorDialogs,
     /// Retains runtime diagnostics across independent sidebar publications.
     runtime_notices: ifm_ui_egui::services::notifications::Notifications,
     /// UI-thread receiver for owned updates from the intake worker.
     rx: mpsc::Receiver<Update>,
     /// Bounded sender of numeric user actions to the intake worker.
-    tx: mpsc::SyncSender<u32>,
+    tx: ifm_ui_egui::ui::dispatch::WakeSender<u32>,
     /// Embedded localized catalog published by the native runtime after startup.
     catalog: Option<Catalog>,
     /// Latest immutable strategy publication retained for rendering.
@@ -85,7 +116,7 @@ struct App {
     /// Strategy observation tabs and graph cache.
     strategy: ifm_ui_egui::strategy_workspace::StrategyWorkspace,
     /// Bounded sender of structured intent payloads to the intake worker.
-    editor_tx: mpsc::SyncSender<String>,
+    editor_tx: ifm_ui_egui::ui::dispatch::WakeSender<String>,
     /// Lookup editor draft/selection state.
     editor: ifm_ui_egui::lookup_editor::LookupEditor,
     /// Latest lookup publication.
@@ -98,21 +129,21 @@ struct App {
     parameter_tab: bool,
     /// Parameter-set browser/editor state.
     parameters: ifm_ui_egui::parameter_sets::ParameterSets,
-    /// Whether the actor view is shown in the application.
-    actor_tab: bool,
     /// Actor health view and confirmation state.
     actor_health: ifm_ui_egui::actor_health::ActorHealth,
-    /// Whether the health view is shown in the application.
-    health_tab: bool,
     /// Operational health view state.
     health: ifm_ui_egui::operations_health::OperationsHealth,
     /// Whether the scheduled view is shown in the application.
     scheduled_tab: bool,
     /// WinForms-compatible modal System administration owner.
     system_open: bool,
+    /// Whether system release pending is enabled or currently true.
     system_release_pending: bool,
+    /// Whether system load pending is enabled or currently true.
     system_load_pending: bool,
+    /// System section associated with this app.
     system_section: usize,
+    /// Backup associated with this app.
     backup: ifm_ui_egui::database_backup::DatabaseBackup,
     /// Scheduled-task editor/run-history state.
     scheduled: ifm_ui_egui::scheduled_tasks::ScheduledTasks,
@@ -128,6 +159,7 @@ struct App {
     trade_workspace: ifm_ui_egui::trade_workspace::TradeWorkspace,
     /// Latest trading publication, prepared for display outside the UI thread.
     trade_snapshot: ifm_ui_egui::contract_editor::ContractPublication,
+    /// Optional trade monitor; `None` represents an absent value.
     trade_monitor: Option<std::sync::Arc<ifm_ui_egui::state::trade_monitors::Publication>>,
     /// Whether the yield view is shown in the application.
     yield_tab: bool,
@@ -174,13 +206,21 @@ impl eframe::App for App {
         let frame_started = std::time::Instant::now();
         let mut rendered_views = Vec::new();
         let mut stamps = [None; 9];
-        while let Ok(update) = self.rx.try_recv() {
+        let mut intake = ifm_ui_egui::ui::dispatch::IntakeBudget::new(Duration::from_millis(2), 32);
+        let mut drained = false;
+        while intake.next() {
+            let Ok(update) = self.rx.try_recv() else {
+                drained = true;
+                break;
+            };
+            self.dispatch_wake.notify_one();
             let update = if let Update::Stamped(value, stamp) = update {
                 stamps[stamp.kind as usize] = Some(stamp);
                 *value
             } else {
                 update
             };
+            update.report_errors(&mut self.error_dialog);
             match update {
                 Update::Stamped(..) => unreachable!("A transfer wraps one UI update"),
                 Update::Ready(c, s) => {
@@ -248,15 +288,17 @@ impl eframe::App for App {
                     self.status = e;
                 }
                 Update::Warning(e) => {
-                    if self.runtime_notices.warning(format!("runtime:{e}"),e.clone()) {
-                        if let Some(row)=self.runtime_notices.publication.status_rows.last() {
+                    if self
+                        .runtime_notices
+                        .warning(format!("runtime:{e}"), e.clone())
+                    {
+                        if let Some(row) = self.runtime_notices.publication.status_rows.last() {
                             self.shell.sidebar_snapshot.status_rows.push(row.clone());
                         }
                     }
-                    self.status=e;
+                    self.status = e;
                 }
                 Update::Error(e) => {
-                    self.error_dialog = Some(e.clone());
                     self.trade_workspace.transport_failed(&e);
                     self.market_data.transport_failed(&e);
                     self.portfolio.transport_failed(&e);
@@ -319,25 +361,65 @@ impl eframe::App for App {
                     self.shell.dashboard = s;
                 }
                 Update::Sidebar(mut s) => {
+                    for (sequence, error) in &s.error_history {
+                        self.error_dialog
+                            .report(format!("sidebar:{sequence}"), error.clone());
+                    }
+                    if !s.error.is_empty() {
+                        self.error_dialog
+                            .report(format!("sidebar:{}", s.error_sequence), s.error.clone());
+                        // The application owns the shared error dialog; the sidebar
+                        // keeps its console and recovery-success presentation.
+                        s.error.clear();
+                    }
                     for row in &self.runtime_notices.publication.status_rows {
                         if row.id.starts_with("current-warning|") {
-                            if s.status_rows.iter().any(|existing|existing.id.starts_with("current-warning|") && existing.id>=row.id){continue;}
-                            s.status_rows.retain(|existing|!existing.id.starts_with("current-warning|"));
-                        }else{s.status_rows.retain(|existing|existing.id!=row.id);}
-                        let position=s.status_rows.iter().position(|existing|existing.id.as_bytes().get(4)==Some(&b'-')&&existing.id>row.id).unwrap_or(s.status_rows.len());
-                        s.status_rows.insert(position,row.clone());
+                            if s.status_rows.iter().any(|existing| {
+                                existing.id.starts_with("current-warning|") && existing.id >= row.id
+                            }) {
+                                continue;
+                            }
+                            s.status_rows
+                                .retain(|existing| !existing.id.starts_with("current-warning|"));
+                        } else {
+                            s.status_rows.retain(|existing| existing.id != row.id);
+                        }
+                        let position = s
+                            .status_rows
+                            .iter()
+                            .position(|existing| {
+                                existing.id.as_bytes().get(4) == Some(&b'-') && existing.id > row.id
+                            })
+                            .unwrap_or(s.status_rows.len());
+                        s.status_rows.insert(position, row.clone());
                     }
-                    if let Ok(date)=chrono::NaiveDate::parse_from_str(&s.api_today,"%Y-%m-%d") { ifm_ui_egui::date_picker::set_api_today(ctx,date); }
+                    if let Ok(date) = chrono::NaiveDate::parse_from_str(&s.api_today, "%Y-%m-%d") {
+                        ifm_ui_egui::date_picker::set_api_today(ctx, date);
+                    }
                     self.shell.sidebar_snapshot = s;
-                },
-                Update::TradeMonitor(monitor)=>{
-                    if self.trade_monitor.as_ref().is_none_or(|old|old.revision<monitor.revision){
-                        ifm_ui_egui::state::trade_monitors::Hub::merge(&mut self.trade_snapshot.result,&monitor.result);
-                        self.trade_snapshot.invalidate_render_cache();self.trade_monitor=Some(monitor);
+                }
+                Update::TradeMonitor(monitor) => {
+                    if self
+                        .trade_monitor
+                        .as_ref()
+                        .is_none_or(|old| old.revision < monitor.revision)
+                    {
+                        ifm_ui_egui::state::trade_monitors::Hub::merge(
+                            &mut self.trade_snapshot.result,
+                            &monitor.result,
+                        );
+                        self.trade_snapshot.invalidate_render_cache();
+                        self.trade_monitor = Some(monitor);
                     }
                 }
                 Update::Trades(mut s) => {
-                    if let Some(monitor)=&self.trade_monitor{ifm_ui_egui::state::trade_monitors::Hub::merge(&mut s.result,&monitor.result);s.invalidate_render_cache();}
+                    if let Some(monitor) = &self.trade_monitor {
+                        ifm_ui_egui::state::trade_monitors::Hub::merge(
+                            &mut s.result,
+                            &monitor.result,
+                        );
+                        s.invalidate_render_cache();
+                    }
                     ifm_ui_egui::trade_workspace::TradeWorkspace::replace_publication(
                         &mut self.trade_snapshot,
                         s,
@@ -348,9 +430,17 @@ impl eframe::App for App {
                         // A local contract-validation failure has no request
                         // subject. Reject this publication and retain diagnostics;
                         // an invalid view update must not interrupt the application.
-                        ifm_ui_egui::diagnostics::errors::record("ui.publication_invalid",None,None,&error);
-                        self.runtime_notices.warning(format!("publication:{error}"),error.clone());
-                        self.status=error;
+                        ifm_ui_egui::diagnostics::errors::record(
+                            "ui.publication_invalid",
+                            None,
+                            None,
+                            &error,
+                        );
+                        self.runtime_notices
+                            .warning(format!("publication:{error}"), error.clone());
+                        self.error_dialog
+                            .report(format!("publication:{error}"), error.clone());
+                        self.status = error;
                     }
                 }
                 Update::Editor(s) => self.editor_snapshot = s,
@@ -359,6 +449,9 @@ impl eframe::App for App {
                     self.grid = Some(ifm_ui_egui::virtual_grid::GridView::new(rows))
                 }
             }
+        }
+        if !drained {
+            ctx.request_repaint();
         }
         let catalog = self.catalog.as_ref().unwrap_or(&self.fallback);
         egui::TopBottomPanel::top("main-menu")
@@ -377,6 +470,7 @@ impl eframe::App for App {
                             let id = serde_json::from_str::<serde_json::Value>(&payload).unwrap()["requestId"].as_str().unwrap().to_owned();
                             self.trade_workspace.submission_rejected(&id);
                             self.status = "Trade request queue is unavailable. Please try again.".into();
+                            self.error_dialog.report(format!("local:{}", self.status), self.status.clone());
                         }
                         self.shell.workspace.clear();
                         self.lookup_tab = false;
@@ -388,8 +482,8 @@ impl eframe::App for App {
                         self.yield_tab = false;
                         self.provider_tab = false;
                         self.grid_tab = false;
-                        self.actor_tab = false;
-                        self.health_tab = false;
+
+
                         self.scheduled_tab = false;
                     }
                     if ui.button("Market Data").clicked() {
@@ -404,8 +498,8 @@ impl eframe::App for App {
                         self.yield_tab = false;
                         self.provider_tab = false;
                         self.grid_tab = false;
-                        self.actor_tab = false;
-                        self.health_tab = false;
+
+
                         self.scheduled_tab = false;
                     }
                     if ui.button("Portfolio").clicked() {
@@ -422,8 +516,8 @@ impl eframe::App for App {
                         self.calendar_tab = false;
                         self.provider_tab = false;
                         self.scheduled_tab = false;
-                        self.health_tab = false;
-                        self.actor_tab = false;
+
+
                         self.grid_tab = false;
                     }
                     if ui.button("System").clicked() {
@@ -442,6 +536,7 @@ impl eframe::App for App {
                     if ifm_ui_egui::presentation::feed_command_button(ui, &self.shell.sidebar_snapshot.feed_control) {
                         if self.tx.try_send(ifm_ui_egui::sidebar::FEED_TOGGLE_ACTION).is_err() {
                             self.status = "Feed action queue is unavailable; command was not submitted.".into();
+                            self.error_dialog.report(format!("local:{}", self.status), self.status.clone());
                         }
                     }
                     let health = ifm_ui_egui::presentation::feed_health_text(
@@ -459,22 +554,14 @@ impl eframe::App for App {
                         .on_hover_text(&self.shell.dashboard.feed_health_reason)
                         .clicked()
                     {
-                        self.health_tab = true;
-                        self.actor_tab = false;
+                        self.shell.observation_tab = 1;
                     }
                     let options=&self.shell.dashboard.options_health;
                     if ui.add(egui::Button::new(egui::RichText::new("Options Health").color(ifm_ui_egui::operations::operations_health::status_color(options))))
                         .on_hover_text(&self.shell.dashboard.options_health_reason).clicked() {
-                        self.health_tab=true; self.actor_tab=false; self.health.datasets=true;
+                        self.shell.observation_tab=1; self.health.datasets=true;
                     }
-                    if ui.button("Operations health").clicked() {
-                        self.health_tab = true;
-                        self.actor_tab = false;
-                    }
-                    if ui.button("Actor Health").clicked() {
-                        self.actor_tab = true;
-                        self.health_tab = false;
-                    }
+
                 });
             });
         egui::TopBottomPanel::bottom("main-status")
@@ -493,15 +580,64 @@ impl eframe::App for App {
                 ui.add(ifm_ui_egui::presentation::label_widget(message).truncate())
                     .on_hover_text(message);
             });
-        let shell_action = self.shell.draw_panes(
+        let live = self
+            .snapshot
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.mode == "Live");
+        let mut sidebar_intents = Vec::new();
+        let shell_action = self.shell.draw_panes_with_health(
             ctx,
             self.snapshot.as_ref(),
             catalog,
             &mut self.strategy,
             &mut self.view,
+            |ui, pane| {
+                let payload = match pane {
+                    ifm_ui_egui::shell::HealthPane::Operations => {
+                        rendered_views.push("operations-health");
+                        self.health.draw_inside(
+                            ui,
+                            self.publications.get("operations-health"),
+                            catalog,
+                            live,
+                        )
+                    }
+                    ifm_ui_egui::shell::HealthPane::Actors => {
+                        rendered_views.push("actor-health");
+                        self.actor_health.draw_inside(
+                            ui,
+                            self.publications.get("actor-health"),
+                            catalog,
+                            live,
+                        )
+                    }
+                };
+                if let Some(payload) = payload {
+                    sidebar_intents.push((pane, payload));
+                }
+            },
         );
+        for (pane, payload) in sidebar_intents {
+            if self.editor_tx.try_send(payload).is_err() {
+                match pane {
+                    ifm_ui_egui::shell::HealthPane::Operations => self.health.pending = None,
+                    ifm_ui_egui::shell::HealthPane::Actors => {
+                        self.actor_health.pending = None;
+                        self.actor_health.refresh_pending = None;
+                    }
+                }
+                self.status = catalog.text(strings::QUEUE_FULL).into();
+                self.error_dialog
+                    .report(format!("local:{}", self.status), self.status.clone());
+            }
+        }
         if let Some(action) = shell_action {
-            let _ = self.tx.try_send(action);
+            if self.tx.try_send(action).is_err() {
+                self.error_dialog.report(
+                    "shell:queue-full".into(),
+                    "Action queue is unavailable; command was not submitted.".into(),
+                );
+            }
         }
         self.trade_workspace.loaded_bounds = None;
         if self.trade_workspace.is_visible() {
@@ -514,6 +650,8 @@ impl eframe::App for App {
                             .to_owned();
                     self.trade_workspace.submission_rejected(&id);
                     self.status = e.to_string();
+                    self.error_dialog
+                        .report(format!("local:{}", self.status), self.status.clone());
                 }
             }
         }
@@ -548,6 +686,8 @@ impl eframe::App for App {
                     if self.editor_tx.try_send(payload).is_err() {
                         self.strategy_catalog.pending = None;
                         self.status = catalog.text(strings::QUEUE_FULL).into();
+                        self.error_dialog
+                            .report(format!("local:{}", self.status), self.status.clone());
                     }
                 }
             } else if self.parameter_tab {
@@ -562,6 +702,8 @@ impl eframe::App for App {
                         self.parameters.pending = None;
                         self.strategy_catalog.pending = None;
                         self.status = catalog.text(strings::QUEUE_FULL).into();
+                        self.error_dialog
+                            .report(format!("local:{}", self.status), self.status.clone());
                     }
                 }
             } else if self.scheduled_tab {
@@ -576,6 +718,8 @@ impl eframe::App for App {
                         self.scheduled.pending = None;
                         self.health.pending = None;
                         self.status = catalog.text(strings::QUEUE_FULL).into();
+                        self.error_dialog
+                            .report(format!("local:{}", self.status), self.status.clone());
                     }
                 }
             } else if self.provider_tab {
@@ -591,6 +735,8 @@ impl eframe::App for App {
                         self.scheduled.pending = None;
                         self.health.pending = None;
                         self.status = catalog.text(strings::QUEUE_FULL).into();
+                        self.error_dialog
+                            .report(format!("local:{}", self.status), self.status.clone());
                     }
                 }
             } else if self.calendar_tab {
@@ -607,6 +753,8 @@ impl eframe::App for App {
                         self.scheduled.pending = None;
                         self.health.pending = None;
                         self.status = catalog.text(strings::QUEUE_FULL).into();
+                        self.error_dialog
+                            .report(format!("local:{}", self.status), self.status.clone());
                     }
                 }
             } else if self.yield_tab {
@@ -624,6 +772,8 @@ impl eframe::App for App {
                         self.scheduled.pending = None;
                         self.health.pending = None;
                         self.status = catalog.text(strings::QUEUE_FULL).into();
+                        self.error_dialog
+                            .report(format!("local:{}", self.status), self.status.clone());
                     }
                 }
             } else if self.contract_tab {
@@ -645,6 +795,8 @@ impl eframe::App for App {
                     if self.editor_tx.try_send(payload).is_err() {
                         self.contract.pending = None;
                         self.status = catalog.text(strings::QUEUE_FULL).into();
+                        self.error_dialog
+                            .report(format!("local:{}", self.status), self.status.clone());
                     }
                 }
             } else if self.inspection_tab {
@@ -657,6 +809,8 @@ impl eframe::App for App {
                     if self.editor_tx.try_send(payload).is_err() {
                         self.inspection.pending = None;
                         self.status = catalog.text(strings::QUEUE_FULL).into();
+                        self.error_dialog
+                            .report(format!("local:{}", self.status), self.status.clone());
                     }
                 }
             } else if self.lookup_tab {
@@ -668,6 +822,8 @@ impl eframe::App for App {
                     if self.editor_tx.try_send(payload).is_err() {
                         self.editor.pending = None;
                         self.editor.error = catalog.text(strings::QUEUE_FULL).into();
+                        self.error_dialog
+                            .report("lookup:queue-full".into(), self.editor.error.clone());
                     }
                 }
             } else if self.grid_tab {
@@ -682,20 +838,6 @@ impl eframe::App for App {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     ui.trading_label(&self.shell.workspace);
                 });
-            }
-        }
-        // Health dialogs render independently of the selected workspace.
-        // Their close state never closes a trade or stops its subscriptions.
-        if self.actor_tab {
-            rendered_views.push("actor-health");
-            if let Some(payload)=self.actor_health.draw_dialog(ctx,self.publications.get("actor-health"),catalog,self.snapshot.as_ref().is_some_and(|s|s.mode=="Live"),&mut self.actor_tab){
-                if self.editor_tx.try_send(payload).is_err(){self.actor_health.pending=None;self.status=catalog.text(strings::QUEUE_FULL).into();}
-            }
-        }
-        if self.health_tab {
-            rendered_views.push("operations-health");
-            if let Some(payload)=self.health.draw_dialog(ctx,self.publications.get("operations-health"),catalog,self.snapshot.as_ref().is_some_and(|s|s.mode=="Live"),&mut self.health_tab){
-                if self.editor_tx.try_send(payload).is_err(){self.health.pending=None;self.status=catalog.text(strings::QUEUE_FULL).into();}
             }
         }
         if self.market_data.open {
@@ -717,6 +859,8 @@ impl eframe::App for App {
             if self.editor_tx.try_send(payload).is_err() {
                 self.market_data.reject_submission();
                 self.status = catalog.text(strings::QUEUE_FULL).into();
+                self.error_dialog
+                    .report(format!("local:{}", self.status), self.status.clone());
             }
         }
         if self.portfolio.open {
@@ -730,6 +874,8 @@ impl eframe::App for App {
             if self.editor_tx.try_send(payload).is_err() {
                 self.portfolio.reject_submission();
                 self.status = catalog.text(strings::QUEUE_FULL).into();
+                self.error_dialog
+                    .report(format!("local:{}", self.status), self.status.clone());
             }
         }
         if let Some(profile) = &mut self.read_profile {
@@ -821,6 +967,8 @@ impl eframe::App for App {
                     self.backup.pending = None;
                     self.scheduled.pending = None;
                     self.status = catalog.text(strings::QUEUE_FULL).into();
+                    self.error_dialog
+                        .report(format!("local:{}", self.status), self.status.clone());
                 }
             }
         }
@@ -835,17 +983,29 @@ impl eframe::App for App {
         if let Some(trace) = &self.latency {
             trace.paint(ctx, stamps);
         }
-        if let Some(message) = self.error_dialog.clone() {
+        if !self.editor.error.is_empty() {
+            self.error_dialog.report(
+                format!("lookup-validation:{}", self.editor.error),
+                self.editor.error.clone(),
+            );
+        }
+        if let Some(message) = self.error_dialog.message().map(str::to_owned) {
             egui::Modal::new(egui::Id::new("standalone-runtime-error")).show(ctx, |ui| {
-                if ifm_ui_egui::status_dialog::body(ui,&message,ifm_ui_egui::status_dialog::Severity::Error).acknowledged {
-                    self.error_dialog = None;
+                if ifm_ui_egui::status_dialog::body(
+                    ui,
+                    &message,
+                    ifm_ui_egui::status_dialog::Severity::Error,
+                )
+                .acknowledged
+                {
+                    self.error_dialog.acknowledge();
                 }
             });
         }
         // Retain only two pages after resize; console display has no ACK or replay.
-        let capacity=ifm_ui_egui::console_capacity::current();
-        let rows=&mut self.shell.sidebar_snapshot.status_rows;
-        ifm_ui_egui::console_capacity::trim_to(rows,capacity);
+        let capacity = ifm_ui_egui::console_capacity::current();
+        let rows = &mut self.shell.sidebar_snapshot.status_rows;
+        ifm_ui_egui::console_capacity::trim_to(rows, capacity);
         if self.frame_times.len() < 10000 {
             self.frame_times
                 .push(frame_started.elapsed().as_secs_f64() * 1000.0);
@@ -880,13 +1040,17 @@ impl Drop for App {
         }
     }
 }
+
+
 /// Create bounded channels and the managed-intake worker, configure the display GPU/window, and run eframe. Returns startup/render-loop errors through eframe.
 fn main() -> eframe::Result {
     // Retain the adapted calendar's MIT notice in the one-file executable.
-    let _=std::hint::black_box(ifm_ui_egui::date_picker::LICENSE);
+    let _ = std::hint::black_box(ifm_ui_egui::date_picker::LICENSE);
     let (updates, rx) = mpsc::sync_channel(4);
-    let (tx, actions) = mpsc::sync_channel(32);
-    let (editor_tx, editor_actions) = mpsc::sync_channel::<String>(32);
+    let dispatch_wake = std::sync::Arc::new(tokio::sync::Notify::new());
+    let (tx, actions) = ifm_ui_egui::ui::dispatch::channel(32, dispatch_wake.clone());
+    let (editor_tx, editor_actions) =
+        ifm_ui_egui::ui::dispatch::channel::<String>(32, dispatch_wake.clone());
     let maximized = std::env::var("IFM_UI_START_MAXIMIZED")
         .map(|value| value.eq_ignore_ascii_case("true") || value == "1")
         .unwrap_or_else(|_| std::env::var("IFM_RUST_UI_MODE").is_ok_and(|value| value == "live"));
@@ -908,12 +1072,21 @@ fn main() -> eframe::Result {
             let ctx = cc.egui_ctx.clone();
             let stopping = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
             let worker_stopping = stopping.clone();
+            let worker_wake = dispatch_wake.clone();
             let worker = std::thread::spawn(move || {
-                runtime::run(updates, actions, editor_actions, ctx, worker_stopping);
+                runtime::run(
+                    updates,
+                    actions,
+                    editor_actions,
+                    ctx,
+                    worker_stopping,
+                    worker_wake,
+                );
             });
             Ok(Box::new(App {
                 stopping,
-                error_dialog: None,
+                dispatch_wake,
+                error_dialog: Default::default(),
                 runtime_notices: Default::default(),
                 rx,
                 tx,
@@ -924,9 +1097,9 @@ fn main() -> eframe::Result {
                 strategy_catalog: Default::default(),
                 parameter_tab: false,
                 parameters: Default::default(),
-                actor_tab: false,
+
                 actor_health: Default::default(),
-                health_tab: false,
+
                 health: Default::default(),
                 scheduled_tab: false,
                 system_open: false,
@@ -941,7 +1114,7 @@ fn main() -> eframe::Result {
                 calendar_editor: Default::default(),
                 trade_workspace: Default::default(),
                 trade_snapshot: Default::default(),
-                trade_monitor:None,
+                trade_monitor: None,
                 yield_tab: false,
                 yield_editor: Default::default(),
                 market_data: Default::default(),
@@ -986,4 +1159,39 @@ fn main() -> eframe::Result {
             }))
         }),
     )
+}
+
+#[cfg(test)]
+mod error_dialog_tests {
+    use super::*;
+
+
+    /// Verifies that failed trade publications and runtime failures reach the dialog.
+    #[test]
+    fn failed_trade_publications_and_runtime_failures_reach_the_dialog() {
+        let mut dialogs = ifm_ui_egui::ui::errors::ErrorDialogs::default();
+        let publication = ifm_ui_egui::contract_editor::ContractPublication {
+            outcomes: vec![ifm_ui_egui::lookup_editor::EditorOutcome {
+                request_id: "compose-one".into(),
+                state: "Failed".into(),
+                message: "Frozen emulator preview unavailable".into(),
+            }],
+            ..Default::default()
+        };
+        let update = Update::Trades(publication);
+        update.report_errors(&mut dialogs);
+        Update::Warning("Calendar request failed".into()).report_errors(&mut dialogs);
+        assert_eq!(
+            dialogs.message(),
+            Some("Frozen emulator preview unavailable")
+        );
+        dialogs.acknowledge();
+        update.report_errors(&mut dialogs);
+        assert_eq!(dialogs.message(), Some("Calendar request failed"));
+        dialogs.acknowledge();
+        assert_eq!(dialogs.message(), None);
+        Update::SubmissionRejected("two".into(), "Invalid order".into())
+            .report_errors(&mut dialogs);
+        assert_eq!(dialogs.message(), Some("Invalid order"));
+    }
 }

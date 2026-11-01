@@ -7,6 +7,9 @@ use ifm_ui_egui::{
         trade_monitor_queries as api,
     },
 };
+
+
+/// Provides control for the monitor api implementation.
 async fn control(b: &Backend, verb: &str, value: Value) -> Value {
     service_result(
         &b.request(
@@ -21,6 +24,10 @@ async fn control(b: &Backend, verb: &str, value: Value) -> Value {
     .unwrap()
     .clone()
 }
+
+
+/// Verifies that monitor queries and feed intent use exact identity api dates and existing host
+/// contract.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn monitor_queries_and_feed_intent_use_exact_identity_api_dates_and_existing_host_contract() {

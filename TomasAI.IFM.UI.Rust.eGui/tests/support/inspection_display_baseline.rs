@@ -3,6 +3,9 @@
 use ifm_ui_egui::backend::{contracts::utc_roundtrip, schema::Registry};
 use rmpv::Value;
 use serde_json::Value as Json;
+
+
+/// Provides text for the inspection display baseline implementation.
 fn text(value: &Json) -> String {
     match value {
         Json::Null => String::new(),
@@ -11,6 +14,9 @@ fn text(value: &Json) -> String {
         _ => value.to_string(),
     }
 }
+
+
+/// Provides at for the inspection display baseline implementation.
 fn at(value: &Json) -> Result<String, String> {
     if value.is_null() {
         return Ok(String::new());
@@ -19,6 +25,8 @@ fn at(value: &Json) -> Result<String, String> {
         .map(|v| utc_roundtrip(v.to_utc()))
         .map_err(|_| "Invalid evidence timestamp".into())
 }
+
+
 /// Canonical hash input uses the published contract slots, exact numeric
 /// decimals and UTC JSON dates, rather than the display's named enum strings.
 pub fn semantic_document(registry: &Registry, kind: &str, wire: &Value) -> Result<Json, String> {
@@ -91,11 +99,16 @@ pub fn semantic_document(registry: &Registry, kind: &str, wire: &Value) -> Resul
     }
     registry.project(kind, wire)
 }
+
+
+/// Provides semantic hash for the inspection display baseline implementation.
 pub fn semantic_hash(registry: &Registry, kind: &str, wire: &Value) -> Result<String, String> {
     ifm_ui_egui::backend::identity::financial_hash(&semantic_document(registry, kind, wire)?)
         .map(|v| v.to_ascii_lowercase())
 }
 
+
+/// Provides risk for the inspection display baseline implementation.
 pub fn risk(registry: &Registry, wire: &Value) -> Result<String, String> {
     let kind = format!(
         "{}.RiskManagement.RiskObservation",

@@ -1,6 +1,8 @@
 use ifm_ui_egui::{backend::identity::*, persistence::journal::Journal};
 use serde_json::{Value, json};
 
+
+/// Verifies that financial canonical hash matches compiled dotnet including escaping and g29.
 #[test]
 fn financial_canonical_hash_matches_compiled_dotnet_including_escaping_and_g29() {
     let cases: Value = serde_json::from_str(include_str!("fixtures/backend/hashes.json")).unwrap();
@@ -14,6 +16,8 @@ fn financial_canonical_hash_matches_compiled_dotnet_including_escaping_and_g29()
     }
 }
 
+
+/// Validates identity journal for identity journal.
 fn validate(value: &Value) -> Result<(), String> {
     if value["Request"]["CommandId"] != value["Request"]["OperationId"] {
         return Err("Identity mismatch".into());
@@ -24,6 +28,8 @@ fn validate(value: &Value) -> Result<(), String> {
     Ok(())
 }
 
+
+/// Verifies that uncertain journal survives restart and terminal phase cannot regress.
 #[test]
 fn uncertain_journal_survives_restart_and_terminal_phase_cannot_regress() {
     let root =

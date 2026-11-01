@@ -139,7 +139,17 @@ fn option_catchup_excludes_durable_evidence_and_checks_only_selected_contract_by
 fn statistics_frame(sequence: i64, date: i32, volume: i64) -> Frame {
     use rmpv::Value;
     let mut event = vec![Value::Nil; 9];
-    event[8] = Value::Array(vec!["ES".into(), date.into(), "0".into(), "0".into(), "0".into(), 1.into(), 1.into(), volume.into(), 2.into()]);
+    event[8] = Value::Array(vec![
+        "ES".into(),
+        date.into(),
+        "0".into(),
+        "0".into(),
+        "0".into(),
+        1.into(),
+        1.into(),
+        volume.into(),
+        2.into(),
+    ]);
     let mut value = frame(sequence, 1);
     value.kind = 4;
     value.payload = ifm_market_data_native::messaging::codec::encode(&Value::Array(event)).unwrap();
@@ -149,15 +159,25 @@ fn statistics_frame(sequence: i64, date: i32, volume: i64) -> Frame {
 #[test]
 fn prior_day_statistics_never_displace_active_volume_or_consume_catchup_capacity() {
     let current = Current::new(1, 4096).unwrap();
-    current.retain("ES", &statistics_frame(1, 739914, 900)).unwrap();
+    current
+        .retain("ES", &statistics_frame(1, 739914, 900))
+        .unwrap();
     assert!(current.capture_all(4096).unwrap().is_empty());
-    current.retain("ES", &statistics_frame(2, 739915, 10)).unwrap();
+    current
+        .retain("ES", &statistics_frame(2, 739915, 10))
+        .unwrap();
     let bytes = current.bytes().unwrap();
-    current.retain("ES", &statistics_frame(3, 739914, 1000)).unwrap();
-    current.retain("ES", &statistics_frame(4, 739916, 1000)).unwrap();
+    current
+        .retain("ES", &statistics_frame(3, 739914, 1000))
+        .unwrap();
+    current
+        .retain("ES", &statistics_frame(4, 739916, 1000))
+        .unwrap();
     assert_eq!(current.bytes().unwrap(), bytes);
     assert_eq!(current.latest("ES", 4).unwrap().unwrap().sequence, 2);
-    current.retain("ES", &statistics_frame(5, 739915, 15)).unwrap();
+    current
+        .retain("ES", &statistics_frame(5, 739915, 15))
+        .unwrap();
     let latest = current.capture_all(4096).unwrap();
     assert_eq!(latest.len(), 1);
     assert_eq!(latest[0].sequence, 5);
@@ -168,15 +188,25 @@ fn prior_day_statistics_never_displace_active_volume_or_consume_catchup_capacity
 #[test]
 fn malformed_statistics_fail_without_mutating_retained_volume() {
     let current = Current::new(1, 4096).unwrap();
-    current.retain("ES", &statistics_frame(1, 739915, 10)).unwrap();
+    current
+        .retain("ES", &statistics_frame(1, 739915, 10))
+        .unwrap();
     let mut bad = statistics_frame(2, 739915, 12);
     bad.payload = vec![0xc0];
     assert!(current.retain("ES", &bad).is_err());
     bad = statistics_frame(2, 739915, 12);
     bad.payload.push(0xc0);
     assert!(current.retain("ES", &bad).is_err());
-    assert!(current.retain("VX", &statistics_frame(2, 739915, 12)).is_err());
+    assert!(
+        current
+            .retain("VX", &statistics_frame(2, 739915, 12))
+            .is_err()
+    );
     assert!(current.retain("ES", &statistics_frame(2, -1, 12)).is_err());
-    assert!(current.retain("ES", &statistics_frame(2, 3_652_059, 12)).is_err());
+    assert!(
+        current
+            .retain("ES", &statistics_frame(2, 3_652_059, 12))
+            .is_err()
+    );
     assert_eq!(current.latest("ES", 4).unwrap().unwrap().sequence, 1);
 }

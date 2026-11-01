@@ -1,5 +1,8 @@
 //! Date-only user inputs must fit the backend's DateOnly range. Parsing a
 //! broader Chrono date must never wrap or create an unsupported wire value.
+
+
+/// Parses date input for date input.
 pub fn parse(text: &str) -> Result<chrono::NaiveDate, String> {
     use chrono::Datelike;
     let value = chrono::NaiveDate::parse_from_str(text, "%Y-%m-%d")

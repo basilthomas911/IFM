@@ -4,6 +4,8 @@ use egui_kittest::{
     kittest::{NodeT, Queryable},
 };
 
+
+/// Verifies that report grid reclaims hidden scrollbar gutters.
 #[test]
 fn report_grid_reclaims_hidden_scrollbar_gutters() {
     let ctx = egui::Context::default();
@@ -80,6 +82,9 @@ fn report_grid_reclaims_hidden_scrollbar_gutters() {
         );
     }
 }
+
+
+/// Verifies that report list selects row from empty space after last column.
 #[test]
 fn report_list_selects_row_from_empty_space_after_last_column() {
     let mut h = Harness::new_ui_state(
@@ -120,6 +125,9 @@ fn report_list_selects_row_from_empty_space_after_last_column() {
     assert_eq!(*h.state(), Some(1));
     assert!(h.query_by_label("1:0").is_some());
 }
+
+
+/// Verifies that report list keeps wide columns inside viewport.
 #[test]
 fn report_list_keeps_wide_columns_inside_viewport() {
     let mut h = Harness::new_ui(|ui| {
@@ -138,6 +146,8 @@ fn report_list_keeps_wide_columns_inside_viewport() {
     assert!(h.query_by_label("Reference").is_some());
 }
 
+
+/// Verifies that report columns resize by dragging the header divider.
 #[test]
 fn report_columns_resize_by_dragging_the_header_divider() {
     let mut h = Harness::new_ui(|ui| {
@@ -201,6 +211,8 @@ fn report_columns_resize_by_dragging_the_header_divider() {
     );
 }
 
+
+/// Verifies that report columns keep initial widths inside a new window.
 #[test]
 fn report_columns_keep_initial_widths_inside_a_new_window() {
     let mut h = Harness::new(|ctx| {
@@ -242,6 +254,8 @@ fn report_columns_keep_initial_widths_inside_a_new_window() {
     assert!(source - reference >= 799., "Reference column collapsed");
 }
 
+
+/// Verifies that grid headers and scrollbars stay inside border at multiple dpi scales.
 #[test]
 fn grid_headers_and_scrollbars_stay_inside_border_at_multiple_dpi_scales() {
     for scale in [1., 1.25, 1.5, 2.] {

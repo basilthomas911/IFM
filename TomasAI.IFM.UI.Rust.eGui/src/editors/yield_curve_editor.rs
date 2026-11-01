@@ -2,9 +2,7 @@
 
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
-use crate::{
-    Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
-};
+use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings};
 use eframe::egui;
 use std::collections::BTreeMap;
 /// Yield-curve tenor property names paired with shared localized caption keys.
@@ -22,6 +20,7 @@ pub const TENORS: [(&str, &str); 12] = [
     ("twentyYear", "rate_20y"),
     ("thirtyYear", "rate_30y"),
 ];
+
 /// Local yield-curve draft, date/period selection, and pending request state.
 #[derive(Default)]
 pub struct YieldCurveEditor {
@@ -53,6 +52,8 @@ impl YieldCurveEditor {
         fields.insert("importDate".into(), self.import_date.clone());
         serde_json::json!({"schema":1,"requestId":id,"view":"yield-curve","intent":action,"expectedGeneration":s.generation,"originalId":self.selected,"fields":fields}).to_string()
     }
+
+
     /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
     ///
     /// This renderer owns local yield-curve draft, date/period selection, and pending request state.
@@ -162,26 +163,29 @@ impl YieldCurveEditor {
                         }
                     }
                 });
-                egui::Grid::new("yield-rate-fields")
+                crate::presentation::form_grid(ui, "yield-rate-fields")
                     .num_columns(4)
                     .show(ui, |ui| {
-                        let label = ui.trading_caption(c.text(strings::VALUE_DATE));
+                        let label =
+                            crate::presentation::form_caption(ui, c.text(strings::VALUE_DATE));
                         ui.add_enabled(
                             self.selected.is_none(),
                             egui::TextEdit::singleline(
                                 self.draft.entry("valueDate".into()).or_default(),
                             )
+                            .vertical_align(egui::Align::Center)
                             .desired_width(160.)
                             .min_size(egui::vec2(160., 20.)),
                         )
                         .labelled_by(label.id);
                         ui.end_row();
                         for (i, (key, label)) in TENORS.iter().enumerate() {
-                            let label = ui.trading_caption(c.text(label));
+                            let label = crate::presentation::form_caption(ui, c.text(label));
                             ui.add(
                                 egui::TextEdit::singleline(
                                     self.draft.entry((*key).into()).or_default(),
                                 )
+                                .vertical_align(egui::Align::Center)
                                 .desired_width(120.)
                                 .min_size(egui::vec2(120., 20.)),
                             )
@@ -250,9 +254,15 @@ impl YieldCurveEditor {
                     });
                 }
                 ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                     let label = ui.trading_caption(c.text(strings::IMPORT_DATE));
-                    ui.add(egui::TextEdit::singleline(&mut self.import_date).desired_width(160.))
-                        .labelled_by(label.id);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.import_date)
+                            .vertical_align(egui::Align::Center)
+                            .desired_width(160.),
+                    )
+                    .labelled_by(label.id);
                     if ui
                         .add_enabled(matches, egui::Button::new(c.text(strings::IMPORT_RATES)))
                         .clicked()

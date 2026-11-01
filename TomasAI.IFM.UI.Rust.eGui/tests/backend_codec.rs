@@ -2,6 +2,8 @@ use ifm_ui_egui::backend::{codec, contracts::*};
 use rmpv::Value;
 use std::path::Path;
 
+
+/// Provides fixture for the backend codec implementation.
 fn fixture(name: &str, kind: &str) -> Vec<u8> {
     std::fs::read(
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -11,6 +13,8 @@ fn fixture(name: &str, kind: &str) -> Vec<u8> {
     .unwrap()
 }
 
+
+/// Verifies that every csharp fixture decodes and rust compression roundtrips.
 #[test]
 fn every_csharp_fixture_decodes_and_rust_compression_roundtrips() {
     let manifest: serde_json::Value =
@@ -31,6 +35,8 @@ fn every_csharp_fixture_decodes_and_rust_compression_roundtrips() {
     }
 }
 
+
+/// Verifies that value date and query match compiled csharp contracts.
 #[test]
 fn value_date_and_query_match_compiled_csharp_contracts() {
     let subject = ActorSubject::query("MarketDataQuery", "GetValueDate", "valueDate");
@@ -52,6 +58,8 @@ fn value_date_and_query_match_compiled_csharp_contracts() {
     );
 }
 
+
+/// Verifies that decimal precision and datetime are not lost.
 #[test]
 fn decimal_precision_and_datetime_are_not_lost() {
     let decimal = codec::decode(&fixture("decimal", "wire")).unwrap();
@@ -88,6 +96,8 @@ fn decimal_precision_and_datetime_are_not_lost() {
     );
 }
 
+
+/// Verifies that malformed compression and trailing data are rejected.
 #[test]
 fn malformed_compression_and_trailing_data_are_rejected() {
     let oversized = codec::raw(&Value::Array(vec![
@@ -110,6 +120,8 @@ fn malformed_compression_and_trailing_data_are_rejected() {
     assert!(codec::decode(&[0xc0, 0xc0]).is_err());
 }
 
+
+/// Verifies that actor entities can contain dots without permitting wildcards.
 #[test]
 fn actor_entities_can_contain_dots_without_permitting_wildcards() {
     let subject = ActorSubject::query(
@@ -128,6 +140,8 @@ fn actor_entities_can_contain_dots_without_permitting_wildcards() {
     );
 }
 
+
+/// Verifies that compiled schemas preserve retired slots and lookup projection.
 #[test]
 fn compiled_schemas_preserve_retired_slots_and_lookup_projection() {
     use ifm_ui_egui::backend::schema::Registry;
@@ -173,6 +187,8 @@ fn compiled_schemas_preserve_retired_slots_and_lookup_projection() {
     assert_eq!(rows[0].created_on, "2026-10-23T12:00:00Z");
 }
 
+
+/// Verifies that compiled name keyed models unions and closed generics are projected.
 #[test]
 fn compiled_name_keyed_models_unions_and_closed_generics_are_projected() {
     let registry = ifm_ui_egui::backend::schema::Registry::compiled().unwrap();
@@ -209,6 +225,8 @@ fn compiled_name_keyed_models_unions_and_closed_generics_are_projected() {
     );
 }
 
+
+/// Verifies that consuming service result keeps payload and error semantics with extra slots.
 #[test]
 fn consuming_service_result_keeps_payload_and_error_semantics_with_extra_slots() {
     let payload = Value::Array(vec!["opaque position evidence".into(), i64::MAX.into()]);
@@ -230,6 +248,8 @@ fn consuming_service_result_keeps_payload_and_error_semantics_with_extra_slots()
     }
 }
 
+
+/// Verifies that borrowed wire fields resolve closed generic layouts.
 #[test]
 fn borrowed_wire_fields_resolve_closed_generic_layouts() {
     let registry = ifm_ui_egui::backend::schema::Registry::compiled().unwrap();

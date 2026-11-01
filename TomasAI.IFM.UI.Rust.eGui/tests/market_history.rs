@@ -1,12 +1,17 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use ifm_ui_egui::{market_charts::ChartSnapshot, services::market_history::*};
 use serde_json::{Value, json};
+
+
 // The frozen C# oracle is JSON, which serializes decimal fields as numbers.
 // Native monitor publications preserve these same decimals as exact strings.
 fn typed<T: serde::de::DeserializeOwned + ifm_ui_egui::models::wire_types::FromBackend>(
     value: &Value,
 ) -> Vec<T> {
     use ifm_ui_egui::backend::schema::Registry;
+
+
+    /// Normalizes market history for market history.
     fn normalize(registry: &Registry, kind: &str, value: &mut Value) {
         if value.is_null() {
             return;
@@ -47,6 +52,9 @@ fn typed<T: serde::de::DeserializeOwned + ifm_ui_egui::models::wire_types::FromB
 }
 
 use std::{collections::BTreeMap, path::Path};
+
+
+/// Provides fixture for the market history implementation.
 fn fixture(name: &str) -> Value {
     serde_json::from_slice(
         &std::fs::read(
@@ -57,6 +65,9 @@ fn fixture(name: &str) -> Value {
     )
     .unwrap()
 }
+
+
+/// Compares market history for market history.
 fn compare(actual: ChartSnapshot, expected: &Value) {
     assert_eq!(actual.status, expected["status"]);
     assert_eq!(actual.start, expected["start"].as_f64().unwrap());
@@ -78,11 +89,17 @@ fn compare(actual: ChartSnapshot, expected: &Value) {
         assert_eq!(series.points, points);
     }
 }
+
+
+/// Provides time for the market history implementation.
 fn time(value: &Value) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(value.as_str().unwrap())
         .unwrap()
         .with_timezone(&Utc)
 }
+
+
+/// Verifies that bars match hybrid for empty single window filters and dst.
 #[test]
 fn bars_match_hybrid_for_empty_single_window_filters_and_dst() {
     for case in fixture("market-bars").as_array().unwrap() {
@@ -98,6 +115,9 @@ fn bars_match_hybrid_for_empty_single_window_filters_and_dst() {
         );
     }
 }
+
+
+/// Verifies that bands match hybrid for warming duplicates validity and forty day bound.
 #[test]
 fn bands_match_hybrid_for_warming_duplicates_validity_and_forty_day_bound() {
     for case in fixture("market-bands").as_array().unwrap() {
@@ -111,6 +131,9 @@ fn bands_match_hybrid_for_warming_duplicates_validity_and_forty_day_bound() {
         );
     }
 }
+
+
+/// Verifies that refresh errors preserve points but do not hide the failure.
 #[test]
 fn refresh_errors_preserve_points_but_do_not_hide_the_failure() {
     let case = &fixture("market-bars")[1];

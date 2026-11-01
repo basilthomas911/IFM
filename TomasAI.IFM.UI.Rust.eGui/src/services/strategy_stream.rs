@@ -8,6 +8,9 @@ use crate::{
 };
 use futures_util::StreamExt;
 use std::sync::Arc;
+
+
+/// Provides run for the strategy stream implementation.
 pub async fn run(
     backend: Backend,
     registry: Arc<Registry>,

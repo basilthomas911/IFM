@@ -314,8 +314,10 @@ impl Delivery {
             }
             let health = publisher.status();
             status.send_if_modified(|s| {
-                if s.connected == health.connected {return false;}
-                s.connected=health.connected;
+                if s.connected == health.connected {
+                    return false;
+                }
+                s.connected = health.connected;
                 true
             });
             let pending = health.pending_since.map(Deadline::recovery_from);
@@ -343,12 +345,17 @@ impl Delivery {
             // have no market frame. Finish setup without certifying publication
             // or retaining a timer that resets a heartbeat-only quiet feed.
             if provider.phase == crate::dataset::lanes::Phase::Running
-                && health.connected && first_current.is_none() && health.pending_since.is_none()
+                && health.connected
+                && first_current.is_none()
+                && health.pending_since.is_none()
             {
-                *episode=None;
+                *episode = None;
                 status.send_if_modified(|s| {
-                    if !s.recovering && s.deadline.is_none() {return false;}
-                    s.recovering=false;s.deadline=None;
+                    if !s.recovering && s.deadline.is_none() {
+                        return false;
+                    }
+                    s.recovering = false;
+                    s.deadline = None;
                     true
                 });
             }
@@ -356,7 +363,7 @@ impl Delivery {
                 && fresh
                 && !status.borrow().running
             {
-                *episode=None;
+                *episode = None;
                 status.send_modify(|s| {
                     s.running = true;
                     s.recovering = false;
@@ -384,12 +391,13 @@ impl Delivery {
                                 }
                                 waiting.pop_front();
                             }
-                            Err(error @ ("Native publication queue unavailable" | "Native publication byte capacity exceeded")) => {
-                                match frame.encode() {
-                                    Ok(bytes) if bytes.len() <= config.bytes => break 'drain,
-                                    _ => return Some(error.into()),
-                                }
-                            }
+                            Err(
+                                error @ ("Native publication queue unavailable"
+                                | "Native publication byte capacity exceeded"),
+                            ) => match frame.encode() {
+                                Ok(bytes) if bytes.len() <= config.bytes => break 'drain,
+                                _ => return Some(error.into()),
+                            },
                             Err(error) => return Some(error.into()),
                         }
                     }

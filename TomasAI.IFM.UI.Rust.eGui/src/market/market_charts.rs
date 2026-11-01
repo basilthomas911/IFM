@@ -4,6 +4,7 @@ use crate::presentation::TradingLabelUi as _;
 use eframe::egui;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+
 /// Backend chart window, optional price bounds, status, and named price series.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default)]
@@ -21,6 +22,7 @@ pub struct ChartSnapshot {
     /// Named published chart series for the selected market view.
     pub series: Vec<ChartSeries>,
 }
+
 /// One published market series with its display name, color role, and x/y points.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default)]
@@ -32,6 +34,8 @@ pub struct ChartSeries {
     /// Published x/y chart points; time-series x values use the enclosing chart's time coordinate.
     pub points: Vec<[f64; 2]>,
 }
+
+
 /// Map a published series color name (for example Yellow or Fuchsia) to its native chart color, defaulting to white.
 pub fn series_color(name: &str) -> egui::Color32 {
     match name {
@@ -44,6 +48,8 @@ pub fn series_color(name: &str) -> egui::Color32 {
         _ => egui::Color32::WHITE,
     }
 }
+
+
 /// Render the selected ES/ES-BB/VX published chart with Eastern-time axes and bounded price/time ranges.
 pub fn draw(ui: &mut egui::Ui, charts: &BTreeMap<String, ChartSnapshot>, selected: &mut usize) {
     ui.horizontal(|ui| {
@@ -141,6 +147,7 @@ pub fn draw(ui: &mut egui::Ui, charts: &BTreeMap<String, ChartSnapshot>, selecte
     );
 }
 
+
 /// VX keeps both decimal places, including trailing zeros.
 pub fn price_label(symbol: &str, value: f64) -> String {
     match symbol {
@@ -152,6 +159,8 @@ pub fn price_label(symbol: &str, value: f64) -> String {
             .to_owned(),
     }
 }
+
+
 /// Plot coordinates are Eastern wall-clock seconds, already converted by the bridge.
 /// Anchor ticks at whole market hours instead of generic decimal-second intervals.
 pub fn hour_marks(input: egui_plot::GridInput) -> Vec<egui_plot::GridMark> {

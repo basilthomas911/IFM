@@ -2,6 +2,9 @@
 //! roundtrip that can conceal serde_json's private Number representation.
 use ifm_ui_egui::{backend::codec, wire};
 use serde_json::json;
+
+
+/// Verifies that native documents use standard numeric markers and decode as screen models.
 #[test]
 fn native_documents_use_standard_numeric_markers_and_decode_as_screen_models() {
     let bytes=wire::encode_value(&json!([{"Path":"/DefaultTradingDays/Daily","Value":"2","Kind":4,"Group":"Default Trading Days","Name":"Daily"}])).unwrap();
@@ -22,11 +25,17 @@ fn native_documents_use_standard_numeric_markers_and_decode_as_screen_models() {
         &json!({"revision":7,"count":u64::MAX,"value":"79228162514264337593543950335","ratio":0.5}),
     )
     .unwrap();
+
+    /// Model used by the native documents test fixtures.
     #[derive(serde::Deserialize)]
     struct Model {
+        /// Revision associated with this model.
         revision: i64,
+        /// Count associated with this model.
         count: u64,
+        /// Value associated with this model.
         value: String,
+        /// Ratio associated with this model.
         ratio: f64,
     }
     let decoded: Model = wire::decode(&bytes).unwrap();
@@ -35,6 +44,9 @@ fn native_documents_use_standard_numeric_markers_and_decode_as_screen_models() {
     assert_eq!(decoded.value, "79228162514264337593543950335");
     assert_eq!(decoded.ratio, 0.5);
 }
+
+
+/// Verifies that dotnet timestamp display has seven digits without unsupported chrono format.
 #[test]
 fn dotnet_timestamp_display_has_seven_digits_without_unsupported_chrono_format() {
     use ifm_ui_egui::backend::contracts::utc_roundtrip;

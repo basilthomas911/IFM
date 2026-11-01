@@ -19,13 +19,19 @@ pub const OPERATIONS: [&str; 8] = [
     "Recycle",
     "AcknowledgeIncident",
 ];
+
+/// Control Options used by the actor health baseline test fixtures.
 #[derive(Clone)]
 pub struct ControlOptions {
+    /// Whether enabled is enabled or currently true.
     pub enabled: bool,
+    /// Requester associated with this control options.
     pub requester: String,
+    /// Timeout associated with this control options.
     pub timeout: Duration,
 }
 impl Default for ControlOptions {
+    /// Constructs the initial state used when no explicit value is supplied.
     fn default() -> Self {
         Self {
             enabled: false,
@@ -35,6 +41,7 @@ impl Default for ControlOptions {
     }
 }
 impl ControlOptions {
+    /// Loads configuration from the supported environment settings.
     pub fn from_env() -> Result<Self, String> {
         let enabled = ifm_ui_egui::backend::configuration::value("SupervisorControl__Enabled")?
             .unwrap_or_default();
@@ -65,21 +72,35 @@ impl ControlOptions {
             timeout: Duration::from_secs(seconds),
         })
     }
+
+
+    /// Provides authority for the control options implementation.
     fn authority(&self, snapshot: &Json) -> bool {
         self.enabled
             && snapshot["ManualMutationEnabled"] == true
             && snapshot["SupervisorAuthorityState"] != "HostRecoveryRequired"
     }
 }
+
+/// Target used by the actor health baseline test fixtures.
 #[derive(Clone)]
 pub struct Target {
+    /// Thread associated with this target.
     pub thread: Json,
+    /// Generation associated with this target.
     pub generation: i64,
 }
+
+/// Actor Projection used by the actor health baseline test fixtures.
 pub struct ActorProjection {
+    /// Result associated with this actor projection.
     pub result: ContractResult,
+    /// Keyed targets retained by ActorProjection.
     pub targets: BTreeMap<String, Target>,
 }
+
+
+/// Provides pascal for the actor health baseline implementation.
 pub fn pascal(value: &Json) -> Json {
     match value {
         Json::Object(map) => Json::Object(
@@ -98,6 +119,9 @@ pub fn pascal(value: &Json) -> Json {
         _ => value.clone(),
     }
 }
+
+
+/// Provides scalar for the actor health baseline implementation.
 fn scalar(v: &Json) -> String {
     match v {
         Json::Null => String::new(),
@@ -106,6 +130,9 @@ fn scalar(v: &Json) -> String {
         _ => v.to_string(),
     }
 }
+
+
+/// Provides date display for the actor health baseline implementation.
 fn date_display(time: DateTime<Utc>) -> String {
     format!(
         "{}.{:07}Z",
@@ -113,6 +140,9 @@ fn date_display(time: DateTime<Utc>) -> String {
         time.timestamp_subsec_nanos() / 100
     )
 }
+
+
+/// Provides display for the actor health baseline implementation.
 fn display(value: &Json, key: &str) -> String {
     if key.ends_with("Utc") {
         if let Some(text) = value.as_str() {
@@ -130,6 +160,9 @@ fn display(value: &Json, key: &str) -> String {
     }
     scalar(value)
 }
+
+
+/// Flattens actor health baseline for actor health baseline.
 fn flatten(value: &Json, prefix: &str, fields: &mut BTreeMap<String, String>) {
     match value {
         Json::Object(map) => {
@@ -151,11 +184,17 @@ fn flatten(value: &Json, prefix: &str, fields: &mut BTreeMap<String, String>) {
         }
     }
 }
+
+
+/// Provides utc for the actor health baseline implementation.
 fn utc(v: &Json) -> Result<DateTime<Utc>, String> {
     DateTime::parse_from_rfc3339(v.as_str().ok_or("Missing health timestamp")?)
         .map(|v| v.to_utc())
         .map_err(|_| "Invalid health timestamp".into())
 }
+
+
+/// Provides thread id for the actor health baseline implementation.
 fn thread_id(value: &Json) -> Result<String, String> {
     let name = value["Name"]
         .as_str()
@@ -167,6 +206,9 @@ fn thread_id(value: &Json) -> Result<String, String> {
         .ok_or("ActorType must be a named enum")?;
     Ok(format!("{kind}:{name}:{entity}"))
 }
+
+
+/// Provides project for the actor health baseline implementation.
 pub fn project(
     snapshot: &Json,
     from: DateTime<Utc>,
@@ -440,18 +482,30 @@ pub fn project(
         },
     })
 }
+
+/// Actor Health Controller used by the actor health baseline test fixtures.
 pub struct ActorHealthController {
+    /// Client associated with this actor health controller.
     client: HealthClient,
+    /// Optional endpoint; `None` represents an absent value.
     endpoint: Option<String>,
+    /// Options associated with this actor health controller.
     options: ControlOptions,
+    /// Optional from; `None` represents an absent value.
     from: Option<DateTime<Utc>>,
+    /// Optional snapshot; `None` represents an absent value.
     snapshot: Option<Json>,
+    /// Keyed targets retained by ActorHealthController.
     targets: BTreeMap<String, Target>,
+    /// Generation associated with this actor health controller.
     generation: u64,
+    /// Retained historical data used by this component.
     history: BTreeMap<String, (Json, EditorOutcome)>,
+    /// Result associated with this actor health controller.
     result: ContractResult,
 }
 impl ActorHealthController {
+    /// Constructs ActorHealthController from the supplied inputs.
     pub fn new(endpoint: Option<String>, options: ControlOptions) -> Result<Self, String> {
         Ok(Self {
             client: HealthClient::new()?,
@@ -468,12 +522,18 @@ impl ActorHealthController {
             },
         })
     }
+
+
+    /// Loads configuration from the supported environment settings.
     pub fn from_env() -> Result<Self, String> {
         Self::new(
             ifm_ui_egui::backend::configuration::value("IFM_UI_ACTOR_HEALTH_URL")?,
             ControlOptions::from_env()?,
         )
     }
+
+
+    /// Refreshes actor health baseline for actor health controller.
     async fn refresh(&mut self, backend: &Backend) -> Result<(), String> {
         let deadline = tokio::time::Instant::now() + backend.default_timeout();
         let result = tokio::time::timeout_at(deadline, async {
@@ -534,6 +594,9 @@ impl ActorHealthController {
             }
         }
     }
+
+
+    /// Provides execute for the actor health controller implementation.
     pub async fn execute(
         &mut self,
         backend: &Backend,
@@ -618,6 +681,9 @@ impl ActorHealthController {
             ..Default::default()
         })
     }
+
+
+    /// Provides supervise for the actor health controller implementation.
     async fn supervise(
         &mut self,
         backend: &Backend,

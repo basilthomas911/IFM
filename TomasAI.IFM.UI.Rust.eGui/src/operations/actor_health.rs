@@ -9,9 +9,13 @@ use crate::{
     strings,
 };
 use eframe::egui;
+
 /// Actor diagnostics selection, operation parameters, and generation-bound confirmation state.
 #[derive(Default)]
 pub struct ActorHealth {
+    /// Most recent upper-view and lower-details bounds for layout verification.
+    pub panes: Option<[egui::Rect; 2]>,
+
     /// Native-only monotonic schedule; hidden screens create no polling tasks.
     pub next_refresh: Option<std::time::Instant>,
     /// Background refresh identity is separate from an operator command.
@@ -44,13 +48,46 @@ impl ActorHealth {
         c: &Catalog,
         live: bool,
     ) -> Option<String> {
-        self.draw_surface(ctx,s,c,live,None)
+        self.draw_surface(ctx, s, c, live, None, None)
     }
+
+
     /// Display the health explorer as an independent desktop dialog.
-    pub fn draw_dialog(&mut self,ctx:&egui::Context,s:&ContractPublication,c:&Catalog,live:bool,open:&mut bool)->Option<String>{
-        self.draw_surface(ctx,s,c,live,Some(open))
+    pub fn draw_dialog(
+        &mut self,
+        ctx: &egui::Context,
+        s: &ContractPublication,
+        c: &Catalog,
+        live: bool,
+        open: &mut bool,
+    ) -> Option<String> {
+        self.draw_surface(ctx, s, c, live, Some(open), None)
     }
-    fn draw_surface(&mut self,ctx:&egui::Context,s:&ContractPublication,c:&Catalog,live:bool,open:Option<&mut bool>)->Option<String>{
+
+
+    /// Render the health view inside the active sidebar tab without opening another window.
+    pub fn draw_inside(
+        &mut self,
+        ui: &mut egui::Ui,
+        s: &ContractPublication,
+        c: &Catalog,
+        live: bool,
+    ) -> Option<String> {
+        let ctx = ui.ctx().clone();
+        self.draw_surface(&ctx, s, c, live, None, Some(ui))
+    }
+
+
+    /// Renders the surface view and collects its UI interactions.
+    fn draw_surface(
+        &mut self,
+        ctx: &egui::Context,
+        s: &ContractPublication,
+        c: &Catalog,
+        live: bool,
+        open: Option<&mut bool>,
+        inside: Option<&mut egui::Ui>,
+    ) -> Option<String> {
         if self.pending.as_ref().is_some_and(|id| {
             s.outcomes
                 .iter()
@@ -75,10 +112,16 @@ impl ActorHealth {
         }
         let mut action = None;
         let enabled = live && !s.busy && self.pending.is_none() && self.refresh_pending.is_none();
-        super::health_surface(ctx,"Actor Health",open, |ui| {
+        let mut contents = |ui: &mut egui::Ui| {
             ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                 ui.trading_caption(c.text(strings::ACTOR_FROM));
-                ui.add(egui::TextEdit::singleline(&mut self.from).desired_width(250.));
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.from)
+                        .vertical_align(egui::Align::Center)
+                        .desired_width(250_f32.min(ui.available_width().max(80.))),
+                );
                 if ui
                     .add_enabled(enabled, egui::Button::new(c.text(strings::ACTOR_REFRESH)))
                     .clicked()
@@ -128,6 +171,8 @@ impl ActorHealth {
                 .find(|r| Some(&r.id) == self.selected.as_ref());
             ui.add_enabled_ui(enabled && authority, |ui| {
                 ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+
                     egui::ComboBox::from_id_salt("actor-operation")
                         .selected_text(&self.operation)
                         .show_ui(ui, |ui| {
@@ -138,8 +183,9 @@ impl ActorHealth {
                     ui.trading_caption(c.text(strings::ACTOR_REASON));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.reason)
+                            .vertical_align(egui::Align::Center)
                             .char_limit(1024)
-                            .desired_width(310.),
+                            .desired_width(310_f32.min(ui.available_width().max(80.))),
                     );
                     if ui
                         .add_enabled(
@@ -168,47 +214,49 @@ impl ActorHealth {
                 .collect::<Vec<_>>();
             groups.sort();
             groups.dedup();
-            egui::ScrollArea::vertical()
-                .id_salt("actor-tree")
-                .max_height(270.)
-                .show(ui, |ui| {
-                    for group in groups {
-                        egui::CollapsingHeader::new(group)
-                            .id_salt(("actor-group", group))
-                            .show(ui, |ui| {
-                                for row in rows
-                                    .iter()
-                                    .filter(|r| r.fields.get("parent") == Some(group))
-                                {
-                                    draw_row(ui, row, rows, &mut self.selected);
-                                }
-                            });
-                    }
-                });
-            if let Some(row) = rows.iter().find(|r| Some(&r.id) == self.selected.as_ref()) {
-                ui.separator();
-                ui.trading_label(row.fields.get("name").unwrap_or(&row.id));
-                egui::ScrollArea::both()
-                    .id_salt("actor-properties")
-                    .show(ui, |ui| {
-                        egui::Grid::new("actor-properties-grid")
-                            .striped(true)
-                            .show(ui, |ui| {
-                                for (k, v) in &row.fields {
-                                    if !["name", "kind", "parent", "status", "canExecute"]
-                                        .contains(&k.as_str())
-                                    {
-                                        ui.trading_label(
-                                            c.text(&format!("actor_field_{}", k.replace('.', "_"))),
-                                        );
-                                        ui.trading_label(v);
-                                        ui.end_row();
-                                    }
-                                }
-                            });
+            let [upper, lower] = super::split_health_body(ui);
+            self.panes = Some([upper, lower]);
+            super::health_scroll(ui, upper, "actor-tree", |ui| {
+                for row in rows.iter().filter(|row| {
+                    row.fields
+                        .get("parent")
+                        .is_none_or(|parent| parent.is_empty())
+                }) {
+                    draw_row(ui, row, rows, &mut self.selected);
+                }
+                for group in groups.into_iter().filter(|parent| !parent.is_empty()) {
+                    egui::CollapsingHeader::new(group)
+                        .id_salt(("actor-group", group))
+                        .show(ui, |ui| {
+                            for row in rows
+                                .iter()
+                                .filter(|r| r.fields.get("parent") == Some(group))
+                            {
+                                draw_row(ui, row, rows, &mut self.selected);
+                            }
+                        });
+                }
+            });
+            super::health_scroll(ui, lower, "actor-properties", |ui| {
+                if let Some(row) = rows.iter().find(|r| Some(&r.id) == self.selected.as_ref()) {
+                    super::detail_tree(ui, &row.id, "Actor details", &row.fields, |key| {
+                        let label = c.text(&format!("actor_field_{}", key.replace('.', "_")));
+                        if label == "[Missing string]" {
+                            key.into()
+                        } else {
+                            label.into()
+                        }
                     });
-            }
-        });
+                } else {
+                    ui.trading_label("Select an actor to inspect its details.");
+                }
+            });
+        };
+        if let Some(ui) = inside {
+            contents(ui);
+        } else {
+            super::health_surface(ctx, "Actor Health", open, contents);
+        }
         if self.confirm {
             egui::Window::new(crate::presentation::dialog_title(
                 c.text(strings::ACTOR_CONFIRM),
@@ -249,7 +297,7 @@ impl ActorHealth {
             });
         }
         let now = std::time::Instant::now();
-        let first_open=self.next_refresh.is_none();
+        let first_open = self.next_refresh.is_none();
         if first_open {
             self.next_refresh = Some(now + std::time::Duration::from_secs(15));
         }
@@ -257,7 +305,7 @@ impl ActorHealth {
             && live
             && enabled
             && !self.confirm
-            && (first_open&&!matching || self.next_refresh.is_none_or(|next| now >= next))
+            && (first_open && !matching || self.next_refresh.is_none_or(|next| now >= next))
         {
             let id = new_request_id();
             self.refresh_pending = Some(id.clone());
@@ -274,6 +322,8 @@ impl ActorHealth {
         action.map(|intent|{let id=new_request_id();self.pending=Some(id.clone());serde_json::json!({"schema":1,"requestId":id,"view":"actor-health","intent":intent,"expectedGeneration":s.generation,"originalId":self.selected,"fields":{"fromUtc":self.from,"operation":self.operation,"reason":self.reason}}).to_string()})
     }
 }
+
+
 /// Render an actor row and nested child rows, keeping selection tied to the published actor ID.
 fn draw_row(
     ui: &mut egui::Ui,
@@ -313,16 +363,31 @@ fn draw_row(
     }
 }
 
-
 #[cfg(test)]
 mod initial_health_tests {
- use super::*;
- #[test]
- fn opening_actor_dialog_requests_health_immediately_without_market_activity(){
-  let ctx=egui::Context::default();let catalog:Catalog=serde_json::from_str(include_str!("../../catalog/strings.en.json")).unwrap();
-  let mut screen=ActorHealth::default();let publication=ContractPublication::default();let mut open=true;let mut action=None;
-  let _=ctx.run(Default::default(),|ctx|{action=screen.draw_dialog(ctx,&publication,&catalog,true,&mut open);});
-  let intent:serde_json::Value=serde_json::from_str(action.as_ref().expect("Opening must fetch health")).unwrap();assert_eq!(intent["intent"],"load");assert_eq!(intent["view"],"actor-health");
-  let _=ctx.run(Default::default(),|ctx|{action=screen.draw_dialog(ctx,&publication,&catalog,true,&mut open);});assert!(action.is_none(),"Must not duplicate the pending read");
- }
+    use super::*;
+
+
+    /// Verifies that opening actor dialog requests health immediately without market activity.
+    #[test]
+    fn opening_actor_dialog_requests_health_immediately_without_market_activity() {
+        let ctx = egui::Context::default();
+        let catalog: Catalog =
+            serde_json::from_str(include_str!("../../catalog/strings.en.json")).unwrap();
+        let mut screen = ActorHealth::default();
+        let publication = ContractPublication::default();
+        let mut open = true;
+        let mut action = None;
+        let _ = ctx.run(Default::default(), |ctx| {
+            action = screen.draw_dialog(ctx, &publication, &catalog, true, &mut open);
+        });
+        let intent: serde_json::Value =
+            serde_json::from_str(action.as_ref().expect("Opening must fetch health")).unwrap();
+        assert_eq!(intent["intent"], "load");
+        assert_eq!(intent["view"], "actor-health");
+        let _ = ctx.run(Default::default(), |ctx| {
+            action = screen.draw_dialog(ctx, &publication, &catalog, true, &mut open);
+        });
+        assert!(action.is_none(), "Must not duplicate the pending read");
+    }
 }

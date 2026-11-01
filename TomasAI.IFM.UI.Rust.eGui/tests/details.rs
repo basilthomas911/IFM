@@ -1,10 +1,16 @@
 use egui_kittest::{Harness, kittest::Queryable};
 use ifm_ui_egui::{Catalog, DetailsView, Snapshot};
+
+
+/// Provides data for the details implementation.
 fn data() -> (Catalog, Snapshot) {
     let c = serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap();
     let s=serde_json::from_str(r#"{"schema":1,"epoch":"test","generation":1,"mode":"Fixture","workflowId":"test","revision":1,"roots":[{"id":"signal","label":"ITI Signal","properties":[{"name":"DailyPnl","value":"-125.50"}],"children":[{"id":"signal/child","label":"Signal child","properties":[{"name":"Value","value":"16"}],"children":[]}]}]}"#).unwrap();
     (c, s)
 }
+
+
+/// Verifies that cached tree expands collapses and selects inspector.
 #[test]
 fn cached_tree_expands_collapses_and_selects_inspector() {
     let (catalog, snapshot) = data();
@@ -27,11 +33,16 @@ fn cached_tree_expands_collapses_and_selects_inspector() {
     harness.run();
     assert!(harness.query_by_label("Signal child").is_none());
 }
+
+
+/// Verifies that invalid snapshot is rejected.
 #[test]
 fn invalid_snapshot_is_rejected() {
     assert!(serde_json::from_str::<Snapshot>("{}").is_err());
 }
 
+
+/// Verifies that details default layout image.
 #[cfg(feature = "visual-tests")]
 #[test]
 fn details_default_layout_image() {

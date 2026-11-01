@@ -9,6 +9,9 @@ use crate::{
 use serde_json::{Value as Json, json};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
+
+
+/// Resolves the directory used by this component's local storage.
 fn directory() -> Result<PathBuf, String> {
     if let Ok(path) = std::env::var("IFM_STANDALONE_ORDER_JOURNAL") {
         return Ok(PathBuf::from(path));
@@ -17,6 +20,9 @@ fn directory() -> Result<PathBuf, String> {
         .map(|p| PathBuf::from(p).join("TomasAI/IFM/RustNative/OrderSubmissions"))
         .ok_or("Per-user submission journal directory is unavailable".into())
 }
+
+
+/// Borrows stored wire bytes, materializing a lazy compatibility representation when required.
 fn bytes(value: &Json) -> Result<Vec<u8>, String> {
     value["CommandWire"]
         .as_array()
@@ -30,6 +36,9 @@ fn bytes(value: &Json) -> Result<Vec<u8>, String> {
         })
         .collect()
 }
+
+
+/// Validates order submission store for order submission store.
 fn validate(value: &Json) -> Result<(), String> {
     if value["Schema"] != 1
         || value["Request"]["OperationId"]
@@ -91,6 +100,9 @@ fn validate(value: &Json) -> Result<(), String> {
     }
     Ok(())
 }
+
+
+/// Saves order submission store for order submission store.
 pub async fn save(operation: &Operation, phase: u8, message: &str) -> Result<(), String> {
     let directory = directory()?;
     let id = operation.id;
@@ -104,6 +116,9 @@ pub async fn save(operation: &Operation, phase: u8, message: &str) -> Result<(),
     .await
     .map_err(|e| e.to_string())?
 }
+
+
+/// Provides pending for the order submission store implementation.
 pub async fn pending() -> Result<Vec<Json>, String> {
     let directory = directory()?;
     tokio::task::spawn_blocking(move || {
@@ -121,6 +136,8 @@ pub async fn pending() -> Result<Vec<Json>, String> {
     .map_err(|e| e.to_string())?
 }
 
+
+/// Restores order submission store for order submission store.
 pub fn restore(registry: &Registry, value: &Json) -> Result<Operation, String> {
     validate(value)?;
     let body = codec::decode(&bytes(value)?)?;

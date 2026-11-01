@@ -11,6 +11,7 @@ use std::{
 const MAX_BYTES: u64 = 5 * 1024 * 1024;
 const ARCHIVES: usize = 4;
 
+
 /// Persist an error/audit record and mirror it to stderr for Server Manager.
 /// Call only on error/controller paths, never normal quote delivery or painting.
 /// Disk failures remain visible on stderr; they must never fail a trading call.
@@ -35,10 +36,14 @@ pub fn record(event: &str, subject: Option<&str>, operation: Option<&str>, detai
         let line = value.to_string();
         let _ = writeln!(io::stderr().lock(), "{line}");
         if let Err(error) = log_path().and_then(|path| append(&path, line.as_bytes(), MAX_BYTES)) {
-            let _ = writeln!(io::stderr().lock(), "UI durable error log write failed: {error}; originalRecord={line}");
+            let _ = writeln!(
+                io::stderr().lock(),
+                "UI durable error log write failed: {error}; originalRecord={line}"
+            );
         }
     }
 }
+
 
 /// Split large exception chains at UTF-8 boundaries, preserving every detail
 /// and correlation field without letting one error defeat the file-size cap.
@@ -56,6 +61,8 @@ fn detail_parts(mut details: &str) -> Vec<&str> {
     parts
 }
 
+
+/// Resolves the diagnostic log location for this component.
 fn log_path() -> io::Result<PathBuf> {
     let root = std::env::var_os("LOCALAPPDATA")
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "LOCALAPPDATA is unavailable"))?;
@@ -63,15 +70,19 @@ fn log_path() -> io::Result<PathBuf> {
     Ok(PathBuf::from(root).join("TomasAI/IFM/UI.Rust.eGui/Logs/ui-errors.jsonl"))
 }
 
+
+/// Provides archive for the errors implementation.
 fn archive(path: &Path, index: usize) -> PathBuf {
     PathBuf::from(format!("{}.{}", path.display(), index))
 }
+
 
 /// Preserve transport correlation when a controller wraps its error for display.
 fn correlated_operation(details: &str) -> Option<&str> {
     let id = details.rsplit_once("operationId=")?.1.get(..36)?;
     uuid::Uuid::parse_str(id).ok().map(|_| id)
 }
+
 
 /// A hard process termination may interrupt the final append. Retain complete
 /// prior records and discard only the unfinished tail before writing new JSON.
@@ -97,6 +108,8 @@ fn repair_tail(path: &Path) -> io::Result<()> {
     file.set_len(0)
 }
 
+
+/// Appends errors for errors.
 fn append(path: &Path, line: &[u8], max_bytes: u64) -> io::Result<()> {
     // A malformed/oversized error cannot defeat the file-size bound. Preserve
     // its identity and explain truncation, rather than writing invalid JSON.
@@ -134,6 +147,7 @@ fn append(path: &Path, line: &[u8], max_bytes: u64) -> io::Result<()> {
     file.sync_data()
 }
 
+
 /// Add request context without losing the full underlying failure chain.
 pub fn request_failure(subject: &str, operation: &str, details: String) -> String {
     record(
@@ -148,6 +162,9 @@ pub fn request_failure(subject: &str, operation: &str, details: String) -> Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    /// Verifies that rotation preserves multiline json and bounds all files.
     #[test]
     fn rotation_preserves_multiline_json_and_bounds_all_files() {
         let directory =
@@ -169,6 +186,9 @@ mod tests {
         assert!(fs::read_to_string(&path).unwrap().contains("59"));
         fs::remove_dir_all(directory).unwrap();
     }
+
+
+    /// Verifies that disk errors are returned and oversized records remain valid json.
     #[test]
     fn disk_errors_are_returned_and_oversized_records_remain_valid_json() {
         let directory =
@@ -182,6 +202,9 @@ mod tests {
         assert!(append(&directory, b"error", 512).is_err());
         fs::remove_dir_all(directory).unwrap();
     }
+
+
+    /// Verifies that restart repairs only incomplete tail and preserves request identity.
     #[test]
     fn restart_repairs_only_incomplete_tail_and_preserves_request_identity() {
         let directory =
@@ -204,6 +227,9 @@ mod tests {
         assert_eq!(correlated_operation("operationId=not-a-guid"), None);
         fs::remove_dir_all(directory).unwrap();
     }
+
+
+    /// Verifies that huge unicode error chains are preserved in bounded parts.
     #[test]
     fn huge_unicode_error_chains_are_preserved_in_bounded_parts() {
         let details = "failure 🦀\ncaused by: \"invalid data\"\n".repeat(80_000);

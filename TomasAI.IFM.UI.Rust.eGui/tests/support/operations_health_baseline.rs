@@ -3,6 +3,9 @@ use chrono::{DateTime, Utc};
 use ifm_ui_egui::contract_editor::{ContractResult, ContractRow};
 use serde_json::Value;
 use std::collections::BTreeMap;
+
+
+/// Provides scalar for the operations health baseline implementation.
 fn scalar(value: &Value) -> String {
     match value {
         Value::Null => String::new(),
@@ -11,6 +14,9 @@ fn scalar(value: &Value) -> String {
         _ => value.to_string(),
     }
 }
+
+
+/// Provides utc for the operations health baseline implementation.
 fn utc(value: &Value) -> String {
     value
         .as_str()
@@ -18,6 +24,9 @@ fn utc(value: &Value) -> String {
         .map(|d| d.to_utc().format("%Y-%m-%d %H:%M:%S UTC").to_string())
         .unwrap_or_else(|| "Unknown".into())
 }
+
+
+/// Provides span for the operations health baseline implementation.
 fn span(value: &Value) -> String {
     let Some(text) = value.as_str() else {
         return "Unknown".into();
@@ -52,6 +61,9 @@ fn span(value: &Value) -> String {
         format!("{:.1} ms", seconds * 1000.)
     }
 }
+
+
+/// Provides project for the operations health baseline implementation.
 pub fn project(value: &Value, as_of: DateTime<Utc>) -> Result<ContractResult, String> {
     let valid_status = |v: &Value| {
         matches!(

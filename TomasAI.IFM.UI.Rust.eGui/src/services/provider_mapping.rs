@@ -15,12 +15,20 @@ pub const OPTION: &str =
     "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel";
 pub const DEFINITION: &str =
     "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.InstrumentDefinitionSelection";
+
+
+/// Returns the display text for the requested value or field.
 fn text<'a>(row: &'a Json, key: &str) -> &'a str {
     row[key].as_str().unwrap_or_default()
 }
+
+
+/// Reads a timestamp as an instant while retaining the supported precision.
 fn instant(row: &Json, key: &str) -> Result<DateTime<FixedOffset>, String> {
     DateTime::parse_from_rfc3339(text(row, key)).map_err(|_| format!("Missing or invalid {key}"))
 }
+
+
 /// The caller supplies the exchange-local expiry date obtained through the
 /// timezone adapter. Keeping conversion explicit makes date boundaries testable.
 pub fn prepare(
@@ -275,6 +283,7 @@ pub fn prepare(
     }
     Ok(mapped)
 }
+
 
 /// Match the existing mapping-preview display document, including its public
 /// derived identity fields. This is presentation only; commands use `Value`.

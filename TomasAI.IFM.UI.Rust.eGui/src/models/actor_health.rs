@@ -6,54 +6,74 @@ use super::{
 use serde::Deserialize;
 use std::collections::BTreeMap;
 pub type ActorHealthHistoryPoint = ActorHealthCollectionSnapshot;
+
+/// Actor Health Snapshot used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthSnapshot {
+    /// HTTP `ObservedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "observedUtc", alias = "ObservedUtc")]
     pub observed_utc: Present<String>,
+    /// HTTP `OverallStatus` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "overallStatus", alias = "OverallStatus")]
     pub overall_status: Present<String>,
+    /// HTTP `ActorCount` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "actorCount", alias = "ActorCount")]
     pub actor_count: Present<i32>,
+    /// HTTP `RunningActorCount` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "runningActorCount", alias = "RunningActorCount")]
     pub running_actor_count: Present<i32>,
+    /// HTTP `ProcessingMailboxCount` field; missing, null and supplied values remain distinct.
     #[serde(
         default,
         rename = "processingMailboxCount",
         alias = "ProcessingMailboxCount"
     )]
     pub processing_mailbox_count: Present<i32>,
+    /// HTTP `QueuedMessageCount` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "queuedMessageCount", alias = "QueuedMessageCount")]
     pub queued_message_count: Present<i32>,
+    /// HTTP `Actors` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "actors", alias = "Actors")]
     pub actors: Present<Vec<ActorHealthActorSnapshot>>,
+    /// HTTP `Failures` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "failures", alias = "Failures")]
     pub failures: Present<Vec<ActorHealthFailureRecord>>,
+    /// HTTP `Projectors` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "projectors", alias = "Projectors")]
     pub projectors: Present<Vec<ActorHealthProjectorSnapshot>>,
+    /// HTTP `Workers` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "workers", alias = "Workers")]
     pub workers: Present<Vec<ActorHealthWorkerSnapshot>>,
+    /// HTTP `Collection` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "collection", alias = "Collection")]
     pub collection: Present<ActorHealthCollectionSnapshot>,
+    /// HTTP `Polling` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "polling", alias = "Polling")]
     pub polling: Present<ActorHealthPollingStatus>,
+    /// HTTP `Incidents` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "incidents", alias = "Incidents")]
     pub incidents: Present<Vec<ActorHealthIncident>>,
+    /// HTTP `Operations` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "operations", alias = "Operations")]
     pub operations: Present<Vec<ActorHealthOperation>>,
+    /// HTTP `History` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "history", alias = "History")]
     pub history: Present<Vec<ActorHealthHistoryPoint>>,
+    /// HTTP `SupervisorAuthorityState` field; missing, null and supplied values remain distinct.
     #[serde(
         default,
         rename = "supervisorAuthorityState",
         alias = "SupervisorAuthorityState"
     )]
     pub supervisor_authority_state: Present<String>,
+    /// HTTP `ManualMutationEnabled` field; missing, null and supplied values remain distinct.
     #[serde(
         default,
         rename = "manualMutationEnabled",
         alias = "ManualMutationEnabled"
     )]
     pub manual_mutation_enabled: Present<bool>,
+    /// HTTP `AutomaticMutationEnabled` field; missing, null and supplied values remain distinct.
     #[serde(
         default,
         rename = "automaticMutationEnabled",
@@ -62,6 +82,7 @@ pub struct ActorHealthSnapshot {
     pub automatic_mutation_enabled: Present<bool>,
 }
 impl Cells for ActorHealthSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "ObservedUtc" | "observedUtc" => self.observed_utc.scalar_cell(),
@@ -86,6 +107,7 @@ impl Cells for ActorHealthSnapshot {
     }
 }
 impl HealthFields for ActorHealthSnapshot {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         scalar(&self.observed_utc, key(prefix, "ObservedUtc"), output);
         scalar(&self.overall_status, key(prefix, "OverallStatus"), output);
@@ -149,62 +171,87 @@ impl HealthFields for ActorHealthSnapshot {
         );
     }
 }
+
+/// Actor Health Collection Snapshot used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthCollectionSnapshot {
+    /// HTTP `Revision` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "revision", alias = "Revision")]
     pub revision: Present<i64>,
+    /// HTTP `ObservedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "observedUtc", alias = "ObservedUtc")]
     pub observed_utc: Present<String>,
+    /// HTTP `ExpectedActors` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "expectedActors", alias = "ExpectedActors")]
     pub expected_actors: Present<i32>,
+    /// HTTP `CollectedActors` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "collectedActors", alias = "CollectedActors")]
     pub collected_actors: Present<i32>,
+    /// HTTP `FailedActors` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "failedActors", alias = "FailedActors")]
     pub failed_actors: Present<i32>,
+    /// HTTP `HealthyActors` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "healthyActors", alias = "HealthyActors")]
     pub healthy_actors: Present<i32>,
+    /// HTTP `DegradedActors` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "degradedActors", alias = "DegradedActors")]
     pub degraded_actors: Present<i32>,
+    /// HTTP `CriticalActors` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "criticalActors", alias = "CriticalActors")]
     pub critical_actors: Present<i32>,
+    /// HTTP `UnknownActors` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "unknownActors", alias = "UnknownActors")]
     pub unknown_actors: Present<i32>,
+    /// HTTP `QueueDepth` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "queueDepth", alias = "QueueDepth")]
     pub queue_depth: Present<i64>,
+    /// HTTP `Rejected` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "rejected", alias = "Rejected")]
     pub rejected: Present<i64>,
+    /// HTTP `Failed` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "failed", alias = "Failed")]
     pub failed: Present<i64>,
+    /// HTTP `ProcessCpuPercent` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "processCpuPercent", alias = "ProcessCpuPercent")]
     pub process_cpu_percent: Present<f64>,
+    /// HTTP `ProcessWorkingSetBytes` field; missing, null and supplied values remain distinct.
     #[serde(
         default,
         rename = "processWorkingSetBytes",
         alias = "ProcessWorkingSetBytes"
     )]
     pub process_working_set_bytes: Present<i64>,
+    /// HTTP `ManagedHeapBytes` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "managedHeapBytes", alias = "ManagedHeapBytes")]
     pub managed_heap_bytes: Present<i64>,
+    /// HTTP `TotalAllocatedBytes` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "totalAllocatedBytes", alias = "TotalAllocatedBytes")]
     pub total_allocated_bytes: Present<i64>,
+    /// HTTP `Gen0Collections` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "gen0Collections", alias = "Gen0Collections")]
     pub gen0_collections: Present<i64>,
+    /// HTTP `Gen1Collections` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "gen1Collections", alias = "Gen1Collections")]
     pub gen1_collections: Present<i64>,
+    /// HTTP `Gen2Collections` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "gen2Collections", alias = "Gen2Collections")]
     pub gen2_collections: Present<i64>,
+    /// HTTP `TotalGcPause` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "totalGcPause", alias = "TotalGcPause")]
     pub total_gc_pause: Present<String>,
+    /// HTTP `ThreadPoolPendingItems` field; missing, null and supplied values remain distinct.
     #[serde(
         default,
         rename = "threadPoolPendingItems",
         alias = "ThreadPoolPendingItems"
     )]
     pub thread_pool_pending_items: Present<i64>,
+    /// HTTP `ThreadPoolThreads` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "threadPoolThreads", alias = "ThreadPoolThreads")]
     pub thread_pool_threads: Present<i32>,
 }
 impl Cells for ActorHealthCollectionSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "Revision" | "revision" => self.revision.scalar_cell(),
@@ -240,6 +287,7 @@ impl Cells for ActorHealthCollectionSnapshot {
     }
 }
 impl HealthFields for ActorHealthCollectionSnapshot {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         scalar(&self.revision, key(prefix, "Revision"), output);
         scalar(&self.observed_utc, key(prefix, "ObservedUtc"), output);
@@ -305,24 +353,34 @@ impl HealthFields for ActorHealthCollectionSnapshot {
         );
     }
 }
+
+/// Actor Health Polling Status used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthPollingStatus {
+    /// HTTP `State` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "state", alias = "State")]
     pub state: Present<String>,
+    /// HTTP `ThreadName` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "threadName", alias = "ThreadName")]
     pub thread_name: Present<String>,
+    /// HTTP `IsAlive` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "isAlive", alias = "IsAlive")]
     pub is_alive: Present<bool>,
+    /// HTTP `CompletedCycles` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "completedCycles", alias = "CompletedCycles")]
     pub completed_cycles: Present<i64>,
+    /// HTTP `FailedCycles` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "failedCycles", alias = "FailedCycles")]
     pub failed_cycles: Present<i64>,
+    /// HTTP `Overruns` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "overruns", alias = "Overruns")]
     pub overruns: Present<i64>,
+    /// HTTP `LastHeartbeatUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "lastHeartbeatUtc", alias = "LastHeartbeatUtc")]
     pub last_heartbeat_utc: Present<String>,
 }
 impl Cells for ActorHealthPollingStatus {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "State" | "state" => self.state.scalar_cell(),
@@ -337,6 +395,7 @@ impl Cells for ActorHealthPollingStatus {
     }
 }
 impl HealthFields for ActorHealthPollingStatus {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         scalar(&self.state, key(prefix, "State"), output);
         scalar(&self.thread_name, key(prefix, "ThreadName"), output);
@@ -355,26 +414,38 @@ impl HealthFields for ActorHealthPollingStatus {
         );
     }
 }
+
+/// Actor Health Incident used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthIncident {
+    /// HTTP `ThreadId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "threadId", alias = "ThreadId")]
     pub thread_id: Present<ActorHealthThreadId>,
+    /// HTTP `Health` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "health", alias = "Health")]
     pub health: Present<String>,
+    /// HTTP `FirstObservedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "firstObservedUtc", alias = "FirstObservedUtc")]
     pub first_observed_utc: Present<String>,
+    /// HTTP `LastObservedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "lastObservedUtc", alias = "LastObservedUtc")]
     pub last_observed_utc: Present<String>,
+    /// HTTP `Generation` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "generation", alias = "Generation")]
     pub generation: Present<i64>,
+    /// HTTP `QueueDepth` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "queueDepth", alias = "QueueDepth")]
     pub queue_depth: Present<i32>,
+    /// HTTP `QueueCapacity` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "queueCapacity", alias = "QueueCapacity")]
     pub queue_capacity: Present<i32>,
+    /// HTTP `RestartsIn60Minutes` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "restartsIn60Minutes", alias = "RestartsIn60Minutes")]
     pub restarts_in60_minutes: Present<i32>,
+    /// HTTP `RestartsIn24Hours` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "restartsIn24Hours", alias = "RestartsIn24Hours")]
     pub restarts_in24_hours: Present<i32>,
+    /// HTTP `RequiresTraderReview` field; missing, null and supplied values remain distinct.
     #[serde(
         default,
         rename = "requiresTraderReview",
@@ -383,6 +454,7 @@ pub struct ActorHealthIncident {
     pub requires_trader_review: Present<bool>,
 }
 impl Cells for ActorHealthIncident {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "Health" | "health" => self.health.scalar_cell(),
@@ -403,6 +475,7 @@ impl Cells for ActorHealthIncident {
     }
 }
 impl HealthFields for ActorHealthIncident {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         if !self.thread_id.is_missing() {
             self.thread_id.fields(&key(prefix, "ThreadId"), output);
@@ -438,24 +511,34 @@ impl HealthFields for ActorHealthIncident {
         );
     }
 }
+
+/// Actor Health Operation used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthOperation {
+    /// HTTP `OperationId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "operationId", alias = "OperationId")]
     pub operation_id: Present<String>,
+    /// HTTP `ThreadId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "threadId", alias = "ThreadId")]
     pub thread_id: Present<ActorHealthThreadId>,
+    /// HTTP `ExpectedGeneration` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "expectedGeneration", alias = "ExpectedGeneration")]
     pub expected_generation: Present<i64>,
+    /// HTTP `StartedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "startedUtc", alias = "StartedUtc")]
     pub started_utc: Present<String>,
+    /// HTTP `CompletedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "completedUtc", alias = "CompletedUtc")]
     pub completed_utc: Present<String>,
+    /// HTTP `Outcome` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "outcome", alias = "Outcome")]
     pub outcome: Present<String>,
+    /// HTTP `Reason` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "reason", alias = "Reason")]
     pub reason: Present<String>,
 }
 impl Cells for ActorHealthOperation {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "OperationId" | "operationId" => self.operation_id.scalar_cell(),
@@ -469,6 +552,7 @@ impl Cells for ActorHealthOperation {
     }
 }
 impl HealthFields for ActorHealthOperation {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         scalar(&self.operation_id, key(prefix, "OperationId"), output);
         if !self.thread_id.is_missing() {
@@ -485,26 +569,37 @@ impl HealthFields for ActorHealthOperation {
         scalar(&self.reason, key(prefix, "Reason"), output);
     }
 }
+
+/// Actor Health Worker Snapshot used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthWorkerSnapshot {
+    /// HTTP `WorkerId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "workerId", alias = "WorkerId")]
     pub worker_id: Present<i32>,
+    /// HTTP `State` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "state", alias = "State")]
     pub state: Present<String>,
+    /// HTTP `IsStarted` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "isStarted", alias = "IsStarted")]
     pub is_started: Present<bool>,
+    /// HTTP `IsRunning` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "isRunning", alias = "IsRunning")]
     pub is_running: Present<bool>,
+    /// HTTP `IsFaulted` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "isFaulted", alias = "IsFaulted")]
     pub is_faulted: Present<bool>,
+    /// HTTP `CurrentMailbox` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "currentMailbox", alias = "CurrentMailbox")]
     pub current_mailbox: Present<ActorHealthThreadId>,
+    /// HTTP `ExceptionType` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "exceptionType", alias = "ExceptionType")]
     pub exception_type: Present<String>,
+    /// HTTP `FailureReason` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "failureReason", alias = "FailureReason")]
     pub failure_reason: Present<String>,
 }
 impl Cells for ActorHealthWorkerSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "WorkerId" | "workerId" => self.worker_id.scalar_cell(),
@@ -519,6 +614,7 @@ impl Cells for ActorHealthWorkerSnapshot {
     }
 }
 impl HealthFields for ActorHealthWorkerSnapshot {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         scalar(&self.worker_id, key(prefix, "WorkerId"), output);
         scalar(&self.state, key(prefix, "State"), output);
@@ -533,64 +629,86 @@ impl HealthFields for ActorHealthWorkerSnapshot {
         scalar(&self.failure_reason, key(prefix, "FailureReason"), output);
     }
 }
+
+/// Actor Health Projector Snapshot used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthProjectorSnapshot {
+    /// HTTP `ActorName` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "actorName", alias = "ActorName")]
     pub actor_name: Present<String>,
+    /// HTTP `ProjectorName` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "projectorName", alias = "ProjectorName")]
     pub projector_name: Present<String>,
+    /// HTTP `DurableProcessQueue` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "durableProcessQueue", alias = "DurableProcessQueue")]
     pub durable_process_queue: Present<String>,
+    /// HTTP `DurableReplayQueue` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "durableReplayQueue", alias = "DurableReplayQueue")]
     pub durable_replay_queue: Present<String>,
+    /// HTTP `IsReady` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "isReady", alias = "IsReady")]
     pub is_ready: Present<bool>,
+    /// HTTP `RecoveryEventsDiscovered` field; missing, null and supplied values remain distinct.
     #[serde(
         default,
         rename = "recoveryEventsDiscovered",
         alias = "RecoveryEventsDiscovered"
     )]
     pub recovery_events_discovered: Present<i64>,
+    /// HTTP `RecoveryEventsQueued` field; missing, null and supplied values remain distinct.
     #[serde(
         default,
         rename = "recoveryEventsQueued",
         alias = "RecoveryEventsQueued"
     )]
     pub recovery_events_queued: Present<i64>,
+    /// HTTP `UpdatedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "updatedUtc", alias = "UpdatedUtc")]
     pub updated_utc: Present<String>,
+    /// HTTP `FailureReason` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "failureReason", alias = "FailureReason")]
     pub failure_reason: Present<String>,
+    /// HTTP `PendingCount` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "pendingCount", alias = "PendingCount")]
     pub pending_count: Present<i64>,
+    /// HTTP `OldestPendingAgeSeconds` field; missing, null and supplied values remain distinct.
     #[serde(
         default,
         rename = "oldestPendingAgeSeconds",
         alias = "OldestPendingAgeSeconds"
     )]
     pub oldest_pending_age_seconds: Present<f64>,
+    /// HTTP `BlockedCount` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "blockedCount", alias = "BlockedCount")]
     pub blocked_count: Present<i64>,
+    /// HTTP `TerminalFailedCount` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "terminalFailedCount", alias = "TerminalFailedCount")]
     pub terminal_failed_count: Present<i64>,
+    /// HTTP `ExpiredLeaseCount` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "expiredLeaseCount", alias = "ExpiredLeaseCount")]
     pub expired_lease_count: Present<i64>,
+    /// HTTP `OutboxPendingCount` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "outboxPendingCount", alias = "OutboxPendingCount")]
     pub outbox_pending_count: Present<i64>,
+    /// HTTP `OldestOutboxAgeSeconds` field; missing, null and supplied values remain distinct.
     #[serde(
         default,
         rename = "oldestOutboxAgeSeconds",
         alias = "OldestOutboxAgeSeconds"
     )]
     pub oldest_outbox_age_seconds: Present<f64>,
+    /// HTTP `OutboxRetryCount` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "outboxRetryCount", alias = "OutboxRetryCount")]
     pub outbox_retry_count: Present<i64>,
+    /// HTTP `BusyWorkers` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "busyWorkers", alias = "BusyWorkers")]
     pub busy_workers: Present<i32>,
+    /// HTTP `WorkerCapacity` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "workerCapacity", alias = "WorkerCapacity")]
     pub worker_capacity: Present<i32>,
 }
 impl Cells for ActorHealthProjectorSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "ActorName" | "actorName" => self.actor_name.scalar_cell(),
@@ -629,6 +747,7 @@ impl Cells for ActorHealthProjectorSnapshot {
     }
 }
 impl HealthFields for ActorHealthProjectorSnapshot {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         scalar(&self.actor_name, key(prefix, "ActorName"), output);
         scalar(&self.projector_name, key(prefix, "ProjectorName"), output);
@@ -691,42 +810,61 @@ impl HealthFields for ActorHealthProjectorSnapshot {
         scalar(&self.worker_capacity, key(prefix, "WorkerCapacity"), output);
     }
 }
+
+/// Actor Health Failure Record used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthFailureRecord {
+    /// HTTP `FailureId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "failureId", alias = "FailureId")]
     pub failure_id: Present<String>,
+    /// HTTP `FailedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "failedUtc", alias = "FailedUtc")]
     pub failed_utc: Present<String>,
+    /// HTTP `ActorId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "actorId", alias = "ActorId")]
     pub actor_id: Present<ActorHealthActorId>,
+    /// HTTP `ThreadId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "threadId", alias = "ThreadId")]
     pub thread_id: Present<ActorHealthThreadId>,
+    /// HTTP `Verb` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "verb", alias = "Verb")]
     pub verb: Present<String>,
+    /// HTTP `Stage` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "stage", alias = "Stage")]
     pub stage: Present<String>,
+    /// HTTP `ExceptionType` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "exceptionType", alias = "ExceptionType")]
     pub exception_type: Present<String>,
+    /// HTTP `Error` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "error", alias = "Error")]
     pub error: Present<String>,
+    /// HTTP `PrimaryFailureId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "primaryFailureId", alias = "PrimaryFailureId")]
     pub primary_failure_id: Present<String>,
+    /// HTTP `Severity` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "severity", alias = "Severity")]
     pub severity: Present<String>,
+    /// HTTP `Outcome` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "outcome", alias = "Outcome")]
     pub outcome: Present<String>,
+    /// HTTP `DeliveryOutcome` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "deliveryOutcome", alias = "DeliveryOutcome")]
     pub delivery_outcome: Present<String>,
+    /// HTTP `HResult` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "hResult", alias = "HResult")]
     pub h_result: Present<i32>,
+    /// HTTP `ExceptionDetail` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "exceptionDetail", alias = "ExceptionDetail")]
     pub exception_detail: Present<String>,
+    /// HTTP `TraceId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "traceId", alias = "TraceId")]
     pub trace_id: Present<String>,
+    /// HTTP `SpanId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "spanId", alias = "SpanId")]
     pub span_id: Present<String>,
 }
 impl Cells for ActorHealthFailureRecord {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "FailureId" | "failureId" => self.failure_id.scalar_cell(),
@@ -748,6 +886,7 @@ impl Cells for ActorHealthFailureRecord {
     }
 }
 impl HealthFields for ActorHealthFailureRecord {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         scalar(&self.failure_id, key(prefix, "FailureId"), output);
         scalar(&self.failed_utc, key(prefix, "FailedUtc"), output);
@@ -783,42 +922,61 @@ impl HealthFields for ActorHealthFailureRecord {
         scalar(&self.span_id, key(prefix, "SpanId"), output);
     }
 }
+
+/// Actor Health Actor Snapshot used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthActorSnapshot {
+    /// HTTP `ActorId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "actorId", alias = "ActorId")]
     pub actor_id: Present<ActorHealthActorId>,
+    /// HTTP `Domain` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "domain", alias = "Domain")]
     pub domain: Present<String>,
+    /// HTTP `Implementation` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "implementation", alias = "Implementation")]
     pub implementation: Present<String>,
+    /// HTTP `IsRunning` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "isRunning", alias = "IsRunning")]
     pub is_running: Present<bool>,
+    /// HTTP `LifecycleState` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "lifecycleState", alias = "LifecycleState")]
     pub lifecycle_state: Present<String>,
+    /// HTTP `Generation` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "generation", alias = "Generation")]
     pub generation: Present<i64>,
+    /// HTTP `Status` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "status", alias = "Status")]
     pub status: Present<String>,
+    /// HTTP `QueueDepth` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "queueDepth", alias = "QueueDepth")]
     pub queue_depth: Present<i32>,
+    /// HTTP `Accepted` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "accepted", alias = "Accepted")]
     pub accepted: Present<i64>,
+    /// HTTP `Dequeued` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "dequeued", alias = "Dequeued")]
     pub dequeued: Present<i64>,
+    /// HTTP `Succeeded` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "succeeded", alias = "Succeeded")]
     pub succeeded: Present<i64>,
+    /// HTTP `HandledFailures` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "handledFailures", alias = "HandledFailures")]
     pub handled_failures: Present<i64>,
+    /// HTTP `EscapedFailures` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "escapedFailures", alias = "EscapedFailures")]
     pub escaped_failures: Present<i64>,
+    /// HTTP `Cancelled` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "cancelled", alias = "Cancelled")]
     pub cancelled: Present<i64>,
+    /// HTTP `Rejected` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "rejected", alias = "Rejected")]
     pub rejected: Present<i64>,
+    /// HTTP `Mailboxes` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "mailboxes", alias = "Mailboxes")]
     pub mailboxes: Present<Vec<ActorHealthMailboxSnapshot>>,
 }
 impl Cells for ActorHealthActorSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "Domain" | "domain" => self.domain.scalar_cell(),
@@ -840,6 +998,7 @@ impl Cells for ActorHealthActorSnapshot {
     }
 }
 impl HealthFields for ActorHealthActorSnapshot {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         if !self.actor_id.is_missing() {
             self.actor_id.fields(&key(prefix, "ActorId"), output);
@@ -871,14 +1030,19 @@ impl HealthFields for ActorHealthActorSnapshot {
         }
     }
 }
+
+/// Actor Health Actor Id used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthActorId {
+    /// HTTP `ActorType` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "actorType", alias = "ActorType")]
     pub actor_type: Present<String>,
+    /// HTTP `Name` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "name", alias = "Name")]
     pub name: Present<String>,
 }
 impl Cells for ActorHealthActorId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "ActorType" | "actorType" => self.actor_type.scalar_cell(),
@@ -888,57 +1052,82 @@ impl Cells for ActorHealthActorId {
     }
 }
 impl HealthFields for ActorHealthActorId {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         scalar(&self.actor_type, key(prefix, "ActorType"), output);
         scalar(&self.name, key(prefix, "Name"), output);
     }
 }
+
+/// Actor Health Mailbox Snapshot used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthMailboxSnapshot {
+    /// HTTP `ThreadId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "threadId", alias = "ThreadId")]
     pub thread_id: Present<ActorHealthThreadId>,
+    /// HTTP `QueueDepth` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "queueDepth", alias = "QueueDepth")]
     pub queue_depth: Present<i32>,
+    /// HTTP `Accepted` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "accepted", alias = "Accepted")]
     pub accepted: Present<i64>,
+    /// HTTP `Dequeued` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "dequeued", alias = "Dequeued")]
     pub dequeued: Present<i64>,
+    /// HTTP `Succeeded` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "succeeded", alias = "Succeeded")]
     pub succeeded: Present<i64>,
+    /// HTTP `HandledFailures` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "handledFailures", alias = "HandledFailures")]
     pub handled_failures: Present<i64>,
+    /// HTTP `EscapedFailures` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "escapedFailures", alias = "EscapedFailures")]
     pub escaped_failures: Present<i64>,
+    /// HTTP `Cancelled` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "cancelled", alias = "Cancelled")]
     pub cancelled: Present<i64>,
+    /// HTTP `Rejected` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "rejected", alias = "Rejected")]
     pub rejected: Present<i64>,
+    /// HTTP `IsAdmissionOpen` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "isAdmissionOpen", alias = "IsAdmissionOpen")]
     pub is_admission_open: Present<bool>,
+    /// HTTP `LifecycleState` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "lifecycleState", alias = "LifecycleState")]
     pub lifecycle_state: Present<String>,
+    /// HTTP `Generation` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "generation", alias = "Generation")]
     pub generation: Present<i64>,
+    /// HTTP `IsProcessing` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "isProcessing", alias = "IsProcessing")]
     pub is_processing: Present<bool>,
+    /// HTTP `CurrentVerb` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "currentVerb", alias = "CurrentVerb")]
     pub current_verb: Present<String>,
+    /// HTTP `LastAcceptedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "lastAcceptedUtc", alias = "LastAcceptedUtc")]
     pub last_accepted_utc: Present<String>,
+    /// HTTP `LastStartedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "lastStartedUtc", alias = "LastStartedUtc")]
     pub last_started_utc: Present<String>,
+    /// HTTP `LastCompletedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "lastCompletedUtc", alias = "LastCompletedUtc")]
     pub last_completed_utc: Present<String>,
+    /// HTTP `LastFailedUtc` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "lastFailedUtc", alias = "LastFailedUtc")]
     pub last_failed_utc: Present<String>,
+    /// HTTP `LastExceptionType` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "lastExceptionType", alias = "LastExceptionType")]
     pub last_exception_type: Present<String>,
+    /// HTTP `LastError` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "lastError", alias = "LastError")]
     pub last_error: Present<String>,
+    /// HTTP `Revision` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "revision", alias = "Revision")]
     pub revision: Present<i64>,
 }
 impl Cells for ActorHealthMailboxSnapshot {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "QueueDepth" | "queueDepth" => self.queue_depth.scalar_cell(),
@@ -966,6 +1155,7 @@ impl Cells for ActorHealthMailboxSnapshot {
     }
 }
 impl HealthFields for ActorHealthMailboxSnapshot {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         if !self.thread_id.is_missing() {
             self.thread_id.fields(&key(prefix, "ThreadId"), output);
@@ -1020,16 +1210,22 @@ impl HealthFields for ActorHealthMailboxSnapshot {
         scalar(&self.revision, key(prefix, "Revision"), output);
     }
 }
+
+/// Actor Health Thread Id used by the actor health component.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct ActorHealthThreadId {
+    /// HTTP `ActorType` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "actorType", alias = "ActorType")]
     pub actor_type: Present<String>,
+    /// HTTP `Name` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "name", alias = "Name")]
     pub name: Present<String>,
+    /// HTTP `EntityId` field; missing, null and supplied values remain distinct.
     #[serde(default, rename = "entityId", alias = "EntityId")]
     pub entity_id: Present<String>,
 }
 impl Cells for ActorHealthThreadId {
+    /// Resolves a named display cell; unsupported columns remain missing.
     fn cell(&self, column: &str) -> Cell<'_> {
         match column {
             "ActorType" | "actorType" => self.actor_type.scalar_cell(),
@@ -1040,6 +1236,7 @@ impl Cells for ActorHealthThreadId {
     }
 }
 impl HealthFields for ActorHealthThreadId {
+    /// Appends named display fields to the destination map.
     fn fields(&self, prefix: &str, output: &mut BTreeMap<String, String>) {
         scalar(&self.actor_type, key(prefix, "ActorType"), output);
         scalar(&self.name, key(prefix, "Name"), output);

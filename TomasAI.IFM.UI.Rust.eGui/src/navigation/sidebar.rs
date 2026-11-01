@@ -6,6 +6,7 @@ use eframe::egui;
 use serde::Deserialize;
 /// Reserved numeric bridge action for toggling the managed market feed.
 pub const FEED_TOGGLE_ACTION: u32 = 0xB0000000;
+
 /// Backend-authoritative availability and running state of the market-feed command.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -19,6 +20,7 @@ pub struct FeedControl {
     /// Whether the feed is currently reported active.
     pub active: bool,
 }
+
 // This declaration follows the shared publication's serde defaults.
 /// Economic-calendar page, status history, feed-control eligibility, and sequenced error information.
 #[derive(Clone, Default, Deserialize)]
@@ -49,10 +51,14 @@ pub struct SidebarPublication {
     pub error: String,
     /// Monotonic error identity used to avoid redisplaying the same backend error.
     pub error_sequence: u64,
+    /// Retained native failures survive latest-only sidebar publication delivery.
+    #[serde(skip)]
+    pub error_history: Vec<(u64, String)>,
     /// Single latest explicit outcome; copied in memory, never part of the old bridge wire contract.
     #[serde(skip)]
     pub outcome_dialogs: Vec<crate::status_dialog::Notice>,
 }
+
 /// One published economic-calendar row with display-ready outcome values.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default)]
@@ -72,6 +78,7 @@ pub struct CalendarRow {
     /// Published prior release value.
     pub prior: String,
 }
+
 /// Stable status-console row with formatted time and message.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default)]
@@ -83,6 +90,7 @@ pub struct StatusRow {
     /// Human-readable status or request-outcome explanation.
     pub message: String,
 }
+
 /// Native sidebar row selection and one-time error presentation state.
 #[derive(Default)]
 pub struct SidebarView {
@@ -110,28 +118,46 @@ impl SidebarView {
     fn observe_dialog(&mut self, snapshot: &SidebarPublication) {
         self.observe_dialog_at(snapshot, std::time::Instant::now());
     }
+
+
     /// Starts expiry only for a new non-error identity. Keeping the sequence after
     /// dismissal prevents an unchanged publication from reopening the notification.
     fn observe_dialog_at(&mut self, snapshot: &SidebarPublication, now: std::time::Instant) {
-        let outcome = snapshot.outcome_dialogs.iter().max_by_key(|notice| notice.sequence);
-        let error_sequence = if snapshot.error.is_empty() { 0 } else { snapshot.error_sequence };
+        let outcome = snapshot
+            .outcome_dialogs
+            .iter()
+            .max_by_key(|notice| notice.sequence);
+        let error_sequence = if snapshot.error.is_empty() {
+            0
+        } else {
+            snapshot.error_sequence
+        };
         if let Some(notice) = outcome.filter(|notice| notice.sequence > error_sequence) {
             if notice.sequence > self.last_dialog_sequence {
                 self.last_dialog_sequence = notice.sequence;
                 self.error_dialog = Some((notice.message.clone(), notice.severity));
-                self.notification_expires_at = (notice.severity != crate::status_dialog::Severity::Error)
+                self.notification_expires_at = (notice.severity
+                    != crate::status_dialog::Severity::Error)
                     .then_some(now + std::time::Duration::from_secs(10));
             }
         } else if error_sequence > self.last_dialog_sequence {
             self.last_dialog_sequence = error_sequence;
-            self.error_dialog = Some((snapshot.error.clone(), crate::status_dialog::Severity::Error));
+            self.error_dialog = Some((
+                snapshot.error.clone(),
+                crate::status_dialog::Severity::Error,
+            ));
             self.notification_expires_at = None;
         }
-        if self.notification_expires_at.is_some_and(|deadline| now >= deadline) {
+        if self
+            .notification_expires_at
+            .is_some_and(|deadline| now >= deadline)
+        {
             self.error_dialog = None;
             self.notification_expires_at = None;
         }
     }
+
+
     /// Render the economic-calendar tabs, filters, rows, and selected details; return the numeric action for a user query/selection.
     pub fn calendar(&mut self, ui: &mut egui::Ui, snapshot: &SidebarPublication) -> Option<u32> {
         let mut action = None;
@@ -328,18 +354,22 @@ impl SidebarView {
         self.observe_dialog(snapshot);
         if let Some(deadline) = self.notification_expires_at {
             // Wake an otherwise idle UI at expiry; no polling or backend timer.
-            ui.ctx().request_repaint_after(deadline.saturating_duration_since(std::time::Instant::now()));
+            ui.ctx().request_repaint_after(
+                deadline.saturating_duration_since(std::time::Instant::now()),
+            );
         }
-        if let Some((message,severity)) = self.error_dialog.clone() {
+        if let Some((message, severity)) = self.error_dialog.clone() {
             egui::Modal::new(egui::Id::new("calendar-error-dialog")).show(ui.ctx(), |ui| {
-                if crate::status_dialog::body(ui,&message,severity).acknowledged {
-                    self.error_dialog=None;
-                    self.notification_expires_at=None;
+                if crate::status_dialog::body(ui, &message, severity).acknowledged {
+                    self.error_dialog = None;
+                    self.notification_expires_at = None;
                 }
             });
         }
         action
     }
+
+
     /// Render the bounded visible status rows and present each new sequenced backend error once.
     pub fn status(&mut self, ui: &mut egui::Ui, snapshot: &SidebarPublication) {
         self.drawn_status_rows = 0;
@@ -366,7 +396,9 @@ impl SidebarView {
             None
         };
         if let Some(index) = navigation {
-            self.selected_status_id = snapshot.status_rows[snapshot.status_rows.len() - 1 - index].id.clone();
+            self.selected_status_id = snapshot.status_rows[snapshot.status_rows.len() - 1 - index]
+                .id
+                .clone();
         }
         crate::control_parity::grid_viewport(ui, status_border, |ui| {
             let body_height = (ui.available_height()
@@ -374,7 +406,7 @@ impl SidebarView {
                 - ui.spacing().item_spacing.y
                 - ui.spacing().scroll.allocated_width())
             .max(0.);
-            crate::console_capacity::observe(body_height,18.0+ui.spacing().item_spacing.y);
+            crate::console_capacity::observe(body_height, 18.0 + ui.spacing().item_spacing.y);
             egui::ScrollArea::horizontal()
                 .id_salt("status-console-horizontal")
                 .auto_shrink([false, false])
@@ -424,7 +456,8 @@ impl SidebarView {
                             body.rows(18.0, snapshot.status_rows.len(), |mut row| {
                                 self.drawn_status_rows += 1;
                                 // Retain chronological storage for replay merging; reverse only the display.
-                                let item = &snapshot.status_rows[snapshot.status_rows.len() - 1 - row.index()];
+                                let item = &snapshot.status_rows
+                                    [snapshot.status_rows.len() - 1 - row.index()];
                                 row.set_selected(item.id == self.selected_status_id);
                                 let mut clicked = false;
                                 row.col(|ui| {
@@ -463,6 +496,7 @@ impl SidebarView {
     }
 }
 
+
 /// Paint the calendar/status viewport's inside border without extending into adjacent controls.
 fn draw_grid_border(ui: &egui::Ui, rect: egui::Rect) {
     ui.painter().rect_stroke(
@@ -475,6 +509,7 @@ fn draw_grid_border(ui: &egui::Ui, rect: egui::Rect) {
         egui::StrokeKind::Inside,
     );
 }
+
 
 /// Resolve arrow/Home/End/Page navigation within the available row count. Return a new in-bounds selection only when a relevant key is pressed.
 fn navigate(ui: &egui::Ui, selected: Option<usize>, count: usize, page: usize) -> Option<usize> {
@@ -506,10 +541,21 @@ mod latest_dialog_tests {
     use super::*;
     use crate::status_dialog::{Notice, Severity};
 
+
+    /// Provides notice for the sidebar implementation.
     fn notice(sequence: u64, severity: Severity) -> SidebarPublication {
-        SidebarPublication {outcome_dialogs: vec![Notice {sequence, message: format!("Notice {sequence}"), severity}], ..Default::default()}
+        SidebarPublication {
+            outcome_dialogs: vec![Notice {
+                sequence,
+                message: format!("Notice {sequence}"),
+                severity,
+            }],
+            ..Default::default()
+        }
     }
 
+
+    /// Verifies that warnings and successes close at ten seconds without reopening.
     #[test]
     fn warnings_and_successes_close_at_ten_seconds_without_reopening() {
         for severity in [Severity::Warning, Severity::Success] {
@@ -527,6 +573,8 @@ mod latest_dialog_tests {
         }
     }
 
+
+    /// Verifies that replacement notifications receive their own full ten seconds.
     #[test]
     fn replacement_notifications_receive_their_own_full_ten_seconds() {
         for severity in [Severity::Warning, Severity::Success] {
@@ -539,11 +587,16 @@ mod latest_dialog_tests {
             assert_eq!(view.error_dialog.as_ref().unwrap().0, "Notice 2");
             view.observe_dialog_at(&replacement, start + std::time::Duration::from_secs(19));
             assert!(view.error_dialog.is_none());
-            view.observe_dialog_at(&notice(1, Severity::Warning), start + std::time::Duration::from_secs(20));
+            view.observe_dialog_at(
+                &notice(1, Severity::Warning),
+                start + std::time::Duration::from_secs(20),
+            );
             assert!(view.error_dialog.is_none());
         }
     }
 
+
+    /// Verifies that notification timer cannot close a replacement error.
     #[test]
     fn notification_timer_cannot_close_a_replacement_error() {
         for severity in [Severity::Warning, Severity::Success] {
@@ -553,25 +606,49 @@ mod latest_dialog_tests {
             let replacement = notice(2, Severity::Error);
             view.observe_dialog_at(&replacement, start + std::time::Duration::from_secs(9));
             view.observe_dialog_at(&replacement, start + std::time::Duration::from_secs(60));
-            assert_eq!(view.error_dialog, Some(("Notice 2".into(), Severity::Error)));
+            assert_eq!(
+                view.error_dialog,
+                Some(("Notice 2".into(), Severity::Error))
+            );
             assert!(view.notification_expires_at.is_none());
         }
         let mut view = SidebarView::default();
         let start = std::time::Instant::now();
         view.observe_dialog_at(&notice(1, Severity::Success), start);
-        let failure = SidebarPublication {error: "Fatal".into(), error_sequence: 2, ..Default::default()};
+        let failure = SidebarPublication {
+            error: "Fatal".into(),
+            error_sequence: 2,
+            ..Default::default()
+        };
         view.observe_dialog_at(&failure, start + std::time::Duration::from_secs(9));
         view.observe_dialog_at(&failure, start + std::time::Duration::from_secs(60));
         assert_eq!(view.error_dialog, Some(("Fatal".into(), Severity::Error)));
     }
 
+
+    /// Verifies that latest outcome replaces open error and acknowledgement has no backlog.
     #[test]
     fn latest_outcome_replaces_open_error_and_acknowledgement_has_no_backlog() {
         let mut view = SidebarView::default();
-        let mut publication = SidebarPublication {error: "Resetting dataset".into(), error_sequence: 1, ..Default::default()};
+        let mut publication = SidebarPublication {
+            error: "Resetting dataset".into(),
+            error_sequence: 1,
+            ..Default::default()
+        };
         view.observe_dialog(&publication);
         assert_eq!(view.error_dialog.as_ref().unwrap().0, "Resetting dataset");
-        publication.outcome_dialogs = vec![Notice {sequence: 2, message: "Connection restored".into(), severity: Severity::Success}, Notice {sequence: 3, message: "Monitoring verified".into(), severity: Severity::Success}];
+        publication.outcome_dialogs = vec![
+            Notice {
+                sequence: 2,
+                message: "Connection restored".into(),
+                severity: Severity::Success,
+            },
+            Notice {
+                sequence: 3,
+                message: "Monitoring verified".into(),
+                severity: Severity::Success,
+            },
+        ];
         view.observe_dialog(&publication);
         assert_eq!(view.error_dialog.as_ref().unwrap().0, "Monitoring verified");
         view.error_dialog = None; // Same state transition as pressing OK.
@@ -583,6 +660,9 @@ mod latest_dialog_tests {
         publication.error_sequence = 4;
         publication.error = "New failure".into();
         view.observe_dialog(&publication);
-        assert_eq!(view.error_dialog, Some(("New failure".into(), Severity::Error)));
+        assert_eq!(
+            view.error_dialog,
+            Some(("New failure".into(), Severity::Error))
+        );
     }
 }

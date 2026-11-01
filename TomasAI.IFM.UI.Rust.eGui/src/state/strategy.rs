@@ -19,23 +19,40 @@ use crate::{WorkflowChoice, strategy_workspace::GraphPoint};
 use rmpv::Value;
 use std::collections::BTreeMap;
 const FRAMES: [&str; 3] = ["Daily", "Weekly", "Monthly"];
+
+/// Strategy Controller used by the strategy component.
 pub struct StrategyController {
+    /// Symbol associated with this strategy controller.
     symbol: String,
+    /// Contract associated with this strategy controller.
     contract: String,
+    /// Context required to interpret the current operation or publication.
     context: Option<BusinessContext>,
+    /// Frame associated with this strategy controller.
     frame: usize,
+    /// Keyed views retained by StrategyController.
     views: BTreeMap<String, WorkflowView>,
+    /// Keyed signals retained by StrategyController.
     signals: BTreeMap<String, FuturesItiSignalV2ReadModel>,
+    /// Keyed tokens retained by StrategyController.
     tokens: BTreeMap<String, u32>,
+    /// Next token associated with this strategy controller.
     next_token: u32,
+    /// Current selection retained by this state or view.
     selected: Option<String>,
+    /// Keyed pages retained by StrategyController.
     pages: BTreeMap<String, u32>,
+    /// Keyed totals retained by StrategyController.
     totals: BTreeMap<String, usize>,
+    /// Generation associated with this strategy controller.
     generation: u64,
+    /// Epoch associated with this strategy controller.
     epoch: String,
+    /// Current status text or state exposed by this component.
     status: String,
 }
 impl Default for StrategyController {
+    /// Constructs the initial state used when no explicit value is supplied.
     fn default() -> Self {
         Self {
             symbol: std::env::var("IFM_RUST_SYMBOL").unwrap_or("ES".into()),
@@ -56,6 +73,7 @@ impl Default for StrategyController {
     }
 }
 impl StrategyController {
+    /// Checks accepts against the current strategy state.
     fn accepts(
         &self,
         contract: &str,
@@ -78,6 +96,9 @@ impl StrategyController {
         let (start, end) = api::graph_window(context, frame)?;
         Ok(at >= start && at <= end)
     }
+
+
+    /// Applies signal for strategy controller.
     pub fn apply_signal(
         &mut self,
         _registry: &Registry,
@@ -117,6 +138,9 @@ impl StrategyController {
         }
         Ok(true)
     }
+
+
+    /// Applies view for strategy controller.
     pub fn apply_view(&mut self, registry: &Registry, wire: Value) -> Result<bool, String> {
         let row = WorkflowView::from_backend(registry, &wire)?;
         let header = &row.header;
@@ -156,6 +180,9 @@ impl StrategyController {
         }
         Ok(true)
     }
+
+
+    /// Refreshes strategy for strategy controller.
     pub async fn refresh(
         &mut self,
         backend: &Backend,
@@ -261,6 +288,9 @@ impl StrategyController {
         };
         Ok(())
     }
+
+
+    /// Provides action for the strategy controller implementation.
     pub fn action(&mut self, action: u32) -> Result<(), String> {
         match action {
             10..=12 => {
@@ -281,6 +311,9 @@ impl StrategyController {
         }
         Ok(())
     }
+
+
+    /// Provides snapshot for the strategy controller implementation.
     pub fn snapshot(&mut self, registry: &Registry) -> Result<Snapshot, String> {
         self.generation += 1;
         let frame = FRAMES[self.frame];
@@ -398,6 +431,9 @@ impl StrategyController {
         result.time_frame = frame.into();
         Ok(result)
     }
+
+
+    /// Sets error for strategy controller.
     pub fn set_error(&mut self, error: &str) {
         self.status = error.into();
     }
@@ -406,6 +442,9 @@ impl StrategyController {
 #[cfg(test)]
 mod typed_state_tests {
     use super::*;
+
+
+    /// Verifies that workflow revisions and signal deduplication preserve typed publications.
     #[test]
     fn workflow_revisions_and_signal_deduplication_preserve_typed_publications() {
         let registry = Registry::compiled().unwrap();

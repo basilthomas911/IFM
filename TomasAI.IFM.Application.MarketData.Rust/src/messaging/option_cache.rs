@@ -3,7 +3,6 @@
 //! bytes retain no provider resource and use a separate writer from actor IDs.
 use super::{codec, wire::guid};
 use crate::option_chain::composition::model::Snapshot;
-use rmpv::Value;
 use sha2::{Digest, Sha256};
 /// Existing maximum compressed publication length.
 pub const MAXIMUM: usize = 8 * 1024 * 1024;
@@ -43,6 +42,20 @@ impl Publication {
         version: i64,
         scope: &str,
     ) -> Result<Self, &'static str> {
+        Self::owned(snapshot.clone(), date, configuration, version, scope)
+    }
+
+    /// Transfer an already sealed snapshot into its cache publication without cloning the graph.
+    ///
+    /// # Errors
+    /// Invalid identity or oversized complete content is rejected before publication.
+    pub fn owned(
+        snapshot: Snapshot,
+        date: i32,
+        configuration: &str,
+        version: i64,
+        scope: &str,
+    ) -> Result<Self, &'static str> {
         if snapshot.digest.len() != 64
             || !(0..=3652058).contains(&date)
             || configuration.trim().is_empty()
@@ -53,13 +66,16 @@ impl Publication {
         {
             return Err("Invalid native option-cache publication identity");
         }
-        let content = codec::encode(&Value::Array(vec![
-            snapshot.value()?,
-            date.into(),
-            configuration.into(),
-            version.into(),
-            scope.into(),
-        ]))?;
+        let mut content = Vec::new();
+        rmp::encode::write_array_len(&mut content, 5).map_err(|_| "Event encoding failed")?;
+        snapshot.encode_into(&mut content)?;
+        let encoded = (|| {
+            rmp::encode::write_sint(&mut content, i64::from(date))?;
+            rmp::encode::write_str(&mut content, configuration)?;
+            rmp::encode::write_sint(&mut content, version)?;
+            rmp::encode::write_str(&mut content, scope)
+        })();
+        encoded.map_err(|_| "Event encoding failed")?;
         // A sealed snapshot is <=4 MiB. Check before compression as a second
         // independent boundary for callers constructing an unsealed model.
         if content.len() > 4 * 1024 * 1024 + 4096 {
@@ -70,14 +86,16 @@ impl Publication {
             return Err("Native option-cache publication exceeds transport bound");
         }
         let digest = format!("{:X}", Sha256::digest(&bytes));
+        let generation = snapshot.generation;
+        let until = snapshot.until;
         Ok(Self {
-            snapshot: std::sync::Arc::new(snapshot.clone()),
+            snapshot: std::sync::Arc::new(snapshot),
             date,
             configuration: configuration.into(),
-            generation: snapshot.generation,
+            generation,
             scope: scope.into(),
             version,
-            until: snapshot.until,
+            until,
             bytes,
             digest,
         })
@@ -111,14 +129,21 @@ impl Publication {
         if offset >= self.bytes.len() {
             return Err("Native option-cache chunk unavailable");
         }
-        codec::compress(codec::encode(&Value::Array(vec![
-            guid(self.generation).into(),
-            self.scope.clone().into(),
-            self.version.into(),
-            self.bytes.len().into(),
-            offset.into(),
-            Value::Binary(self.bytes[offset..(offset + CHUNK).min(self.bytes.len())].to_vec()),
-            self.digest.clone().into(),
-        ]))?)
+        let mut output = Vec::with_capacity((self.bytes.len() - offset).min(CHUNK) + 256);
+        let encoded = (|| {
+            rmp::encode::write_array_len(&mut output, 7)?;
+            rmp::encode::write_str(&mut output, &guid(self.generation))?;
+            rmp::encode::write_str(&mut output, &self.scope)?;
+            rmp::encode::write_sint(&mut output, self.version)?;
+            rmp::encode::write_uint(&mut output, self.bytes.len() as u64)?;
+            rmp::encode::write_uint(&mut output, offset as u64)?;
+            rmp::encode::write_bin(
+                &mut output,
+                &self.bytes[offset..(offset + CHUNK).min(self.bytes.len())],
+            )?;
+            rmp::encode::write_str(&mut output, &self.digest)
+        })();
+        encoded.map_err(|_| "Event encoding failed")?;
+        codec::compress(output)
     }
 }

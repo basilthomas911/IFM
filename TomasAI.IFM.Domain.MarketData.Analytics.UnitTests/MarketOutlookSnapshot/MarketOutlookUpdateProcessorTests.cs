@@ -22,6 +22,39 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
 {
     static readonly MarketOutlookEntityId Id = new("ESZ26", new DateOnly(2026, 9, 1));
 
+    [Theory]
+    [InlineData(IntrinsicTimeModeType.TrendOvershootExtended)]
+    [InlineData(IntrinsicTimeModeType.TrendOvershootReversal)]
+    public async Task Overshoot_updates_latest_and_structural_cache_components(IntrinsicTimeModeType mode)
+    {
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var signal = SampleData.StartOfDayEvent.FuturesItiSignal! with
+        {
+            ContractId = Id.ContractId, ValueDate = Id.ValueDate, TimePeriod = TimeFrameType.Daily,
+            IntrinsicTimeMode = mode, Threshold = 10, BandPercentage = 0.20, BandSize = 2, BandLevel = 1.4
+        };
+        runtime.Channel.Submit(new ItiMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = DateTime.UtcNow,
+            MarketDataAsOfUtc = DateTime.UtcNow, Signal = signal, SourceSequence = 1
+        });
+        await runtime.DrainAsync();
+        runtime.Cache.TryGetInputs(Id, out var state).Should().BeTrue();
+        state.LatestItiTrendSignal.Should().BeSameAs(signal);
+        if (mode == IntrinsicTimeModeType.TrendOvershootExtended)
+        {
+            state.TrendExtremeChange.Should().BeSameAs(signal);
+            state.TrendReversalChange.Should().BeNull();
+            state.Positions.Should().ContainKey(MarketOutlookComponentType.ItiExtreme);
+        }
+        else
+        {
+            state.TrendReversalChange.Should().BeSameAs(signal);
+            state.TrendExtremeChange.Should().BeNull();
+            state.Positions.Should().ContainKey(MarketOutlookComponentType.ItiReversal);
+        }
+    }
+
     [Fact]
     public async Task Production_processor_records_analytics_cache_composition_and_publication_in_central_registry_once()
     {

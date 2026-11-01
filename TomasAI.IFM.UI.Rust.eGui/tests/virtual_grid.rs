@@ -3,6 +3,9 @@ use ifm_ui_egui::{
     Catalog,
     virtual_grid::{GridRow, GridView},
 };
+
+
+/// Provides rows for the virtual grid implementation.
 fn rows(count: usize) -> Vec<GridRow> {
     (1..=count)
         .map(|id| GridRow {
@@ -14,6 +17,9 @@ fn rows(count: usize) -> Vec<GridRow> {
         })
         .collect()
 }
+
+
+/// Verifies that all rows addressable but only viewport rows are drawn.
 #[test]
 fn all_rows_addressable_but_only_viewport_rows_are_drawn() {
     for count in [1000, 10000, 100000] {
@@ -52,6 +58,9 @@ fn all_rows_addressable_but_only_viewport_rows_are_drawn() {
         assert_eq!(h.state().selected, Some(1));
     }
 }
+
+
+/// Verifies that ordering is prepared off thread and selection identity survives.
 #[test]
 fn ordering_is_prepared_off_thread_and_selection_identity_survives() {
     let mut grid = GridView::new(rows(100000));
@@ -79,6 +88,9 @@ fn ordering_is_prepared_off_thread_and_selection_identity_survives() {
             .all(|&i| h.state().rows[i].id.to_string().contains("25"))
     );
 }
+
+
+/// Verifies that cached grid frame timing report.
 #[test]
 fn cached_grid_frame_timing_report() {
     let catalog: Catalog =

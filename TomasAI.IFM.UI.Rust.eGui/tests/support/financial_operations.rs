@@ -4,6 +4,9 @@ use ifm_ui_egui::{
     services::financial_operations::OperationStore,
 };
 use serde_json::{Value as Json, json};
+
+
+/// Provides mode for the financial operations implementation.
 async fn mode(backend: &Backend, name: &str) {
     service_result(
         &backend
@@ -18,6 +21,9 @@ async fn mode(backend: &Backend, name: &str) {
     )
     .unwrap();
 }
+
+
+/// Provides count for the financial operations implementation.
 async fn count(backend: &Backend) -> i64 {
     service_result(
         &backend
@@ -36,6 +42,9 @@ async fn count(backend: &Backend) -> i64 {
         .as_i64()
         .unwrap()
 }
+
+
+/// Provides prepared for the financial operations implementation.
 fn prepared(registry: &Registry, configuration: bool) -> Json {
     let file = if configuration {
         "financial-configuration-pending.json"
@@ -76,6 +85,9 @@ fn prepared(registry: &Registry, configuration: bool) -> Json {
     pending["Completion"] = Json::Null;
     pending
 }
+
+
+/// Provides store for the financial operations implementation.
 fn store(configuration: bool) -> OperationStore {
     OperationStore {
         directory: std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -92,6 +104,9 @@ fn store(configuration: bool) -> OperationStore {
         configuration,
     }
 }
+
+
+/// Verifies that financial operations reconcile persisted identity before any dispatch.
 #[tokio::test]
 #[ignore = "Requires isolated C# compatibility responder"]
 async fn financial_operations_reconcile_persisted_identity_before_any_dispatch() {

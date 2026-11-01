@@ -5,12 +5,18 @@ use ifm_ui_egui::{
 };
 use std::collections::BTreeMap;
 
+/// State used by the portfolio migration test fixtures.
 struct State {
+    /// Manager associated with this state.
     manager: PortfolioManager,
+    /// Publication associated with this state.
     publication: ContractPublication,
+    /// Ordered requests retained by State.
     requests: Vec<serde_json::Value>,
 }
 
+
+/// Verifies that administration does not grow on repaint or pointer movement.
 #[test]
 fn administration_does_not_grow_on_repaint_or_pointer_movement() {
     let mut context = BTreeMap::from([
@@ -83,6 +89,8 @@ fn administration_does_not_grow_on_repaint_or_pointer_movement() {
     );
 }
 
+
+/// Verifies that funds select exact version from any column in the row.
 #[test]
 fn funds_select_exact_version_from_any_column_in_the_row() {
     let ids = [
@@ -163,6 +171,8 @@ fn funds_select_exact_version_from_any_column_in_the_row() {
     }
 }
 
+
+/// Verifies that administration embeds policy below grid with actions on the right.
 #[test]
 #[ignore = "Requires the managed PortfolioMigrationTests wire fixtures and a graphics device"]
 fn administration_embeds_policy_below_grid_with_actions_on_the_right() {
@@ -298,6 +308,9 @@ fn administration_embeds_policy_below_grid_with_actions_on_the_right() {
     );
 }
 
+
+/// Verifies that managed portfolio documents render all controls within the original dialog
+/// dimensions.
 #[test]
 #[ignore = "Requires the managed PortfolioMigrationTests wire fixtures and a graphics device"]
 fn managed_portfolio_documents_render_all_controls_within_the_original_dialog_dimensions() {
@@ -385,8 +398,13 @@ fn managed_portfolio_documents_render_all_controls_within_the_original_dialog_di
                 || (key == "ledger" && matches!(name, "Refresh" | "Close"))
                 || (key == "financials" && name == "Refresh");
             if removed {
-                assert!(!h.state().manager.controls.contains_key(&format!("{key}.button.{name}")),
-                    "{view}: obsolete {name} unexpectedly returned");
+                assert!(
+                    !h.state()
+                        .manager
+                        .controls
+                        .contains_key(&format!("{key}.button.{name}")),
+                    "{view}: obsolete {name} unexpectedly returned"
+                );
                 continue;
             }
             assert!(
@@ -441,6 +459,8 @@ fn managed_portfolio_documents_render_all_controls_within_the_original_dialog_di
     }
 }
 
+
+/// Verifies that funds embed financial and risk tabs below grid with equal width action controls.
 #[test]
 fn funds_embed_financial_and_risk_tabs_below_grid_with_equal_width_action_controls() {
     let fund_id = r#"["Fixture Fund","1","Active"]"#;
@@ -627,16 +647,22 @@ fn funds_embed_financial_and_risk_tabs_below_grid_with_equal_width_action_contro
     assert!(h.query_by_label("Next page").is_none());
 }
 
+
+/// Verifies that create fund is compact fixed and saves a single column checked list.
 #[test]
 fn create_fund_is_compact_fixed_and_saves_a_single_column_checked_list() {
     verify_compact_fund_layout("new-fund", "Create Fund");
 }
 
+
+/// Verifies that change fund uses compact layout and saves checked deployments.
 #[test]
 fn change_fund_uses_compact_layout_and_saves_checked_deployments() {
     verify_compact_fund_layout("version-fund", "Change Fund");
 }
 
+
+/// Provides verify compact fund layout for the portfolio migration implementation.
 fn verify_compact_fund_layout(dialog_key: &str, title: &str) {
     let mut fields = vec![
         serde_json::json!({"key":"FundId","caption":"Fund ID","value":"902","enabled":false}),
@@ -809,6 +835,8 @@ fn verify_compact_fund_layout(dialog_key: &str, title: &str) {
     );
 }
 
+
+/// Verifies that fund details actions align with headers and property captions precede values.
 #[test]
 fn fund_details_actions_align_with_headers_and_property_captions_precede_values() {
     let document = serde_json::json!({
@@ -913,26 +941,36 @@ fn fund_details_actions_align_with_headers_and_property_captions_precede_values(
     }
 }
 
+
+/// Verifies that create portfolio uses compact creation layout and preserves save cancel.
 #[test]
 fn create_portfolio_uses_compact_creation_layout_and_preserves_save_cancel() {
     verify_portfolio_creation_layout("new-portfolio", "Create Portfolio");
 }
 
+
+/// Verifies that create portfolio version uses compact creation layout and preserves save cancel.
 #[test]
 fn create_portfolio_version_uses_compact_creation_layout_and_preserves_save_cancel() {
     verify_portfolio_creation_layout("version-portfolio", "Create Portfolio Version");
 }
 
+
+/// Verifies that change portfolio state uses compact layout and preserves apply cancel.
 #[test]
 fn change_portfolio_state_uses_compact_layout_and_preserves_apply_cancel() {
     verify_portfolio_creation_layout("portfolio-state", "Change Portfolio State");
 }
 
+
+/// Verifies that change fund state uses compact layout and preserves apply cancel.
 #[test]
 fn change_fund_state_uses_compact_layout_and_preserves_apply_cancel() {
     verify_portfolio_creation_layout("fund-state", "Change Fund State");
 }
 
+
+/// Provides verify portfolio creation layout for the portfolio migration implementation.
 fn verify_portfolio_creation_layout(dialog_key: &str, title: &str) {
     let changing_state = matches!(dialog_key, "portfolio-state" | "fund-state");
     let save_label = if changing_state { "Apply" } else { "Save" };
@@ -1138,6 +1176,9 @@ fn verify_portfolio_creation_layout(dialog_key: &str, title: &str) {
     );
 }
 
+
+/// Verifies that fund transaction uses compact layout without inline status and routes financial
+/// actions.
 #[test]
 fn fund_transaction_uses_compact_layout_without_inline_status_and_routes_financial_actions() {
     let fields = vec![
@@ -1282,6 +1323,8 @@ fn fund_transaction_uses_compact_layout_without_inline_status_and_routes_financi
     );
 }
 
+
+/// Verifies that ledger places fields below full width grid and preserves apply.
 #[test]
 fn ledger_places_fields_below_full_width_grid_and_preserves_apply() {
     let keys = [
@@ -1386,6 +1429,8 @@ fn ledger_places_fields_below_full_width_grid_and_preserves_apply() {
     }
 }
 
+
+/// Verifies that fund allocation uses compact aligned fields and centered actions.
 #[test]
 fn fund_allocation_uses_compact_aligned_fields_and_centered_actions() {
     let keys = [
@@ -1468,6 +1513,8 @@ fn fund_allocation_uses_compact_aligned_fields_and_centered_actions() {
     );
 }
 
+
+/// Verifies that risk envelope and assignment follow compact fund editor layout.
 #[test]
 fn risk_envelope_and_assignment_follow_compact_fund_editor_layout() {
     for (key, title, keys) in [

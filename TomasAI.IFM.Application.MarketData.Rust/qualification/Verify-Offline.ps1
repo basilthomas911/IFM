@@ -1,15 +1,15 @@
-param([switch]$IncludeProductionDeadlines,[switch]$IncludeNats,[switch]$IncludePostgres,[switch]$IncludeSustained,[string]$ResumeFrom)
+param([switch]$IncludeProductionDeadlines,[switch]$IncludeNats,[switch]$IncludePostgres,[switch]$IncludeSustained,[string]$ResumeFrom,[string]$OutputDirectory,[switch]$IsolatedManagedBuilds,[ValidateSet('development','release')][string]$NativeProfile='development')
 
 # Reproducible local qualification only. Every transport peer is a localhost
 # fixture with fabricated credentials; this script never starts/stops IFM servers.
 $ErrorActionPreference = 'Stop'
 $repository = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $project = Join-Path $repository 'TomasAI.IFM.Application.MarketData.Rust'
-$artifacts = Join-Path $repository '.artifacts/rust-marketdata-offline'
+$artifacts = if($OutputDirectory){if([IO.Path]::IsPathRooted($OutputDirectory)){[IO.Path]::GetFullPath($OutputDirectory)}else{[IO.Path]::GetFullPath((Join-Path $repository $OutputDirectory))}}else{Join-Path $repository '.artifacts/rust-marketdata-offline'}
 New-Item -ItemType Directory -Path $artifacts -Force | Out-Null
 $results = [System.Collections.Generic.List[object]]::new()
 $manifest = Join-Path $project 'Cargo.toml'
-$library = Join-Path $project 'target/development/ifm_market_data_native.dll'
+$library = Join-Path $project ('target/'+$NativeProfile+'/ifm_market_data_native.dll')
 $baseline = Join-Path $project 'baseline'
 $fixture = Join-Path $artifacts 'live-fixture.dbn'
 $scopeFixture = Join-Path $artifacts 'scope-fixture.dbn'
@@ -40,6 +40,13 @@ if($script:resumePending){
 }
 
 function Invoke-Stage([string]$Name, [string]$Executable, [string[]]$Arguments) {
+    if($IsolatedManagedBuilds -and $Executable -eq 'dotnet' -and $Arguments[0] -in @('build','run','test','publish')){
+        # A new isolated obj tree needs its own restore assets.
+        $Arguments=@($Arguments | Where-Object {$_ -ne '--no-restore'})
+        $separator=[Array]::IndexOf($Arguments,'--')
+        $isolated=@('--artifacts-path',(Join-Path $artifacts 'dotnet'))
+        $Arguments=if($separator -ge 0){@($Arguments[0..($separator-1)])+$isolated+@($Arguments[$separator..($Arguments.Length-1)])}else{$Arguments+$isolated}
+    }
     if($script:resumePending){
         if($Name -ne $ResumeFrom){return}
         $script:resumePending=$false
@@ -69,7 +76,8 @@ try {
     Invoke-Stage 'Rust regression' 'cargo' @('test', '--locked', '--manifest-path', $manifest, '--tests')
     $env:RUSTDOCFLAGS = '-D warnings'
     Invoke-Stage 'Rust documentation' 'cargo' @('doc', '--locked', '--manifest-path', $manifest, '--no-deps')
-    Invoke-Stage 'Development DLL' 'cargo' @('build', '--locked', '--profile', 'development', '--manifest-path', $manifest)
+    $nativeStage=if($NativeProfile -eq 'development'){'Development DLL'}else{'Release DLL'}
+    Invoke-Stage $nativeStage 'cargo' @('build', '--locked', '--profile', $NativeProfile, '--manifest-path', $manifest)
     Invoke-Stage 'SDK wire fixture' 'cargo' @('run', '--locked', '--manifest-path', $manifest, '--example', 'qualification_fixture', '--', $fixture)
     Invoke-Stage 'Scoped SDK wire fixture' 'cargo' @('run', '--locked', '--manifest-path', $manifest, '--example', 'qualification_fixture', '--', $scopeFixture, 'GLBX.MDP3', '2')
     Invoke-Stage 'Priced SDK wire fixture' 'cargo' @('run', '--locked', '--manifest-path', $manifest, '--example', 'qualification_fixture', '--', $pricingFixture, 'GLBX.MDP3', '2','pricing',$pricingNanoseconds)
@@ -121,7 +129,9 @@ try {
     if ($IncludeNats) {
         Invoke-Stage 'NatsPublicationBridge' 'dotnet' @('run','--project',(Join-Path $project 'qualification/NatsPublicationBridge'),'--',$library,$leaseFixture)
         Invoke-Stage 'NatsControlBridge' 'dotnet' @('run','--project',(Join-Path $project 'qualification/NatsControlBridge'))
-        Invoke-Stage 'HostExecutableBridge' 'dotnet' @('run','--project',(Join-Path $project 'qualification/HostExecutableBridge'),'--',(Join-Path $project 'host/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Host.exe'))
+        $hostOutput=Join-Path $artifacts 'host'
+        Invoke-Stage 'Qualified Host package' 'dotnet' @('publish',(Join-Path $project 'host'),'-c','Release','--self-contained','false',('-p:NativeProfile='+$NativeProfile),'-o',$hostOutput,'-v','quiet')
+        Invoke-Stage 'HostExecutableBridge' 'dotnet' @('run','--project',(Join-Path $project 'qualification/HostExecutableBridge'),'--',(Join-Path $hostOutput 'TomasAI.IFM.Application.MarketData.Host.exe'))
     }
     if ($IncludePostgres) {
         Invoke-Stage 'NativeStoreBridge' 'dotnet' @('run','--project',(Join-Path $project 'qualification/NativeStoreBridge'))

@@ -8,12 +8,19 @@ use serde_json::json;
 use std::collections::BTreeMap;
 
 pub const ROOT: &str = "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup";
+
+
+/// Provides kind for the database backup implementation.
 pub fn kind(section: &str, name: &str) -> String {
     format!("{ROOT}.{section}.{name}")
 }
+
+
+/// Provides wrapper for the database backup implementation.
 pub fn wrapper(value: impl Into<Value>) -> Value {
     Value::Array(vec![value.into()])
 }
+
 
 /// Closed query surface reachable from the existing Rust backup screen.
 pub fn query_verb(name: &str) -> Result<&'static str, String> {
@@ -29,6 +36,9 @@ pub fn query_verb(name: &str) -> Result<&'static str, String> {
         _ => return Err("Unsupported backup query".into()),
     })
 }
+
+
+/// Provides command route for the database backup implementation.
 pub fn command_route(name: &str) -> Result<(&'static str, i64), String> {
     Ok(match name {
         "RequestDatabaseBackupCommand" => ("RequestBackup", 9101),
@@ -38,6 +48,8 @@ pub fn command_route(name: &str) -> Result<(&'static str, i64), String> {
         _ => return Err("Unsupported backup command".into()),
     })
 }
+
+
 /// Caller metadata is not a credential. Backend roles and policy checks remain
 /// authoritative. All business timestamps come from the API session clock.
 pub fn envelope(
@@ -72,12 +84,17 @@ pub fn envelope(
         "EnvironmentIdentity":environment,"CreatedUtc":context.as_of_utc.to_rfc3339()
     }))
 }
+
+
+/// Provides source for the database backup implementation.
 pub fn source(registry: &Registry, name: &str) -> Result<Value, String> {
     if !matches!(name, "AwsCloud" | "LocalWorkstation") {
         return Err("Select a concrete backup source".into());
     }
     registry.value_from_json(&kind("Contracts", "BackupSource"), &json!(name))
 }
+
+
 /// The caller owns one deadline for an entire action, including all follow-up
 /// reads. No nested default timeout can extend its budget.
 pub async fn query(
@@ -109,6 +126,8 @@ pub async fn query(
         .await?;
     Ok(service_result(&reply)?.clone())
 }
+
+
 /// Preserve C# initializer defaults, especially empty strings/arrays and
 /// PostEvents=true. An accepted backup is not a completed backup.
 pub fn command_body(
@@ -163,6 +182,9 @@ pub fn command_body(
     );
     Ok((subject, registry.encode(&kind("Commands", name), &fields)?))
 }
+
+
+/// Provides command for the database backup implementation.
 pub async fn command(
     backend: &Backend,
     subject: &ActorSubject,

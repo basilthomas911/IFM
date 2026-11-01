@@ -4,6 +4,9 @@ use ifm_ui_egui::{
 };
 use serde_json::Value;
 use std::path::Path;
+
+
+/// Reads outlook for outlook.
 fn read(name: &str) -> Vec<u8> {
     std::fs::read(
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -12,15 +15,16 @@ fn read(name: &str) -> Vec<u8> {
     )
     .unwrap()
 }
+
+
+/// Verifies that native outlook matches unchanged hybrid cells colors warming and stale status.
 #[test]
 fn native_outlook_matches_unchanged_hybrid_cells_colors_warming_and_stale_status() {
     let cases: Value = serde_json::from_slice(&read("outlook-display.json")).unwrap();
     for case in cases.as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
         let wire = codec::decode(&read(&format!("{name}.msgpack"))).unwrap();
-        use ifm_ui_egui::models::{
-            trade_contracts::MarketOutlookReadModel, wire_types::FromBackend,
-        };
+        use ifm_ui_egui::models::{trade_contracts::MarketOutlookReadModel, wire_types::FromBackend};
         let source = MarketOutlookReadModel::from_backend(&wire).unwrap();
         let now = chrono::DateTime::parse_from_rfc3339(case["now"].as_str().unwrap())
             .unwrap()
@@ -47,6 +51,9 @@ fn native_outlook_matches_unchanged_hybrid_cells_colors_warming_and_stale_status
         }
     }
 }
+
+
+/// Verifies that exact decimal display preserves large cents and dotnet rounding.
 #[test]
 fn exact_decimal_display_preserves_large_cents_and_dotnet_rounding() {
     let cases: Value = serde_json::from_slice(&read("decimal-display.json")).unwrap();
@@ -67,6 +74,9 @@ fn exact_decimal_display_preserves_large_cents_and_dotnet_rounding() {
         assert!(decimal_fixed(text, 2, false).is_err());
     }
 }
+
+
+/// Verifies that time only keeps 100ns precision without inventing a date or time zone.
 #[test]
 fn time_only_keeps_100ns_precision_without_inventing_a_date_or_time_zone() {
     let registry = Registry::compiled().unwrap();

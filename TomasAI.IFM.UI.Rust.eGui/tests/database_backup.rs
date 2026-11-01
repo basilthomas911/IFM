@@ -5,6 +5,9 @@ use ifm_ui_egui::{
     state::database_backup::{configured_sets, operation_document, policy_document},
 };
 use serde_json::{Value, json};
+
+
+/// Reads database backup for database backup.
 fn read(name: &str) -> Vec<u8> {
     std::fs::read(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -13,9 +16,15 @@ fn read(name: &str) -> Vec<u8> {
     )
     .unwrap()
 }
+
+
+/// Provides golden for the database backup implementation.
 fn golden(name: &str) -> Value {
     serde_json::from_slice(&read(name)).unwrap()
 }
+
+
+/// Verifies that backup projections and configured sets match hybrid.
 #[test]
 fn backup_projections_and_configured_sets_match_hybrid() {
     let registry = Registry::compiled().unwrap();
@@ -58,6 +67,9 @@ fn backup_projections_and_configured_sets_match_hybrid() {
     );
     assert_eq!(json!(sets), golden("backup-configured-display.json"));
 }
+
+
+/// Verifies that typed backup projection preserves unknown enums absent lineage and exact offsets.
 #[test]
 fn typed_backup_projection_preserves_unknown_enums_absent_lineage_and_exact_offsets() {
     let registry = Registry::compiled().unwrap();
@@ -83,6 +95,9 @@ fn typed_backup_projection_preserves_unknown_enums_absent_lineage_and_exact_offs
     fields[7] = "invalid progress".into();
     assert!(operation_document(&registry, &wire).is_err());
 }
+
+
+/// Verifies that backup routes and commands are closed and preserve clr defaults.
 #[test]
 fn backup_routes_and_commands_are_closed_and_preserve_clr_defaults() {
     use ifm_ui_egui::services::business_context::BusinessContext;

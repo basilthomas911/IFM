@@ -1,5 +1,8 @@
 //! Validate editable timezone identifiers against the same Windows identifiers
 //! accepted by the hybrid, plus IANA names. This does not determine business time.
+
+
+/// Checks is known against the current time zone state.
 pub fn is_known(name: &str) -> bool {
     if name.parse::<chrono_tz::Tz>().is_ok() {
         return true;
@@ -13,6 +16,8 @@ pub fn is_known(name: &str) -> bool {
         false
     }
 }
+
+
 /// Exchange-local calendar date of an API/provider instant. This is timezone
 /// conversion only; the API remains the sole source of current/business time.
 pub fn local_date(
@@ -34,39 +39,67 @@ pub fn local_date(
 #[cfg(windows)]
 mod windows {
     use chrono::{Datelike, Timelike};
+
+    /// System Time used by the time zone component.
     #[repr(C)]
     #[derive(Default)]
     struct SystemTime {
+        /// Year associated with this system time.
         year: u16,
+        /// Month associated with this system time.
         month: u16,
+        /// Weekday associated with this system time.
         weekday: u16,
+        /// Day associated with this system time.
         day: u16,
+        /// Hour associated with this system time.
         hour: u16,
+        /// Minute associated with this system time.
         minute: u16,
+        /// Second associated with this system time.
         second: u16,
+        /// Milliseconds associated with this system time.
         milliseconds: u16,
     }
+
+    /// Dynamic Zone used by the time zone component.
     #[repr(C)]
     pub(super) struct DynamicZone {
+        /// Bias associated with this dynamic zone.
         bias: i32,
+        /// Standard name associated with this dynamic zone.
         standard_name: [u16; 32],
+        /// Standard date associated with this dynamic zone.
         standard_date: SystemTime,
+        /// Standard bias associated with this dynamic zone.
         standard_bias: i32,
+        /// Daylight name associated with this dynamic zone.
         daylight_name: [u16; 32],
+        /// Daylight date associated with this dynamic zone.
         daylight_date: SystemTime,
+        /// Daylight bias associated with this dynamic zone.
         daylight_bias: i32,
+        /// Key associated with this dynamic zone.
         key: [u16; 128],
+        /// Dynamic disabled associated with this dynamic zone.
         dynamic_disabled: u8,
     }
     #[link(name = "kernel32")]
     unsafe extern "system" {
+        /// Reads a Windows timezone definition by its enumeration index.
         fn EnumDynamicTimeZoneInformation(index: u32, information: *mut DynamicZone) -> u32;
+
+
+        /// Converts a UTC SYSTEMTIME using a Windows timezone's historical rules.
         fn SystemTimeToTzSpecificLocalTimeEx(
             zone: *const DynamicZone,
             utc: *const SystemTime,
             local: *mut SystemTime,
         ) -> i32;
     }
+
+
+    /// Finds time zone for time zone.
     pub(super) fn find(name: &str) -> Option<DynamicZone> {
         for index in 0..1024 {
             // Windows fills the documented C buffer on success; no returned
@@ -86,6 +119,9 @@ mod windows {
         }
         None
     }
+
+
+    /// Converts the supplied instant to a calendar date in the configured timezone.
     pub(super) fn local_date(
         name: &str,
         time: chrono::DateTime<chrono::Utc>,

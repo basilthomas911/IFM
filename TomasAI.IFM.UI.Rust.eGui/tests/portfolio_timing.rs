@@ -5,6 +5,9 @@ use ifm_ui_egui::{
     state::portfolio::PortfolioController,
 };
 use std::{hint::black_box, time::Instant};
+
+
+/// Verifies that benchmark portfolio publication.
 #[test]
 #[ignore = "CPU benchmark; run separately from other compiler/benchmark work"]
 fn benchmark_portfolio_publication() {

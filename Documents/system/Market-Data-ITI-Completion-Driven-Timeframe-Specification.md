@@ -36,12 +36,42 @@ The three supported streams are independent:
 | Period | Trading-day scale | Stream bucket | Entity identity date |
 | --- | ---: | --- | --- |
 | Daily | 1 | Value date | That value date |
-| Weekly | 5 | Calendar week | Monday of the value date's week |
-| Monthly | 20 | Calendar month | First day of the value date's month |
+| Weekly | 20 | Calendar week | Monday of the value date's week |
+| Monthly | 60 | Calendar month | First day of the value date's month |
 
 The entity key is `{ContractId, TimePeriod, TimeFrameStartValueDate}`. The
 signal retains the current observation `ValueDate` separately. Holidays do not
 change the deterministic Weekly stream key.
+
+## Structural bands and overshoot
+
+Recurring structural movements use a band of **20% of the calculated ITI
+threshold** (`BandPercentage = 0.20`). The trading-day scales above document
+the existing calculation defaults; this extension does not change threshold
+mathematics or timeframe partitioning.
+
+A band-qualified extreme or reversal is classified from the **new candidate's**
+calculated BandLevel. A finite level strictly greater than 1.0 maps
+`TrendExtremeChanged` to `TrendOvershootExtended` (enum 7), and
+`TrendReversalChanged` to `TrendOvershootReversal` (enum 8). At 1.0 or below,
+ordinary modes apply immediately. Direction changes retain priority; generic
+`Trending`, hold and trade-state behavior remain unchanged. A level crossing
+alone does not generate an event or reset the current group.
+
+An uptrend extreme advances only at higher prices, and a downtrend extreme
+only at lower prices. **Every qualifying extreme resets TrendReversal to that
+new extreme**, including during overshoot. Subsequent qualifying reversals
+move away from that latest extreme. They need not exceed a reversal reached
+before the extreme reset. The downtrend rules mirror the uptrend rules.
+Whipsawing around BandLevel 1.0 does not latch overshoot or reset these anchors.
+
+Each accepted observation generates at most one existing Generated source
+event. A multi-band price gap does not synthesize intermediate signals. Both
+new modes retain the same projection, completion, workflow and period fan-out
+boundaries. Historic enum values 0–6 and MessagePack field keys remain stable.
+Text mode columns require no schema migration. Latest extreme/reversal category
+queries merge ordinary and overshoot rows by sequence within the existing
+trend boundary; MDI and history include both modes.
 
 ## Durable command and projection flow
 
@@ -145,3 +175,9 @@ Tests must cover:
   bounded health telemetry; and
 - API-server and dependent Trade workflow projects compiling against the new
   boundary.
+
+Overshoot verification additionally covers both trends and all three periods,
+strict floating-point boundaries around 1.0, inclusive 20% movement gates,
+extreme/reversal anchor resets, leaving and re-entering overshoot, multi-band
+gaps, replay parity, mode persistence and Rust numeric/name compatibility.
+See [implementation and validation](Futures-ITI-Trend-Overshoot-Implementation-Plan-2026-11-01.md).

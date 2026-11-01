@@ -5,20 +5,33 @@ use crate::models::{trade_contracts::TradeOrderPreview, wire_types::FromBackend}
 use rmpv::Value;
 use std::collections::BTreeMap;
 const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared.Order";
+
+/// Leg used by the broker preview component.
 #[derive(Clone, Debug)]
 pub struct Leg {
+    /// Contract associated with this leg.
     pub contract: String,
+    /// Side associated with this leg.
     pub side: i32,
+    /// Optional strike; `None` represents an absent value.
     pub strike: Option<ExactDecimal>,
+    /// Whether call is enabled or currently true.
     pub is_call: bool,
+    /// Whether future is enabled or currently true.
     pub is_future: bool,
+    /// Optional bid; `None` represents an absent value.
     pub bid: Option<ExactDecimal>,
+    /// Optional ask; `None` represents an absent value.
     pub ask: Option<ExactDecimal>,
+    /// Optional delta; `None` represents an absent value.
     pub delta: Option<f64>,
+    /// Optional vega; `None` represents an absent value.
     pub vega: Option<f64>,
+    /// Optional multiplier; `None` represents an absent value.
     pub multiplier: Option<ExactDecimal>,
 }
 impl Leg {
+    /// Returns the representation used at the backend wire boundary.
     fn wire(&self, registry: &Registry, quantity: i32) -> Result<Value, String> {
         if self.contract.trim().is_empty()
             || ![-1, 1].contains(&self.side)
@@ -48,14 +61,21 @@ impl Leg {
         )
     }
 }
+
+/// Preview used by the broker preview component.
 #[derive(Default)]
 pub struct Preview {
+    /// Revision associated with this preview.
     revision: i64,
 }
 impl Preview {
+    /// Provides revision for the preview implementation.
     pub fn revision(&self) -> i64 {
         self.revision
     }
+
+
+    /// Loads broker preview for preview.
     pub async fn load(
         &mut self,
         backend: &Backend,

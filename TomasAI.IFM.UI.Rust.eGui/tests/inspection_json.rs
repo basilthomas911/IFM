@@ -1,3 +1,4 @@
+/// Verifies that embedded risk evidence matches managed json.
 #[test]
 fn embedded_risk_evidence_matches_managed_json() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/backend");

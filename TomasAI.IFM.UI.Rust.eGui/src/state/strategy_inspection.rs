@@ -10,21 +10,35 @@ use crate::{
 use rmpv::Value;
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
+
+/// Inspection Controller used by the strategy inspection component.
 #[derive(Default)]
 pub struct InspectionController {
+    /// Generation associated with this inspection controller.
     generation: u64,
+    /// Optional result; `None` represents an absent value.
     result: Option<InspectionResult>,
+    /// Keyed receipts retained by InspectionController.
     receipts: BTreeMap<String, (Json, EditorOutcome)>,
 }
+
+
+/// Resolves the requested field in the supplied record.
 fn field<'a>(input: &'a Json, key: &str) -> &'a str {
     input["fields"][key].as_str().unwrap_or_default().trim()
 }
+
+
+/// Provides identity for the strategy inspection implementation.
 fn identity(input: &Json, key: &str) -> Result<uuid::Uuid, String> {
     uuid::Uuid::parse_str(field(input, key))
         .ok()
         .filter(|id| !id.is_nil())
         .ok_or(format!("Enter a valid {key}"))
 }
+
+
+/// Reads the numeric representation supported by the supplied value.
 fn number(input: &Json, key: &str) -> Result<i32, String> {
     field(input, key)
         .parse::<i32>()
@@ -33,6 +47,7 @@ fn number(input: &Json, key: &str) -> Result<i32, String> {
         .ok_or(format!("Enter a positive {key}"))
 }
 impl InspectionController {
+    /// Reads strategy inspection for inspection controller.
     async fn read(
         &self,
         backend: &Backend,
@@ -305,6 +320,9 @@ impl InspectionController {
             ..Default::default()
         })
     }
+
+
+    /// Handles a strategy inspection intent and returns the resulting publication or error.
     pub async fn execute(
         &mut self,
         backend: &Backend,
@@ -389,21 +407,36 @@ impl InspectionController {
         })
     }
 }
+
+
+/// Provides identity request for the strategy inspection implementation.
 fn identity_request(input: &Json) -> Result<uuid::Uuid, String> {
     uuid::Uuid::parse_str(input["requestId"].as_str().unwrap_or_default())
         .ok()
         .filter(|v| !v.is_nil())
         .ok_or("Invalid inspection request identity".into())
 }
+
+/// Assessment Header used by the strategy inspection component.
 struct AssessmentHeader {
+    /// Profile associated with this assessment header.
     profile: String,
+    /// Instrument associated with this assessment header.
     instrument: String,
+    /// Horizon associated with this assessment header.
     horizon: String,
+    /// Workflow associated with this assessment header.
     workflow: String,
+    /// Evaluated associated with this assessment header.
     evaluated: chrono::DateTime<chrono::Utc>,
+    /// Availability associated with this assessment header.
     availability: String,
+    /// Condition associated with this assessment header.
     condition: String,
 }
+
+
+/// Provides assessment for the strategy inspection implementation.
 fn assessment(registry: &Registry, envelope: &Value) -> Result<AssessmentHeader, String> {
     let kind = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope";
     let envelope = Field::new(registry, kind, envelope);

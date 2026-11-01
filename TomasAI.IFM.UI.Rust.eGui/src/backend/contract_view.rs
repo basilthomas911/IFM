@@ -11,14 +11,21 @@ use serde::{
     Serialize,
     ser::{Error, SerializeMap, SerializeSeq},
 };
+
+/// Field used by the contract view component.
 #[derive(Clone, Copy)]
 pub struct Field<'a> {
+    /// Registry associated with this field.
     pub registry: &'a Registry,
+    /// Kind associated with this field.
     pub kind: &'a str,
+    /// Value associated with this field.
     pub value: &'a Value,
+    /// Depth associated with this field.
     depth: usize,
 }
 impl<'a> Field<'a> {
+    /// Constructs Field<'a> from the supplied inputs.
     pub fn new(registry: &'a Registry, kind: &'a str, value: &'a Value) -> Self {
         Self {
             registry,
@@ -27,12 +34,18 @@ impl<'a> Field<'a> {
             depth: 0,
         }
     }
+
+
+    /// Resolves the concrete contract kind for this value.
     fn concrete_kind(self) -> &'a str {
         self.kind
             .strip_prefix("System.Nullable`1[")
             .and_then(|kind| kind.strip_suffix(']'))
             .unwrap_or(self.kind)
     }
+
+
+    /// Resolves the requested field in the supplied record.
     pub fn field(self, name: &str) -> Result<Self, String> {
         let kind = self.concrete_kind();
         let child_kind = self.registry.field_kind(kind, name)?;
@@ -52,6 +65,9 @@ impl<'a> Field<'a> {
             depth: self.depth + 1,
         })
     }
+
+
+    /// Follows the supplied field path through the record.
     pub fn path(self, names: &[&str]) -> Result<Self, String> {
         let mut value = self;
         for name in names {
@@ -59,18 +75,33 @@ impl<'a> Field<'a> {
         }
         Ok(value)
     }
+
+
+    /// Checks is nil against the current contract view state.
     pub fn is_nil(self) -> bool {
         self.value.is_nil()
     }
+
+
+    /// Reads the text representation expected by this component.
     pub fn string(self) -> Option<&'a str> {
         self.value.as_str()
     }
+
+
+    /// Reads the signed integer representation of the requested field.
     pub fn integer(self) -> Option<i64> {
         self.value.as_i64()
     }
+
+
+    /// Reads the unsigned integer representation of the requested field.
     pub fn unsigned(self) -> Option<u64> {
         self.value.as_u64()
     }
+
+
+    /// Resolves the element contract kind for this collection.
     fn collection_kind(self) -> Result<&'a str, String> {
         let kind = self.concrete_kind();
         kind.strip_suffix("[]")
@@ -80,6 +111,9 @@ impl<'a> Field<'a> {
             })
             .ok_or_else(|| format!("Expected inspection collection {kind}"))
     }
+
+
+    /// Exposes the collection's entries for typed traversal.
     pub fn items(self, maximum: usize) -> Result<Vec<Self>, String> {
         let kind = self.collection_kind()?;
         let values = self
@@ -97,6 +131,9 @@ impl<'a> Field<'a> {
             })
             .collect())
     }
+
+
+    /// Reads the UTC timestamp representation expected by this component.
     pub fn utc(self) -> Result<Option<chrono::DateTime<chrono::Utc>>, String> {
         if self.is_nil() {
             return Ok(None);
@@ -107,6 +144,9 @@ impl<'a> Field<'a> {
             timestamp(self.value).map(Some)
         }
     }
+
+
+    /// Returns the display text for the requested value or field.
     pub fn text(self) -> Result<String, String> {
         if self.is_nil() {
             return Ok(String::new());
@@ -144,6 +184,7 @@ impl<'a> Field<'a> {
     }
 }
 impl Serialize for Field<'_> {
+    /// Serializes this value through the supplied serializer.
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if self.depth > 64 {
             return Err(S::Error::custom("Inspection nesting bound exceeded"));

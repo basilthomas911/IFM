@@ -5,6 +5,9 @@ use ifm_ui_egui::{
     operations_health::OperationsHealth,
 };
 use std::collections::BTreeMap;
+
+
+/// Provides fixture for the operations health implementation.
 fn fixture() -> (Catalog, ContractPublication) {
     (
         serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap(),
@@ -45,6 +48,9 @@ fn fixture() -> (Catalog, ContractPublication) {
         },
     )
 }
+
+
+/// Verifies that stage and worker selection inspects exact shared fields.
 #[test]
 fn stage_and_worker_selection_inspects_exact_shared_fields() {
     let (c, s) = fixture();
@@ -56,7 +62,10 @@ fn stage_and_worker_selection_inspects_exact_shared_fields() {
     );
     h.set_size(eframe::egui::vec2(1100., 800.));
     h.run();
-    h.query_all_by_label("TickAggregation").next().unwrap().click();
+    h.query_all_by_label("TickAggregation")
+        .next()
+        .unwrap()
+        .click();
     h.run();
     h.get_by_label("Pending");
     h.get_by_label("4");
@@ -68,6 +77,9 @@ fn stage_and_worker_selection_inspects_exact_shared_fields() {
     h.get_by_label("123");
     assert_eq!(h.state().selected.as_deref(), Some("dataset:GLBX.MDP3"));
 }
+
+
+/// Verifies that refresh dispatches only a read and pending is guarded.
 #[test]
 fn refresh_dispatches_only_a_read_and_pending_is_guarded() {
     let (c, s) = fixture();
@@ -88,11 +100,19 @@ fn refresh_dispatches_only_a_read_and_pending_is_guarded() {
     assert!(h.state().0.pending.is_some());
 }
 
+
+/// Verifies that compact dialog has plain colored items and title bar close only.
 #[test]
 fn compact_dialog_has_plain_colored_items_and_title_bar_close_only() {
-    let (c,s)=fixture();
-    let mut h=Harness::new_state(move |ctx,state:&mut (OperationsHealth,bool)| {state.0.draw_dialog(ctx,&s,&c,true,&mut state.1);},(OperationsHealth::default(),true));
-    h.set_size(eframe::egui::vec2(1200.,800.)); h.run();
+    let (c, s) = fixture();
+    let mut h = Harness::new_state(
+        move |ctx, state: &mut (OperationsHealth, bool)| {
+            state.0.draw_dialog(ctx, &s, &c, true, &mut state.1);
+        },
+        (OperationsHealth::default(), true),
+    );
+    h.set_size(eframe::egui::vec2(1200., 800.));
+    h.run();
     assert!(h.query_all_by_label("TickAggregation").next().is_some());
     assert!(h.query_by_label("TickAggregation | Green").is_none());
     assert!(h.query_by_label("Refresh status").is_none());

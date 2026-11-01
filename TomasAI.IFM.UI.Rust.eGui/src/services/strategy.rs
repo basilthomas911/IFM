@@ -6,9 +6,15 @@ use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use rmpv::Value;
 use std::collections::BTreeMap;
 pub const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime";
+
+
+/// Provides kind for the strategy implementation.
 pub fn kind(section: &str, name: &str) -> String {
     format!("{ROOT}.{section}.{name}")
 }
+
+
+/// Looks up the requested member in the supplied record.
 pub fn member(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<Value, String> {
     if let Value::Map(entries) = wire {
         return entries
@@ -28,6 +34,9 @@ pub fn member(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Resu
         .cloned()
         .ok_or("Incomplete strategy payload".into())
 }
+
+
+/// Provides graph window for the strategy implementation.
 pub fn graph_window(
     context: &BusinessContext,
     frame: &str,
@@ -58,6 +67,9 @@ pub fn graph_window(
         .to_utc();
     Ok((start, end))
 }
+
+
+/// Provides signal history for the strategy implementation.
 pub async fn signal_history(
     backend: &Backend,
     registry: &Registry,
@@ -101,6 +113,9 @@ pub async fn signal_history(
         .cloned()
         .ok_or("Invalid or oversized ITI history".into())
 }
+
+
+/// Provides workflow page for the strategy implementation.
 pub async fn workflow_page(
     backend: &Backend,
     registry: &Registry,

@@ -43,7 +43,7 @@ public class MarketDataAnalyticsFixture : IDisposable
     {
         var dbConn = new DbConnectionSettings()
              .Add("MarketDataDbConnection", Environment.GetEnvironmentVariable("IFM_TEST_MARKET_DATA_CONNECTION")
-                 ?? "Contact Points=localhost;Port=9042;Default Keyspace=market_data_test_db", "System.Data.ScyllaDb");
+                 ?? "Host=localhost;Port=5432;Database=market-data-test-db", "System.Data.Postgres");
         var diContainer = new Dictionary<Type, IObjectRepository>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var dbFactory = new DbContextFactory(dbResolver);

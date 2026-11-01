@@ -12,6 +12,32 @@ namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Workflow;
 
 public sealed class FundTradeExecutionLifecycleTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Closing_setup_inherits_opening_maturity_and_rejects_a_different_expiry(bool differentExpiry)
+    {
+        var (aggregate, evidence) = Fixture(includeClosing: false);
+        var opened = aggregate.RecordFundTradeOpening(evidence);
+        var request = new AddManualFundOrderTradeRequest {
+            PortfolioId = 1, FundId = 2, OrderId = 10, ExpectedOrderVersion = opened.AggregateVersion,
+            TradeId = 21, TradeType = nameof(TradeType.LongIronCondor),
+            TradeState = nameof(TradeState.NewTrade), TradeAction = nameof(TradeAction.Buy), PrimaryTrade = false,
+            EffectiveDate = new(2026,10,9), BaseContractSymbol = "ES", BaseContractId = "ESZ26",
+            RequestedAtUtc = Now, MaturityDate = differentExpiry ? new(2026,12,18) : null
+        };
+        if (differentExpiry)
+        {
+            var act = () => aggregate.AddManualTrade(request, "test");
+            act.Should().Throw<InvalidOperationException>().WithMessage("*opening trade's maturity*");
+        }
+        else
+        {
+            var closing = aggregate.AddManualTrade(request, "test").Trades.Single(trade => !trade.PrimaryTrade);
+            closing.RequestedMaturityDate.Should().Be(evidence.MaturityDate);
+            closing.MaturityDate.Should().BeNull();
+        }
+    }
     static readonly DateTime Now = new(2026, 10, 9, 14, 0, 0, DateTimeKind.Utc);
     static (PortfolioFundCompositionAggregate Aggregate, FundTradeExecutionEvidence Opening) Fixture(bool includeClosing = true)
     {

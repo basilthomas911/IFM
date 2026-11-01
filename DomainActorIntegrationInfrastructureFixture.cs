@@ -49,6 +49,30 @@ public static class DomainActorIntegrationInfrastructureFixture
     static int disposed;
     static IServiceProvider? sharedHostServices;
 
+    /// <summary>Observes the real application shutdown before its service provider is disposed.</summary>
+    sealed class TrackedApiServerLifecycle : TomasAI.IFM.Application.Api.Server.Core.Hosting.Contracts.IApiServerLifecycle
+    {
+        readonly TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        internal Task Completion => completion.Task;
+
+        public async Task RunAsync(Microsoft.AspNetCore.Builder.WebApplication app, string[] args,
+            Microsoft.Extensions.Logging.ILogger logger)
+        {
+            try
+            {
+                await new TomasAI.IFM.Application.Api.Server.Core.Hosting.ApiServerLifecycle()
+                    .RunAsync(app, args, logger).ConfigureAwait(false);
+                completion.TrySetResult();
+            }
+            catch (Exception exception)
+            {
+                completion.TrySetException(exception);
+                throw;
+            }
+        }
+    }
+
     /// <summary>Gets the NATS endpoint owned by this assembly fixture.</summary>
     public static string NatsUrl
         => Environment.GetEnvironmentVariable("IFM_TEST_NATS_URL")
@@ -153,12 +177,22 @@ public static class DomainActorIntegrationInfrastructureFixture
         await new TradeSchemaDb(settings, logger).CreateAllAsync();
         await new TradePlanSchemaDb(settings, logger).CreateAllAsync();
 
+        // Keep the normal runtime, but let cleanup await its actor/container shutdown.
+        // Compose this with feed and trade test configuration below.
+        KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>
+            .ConfigureSharedServices(services =>
+                Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.Replace(
+                    services, ServiceDescriptor.Singleton<TomasAI.IFM.Application.Api.Server.Core.Hosting.Contracts.IApiServerLifecycle>(
+                        _ => new TrackedApiServerLifecycle())));
+
         if (testAssemblyName.Contains("Portfolio.IntegrationTests", StringComparison.Ordinal)
             || testAssemblyName.Contains("MarketData.Feed.IntegrationTests", StringComparison.Ordinal)
             || testAssemblyName.Contains("Trade.IntegratedTests", StringComparison.Ordinal))
         {
             if (testAssemblyName.Contains("MarketData.Feed.IntegrationTests", StringComparison.Ordinal))
             {
+                // This fixture owns the deterministic managed feed, rather than a separate native host.
+                SetEnvironment("MarketDataHost__Enabled", "false");
                 KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>
                     .ConfigureSharedServices(services =>
                     {
@@ -231,14 +265,17 @@ public static class DomainActorIntegrationInfrastructureFixture
         try
         {
             // Stop actor-owned queues and transports before DI disposes their dependencies.
-            if (sharedHostServices is { } services)
+            // Analytics and other assemblies may start the shared host lazily in a class fixture.
+            // Capture that existing host as well, before DI disposes actor transport dependencies.
+            var startedServices = sharedHostServices
+                ?? KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>.StartedSharedServices;
+            if (startedServices is { } services)
             {
-                var actors = await services.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi.ISupervisorManagedActorLifecycle>()
-                    .ShutdownActorsAsync(CancellationToken.None);
-                if (!actors.Succeeded) throw new InvalidOperationException(actors.FailureReason);
-                var supervisor = await services.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi.ISupervisorBootstrap>()
-                    .StopSupervisorAsync(CancellationToken.None);
-                if (!supervisor.Succeeded) throw new InvalidOperationException(supervisor.FailureReason);
+                var lifecycle = (TrackedApiServerLifecycle)services.GetRequiredService<
+                    TomasAI.IFM.Application.Api.Server.Core.Hosting.Contracts.IApiServerLifecycle>();
+                services.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>().StopApplication();
+                // RunAsync owns actor shutdown and SimpleInjector cleanup. Await both before MS DI cleanup.
+                await lifecycle.Completion.WaitAsync(TimeSpan.FromMinutes(1)).ConfigureAwait(false);
             }
             await KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>.DisposeSharedAsync();
         }

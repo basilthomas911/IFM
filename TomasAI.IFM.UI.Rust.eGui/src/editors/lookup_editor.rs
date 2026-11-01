@@ -4,6 +4,7 @@ use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, strings};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
+
 /// Published lookup entry and its creation/audit display fields.
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,6 +22,7 @@ pub struct LookupRow {
     /// Recorded creator identity from the managed record.
     pub created_by: String,
 }
+
 /// Managed result for one request ID. Submission and completion are separate states.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +34,7 @@ pub struct EditorOutcome {
     /// Human-readable status or request-outcome explanation.
     pub message: String,
 }
+
 /// Lookup publication with generation, busy/status fields, rows, and correlated outcomes.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,6 +52,7 @@ pub struct EditorPublication {
     /// Correlated managed results for submitted request IDs.
     pub outcomes: Vec<EditorOutcome>,
 }
+
 /// Local lookup draft, stable selection, confirmation, and submission-error state.
 #[derive(Default)]
 pub struct LookupEditor {
@@ -68,8 +72,11 @@ pub struct LookupEditor {
     pub drawn_rows: usize,
     /// Original Reference editor mode: view, add, or change.
     pub edit_mode: u8,
+    /// Category associated with this lookup editor.
     category: String,
+    /// Order text associated with this lookup editor.
     order_text: String,
+    /// Whether reference loaded is enabled or currently true.
     reference_loaded: bool,
 }
 impl LookupEditor {
@@ -88,6 +95,9 @@ impl LookupEditor {
         }
         serde_json::json!({"schema":1,"requestId":id,"view":"lookup","intent":action,"expectedGeneration":snapshot.generation,"lookup":if action=="load" {None} else {Some(row)}}).to_string()
     }
+
+
+    /// Observes lookup editor for lookup editor.
     fn observe(&mut self, snapshot: &EditorPublication) {
         if let Some(id) = &self.pending {
             if let Some(outcome) = snapshot
@@ -115,6 +125,8 @@ impl LookupEditor {
             }
         }
     }
+
+
     /// Original Reference master/detail lists and four-field editor with the shared command rail.
     pub fn draw_reference(
         &mut self,
@@ -318,7 +330,7 @@ impl LookupEditor {
                         .inner_margin(4),
                 )
                 .show_inside(ui, |ui| {
-                    egui::Grid::new("reference-lookup-fields")
+                    crate::presentation::form_grid(ui, "reference-lookup-fields")
                         .num_columns(2)
                         .min_row_height(35.)
                         .show(ui, |ui| {
@@ -329,11 +341,7 @@ impl LookupEditor {
                                     "Order Id:",
                                     "Description:",
                                 ][index];
-                                let label = ui.add_sized(
-                                    [170., 23.],
-                                    crate::presentation::caption_widget(caption)
-                                        .halign(egui::Align::Max),
-                                );
+                                let label = crate::presentation::form_caption(ui, caption);
                                 let value = match index {
                                     0 => &mut self.draft.lookup_type_name,
                                     1 => &mut self.draft.short_code,
@@ -349,6 +357,7 @@ impl LookupEditor {
                                     egui::TextEdit::multiline(value).desired_rows(4)
                                 } else {
                                     egui::TextEdit::singleline(value)
+                                        .vertical_align(egui::Align::Center)
                                 };
                                 ui.add_sized(
                                     [width, if index == 3 { 72. } else { 23. }],
@@ -392,12 +401,17 @@ impl LookupEditor {
             action.map(|action| self.intent(action, snapshot))
         })
     }
+
+
+    /// Selects reference for lookup editor.
     fn select_reference(&mut self, row: &LookupRow) {
         self.selected = Some((row.lookup_type_name.clone(), row.order_id));
         self.category = row.lookup_type_name.clone();
         self.draft = row.clone();
         self.order_text = row.order_id.to_string();
     }
+
+
     /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
     ///
     /// This renderer owns local lookup draft, stable selection, confirmation, and submission-error state.
@@ -440,27 +454,37 @@ impl LookupEditor {
                 }
             });
             ui.add_enabled_ui(enabled, |ui| {
-                egui::Grid::new("lookup-fields").show(ui, |ui| {
-                    let category_label = ui.trading_caption(c.text(strings::CATEGORY));
+                crate::presentation::form_grid(ui, "lookup-fields").show(ui, |ui| {
+                    let category_label =
+                        crate::presentation::form_caption(ui, c.text(strings::CATEGORY));
                     ui.add_enabled(
                         self.selected.is_none(),
-                        egui::TextEdit::singleline(&mut self.draft.lookup_type_name),
+                        egui::TextEdit::singleline(&mut self.draft.lookup_type_name)
+                            .vertical_align(egui::Align::Center),
                     )
                     .labelled_by(category_label.id);
                     ui.end_row();
-                    let short_code_label = ui.trading_caption(c.text(strings::SHORT_CODE));
-                    ui.text_edit_singleline(&mut self.draft.short_code)
-                        .labelled_by(short_code_label.id);
+                    let short_code_label =
+                        crate::presentation::form_caption(ui, c.text(strings::SHORT_CODE));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.draft.short_code)
+                            .vertical_align(egui::Align::Center),
+                    )
+                    .labelled_by(short_code_label.id);
                     ui.end_row();
-                    ui.trading_caption(c.text(strings::DISPLAY_ORDER));
+                    crate::presentation::form_caption(ui, c.text(strings::DISPLAY_ORDER));
                     ui.add_enabled(
                         self.selected.is_none(),
                         egui::DragValue::new(&mut self.draft.order_id).range(0..=i32::MAX),
                     );
                     ui.end_row();
-                    let description_label = ui.trading_caption(c.text(strings::DESCRIPTION));
-                    ui.text_edit_singleline(&mut self.draft.description)
-                        .labelled_by(description_label.id);
+                    let description_label =
+                        crate::presentation::form_caption(ui, c.text(strings::DESCRIPTION));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.draft.description)
+                            .vertical_align(egui::Align::Center),
+                    )
+                    .labelled_by(description_label.id);
                     ui.end_row();
                 });
                 let valid = !self.draft.lookup_type_name.trim().is_empty()
@@ -553,6 +577,7 @@ impl LookupEditor {
         action.map(|a| self.intent(a, snapshot))
     }
 }
+
 
 /// Create a process-local request identifier using time and an atomic counter. Used for UI correlation, not cryptographic identity.
 pub fn new_request_id() -> String {

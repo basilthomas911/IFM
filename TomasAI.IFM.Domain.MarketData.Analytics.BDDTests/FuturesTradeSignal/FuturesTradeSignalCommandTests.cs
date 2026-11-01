@@ -97,6 +97,7 @@ public class FuturesTradeSignalCommandTests
         eventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
+        logger.IsEnabled(LogLevel.Error).Returns(true);
         var eventProjector = Substitute.For<IEventProjector<FuturesTradeSignalCommandActor>>();
         var actor = new TestableFuturesTradeSignalCommandActor(eventDb, eventProjector, logger);
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesTradeSignalCommandState>>();

@@ -9,19 +9,28 @@ use serde_json::Value as Json;
 use std::collections::{BTreeMap, BTreeSet};
 const TRADE: &str = "TomasAI.IFM.Domain.Trade.Shared";
 const ACCOUNT: &str = "TomasAI.IFM.Domain.BrokerAccount.Contracts";
+
+/// Scope used by the broker reads component.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Scope {
+    /// Portfolio associated with this scope.
     pub portfolio: i32,
+    /// Fund associated with this scope.
     pub fund: i32,
+    /// Order associated with this scope.
     pub order: i32,
 }
 impl Scope {
+    /// Provides key for the scope implementation.
     pub fn key(self) -> Result<String, String> {
         if self.portfolio <= 0 || self.fund <= 0 || self.order <= 0 {
             return Err("Invalid broker Portfolio/Fund/order scope".into());
         }
         Ok(format!("{}.{}.{}", self.portfolio, self.fund, self.order))
     }
+
+
+    /// Returns the representation used at the backend wire boundary.
     pub fn wire(self) -> Result<Value, String> {
         self.key()?;
         Ok(Value::Array(vec![
@@ -30,18 +39,26 @@ impl Scope {
             self.order.into(),
         ]))
     }
+
+
     /// Existing canonical request boundary; native evidence uses matches_id.
     pub fn matches(self, row: &Json) -> bool {
         row["PortfolioId"] == self.portfolio
             && row["FundId"] == self.fund
             && row["OrderId"] == self.order
     }
+
+
+    /// Checks matches id against the current broker reads state.
     pub fn matches_id(self, id: &TradeOrderId) -> bool {
         id.portfolio_id == Some(self.portfolio)
             && id.fund_id == Some(self.fund)
             && id.order_id == Some(self.order)
     }
 }
+
+
+/// Provides query for the broker reads implementation.
 async fn query(
     backend: &Backend,
     registry: &Registry,
@@ -72,6 +89,9 @@ async fn query(
         .await?;
     into_service_result(reply)
 }
+
+
+/// Provides account for the broker reads implementation.
 pub async fn account(
     backend: &Backend,
     registry: &Registry,
@@ -108,6 +128,9 @@ pub async fn account(
     }
     Ok(Some(result))
 }
+
+
+/// Provides orders for the broker reads implementation.
 pub async fn orders(
     backend: &Backend,
     registry: &Registry,
@@ -145,12 +168,18 @@ pub async fn orders(
     }
     Ok(rows)
 }
+
+
+/// Validates a required nonempty GUID before it is used in a backend request.
 fn required_guid(value: Option<&str>) -> Result<uuid::Uuid, String> {
     value
         .and_then(|value| uuid::Uuid::parse_str(value).ok())
         .filter(|value| !value.is_nil())
         .ok_or("Invalid execution identity".into())
 }
+
+
+/// Builds the concrete backend identity from the supplied scope fields.
 pub fn typed_identity(id: &BrokerOrderId) -> Result<String, String> {
     let execution = id.execution.as_ref().ok_or("Missing execution identity")?;
     let scope = execution
@@ -171,6 +200,8 @@ pub fn typed_identity(id: &BrokerOrderId) -> Result<String, String> {
         component.simple()
     ))
 }
+
+
 // Canonical JSON identities are retained only for existing protocol adapters.
 pub fn identity(id: &Json) -> Result<String, String> {
     let scope = &id["Execution"]["TradeOrder"];
@@ -194,12 +225,18 @@ pub fn identity(id: &Json) -> Result<String, String> {
         component.simple()
     ))
 }
+
+
+/// Reads and validates the GUID representation used by this component.
 fn guid(value: &Json) -> Result<uuid::Uuid, String> {
     uuid::Uuid::parse_str(value.as_str().ok_or("Missing execution identity")?)
         .ok()
         .filter(|v| !v.is_nil())
         .ok_or("Invalid execution identity".into())
 }
+
+
+/// Provides execution for the broker reads implementation.
 pub async fn execution(
     backend: &Backend,
     registry: &Registry,
@@ -237,11 +274,18 @@ pub async fn execution(
     }
     Ok(Some(result))
 }
+
+/// Evidence used by the broker reads component.
 #[derive(Default)]
 pub struct Evidence {
+    /// Ordered orders retained by Evidence.
     pub orders: Vec<BrokerOrderDefinition>,
+    /// Ordered executions retained by Evidence.
     pub executions: Vec<OrderExecutionDefinition>,
 }
+
+
+/// Provides evidence for the broker reads implementation.
 pub async fn evidence(
     backend: &Backend,
     registry: &Registry,
