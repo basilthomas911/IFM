@@ -1,0 +1,10 @@
+{
+  "complete": true,
+  "trading_dates": 258,
+  "raw_front_contract_date_coverage_verified": true,
+  "october_daily_signals_identical": 5288,
+  "october_trades_identical": 35,
+  "october_gross_pnl_usd": 3712.5,
+  "monthly_daily_trade_pnl_reconciled": true,
+  "replay_mode": "production-daily-compute-and-transactional-storage; no NATS or command/event audit replay"
+}

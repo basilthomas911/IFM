@@ -25,7 +25,7 @@ impl TradeWorkspace {
             egui::ScrollArea::horizontal()
                 .id_salt("center-tabs-scroll")
                 .auto_shrink([false, false])
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.;
                         for prepared in tabs {

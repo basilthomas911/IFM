@@ -1023,6 +1023,9 @@ impl Run {
         let mut threshold = 0;
         let mut published_instruments = BTreeSet::new();
         let mut qualified_threshold = None;
+        // Report each distinct pending-proof set once per generation, so quiet
+        // market data is diagnosable without logging on every observation.
+        let mut reported_readiness = BTreeSet::new();
         let risk_workloads: Vec<_> = intent
             .reviewed
             .definitions
@@ -1204,6 +1207,15 @@ impl Run {
                 let setup_complete=transport.phase==super::lanes::Phase::Running
                     && broker.connected && cache_broker.connected && io.running
                     && !reference.recovering && !numerical.recovering;
+                let proof_mask = proofs.iter().fold(0u8, |mask, proof| mask | *proof as u8);
+                if reported_readiness.insert(proof_mask) {
+                    let missing: Vec<_> = [Proof::Transport, Proof::Reference, Proof::Pricing,
+                        Proof::Publication, Proof::Persistence].into_iter()
+                        .filter(|proof| !proofs.contains(proof)).collect();
+                    self.stage(stage, &format!(
+                        "Feed components ready={setup_complete}; financial evidence pending={missing:?}; monitored={}; published={}; business_ready={business_ready}",
+                        ids.len(), published_instruments.len()))?;
+                }
                 self.health.send_replace(Readiness{setup_complete,proofs,failure:None,deadline:published_deadline});
                 if drained==64 || dirty&&cursor!=0 {tokio::task::yield_now().await;continue;}
                 tokio::select!{biased;()=stop.cancelled()=>break,

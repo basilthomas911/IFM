@@ -80,9 +80,36 @@ public static class DomainActorIntegrationInfrastructureFixture
 
     internal static async Task InitializeAsync(string testAssemblyName)
     {
+        var backtestConnection = Environment.GetEnvironmentVariable("IFM_BACKTEST_POSTGRES_CONNECTION");
+        var backtestCredentials = Environment.GetEnvironmentVariable("POSTGRES_DEV_KEY");
+        if (backtestConnection is not null)
+        {
+            var target = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = backtestConnection };
+            if (!target.TryGetValue("Host", out var host) || !Equals(host, "127.0.0.1")
+                || !target.TryGetValue("Database", out var database)
+                || !System.Text.RegularExpressions.Regex.IsMatch(database.ToString()!, "\\Aifm_application_backtest_[a-f0-9]{12}_synthetic_host\\z")
+                || string.IsNullOrWhiteSpace(backtestCredentials))
+                throw new InvalidOperationException("Backtest requires a run-specific loopback PostgreSQL database and POSTGRES_DEV_KEY.");
+        }
         await infrastructure.StartAsync();
 
-        var postgresTestConnection = $"Host=127.0.0.1;Port={infrastructure.PostgresPort};Database={infrastructure.PostgresDatabase}";
+        var postgresConnection = backtestConnection ?? infrastructure.PostgresConnectionString;
+        if (backtestConnection is not null)
+        {
+            SetEnvironment("POSTGRES_DEV_KEY", backtestCredentials!);
+            SetEnvironment("POSTGRES_TEST_KEY", backtestCredentials!);
+            SetEnvironment("MarketDataHost__Enabled", "false");
+            KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>
+                .ConfigureSharedServices(services =>
+                {
+                    // Historical replay supplies inputs itself and never owns a live feed.
+                    foreach (var descriptor in services.Where(descriptor =>
+                        descriptor.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService)
+                        && descriptor.ImplementationFactory?.Method.ReturnType == typeof(TomasAI.IFM.Application.MarketData.Databento.Resiliency.DatabentoMarketDataWatchdogService)).ToArray())
+                        services.Remove(descriptor);
+                });
+        }
+        var postgresTestConnection = postgresConnection;
         var cqlConnections = CqlConnections.ToDictionary(
             static pair => pair.Key,
             pair => infrastructure.GetCqlConnectionString($"ifm_synthetic_{infrastructure.RunId}_{pair.Value}"),
@@ -155,13 +182,13 @@ public static class DomainActorIntegrationInfrastructureFixture
         SetEnvironment("IFM_QUALIFICATION_ARTIFACT_DIRECTORY", artifactDirectory);
 
         foreach (var name in PostgresConnections)
-            SetEnvironment($"ConnectionStrings__{name}", infrastructure.PostgresConnectionString);
+            SetEnvironment($"ConnectionStrings__{name}", postgresConnection);
         foreach (var (name, connection) in cqlConnections)
             SetEnvironment($"ConnectionStrings__{name}", connection);
 
         var settings = new DbConnectionSettings();
         foreach (var name in PostgresConnections)
-            settings.Add(name, infrastructure.PostgresConnectionString, "System.Data.Postgres");
+            settings.Add(name, postgresConnection, "System.Data.Postgres");
         foreach (var (name, connection) in cqlConnections)
             settings.Add(name, connection, "System.Data.ScyllaDb");
         var logger = NullLogger<DbProvider>.Instance;
@@ -331,6 +358,10 @@ public sealed class DomainActorIntegrationTestFrameworkExecutor : Xunit.Sdk.Xuni
         Xunit.Abstractions.ITestFrameworkExecutionOptions executionOptions)
     {
         var selectedCases = testCases.ToArray();
+        if (Environment.GetEnvironmentVariable("IFM_BACKTEST_POSTGRES_CONNECTION") is not null
+            && selectedCases.Any(testCase => !testCase.Traits.TryGetValue("Purpose", out var purposes)
+                || !purposes.Contains("Backtest", StringComparer.Ordinal)))
+            throw new InvalidOperationException("Persistent backtest databases may only run tests explicitly marked Purpose=Backtest.");
         var requiresSharedInfrastructure = selectedCases.Any(testCase =>
             !testCase.Traits.TryGetValue("Infrastructure", out var values)
             || !values.Contains("SelfContained", StringComparer.Ordinal));

@@ -1,0 +1,12 @@
+{
+  "complete": true,
+  "matched_events_verified": 1269,
+  "unique_control_paths_verified": 5592,
+  "raw_rows_loaded": 113617284,
+  "prior_only_matching_and_fixed_calipers_verified": true,
+  "seeded_selection_and_unmatched_coverage_verified": true,
+  "trailing_volatility_and_asof_band_sources_verified": true,
+  "no_recent_iti_trigger_verified": true,
+  "next_tick_control_fills_and_first_outcome_touches_verified": true,
+  "paired_rates_reconciled": true
+}

@@ -1,0 +1,13 @@
+{
+  "complete": true,
+  "verified_opportunities": 1626,
+  "raw_rows_loaded": 113617284,
+  "next_tick_fills_and_first_outcome_touches_verified": true,
+  "closed_bar_availability_verified": true,
+  "decimal_wilder_rsi_reference_verified": true,
+  "preceding_efficiency_and_reversal_speed_verified": true,
+  "tiny_rsi_slope_sign_disagreements": 8,
+  "all_baseline_entries_reconciled": true,
+  "model_fitted": false,
+  "new_strategy_backtest_run": false
+}

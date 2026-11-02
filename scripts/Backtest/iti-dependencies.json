@@ -1,0 +1,30 @@
+{
+  "stage": "Historical ES futures ITI signal generation; no order execution",
+  "input": {
+    "scylla_keyspace": "trade_tick_quote_backtest_db",
+    "tables": ["futures_tick_data", "futures_tick_data_by_time"],
+    "instruments": ["ES outright futures", "VX outright futures"],
+    "selection": "Point-in-time contracts; never substitute today's on-the-run assignment",
+    "join": "Latest VX trade strictly earlier than each ES event; no invented VX default",
+    "pilot": {"date": "2026-10-01", "es": "ES20261218", "vx": "VX20261021", "max_es_ticks": 5000},
+    "month": {"start_inclusive_utc": "2026-10-01T00:00:00Z", "end_exclusive_utc": "2026-11-01T00:00:00Z", "es": "ES20261218", "vx_before_october_21_value_date": "VX20261021", "vx_from_october_21_value_date": "VX20261118", "rollover_rule": "Front expiry strictly after value date, matching production NextRolloverDate = LastTradeDate"}
+  },
+  "postgres": {
+    "template": "ifm_application_backtest",
+    "run_database": "ifm_application_backtest_<12 lowercase hexadecimal characters>_synthetic_host",
+    "required_event_storage": ["public.command_log", "public.event_log", "public.event_name_id", "public.event_stream_id", "public.event_projector_state", "public.event_projector_outbox", "public.event_projector_stream_checkpoint"],
+    "required_iti_output": ["market_data.futures_iti_signal", "market_data.futures_iti_timeframe_state"],
+    "legacy_iti_lookup_tables_cloned_but_not_written_by_native_postgres_accepted_path": ["market_data.futures_iti_signal_by_contract_day", "market_data.futures_iti_signal_by_contract_month", "market_data.futures_iti_signal_by_trend_mode_month", "market_data.futures_iti_signal_index"],
+    "reference_for_full_ingress_replay": ["securities.futures_contract", "securities.futures_contract_by_symbol", "securities.futures_contract_rollover", "market_data_service.futures_rollover_contract_assignment"],
+    "configuration_for_full_startup": ["reference_configuration.parameter_futures_iti_signal", "reference_configuration.parameter_futures_iti_signal_default_trading_days", "reference_configuration.parameter_catalog_version", "reference_configuration.parameter_catalog_assignment", "reference_configuration.parameter_startup_run"],
+    "downstream_not_required_for_iti_compute": ["market_data.futures_eod_data", "market_data.vix_futures_eod_data", "market_data.futures_rsi_signal", "market_data.futures_tdi_signal", "market_data.futures_trade_signal", "market_data.market_outlook_snapshot", "market_data.market_outlook_working_state"],
+    "bootstrap": "Clone all source schemas without source rows; production schema initializers and default policies run in the integration fixture"
+  },
+  "execution": {
+    "architecture": "Existing analytics Kestrel integration host, actor producer, durable command/event/projector path, completion-driven Daily to Weekly/Monthly hierarchy",
+    "broker_and_cache": "Fresh fixture-owned NATS/JetStream and Redis for each run",
+    "raw_tick_adapter": "Read-only Scylla export to retained, checksummed daily CSVs; every eligible tick is evaluated with the production calculator and state-changing Daily commands enter the durable actor pipeline",
+    "excluded": "Native/live feed, order execution, strategy workflow; no writes to source tick tables during replay",
+    "limits": "Cold start on October 1, without September warmup. Missing initial VX prices are counted skips; prior prices carry across sessions without an additional stale-price gate, matching current ITI ingress. Full realtime ingress actors and a virtual audit clock are not replayed. Business timestamps are historical; framework audit timestamps remain wall clock."
+  }
+}

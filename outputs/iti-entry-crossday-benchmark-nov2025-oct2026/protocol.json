@@ -1,0 +1,26 @@
+{
+  "opportunity_directory": "outputs\\iti-entry-signal-discovery-nov2025-oct2026",
+  "baseline_directory": "outputs\\iti-nov2025-oct2026-one-reversal-one-band-one-loss-watermark",
+  "opportunity_sha256": "f7abbb66d2d06950ee88fe6bffb68d137b26bd79ef1cf8813f9fb19a9864d6a8",
+  "input_sha256": "277085e5142b36ff6abccbe7c3c5037331ec0fa6d9f30c2083e06a2ac9c8943b",
+  "period": "2025-11-01 inclusive through 2026-11-01 exclusive",
+  "motivation": "Robustness to same-day prior controls sharing the pre-reversal path; specified after inspecting that favorable result, before separate-day outcomes",
+  "primary": "Full-year paired +2-band hit-rate difference across all opportunities with five controls",
+  "controls": "Five sampled without replacement from the preceding 20 source trading dates, strictly different earlier dates, same ES contract, assigned event trade direction",
+  "clock_time": "NY decision clock within 15 minutes of ITI entry signal clock, both 09:45-15:45; control decision at first tick within five seconds of HH:MM:30; next tick fill",
+  "matching": "Trailing 14 completed-minute RMS price change within 25%; own latest published Daily BandSize within 10%; no structural entry trigger in prior 60 seconds",
+  "outcomes": "Same +2 own entry-time bands / inward-rounded -1 band / 15:45 cutoff; no outcome-based selection",
+  "seed": 20261102,
+  "matching_control_count": 5,
+  "calipers_widened": false,
+  "uncertainty": "5000 moving-block bootstrap samples of five consecutive case calendar weeks to accommodate overlapping outcomes and prior-20-date control reuse",
+  "limitations": [
+    "Observational matched benchmark, not causal proof or portfolio P&L",
+    "Unmatched initial/contract-roll/volatility cases excluded; coverage reported",
+    "Whole year already used for development; not untouched validation",
+    "This robustness check follows the same-day result; both results retained and reported"
+  ],
+  "model_fitted": false,
+  "strategy_backtest_run": false,
+  "parameters_searched": false
+}

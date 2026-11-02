@@ -247,7 +247,7 @@ pub fn options_health(value: &Value) -> (&'static str, &'static str) {
     } else {
         (
             "Yellow",
-            "Options connected; waiting for verified live data",
+            "Options connected; waiting for subscription/component readiness",
         )
     }
 }

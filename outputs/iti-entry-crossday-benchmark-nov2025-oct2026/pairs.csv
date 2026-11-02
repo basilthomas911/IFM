@@ -1,0 +1,1355 @@
+opportunity_id,trade_date,baseline_status,side,iti_target_hit,iti_outcome,control_target_rate,paired_difference,control_cutoff_rate
+2025-11-04-355620,2025-11-04,Daily loss halt,Long,True,Target +2 bands,1.0,0.0,0.0
+2025-11-04-478950,2025-11-04,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-05-175795,2025-11-05,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-05-195043,2025-11-05,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2025-11-06-153088,2025-11-06,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-06-165218,2025-11-06,Excursion already used,Long,True,Target +2 bands,0.0,1.0,0.0
+2025-11-06-232375,2025-11-06,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-11-06-241316,2025-11-06,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-06-307968,2025-11-06,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-06-363381,2025-11-06,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-06-516735,2025-11-06,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-07-310044,2025-11-07,Daily loss halt,Long,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2025-11-07-331125,2025-11-07,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-11-07-351055,2025-11-07,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-11-07-357521,2025-11-07,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2025-11-07-407249,2025-11-07,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-07-511130,2025-11-07,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-07-520919,2025-11-07,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2025-11-07-569774,2025-11-07,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-10-239146,2025-11-10,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2025-11-10-280887,2025-11-10,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2025-11-10-341944,2025-11-10,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-10-356520,2025-11-10,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-10-372256,2025-11-10,Daily loss halt,Short,False,Stop -1 band,1.0,-1.0,0.0
+2025-11-10-403478,2025-11-10,Daily loss halt,Short,False,Stop -1 band,1.0,-1.0,0.0
+2025-11-11-125259,2025-11-11,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-11-141532,2025-11-11,Excursion already used,Long,True,Target +2 bands,0.6,0.4,0.0
+2025-11-11-295952,2025-11-11,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-11-310607,2025-11-11,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-11-364289,2025-11-11,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-12-163583,2025-11-12,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-11-12-209406,2025-11-12,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-13-137303,2025-11-13,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2025-11-13-240283,2025-11-13,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-13-245988,2025-11-13,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-13-263206,2025-11-13,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-11-13-281178,2025-11-13,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-11-13-298198,2025-11-13,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-13-352853,2025-11-13,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-13-503587,2025-11-13,Daily loss halt,Long,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2025-11-14-218612,2025-11-14,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-14-222215,2025-11-14,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-14-229005,2025-11-14,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2025-11-14-241504,2025-11-14,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-14-251787,2025-11-14,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-14-366637,2025-11-14,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-14-380659,2025-11-14,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-14-440917,2025-11-14,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2025-11-14-456169,2025-11-14,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-14-550967,2025-11-14,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2025-11-14-662798,2025-11-14,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2025-11-17-142715,2025-11-17,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-17-148416,2025-11-17,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-17-231833,2025-11-17,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2025-11-17-268134,2025-11-17,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-17-280475,2025-11-17,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-11-17-305392,2025-11-17,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-17-316859,2025-11-17,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-17-330169,2025-11-17,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-17-336281,2025-11-17,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-17-392217,2025-11-17,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-17-424766,2025-11-17,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-17-494553,2025-11-17,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-17-503503,2025-11-17,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-17-512167,2025-11-17,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-11-17-542232,2025-11-17,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2025-11-18-225426,2025-11-18,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-18-235864,2025-11-18,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-18-250600,2025-11-18,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-11-18-259000,2025-11-18,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-18-266244,2025-11-18,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-18-283868,2025-11-18,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2025-11-18-536233,2025-11-18,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-18-547245,2025-11-18,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2025-11-18-646249,2025-11-18,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-18-666101,2025-11-18,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-18-668465,2025-11-18,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-18-691851,2025-11-18,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-18-697131,2025-11-18,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2025-11-19-159661,2025-11-19,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-19-166247,2025-11-19,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-19-189831,2025-11-19,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-19-206227,2025-11-19,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-19-216352,2025-11-19,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-19-224566,2025-11-19,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2025-11-19-300151,2025-11-19,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-19-317708,2025-11-19,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-19-353263,2025-11-19,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-19-370948,2025-11-19,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-19-461353,2025-11-19,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-19-606377,2025-11-19,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2025-11-19-618717,2025-11-19,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2025-11-19-663570,2025-11-19,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2025-11-20-174543,2025-11-20,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-20-183072,2025-11-20,Excursion already used,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-20-203841,2025-11-20,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-20-208848,2025-11-20,Excursion already used,Short,True,Target +2 bands,0.0,1.0,0.0
+2025-11-20-338641,2025-11-20,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-20-359088,2025-11-20,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-20-369561,2025-11-20,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-20-382617,2025-11-20,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-20-484054,2025-11-20,Excursion already used,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-11-20-777529,2025-11-20,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-20-781190,2025-11-20,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-20-784435,2025-11-20,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-20-792193,2025-11-20,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2025-11-20-865061,2025-11-20,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-20-874261,2025-11-20,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-20-880881,2025-11-20,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-20-922041,2025-11-20,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2025-11-20-1075733,2025-11-20,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.2
+2025-11-20-1081706,2025-11-20,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2025-11-21-263526,2025-11-21,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-11-21-289296,2025-11-21,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2025-11-21-313033,2025-11-21,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-21-390124,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-21-430594,2025-11-21,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-11-21-473180,2025-11-21,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2025-11-21-578161,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-21-587364,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-21-599912,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-21-605538,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-21-611411,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-21-614112,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-21-620668,2025-11-21,Daily loss halt,Short,False,Stop -1 band,1.0,-1.0,0.0
+2025-11-21-622965,2025-11-21,Daily loss halt,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2025-11-21-725967,2025-11-21,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-21-734653,2025-11-21,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-21-744273,2025-11-21,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-11-21-771470,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-21-773400,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-21-779173,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-21-783913,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-11-21-787784,2025-11-21,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2025-11-21-894672,2025-11-21,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-21-927709,2025-11-21,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-21-939891,2025-11-21,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-24-171754,2025-11-24,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-11-24-199515,2025-11-24,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-24-208486,2025-11-24,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-24-213155,2025-11-24,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-24-304755,2025-11-24,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-24-314995,2025-11-24,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-25-140998,2025-11-25,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-11-25-157757,2025-11-25,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-25-162886,2025-11-25,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-25-167418,2025-11-25,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2025-11-25-274743,2025-11-25,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-25-367843,2025-11-25,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-11-25-388821,2025-11-25,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-25-399794,2025-11-25,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2025-11-26-107882,2025-11-26,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-26-116618,2025-11-26,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2025-11-26-239022,2025-11-26,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-11-26-248552,2025-11-26,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-26-264156,2025-11-26,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2025-11-28-27170,2025-11-28,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-28-38485,2025-11-28,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-11-28-64573,2025-11-28,Excursion already used,Short,True,Target +2 bands,0.4,0.6,0.0
+2025-11-28-87846,2025-11-28,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-01-380134,2025-12-01,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2025-12-02-89937,2025-12-02,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-02-235194,2025-12-02,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-02-239035,2025-12-02,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-02-252074,2025-12-02,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-12-02-303997,2025-12-02,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-12-02-313971,2025-12-02,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2025-12-03-366276,2025-12-03,Executed,Short,False,Session cutoff,0.4,-0.4,0.0
+2025-12-04-127492,2025-12-04,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2025-12-04-143348,2025-12-04,Excursion already used,Long,True,Target +2 bands,0.6,0.4,0.0
+2025-12-04-305404,2025-12-04,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-12-04-307508,2025-12-04,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-12-05-93824,2025-12-05,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-05-97665,2025-12-05,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-12-05-107164,2025-12-05,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-05-118241,2025-12-05,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-05-202641,2025-12-05,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2025-12-05-256064,2025-12-05,Daily loss halt,Long,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2025-12-08-115172,2025-12-08,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-12-08-139406,2025-12-08,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-08-144621,2025-12-08,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-08-188263,2025-12-08,Excursion already used,Long,False,Stop -1 band,0.8,-0.8,0.0
+2025-12-08-200550,2025-12-08,Excursion already used,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-12-10-310518,2025-12-10,Executed,Short,True,Target +2 bands,0.0,1.0,0.0
+2025-12-10-328343,2025-12-10,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-10-334556,2025-12-10,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-12-10-350172,2025-12-10,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-10-362219,2025-12-10,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-10-365688,2025-12-10,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-10-378174,2025-12-10,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-12-10-381172,2025-12-10,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-10-393549,2025-12-10,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-10-406864,2025-12-10,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.6
+2025-12-11-164992,2025-12-11,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-11-172239,2025-12-11,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2025-12-11-210315,2025-12-11,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-11-223419,2025-12-11,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2025-12-11-226861,2025-12-11,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-11-231079,2025-12-11,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2025-12-11-368847,2025-12-11,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-11-380141,2025-12-11,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2025-12-11-414866,2025-12-11,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-12-11-421217,2025-12-11,Daily loss halt,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2025-12-11-457944,2025-12-11,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2025-12-12-142668,2025-12-12,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-12-12-155253,2025-12-12,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-12-188274,2025-12-12,Excursion already used,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-12-12-315462,2025-12-12,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-12-352955,2025-12-12,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2025-12-12-409650,2025-12-12,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-12-473428,2025-12-12,Daily loss halt,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2025-12-12-529872,2025-12-12,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-12-582240,2025-12-12,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-12-12-588171,2025-12-12,Daily loss halt,Long,False,Session cutoff,0.2,-0.2,0.0
+2025-12-15-75600,2025-12-15,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2025-12-15-80400,2025-12-15,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-12-15-90715,2025-12-15,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-15-94398,2025-12-15,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2025-12-15-102495,2025-12-15,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-15-104519,2025-12-15,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-12-15-183596,2025-12-15,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2025-12-16-50978,2025-12-16,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2025-12-16-54609,2025-12-16,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-16-67324,2025-12-16,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-16-68379,2025-12-16,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-12-16-70653,2025-12-16,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2025-12-16-107216,2025-12-16,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-12-16-109578,2025-12-16,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-16-119413,2025-12-16,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-12-16-120624,2025-12-16,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2025-12-16-136280,2025-12-16,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-16-141706,2025-12-16,Daily loss halt,Short,False,Session cutoff,0.4,-0.4,0.2
+2025-12-17-30658,2025-12-17,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-17-31747,2025-12-17,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-17-44816,2025-12-17,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-17-47808,2025-12-17,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-12-17-48698,2025-12-17,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-17-49234,2025-12-17,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2025-12-17-54597,2025-12-17,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-17-62719,2025-12-17,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2025-12-18-41562,2025-12-18,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-18-42023,2025-12-18,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-18-43394,2025-12-18,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-18-53817,2025-12-18,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2025-12-18-57308,2025-12-18,Daily loss halt,Long,False,Stop -1 band,1.0,-1.0,0.0
+2025-12-18-60143,2025-12-18,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-18-61897,2025-12-18,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-18-62871,2025-12-18,Daily loss halt,Long,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2025-12-18-66921,2025-12-18,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2025-12-18-72131,2025-12-18,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2025-12-18-77102,2025-12-18,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-12-18-79142,2025-12-18,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2025-12-18-80570,2025-12-18,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2025-12-18-85327,2025-12-18,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2025-12-18-91681,2025-12-18,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2025-12-18-95579,2025-12-18,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2025-12-24-95027,2025-12-24,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2025-12-24-101147,2025-12-24,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2025-12-29-181044,2025-12-29,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2025-12-31-111051,2025-12-31,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-01-02-135023,2026-01-02,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-02-140155,2026-01-02,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-02-146911,2026-01-02,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-01-02-154460,2026-01-02,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-02-234730,2026-01-02,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-01-05-110028,2026-01-05,Executed,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-01-05-224264,2026-01-05,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-01-06-91877,2026-01-06,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-06-111666,2026-01-06,Excursion already used,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-06-277372,2026-01-06,Executed,Short,False,Stop -1 band,0.0,0.0,0.4
+2026-01-07-293592,2026-01-07,Executed,Long,False,Stop -1 band,0.2,-0.2,0.4
+2026-01-07-307816,2026-01-07,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.6
+2026-01-07-317485,2026-01-07,Daily loss halt,Long,False,Session cutoff,0.0,0.0,0.8
+2026-01-09-139100,2026-01-09,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-01-09-171681,2026-01-09,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-09-177841,2026-01-09,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-09-273155,2026-01-09,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-09-313602,2026-01-09,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-09-339486,2026-01-09,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-12-117384,2026-01-12,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-12-126082,2026-01-12,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-12-136582,2026-01-12,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-01-12-188501,2026-01-12,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-12-201384,2026-01-12,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-01-12-216297,2026-01-12,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-12-250463,2026-01-12,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-01-12-260205,2026-01-12,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-12-267895,2026-01-12,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.4
+2026-01-13-113741,2026-01-13,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-13-131855,2026-01-13,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-13-157904,2026-01-13,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-13-162818,2026-01-13,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-13-336730,2026-01-13,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-13-381623,2026-01-13,Excursion already used,Long,False,Session cutoff,0.0,0.0,0.4
+2026-01-14-138890,2026-01-14,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-01-14-247006,2026-01-14,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-01-14-314363,2026-01-14,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-15-348808,2026-01-15,Executed,Long,False,Session cutoff,0.4,-0.4,0.2
+2026-01-16-108061,2026-01-16,Executed,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-01-16-165056,2026-01-16,Excursion already used,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-01-16-223193,2026-01-16,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-20-297096,2026-01-20,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-20-303277,2026-01-20,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-20-313577,2026-01-20,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-01-20-454133,2026-01-20,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-20-469279,2026-01-20,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-01-20-522457,2026-01-20,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-01-20-545212,2026-01-20,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-01-20-557582,2026-01-20,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-20-598188,2026-01-20,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-21-205013,2026-01-21,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-21-233006,2026-01-21,Excursion already used,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-01-21-266306,2026-01-21,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-21-271530,2026-01-21,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-21-285608,2026-01-21,Excursion already used,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-01-21-345296,2026-01-21,Executed,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-01-21-358439,2026-01-21,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-21-381364,2026-01-21,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-21-396231,2026-01-21,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-21-404933,2026-01-21,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-21-559853,2026-01-21,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-21-712279,2026-01-21,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.6
+2026-01-22-145110,2026-01-22,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-22-167812,2026-01-22,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-22-267930,2026-01-22,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-01-22-294513,2026-01-22,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-22-306474,2026-01-22,Daily loss halt,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-01-22-382436,2026-01-22,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,1.0
+2026-01-23-182510,2026-01-23,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-23-265064,2026-01-23,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-01-26-116027,2026-01-26,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-26-151685,2026-01-26,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-01-26-231920,2026-01-26,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-26-252400,2026-01-26,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-28-169708,2026-01-28,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-28-207044,2026-01-28,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-01-28-262857,2026-01-28,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-01-29-134326,2026-01-29,Executed,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-01-29-186567,2026-01-29,Excursion already used,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-01-29-215057,2026-01-29,Excursion already used,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-01-29-259570,2026-01-29,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-29-268961,2026-01-29,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-29-278968,2026-01-29,Excursion already used,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-01-29-289891,2026-01-29,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-29-301042,2026-01-29,Excursion already used,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-01-29-324517,2026-01-29,Excursion already used,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-01-29-353534,2026-01-29,Excursion already used,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-01-29-383120,2026-01-29,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-29-467062,2026-01-29,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-29-473762,2026-01-29,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-01-29-476482,2026-01-29,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-29-488887,2026-01-29,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-01-30-338394,2026-01-30,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-30-348981,2026-01-30,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-01-30-407641,2026-01-30,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-01-30-501195,2026-01-30,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-01-30-544664,2026-01-30,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-01-30-550200,2026-01-30,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-01-30-555615,2026-01-30,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-01-30-561737,2026-01-30,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-01-30-648016,2026-01-30,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.2
+2026-02-02-219668,2026-02-02,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-02-233482,2026-02-02,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-02-281584,2026-02-02,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-02-03-138789,2026-02-03,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-03-151272,2026-02-03,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-03-184940,2026-02-03,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-03-208182,2026-02-03,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-02-03-342736,2026-02-03,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-03-416642,2026-02-03,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-03-450785,2026-02-03,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-02-03-474077,2026-02-03,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-03-489074,2026-02-03,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-03-496243,2026-02-03,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-03-503293,2026-02-03,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-02-03-624447,2026-02-03,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.2
+2026-02-03-629451,2026-02-03,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.4
+2026-02-03-633927,2026-02-03,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.2
+2026-02-04-188247,2026-02-04,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-04-254882,2026-02-04,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-04-261088,2026-02-04,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-02-04-289122,2026-02-04,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-04-349238,2026-02-04,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-04-355998,2026-02-04,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-02-04-419564,2026-02-04,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-04-422286,2026-02-04,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-04-475087,2026-02-04,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-04-508521,2026-02-04,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-02-04-678458,2026-02-04,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-04-682819,2026-02-04,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-04-685220,2026-02-04,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-04-687569,2026-02-04,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-02-04-698863,2026-02-04,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-02-05-274850,2026-02-05,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-05-288346,2026-02-05,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-05-300161,2026-02-05,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-05-333472,2026-02-05,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-02-05-373873,2026-02-05,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-05-394446,2026-02-05,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-05-493827,2026-02-05,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-02-05-510441,2026-02-05,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-02-05-517004,2026-02-05,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-02-05-520799,2026-02-05,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-02-05-616195,2026-02-05,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-02-05-654375,2026-02-05,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-05-667853,2026-02-05,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-02-05-679232,2026-02-05,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-02-05-703380,2026-02-05,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-05-776259,2026-02-05,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.6
+2026-02-06-219307,2026-02-06,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-06-237897,2026-02-06,Excursion already used,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-02-06-413358,2026-02-06,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-02-06-428279,2026-02-06,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-06-454012,2026-02-06,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-06-468916,2026-02-06,Excursion already used,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-02-06-477220,2026-02-06,Excursion already used,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-02-06-481402,2026-02-06,Excursion already used,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-02-06-509591,2026-02-06,Excursion already used,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-02-06-545151,2026-02-06,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-09-155873,2026-02-09,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-09-225016,2026-02-09,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-09-238018,2026-02-09,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-09-243636,2026-02-09,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-09-264191,2026-02-09,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-02-09-277686,2026-02-09,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-02-10-300145,2026-02-10,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-11-144018,2026-02-11,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-11-157048,2026-02-11,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-02-11-171179,2026-02-11,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-11-180454,2026-02-11,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-02-11-200738,2026-02-11,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-11-208853,2026-02-11,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-12-197882,2026-02-12,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-12-211214,2026-02-12,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-12-233634,2026-02-12,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-12-243362,2026-02-12,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-12-256616,2026-02-12,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-02-12-266811,2026-02-12,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-12-277865,2026-02-12,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-12-295580,2026-02-12,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-12-303776,2026-02-12,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-12-633385,2026-02-12,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-02-13-218593,2026-02-13,Executed,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-02-13-221490,2026-02-13,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-02-13-230353,2026-02-13,Daily loss halt,Short,False,Stop -1 band,1.0,-1.0,0.0
+2026-02-13-361805,2026-02-13,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-13-387009,2026-02-13,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-13-416142,2026-02-13,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-02-13-476351,2026-02-13,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-02-13-491166,2026-02-13,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-02-13-504146,2026-02-13,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-02-13-610561,2026-02-13,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-02-13-625070,2026-02-13,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-13-639469,2026-02-13,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.4
+2026-02-13-649959,2026-02-13,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-02-13-654256,2026-02-13,Daily loss halt,Long,False,Session cutoff,0.2,-0.2,0.2
+2026-02-16-53264,2026-02-16,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-16-63838,2026-02-16,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-16-67016,2026-02-16,Excursion already used,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-02-17-176838,2026-02-17,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-17-187825,2026-02-17,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-17-197783,2026-02-17,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-17-275127,2026-02-17,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-17-325440,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-02-17-330022,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-17-333005,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-17-340868,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-17-344265,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-02-17-353195,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-17-360259,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-17-489713,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-17-493501,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-17-500871,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-17-509946,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-17-514065,2026-02-17,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-02-17-542940,2026-02-17,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-18-157081,2026-02-18,Executed,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-02-18-173375,2026-02-18,Excursion already used,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-02-18-201866,2026-02-18,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-18-215113,2026-02-18,Excursion already used,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-02-18-345316,2026-02-18,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-02-18-363289,2026-02-18,Excursion already used,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-19-330447,2026-02-19,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-20-131676,2026-02-20,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-02-20-155092,2026-02-20,Executed,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-02-20-160101,2026-02-20,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-20-180890,2026-02-20,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-20-216688,2026-02-20,Executed,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-02-20-300453,2026-02-20,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-02-20-334470,2026-02-20,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-20-359865,2026-02-20,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-02-20-386852,2026-02-20,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-20-391923,2026-02-20,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-20-396312,2026-02-20,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-20-400457,2026-02-20,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-02-20-435458,2026-02-20,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-23-154483,2026-02-23,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-23-162162,2026-02-23,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-23-175028,2026-02-23,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-23-180794,2026-02-23,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-23-206343,2026-02-23,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-23-220277,2026-02-23,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-23-255456,2026-02-23,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-23-272688,2026-02-23,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-23-373089,2026-02-23,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-23-415989,2026-02-23,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-24-127118,2026-02-24,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-24-134834,2026-02-24,Excursion already used,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-02-24-159768,2026-02-24,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-02-24-212396,2026-02-24,Executed,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-02-24-255885,2026-02-24,Excursion already used,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-02-25-98598,2026-02-25,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-02-26-129208,2026-02-26,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-26-136247,2026-02-26,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-02-26-164028,2026-02-26,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-26-171580,2026-02-26,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-26-180276,2026-02-26,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-02-26-216965,2026-02-26,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-02-26-249945,2026-02-26,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-26-258087,2026-02-26,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-26-279046,2026-02-26,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-02-26-348573,2026-02-26,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-26-355639,2026-02-26,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-02-26-363200,2026-02-26,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-26-397384,2026-02-26,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-02-26-414897,2026-02-26,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-02-26-425354,2026-02-26,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-26-443655,2026-02-26,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-02-26-449447,2026-02-26,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-02-27-146544,2026-02-27,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-02-27-190946,2026-02-27,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-02-27-195966,2026-02-27,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-03-02-287875,2026-03-02,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-02-296526,2026-03-02,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-03-02-306990,2026-03-02,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-02-427357,2026-03-02,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-02-456529,2026-03-02,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-03-02-562254,2026-03-02,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-03-282473,2026-03-03,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-03-296940,2026-03-03,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-03-321794,2026-03-03,Excursion already used,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-03-385568,2026-03-03,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-03-395668,2026-03-03,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-03-477073,2026-03-03,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-03-03-482794,2026-03-03,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-03-491221,2026-03-03,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-03-495841,2026-03-03,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-03-499820,2026-03-03,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-03-03-510088,2026-03-03,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-03-512152,2026-03-03,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-03-552030,2026-03-03,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-03-03-664500,2026-03-03,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-03-03-671292,2026-03-03,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-03-680833,2026-03-03,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-03-04-242384,2026-03-04,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-04-308369,2026-03-04,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-04-312090,2026-03-04,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-05-256372,2026-03-05,Executed,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-03-05-261492,2026-03-05,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-05-274083,2026-03-05,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-05-339464,2026-03-05,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-05-410751,2026-03-05,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-05-427630,2026-03-05,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-05-450193,2026-03-05,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-03-05-457337,2026-03-05,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-03-05-616414,2026-03-05,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-03-06-235383,2026-03-06,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-03-06-261876,2026-03-06,Excursion already used,Long,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-03-06-323638,2026-03-06,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-06-327490,2026-03-06,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-06-337832,2026-03-06,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-03-06-487967,2026-03-06,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-06-515606,2026-03-06,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-06-645686,2026-03-06,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.6
+2026-03-09-318860,2026-03-09,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-09-340780,2026-03-09,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-09-450706,2026-03-09,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-09-457100,2026-03-09,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-09-466227,2026-03-09,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-09-473841,2026-03-09,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-09-488760,2026-03-09,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-09-502904,2026-03-09,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-09-628913,2026-03-09,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-03-09-706700,2026-03-09,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-03-09-709371,2026-03-09,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-09-712281,2026-03-09,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-10-252338,2026-03-10,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-10-269847,2026-03-10,Excursion already used,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-03-10-301418,2026-03-10,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-03-10-306417,2026-03-10,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-10-318921,2026-03-10,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-03-10-342050,2026-03-10,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-03-10-378751,2026-03-10,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-03-10-470299,2026-03-10,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-03-10-521413,2026-03-10,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-10-649949,2026-03-10,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.2
+2026-03-11-181053,2026-03-11,Executed,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-03-11-234141,2026-03-11,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-11-297900,2026-03-11,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-03-11-317153,2026-03-11,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-11-334943,2026-03-11,Excursion already used,Long,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-03-12-185857,2026-03-12,Executed,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-03-12-330493,2026-03-12,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-13-171332,2026-03-13,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-03-13-214960,2026-03-13,Executed,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-03-13-222418,2026-03-13,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-13-228954,2026-03-13,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-13-272923,2026-03-13,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-13-288940,2026-03-13,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-13-300729,2026-03-13,Daily loss halt,Long,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-03-13-352866,2026-03-13,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-13-475467,2026-03-13,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-16-120183,2026-03-16,Executed,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-03-16-131328,2026-03-16,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-16-139665,2026-03-16,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-16-170681,2026-03-16,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-16-291959,2026-03-16,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-03-17-48035,2026-03-17,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-17-73199,2026-03-17,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-17-78134,2026-03-17,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-18-46658,2026-03-18,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-03-18-83972,2026-03-18,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-18-86320,2026-03-18,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-19-53321,2026-03-19,Executed,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-03-19-54399,2026-03-19,Excursion already used,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-03-19-57301,2026-03-19,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-19-77782,2026-03-19,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-03-19-92639,2026-03-19,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-03-19-105630,2026-03-19,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-03-19-108617,2026-03-19,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-19-122043,2026-03-19,Executed,Long,True,Target +2 bands,0.2,0.8,0.2
+2026-03-23-535005,2026-03-23,Executed,Long,False,Stop -1 band,1.0,-1.0,0.0
+2026-03-23-543081,2026-03-23,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-23-553873,2026-03-23,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-23-602363,2026-03-23,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-23-610339,2026-03-23,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-24-228580,2026-03-24,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-03-24-453971,2026-03-24,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-24-463003,2026-03-24,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-25-182136,2026-03-25,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-25-190387,2026-03-25,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-25-203410,2026-03-25,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-25-309350,2026-03-25,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-25-333063,2026-03-25,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-03-25-490987,2026-03-25,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-26-155293,2026-03-26,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-26-159312,2026-03-26,Excursion already used,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-03-26-245177,2026-03-26,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-03-26-319888,2026-03-26,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-26-337998,2026-03-26,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-26-371862,2026-03-26,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-26-393922,2026-03-26,Excursion already used,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-03-26-443508,2026-03-26,Excursion already used,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-03-26-456825,2026-03-26,Excursion already used,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-03-27-159789,2026-03-27,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-03-27-184381,2026-03-27,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-27-368212,2026-03-27,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-03-27-414442,2026-03-27,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-03-27-445037,2026-03-27,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-03-27-488494,2026-03-27,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-03-30-210548,2026-03-30,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-30-223810,2026-03-30,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-03-30-313747,2026-03-30,Daily loss halt,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-03-30-438390,2026-03-30,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-03-30-478414,2026-03-30,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-30-496604,2026-03-30,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-03-30-512748,2026-03-30,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-03-30-524818,2026-03-30,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.2
+2026-03-31-225029,2026-03-31,Executed,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-03-31-234230,2026-03-31,Excursion already used,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-03-31-313531,2026-03-31,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-03-31-339519,2026-03-31,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-03-31-342685,2026-03-31,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-03-31-425162,2026-03-31,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-04-01-436346,2026-04-01,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-04-01-443887,2026-04-01,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-02-216265,2026-04-02,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-02-227209,2026-04-02,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-04-02-288907,2026-04-02,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-02-291039,2026-04-02,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-04-02-297875,2026-04-02,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-04-02-298728,2026-04-02,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-04-02-357621,2026-04-02,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-02-482254,2026-04-02,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-06-153397,2026-04-06,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-06-167983,2026-04-06,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-04-07-203269,2026-04-07,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-07-211261,2026-04-07,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-07-299796,2026-04-07,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-07-503239,2026-04-07,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-04-07-534401,2026-04-07,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-04-08-283167,2026-04-08,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-08-288077,2026-04-08,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-04-08-349103,2026-04-08,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-04-08-359210,2026-04-08,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-04-08-374474,2026-04-08,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-08-390552,2026-04-08,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-04-08-495090,2026-04-08,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-04-08-591842,2026-04-08,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-09-228796,2026-04-09,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-09-232676,2026-04-09,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-09-262159,2026-04-09,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-09-281320,2026-04-09,Excursion already used,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-04-10-251995,2026-04-10,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-10-275047,2026-04-10,Excursion already used,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-04-13-129632,2026-04-13,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-13-139140,2026-04-13,Excursion already used,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-04-13-157740,2026-04-13,Excursion already used,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-04-13-405304,2026-04-13,Executed,Short,False,Stop -1 band,0.2,-0.2,0.2
+2026-04-13-407557,2026-04-13,Daily loss halt,Short,False,Session cutoff,0.0,0.0,0.4
+2026-04-14-103059,2026-04-14,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-04-14-139830,2026-04-14,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-14-166038,2026-04-14,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-14-206946,2026-04-14,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-04-14-233388,2026-04-14,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-14-260349,2026-04-14,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-04-15-243652,2026-04-15,Executed,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-04-15-343731,2026-04-15,Executed,Short,False,Stop -1 band,0.0,0.0,0.2
+2026-04-15-363907,2026-04-15,Daily loss halt,Short,False,Session cutoff,0.2,-0.2,0.2
+2026-04-16-210440,2026-04-16,Executed,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-04-17-187280,2026-04-17,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-04-17-219560,2026-04-17,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-17-239517,2026-04-17,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-17-316956,2026-04-17,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-17-336890,2026-04-17,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-20-143028,2026-04-20,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-04-20-235295,2026-04-20,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-21-189071,2026-04-21,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-21-236104,2026-04-21,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-04-21-293832,2026-04-21,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-21-313590,2026-04-21,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-21-327133,2026-04-21,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-04-21-334952,2026-04-21,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-21-477669,2026-04-21,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.4
+2026-04-23-317319,2026-04-23,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-23-328595,2026-04-23,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-04-23-334739,2026-04-23,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-04-23-349294,2026-04-23,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-04-23-374628,2026-04-23,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-04-23-399815,2026-04-23,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-23-408256,2026-04-23,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-23-412219,2026-04-23,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-04-23-418022,2026-04-23,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-04-23-501672,2026-04-23,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-04-23-512739,2026-04-23,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-23-518437,2026-04-23,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-04-24-153132,2026-04-24,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-04-24-270647,2026-04-24,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-24-365372,2026-04-24,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-04-28-135541,2026-04-28,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-28-227095,2026-04-28,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-29-100462,2026-04-29,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-29-297532,2026-04-29,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-04-30-170126,2026-04-30,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-04-30-194823,2026-04-30,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-04-30-214630,2026-04-30,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-04-30-297007,2026-04-30,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-04-30-315615,2026-04-30,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-04-30-409869,2026-04-30,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-04-30-437373,2026-04-30,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.2
+2026-04-30-446352,2026-04-30,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-04-30-454479,2026-04-30,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.2
+2026-05-01-104721,2026-05-01,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-05-01-112621,2026-05-01,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-01-120261,2026-05-01,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-05-01-142985,2026-05-01,Excursion already used,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-05-04-248418,2026-05-04,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-05-04-284102,2026-05-04,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-05-04-297326,2026-05-04,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-05-04-321748,2026-05-04,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-05-05-107162,2026-05-05,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-05-125044,2026-05-05,Excursion already used,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-05-06-270187,2026-05-06,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-06-293474,2026-05-06,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-05-06-428767,2026-05-06,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-07-281495,2026-05-07,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-05-07-364264,2026-05-07,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-05-08-253055,2026-05-08,Executed,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-05-08-293143,2026-05-08,Excursion already used,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-05-11-147084,2026-05-11,Executed,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-05-12-206042,2026-05-12,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-05-12-266713,2026-05-12,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-12-400278,2026-05-12,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-12-414512,2026-05-12,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-12-426327,2026-05-12,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-12-438563,2026-05-12,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.2
+2026-05-12-450324,2026-05-12,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.2
+2026-05-13-127024,2026-05-13,Executed,Long,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-05-13-203969,2026-05-13,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-05-13-209869,2026-05-13,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-05-13-235253,2026-05-13,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-13-263291,2026-05-13,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-05-13-266928,2026-05-13,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-13-284531,2026-05-13,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-05-13-293803,2026-05-13,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-13-327089,2026-05-13,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-05-14-214930,2026-05-14,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-05-14-232925,2026-05-14,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-05-15-279880,2026-05-15,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-05-15-395436,2026-05-15,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-05-15-457235,2026-05-15,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-15-475591,2026-05-15,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-18-213093,2026-05-18,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-05-18-323398,2026-05-18,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-05-18-416953,2026-05-18,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-05-18-575649,2026-05-18,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-05-18-602909,2026-05-18,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-05-18-652830,2026-05-18,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.2
+2026-05-19-174223,2026-05-19,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-05-19-257340,2026-05-19,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-05-19-267862,2026-05-19,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-05-19-466390,2026-05-19,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-05-19-564037,2026-05-19,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-20-305357,2026-05-20,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-05-21-480782,2026-05-21,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-05-21-536610,2026-05-21,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-05-22-192476,2026-05-22,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-05-22-242163,2026-05-22,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-05-22-301072,2026-05-22,Excursion already used,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-05-22-307169,2026-05-22,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-05-22-376160,2026-05-22,Executed,Long,False,Session cutoff,0.0,0.0,0.6
+2026-05-26-240886,2026-05-26,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-05-27-120700,2026-05-27,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-05-29-116623,2026-05-29,Executed,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-01-134250,2026-06-01,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-01-338503,2026-06-01,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-01-340069,2026-06-01,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-02-189140,2026-06-02,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-06-02-205428,2026-06-02,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-06-03-118187,2026-06-03,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-04-247525,2026-06-04,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-06-04-289141,2026-06-04,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-04-307054,2026-06-04,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-04-342599,2026-06-04,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.2
+2026-06-04-349261,2026-06-04,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-04-361484,2026-06-04,Daily loss halt,Short,False,Session cutoff,0.6,-0.6,0.4
+2026-06-05-168176,2026-06-05,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-05-193072,2026-06-05,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-05-197739,2026-06-05,Excursion already used,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-06-05-345341,2026-06-05,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-05-359051,2026-06-05,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-05-380616,2026-06-05,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-05-393404,2026-06-05,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-06-05-410244,2026-06-05,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-05-426977,2026-06-05,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-05-533689,2026-06-05,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-05-548534,2026-06-05,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-05-559128,2026-06-05,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-05-580495,2026-06-05,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-06-05-605388,2026-06-05,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-05-617543,2026-06-05,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-05-633761,2026-06-05,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-06-08-403214,2026-06-08,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-06-08-480112,2026-06-08,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-08-487801,2026-06-08,Excursion already used,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-06-08-580168,2026-06-08,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-08-590854,2026-06-08,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-06-09-148270,2026-06-09,Executed,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-06-09-204839,2026-06-09,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-09-216434,2026-06-09,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-09-376584,2026-06-09,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-09-556148,2026-06-09,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-09-652762,2026-06-09,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-09-654219,2026-06-09,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-06-09-684488,2026-06-09,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-06-09-797851,2026-06-09,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-09-802951,2026-06-09,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-09-831553,2026-06-09,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.2
+2026-06-10-346241,2026-06-10,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-10-353444,2026-06-10,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-10-357042,2026-06-10,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-10-363262,2026-06-10,Excursion already used,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-06-10-384728,2026-06-10,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-10-394239,2026-06-10,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-10-399908,2026-06-10,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-06-10-448078,2026-06-10,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-10-534646,2026-06-10,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-10-553363,2026-06-10,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-10-559957,2026-06-10,Daily loss halt,Long,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-06-10-608691,2026-06-10,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-10-618556,2026-06-10,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-06-10-630117,2026-06-10,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-06-10-654293,2026-06-10,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-11-219529,2026-06-11,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-06-11-226013,2026-06-11,Executed,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-11-238426,2026-06-11,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-11-243872,2026-06-11,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-11-280232,2026-06-11,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-11-294465,2026-06-11,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-11-298082,2026-06-11,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-11-363079,2026-06-11,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-11-365794,2026-06-11,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-11-371379,2026-06-11,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-06-11-394663,2026-06-11,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-11-453431,2026-06-11,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-06-11-494122,2026-06-11,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-11-499967,2026-06-11,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-06-11-516940,2026-06-11,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-06-11-525045,2026-06-11,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-11-525282,2026-06-11,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-11-525885,2026-06-11,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-11-618130,2026-06-11,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-06-11-620942,2026-06-11,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-11-691444,2026-06-11,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-06-11-694550,2026-06-11,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-11-703483,2026-06-11,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.2
+2026-06-11-706574,2026-06-11,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.6
+2026-06-11-713509,2026-06-11,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-06-11-719502,2026-06-11,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-12-179574,2026-06-12,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-12-214573,2026-06-12,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-12-222350,2026-06-12,Excursion already used,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-12-228353,2026-06-12,Excursion already used,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-12-274125,2026-06-12,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-12-283250,2026-06-12,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-12-290823,2026-06-12,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-12-293966,2026-06-12,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-12-337879,2026-06-12,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-06-12-363420,2026-06-12,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-12-372181,2026-06-12,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-12-385860,2026-06-12,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-12-391089,2026-06-12,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-06-12-401422,2026-06-12,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-06-12-402245,2026-06-12,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-06-15-96946,2026-06-15,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-06-15-167073,2026-06-15,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-16-50696,2026-06-16,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-06-16-71359,2026-06-16,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-06-17-22022,2026-06-17,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-06-17-32147,2026-06-17,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-06-17-81085,2026-06-17,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-17-81892,2026-06-17,Daily loss halt,Long,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-06-17-98626,2026-06-17,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.2
+2026-06-17-99824,2026-06-17,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-17-103376,2026-06-17,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.4
+2026-06-22-199359,2026-06-22,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-22-207394,2026-06-22,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-23-256209,2026-06-23,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-23-270574,2026-06-23,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-23-287784,2026-06-23,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-23-363912,2026-06-23,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-23-381744,2026-06-23,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-06-23-430238,2026-06-23,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-23-449495,2026-06-23,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-23-531489,2026-06-23,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-24-280225,2026-06-24,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-24-287045,2026-06-24,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-24-298634,2026-06-24,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-24-395154,2026-06-24,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-24-416666,2026-06-24,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-24-566905,2026-06-24,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-06-25-135523,2026-06-25,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-25-139520,2026-06-25,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-25-145725,2026-06-25,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-06-25-175041,2026-06-25,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-06-25-209638,2026-06-25,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-25-216589,2026-06-25,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-25-224007,2026-06-25,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-25-235374,2026-06-25,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-25-382689,2026-06-25,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-25-395772,2026-06-25,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-06-25-446335,2026-06-25,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-06-25-520158,2026-06-25,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-06-25-528667,2026-06-25,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-06-25-562676,2026-06-25,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-25-581039,2026-06-25,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.2
+2026-06-26-204188,2026-06-26,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-26-214851,2026-06-26,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-26-216955,2026-06-26,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-26-220052,2026-06-26,Excursion already used,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-26-229419,2026-06-26,Excursion already used,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-26-239748,2026-06-26,Excursion already used,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-06-26-319178,2026-06-26,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-06-26-327305,2026-06-26,Excursion already used,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-26-333572,2026-06-26,Excursion already used,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-06-26-368594,2026-06-26,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-26-456292,2026-06-26,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.2
+2026-06-26-459365,2026-06-26,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-06-29-188818,2026-06-29,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-29-194198,2026-06-29,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-29-216665,2026-06-29,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-06-29-221845,2026-06-29,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-06-29-235611,2026-06-29,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-06-29-266446,2026-06-29,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-29-275507,2026-06-29,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-06-29-282627,2026-06-29,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-29-288440,2026-06-29,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-29-415291,2026-06-29,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-29-426145,2026-06-29,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-06-29-434563,2026-06-29,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-06-30-137094,2026-06-30,Executed,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-06-30-147586,2026-06-30,Excursion already used,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-06-30-252648,2026-06-30,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-06-30-256876,2026-06-30,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-30-272584,2026-06-30,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-06-30-311889,2026-06-30,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.4
+2026-06-30-322133,2026-06-30,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.2
+2026-07-01-183179,2026-07-01,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-01-190139,2026-07-01,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-01-245103,2026-07-01,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-01-255358,2026-07-01,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-01-268806,2026-07-01,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-07-02-161159,2026-07-02,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-02-167314,2026-07-02,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-07-02-227516,2026-07-02,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-07-02-263268,2026-07-02,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-07-02-293065,2026-07-02,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-07-02-322107,2026-07-02,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-07-02-445842,2026-07-02,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-07-02-474067,2026-07-02,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-07-02-520746,2026-07-02,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-07-06-205892,2026-07-06,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-06-224581,2026-07-06,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-06-245186,2026-07-06,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-07-07-171999,2026-07-07,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-07-196437,2026-07-07,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-07-207434,2026-07-07,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-07-215391,2026-07-07,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-07-07-309707,2026-07-07,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-07-327677,2026-07-07,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-07-397736,2026-07-07,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-07-08-288169,2026-07-08,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-07-08-321538,2026-07-08,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-08-340317,2026-07-08,Excursion already used,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-07-08-388948,2026-07-08,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-08-398128,2026-07-08,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-07-08-420030,2026-07-08,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-07-08-427117,2026-07-08,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-07-08-445376,2026-07-08,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-08-450956,2026-07-08,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-07-09-141369,2026-07-09,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-09-176986,2026-07-09,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-07-09-225963,2026-07-09,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-09-233737,2026-07-09,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-09-249067,2026-07-09,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-09-261314,2026-07-09,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-09-274906,2026-07-09,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-09-299033,2026-07-09,Daily loss halt,Short,False,Stop -1 band,1.0,-1.0,0.0
+2026-07-10-121204,2026-07-10,Executed,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-07-10-191397,2026-07-10,Excursion already used,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-07-10-310005,2026-07-10,Executed,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-07-10-321933,2026-07-10,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.2
+2026-07-13-298533,2026-07-13,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-07-13-400505,2026-07-13,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.2
+2026-07-14-212713,2026-07-14,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-07-15-220103,2026-07-15,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-07-15-266380,2026-07-15,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-15-280481,2026-07-15,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-15-345245,2026-07-15,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-15-355495,2026-07-15,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-16-186044,2026-07-16,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-16-198440,2026-07-16,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-16-328706,2026-07-16,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-16-340373,2026-07-16,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-16-363771,2026-07-16,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-07-16-382944,2026-07-16,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-16-398556,2026-07-16,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.4
+2026-07-17-186675,2026-07-17,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-17-191672,2026-07-17,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-17-195583,2026-07-17,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-17-210942,2026-07-17,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-17-217360,2026-07-17,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-17-226819,2026-07-17,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-07-17-449065,2026-07-17,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-17-452903,2026-07-17,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-17-492069,2026-07-17,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.6
+2026-07-20-178056,2026-07-20,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-07-20-189737,2026-07-20,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-07-20-228754,2026-07-20,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-20-363307,2026-07-20,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-20-377227,2026-07-20,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-20-386152,2026-07-20,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-20-392681,2026-07-20,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.2
+2026-07-22-105735,2026-07-22,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-22-118201,2026-07-22,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-22-125676,2026-07-22,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-07-23-158404,2026-07-23,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-23-204962,2026-07-23,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-07-23-244895,2026-07-23,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-23-294348,2026-07-23,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-23-306663,2026-07-23,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-23-317059,2026-07-23,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-23-329861,2026-07-23,Daily loss halt,Long,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-07-23-382443,2026-07-23,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-24-132420,2026-07-24,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-24-235912,2026-07-24,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-07-24-242822,2026-07-24,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-24-243873,2026-07-24,Daily loss halt,Short,False,Stop -1 band,1.0,-1.0,0.0
+2026-07-24-343251,2026-07-24,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-07-24-388539,2026-07-24,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-07-24-416002,2026-07-24,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-07-27-152114,2026-07-27,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-27-175350,2026-07-27,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-27-188594,2026-07-27,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-27-206263,2026-07-27,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-27-215417,2026-07-27,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-27-218537,2026-07-27,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-27-228787,2026-07-27,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-27-268697,2026-07-27,Executed,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-07-27-306365,2026-07-27,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-07-27-388950,2026-07-27,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-27-464707,2026-07-27,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-27-476637,2026-07-27,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.4
+2026-07-28-143814,2026-07-28,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-28-150239,2026-07-28,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-07-28-245911,2026-07-28,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-28-291072,2026-07-28,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-28-310564,2026-07-28,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-28-352039,2026-07-28,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-07-29-183621,2026-07-29,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-29-191665,2026-07-29,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-07-29-224577,2026-07-29,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-29-246591,2026-07-29,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-07-29-265305,2026-07-29,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-07-29-269917,2026-07-29,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-07-29-352156,2026-07-29,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-29-360885,2026-07-29,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-07-29-398849,2026-07-29,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-29-406396,2026-07-29,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-29-414048,2026-07-29,Daily loss halt,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-07-29-494132,2026-07-29,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-29-535337,2026-07-29,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-30-205737,2026-07-30,Executed,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-07-30-224101,2026-07-30,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-30-310434,2026-07-30,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-07-30-317271,2026-07-30,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-07-30-336635,2026-07-30,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-07-30-407789,2026-07-30,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-30-441453,2026-07-30,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-30-446438,2026-07-30,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-07-30-476618,2026-07-30,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-30-496789,2026-07-30,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-31-161411,2026-07-31,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-07-31-172091,2026-07-31,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-07-31-193333,2026-07-31,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-31-205664,2026-07-31,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-31-216976,2026-07-31,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-31-222983,2026-07-31,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-31-235201,2026-07-31,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-31-290616,2026-07-31,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-07-31-303956,2026-07-31,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-31-312358,2026-07-31,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-31-316181,2026-07-31,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-31-404918,2026-07-31,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-31-419116,2026-07-31,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-31-427786,2026-07-31,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-07-31-432490,2026-07-31,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-31-436804,2026-07-31,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-07-31-447792,2026-07-31,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-07-31-476074,2026-07-31,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-07-31-532646,2026-07-31,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.2
+2026-08-03-172804,2026-08-03,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-08-03-176083,2026-08-03,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-08-03-182737,2026-08-03,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-08-03-204187,2026-08-03,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-08-03-211132,2026-08-03,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-08-03-258183,2026-08-03,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-03-298204,2026-08-03,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-03-347751,2026-08-03,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-08-03-373742,2026-08-03,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.2
+2026-08-04-133027,2026-08-04,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-08-04-147511,2026-08-04,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-08-04-159888,2026-08-04,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-08-04-182034,2026-08-04,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-08-04-207987,2026-08-04,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-04-217037,2026-08-04,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-08-04-238698,2026-08-04,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-08-04-254615,2026-08-04,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-08-04-278714,2026-08-04,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-08-04-323377,2026-08-04,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-08-04-332736,2026-08-04,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-04-350702,2026-08-04,Daily loss halt,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-08-05-236438,2026-08-05,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-05-263601,2026-08-05,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-08-05-300619,2026-08-05,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-08-05-317246,2026-08-05,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-08-06-240498,2026-08-06,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-08-06-260342,2026-08-06,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-08-06-281068,2026-08-06,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-08-07-191639,2026-08-07,Executed,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-08-11-188740,2026-08-11,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-11-211510,2026-08-11,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-08-11-238826,2026-08-11,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-08-12-138304,2026-08-12,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-08-13-75119,2026-08-13,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-08-13-92880,2026-08-13,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-08-13-120104,2026-08-13,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-13-168489,2026-08-13,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-13-189187,2026-08-13,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-08-14-201910,2026-08-14,Executed,Long,False,Session cutoff,0.2,-0.2,0.0
+2026-08-17-104256,2026-08-17,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-17-187917,2026-08-17,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-17-192957,2026-08-17,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-08-17-237884,2026-08-17,Daily loss halt,Long,False,Session cutoff,0.2,-0.2,0.8
+2026-08-19-147761,2026-08-19,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-08-19-242019,2026-08-19,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-08-20-328663,2026-08-20,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-20-341882,2026-08-20,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-08-20-360564,2026-08-20,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-21-204997,2026-08-21,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-08-24-109039,2026-08-24,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-08-25-144801,2026-08-25,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-08-26-264513,2026-08-26,Executed,Short,False,Session cutoff,0.4,-0.4,0.0
+2026-08-28-194484,2026-08-28,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-08-28-255390,2026-08-28,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-08-28-269401,2026-08-28,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-08-28-290321,2026-08-28,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-08-28-301890,2026-08-28,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-08-31-109837,2026-08-31,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-08-31-156146,2026-08-31,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-09-01-130198,2026-09-01,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-09-01-181658,2026-09-01,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-09-01-307746,2026-09-01,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-09-01-355488,2026-09-01,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-09-02-170486,2026-09-02,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-09-02-181995,2026-09-02,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-09-02-189205,2026-09-02,Excursion already used,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-09-03-122556,2026-09-03,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-09-03-217855,2026-09-03,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-09-03-237948,2026-09-03,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-09-03-254897,2026-09-03,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-09-03-343793,2026-09-03,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-09-04-127258,2026-09-04,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-09-04-164316,2026-09-04,Excursion already used,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-09-04-183038,2026-09-04,Excursion already used,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-09-04-203491,2026-09-04,Excursion already used,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-09-08-154012,2026-09-08,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-09-09-231343,2026-09-09,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-09-10-150832,2026-09-10,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-09-10-159880,2026-09-10,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-09-10-166044,2026-09-10,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-09-14-155832,2026-09-14,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-09-14-158195,2026-09-14,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-09-14-160455,2026-09-14,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-09-15-47530,2026-09-15,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-09-15-51436,2026-09-15,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-09-15-52823,2026-09-15,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-09-15-55277,2026-09-15,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-09-16-53110,2026-09-16,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.2
+2026-09-16-57459,2026-09-16,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.6
+2026-09-17-23233,2026-09-17,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-09-21-297619,2026-09-21,Excursion already used,Short,False,Session cutoff,0.0,0.0,0.4
+2026-09-22-128909,2026-09-22,Executed,Short,False,Stop -1 band,1.0,-1.0,0.0
+2026-09-23-105077,2026-09-23,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-09-23-126730,2026-09-23,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-09-23-144548,2026-09-23,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-09-23-268905,2026-09-23,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-09-24-168894,2026-09-24,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-09-28-303854,2026-09-28,Executed,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-09-28-447001,2026-09-28,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.4
+2026-09-29-155876,2026-09-29,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-09-29-236525,2026-09-29,Excursion already used,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-09-29-249285,2026-09-29,Excursion already used,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-09-30-416776,2026-09-30,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-10-01-191837,2026-10-01,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-10-02-250590,2026-10-02,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-10-02-314282,2026-10-02,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-02-328826,2026-10-02,Excursion already used,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-05-154747,2026-10-05,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-05-165793,2026-10-05,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-05-170683,2026-10-05,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-05-223568,2026-10-05,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-10-05-256695,2026-10-05,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-10-05-272477,2026-10-05,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-05-289772,2026-10-05,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-10-05-314402,2026-10-05,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.2
+2026-10-06-129968,2026-10-06,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-10-06-143341,2026-10-06,Daily loss halt,Short,True,Target +2 bands,0.4,0.6,0.0
+2026-10-07-139986,2026-10-07,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-10-07-198234,2026-10-07,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-07-301270,2026-10-07,Daily loss halt,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-10-07-335118,2026-10-07,Daily loss halt,Short,True,Target +2 bands,0.8,0.19999999999999996,0.0
+2026-10-08-169466,2026-10-08,Executed,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-08-171895,2026-10-08,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-08-293447,2026-10-08,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-08-299728,2026-10-08,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-10-08-318461,2026-10-08,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-08-359690,2026-10-08,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-10-09-225322,2026-10-09,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-10-09-258373,2026-10-09,Excursion already used,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-10-09-263918,2026-10-09,Excursion already used,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-10-12-197588,2026-10-12,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-12-234866,2026-10-12,Daily loss halt,Long,False,Session cutoff,0.4,-0.4,0.6
+2026-10-14-154739,2026-10-14,Executed,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-14-184555,2026-10-14,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-10-14-203760,2026-10-14,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-14-237798,2026-10-14,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-14-255892,2026-10-14,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-14-275873,2026-10-14,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-14-311693,2026-10-14,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-14-341145,2026-10-14,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-10-14-396167,2026-10-14,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-10-14-419183,2026-10-14,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-10-15-217607,2026-10-15,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-10-15-244925,2026-10-15,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-15-285850,2026-10-15,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-15-303704,2026-10-15,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-15-309336,2026-10-15,Daily loss halt,Short,False,Stop -1 band,0.6,-0.6,0.0
+2026-10-15-321352,2026-10-15,Daily loss halt,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-10-15-483286,2026-10-15,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.4
+2026-10-16-167459,2026-10-16,Executed,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-10-16-245079,2026-10-16,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-10-16-286938,2026-10-16,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-10-16-340050,2026-10-16,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-10-16-361052,2026-10-16,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-10-16-380941,2026-10-16,Daily loss halt,Long,False,Stop -1 band,0.8,-0.8,0.0
+2026-10-16-469584,2026-10-16,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-10-16-507929,2026-10-16,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-19-183141,2026-10-19,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-10-19-387266,2026-10-19,Executed,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-10-20-195106,2026-10-20,Executed,Short,False,Stop -1 band,0.0,0.0,0.0
+2026-10-20-200878,2026-10-20,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-20-214574,2026-10-20,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-20-217327,2026-10-20,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-20-220433,2026-10-20,Daily loss halt,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-20-229080,2026-10-20,Daily loss halt,Short,False,Stop -1 band,0.8,-0.8,0.0
+2026-10-20-244284,2026-10-20,Daily loss halt,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-10-21-285347,2026-10-21,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-10-21-313839,2026-10-21,Excursion already used,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-10-21-343597,2026-10-21,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-21-363797,2026-10-21,Excursion already used,Short,True,Target +2 bands,0.0,1.0,0.0
+2026-10-21-400531,2026-10-21,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-21-404523,2026-10-21,Daily loss halt,Long,True,Target +2 bands,0.6,0.4,0.0
+2026-10-22-267734,2026-10-22,Executed,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-10-22-275956,2026-10-22,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-22-413752,2026-10-22,Daily loss halt,Short,True,Target +2 bands,0.6,0.4,0.0
+2026-10-22-446953,2026-10-22,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-10-22-516859,2026-10-22,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-10-23-201829,2026-10-23,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-23-242840,2026-10-23,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-23-297492,2026-10-23,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-23-337177,2026-10-23,Daily loss halt,Short,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-26-260312,2026-10-26,Executed,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-10-26-341898,2026-10-26,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-10-27-202531,2026-10-27,Executed,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-10-27-257125,2026-10-27,Executed,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-27-279814,2026-10-27,Excursion already used,Short,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-27-304074,2026-10-27,Excursion already used,Short,True,Target +2 bands,0.2,0.8,0.0
+2026-10-29-203640,2026-10-29,Executed,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-10-29-467803,2026-10-29,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-29-475274,2026-10-29,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0
+2026-10-30-204633,2026-10-30,Executed,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-30-229757,2026-10-30,Daily loss halt,Long,False,Stop -1 band,0.6,-0.6,0.0
+2026-10-30-238316,2026-10-30,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-30-255005,2026-10-30,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-10-30-381537,2026-10-30,Daily loss halt,Long,True,Target +2 bands,0.0,1.0,0.0
+2026-10-30-424121,2026-10-30,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-10-30-439495,2026-10-30,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.2
+2026-10-30-457563,2026-10-30,Daily loss halt,Long,False,Stop -1 band,0.4,-0.4,0.0
+2026-10-30-497116,2026-10-30,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-10-30-501202,2026-10-30,Daily loss halt,Long,False,Stop -1 band,0.2,-0.2,0.0
+2026-10-30-509507,2026-10-30,Daily loss halt,Long,False,Stop -1 band,0.0,0.0,0.0
+2026-10-30-522094,2026-10-30,Daily loss halt,Long,True,Target +2 bands,0.4,0.6,0.0
+2026-10-30-544623,2026-10-30,Daily loss halt,Long,True,Target +2 bands,0.2,0.8,0.0

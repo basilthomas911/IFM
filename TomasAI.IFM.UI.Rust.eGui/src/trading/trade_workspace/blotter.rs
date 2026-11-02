@@ -667,7 +667,7 @@ impl TradeWorkspace {
                 .rect_filled(information, 0., Color32::from_rgb(20, 20, 20));
             egui::ScrollArea::horizontal()
                 .id_salt("market-fields-scroll")
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     let o = ui.cursor().min - egui::vec2(0., 109.) / p;
                     let row1 = [
                         ("EXPIRY:", "expiry"),
@@ -1024,7 +1024,7 @@ impl TradeWorkspace {
         at(ui, field_region, "broker-fields", |ui| {
             egui::ScrollArea::vertical()
                 .id_salt("broker-field-scroll")
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     let origin = ui.cursor().min;
                     let available = ui.available_width();
                     let font = egui::TextStyle::Body.resolve(ui.style());
@@ -1426,7 +1426,7 @@ impl TradeWorkspace {
     /// Render the selected broker/reconciliation evidence from published data.
     fn evidence_panel(&mut self, ui: &mut egui::Ui, s: &ContractPublication) {
         let display = self.prepare_trade_display(s);
-        egui::ScrollArea::both().id_salt("durable-evidence-text").show(ui,|ui|{
+        egui::ScrollArea::both().id_salt("durable-evidence-text").bordered_show(ui,|ui|{
             let account=display.business.values().find_map(|v|v.account());
             ui.trading_label(format!("Account: {}; Gate={}; Qualification={}; Cash={}; Available={}",
                 account.and_then(|a|a.id.as_ref()).cell("accountAlias").text(),account.cell("gate").text(),account.cell("qualificationStatus").text(),

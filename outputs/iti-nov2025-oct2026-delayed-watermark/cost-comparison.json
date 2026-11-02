@@ -1,0 +1,304 @@
+{
+  "baseline_directory": "outputs\\iti-nov2025-oct2026-one-reversal-one-band-one-loss-watermark",
+  "candidate_directory": "outputs\\iti-nov2025-oct2026-delayed-watermark",
+  "primary_cost_per_round_trip_usd": 10,
+  "cost_model": "Illustrative fixed all-in commission/fees/spread/slippage deduction per completed one-contract trade; no bid/ask reconstruction; source trade-price stop gaps already retained",
+  "daily_loss_halt": "Unchanged: first gross losing trade; cost deductions are reporting only",
+  "only_strategy_change": "Watermark lag 0 to 1 band; initial +1-band activation floor unchanged",
+  "identical_entry_sets": true,
+  "changed_exits": [
+    {
+      "trade_date": "2025-12-16",
+      "entry_time_ny": "2025-12-16T09:46:09.682080-05:00",
+      "side": "Long",
+      "baseline_points": 6.5,
+      "candidate_points": 16.25,
+      "improvement_usd": 487.5
+    },
+    {
+      "trade_date": "2026-01-23",
+      "entry_time_ny": "2026-01-23T13:00:14.908032-05:00",
+      "side": "Long",
+      "baseline_points": 6.75,
+      "candidate_points": 3.25,
+      "improvement_usd": -175.0
+    },
+    {
+      "trade_date": "2026-03-18",
+      "entry_time_ny": "2026-03-18T10:30:05.820758-04:00",
+      "side": "Long",
+      "baseline_points": 7.5,
+      "candidate_points": 3.75,
+      "improvement_usd": -187.5
+    },
+    {
+      "trade_date": "2026-09-16",
+      "entry_time_ny": "2026-09-16T14:43:50.606324-04:00",
+      "side": "Short",
+      "baseline_points": 5.5,
+      "candidate_points": 5.5,
+      "improvement_usd": 0.0
+    }
+  ],
+  "baseline_trades_reaching_two_bands_before_exit": 4,
+  "scenarios": [
+    {
+      "cost_per_round_trip_usd": 0,
+      "baseline": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -1350.0,
+        "cost_per_round_trip_usd": 0,
+        "total_cost_usd": 0,
+        "net_pnl_usd": -1350.0,
+        "average_net_trade_usd": -3.901734104046243,
+        "average_win_points": 3.238023952095808,
+        "average_loss_points": 3.171787709497207,
+        "profit_factor": 0.952443857331572,
+        "max_closed_trade_drawdown_usd": 3012.5
+      },
+      "candidate": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -1225.0,
+        "cost_per_round_trip_usd": 0,
+        "total_cost_usd": 0,
+        "net_pnl_usd": -1225.0,
+        "average_net_trade_usd": -3.540462427745665,
+        "average_win_points": 3.252994011976048,
+        "average_loss_points": 3.171787709497207,
+        "profit_factor": 0.9568472038749449,
+        "max_closed_trade_drawdown_usd": 3012.5
+      },
+      "net_improvement_usd": 125.0
+    },
+    {
+      "cost_per_round_trip_usd": 5,
+      "baseline": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -1350.0,
+        "cost_per_round_trip_usd": 5,
+        "total_cost_usd": 1730,
+        "net_pnl_usd": -3080.0,
+        "average_net_trade_usd": -8.901734104046243,
+        "average_win_points": 3.1380239520958084,
+        "average_loss_points": 3.2717877094972065,
+        "profit_factor": 0.8948177238965253,
+        "max_closed_trade_drawdown_usd": 3810.0
+      },
+      "candidate": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -1225.0,
+        "cost_per_round_trip_usd": 5,
+        "total_cost_usd": 1730,
+        "net_pnl_usd": -2955.0,
+        "average_net_trade_usd": -8.540462427745664,
+        "average_win_points": 3.152994011976048,
+        "average_loss_points": 3.2717877094972065,
+        "profit_factor": 0.8990864851020234,
+        "max_closed_trade_drawdown_usd": 3685.0
+      },
+      "net_improvement_usd": 125.0
+    },
+    {
+      "cost_per_round_trip_usd": 10,
+      "baseline": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -1350.0,
+        "cost_per_round_trip_usd": 10,
+        "total_cost_usd": 3460,
+        "net_pnl_usd": -4810.0,
+        "average_net_trade_usd": -13.901734104046243,
+        "average_win_points": 3.0380239520958083,
+        "average_loss_points": 3.3717877094972066,
+        "profit_factor": 0.8406097257890812,
+        "max_closed_trade_drawdown_usd": 5195.0
+      },
+      "candidate": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -1225.0,
+        "cost_per_round_trip_usd": 10,
+        "total_cost_usd": 3460,
+        "net_pnl_usd": -4685.0,
+        "average_net_trade_usd": -13.540462427745664,
+        "average_win_points": 3.0529940119760477,
+        "average_loss_points": 3.3717877094972066,
+        "profit_factor": 0.8447518846822965,
+        "max_closed_trade_drawdown_usd": 5070.0
+      },
+      "net_improvement_usd": 125.0
+    },
+    {
+      "cost_per_round_trip_usd": 20,
+      "baseline": {
+        "trades": 346,
+        "wins": 166,
+        "losses": 180,
+        "flats": 0,
+        "gross_pnl_usd": -1350.0,
+        "cost_per_round_trip_usd": 20,
+        "total_cost_usd": 6920,
+        "net_pnl_usd": -8270.0,
+        "average_net_trade_usd": -23.90173410404624,
+        "average_win_points": 2.856024096385542,
+        "average_loss_points": 3.5527777777777776,
+        "profit_factor": 0.7413604378420641,
+        "max_closed_trade_drawdown_usd": 8270.0
+      },
+      "candidate": {
+        "trades": 346,
+        "wins": 166,
+        "losses": 180,
+        "flats": 0,
+        "gross_pnl_usd": -1225.0,
+        "cost_per_round_trip_usd": 20,
+        "total_cost_usd": 6920,
+        "net_pnl_usd": -8145.0,
+        "average_net_trade_usd": -23.540462427745666,
+        "average_win_points": 2.8710843373493975,
+        "average_loss_points": 3.5527777777777776,
+        "profit_factor": 0.7452697419859265,
+        "max_closed_trade_drawdown_usd": 8145.0
+      },
+      "net_improvement_usd": 125.0
+    }
+  ],
+  "monthly": [
+    {
+      "month": "2025-11",
+      "baseline_trades": 27,
+      "candidate_trades": 27,
+      "baseline_gross_usd": -950.0,
+      "candidate_gross_usd": -950.0,
+      "baseline_net_usd": -1220.0,
+      "candidate_net_usd": -1220.0,
+      "net_improvement_usd": 0.0
+    },
+    {
+      "month": "2025-12",
+      "baseline_trades": 23,
+      "candidate_trades": 23,
+      "baseline_gross_usd": -75.0,
+      "candidate_gross_usd": 412.5,
+      "baseline_net_usd": -305.0,
+      "candidate_net_usd": 182.5,
+      "net_improvement_usd": 487.5
+    },
+    {
+      "month": "2026-01",
+      "baseline_trades": 26,
+      "candidate_trades": 26,
+      "baseline_gross_usd": 125.0,
+      "candidate_gross_usd": -50.0,
+      "baseline_net_usd": -135.0,
+      "candidate_net_usd": -310.0,
+      "net_improvement_usd": -175.0
+    },
+    {
+      "month": "2026-02",
+      "baseline_trades": 30,
+      "candidate_trades": 30,
+      "baseline_gross_usd": 337.5,
+      "candidate_gross_usd": 337.5,
+      "baseline_net_usd": 37.5,
+      "candidate_net_usd": 37.5,
+      "net_improvement_usd": 0.0
+    },
+    {
+      "month": "2026-03",
+      "baseline_trades": 43,
+      "candidate_trades": 43,
+      "baseline_gross_usd": 962.5,
+      "candidate_gross_usd": 775.0,
+      "baseline_net_usd": 532.5,
+      "candidate_net_usd": 345.0,
+      "net_improvement_usd": -187.5
+    },
+    {
+      "month": "2026-04",
+      "baseline_trades": 23,
+      "candidate_trades": 23,
+      "baseline_gross_usd": -1137.5,
+      "candidate_gross_usd": -1137.5,
+      "baseline_net_usd": -1367.5,
+      "candidate_net_usd": -1367.5,
+      "net_improvement_usd": 0.0
+    },
+    {
+      "month": "2026-05",
+      "baseline_trades": 29,
+      "candidate_trades": 29,
+      "baseline_gross_usd": 337.5,
+      "candidate_gross_usd": 337.5,
+      "baseline_net_usd": 47.5,
+      "candidate_net_usd": 47.5,
+      "net_improvement_usd": 0.0
+    },
+    {
+      "month": "2026-06",
+      "baseline_trades": 40,
+      "candidate_trades": 40,
+      "baseline_gross_usd": -100.0,
+      "candidate_gross_usd": -100.0,
+      "baseline_net_usd": -500.0,
+      "candidate_net_usd": -500.0,
+      "net_improvement_usd": 0.0
+    },
+    {
+      "month": "2026-07",
+      "baseline_trades": 30,
+      "candidate_trades": 30,
+      "baseline_gross_usd": -1225.0,
+      "candidate_gross_usd": -1225.0,
+      "baseline_net_usd": -1525.0,
+      "candidate_net_usd": -1525.0,
+      "net_improvement_usd": 0.0
+    },
+    {
+      "month": "2026-08",
+      "baseline_trades": 19,
+      "candidate_trades": 19,
+      "baseline_gross_usd": -200.0,
+      "candidate_gross_usd": -200.0,
+      "baseline_net_usd": -390.0,
+      "candidate_net_usd": -390.0,
+      "net_improvement_usd": 0.0
+    },
+    {
+      "month": "2026-09",
+      "baseline_trades": 27,
+      "candidate_trades": 27,
+      "baseline_gross_usd": 1050.0,
+      "candidate_gross_usd": 1050.0,
+      "baseline_net_usd": 780.0,
+      "candidate_net_usd": 780.0,
+      "net_improvement_usd": 0.0
+    },
+    {
+      "month": "2026-10",
+      "baseline_trades": 29,
+      "candidate_trades": 29,
+      "baseline_gross_usd": -475.0,
+      "candidate_gross_usd": -475.0,
+      "baseline_net_usd": -765.0,
+      "candidate_net_usd": -765.0,
+      "net_improvement_usd": 0.0
+    }
+  ]
+}

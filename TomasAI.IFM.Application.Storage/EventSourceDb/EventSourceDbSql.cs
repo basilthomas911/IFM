@@ -1002,16 +1002,22 @@ WHERE
 """;
 
     /// <summary>
-    /// Finds the newest compatible snapshot within one stream. Materializing
-    /// the filtered keys prevents PostgreSQL's generic min/max plan from walking
-    /// the global event-version index when a snapshot is absent or very old.
+    /// Finds the newest compatible snapshot with one indexed seek per event-name
+    /// alias. Limits apply before the aggregate so dense streams and missing
+    /// snapshots cannot scan either full stream history or the global version index.
     /// </summary>
     public const string GetMaxEventVersion = """
 WITH snapshot_versions AS MATERIALIZED (
-    SELECT el.eventVersion
-    FROM event_log el
-    WHERE el.eventStreamId = $1
-      AND el.eventNameId = ANY($2)
+    SELECT latest.eventVersion
+    FROM unnest($2::integer[]) AS names(eventNameId)
+    CROSS JOIN LATERAL (
+        SELECT el.eventVersion
+        FROM event_log el
+        WHERE el.eventStreamId = $1
+          AND el.eventNameId = names.eventNameId
+        ORDER BY el.eventVersion DESC
+        LIMIT 1
+    ) latest
 )
 SELECT max(eventVersion) as "MaxEventVersion"
 FROM snapshot_versions

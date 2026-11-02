@@ -1,0 +1,15 @@
+{
+  "baseline_directory": "outputs/iti-nov2025-oct2026-one-reversal-one-band-one-loss-watermark",
+  "start_date": "2025-11-01",
+  "end_date_exclusive": "2026-11-01",
+  "only_change": "Subtract 0.5 frozen entry-time bands from every original stepped profit watermark, including the initial floor",
+  "activation": "Strictly greater than +1 frozen entry-time band; unchanged",
+  "profit_floor_steps": "0.5 bands at activation; 1.5 at +2 bands; 2.5 at +3 bands; never retreat",
+  "exit": "First observed trade strictly below signed profit floor; original priority and gap handling unchanged",
+  "unchanged": ["First reversal after qualified overshoot entry", "Original -1-band protective stop", "Original favorable-overshoot reversal exit", "One gross loss daily halt", "09:45-15:45 New York", "One ES at $50/point", "No RSI filter"],
+  "round_trip_cost_scenarios_usd": [0, 5, 10, 20],
+  "primary_round_trip_cost_usd": 10,
+  "cost_assumption": "Illustrative all-in deductions, not reconstructed executable bid/ask fills",
+  "parameters_searched": false,
+  "untouched_validation_data": false
+}

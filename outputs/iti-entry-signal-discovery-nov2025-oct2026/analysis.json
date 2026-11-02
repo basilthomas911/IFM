@@ -1,0 +1,834 @@
+{
+  "protocol": {
+    "baseline_directory": "outputs\\iti-nov2025-oct2026-one-reversal-one-band-one-loss-watermark",
+    "baseline_sha256": "ea59da4f7833d350555c1755de52835c9c9a45a7c72b154ec76022aa3073459c",
+    "period": "2025-11-01 inclusive through 2026-11-01 exclusive, NY trading dates",
+    "population": "First ordinary/overshoot reversal after an observed overshoot and each extreme reset; includes structurally qualified setups blocked by positions, prior excursion use, or the daily loss halt",
+    "label": "Next source tick fill; first +2 entry-time bands vs original inward-rounded -1-band stop, or 15:45 cutoff; observed prices; no other profit exit",
+    "features": [
+      "reversal_speed_bands_per_minute",
+      "preceding_trend_efficiency",
+      "aligned_rsi_slope"
+    ],
+    "reversal_speed": "Trade-direction distance from latest observed ITI extreme / signal BandSize / elapsed minutes",
+    "preceding_strength": "Signed efficiency of 14 completed one-minute close changes at the latest ITI extreme; net change / sum absolute changes, aligned with preceding ITI trend",
+    "rsi": "Wilder RSI14 slope from latest completed one-minute trade bar at signal, signed to trade direction; no developing bar",
+    "bar_rules": "UTC minute boundaries; no synthetic empty bars; reset each NY source date and contract, warm on available overnight ticks; observations >120 seconds past bar end are missing",
+    "discovery": "Nov-Jan feature medians for speed/efficiency; RSI sign groups; no outcome-based threshold search",
+    "internal_replication": "Feb-Oct plus fixed Feb-Apr/May-Jul/Aug-Oct blocks; all dates already used for strategy development, not an untouched holdout",
+    "uncertainty": "2000 whole-calendar-week bootstrap samples, seed 271828; 95% and 98.33% intervals for three feature contrasts; exploratory, not proof of an edge",
+    "strategy_backtest_run": false,
+    "model_fitted": false,
+    "parameters_searched": false,
+    "limitations": [
+      "Overlapping opportunities are correlated; no portfolio P&L inferred",
+      "Price-path labels differ from current stepped-watermark trade wins",
+      "Three exploratory features; no combinations or selected profitable regimes",
+      "Indicators reconstructed for this diagnostic; not a replay of every production indicator actor"
+    ],
+    "rsi_numerical_zero_tolerance": 1e-10,
+    "numerical_correction_after_reference_check": {
+      "timestamp_utc": "2026-11-02T01:23:40.160021+00:00",
+      "reason": "Decimal reference found eight sign disagreements only at floating-point roundoff magnitude",
+      "rule": "Classify absolute RSI slope <=1e-10 as flat; feature values and outcomes unchanged",
+      "maximum_affected_absolute_slope": 1.4210854715202004e-14,
+      "affected_opportunity_ids": [
+        "2025-12-12-142668",
+        "2025-12-23-215459",
+        "2026-01-12-260205",
+        "2026-04-08-374474",
+        "2026-06-04-349261",
+        "2026-06-08-487801",
+        "2026-09-09-231343",
+        "2026-09-10-159880"
+      ],
+      "outcome_based_selection": false,
+      "original_reports_retained": true
+    }
+  },
+  "checks": {
+    "raw_source_ticks": 118631783,
+    "daily_signals": 86366,
+    "closed_bars": 352385,
+    "source_hashes_verified": true,
+    "all_baseline_entries_reconciled": true
+  },
+  "totals": {
+    "opportunities": 1626,
+    "trading_dates": 237,
+    "target_hits": 489,
+    "target_rate": 0.3007380073800738,
+    "outcomes": {
+      "Stop -1 band": 1118,
+      "Target +2 bands": 489,
+      "Session cutoff": 19
+    }
+  },
+  "baseline_statuses": {
+    "Executed": 346,
+    "Daily loss halt": 1103,
+    "Excursion already used": 177
+  },
+  "cancelled_signals": [],
+  "analysis": {
+    "thresholds_from_discovery_only": {
+      "reversal_speed_bands_per_minute": 1.126410755361234,
+      "preceding_trend_efficiency": 0.4921395234586097
+    },
+    "windows": [
+      {
+        "window": "Discovery: Nov-Jan",
+        "start_date": "2025-11-01",
+        "end_date_exclusive": "2026-02-01",
+        "totals": {
+          "opportunities": 448,
+          "trading_dates": 55,
+          "target_hits": 122,
+          "target_rate": 0.27232142857142855,
+          "outcomes": {
+            "Stop -1 band": 319,
+            "Target +2 bands": 122,
+            "Session cutoff": 7
+          }
+        },
+        "features": [
+          {
+            "feature": "reversal_speed_bands_per_minute",
+            "groups": {
+              "High": {
+                "opportunities": 224,
+                "trading_dates": 44,
+                "target_hits": 55,
+                "target_rate": 0.24553571428571427,
+                "outcomes": {
+                  "Target +2 bands": 55,
+                  "Stop -1 band": 168,
+                  "Session cutoff": 1
+                }
+              },
+              "Low": {
+                "opportunities": 224,
+                "trading_dates": 52,
+                "target_hits": 67,
+                "target_rate": 0.29910714285714285,
+                "outcomes": {
+                  "Stop -1 band": 151,
+                  "Target +2 bands": 67,
+                  "Session cutoff": 6
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "High minus Low",
+              "difference": -0.053571428571428575,
+              "weeks": 13,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.12965474278598585,
+                0.024864849848895886
+              ],
+              "ci98_33_three_comparisons": [
+                -0.14963681593554243,
+                0.04277336716329356
+              ]
+            }
+          },
+          {
+            "feature": "preceding_trend_efficiency",
+            "groups": {
+              "High": {
+                "opportunities": 224,
+                "trading_dates": 51,
+                "target_hits": 52,
+                "target_rate": 0.23214285714285715,
+                "outcomes": {
+                  "Stop -1 band": 167,
+                  "Target +2 bands": 52,
+                  "Session cutoff": 5
+                }
+              },
+              "Low": {
+                "opportunities": 224,
+                "trading_dates": 51,
+                "target_hits": 70,
+                "target_rate": 0.3125,
+                "outcomes": {
+                  "Stop -1 band": 152,
+                  "Target +2 bands": 70,
+                  "Session cutoff": 2
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "High minus Low",
+              "difference": -0.08035714285714285,
+              "weeks": 13,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.1440345360538975,
+                -0.023307823933858586
+              ],
+              "ci98_33_three_comparisons": [
+                -0.16815238381164768,
+                -0.009847870223773043
+              ]
+            }
+          },
+          {
+            "feature": "aligned_rsi_slope",
+            "groups": {
+              "Aligned": {
+                "opportunities": 136,
+                "trading_dates": 49,
+                "target_hits": 43,
+                "target_rate": 0.3161764705882353,
+                "outcomes": {
+                  "Stop -1 band": 90,
+                  "Target +2 bands": 43,
+                  "Session cutoff": 3
+                }
+              },
+              "Flat": {
+                "opportunities": 24,
+                "trading_dates": 16,
+                "target_hits": 6,
+                "target_rate": 0.25,
+                "outcomes": {
+                  "Stop -1 band": 15,
+                  "Target +2 bands": 6,
+                  "Session cutoff": 3
+                }
+              },
+              "Opposed": {
+                "opportunities": 288,
+                "trading_dates": 47,
+                "target_hits": 73,
+                "target_rate": 0.2534722222222222,
+                "outcomes": {
+                  "Stop -1 band": 214,
+                  "Target +2 bands": 73,
+                  "Session cutoff": 1
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "Aligned minus Opposed",
+              "difference": 0.06270424836601307,
+              "weeks": 13,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.05978875130037922,
+                0.1588835751329561
+              ],
+              "ci98_33_three_comparisons": [
+                -0.08600417869143008,
+                0.1799449667401908
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "window": "Later internal replication: Feb-Oct",
+        "start_date": "2026-02-01",
+        "end_date_exclusive": "2026-11-01",
+        "totals": {
+          "opportunities": 1178,
+          "trading_dates": 182,
+          "target_hits": 367,
+          "target_rate": 0.31154499151103565,
+          "outcomes": {
+            "Stop -1 band": 799,
+            "Target +2 bands": 367,
+            "Session cutoff": 12
+          }
+        },
+        "features": [
+          {
+            "feature": "reversal_speed_bands_per_minute",
+            "groups": {
+              "High": {
+                "opportunities": 616,
+                "trading_dates": 137,
+                "target_hits": 206,
+                "target_rate": 0.3344155844155844,
+                "outcomes": {
+                  "Stop -1 band": 408,
+                  "Target +2 bands": 206,
+                  "Session cutoff": 2
+                }
+              },
+              "Low": {
+                "opportunities": 562,
+                "trading_dates": 162,
+                "target_hits": 161,
+                "target_rate": 0.28647686832740216,
+                "outcomes": {
+                  "Stop -1 band": 391,
+                  "Target +2 bands": 161,
+                  "Session cutoff": 10
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "High minus Low",
+              "difference": 0.04793871608818223,
+              "weeks": 39,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.01376788617767918,
+                0.11354217685115334
+              ],
+              "ci98_33_three_comparisons": [
+                -0.027599878493039652,
+                0.12823503047882365
+              ]
+            }
+          },
+          {
+            "feature": "preceding_trend_efficiency",
+            "groups": {
+              "High": {
+                "opportunities": 550,
+                "trading_dates": 151,
+                "target_hits": 165,
+                "target_rate": 0.3,
+                "outcomes": {
+                  "Stop -1 band": 380,
+                  "Target +2 bands": 165,
+                  "Session cutoff": 5
+                }
+              },
+              "Low": {
+                "opportunities": 628,
+                "trading_dates": 161,
+                "target_hits": 202,
+                "target_rate": 0.321656050955414,
+                "outcomes": {
+                  "Stop -1 band": 419,
+                  "Target +2 bands": 202,
+                  "Session cutoff": 7
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "High minus Low",
+              "difference": -0.021656050955414008,
+              "weeks": 39,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.07595311439567713,
+                0.02916268619395661
+              ],
+              "ci98_33_three_comparisons": [
+                -0.09197334397359301,
+                0.04040984368568985
+              ]
+            }
+          },
+          {
+            "feature": "aligned_rsi_slope",
+            "groups": {
+              "Aligned": {
+                "opportunities": 389,
+                "trading_dates": 155,
+                "target_hits": 116,
+                "target_rate": 0.2982005141388175,
+                "outcomes": {
+                  "Stop -1 band": 265,
+                  "Target +2 bands": 116,
+                  "Session cutoff": 8
+                }
+              },
+              "Flat": {
+                "opportunities": 39,
+                "trading_dates": 33,
+                "target_hits": 9,
+                "target_rate": 0.23076923076923078,
+                "outcomes": {
+                  "Stop -1 band": 30,
+                  "Target +2 bands": 9
+                }
+              },
+              "Opposed": {
+                "opportunities": 750,
+                "trading_dates": 154,
+                "target_hits": 242,
+                "target_rate": 0.32266666666666666,
+                "outcomes": {
+                  "Target +2 bands": 242,
+                  "Stop -1 band": 504,
+                  "Session cutoff": 4
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "Aligned minus Opposed",
+              "difference": -0.024466152527849172,
+              "weeks": 39,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.07983123514803318,
+                0.032137814783910874
+              ],
+              "ci98_33_three_comparisons": [
+                -0.08930258423936124,
+                0.04134289950100704
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "window": "Feb-Apr",
+        "start_date": "2026-02-01",
+        "end_date_exclusive": "2026-05-01",
+        "totals": {
+          "opportunities": 464,
+          "trading_dates": 61,
+          "target_hits": 149,
+          "target_rate": 0.32112068965517243,
+          "outcomes": {
+            "Stop -1 band": 310,
+            "Target +2 bands": 149,
+            "Session cutoff": 5
+          }
+        },
+        "features": [
+          {
+            "feature": "reversal_speed_bands_per_minute",
+            "groups": {
+              "High": {
+                "opportunities": 272,
+                "trading_dates": 54,
+                "target_hits": 95,
+                "target_rate": 0.3492647058823529,
+                "outcomes": {
+                  "Stop -1 band": 176,
+                  "Target +2 bands": 95,
+                  "Session cutoff": 1
+                }
+              },
+              "Low": {
+                "opportunities": 192,
+                "trading_dates": 51,
+                "target_hits": 54,
+                "target_rate": 0.28125,
+                "outcomes": {
+                  "Stop -1 band": 134,
+                  "Target +2 bands": 54,
+                  "Session cutoff": 4
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "High minus Low",
+              "difference": 0.06801470588235292,
+              "weeks": 13,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.01425371562311226,
+                0.16642292984962487
+              ],
+              "ci98_33_three_comparisons": [
+                -0.033283020667073906,
+                0.18453448257379435
+              ]
+            }
+          },
+          {
+            "feature": "preceding_trend_efficiency",
+            "groups": {
+              "High": {
+                "opportunities": 216,
+                "trading_dates": 54,
+                "target_hits": 69,
+                "target_rate": 0.3194444444444444,
+                "outcomes": {
+                  "Stop -1 band": 145,
+                  "Target +2 bands": 69,
+                  "Session cutoff": 2
+                }
+              },
+              "Low": {
+                "opportunities": 248,
+                "trading_dates": 58,
+                "target_hits": 80,
+                "target_rate": 0.3225806451612903,
+                "outcomes": {
+                  "Stop -1 band": 165,
+                  "Target +2 bands": 80,
+                  "Session cutoff": 3
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "High minus Low",
+              "difference": -0.003136200716845894,
+              "weeks": 13,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.11712498031726194,
+                0.09379910580139406
+              ],
+              "ci98_33_three_comparisons": [
+                -0.1442602099404061,
+                0.10728308728308732
+              ]
+            }
+          },
+          {
+            "feature": "aligned_rsi_slope",
+            "groups": {
+              "Aligned": {
+                "opportunities": 122,
+                "trading_dates": 50,
+                "target_hits": 34,
+                "target_rate": 0.2786885245901639,
+                "outcomes": {
+                  "Stop -1 band": 84,
+                  "Target +2 bands": 34,
+                  "Session cutoff": 4
+                }
+              },
+              "Flat": {
+                "opportunities": 14,
+                "trading_dates": 11,
+                "target_hits": 2,
+                "target_rate": 0.14285714285714285,
+                "outcomes": {
+                  "Stop -1 band": 12,
+                  "Target +2 bands": 2
+                }
+              },
+              "Opposed": {
+                "opportunities": 328,
+                "trading_dates": 58,
+                "target_hits": 113,
+                "target_rate": 0.3445121951219512,
+                "outcomes": {
+                  "Target +2 bands": 113,
+                  "Stop -1 band": 214,
+                  "Session cutoff": 1
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "Aligned minus Opposed",
+              "difference": -0.06582367053178728,
+              "weeks": 13,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.15814596984048532,
+                0.02430334742310971
+              ],
+              "ci98_33_three_comparisons": [
+                -0.18273241500215184,
+                0.044154748517376635
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "window": "May-Jul",
+        "start_date": "2026-05-01",
+        "end_date_exclusive": "2026-08-01",
+        "totals": {
+          "opportunities": 464,
+          "trading_dates": 62,
+          "target_hits": 146,
+          "target_rate": 0.3146551724137931,
+          "outcomes": {
+            "Stop -1 band": 316,
+            "Target +2 bands": 146,
+            "Session cutoff": 2
+          }
+        },
+        "features": [
+          {
+            "feature": "reversal_speed_bands_per_minute",
+            "groups": {
+              "High": {
+                "opportunities": 266,
+                "trading_dates": 48,
+                "target_hits": 88,
+                "target_rate": 0.3308270676691729,
+                "outcomes": {
+                  "Stop -1 band": 177,
+                  "Target +2 bands": 88,
+                  "Session cutoff": 1
+                }
+              },
+              "Low": {
+                "opportunities": 198,
+                "trading_dates": 56,
+                "target_hits": 58,
+                "target_rate": 0.29292929292929293,
+                "outcomes": {
+                  "Stop -1 band": 139,
+                  "Target +2 bands": 58,
+                  "Session cutoff": 1
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "High minus Low",
+              "difference": 0.037897774739879986,
+              "weeks": 14,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.059146648062420745,
+                0.17097287353777574
+              ],
+              "ci98_33_three_comparisons": [
+                -0.07688384587738582,
+                0.19934611090171958
+              ]
+            }
+          },
+          {
+            "feature": "preceding_trend_efficiency",
+            "groups": {
+              "High": {
+                "opportunities": 209,
+                "trading_dates": 52,
+                "target_hits": 62,
+                "target_rate": 0.2966507177033493,
+                "outcomes": {
+                  "Stop -1 band": 145,
+                  "Target +2 bands": 62,
+                  "Session cutoff": 2
+                }
+              },
+              "Low": {
+                "opportunities": 255,
+                "trading_dates": 54,
+                "target_hits": 84,
+                "target_rate": 0.32941176470588235,
+                "outcomes": {
+                  "Stop -1 band": 171,
+                  "Target +2 bands": 84
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "High minus Low",
+              "difference": -0.03276104700253307,
+              "weeks": 14,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.09000498939547631,
+                0.034911790258977324
+              ],
+              "ci98_33_three_comparisons": [
+                -0.10900264048503526,
+                0.051260343497232845
+              ]
+            }
+          },
+          {
+            "feature": "aligned_rsi_slope",
+            "groups": {
+              "Aligned": {
+                "opportunities": 146,
+                "trading_dates": 54,
+                "target_hits": 46,
+                "target_rate": 0.3150684931506849,
+                "outcomes": {
+                  "Stop -1 band": 100,
+                  "Target +2 bands": 46
+                }
+              },
+              "Flat": {
+                "opportunities": 14,
+                "trading_dates": 13,
+                "target_hits": 3,
+                "target_rate": 0.21428571428571427,
+                "outcomes": {
+                  "Stop -1 band": 11,
+                  "Target +2 bands": 3
+                }
+              },
+              "Opposed": {
+                "opportunities": 304,
+                "trading_dates": 51,
+                "target_hits": 97,
+                "target_rate": 0.3190789473684211,
+                "outcomes": {
+                  "Stop -1 band": 205,
+                  "Target +2 bands": 97,
+                  "Session cutoff": 2
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "Aligned minus Opposed",
+              "difference": -0.004010454217736159,
+              "weeks": 14,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.11717607039479008,
+                0.09400393457778372
+              ],
+              "ci98_33_three_comparisons": [
+                -0.15037763025782283,
+                0.11264141146671282
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "window": "Aug-Oct",
+        "start_date": "2026-08-01",
+        "end_date_exclusive": "2026-11-01",
+        "totals": {
+          "opportunities": 250,
+          "trading_dates": 59,
+          "target_hits": 72,
+          "target_rate": 0.288,
+          "outcomes": {
+            "Stop -1 band": 173,
+            "Target +2 bands": 72,
+            "Session cutoff": 5
+          }
+        },
+        "features": [
+          {
+            "feature": "reversal_speed_bands_per_minute",
+            "groups": {
+              "High": {
+                "opportunities": 78,
+                "trading_dates": 35,
+                "target_hits": 23,
+                "target_rate": 0.2948717948717949,
+                "outcomes": {
+                  "Stop -1 band": 55,
+                  "Target +2 bands": 23
+                }
+              },
+              "Low": {
+                "opportunities": 172,
+                "trading_dates": 55,
+                "target_hits": 49,
+                "target_rate": 0.28488372093023256,
+                "outcomes": {
+                  "Stop -1 band": 118,
+                  "Target +2 bands": 49,
+                  "Session cutoff": 5
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "High minus Low",
+              "difference": 0.009988073941562314,
+              "weeks": 13,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.13579393166152903,
+                0.17496969741365823
+              ],
+              "ci98_33_three_comparisons": [
+                -0.1627863869270184,
+                0.21318227209880747
+              ]
+            }
+          },
+          {
+            "feature": "preceding_trend_efficiency",
+            "groups": {
+              "High": {
+                "opportunities": 125,
+                "trading_dates": 45,
+                "target_hits": 34,
+                "target_rate": 0.272,
+                "outcomes": {
+                  "Stop -1 band": 90,
+                  "Target +2 bands": 34,
+                  "Session cutoff": 1
+                }
+              },
+              "Low": {
+                "opportunities": 125,
+                "trading_dates": 49,
+                "target_hits": 38,
+                "target_rate": 0.304,
+                "outcomes": {
+                  "Stop -1 band": 83,
+                  "Target +2 bands": 38,
+                  "Session cutoff": 4
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "High minus Low",
+              "difference": -0.03199999999999997,
+              "weeks": 13,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.141850443570514,
+                0.06070350508624505
+              ],
+              "ci98_33_three_comparisons": [
+                -0.1725091990514324,
+                0.08200863348919747
+              ]
+            }
+          },
+          {
+            "feature": "aligned_rsi_slope",
+            "groups": {
+              "Aligned": {
+                "opportunities": 121,
+                "trading_dates": 51,
+                "target_hits": 36,
+                "target_rate": 0.2975206611570248,
+                "outcomes": {
+                  "Stop -1 band": 81,
+                  "Target +2 bands": 36,
+                  "Session cutoff": 4
+                }
+              },
+              "Flat": {
+                "opportunities": 11,
+                "trading_dates": 9,
+                "target_hits": 4,
+                "target_rate": 0.36363636363636365,
+                "outcomes": {
+                  "Stop -1 band": 7,
+                  "Target +2 bands": 4
+                }
+              },
+              "Opposed": {
+                "opportunities": 118,
+                "trading_dates": 45,
+                "target_hits": 32,
+                "target_rate": 0.2711864406779661,
+                "outcomes": {
+                  "Stop -1 band": 85,
+                  "Target +2 bands": 32,
+                  "Session cutoff": 1
+                }
+              }
+            },
+            "weekly_bootstrap": {
+              "contrast": "Aligned minus Opposed",
+              "difference": 0.0263342204790587,
+              "weeks": 13,
+              "bootstrap_samples": 2000,
+              "ci95": [
+                -0.07971170576481554,
+                0.12415928228760675
+              ],
+              "ci98_33_three_comparisons": [
+                -0.10332301146197581,
+                0.1503932636651153
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

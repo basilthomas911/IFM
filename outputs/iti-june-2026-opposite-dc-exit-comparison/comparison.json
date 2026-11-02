@@ -1,0 +1,232 @@
+{
+  "complete": true,
+  "month": "2026-06",
+  "current": {
+    "trades": 54,
+    "wins": 28,
+    "losses": 26,
+    "flats": 0,
+    "points": -513.5,
+    "gross_pnl_usd": -25675.0,
+    "profit_factor": 0.4780177890724269,
+    "max_closed_trade_drawdown_usd": 30075.0,
+    "exit_reasons": {
+      "First reversal after overshoot": 37,
+      "Session flatten": 17
+    },
+    "win_rate_percent": 51.85185185185185,
+    "average_winner_usd": 839.7321428571429,
+    "average_loser_usd": -1891.826923076923,
+    "largest_trade_loss_usd": -6550.0,
+    "worst_daily_pnl_usd": -8150.0
+  },
+  "trial": {
+    "trades": 127,
+    "wins": 40,
+    "losses": 87,
+    "flats": 0,
+    "points": -304.25,
+    "gross_pnl_usd": -15212.5,
+    "profit_factor": 0.6882684426229508,
+    "max_closed_trade_drawdown_usd": 21200.0,
+    "exit_reasons": {
+      "Opposite DC": 84,
+      "First reversal after overshoot": 37,
+      "Session flatten": 6
+    },
+    "win_rate_percent": 31.496062992125985,
+    "average_winner_usd": 839.6875,
+    "average_loser_usd": -560.919540229885,
+    "largest_trade_loss_usd": -1000.0,
+    "worst_daily_pnl_usd": -4800.0
+  },
+  "gross_pnl_improvement_usd": 10462.5,
+  "closed_trade_drawdown_reduction_usd": 8875.0,
+  "checks": {
+    "baseline_trades_and_daily_pnl_identical": true,
+    "both_policies_independently_verified": true,
+    "raw_ticks": 11003263,
+    "daily_signals": 10635
+  },
+  "scope": "Daily ES only; same replay, source hashes, 09:45-15:45 NY, one ES at $50/point; no protective stop; gross before costs",
+  "trial_rule": "First opposite DC closes at next tick; consume that DC for exit only; wait for a subsequent new DC to enter; overshoot exit must belong to entry excursion",
+  "note": "Re-entry is simulated after later DC events; this is a full policy comparison, not frozen original entries.",
+  "daily": [
+    {
+      "trade_date": "2026-06-01",
+      "current_trades": 1,
+      "trial_trades": 2,
+      "current_pnl_usd": 987.5,
+      "trial_pnl_usd": 37.5,
+      "improvement_usd": -950.0
+    },
+    {
+      "trade_date": "2026-06-02",
+      "current_trades": 2,
+      "trial_trades": 2,
+      "current_pnl_usd": 412.5,
+      "trial_pnl_usd": 412.5,
+      "improvement_usd": 0.0
+    },
+    {
+      "trade_date": "2026-06-03",
+      "current_trades": 1,
+      "trial_trades": 2,
+      "current_pnl_usd": -775.0,
+      "trial_pnl_usd": -1250.0,
+      "improvement_usd": -475.0
+    },
+    {
+      "trade_date": "2026-06-04",
+      "current_trades": 1,
+      "trial_trades": 1,
+      "current_pnl_usd": -2987.5,
+      "trial_pnl_usd": -937.5,
+      "improvement_usd": 2050.0
+    },
+    {
+      "trade_date": "2026-06-05",
+      "current_trades": 1,
+      "trial_trades": 4,
+      "current_pnl_usd": -6112.5,
+      "trial_pnl_usd": -1587.5,
+      "improvement_usd": 4525.0
+    },
+    {
+      "trade_date": "2026-06-08",
+      "current_trades": 1,
+      "trial_trades": 7,
+      "current_pnl_usd": -2200.0,
+      "trial_pnl_usd": -3100.0,
+      "improvement_usd": -900.0
+    },
+    {
+      "trade_date": "2026-06-09",
+      "current_trades": 3,
+      "trial_trades": 14,
+      "current_pnl_usd": -8150.0,
+      "trial_pnl_usd": -2537.5,
+      "improvement_usd": 5612.5
+    },
+    {
+      "trade_date": "2026-06-10",
+      "current_trades": 2,
+      "trial_trades": 13,
+      "current_pnl_usd": -2812.5,
+      "trial_pnl_usd": -4800.0,
+      "improvement_usd": -1987.5
+    },
+    {
+      "trade_date": "2026-06-11",
+      "current_trades": 7,
+      "trial_trades": 18,
+      "current_pnl_usd": 1150.0,
+      "trial_pnl_usd": -1600.0,
+      "improvement_usd": -2750.0
+    },
+    {
+      "trade_date": "2026-06-12",
+      "current_trades": 6,
+      "trial_trades": 10,
+      "current_pnl_usd": 2375.0,
+      "trial_pnl_usd": 787.5,
+      "improvement_usd": -1587.5
+    },
+    {
+      "trade_date": "2026-06-15",
+      "current_trades": 1,
+      "trial_trades": 2,
+      "current_pnl_usd": -937.5,
+      "trial_pnl_usd": -512.5,
+      "improvement_usd": 425.0
+    },
+    {
+      "trade_date": "2026-06-16",
+      "current_trades": 2,
+      "trial_trades": 2,
+      "current_pnl_usd": -675.0,
+      "trial_pnl_usd": 125.0,
+      "improvement_usd": 800.0
+    },
+    {
+      "trade_date": "2026-06-17",
+      "current_trades": 3,
+      "trial_trades": 11,
+      "current_pnl_usd": -6025.0,
+      "trial_pnl_usd": -3462.5,
+      "improvement_usd": 2562.5
+    },
+    {
+      "trade_date": "2026-06-18",
+      "current_trades": 2,
+      "trial_trades": 5,
+      "current_pnl_usd": 587.5,
+      "trial_pnl_usd": -1312.5,
+      "improvement_usd": -1900.0
+    },
+    {
+      "trade_date": "2026-06-19",
+      "current_trades": 0,
+      "trial_trades": 0,
+      "current_pnl_usd": 0,
+      "trial_pnl_usd": 0,
+      "improvement_usd": 0
+    },
+    {
+      "trade_date": "2026-06-22",
+      "current_trades": 1,
+      "trial_trades": 2,
+      "current_pnl_usd": -3325.0,
+      "trial_pnl_usd": -825.0,
+      "improvement_usd": 2500.0
+    },
+    {
+      "trade_date": "2026-06-23",
+      "current_trades": 4,
+      "trial_trades": 4,
+      "current_pnl_usd": 2350.0,
+      "trial_pnl_usd": 2075.0,
+      "improvement_usd": -275.0
+    },
+    {
+      "trade_date": "2026-06-24",
+      "current_trades": 3,
+      "trial_trades": 5,
+      "current_pnl_usd": 1137.5,
+      "trial_pnl_usd": 1050.0,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-06-25",
+      "current_trades": 6,
+      "trial_trades": 12,
+      "current_pnl_usd": 4525.0,
+      "trial_pnl_usd": 2937.5,
+      "improvement_usd": -1587.5
+    },
+    {
+      "trade_date": "2026-06-26",
+      "current_trades": 2,
+      "trial_trades": 5,
+      "current_pnl_usd": -3387.5,
+      "trial_pnl_usd": -425.0,
+      "improvement_usd": 2962.5
+    },
+    {
+      "trade_date": "2026-06-29",
+      "current_trades": 3,
+      "trial_trades": 4,
+      "current_pnl_usd": -787.5,
+      "trial_pnl_usd": -325.0,
+      "improvement_usd": 462.5
+    },
+    {
+      "trade_date": "2026-06-30",
+      "current_trades": 2,
+      "trial_trades": 2,
+      "current_pnl_usd": -1025.0,
+      "trial_pnl_usd": 37.5,
+      "improvement_usd": 1062.5
+    }
+  ]
+}

@@ -99,6 +99,7 @@ async fn fifteen_minutes_of_provider_activity_without_quotes_cannot_start_recove
             .provider_received();
         settle().await;
         assert!(supervisor.recovery().connection_alive());
+        assert!(supervisor.recovery().resources_ready());
         assert_eq!(supervisor.recovery().status().phase, Phase::Starting);
         assert!(
             supervisor
@@ -145,6 +146,7 @@ async fn bootstrap_activity_cannot_cancel_reconstruction_deadline_or_prevent_fin
         settle().await;
         assert!(supervisor.recovery().status().deadline.is_some());
         assert!(!supervisor.recovery().connection_alive());
+        assert!(!supervisor.recovery().resources_ready());
         assert_eq!(factory.starts.load(Ordering::SeqCst), 1);
     }
     tokio::time::advance(std::time::Duration::from_secs(30)).await;

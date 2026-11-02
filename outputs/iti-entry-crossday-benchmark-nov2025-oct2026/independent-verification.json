@@ -1,0 +1,14 @@
+{
+  "complete": true,
+  "entry_features_verified": 1626,
+  "matched_events_verified": 1354,
+  "unique_control_paths_verified": 6008,
+  "raw_rows_loaded": 118443991,
+  "separate_earlier_date_contract_direction_matching_verified": true,
+  "fixed_clock_volatility_band_calipers_and_seeded_selection_verified": true,
+  "unmatched_coverage_verified": true,
+  "asof_volatility_and_band_sources_verified": true,
+  "no_recent_entry_trigger_verified": true,
+  "next_tick_fills_and_first_barrier_touches_verified": true,
+  "paired_rates_reconciled": true
+}

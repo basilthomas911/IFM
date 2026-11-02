@@ -23,7 +23,9 @@ public class FuturesRsiSignalReadModelValidationRules : BaseValidationRules, IVa
             RuleFor(x => x.ContractId).NotEmpty().WithMessage("FuturesRsiSignal.ContractId is required");
             RuleFor(x => x.ValueDate).NotEqual(DateOnly.MinValue).WithMessage("FuturesRsiSignal.ValueDate must be greater than DateOnly.MinValue");
             RuleFor(x => x.ValueDate).NotEqual(DateOnly.MaxValue).WithMessage("FuturesRsiSignal.ValueDate must be less than DateOnly.MaxValue");
-            RuleFor(x => x.Timestamp).NotEqual(TimeOnly.MinValue).WithMessage("FuturesRsiSignal.Timestamp must be greater than TimeOnly.MinValue");
+            // Midnight is a valid bar timestamp in an overnight futures session.
+            // The required value date identifies the session; TimeOnly cannot
+            // distinguish a missing value from the valid time 00:00.
             RuleFor(x => x.Timestamp).NotEqual(TimeOnly.MaxValue).WithMessage("FuturesRsiSignal.Timestamp must be less than TimeOnly.MaxValue");
             RuleFor(x => x.RS).Must(rs => !double.IsNaN(rs)).WithMessage("FuturesRsiSignal.RS is NaN");
             RuleFor(x => x.RSI).Must(rsi => !double.IsNaN(rsi)).WithMessage("FuturesRsiSignal.RSI is NaN");

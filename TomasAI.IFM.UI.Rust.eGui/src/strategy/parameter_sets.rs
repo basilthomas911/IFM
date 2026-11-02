@@ -1,5 +1,6 @@
 //! Strategy parameter-set editing, comparison, and activation previews. Field paths retain identity across nested component editors; numeric text buffers preserve incomplete edits until managed validation.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::models::trade_contracts::ParameterComponentSummary;
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings};
@@ -327,7 +328,7 @@ impl ParameterSets {
                             .min_scrolled_height(list_height)
                             .max_height(list_height)
                             .auto_shrink([false, false])
-                            .show(ui, |ui| {
+                            .bordered_show(ui, |ui| {
                                 for area in areas {
                                     let label = components
                                         .iter()
@@ -376,7 +377,7 @@ impl ParameterSets {
                         egui::ScrollArea::vertical()
                             .id_salt("reference-parameter-components")
                             .auto_shrink([false, false])
-                            .show(ui, |ui| {
+                            .bordered_show(ui, |ui| {
                                 for item in components.iter().filter(|item| {
                                     item.area_code.as_deref() == Some(self.area.as_str())
                                 }) {
@@ -419,7 +420,7 @@ impl ParameterSets {
                         egui::ScrollArea::vertical()
                             .id_salt("parameter-components")
                             .max_height(200.)
-                            .show(ui, |ui| {
+                            .bordered_show(ui, |ui| {
                                 for area in areas {
                                     let label = components
                                         .iter()
@@ -467,7 +468,7 @@ impl ParameterSets {
                     };
                     egui::ScrollArea::vertical()
                         .id_salt("parameter-versions")
-                        .show_rows(ui, 24., rows.len(), |ui, range| {
+                        .bordered_show_rows(ui, 24., rows.len(), |ui, range| {
                             for i in range {
                                 let row = &rows[i];
                                 let label = format!(
@@ -510,7 +511,7 @@ impl ParameterSets {
                     .min_scrolled_height(125.)
                     .max_height(125.)
                     .auto_shrink([false, false])
-                    .show_rows(
+                    .bordered_show_rows(
                         ui,
                         23.,
                         if matching { s.result.rows.len() } else { 0 },
@@ -953,7 +954,7 @@ impl ParameterSets {
                     .show_inside(ui, |ui| {
                         egui::ScrollArea::vertical()
                             .id_salt("parameter-field-groups")
-                            .show(ui, |ui| {
+                            .bordered_show(ui, |ui| {
                                 for group in groups {
                                     if ui
                                         .add(
@@ -1048,7 +1049,7 @@ impl ParameterSets {
                     .collect::<Vec<_>>();
                 egui::ScrollArea::vertical()
                     .id_salt("parameter-field-values")
-                    .show_rows(ui, 26., indices.len(), |ui, range| {
+                    .bordered_show_rows(ui, 26., indices.len(), |ui, range| {
                         for i in range {
                             let field = &mut self.fields[indices[i]];
                             ui.horizontal(|ui| {
@@ -1355,7 +1356,7 @@ impl ParameterSets {
                     egui::ScrollArea::vertical()
                         .id_salt("startup-list")
                         .max_height(200.)
-                        .show_rows(ui, 24., v.len(), |ui, range| {
+                        .bordered_show_rows(ui, 24., v.len(), |ui, range| {
                             for i in range {
                                 let row = &v[i];
                                 let id = row["RunId"].as_str().unwrap_or("");
@@ -1569,7 +1570,7 @@ impl ParameterSets {
                     egui::ScrollArea::vertical()
                         .id_salt("legacy-parameters")
                         .max_height(160.)
-                        .show_rows(ui, 24., v.len(), |ui, range| {
+                        .bordered_show_rows(ui, 24., v.len(), |ui, range| {
                             for i in range {
                                 let row = &v[i];
                                 let id = row["Id"].as_str().unwrap_or("");
@@ -1640,7 +1641,7 @@ impl ParameterSets {
                     if key == "payload" || key == "schema" {
                         egui::ScrollArea::both()
                             .id_salt(("parameter-exact", key))
-                            .show(ui, |ui| {
+                            .bordered_show(ui, |ui| {
                                 let mut text = value.as_str().unwrap_or("").to_owned();
                                 ui.add_sized(
                                     ui.available_size(),
@@ -1710,7 +1711,7 @@ fn edit_rows(
     egui::ScrollArea::both()
         .id_salt(("parameter-rows", kind))
         .max_height(310.)
-        .show_rows(ui, 36., rows.len(), |ui, range| {
+        .bordered_show_rows(ui, 36., rows.len(), |ui, range| {
             for i in range {
                 ui.push_id((kind, i), |ui| {
                     ui.horizontal(|ui| {
@@ -1856,7 +1857,7 @@ fn read_json(ui: &mut egui::Ui, text: &str, salt: &str) {
     if let Ok(value) = serde_json::from_str::<Value>(text) {
         egui::ScrollArea::both()
             .id_salt(("parameter-report", salt))
-            .show(ui, |ui| {
+            .bordered_show(ui, |ui| {
                 json_node(ui, salt, &value);
             });
     } else {
@@ -2061,7 +2062,7 @@ fn reference_table(ui: &mut egui::Ui, value: &Value, id: &str) {
     }
     egui::ScrollArea::horizontal()
         .id_salt(("reference-table-scroll", id))
-        .show(ui, |ui| {
+        .bordered_show(ui, |ui| {
             let mut table = egui_extras::TableBuilder::new(ui)
                 .id_salt(("reference-table", id))
                 .resizable(true);
@@ -2114,7 +2115,7 @@ fn reference_grid(
     let mut selected = None;
     egui::ScrollArea::horizontal()
         .id_salt(("report-scroll", id))
-        .show(ui, |ui| {
+        .bordered_show(ui, |ui| {
             let width = (ui.available_width() / columns.len().max(1) as f32).max(90.);
             let mut table = egui_extras::TableBuilder::new(ui)
                 .id_salt(("report", id))

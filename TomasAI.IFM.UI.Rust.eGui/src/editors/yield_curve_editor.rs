@@ -1,5 +1,6 @@
 //! Yield-curve rate editing, date filtering, imports, and tenor definitions. Draft strings are forwarded to managed validation; the renderer does not calculate or normalize financial rates.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings};
@@ -273,7 +274,7 @@ impl YieldCurveEditor {
             });
             self.drawn_rows = 0;
             if matches {
-                egui::ScrollArea::horizontal().show(ui, |ui| {
+                egui::ScrollArea::horizontal().bordered_show(ui, |ui| {
                     let mut table = egui_extras::TableBuilder::new(ui)
                         .id_salt("yield-curve-table")
                         .striped(true)

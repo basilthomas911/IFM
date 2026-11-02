@@ -6,6 +6,7 @@
 //! without inventing successful backend outcomes. Recorded control rectangles support
 //! layout verification and accessibility tests.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::control_parity::{BorderedTable as _, FilledGrid as _};
 use crate::presentation::{self, TradingLabelUi as _};
 use crate::{
@@ -472,7 +473,7 @@ impl MarketDataManager {
                     .id_salt(("manager-contract-list-scroll", self.selection))
                     .max_height((list.height() - 34.0).max(0.0))
                     .auto_shrink([false, false])
-                    .show_rows(ui, 24., publication.result.rows.len(), |ui, rows| {
+                    .bordered_show_rows(ui, 24., publication.result.rows.len(), |ui, rows| {
                         if publication.result.view != self.view() {
                             return;
                         }
@@ -726,7 +727,7 @@ impl MarketDataManager {
                         egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,
                     )
                     .auto_shrink([false, false])
-                    .show(ui, |ui| {
+                    .bordered_show(ui, |ui| {
                         ui.set_min_width(900. / p);
                         ui.style_mut().interaction.selectable_labels = false;
                         ui.spacing_mut().item_spacing.x = 0.;

@@ -208,8 +208,39 @@ impl MainShell {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
 
-                    let controls_width = 180.0;
-                    let heading_width = (ui.available_width() - controls_width).max(40.0);
+                    // Measure the controls before sizing the heading. Content overflow would
+                    // otherwise become the SidePanel's remembered width on every repaint.
+                    let caption_width = ui
+                        .painter()
+                        .layout_no_wrap(
+                            "Time Frame:".into(),
+                            egui::TextStyle::Body.resolve(ui.style()),
+                            egui::Color32::WHITE,
+                        )
+                        .size()
+                        .x;
+                    let period_text_width = ["Daily", "Weekly", "Monthly"]
+                        .into_iter()
+                        .map(|label| {
+                            ui.painter()
+                                .layout_no_wrap(
+                                    label.into(),
+                                    egui::TextStyle::Button.resolve(ui.style()),
+                                    egui::Color32::WHITE,
+                                )
+                                .size()
+                                .x
+                        })
+                        .fold(0.0_f32, f32::max);
+                    let time_frame_width = (period_text_width
+                        + ui.spacing().icon_width
+                        + ui.spacing().icon_spacing
+                        + 2.0 * ui.spacing().button_padding.x)
+                        .ceil()
+                        .max(72.0);
+                    let controls_width =
+                        (caption_width + time_frame_width + 2.0 * ui.spacing().item_spacing.x).ceil();
+                    let heading_width = (ui.available_width() - controls_width).max(0.0);
                     let contract = snapshot
                         .map(|s| s.contract_id.as_str())
                         .filter(|s| !s.is_empty())
@@ -228,7 +259,7 @@ impl MainShell {
                     ui.trading_caption("Time Frame:");
                     let previous = self.time_frame;
                     egui::ComboBox::from_id_salt("iti-time-frame")
-                        .width(72.0)
+                        .width(time_frame_width)
                         .selected_text(["Daily", "Weekly", "Monthly"][self.time_frame])
                         .show_ui(ui, |ui| {
                             for (index, label) in ["Daily", "Weekly", "Monthly"].iter().enumerate()

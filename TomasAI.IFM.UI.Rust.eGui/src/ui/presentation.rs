@@ -42,7 +42,8 @@ pub const SCHEDULE_LOG_TREE_RATIO: f32 = 0.4;
 pub fn grid_scroll_style(pixels_per_point: f32) -> egui::style::ScrollStyle {
     let mut scroll = egui::style::ScrollStyle::solid();
     scroll.bar_width = 16.0 / pixels_per_point;
-    scroll.bar_inner_margin = 2.0 / pixels_per_point;
+    scroll.bar_inner_margin = 0.0;
+    scroll.bar_outer_margin = 0.0;
     scroll.handle_min_length = 24.0 / pixels_per_point;
     scroll.foreground_color = true;
     scroll

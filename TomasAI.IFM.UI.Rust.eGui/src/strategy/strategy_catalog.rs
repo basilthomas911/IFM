@@ -1,5 +1,6 @@
 //! Versioned strategy catalog administration. Schema-specific sections and templates edit a local JSON-shaped draft; published reference choices and managed commands control validation, lifecycle, and persistence.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id};
 use eframe::egui;
@@ -324,7 +325,7 @@ impl StrategyCatalog {
                 }
                 egui::ScrollArea::vertical()
                     .id_salt("catalog-versions")
-                    .show_rows(ui, 28., s.result.rows.len(), |ui, range| {
+                    .bordered_show_rows(ui, 28., s.result.rows.len(), |ui, range| {
                         for i in range {
                             let row = &s.result.rows[i];
                             let label = format!(
@@ -471,7 +472,7 @@ impl StrategyCatalog {
             let products = parse(s, "products");
             egui::ScrollArea::vertical()
                 .id_salt("catalog-fields")
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     if self.section == "Definition" {
                         for key in [
                             "Code",
@@ -1351,7 +1352,7 @@ fn catalog_rows_grid(
     let width = (ui.available_width() / columns.len().max(1) as f32).max(90.);
     egui::ScrollArea::horizontal()
         .id_salt(("catalog-grid-scroll", section))
-        .show(ui, |ui| {
+        .bordered_show(ui, |ui| {
             let mut table = egui_extras::TableBuilder::new(ui)
                 .id_salt(("catalog-grid", section))
                 .resizable(true);

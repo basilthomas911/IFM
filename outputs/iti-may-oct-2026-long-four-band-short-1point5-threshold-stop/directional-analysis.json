@@ -1,0 +1,446 @@
+{
+  "strategy": "Fresh May-Oct combined replay; long stop threshold minus one band; short stop 1.5 entry thresholds; no daily loss cap; unchanged profit watermark",
+  "monthly": [
+    {
+      "month": "2026-05",
+      "Long": {
+        "trades": 20,
+        "wins": 11,
+        "losses": 9,
+        "flats": 0,
+        "points": -41.0,
+        "gross_pnl_usd": -2050.0,
+        "profit_factor": 0.5920398009950248,
+        "max_closed_trade_drawdown_usd": 3150.0,
+        "exit_reasons": {
+          "Trailing watermark": 11,
+          "4-band stop": 9
+        },
+        "win_rate": 0.55,
+        "average_trade_points": -2.05,
+        "average_winner_points": 5.409090909090909,
+        "average_loser_points": 11.166666666666666,
+        "worst_trade_points": -11.5,
+        "maximum_intratrade_adverse_points": 11.5,
+        "minimum_stop_points": 10.75,
+        "maximum_stop_points": 11.5,
+        "actual_stop_gap_loss_usd": 0.0
+      },
+      "Short": {
+        "trades": 21,
+        "wins": 14,
+        "losses": 7,
+        "flats": 0,
+        "points": -79.75,
+        "gross_pnl_usd": -3987.5,
+        "profit_factor": 0.5612104539202201,
+        "max_closed_trade_drawdown_usd": 6450.0,
+        "exit_reasons": {
+          "Trailing watermark": 13,
+          "7.5-band stop": 5,
+          "Session flatten": 3
+        },
+        "win_rate": 0.6666666666666666,
+        "average_trade_points": -3.7976190476190474,
+        "average_winner_points": 7.285714285714286,
+        "average_loser_points": 25.964285714285715,
+        "worst_trade_points": -29.0,
+        "maximum_intratrade_adverse_points": 29.0,
+        "minimum_stop_points": 28.0,
+        "maximum_stop_points": 29.25,
+        "actual_stop_gap_loss_usd": 0.0
+      }
+    },
+    {
+      "month": "2026-06",
+      "Long": {
+        "trades": 36,
+        "wins": 26,
+        "losses": 10,
+        "flats": 0,
+        "points": 43.0,
+        "gross_pnl_usd": 2150.0,
+        "profit_factor": 1.4257425742574257,
+        "max_closed_trade_drawdown_usd": 1162.5,
+        "exit_reasons": {
+          "Session flatten": 2,
+          "Trailing watermark": 26,
+          "4-band stop": 8
+        },
+        "win_rate": 0.7222222222222222,
+        "average_trade_points": 1.1944444444444444,
+        "average_winner_points": 5.538461538461538,
+        "average_loser_points": 10.1,
+        "worst_trade_points": -12.0,
+        "maximum_intratrade_adverse_points": 12.0,
+        "minimum_stop_points": 10.5,
+        "maximum_stop_points": 11.5,
+        "actual_stop_gap_loss_usd": 37.5
+      },
+      "Short": {
+        "trades": 45,
+        "wins": 38,
+        "losses": 6,
+        "flats": 1,
+        "points": 166.5,
+        "gross_pnl_usd": 8325.0,
+        "profit_factor": 2.2758620689655173,
+        "max_closed_trade_drawdown_usd": 3575.0,
+        "exit_reasons": {
+          "Trailing watermark": 38,
+          "Session flatten": 3,
+          "7.5-band stop": 4
+        },
+        "win_rate": 0.8444444444444444,
+        "average_trade_points": 3.7,
+        "average_winner_points": 7.815789473684211,
+        "average_loser_points": 21.75,
+        "worst_trade_points": -29.5,
+        "maximum_intratrade_adverse_points": 29.5,
+        "minimum_stop_points": 26.5,
+        "maximum_stop_points": 29.5,
+        "actual_stop_gap_loss_usd": 0.0
+      }
+    },
+    {
+      "month": "2026-07",
+      "Long": {
+        "trades": 27,
+        "wins": 17,
+        "losses": 10,
+        "flats": 0,
+        "points": -2.25,
+        "gross_pnl_usd": -112.5,
+        "profit_factor": 0.9776674937965261,
+        "max_closed_trade_drawdown_usd": 2975.0,
+        "exit_reasons": {
+          "Trailing watermark": 17,
+          "4-band stop": 9,
+          "Session flatten": 1
+        },
+        "win_rate": 0.6296296296296297,
+        "average_trade_points": -0.08333333333333333,
+        "average_winner_points": 5.794117647058823,
+        "average_loser_points": 10.075,
+        "worst_trade_points": -11.25,
+        "maximum_intratrade_adverse_points": 11.25,
+        "minimum_stop_points": 10.75,
+        "maximum_stop_points": 11.25,
+        "actual_stop_gap_loss_usd": 0.0
+      },
+      "Short": {
+        "trades": 27,
+        "wins": 22,
+        "losses": 5,
+        "flats": 0,
+        "points": 19.0,
+        "gross_pnl_usd": 950.0,
+        "profit_factor": 1.1330998248686515,
+        "max_closed_trade_drawdown_usd": 3950.0,
+        "exit_reasons": {
+          "Trailing watermark": 21,
+          "Session flatten": 1,
+          "7.5-band stop": 5
+        },
+        "win_rate": 0.8148148148148148,
+        "average_trade_points": 0.7037037037037037,
+        "average_winner_points": 7.3522727272727275,
+        "average_loser_points": 28.55,
+        "worst_trade_points": -29.0,
+        "maximum_intratrade_adverse_points": 29.0,
+        "minimum_stop_points": 27.5,
+        "maximum_stop_points": 29.0,
+        "actual_stop_gap_loss_usd": 0.0
+      }
+    },
+    {
+      "month": "2026-08",
+      "Long": {
+        "trades": 8,
+        "wins": 4,
+        "losses": 4,
+        "flats": 0,
+        "points": -11.5,
+        "gross_pnl_usd": -575.0,
+        "profit_factor": 0.6541353383458647,
+        "max_closed_trade_drawdown_usd": 1662.5,
+        "exit_reasons": {
+          "Trailing watermark": 4,
+          "4-band stop": 3,
+          "Session flatten": 1
+        },
+        "win_rate": 0.5,
+        "average_trade_points": -1.4375,
+        "average_winner_points": 5.4375,
+        "average_loser_points": 8.3125,
+        "worst_trade_points": -11.25,
+        "maximum_intratrade_adverse_points": 11.25,
+        "minimum_stop_points": 10.75,
+        "maximum_stop_points": 11.25,
+        "actual_stop_gap_loss_usd": 0.0
+      },
+      "Short": {
+        "trades": 13,
+        "wins": 7,
+        "losses": 6,
+        "flats": 0,
+        "points": -31.75,
+        "gross_pnl_usd": -1587.5,
+        "profit_factor": 0.5903225806451613,
+        "max_closed_trade_drawdown_usd": 3087.5,
+        "exit_reasons": {
+          "Trailing watermark": 6,
+          "Session flatten": 6,
+          "7.5-band stop": 1
+        },
+        "win_rate": 0.5384615384615384,
+        "average_trade_points": -2.4423076923076925,
+        "average_winner_points": 6.535714285714286,
+        "average_loser_points": 12.916666666666666,
+        "worst_trade_points": -28.75,
+        "maximum_intratrade_adverse_points": 28.75,
+        "minimum_stop_points": 27.0,
+        "maximum_stop_points": 29.0,
+        "actual_stop_gap_loss_usd": 0.0
+      }
+    },
+    {
+      "month": "2026-09",
+      "Long": {
+        "trades": 12,
+        "wins": 8,
+        "losses": 4,
+        "flats": 0,
+        "points": -4.5,
+        "gross_pnl_usd": -225.0,
+        "profit_factor": 0.898876404494382,
+        "max_closed_trade_drawdown_usd": 1125.0,
+        "exit_reasons": {
+          "Trailing watermark": 7,
+          "4-band stop": 4,
+          "Session flatten": 1
+        },
+        "win_rate": 0.6666666666666666,
+        "average_trade_points": -0.375,
+        "average_winner_points": 5.0,
+        "average_loser_points": 11.125,
+        "worst_trade_points": -11.25,
+        "maximum_intratrade_adverse_points": 11.25,
+        "minimum_stop_points": 10.75,
+        "maximum_stop_points": 11.25,
+        "actual_stop_gap_loss_usd": 0.0
+      },
+      "Short": {
+        "trades": 17,
+        "wins": 12,
+        "losses": 5,
+        "flats": 0,
+        "points": -8.0,
+        "gross_pnl_usd": -400.0,
+        "profit_factor": 0.9123287671232877,
+        "max_closed_trade_drawdown_usd": 3625.0,
+        "exit_reasons": {
+          "Trailing watermark": 11,
+          "Session flatten": 4,
+          "7.5-band stop": 2
+        },
+        "win_rate": 0.7058823529411765,
+        "average_trade_points": -0.47058823529411764,
+        "average_winner_points": 6.9375,
+        "average_loser_points": 18.25,
+        "worst_trade_points": -28.75,
+        "maximum_intratrade_adverse_points": 28.75,
+        "minimum_stop_points": 27.25,
+        "maximum_stop_points": 29.0,
+        "actual_stop_gap_loss_usd": 0.0
+      }
+    },
+    {
+      "month": "2026-10",
+      "Long": {
+        "trades": 16,
+        "wins": 11,
+        "losses": 5,
+        "flats": 0,
+        "points": 0.25,
+        "gross_pnl_usd": 12.5,
+        "profit_factor": 1.0043859649122806,
+        "max_closed_trade_drawdown_usd": 1150.0,
+        "exit_reasons": {
+          "Trailing watermark": 10,
+          "4-band stop": 5,
+          "Session flatten": 1
+        },
+        "win_rate": 0.6875,
+        "average_trade_points": 0.015625,
+        "average_winner_points": 5.204545454545454,
+        "average_loser_points": 11.4,
+        "worst_trade_points": -11.5,
+        "maximum_intratrade_adverse_points": 11.5,
+        "minimum_stop_points": 11.25,
+        "maximum_stop_points": 11.75,
+        "actual_stop_gap_loss_usd": 0.0
+      },
+      "Short": {
+        "trades": 22,
+        "wins": 16,
+        "losses": 6,
+        "flats": 0,
+        "points": -15.25,
+        "gross_pnl_usd": -762.5,
+        "profit_factor": 0.8908765652951699,
+        "max_closed_trade_drawdown_usd": 2687.5,
+        "exit_reasons": {
+          "Trailing watermark": 15,
+          "7.5-band stop": 4,
+          "Session flatten": 3
+        },
+        "win_rate": 0.7272727272727273,
+        "average_trade_points": -0.6931818181818182,
+        "average_winner_points": 7.78125,
+        "average_loser_points": 23.291666666666668,
+        "worst_trade_points": -29.75,
+        "maximum_intratrade_adverse_points": 29.75,
+        "minimum_stop_points": 28.25,
+        "maximum_stop_points": 30.75,
+        "actual_stop_gap_loss_usd": 0.0
+      }
+    }
+  ],
+  "combined": {
+    "Long": {
+      "trades": 119,
+      "wins": 77,
+      "losses": 42,
+      "flats": 0,
+      "points": -16.0,
+      "gross_pnl_usd": -800.0,
+      "profit_factor": 0.9633867276887872,
+      "max_closed_trade_drawdown_usd": 4237.5,
+      "exit_reasons": {
+        "Trailing watermark": 75,
+        "4-band stop": 38,
+        "Session flatten": 6
+      },
+      "win_rate": 0.6470588235294118,
+      "average_trade_points": -0.13445378151260504,
+      "average_winner_points": 5.467532467532467,
+      "average_loser_points": 10.404761904761905,
+      "worst_trade_points": -12.0,
+      "maximum_intratrade_adverse_points": 12.0,
+      "minimum_stop_points": 10.5,
+      "maximum_stop_points": 11.75,
+      "actual_stop_gap_loss_usd": 37.5
+    },
+    "Short": {
+      "trades": 145,
+      "wins": 109,
+      "losses": 35,
+      "flats": 1,
+      "points": 50.75,
+      "gross_pnl_usd": 2537.5,
+      "profit_factor": 1.0664702030124427,
+      "max_closed_trade_drawdown_usd": 6450.0,
+      "exit_reasons": {
+        "Trailing watermark": 104,
+        "7.5-band stop": 21,
+        "Session flatten": 20
+      },
+      "win_rate": 0.7517241379310344,
+      "average_trade_points": 0.35,
+      "average_winner_points": 7.470183486238532,
+      "average_loser_points": 21.814285714285713,
+      "worst_trade_points": -29.75,
+      "maximum_intratrade_adverse_points": 29.75,
+      "minimum_stop_points": 26.5,
+      "maximum_stop_points": 30.75,
+      "actual_stop_gap_loss_usd": 0.0
+    }
+  },
+  "all_trades": {
+    "trades": 264,
+    "wins": 186,
+    "losses": 77,
+    "flats": 1,
+    "points": 34.75,
+    "gross_pnl_usd": 1737.5,
+    "profit_factor": 1.0289462723865057,
+    "max_closed_trade_drawdown_usd": 8887.5,
+    "exit_reasons": {
+      "Trailing watermark": 179,
+      "4-band stop": 38,
+      "7.5-band stop": 21,
+      "Session flatten": 26
+    }
+  },
+  "prior_long_stop_short_unstopped": {
+    "totals": {
+      "trades": 229,
+      "wins": 167,
+      "losses": 61,
+      "flats": 1,
+      "points": 4.5,
+      "gross_pnl_usd": 225.0,
+      "profit_factor": 1.0040008890864636,
+      "max_closed_trade_drawdown_usd": 8587.5,
+      "exit_reasons": {
+        "Trailing watermark": 162,
+        "4-band stop": 30,
+        "Session flatten": 37
+      }
+    },
+    "risk": {
+      "worst_trade_usd": -7087.5,
+      "largest_intratrade_adverse_usd": 7400.0,
+      "closed_trade_drawdown_is_not_intraday_equity_drawdown": true
+    }
+  },
+  "change_in_gross_pnl_usd": 1512.5,
+  "fresh_combined_replay": true,
+  "costs_included": false,
+  "complete": true,
+  "unit_tests_passed": 35,
+  "source_trading_dates": 131,
+  "source_ticks": 57291769,
+  "independent_verification": {
+    "complete": true,
+    "verified_trades": 264,
+    "raw_ticks": 57291769,
+    "daily_signals": 36755,
+    "entry_reversals": 2,
+    "qualifying_reversal_entries_verified": true,
+    "next_tick_fills_verified": true,
+    "entry_direction": "original",
+    "reversal_profit_exit": false,
+    "entry_threshold_stop_verified": false,
+    "entry_threshold_minus_one_band_stop_verified": true,
+    "entry_threshold_minus_one_and_half_bands_stop_verified": false,
+    "entry_threshold_minus_two_bands_stop_verified": false,
+    "stop_sides": "both",
+    "stop_policy_by_actual_position_side_verified": true,
+    "protective_stop_bands_by_side": {
+      "Long": 4.0,
+      "Short": 7.5
+    },
+    "longs_stopped_shorts_unstopped_verified": false,
+    "long_threshold_minus_one_band_short_one_and_half_thresholds_verified": true,
+    "entry_threshold_distance_verified": false,
+    "adverse_recovery": false,
+    "adverse_recovery_rule": "v1",
+    "strict_breach_band_steps_and_first_recovery_exit_verified": false,
+    "deep_rebounds_ignored_until_inside_threshold_and_first_armed_exit_verified": false,
+    "protective_stop_bands": 4.0,
+    "frozen_band_stops_and_first_touches_verified": true,
+    "no_stop_verified": false,
+    "first_reversal_after_favorable_overshoot_verified": false,
+    "daily_loss_limit": null,
+    "daily_loss_policy_verified": true,
+    "mfe_mae_recomputed": true,
+    "raw_hashes_verified": true,
+    "watermark_enabled": true,
+    "watermark_start_bands": 2,
+    "watermark_lag_bands": 0,
+    "watermark_buffer_bands": 0,
+    "strict_watermark_activation_ratchet_and_first_cross_verified": true
+  }
+}

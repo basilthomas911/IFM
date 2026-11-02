@@ -118,6 +118,8 @@ struct State {
     ordinal: u64,
     reset_available: bool,
     transport_driven: bool,
+    /// Current-ticket final subscriptions and processing components are installed.
+    setup_ready: bool,
     audit_context: Option<crate::audit::journal::Context>,
     incident: Option<crate::audit::journal::Incident>,
     physical_owner: String,
@@ -176,6 +178,7 @@ impl Recovery {
                 ordinal: 0,
                 reset_available: false,
                 transport_driven: false,
+                setup_ready: false,
                 audit_context: None,
                 incident: None,
                 physical_owner: String::new(),
@@ -383,6 +386,16 @@ impl Recovery {
             && state.proven & Proof::Transport as u8 != 0
             && !matches!(state.status.phase, Phase::Failed | Phase::Stopped)
     }
+
+    /// Feed availability is independent of quote arrival and completed valuation.
+    /// Only the concrete final resource group can establish setup readiness.
+    pub fn resources_ready(&self) -> bool {
+        let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        state.status.phase == Phase::Running
+            || state.status.phase == Phase::Starting && state.setup_ready
+                && state.proven & Proof::Transport as u8 != 0
+                && state.proven & Proof::Retired as u8 != 0
+    }
     /// Declares the supervisor's next expiry action. This is copied notification
     /// metadata only: publication, acknowledgment and consumers never execute or
     /// gate the reset. Withdraw it before final-reset readiness or explicit stop.
@@ -512,6 +525,7 @@ impl Recovery {
             .filter(|p| state.required.0 & *p as u8 != 0 && state.proven & *p as u8 == 0)
             .collect();
         if state.status.missing.is_empty() {
+            state.setup_ready = true;
             state.status.phase = Phase::Running;
             state.status.deadline = None;
             state.status.root_error = None;
@@ -535,6 +549,7 @@ impl Recovery {
         {
             return false;
         }
+        state.setup_ready = true;
         if state.status.deadline.is_none() && state.status.phase != Phase::Recovering {
             return true;
         }
@@ -563,6 +578,7 @@ impl Recovery {
         // A fault during partial recovery invalidates earlier evidence too. A
         // successful quote before a later transport failure is not readiness.
         state.proven = 0;
+        state.setup_ready = false;
         state.status.missing = PROOFS
             .into_iter()
             .filter(|p| state.required.0 & *p as u8 != 0)
@@ -657,6 +673,7 @@ impl Recovery {
             };
         state.required = required;
         state.proven = 0;
+        state.setup_ready = false;
         state.status.missing = PROOFS
             .into_iter()
             .filter(|p| required.0 & *p as u8 != 0)
@@ -674,6 +691,7 @@ impl Recovery {
             incident.finish("Interrupted", &status);
         }
         state.status.phase = Phase::Stopped;
+        state.setup_ready = false;
         state.reset_available = false;
         state.status.deadline = None;
         self.changed.send_replace(state.status.clone());

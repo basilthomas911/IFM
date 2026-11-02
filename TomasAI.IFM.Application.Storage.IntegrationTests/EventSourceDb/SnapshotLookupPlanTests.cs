@@ -3,6 +3,7 @@ using NpgsqlTypes;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using Xunit;
+using System.Text.Json;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 
@@ -11,6 +12,47 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 public sealed class SnapshotLookupPlanTests(EventSourceActorSnapshotRangeFixture fixture)
     : IClassFixture<EventSourceActorSnapshotRangeFixture>
 {
+    [Fact]
+    public async Task Dense_snapshot_history_reads_only_the_latest_row_per_compatible_name()
+    {
+        await using var connection = new NpgsqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        const string table = "dense_snapshot_lookup_plan";
+        var sql = EventSourceDbSql.GetMaxEventVersion.Replace("event_log", table, StringComparison.Ordinal);
+        await using (var setup = new NpgsqlCommand("""
+            CREATE TEMP TABLE dense_snapshot_lookup_plan (
+                eventstreamid bigint, eventnameid integer, eventversion bigint, streamversion bigint);
+            INSERT INTO dense_snapshot_lookup_plan
+                SELECT 1,7,i,i FROM generate_series(1,100000) i;
+            INSERT INTO dense_snapshot_lookup_plan VALUES (1,11,100001,100001);
+            """ + EventSourceSchemaSql.CreateSnapshotLookupIndex.Replace("public.event_log", table, StringComparison.Ordinal)
+            + "; ANALYZE dense_snapshot_lookup_plan; SET plan_cache_mode=force_generic_plan;", connection))
+            await setup.ExecuteNonQueryAsync();
+
+        await using (var prepare = new NpgsqlCommand("PREPARE dense_snapshot_plan(bigint,integer[]) AS " + sql, connection))
+            await prepare.ExecuteNonQueryAsync();
+        await using (var value = new NpgsqlCommand("EXECUTE dense_snapshot_plan(1,ARRAY[7,11])", connection))
+            Assert.Equal(100001L, Convert.ToInt64(await value.ExecuteScalarAsync()));
+        await using var explain = new NpgsqlCommand(
+            "EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) EXECUTE dense_snapshot_plan(1,ARRAY[7,11])", connection);
+        using var document = JsonDocument.Parse((string)(await explain.ExecuteScalarAsync())!);
+        var scans = Nodes(document.RootElement[0].GetProperty("Plan"))
+            .Where(node => node.TryGetProperty("Relation Name", out var name) && name.GetString() == table)
+            .ToArray();
+        Assert.NotEmpty(scans);
+        Assert.All(scans, scan => Assert.True(scan.GetProperty("Actual Rows").GetDouble() <= 1,
+            "Snapshot lookup scanned the dense history instead of seeking its latest row."));
+    }
+
+    static IEnumerable<JsonElement> Nodes(JsonElement node)
+    {
+        yield return node;
+        if (node.TryGetProperty("Plans", out var children))
+            foreach (var child in children.EnumerateArray())
+                foreach (var descendant in Nodes(child))
+                    yield return descendant;
+    }
+
     [Fact]
     public async Task Generic_snapshot_lookup_is_stream_scoped_and_preserves_alias_and_empty_results()
     {

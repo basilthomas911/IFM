@@ -1,0 +1,31 @@
+{
+  "opportunity_directory": "outputs\\iti-entry-signal-discovery-nov2025-oct2026",
+  "baseline_directory": "outputs\\iti-nov2025-oct2026-one-reversal-one-band-one-loss-watermark",
+  "opportunity_sha256": "f7abbb66d2d06950ee88fe6bffb68d137b26bd79ef1cf8813f9fb19a9864d6a8",
+  "input_sha256": "277085e5142b36ff6abccbe7c3c5037331ec0fa6d9f30c2083e06a2ac9c8943b",
+  "period": "2025-11-01 inclusive through 2026-11-01 exclusive",
+  "primary": "All structural ITI opportunities with five matched prior controls; full-year paired +2-band hit-rate difference",
+  "controls": "Same NY date, contract and assigned direction; strictly preceding 15 minutes; five without replacement within each event, reuse across events allowed",
+  "grid": "Decision at first trade at/after HH:MM:30, within five seconds; 09:45-15:45 NY; next source tick fill",
+  "no_recent_entry": "No structural ITI entry trigger at or during the preceding 60 seconds; future triggers are not excluded",
+  "volatility": "RMS of 14 completed one-minute close changes, warm and no more than 120 seconds stale; control/event ratio in [0.75,1.25]",
+  "bands": "Latest published Daily ITI BandSize at the control decision row; control/event ratio in [0.9,1.1]; no borrowing future event band size",
+  "outcome": "Each entry uses its own as-of band: +2 bands before inward-rounded -1-band stop, else 15:45 NY cutoff; same source trade-price fill conventions",
+  "selection_seed": 20261102,
+  "matching_control_count": 5,
+  "matching_uses_outcomes": false,
+  "calipers_widened": false,
+  "uncertainty": "5000 whole-calendar-week bootstrap resamples of paired event-minus-control-mean differences; controls not treated as independent trades",
+  "secondary": "Original executed-entry subset and fixed chronological blocks; exploratory, no threshold/model fitting",
+  "limitations": [
+    "Observational timing benchmark, not a causal experiment or portfolio P&L",
+    "Unmatched/early entries excluded from matched inference; coverage and balance reported",
+    "Earlier controls have slightly more time until 15:45; cutoff rates reported",
+    "Controls may experience later ITI events; excluding those would use future information",
+    "Band availability assumes ideal immediate publication, like the existing replay; no feed/execution latency",
+    "Entire year already informed development; not untouched validation"
+  ],
+  "strategy_backtest_run": false,
+  "model_fitted": false,
+  "parameters_searched": false
+}

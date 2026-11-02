@@ -1,0 +1,21 @@
+{
+  "complete": true,
+  "verified_trades": 346,
+  "raw_ticks": 118631783,
+  "daily_signals": 86366,
+  "entry_reversals": 1,
+  "qualifying_reversal_entries_verified": true,
+  "next_tick_fills_verified": true,
+  "protective_stop_bands": 1.0,
+  "frozen_band_stops_and_first_touches_verified": true,
+  "first_reversal_after_favorable_overshoot_verified": true,
+  "daily_loss_limit": 1,
+  "daily_loss_policy_verified": true,
+  "mfe_mae_recomputed": true,
+  "raw_hashes_verified": true,
+  "watermark_enabled": true,
+  "watermark_start_bands": 1,
+  "watermark_lag_bands": 0,
+  "watermark_buffer_bands": 0.5,
+  "strict_watermark_activation_ratchet_and_first_cross_verified": true
+}

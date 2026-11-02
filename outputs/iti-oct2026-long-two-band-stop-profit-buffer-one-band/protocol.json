@@ -1,0 +1,286 @@
+{
+  "start_date": "2026-10-01",
+  "end_date_exclusive": "2026-11-01",
+  "assumptions": {
+    "timeframe": "Daily",
+    "quantity": 1,
+    "usd_per_point": 50,
+    "session": "09:45 <= entry < 15:45 America/New_York; flatten at last observed price at cutoff",
+    "entry_reversals": 2,
+    "entry": "After an observed overshoot, second progressive one-band reversal event; new extreme/DC resets count; next observed raw tick fill, without waiting for a bounce; one attempt per excursion",
+    "band_definition": "BandSize from authoritative ITI replay, 20% of primary threshold; freeze entry-signal BandSize",
+    "protective_stop_bands": 2.0,
+    "stop": "Freeze entry-signal distances by actual side: longs 2.0 bands; shorts 7.5 bands; round inward to 0.25 points; first touching/crossing raw fill including gaps",
+    "daily_loss_limit": null,
+    "reversal_profit_exit": false,
+    "profit_exit": "Trailing watermark only, plus session flatten",
+    "watermark_enabled": true,
+    "watermark_start_bands": 2,
+    "watermark_lag_bands": 0,
+    "watermark_buffer_bands": 0,
+    "watermark_rule": "Both sides arm only after gain >2 frozen entry bands; favorable whole-band floor never retreats; long floor is max(2, floor(gain / entry band)) - 1.0; short floor unchanged at max(2, floor(gain / entry band)); exit first raw trade strictly below signed floor; protective stops have priority",
+    "costs": "Gross trade-price proxies; no commissions, quote spread, slippage model or latency",
+    "comparison": "Only entry side differs; each policy owns its own position lifecycle, so subsequent entries may diverge",
+    "protective_stop_bands_by_side": {
+      "Long": 2.0,
+      "Short": 7.5
+    },
+    "short_stop_threshold_multiplier": 1.5,
+    "profit_watermark_buffer_bands_by_side": {
+      "Long": 1.0,
+      "Short": 0
+    }
+  },
+  "input_sha256": "277085e5142b36ff6abccbe7c3c5037331ec0fa6d9f30c2083e06a2ac9c8943b",
+  "source_run_directory": ".artifacts\\iti-year-replay\\c4dcb85af9ee",
+  "input_directory": ".artifacts\\iti-year-nov2025-oct2026",
+  "source_files": [
+    {
+      "file": "2026-10-01.csv",
+      "value_date": "2026-10-01",
+      "rows": 642444,
+      "source_rows": 642655,
+      "skipped_no_prior_vx": 211,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 2303.062447579,
+      "sha256": "8518c19ecb01784cfaeddabdbb0e4642529933100ab9fb95708c7c1003ba3846",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-02.csv",
+      "value_date": "2026-10-02",
+      "rows": 528973,
+      "source_rows": 528973,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 3606.353746315,
+      "sha256": "280a07db60a61df470d72d06731f12834d0d26338d45c628a9e73dc624283a5c",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-05.csv",
+      "value_date": "2026-10-05",
+      "rows": 371242,
+      "source_rows": 371242,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 176401.985197644,
+      "sha256": "1210a42408271d9694fe011c0cd290e2498556821fa0785bb9ccad8455f9399e",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-06.csv",
+      "value_date": "2026-10-06",
+      "rows": 341285,
+      "source_rows": 341285,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 3602.027708762,
+      "sha256": "f5cd09bb8688eae34e1e992270afed9bd617fbd9e1b85551df0606ba9115854d",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-07.csv",
+      "value_date": "2026-10-07",
+      "rows": 380328,
+      "source_rows": 380328,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 3727.500998603,
+      "sha256": "6f802e1dced097bdff02c9f3b9d4dc13b4d9609a1afb77c29f05c8eb3dced63c",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-08.csv",
+      "value_date": "2026-10-08",
+      "rows": 484478,
+      "source_rows": 484478,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 3602.376438694,
+      "sha256": "443539b01090edfa57902fa776973b7f41cfd7ef09390585976554b9fb88a212",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-09.csv",
+      "value_date": "2026-10-09",
+      "rows": 310277,
+      "source_rows": 310277,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 3600.007749289,
+      "sha256": "bd6fc9dcabc0298a20c958b6f2d3e3aaabd0eabfcc4e459dfe2b0c0e7ca9830e",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-12.csv",
+      "value_date": "2026-10-12",
+      "rows": 263002,
+      "source_rows": 263002,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 176403.999713756,
+      "sha256": "a38c12bd5adb65edc42ceae3580a3c0941dfbf2f369cec444b066a129a533523",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-13.csv",
+      "value_date": "2026-10-13",
+      "rows": 338229,
+      "source_rows": 338229,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 3602.816211557,
+      "sha256": "1b9f6cd05cbe9ecc8c65a0243df5afd13c9bde99fc0fcbb88690cbef7c21571d",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-14.csv",
+      "value_date": "2026-10-14",
+      "rows": 551162,
+      "source_rows": 551162,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 4055.421092667,
+      "sha256": "68be350d97a97e2d60b90b63bea285c118d6ccb59b195ae2b1c8245968e1d6fd",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-15.csv",
+      "value_date": "2026-10-15",
+      "rows": 534488,
+      "source_rows": 534488,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 3602.528978401,
+      "sha256": "591bfced2366779d1de3559be453e82289f955b2935ac3266a1f2e6a370d38e2",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-16.csv",
+      "value_date": "2026-10-16",
+      "rows": 619908,
+      "source_rows": 619908,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 3605.102681441,
+      "sha256": "0c982a40ae19b3d0150268a7d91bc6495d3b9c58dcf9ee323a0d3cb18442e0a8",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-19.csv",
+      "value_date": "2026-10-19",
+      "rows": 483155,
+      "source_rows": 483155,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 176421.843723328,
+      "sha256": "0d6339bd3277d8894d3b6334dbe18508c42cd2ffd3ed5186d0cbac7974e77943",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-20.csv",
+      "value_date": "2026-10-20",
+      "rows": 511728,
+      "source_rows": 511728,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261021",
+      "max_vx_age_seconds": 3601.257670853,
+      "sha256": "599d5487d7bbe1ebf1cfd8f74386e92bab4c3b26cb927de554646e666faf1d98",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-21.csv",
+      "value_date": "2026-10-21",
+      "rows": 493410,
+      "source_rows": 493410,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261118",
+      "max_vx_age_seconds": 3600.65248643,
+      "sha256": "65afaf96bd66486ef21b7154cc1400217da323c3021184665b661e03083e4e88",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-22.csv",
+      "value_date": "2026-10-22",
+      "rows": 664133,
+      "source_rows": 664133,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261118",
+      "max_vx_age_seconds": 3604.551611531,
+      "sha256": "e93c57a62c667171fb9f5bf423bcb09898f397fc071d1ce4606c0fdbb8dfbec8",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-23.csv",
+      "value_date": "2026-10-23",
+      "rows": 532141,
+      "source_rows": 532141,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261118",
+      "max_vx_age_seconds": 3645.697106838,
+      "sha256": "44cc04d0d3e51b4eb251bbd31e83f1a694803e157c9a54e2b307dcff63d490cc",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-26.csv",
+      "value_date": "2026-10-26",
+      "rows": 486398,
+      "source_rows": 486398,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261118",
+      "max_vx_age_seconds": 176402.233375413,
+      "sha256": "4fda2bf1c7679902de39eb66204484386b94cd5a7a5bddc7efe8fda7cdaac93f",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-27.csv",
+      "value_date": "2026-10-27",
+      "rows": 441475,
+      "source_rows": 441475,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261118",
+      "max_vx_age_seconds": 3723.472959807,
+      "sha256": "4c8f7ec93d344cff1f20f8da42f05a88471afe04683dbaa6da37ad66a45dcd0e",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-28.csv",
+      "value_date": "2026-10-28",
+      "rows": 512239,
+      "source_rows": 512239,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261118",
+      "max_vx_age_seconds": 3602.228099746,
+      "sha256": "83d6fb29740a026343c18b48e1a54da0e810d68407b226148ced608db287ccec",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-29.csv",
+      "value_date": "2026-10-29",
+      "rows": 613947,
+      "source_rows": 613947,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261118",
+      "max_vx_age_seconds": 3603.053527001,
+      "sha256": "86122b8f8cd348b84eb078f487bf58f72f9a43b9e23dca4c82017f25559709cf",
+      "contract_id": "ES20261218"
+    },
+    {
+      "file": "2026-10-30.csv",
+      "value_date": "2026-10-30",
+      "rows": 695889,
+      "source_rows": 695889,
+      "skipped_no_prior_vx": 0,
+      "vx_contract_id": "VX20261118",
+      "max_vx_age_seconds": 3608.69333643,
+      "sha256": "e4905073b1cc8d85c6dfa6f1a8969ede86f6ab8f86975ec10c305bea1e9b93f7",
+      "contract_id": "ES20261218"
+    }
+  ],
+  "scripts_sha256": {
+    "analyze_opposite_retracement.py": "34904c6f3441427df35a6b6fcc11f6c8b80304c93882b62dcdf11de2603a6c28",
+    "analyze_two_reversal_two_band.py": "e521b836d89273c05929d9c715a704d6f0f583da4078a8b7965190738f485f5a",
+    "verify_two_reversal_two_band.py": "429bdbad41c9558f5510263708160b92a49c39fc6cdf6c50d7ac870dbc03f840"
+  }
+}

@@ -816,7 +816,7 @@ impl TradeWorkspace {
             );
             egui::ScrollArea::both()
                 .id_salt("broker-tree-scroll")
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     for row in &orders {
                         let v = display.row(&row.id);
                         let id = row.id.strip_prefix("broker-order:").unwrap_or_default();

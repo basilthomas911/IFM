@@ -1,0 +1,116 @@
+{
+  "complete": true,
+  "unit_tests_passed": 27,
+  "full_threshold_stop": {
+    "trades": 38,
+    "wins": 27,
+    "losses": 11,
+    "flats": 0,
+    "points": 0.75,
+    "gross_pnl_usd": 37.5,
+    "profit_factor": 1.004201680672269,
+    "max_closed_trade_drawdown_usd": 3187.5,
+    "exit_reasons": {
+      "Trailing watermark": 25,
+      "5-band stop": 9,
+      "Session flatten": 4
+    }
+  },
+  "threshold_minus_one_band_stop": {
+    "trades": 38,
+    "wins": 26,
+    "losses": 12,
+    "flats": 0,
+    "points": 7.5,
+    "gross_pnl_usd": 375.0,
+    "profit_factor": 1.0451127819548873,
+    "max_closed_trade_drawdown_usd": 2850.0,
+    "exit_reasons": {
+      "Trailing watermark": 24,
+      "4-band stop": 12,
+      "Session flatten": 2
+    }
+  },
+  "gross_pnl_improvement_usd": 337.5,
+  "before_risk": {
+    "worst_trade_usd": -1000.0,
+    "largest_intratrade_adverse_usd": 1000.0,
+    "closed_trade_drawdown_is_not_intraday_equity_drawdown": true
+  },
+  "after_risk": {
+    "worst_trade_usd": -800.0,
+    "largest_intratrade_adverse_usd": 800.0,
+    "closed_trade_drawdown_is_not_intraday_equity_drawdown": true
+  },
+  "rounded_stop_points": {
+    "minimum": 11.25,
+    "maximum": 16.5
+  },
+  "independent_verification": {
+    "original": {
+      "complete": true,
+      "verified_trades": 38,
+      "raw_ticks": 10800331,
+      "daily_signals": 5288,
+      "entry_reversals": 2,
+      "qualifying_reversal_entries_verified": true,
+      "next_tick_fills_verified": true,
+      "entry_direction": "original",
+      "reversal_profit_exit": false,
+      "entry_threshold_stop_verified": false,
+      "entry_threshold_minus_one_band_stop_verified": true,
+      "entry_threshold_distance_verified": false,
+      "adverse_recovery": false,
+      "adverse_recovery_rule": "v1",
+      "strict_breach_band_steps_and_first_recovery_exit_verified": false,
+      "deep_rebounds_ignored_until_inside_threshold_and_first_armed_exit_verified": false,
+      "protective_stop_bands": 4.0,
+      "frozen_band_stops_and_first_touches_verified": true,
+      "no_stop_verified": false,
+      "first_reversal_after_favorable_overshoot_verified": false,
+      "daily_loss_limit": null,
+      "daily_loss_policy_verified": true,
+      "mfe_mae_recomputed": true,
+      "raw_hashes_verified": true,
+      "watermark_enabled": true,
+      "watermark_start_bands": 2,
+      "watermark_lag_bands": 0,
+      "watermark_buffer_bands": 0,
+      "strict_watermark_activation_ratchet_and_first_cross_verified": true
+    },
+    "retracement": {
+      "complete": true,
+      "verified_trades": 38,
+      "raw_ticks": 10800331,
+      "daily_signals": 5288,
+      "entry_reversals": 2,
+      "qualifying_reversal_entries_verified": true,
+      "next_tick_fills_verified": true,
+      "entry_direction": "retracement",
+      "reversal_profit_exit": false,
+      "entry_threshold_stop_verified": false,
+      "entry_threshold_minus_one_band_stop_verified": true,
+      "entry_threshold_distance_verified": false,
+      "adverse_recovery": false,
+      "adverse_recovery_rule": "v1",
+      "strict_breach_band_steps_and_first_recovery_exit_verified": false,
+      "deep_rebounds_ignored_until_inside_threshold_and_first_armed_exit_verified": false,
+      "protective_stop_bands": 4.0,
+      "frozen_band_stops_and_first_touches_verified": true,
+      "no_stop_verified": false,
+      "first_reversal_after_favorable_overshoot_verified": false,
+      "daily_loss_limit": null,
+      "daily_loss_policy_verified": true,
+      "mfe_mae_recomputed": true,
+      "raw_hashes_verified": true,
+      "watermark_enabled": true,
+      "watermark_start_bands": 2,
+      "watermark_lag_bands": 0,
+      "watermark_buffer_bands": 0,
+      "strict_watermark_activation_ratchet_and_first_cross_verified": true
+    }
+  },
+  "costs_included": false,
+  "before_analysis_seconds": 16.658341399976052,
+  "after_analysis_seconds": 16.499245199986035
+}

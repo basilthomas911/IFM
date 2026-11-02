@@ -1,0 +1,15 @@
+{
+  "verified_trades": 51,
+  "verified_source_ticks": 11003263,
+  "dc_entry_anchors_verified": true,
+  "dc_stop_anchors_verified": false,
+  "first_stop_crossings_verified": false,
+  "no_stop_verified": true,
+  "session_bounds_verified": true,
+  "entry_and_exit_prices_verified": true,
+  "first_eligible_signal_exits_verified": true,
+  "policy": "exit-dc",
+  "opposite_dc_exits_and_subsequent_dc_entries_verified": true,
+  "daily_loss_limit": 2,
+  "daily_loss_limit_verified": true
+}

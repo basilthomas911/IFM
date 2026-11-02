@@ -1,0 +1,186 @@
+{
+  "protocol": {
+    "opportunity_directory": "outputs\\iti-entry-signal-discovery-nov2025-oct2026",
+    "baseline_directory": "outputs\\iti-nov2025-oct2026-one-reversal-one-band-one-loss-watermark",
+    "opportunity_sha256": "f7abbb66d2d06950ee88fe6bffb68d137b26bd79ef1cf8813f9fb19a9864d6a8",
+    "input_sha256": "277085e5142b36ff6abccbe7c3c5037331ec0fa6d9f30c2083e06a2ac9c8943b",
+    "period": "2025-11-01 inclusive through 2026-11-01 exclusive",
+    "primary": "All structural ITI opportunities with five matched prior controls; full-year paired +2-band hit-rate difference",
+    "controls": "Same NY date, contract and assigned direction; strictly preceding 15 minutes; five without replacement within each event, reuse across events allowed",
+    "grid": "Decision at first trade at/after HH:MM:30, within five seconds; 09:45-15:45 NY; next source tick fill",
+    "no_recent_entry": "No structural ITI entry trigger at or during the preceding 60 seconds; future triggers are not excluded",
+    "volatility": "RMS of 14 completed one-minute close changes, warm and no more than 120 seconds stale; control/event ratio in [0.75,1.25]",
+    "bands": "Latest published Daily ITI BandSize at the control decision row; control/event ratio in [0.9,1.1]; no borrowing future event band size",
+    "outcome": "Each entry uses its own as-of band: +2 bands before inward-rounded -1-band stop, else 15:45 NY cutoff; same source trade-price fill conventions",
+    "selection_seed": 20261102,
+    "matching_control_count": 5,
+    "matching_uses_outcomes": false,
+    "calipers_widened": false,
+    "uncertainty": "5000 whole-calendar-week bootstrap resamples of paired event-minus-control-mean differences; controls not treated as independent trades",
+    "secondary": "Original executed-entry subset and fixed chronological blocks; exploratory, no threshold/model fitting",
+    "limitations": [
+      "Observational timing benchmark, not a causal experiment or portfolio P&L",
+      "Unmatched/early entries excluded from matched inference; coverage and balance reported",
+      "Earlier controls have slightly more time until 15:45; cutoff rates reported",
+      "Controls may experience later ITI events; excluding those would use future information",
+      "Band availability assumes ideal immediate publication, like the existing replay; no feed/execution latency",
+      "Entire year already informed development; not untouched validation"
+    ],
+    "strategy_backtest_run": false,
+    "model_fitted": false,
+    "parameters_searched": false
+  },
+  "checks": {
+    "raw_source_ticks": 113617284,
+    "daily_signals": 83725,
+    "source_hashes_verified": true
+  },
+  "coverage": {
+    "total_opportunities": 1626,
+    "matched": 1269,
+    "unmatched": 357,
+    "fraction_matched": 0.7804428044280443,
+    "candidate_control_decisions": 83142,
+    "executed_total": 346,
+    "executed_matched": 234,
+    "unmatched_reasons": {
+      "Fewer than five prior matched controls": 357
+    }
+  },
+  "primary": {
+    "events": 1269,
+    "trading_dates": 230,
+    "calendar_weeks": 52,
+    "iti_target_hits": 372,
+    "iti_target_rate": 0.29314420803782504,
+    "matched_control_target_rate": 0.164381402679275,
+    "paired_difference": 0.12876280535855006,
+    "weekly_bootstrap_ci95": [
+      0.10362881728512816,
+      0.15685389421222118
+    ],
+    "iti_cutoff_rate": 0.014184397163120567,
+    "control_cutoff_rate": 0.0066193853427896
+  },
+  "executed_subset": {
+    "events": 234,
+    "trading_dates": 182,
+    "calendar_weeks": 52,
+    "iti_target_hits": 75,
+    "iti_target_rate": 0.32051282051282054,
+    "matched_control_target_rate": 0.17094017094017094,
+    "paired_difference": 0.14957264957264957,
+    "weekly_bootstrap_ci95": [
+      0.09871159554555596,
+      0.1991228070175439
+    ],
+    "iti_cutoff_rate": 0.02564102564102564,
+    "control_cutoff_rate": 0.008547008547008548
+  },
+  "windows": [
+    {
+      "window": "Nov-Jan",
+      "events": 354,
+      "trading_dates": 55,
+      "calendar_weeks": 13,
+      "iti_target_hits": 96,
+      "iti_target_rate": 0.2711864406779661,
+      "matched_control_target_rate": 0.17062146892655367,
+      "paired_difference": 0.10056497175141244,
+      "weekly_bootstrap_ci95": [
+        0.059119172664202815,
+        0.15594916736963788
+      ],
+      "iti_cutoff_rate": 0.01977401129943503,
+      "control_cutoff_rate": 0.005084745762711865
+    },
+    {
+      "window": "Feb-Oct",
+      "events": 915,
+      "trading_dates": 175,
+      "calendar_weeks": 39,
+      "iti_target_hits": 276,
+      "iti_target_rate": 0.3016393442622951,
+      "matched_control_target_rate": 0.1619672131147541,
+      "paired_difference": 0.13967213114754098,
+      "weekly_bootstrap_ci95": [
+        0.11184000319727168,
+        0.1699593033006083
+      ],
+      "iti_cutoff_rate": 0.012021857923497269,
+      "control_cutoff_rate": 0.007213114754098361
+    },
+    {
+      "window": "Feb-Apr",
+      "events": 329,
+      "trading_dates": 60,
+      "calendar_weeks": 13,
+      "iti_target_hits": 106,
+      "iti_target_rate": 0.3221884498480243,
+      "matched_control_target_rate": 0.15319148936170215,
+      "paired_difference": 0.1689969604863222,
+      "weekly_bootstrap_ci95": [
+        0.1142814242814243,
+        0.21395348837209302
+      ],
+      "iti_cutoff_rate": 0.0121580547112462,
+      "control_cutoff_rate": 0.00303951367781155
+    },
+    {
+      "window": "May-Jul",
+      "events": 374,
+      "trading_dates": 59,
+      "calendar_weeks": 14,
+      "iti_target_hits": 112,
+      "iti_target_rate": 0.2994652406417112,
+      "matched_control_target_rate": 0.17005347593582887,
+      "paired_difference": 0.12941176470588234,
+      "weekly_bootstrap_ci95": [
+        0.09224698295954835,
+        0.1822534413057441
+      ],
+      "iti_cutoff_rate": 0.0053475935828877,
+      "control_cutoff_rate": 0.005882352941176471
+    },
+    {
+      "window": "Aug-Oct",
+      "events": 212,
+      "trading_dates": 56,
+      "calendar_weeks": 13,
+      "iti_target_hits": 58,
+      "iti_target_rate": 0.27358490566037735,
+      "matched_control_target_rate": 0.16132075471698112,
+      "paired_difference": 0.11226415094339624,
+      "weekly_bootstrap_ci95": [
+        0.05738509316770187,
+        0.17277007595310082
+      ],
+      "iti_cutoff_rate": 0.02358490566037736,
+      "control_cutoff_rate": 0.016037735849056607
+    }
+  ],
+  "balance": {
+    "minutes_before_iti": {
+      "mean": 6.086278180713422,
+      "median": 5.346117827433333,
+      "minimum": 0.0031786897666666665,
+      "maximum": 14.9982145671
+    },
+    "volatility_ratio": {
+      "mean": 0.9933405467548679,
+      "median": 1.0,
+      "minimum": 0.7502732557267354,
+      "maximum": 1.25
+    },
+    "band_ratio": {
+      "mean": 0.999482108854029,
+      "median": 0.9997292711652807,
+      "minimum": 0.9616173286259257,
+      "maximum": 1.0210971992465165
+    }
+  },
+  "control_reuse": {
+    "matched_rows": 6345,
+    "unique_controls": 5592
+  }
+}

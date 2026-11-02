@@ -1,0 +1,17 @@
+{
+  "complete": true,
+  "verified_trades": 81,
+  "raw_ticks": 11003263,
+  "daily_signals": 10635,
+  "two_progressive_reversal_entries_verified": true,
+  "next_tick_fills_verified": true,
+  "protective_stop_bands": 1.0,
+  "frozen_band_stops_and_first_touches_verified": true,
+  "first_reversal_after_favorable_overshoot_verified": true,
+  "daily_loss_limit": null,
+  "daily_loss_policy_verified": true,
+  "mfe_mae_recomputed": true,
+  "raw_hashes_verified": true,
+  "watermark_enabled": true,
+  "strict_watermark_activation_ratchet_and_first_cross_verified": true
+}

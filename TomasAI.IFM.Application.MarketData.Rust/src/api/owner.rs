@@ -578,6 +578,7 @@ impl MarketData {
     }
     /// Event-driven readiness observation. Dropping/cancelling this waiter does
     /// not cancel accepted desired work or own a physical dataset resource.
+    /// Options readiness means installed subscriptions/components, not quote arrival.
     /// The dataset's original deadline, rather than a new caller timer, determines
     /// whether recovery succeeded. Idle readiness is explicit and separate.
     ///
@@ -609,7 +610,8 @@ impl MarketData {
             }
             match status.phase {
                 Phase::Running => return Ok(()),
-                Phase::Starting if connection_only && health.connection_alive() => return Ok(()),
+                Phase::Starting if connection_only && health.connection_alive()
+                    || lane == Lane::OptionsGlbx && health.resources_ready() => return Ok(()),
                 Phase::Failed => {
                     return Err(status
                         .latest_error
@@ -690,12 +692,12 @@ impl MarketData {
     pub fn options_current(&self) -> Option<Arc<View>> {
         let health = self.options.control.recovery();
         let before = health.status();
-        if before.phase != Phase::Running || !self.has_desired(Lane::OptionsGlbx) {
+        if !health.resources_ready() || !self.has_desired(Lane::OptionsGlbx) {
             return None;
         }
         let view = self.options.factory.view()?;
         let after = health.status();
-        (before.ticket == after.ticket && after.phase == Phase::Running).then_some(view)
+        (before.ticket == after.ticket && health.resources_ready()).then_some(view)
     }
     /// Executes the public prepared-cache request policy entirely in Rust.
     /// Reads use the authoritative native/API clock and never acquire data.

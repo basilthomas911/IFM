@@ -1,0 +1,16 @@
+{
+  "complete": true,
+  "policies": [
+    "original",
+    "retracement"
+  ],
+  "exact_october_trades_except_trade_ids": true,
+  "exact_october_totals": true,
+  "unchanged_strategy_assumptions": true,
+  "unchanged_source_input_hash": true,
+  "dates_by_month": {
+    "2026-08": 21,
+    "2026-09": 22,
+    "2026-10": 22
+  }
+}

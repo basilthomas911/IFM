@@ -72,8 +72,8 @@ impl MarketData {
         Ok(None)
     }
     /// Observes the accepted native incident and returns the existing public
-    /// result shape. Recovery means provider connectivity; full financial
-    /// readiness remains explicit in LiveFeedEnabled. A stale owner joins the
+    /// result shape. Recovery means provider connectivity; installed component
+    /// readiness remains explicit in LiveFeedEnabled; quotes may still be absent. A stale owner joins the
     /// current native connection; it never
     /// replaces the newer owner. Failed cleanup is not falsely certified.
     ///
@@ -91,7 +91,7 @@ impl MarketData {
         let health = self.health(request.lane).status();
         let recovered = outcome.is_ok()
             && (health.phase == Phase::Running || self.health(request.lane).connection_alive());
-        let monitoring_ready = recovered && health.phase == Phase::Running;
+        let monitoring_ready = recovered && self.health(request.lane).resources_ready();
         let error = outcome.err().or_else(|| {
             if recovered {
                 None

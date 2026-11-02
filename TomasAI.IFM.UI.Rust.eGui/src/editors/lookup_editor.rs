@@ -1,5 +1,6 @@
 //! Lookup CRUD editing and shared request outcomes. A request ID identifies the local pending action; rendering never treats submission as proof of successful persistence.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, strings};
 use eframe::egui;
@@ -234,7 +235,7 @@ impl LookupEditor {
                             .min_scrolled_height(210.)
                             .max_height(210.)
                             .auto_shrink([false, false])
-                            .show_rows(ui, 23., names.len(), |ui, range| {
+                            .bordered_show_rows(ui, 23., names.len(), |ui, range| {
                                 for index in range {
                                     let name = names[index];
                                     if ui
@@ -281,7 +282,7 @@ impl LookupEditor {
                             .min_scrolled_height(height)
                             .max_height(height)
                             .auto_shrink([false, false])
-                            .show_rows(ui, 23., rows.len(), |ui, range| {
+                            .bordered_show_rows(ui, 23., rows.len(), |ui, range| {
                                 self.drawn_rows = range.len();
                                 for index in range {
                                     let row = rows[index];
@@ -548,7 +549,7 @@ impl LookupEditor {
             self.drawn_rows = 0;
             egui::ScrollArea::vertical()
                 .id_salt("lookup-rows")
-                .show_rows(ui, 24.0, snapshot.rows.len(), |ui, range| {
+                .bordered_show_rows(ui, 24.0, snapshot.rows.len(), |ui, range| {
                     self.drawn_rows = range.len();
                     for i in range {
                         let row = &snapshot.rows[i];

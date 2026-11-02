@@ -1,0 +1,13 @@
+{
+  "complete": true,
+  "verified_trades": 22,
+  "raw_ticks": 11003263,
+  "daily_signals": 10635,
+  "two_progressive_reversal_entries_verified": true,
+  "next_tick_fills_verified": true,
+  "frozen_two_band_stops_and_first_touches_verified": true,
+  "first_reversal_after_favorable_overshoot_verified": true,
+  "one_loss_daily_halt_verified": true,
+  "mfe_mae_recomputed": true,
+  "raw_hashes_verified": true
+}

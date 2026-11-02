@@ -1,0 +1,47 @@
+{
+  "baseline_directory": "outputs\\iti-nov2025-oct2026-one-reversal-one-band-one-loss-watermark",
+  "baseline_sha256": "ea59da4f7833d350555c1755de52835c9c9a45a7c72b154ec76022aa3073459c",
+  "period": "2025-11-01 inclusive through 2026-11-01 exclusive, NY trading dates",
+  "population": "First ordinary/overshoot reversal after an observed overshoot and each extreme reset; includes structurally qualified setups blocked by positions, prior excursion use, or the daily loss halt",
+  "label": "Next source tick fill; first +2 entry-time bands vs original inward-rounded -1-band stop, or 15:45 cutoff; observed prices; no other profit exit",
+  "features": [
+    "reversal_speed_bands_per_minute",
+    "preceding_trend_efficiency",
+    "aligned_rsi_slope"
+  ],
+  "reversal_speed": "Trade-direction distance from latest observed ITI extreme / signal BandSize / elapsed minutes",
+  "preceding_strength": "Signed efficiency of 14 completed one-minute close changes at the latest ITI extreme; net change / sum absolute changes, aligned with preceding ITI trend",
+  "rsi": "Wilder RSI14 slope from latest completed one-minute trade bar at signal, signed to trade direction; no developing bar",
+  "bar_rules": "UTC minute boundaries; no synthetic empty bars; reset each NY source date and contract, warm on available overnight ticks; observations >120 seconds past bar end are missing",
+  "discovery": "Nov-Jan feature medians for speed/efficiency; RSI sign groups; no outcome-based threshold search",
+  "internal_replication": "Feb-Oct plus fixed Feb-Apr/May-Jul/Aug-Oct blocks; all dates already used for strategy development, not an untouched holdout",
+  "uncertainty": "2000 whole-calendar-week bootstrap samples, seed 271828; 95% and 98.33% intervals for three feature contrasts; exploratory, not proof of an edge",
+  "strategy_backtest_run": false,
+  "model_fitted": false,
+  "parameters_searched": false,
+  "limitations": [
+    "Overlapping opportunities are correlated; no portfolio P&L inferred",
+    "Price-path labels differ from current stepped-watermark trade wins",
+    "Three exploratory features; no combinations or selected profitable regimes",
+    "Indicators reconstructed for this diagnostic; not a replay of every production indicator actor"
+  ],
+  "rsi_numerical_zero_tolerance": 1e-10,
+  "numerical_correction_after_reference_check": {
+    "timestamp_utc": "2026-11-02T01:23:40.160021+00:00",
+    "reason": "Decimal reference found eight sign disagreements only at floating-point roundoff magnitude",
+    "rule": "Classify absolute RSI slope <=1e-10 as flat; feature values and outcomes unchanged",
+    "maximum_affected_absolute_slope": 1.4210854715202004e-14,
+    "affected_opportunity_ids": [
+      "2025-12-12-142668",
+      "2025-12-23-215459",
+      "2026-01-12-260205",
+      "2026-04-08-374474",
+      "2026-06-04-349261",
+      "2026-06-08-487801",
+      "2026-09-09-231343",
+      "2026-09-10-159880"
+    ],
+    "outcome_based_selection": false,
+    "original_reports_retained": true
+  }
+}

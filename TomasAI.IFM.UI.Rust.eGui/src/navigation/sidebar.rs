@@ -1,5 +1,6 @@
 //! Economic calendar, status console, and feed-control publications. Rows retain stable selection identities, keyboard navigation stays within bounds, and new backend errors are surfaced once per error sequence.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use eframe::egui;
@@ -276,7 +277,7 @@ impl SidebarView {
                 .id_salt(("calendar-horizontal", &snapshot.period, &snapshot.country))
                 .max_height(ui.available_height())
                 .auto_shrink([false, false])
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     let list_ctx = ui.ctx().clone();
                     let mut table = egui_extras::TableBuilder::new(ui)
                         .id_salt((
@@ -411,7 +412,7 @@ impl SidebarView {
                 .id_salt("status-console-horizontal")
                 .auto_shrink([false, false])
                 .max_height(ui.available_height())
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     let list_ctx = ui.ctx().clone();
                     let mut table = egui_extras::TableBuilder::new(ui)
                         .id_salt("status-console-list")

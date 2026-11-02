@@ -1,0 +1,1477 @@
+[
+  {
+    "date": "2026-10-01",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-01T03:32:04.440990-04:00",
+    "event_ns": "1790839924440990973",
+    "side": "Long",
+    "price": 7716.5,
+    "stop": 7708.5,
+    "group": 1
+  },
+  {
+    "date": "2026-10-01",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-01T03:32:04.464773-04:00",
+    "event_ns": "1790839924464773279",
+    "side": "Long",
+    "price": 7716.5,
+    "stop": 7708.5,
+    "setup_group": 1
+  },
+  {
+    "date": "2026-10-01",
+    "kind": "Exit",
+    "time_ny": "2026-10-01T04:29:59.974884-04:00",
+    "event_ns": "1790843399974884969",
+    "reason": "Protective stop",
+    "price": 7708.5,
+    "points": -8.0
+  },
+  {
+    "date": "2026-10-01",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-01T09:52:15.304338-04:00",
+    "event_ns": "1790862735304338427",
+    "side": "Long",
+    "price": 7720.0,
+    "stop": 7712.0,
+    "group": 7
+  },
+  {
+    "date": "2026-10-01",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-01T09:52:15.304338-04:00",
+    "event_ns": "1790862735304338427",
+    "side": "Long",
+    "price": 7720.0,
+    "stop": 7712.0,
+    "setup_group": 7
+  },
+  {
+    "date": "2026-10-01",
+    "kind": "Exit",
+    "time_ny": "2026-10-01T09:59:02.028500-04:00",
+    "event_ns": "1790863142028500277",
+    "reason": "Protective stop",
+    "price": 7712.0,
+    "points": -8.0
+  },
+  {
+    "date": "2026-10-01",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-01T13:30:10.462149-04:00",
+    "event_ns": "1790875810462149947",
+    "side": "Short",
+    "price": 7724.5,
+    "stop": 7730.5,
+    "group": 14
+  },
+  {
+    "date": "2026-10-01",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-01T13:30:10.462149-04:00",
+    "event_ns": "1790875810462149947",
+    "side": "Short",
+    "price": 7724.5,
+    "stop": 7730.5,
+    "setup_group": 14
+  },
+  {
+    "date": "2026-10-01",
+    "kind": "Exit",
+    "time_ny": "2026-10-01T13:30:23.274735-04:00",
+    "event_ns": "1790875823274735313",
+    "reason": "Protective stop",
+    "price": 7730.5,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-02",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-02T08:30:06.307630-04:00",
+    "event_ns": "1790944206307630577",
+    "side": "Short",
+    "price": 7792.0,
+    "stop": 7798.0,
+    "group": 4
+  },
+  {
+    "date": "2026-10-02",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-02T08:30:06.307630-04:00",
+    "event_ns": "1790944206307630577",
+    "side": "Short",
+    "price": 7791.5,
+    "stop": 7798.0,
+    "setup_group": 4
+  },
+  {
+    "date": "2026-10-02",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-02T08:30:07.485022-04:00",
+    "event_ns": "1790944207485022581",
+    "price": 7783.5,
+    "group": 5
+  },
+  {
+    "date": "2026-10-02",
+    "kind": "Exit",
+    "time_ny": "2026-10-02T08:30:07.486259-04:00",
+    "event_ns": "1790944207486259565",
+    "reason": "DC price return",
+    "price": 7783.5,
+    "points": 8.0
+  },
+  {
+    "date": "2026-10-02",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-02T10:30:06.811840-04:00",
+    "event_ns": "1790951406811840311",
+    "side": "Short",
+    "price": 7802.0,
+    "stop": 7808.0,
+    "group": 10
+  },
+  {
+    "date": "2026-10-02",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-02T10:30:06.811881-04:00",
+    "event_ns": "1790951406811881743",
+    "side": "Short",
+    "price": 7802.0,
+    "stop": 7808.0,
+    "setup_group": 10
+  },
+  {
+    "date": "2026-10-02",
+    "kind": "Exit",
+    "time_ny": "2026-10-02T10:41:58.838076-04:00",
+    "event_ns": "1790952118838076511",
+    "reason": "Protective stop",
+    "price": 7808.0,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-02",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-02T11:15:11.153333-04:00",
+    "event_ns": "1790954111153333911",
+    "side": "Long",
+    "price": 7773.5,
+    "stop": 7765.5,
+    "group": 11
+  },
+  {
+    "date": "2026-10-02",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-02T11:15:11.154253-04:00",
+    "event_ns": "1790954111154253743",
+    "side": "Long",
+    "price": 7773.25,
+    "stop": 7765.5,
+    "setup_group": 11
+  },
+  {
+    "date": "2026-10-02",
+    "kind": "Exit",
+    "time_ny": "2026-10-02T11:16:43.472452-04:00",
+    "event_ns": "1790954203472452855",
+    "reason": "Protective stop",
+    "price": 7765.5,
+    "points": -7.75
+  },
+  {
+    "date": "2026-10-05",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-05T10:30:38.464045-04:00",
+    "event_ns": "1791210638464045571",
+    "side": "Short",
+    "price": 7804.25,
+    "stop": 7810.25,
+    "group": 2
+  },
+  {
+    "date": "2026-10-05",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-05T10:30:38.464045-04:00",
+    "event_ns": "1791210638464045571",
+    "side": "Short",
+    "price": 7804.25,
+    "stop": 7810.25,
+    "setup_group": 2
+  },
+  {
+    "date": "2026-10-05",
+    "kind": "Exit",
+    "time_ny": "2026-10-05T10:58:10.647377-04:00",
+    "event_ns": "1791212290647377555",
+    "reason": "Protective stop",
+    "price": 7810.25,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-06",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-06T06:03:33.843947-04:00",
+    "event_ns": "1791281013843947793",
+    "side": "Short",
+    "price": 7840.75,
+    "stop": 7846.75,
+    "group": 0
+  },
+  {
+    "date": "2026-10-06",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-06T06:03:33.843947-04:00",
+    "event_ns": "1791281013843947793",
+    "side": "Short",
+    "price": 7840.75,
+    "stop": 7846.75,
+    "setup_group": 0
+  },
+  {
+    "date": "2026-10-06",
+    "kind": "Exit",
+    "time_ny": "2026-10-06T06:24:12.722385-04:00",
+    "event_ns": "1791282252722385993",
+    "reason": "Protective stop",
+    "price": 7846.75,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-07",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-07T07:59:36.013224-04:00",
+    "event_ns": "1791374376013224195",
+    "side": "Long",
+    "price": 7846.25,
+    "stop": 7838.25,
+    "group": 1
+  },
+  {
+    "date": "2026-10-07",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-07T07:59:36.013224-04:00",
+    "event_ns": "1791374376013224195",
+    "side": "Long",
+    "price": 7846.5,
+    "stop": 7838.25,
+    "setup_group": 1
+  },
+  {
+    "date": "2026-10-07",
+    "kind": "Exit",
+    "time_ny": "2026-10-07T08:26:03.071713-04:00",
+    "event_ns": "1791375963071713033",
+    "reason": "Protective stop",
+    "price": 7838.25,
+    "points": -8.25
+  },
+  {
+    "date": "2026-10-07",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-07T13:04:25.536165-04:00",
+    "event_ns": "1791392665536165139",
+    "side": "Short",
+    "price": 7846.75,
+    "stop": 7852.75,
+    "group": 2
+  },
+  {
+    "date": "2026-10-07",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-07T13:04:25.536165-04:00",
+    "event_ns": "1791392665536165139",
+    "side": "Short",
+    "price": 7846.75,
+    "stop": 7852.75,
+    "setup_group": 2
+  },
+  {
+    "date": "2026-10-07",
+    "kind": "Exit",
+    "time_ny": "2026-10-07T13:08:20.469611-04:00",
+    "event_ns": "1791392900469611545",
+    "reason": "Protective stop",
+    "price": 7852.75,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-08",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-08T03:22:18.961780-04:00",
+    "event_ns": "1791444138961780537",
+    "side": "Long",
+    "price": 7830.5,
+    "stop": 7822.5,
+    "group": 1
+  },
+  {
+    "date": "2026-10-08",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-08T03:22:18.961780-04:00",
+    "event_ns": "1791444138961780537",
+    "side": "Long",
+    "price": 7830.5,
+    "stop": 7822.5,
+    "setup_group": 1
+  },
+  {
+    "date": "2026-10-08",
+    "kind": "Exit",
+    "time_ny": "2026-10-08T04:00:51.798177-04:00",
+    "event_ns": "1791446451798177011",
+    "reason": "Protective stop",
+    "price": 7822.5,
+    "points": -8.0
+  },
+  {
+    "date": "2026-10-08",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-08T10:43:33.770219-04:00",
+    "event_ns": "1791470613770219595",
+    "side": "Short",
+    "price": 7838.0,
+    "stop": 7844.0,
+    "group": 2
+  },
+  {
+    "date": "2026-10-08",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-08T10:43:33.770219-04:00",
+    "event_ns": "1791470613770219595",
+    "side": "Short",
+    "price": 7838.0,
+    "stop": 7844.0,
+    "setup_group": 2
+  },
+  {
+    "date": "2026-10-08",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-08T10:53:33.731075-04:00",
+    "event_ns": "1791471213731075487",
+    "price": 7829.5,
+    "group": 3
+  },
+  {
+    "date": "2026-10-08",
+    "kind": "Exit",
+    "time_ny": "2026-10-08T10:53:33.764508-04:00",
+    "event_ns": "1791471213764508043",
+    "reason": "DC price return",
+    "price": 7829.75,
+    "points": 8.25
+  },
+  {
+    "date": "2026-10-08",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-08T12:55:00.111205-04:00",
+    "event_ns": "1791478500111205089",
+    "side": "Long",
+    "price": 7811.5,
+    "stop": 7803.5,
+    "group": 5
+  },
+  {
+    "date": "2026-10-08",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-08T12:55:00.111205-04:00",
+    "event_ns": "1791478500111205089",
+    "side": "Long",
+    "price": 7811.5,
+    "stop": 7803.5,
+    "setup_group": 5
+  },
+  {
+    "date": "2026-10-08",
+    "kind": "Exit",
+    "time_ny": "2026-10-08T13:00:41.833428-04:00",
+    "event_ns": "1791478841833428669",
+    "reason": "Protective stop",
+    "price": 7803.5,
+    "points": -8.0
+  },
+  {
+    "date": "2026-10-09",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-09T05:44:23.960994-04:00",
+    "event_ns": "1791539063960994147",
+    "side": "Short",
+    "price": 7847.5,
+    "stop": 7853.5,
+    "group": 0
+  },
+  {
+    "date": "2026-10-09",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-09T05:44:23.960994-04:00",
+    "event_ns": "1791539063960994147",
+    "side": "Short",
+    "price": 7847.5,
+    "stop": 7853.5,
+    "setup_group": 0
+  },
+  {
+    "date": "2026-10-09",
+    "kind": "Exit",
+    "time_ny": "2026-10-09T08:01:29.786245-04:00",
+    "event_ns": "1791547289786245707",
+    "reason": "Protective stop",
+    "price": 7853.5,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-09",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-09T13:10:27.528287-04:00",
+    "event_ns": "1791565827528287099",
+    "side": "Short",
+    "price": 7855.5,
+    "stop": 7861.5,
+    "group": 2
+  },
+  {
+    "date": "2026-10-09",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-09T13:10:27.528287-04:00",
+    "event_ns": "1791565827528287099",
+    "side": "Short",
+    "price": 7855.5,
+    "stop": 7861.5,
+    "setup_group": 2
+  },
+  {
+    "date": "2026-10-09",
+    "kind": "Exit",
+    "time_ny": "2026-10-09T14:10:06.354588-04:00",
+    "event_ns": "1791569406354588467",
+    "reason": "Protective stop",
+    "price": 7861.5,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-12",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-12T15:35:40.448569-04:00",
+    "event_ns": "1791833740448569847",
+    "side": "Long",
+    "price": 7854.75,
+    "stop": 7846.75,
+    "group": 1
+  },
+  {
+    "date": "2026-10-12",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-12T15:35:40.448569-04:00",
+    "event_ns": "1791833740448569847",
+    "side": "Long",
+    "price": 7854.75,
+    "stop": 7846.75,
+    "setup_group": 1
+  },
+  {
+    "date": "2026-10-12",
+    "kind": "Exit",
+    "time_ny": "2026-10-12T15:45:00.000000-04:00",
+    "event_ns": "1791834300000000000",
+    "reason": "Session flatten",
+    "price": 7853.75,
+    "points": -1.0
+  },
+  {
+    "date": "2026-10-14",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-14T08:49:02.618447-04:00",
+    "event_ns": "1791982142618447559",
+    "side": "Long",
+    "price": 7833.0,
+    "stop": 7825.0,
+    "group": 3
+  },
+  {
+    "date": "2026-10-14",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-14T08:49:02.618447-04:00",
+    "event_ns": "1791982142618447559",
+    "side": "Long",
+    "price": 7833.0,
+    "stop": 7825.0,
+    "setup_group": 3
+  },
+  {
+    "date": "2026-10-14",
+    "kind": "Exit",
+    "time_ny": "2026-10-14T08:58:47.683798-04:00",
+    "event_ns": "1791982727683798093",
+    "reason": "Protective stop",
+    "price": 7825.0,
+    "points": -8.0
+  },
+  {
+    "date": "2026-10-15",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-15T09:59:17.069646-04:00",
+    "event_ns": "1792072757069646145",
+    "side": "Long",
+    "price": 7725.25,
+    "stop": 7717.25,
+    "group": 5
+  },
+  {
+    "date": "2026-10-15",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-15T09:59:17.069646-04:00",
+    "event_ns": "1792072757069646145",
+    "side": "Long",
+    "price": 7725.5,
+    "stop": 7717.25,
+    "setup_group": 5
+  },
+  {
+    "date": "2026-10-15",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-15T10:01:23.601692-04:00",
+    "event_ns": "1792072883601692919",
+    "price": 7737.0,
+    "group": 6
+  },
+  {
+    "date": "2026-10-15",
+    "kind": "Exit",
+    "time_ny": "2026-10-15T10:01:23.602332-04:00",
+    "event_ns": "1792072883602332137",
+    "reason": "DC price return",
+    "price": 7736.75,
+    "points": 11.25
+  },
+  {
+    "date": "2026-10-15",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-15T10:13:10.399226-04:00",
+    "event_ns": "1792073590399226849",
+    "side": "Short",
+    "price": 7746.0,
+    "stop": 7752.0,
+    "group": 6
+  },
+  {
+    "date": "2026-10-15",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-15T10:13:10.399226-04:00",
+    "event_ns": "1792073590399226849",
+    "side": "Short",
+    "price": 7746.0,
+    "stop": 7752.0,
+    "setup_group": 6
+  },
+  {
+    "date": "2026-10-15",
+    "kind": "Exit",
+    "time_ny": "2026-10-15T10:20:43.439322-04:00",
+    "event_ns": "1792074043439322579",
+    "reason": "Protective stop",
+    "price": 7752.0,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-15",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-15T15:29:33.636709-04:00",
+    "event_ns": "1792092573636709315",
+    "side": "Short",
+    "price": 7794.0,
+    "stop": 7800.0,
+    "group": 10
+  },
+  {
+    "date": "2026-10-15",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-15T15:29:33.636715-04:00",
+    "event_ns": "1792092573636715497",
+    "side": "Short",
+    "price": 7794.0,
+    "stop": 7800.0,
+    "setup_group": 10
+  },
+  {
+    "date": "2026-10-15",
+    "kind": "Exit",
+    "time_ny": "2026-10-15T15:45:00.000000-04:00",
+    "event_ns": "1792093500000000000",
+    "reason": "Session flatten",
+    "price": 7795.5,
+    "points": -1.5
+  },
+  {
+    "date": "2026-10-16",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-16T10:14:04.221731-04:00",
+    "event_ns": "1792160044221731969",
+    "side": "Long",
+    "price": 7782.75,
+    "stop": 7774.75,
+    "group": 3
+  },
+  {
+    "date": "2026-10-16",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-16T10:14:04.221731-04:00",
+    "event_ns": "1792160044221731969",
+    "side": "Long",
+    "price": 7783.0,
+    "stop": 7774.75,
+    "setup_group": 3
+  },
+  {
+    "date": "2026-10-16",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-16T10:47:28.632193-04:00",
+    "event_ns": "1792162048632193207",
+    "price": 7793.75,
+    "group": 4
+  },
+  {
+    "date": "2026-10-16",
+    "kind": "Exit",
+    "time_ny": "2026-10-16T10:47:28.797486-04:00",
+    "event_ns": "1792162048797486181",
+    "reason": "DC price return",
+    "price": 7793.5,
+    "points": 10.5
+  },
+  {
+    "date": "2026-10-16",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-16T11:34:29.489021-04:00",
+    "event_ns": "1792164869489021235",
+    "side": "Long",
+    "price": 7763.75,
+    "stop": 7755.75,
+    "group": 5
+  },
+  {
+    "date": "2026-10-16",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-16T11:34:29.489021-04:00",
+    "event_ns": "1792164869489021235",
+    "side": "Long",
+    "price": 7763.75,
+    "stop": 7755.75,
+    "setup_group": 5
+  },
+  {
+    "date": "2026-10-16",
+    "kind": "Exit",
+    "time_ny": "2026-10-16T11:51:04.604519-04:00",
+    "event_ns": "1792165864604519769",
+    "reason": "Protective stop",
+    "price": 7755.75,
+    "points": -8.0
+  },
+  {
+    "date": "2026-10-16",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-16T14:59:58.505594-04:00",
+    "event_ns": "1792177198505594857",
+    "side": "Long",
+    "price": 7689.0,
+    "stop": 7680.5,
+    "group": 7
+  },
+  {
+    "date": "2026-10-16",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-16T14:59:58.566756-04:00",
+    "event_ns": "1792177198566756207",
+    "side": "Long",
+    "price": 7688.75,
+    "stop": 7680.5,
+    "setup_group": 7
+  },
+  {
+    "date": "2026-10-16",
+    "kind": "Exit",
+    "time_ny": "2026-10-16T15:06:38.570577-04:00",
+    "event_ns": "1792177598570577105",
+    "reason": "Protective stop",
+    "price": 7680.5,
+    "points": -8.25
+  },
+  {
+    "date": "2026-10-19",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-19T08:09:29.424210-04:00",
+    "event_ns": "1792411769424210133",
+    "side": "Long",
+    "price": 7741.0,
+    "stop": 7733.0,
+    "group": 1
+  },
+  {
+    "date": "2026-10-19",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-19T08:09:30.069147-04:00",
+    "event_ns": "1792411770069147351",
+    "side": "Long",
+    "price": 7740.75,
+    "stop": 7733.0,
+    "setup_group": 1
+  },
+  {
+    "date": "2026-10-19",
+    "kind": "Exit",
+    "time_ny": "2026-10-19T09:53:57.200062-04:00",
+    "event_ns": "1792418037200062933",
+    "reason": "Protective stop",
+    "price": 7733.0,
+    "points": -7.75
+  },
+  {
+    "date": "2026-10-19",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-19T13:59:01.077478-04:00",
+    "event_ns": "1792432741077478653",
+    "side": "Long",
+    "price": 7744.25,
+    "stop": 7736.25,
+    "group": 5
+  },
+  {
+    "date": "2026-10-19",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-19T13:59:01.077478-04:00",
+    "event_ns": "1792432741077478653",
+    "side": "Long",
+    "price": 7744.25,
+    "stop": 7736.25,
+    "setup_group": 5
+  },
+  {
+    "date": "2026-10-19",
+    "kind": "Exit",
+    "time_ny": "2026-10-19T14:35:01.498462-04:00",
+    "event_ns": "1792434901498462949",
+    "reason": "Protective stop",
+    "price": 7736.25,
+    "points": -8.0
+  },
+  {
+    "date": "2026-10-20",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-20T08:39:37.102112-04:00",
+    "event_ns": "1792499977102112129",
+    "side": "Long",
+    "price": 7715.75,
+    "stop": 7707.75,
+    "group": 5
+  },
+  {
+    "date": "2026-10-20",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-20T08:39:37.102112-04:00",
+    "event_ns": "1792499977102112129",
+    "side": "Long",
+    "price": 7715.75,
+    "stop": 7707.75,
+    "setup_group": 5
+  },
+  {
+    "date": "2026-10-20",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-20T08:45:24.309744-04:00",
+    "event_ns": "1792500324309744971",
+    "price": 7727.5,
+    "group": 6
+  },
+  {
+    "date": "2026-10-20",
+    "kind": "Exit",
+    "time_ny": "2026-10-20T08:45:24.310717-04:00",
+    "event_ns": "1792500324310717545",
+    "reason": "DC price return",
+    "price": 7727.0,
+    "points": 11.25
+  },
+  {
+    "date": "2026-10-20",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-20T10:32:42.093828-04:00",
+    "event_ns": "1792506762093828709",
+    "side": "Short",
+    "price": 7783.75,
+    "stop": 7789.75,
+    "group": 8
+  },
+  {
+    "date": "2026-10-20",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-20T10:32:42.093828-04:00",
+    "event_ns": "1792506762093828709",
+    "side": "Short",
+    "price": 7783.75,
+    "stop": 7789.75,
+    "setup_group": 8
+  },
+  {
+    "date": "2026-10-20",
+    "kind": "Exit",
+    "time_ny": "2026-10-20T10:57:08.566416-04:00",
+    "event_ns": "1792508228566416311",
+    "reason": "Protective stop",
+    "price": 7789.75,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-20",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-20T11:14:52.647934-04:00",
+    "event_ns": "1792509292647934203",
+    "side": "Long",
+    "price": 7755.25,
+    "stop": 7747.25,
+    "group": 9
+  },
+  {
+    "date": "2026-10-20",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-20T11:14:52.647934-04:00",
+    "event_ns": "1792509292647934203",
+    "side": "Long",
+    "price": 7755.25,
+    "stop": 7747.25,
+    "setup_group": 9
+  },
+  {
+    "date": "2026-10-20",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-20T11:17:16.617079-04:00",
+    "event_ns": "1792509436617079237",
+    "price": 7766.75,
+    "group": 10
+  },
+  {
+    "date": "2026-10-20",
+    "kind": "Exit",
+    "time_ny": "2026-10-20T11:17:16.723698-04:00",
+    "event_ns": "1792509436723698761",
+    "reason": "DC price return",
+    "price": 7766.5,
+    "points": 11.25
+  },
+  {
+    "date": "2026-10-21",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-21T12:07:40.000544-04:00",
+    "event_ns": "1792598860000544335",
+    "side": "Short",
+    "price": 7790.5,
+    "stop": 7796.5,
+    "group": 4
+  },
+  {
+    "date": "2026-10-21",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-21T12:07:40.000544-04:00",
+    "event_ns": "1792598860000544335",
+    "side": "Short",
+    "price": 7790.5,
+    "stop": 7796.5,
+    "setup_group": 4
+  },
+  {
+    "date": "2026-10-21",
+    "kind": "Exit",
+    "time_ny": "2026-10-21T12:39:19.559635-04:00",
+    "event_ns": "1792600759559635427",
+    "reason": "Protective stop",
+    "price": 7796.5,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-21",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-21T15:04:59.503388-04:00",
+    "event_ns": "1792609499503388599",
+    "side": "Long",
+    "price": 7780.75,
+    "stop": 7772.75,
+    "group": 5
+  },
+  {
+    "date": "2026-10-21",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-21T15:04:59.503388-04:00",
+    "event_ns": "1792609499503388599",
+    "side": "Long",
+    "price": 7781.0,
+    "stop": 7772.75,
+    "setup_group": 5
+  },
+  {
+    "date": "2026-10-21",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-21T15:25:02.457865-04:00",
+    "event_ns": "1792610702457865405",
+    "price": 7792.5,
+    "group": 6
+  },
+  {
+    "date": "2026-10-21",
+    "kind": "Exit",
+    "time_ny": "2026-10-21T15:25:02.459073-04:00",
+    "event_ns": "1792610702459073187",
+    "reason": "DC price return",
+    "price": 7792.25,
+    "points": 11.25
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-22T04:43:40.908921-04:00",
+    "event_ns": "1792658620908921379",
+    "side": "Long",
+    "price": 7726.5,
+    "stop": 7718.5,
+    "group": 1
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-22T04:43:40.909682-04:00",
+    "event_ns": "1792658620909682779",
+    "side": "Long",
+    "price": 7726.25,
+    "stop": 7718.5,
+    "setup_group": 1
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Exit",
+    "time_ny": "2026-10-22T04:52:26.236455-04:00",
+    "event_ns": "1792659146236455361",
+    "reason": "Protective stop",
+    "price": 7718.5,
+    "points": -7.75
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-22T10:43:50.170897-04:00",
+    "event_ns": "1792680230170897493",
+    "side": "Long",
+    "price": 7694.25,
+    "stop": 7686.25,
+    "group": 5
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-22T10:43:50.170897-04:00",
+    "event_ns": "1792680230170897493",
+    "side": "Long",
+    "price": 7694.25,
+    "stop": 7686.25,
+    "setup_group": 5
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Exit",
+    "time_ny": "2026-10-22T10:48:26.803292-04:00",
+    "event_ns": "1792680506803292643",
+    "reason": "Protective stop",
+    "price": 7686.25,
+    "points": -8.0
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-22T12:23:33.356675-04:00",
+    "event_ns": "1792686213356675587",
+    "side": "Short",
+    "price": 7718.5,
+    "stop": 7724.5,
+    "group": 8
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-22T12:23:33.356675-04:00",
+    "event_ns": "1792686213356675587",
+    "side": "Short",
+    "price": 7718.5,
+    "stop": 7724.5,
+    "setup_group": 8
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-22T12:33:31.006597-04:00",
+    "event_ns": "1792686811006597341",
+    "price": 7709.75,
+    "group": 9
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Exit",
+    "time_ny": "2026-10-22T12:33:31.332411-04:00",
+    "event_ns": "1792686811332411357",
+    "reason": "DC price return",
+    "price": 7710.0,
+    "points": 8.5
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-22T12:55:20.367985-04:00",
+    "event_ns": "1792688120367985401",
+    "side": "Long",
+    "price": 7697.75,
+    "stop": 7689.75,
+    "group": 9
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-22T12:55:20.549120-04:00",
+    "event_ns": "1792688120549120303",
+    "side": "Long",
+    "price": 7697.5,
+    "stop": 7689.75,
+    "setup_group": 9
+  },
+  {
+    "date": "2026-10-22",
+    "kind": "Exit",
+    "time_ny": "2026-10-22T13:08:11.260104-04:00",
+    "event_ns": "1792688891260104655",
+    "reason": "Protective stop",
+    "price": 7689.75,
+    "points": -7.75
+  },
+  {
+    "date": "2026-10-23",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-23T08:20:22.520074-04:00",
+    "event_ns": "1792758022520074155",
+    "side": "Long",
+    "price": 7682.25,
+    "stop": 7673.75,
+    "group": 3
+  },
+  {
+    "date": "2026-10-23",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-23T08:20:23.360530-04:00",
+    "event_ns": "1792758023360530187",
+    "side": "Long",
+    "price": 7682.25,
+    "stop": 7673.75,
+    "setup_group": 3
+  },
+  {
+    "date": "2026-10-23",
+    "kind": "Exit",
+    "time_ny": "2026-10-23T08:31:27.210113-04:00",
+    "event_ns": "1792758687210113549",
+    "reason": "Protective stop",
+    "price": 7673.75,
+    "points": -8.5
+  },
+  {
+    "date": "2026-10-23",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-23T11:02:51.771482-04:00",
+    "event_ns": "1792767771771482641",
+    "side": "Short",
+    "price": 7685.0,
+    "stop": 7691.0,
+    "group": 4
+  },
+  {
+    "date": "2026-10-23",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-23T11:02:51.771482-04:00",
+    "event_ns": "1792767771771482641",
+    "side": "Short",
+    "price": 7685.0,
+    "stop": 7691.0,
+    "setup_group": 4
+  },
+  {
+    "date": "2026-10-23",
+    "kind": "Exit",
+    "time_ny": "2026-10-23T11:14:16.460330-04:00",
+    "event_ns": "1792768456460330293",
+    "reason": "Protective stop",
+    "price": 7691.0,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-26",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-26T11:09:00.932133-04:00",
+    "event_ns": "1793027340932133727",
+    "side": "Short",
+    "price": 7732.25,
+    "stop": 7738.25,
+    "group": 12
+  },
+  {
+    "date": "2026-10-26",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-26T11:09:00.932133-04:00",
+    "event_ns": "1793027340932133727",
+    "side": "Short",
+    "price": 7732.0,
+    "stop": 7738.25,
+    "setup_group": 12
+  },
+  {
+    "date": "2026-10-26",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-26T11:49:52.921012-04:00",
+    "event_ns": "1793029792921012347",
+    "price": 7723.5,
+    "group": 13
+  },
+  {
+    "date": "2026-10-26",
+    "kind": "Exit",
+    "time_ny": "2026-10-26T11:49:52.921507-04:00",
+    "event_ns": "1793029792921507723",
+    "reason": "DC price return",
+    "price": 7723.75,
+    "points": 8.25
+  },
+  {
+    "date": "2026-10-26",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-26T12:56:16.540239-04:00",
+    "event_ns": "1793033776540239647",
+    "side": "Long",
+    "price": 7711.5,
+    "stop": 7703.5,
+    "group": 13
+  },
+  {
+    "date": "2026-10-26",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-26T12:56:16.540239-04:00",
+    "event_ns": "1793033776540239647",
+    "side": "Long",
+    "price": 7711.5,
+    "stop": 7703.5,
+    "setup_group": 13
+  },
+  {
+    "date": "2026-10-26",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-26T13:14:07.635065-04:00",
+    "event_ns": "1793034847635065903",
+    "price": 7723.5,
+    "group": 14
+  },
+  {
+    "date": "2026-10-26",
+    "kind": "Exit",
+    "time_ny": "2026-10-26T13:14:07.761329-04:00",
+    "event_ns": "1793034847761329915",
+    "reason": "DC price return",
+    "price": 7723.25,
+    "points": 11.75
+  },
+  {
+    "date": "2026-10-27",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-27T06:47:19.134852-04:00",
+    "event_ns": "1793098039134852073",
+    "side": "Short",
+    "price": 7736.75,
+    "stop": 7742.75,
+    "group": 6
+  },
+  {
+    "date": "2026-10-27",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-27T06:47:19.135249-04:00",
+    "event_ns": "1793098039135249571",
+    "side": "Short",
+    "price": 7737.0,
+    "stop": 7742.75,
+    "setup_group": 6
+  },
+  {
+    "date": "2026-10-27",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-27T06:48:25.720609-04:00",
+    "event_ns": "1793098105720609947",
+    "price": 7728.0,
+    "group": 7
+  },
+  {
+    "date": "2026-10-27",
+    "kind": "Exit",
+    "time_ny": "2026-10-27T06:48:25.760478-04:00",
+    "event_ns": "1793098105760478789",
+    "reason": "DC price return",
+    "price": 7728.25,
+    "points": 8.75
+  },
+  {
+    "date": "2026-10-27",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-27T10:25:27.860339-04:00",
+    "event_ns": "1793111127860339397",
+    "side": "Long",
+    "price": 7721.25,
+    "stop": 7713.25,
+    "group": 9
+  },
+  {
+    "date": "2026-10-27",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-27T10:25:27.860339-04:00",
+    "event_ns": "1793111127860339397",
+    "side": "Long",
+    "price": 7721.25,
+    "stop": 7713.25,
+    "setup_group": 9
+  },
+  {
+    "date": "2026-10-27",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-27T10:31:09.687117-04:00",
+    "event_ns": "1793111469687117921",
+    "price": 7733.25,
+    "group": 10
+  },
+  {
+    "date": "2026-10-27",
+    "kind": "Exit",
+    "time_ny": "2026-10-27T10:31:09.694864-04:00",
+    "event_ns": "1793111469694864151",
+    "reason": "DC price return",
+    "price": 7733.0,
+    "points": 11.75
+  },
+  {
+    "date": "2026-10-27",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-27T11:07:47.604288-04:00",
+    "event_ns": "1793113667604288945",
+    "side": "Short",
+    "price": 7748.25,
+    "stop": 7754.25,
+    "group": 10
+  },
+  {
+    "date": "2026-10-27",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-27T11:07:47.604288-04:00",
+    "event_ns": "1793113667604288945",
+    "side": "Short",
+    "price": 7748.25,
+    "stop": 7754.25,
+    "setup_group": 10
+  },
+  {
+    "date": "2026-10-27",
+    "kind": "Exit",
+    "time_ny": "2026-10-27T11:14:51.700191-04:00",
+    "event_ns": "1793114091700191669",
+    "reason": "Protective stop",
+    "price": 7754.25,
+    "points": -6.0
+  },
+  {
+    "date": "2026-10-28",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-28T08:48:37.863176-04:00",
+    "event_ns": "1793191717863176393",
+    "side": "Short",
+    "price": 7770.75,
+    "stop": 7776.75,
+    "group": 0
+  },
+  {
+    "date": "2026-10-28",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-28T08:48:37.996145-04:00",
+    "event_ns": "1793191717996145213",
+    "side": "Short",
+    "price": 7771.0,
+    "stop": 7776.75,
+    "setup_group": 0
+  },
+  {
+    "date": "2026-10-28",
+    "kind": "Exit",
+    "time_ny": "2026-10-28T09:05:50.048744-04:00",
+    "event_ns": "1793192750048744641",
+    "reason": "Protective stop",
+    "price": 7776.75,
+    "points": -5.75
+  },
+  {
+    "date": "2026-10-28",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-28T14:37:32.865663-04:00",
+    "event_ns": "1793212652865663449",
+    "side": "Short",
+    "price": 7788.25,
+    "stop": 7794.25,
+    "group": 6
+  },
+  {
+    "date": "2026-10-28",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-28T14:37:32.865663-04:00",
+    "event_ns": "1793212652865663449",
+    "side": "Short",
+    "price": 7788.25,
+    "stop": 7794.25,
+    "setup_group": 6
+  },
+  {
+    "date": "2026-10-28",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-28T14:39:06.882876-04:00",
+    "event_ns": "1793212746882876335",
+    "price": 7779.5,
+    "group": 7
+  },
+  {
+    "date": "2026-10-28",
+    "kind": "Exit",
+    "time_ny": "2026-10-28T14:39:06.908753-04:00",
+    "event_ns": "1793212746908753309",
+    "reason": "DC price return",
+    "price": 7779.75,
+    "points": 8.5
+  },
+  {
+    "date": "2026-10-29",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-29T09:36:32.298923-04:00",
+    "event_ns": "1793280992298923219",
+    "side": "Long",
+    "price": 7740.75,
+    "stop": 7732.75,
+    "group": 7
+  },
+  {
+    "date": "2026-10-29",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-29T09:36:32.298923-04:00",
+    "event_ns": "1793280992298923219",
+    "side": "Long",
+    "price": 7740.75,
+    "stop": 7732.75,
+    "setup_group": 7
+  },
+  {
+    "date": "2026-10-29",
+    "kind": "DC confirmed",
+    "time_ny": "2026-10-29T09:46:20.519987-04:00",
+    "event_ns": "1793281580519987789",
+    "price": 7752.5,
+    "group": 8
+  },
+  {
+    "date": "2026-10-29",
+    "kind": "Exit",
+    "time_ny": "2026-10-29T09:46:21.221719-04:00",
+    "event_ns": "1793281581221719283",
+    "reason": "DC price return",
+    "price": 7752.5,
+    "points": 11.75
+  },
+  {
+    "date": "2026-10-29",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-29T14:00:26.762942-04:00",
+    "event_ns": "1793296826762942669",
+    "side": "Long",
+    "price": 7734.25,
+    "stop": 7726.25,
+    "group": 15
+  },
+  {
+    "date": "2026-10-29",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-29T14:00:26.762942-04:00",
+    "event_ns": "1793296826762942669",
+    "side": "Long",
+    "price": 7734.25,
+    "stop": 7726.25,
+    "setup_group": 15
+  },
+  {
+    "date": "2026-10-29",
+    "kind": "Exit",
+    "time_ny": "2026-10-29T14:34:00.410782-04:00",
+    "event_ns": "1793298840410782677",
+    "reason": "Protective stop",
+    "price": 7726.25,
+    "points": -8.0
+  },
+  {
+    "date": "2026-10-30",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-30T09:37:22.703429-04:00",
+    "event_ns": "1793367442703429435",
+    "side": "Long",
+    "price": 7658.0,
+    "stop": 7650.0,
+    "group": 5
+  },
+  {
+    "date": "2026-10-30",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-30T09:37:22.703429-04:00",
+    "event_ns": "1793367442703429435",
+    "side": "Long",
+    "price": 7658.0,
+    "stop": 7650.0,
+    "setup_group": 5
+  },
+  {
+    "date": "2026-10-30",
+    "kind": "Exit",
+    "time_ny": "2026-10-30T10:10:23.439512-04:00",
+    "event_ns": "1793369423439512569",
+    "reason": "Protective stop",
+    "price": 7650.0,
+    "points": -8.0
+  },
+  {
+    "date": "2026-10-30",
+    "kind": "Entry signaled",
+    "time_ny": "2026-10-30T12:29:01.108319-04:00",
+    "event_ns": "1793377741108319435",
+    "side": "Long",
+    "price": 7631.25,
+    "stop": 7622.75,
+    "group": 7
+  },
+  {
+    "date": "2026-10-30",
+    "kind": "Entry filled",
+    "time_ny": "2026-10-30T12:29:01.108319-04:00",
+    "event_ns": "1793377741108319435",
+    "side": "Long",
+    "price": 7631.25,
+    "stop": 7622.75,
+    "setup_group": 7
+  },
+  {
+    "date": "2026-10-30",
+    "kind": "Exit",
+    "time_ny": "2026-10-30T12:46:16.972803-04:00",
+    "event_ns": "1793378776972803191",
+    "reason": "Protective stop",
+    "price": 7622.75,
+    "points": -8.5
+  }
+]

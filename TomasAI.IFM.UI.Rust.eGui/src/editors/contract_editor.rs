@@ -6,6 +6,7 @@
 //! trade data are skipped by serde and must never become part of the managed contract.
 //! Editor requests carry the publication generation and a request ID for correlation.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{
@@ -482,7 +483,7 @@ impl ContractEditor {
                 ui.add_enabled_ui(enabled, |ui| {
                     egui::ScrollArea::vertical()
                         .max_height(420.)
-                        .show(ui, |ui| {
+                        .bordered_show(ui, |ui| {
                             crate::presentation::form_grid(ui, "convention-fields")
                                 .striped(true)
                                 .show(ui, |ui| {

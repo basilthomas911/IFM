@@ -237,7 +237,7 @@ impl ScheduledTasks {
             egui::ScrollArea::vertical()
                 .id_salt("system-schedule-editor")
                 .auto_shrink([false, false])
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     ui.add_enabled_ui(idle, |ui| {
                         ui.horizontal_wrapped(|ui| {
                             pair(ui, "Task:", 230., 30., |ui| {
@@ -337,7 +337,7 @@ impl ScheduledTasks {
                                 egui::ScrollArea::vertical()
                                     .id_salt("system-schedule-days")
                                     .max_height(100.)
-                                    .show(ui, |ui| {
+                                    .bordered_show(ui, |ui| {
                                         ui.vertical(|ui| {
                                             for (i, day) in
                                                 ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
@@ -405,7 +405,7 @@ impl ScheduledTasks {
             egui::ScrollArea::both()
                 .id_salt("system-schedule-preview")
                 .auto_shrink([false, false])
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     ui.add(
                         egui::Label::new(content)
                             .selectable(true)
@@ -488,7 +488,7 @@ impl ScheduledTasks {
                 egui::ScrollArea::both()
                     .auto_shrink([false, false])
                     .id_salt("system-run-details")
-                    .show(ui, |ui| {
+                    .bordered_show(ui, |ui| {
                         ui.add(
                             egui::Label::new(details)
                                 .selectable(true)
@@ -640,7 +640,7 @@ impl ScheduledTasks {
         let fires: BTreeMap<String, String> = s.result.document("nextFires").unwrap_or_default();
         let more: BTreeMap<String, bool> = s.result.document("historyMore").unwrap_or_default();
         crate::system_admin::region(ui, tree, |ui| {
-            egui::ScrollArea::both().auto_shrink([false,false]).id_salt("system-schedule-log-tree").show(ui,|ui|{
+            egui::ScrollArea::both().auto_shrink([false,false]).id_salt("system-schedule-log-tree").bordered_show(ui,|ui|{
             for row in &s.result.rows {
                 let name=row.fields.get("name").unwrap_or(&row.id);
                 let latest=histories.get(&row.id).and_then(|r|r.iter().max_by_key(|r|&r.intended_fire_time_utc));
@@ -672,7 +672,7 @@ impl ScheduledTasks {
             egui::ScrollArea::both()
                 .auto_shrink([false, false])
                 .id_salt("system-schedule-stdout")
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     ui.add(
                         egui::Label::new(output_text)
                             .selectable(true)

@@ -343,6 +343,33 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     }
     // OnValidateAsync
 
+    [Fact]
+    public async Task Midnight_Rsi_seed_is_valid_and_produces_a_current_session_Tdi_signal()
+    {
+        var scenario = CreateScenario();
+        var original = SampleData.TdiGenerateCommandFor(TimeFrameType.FiveMinutes);
+        var command = original with
+        {
+            FuturesRsiSignals = original.FuturesRsiSignals.Select((signal, index) => index == 0
+                ? signal with
+                {
+                    Timestamp = TimeOnly.MinValue,
+                    SourceEventTimestamp = DateTime.SpecifyKind(signal.ValueDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc)
+                }
+                : signal).ToArray()
+        };
+
+        await scenario.Actor.InvokeOnValidateAsync(scenario.Context, command.Subject.ThreadId, command);
+        var state = CreateState(command);
+        var result = await scenario.Actor.InvokeReceiveAsync(scenario.Context, state, command);
+
+        result.Success.Should().BeTrue();
+        var generated = state.Events.OfType<FuturesTdiSignalGeneratedEvent>().Should().ContainSingle().Subject;
+        generated.FuturesTdiSignal.ValueDate.Should().Be(command.EntityId.ValueDate);
+        generated.FuturesTdiSignal.TimePeriod.Should().Be(TimeFrameType.FiveMinutes);
+        generated.FuturesTdiSignal.SchemaVersion.Should().BeGreaterThanOrEqualTo(2);
+    }
+
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnValidateAsync_ValidCommand_CompletesSuccessfully(

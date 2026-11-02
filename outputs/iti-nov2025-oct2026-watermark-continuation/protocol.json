@@ -1,0 +1,23 @@
+{
+  "baseline_directory": "outputs\\iti-nov2025-oct2026-one-reversal-one-band-one-loss-watermark",
+  "baseline_analysis_sha256": "ea59da4f7833d350555c1755de52835c9c9a45a7c72b154ec76022aa3073459c",
+  "targets_entry_time_bands": [
+    2,
+    3
+  ],
+  "primary_population": "Original trailing-watermark exits with watermark level exactly one band",
+  "secondary_population": "All original trailing-watermark exits",
+  "start": "First source row after actual original exit ordinal, including later rows with the same timestamp",
+  "end": "First original protective-stop touch/cross or 15:45 NY, whichever occurs first; targets are measured independently",
+  "thresholds": "Original frozen entry BandSize; signed gain measured from original entry, not from exit; first observed trade at/beyond target",
+  "drawdown": "Track minimum signed entry-relative profit and peak-to-trough drawdown from original exit through first target touch",
+  "no_parameter_search": true,
+  "no_strategy_changes": true,
+  "limitations": [
+    "Conditioned on original profitable watermark exits; not all entries",
+    "Hypothetical continuations can overlap later original trades; not portfolio P&L or a full strategy replay",
+    "No other profit exit after original watermark exit; descriptive room available until original stop or cutoff",
+    "Entire year has already informed strategy development; no untouched holdout claimed",
+    "Trade-price path only; no executable quotes; holiday cutoff uses last available trade"
+  ]
+}

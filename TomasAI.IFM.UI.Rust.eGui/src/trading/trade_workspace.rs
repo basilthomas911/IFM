@@ -8,6 +8,7 @@
 //! Iron Condor view, tab strip, and publication display cache.
 
 //! Native trading workspace. All persistence and trade eligibility stays in shared managed models.
+use crate::control_parity::BorderedScrollArea as _;
 use crate::control_parity::BorderedTable as _;
 use crate::control_parity::FilledGrid as _;
 use crate::models::cells::Cells;
@@ -908,7 +909,7 @@ impl TradeWorkspace {
 
     /// Render a published object's scalar properties as a read-only grid.
     fn properties(ui: &mut egui::Ui, value: &impl crate::models::cells::Cells) {
-        egui::ScrollArea::both().show(ui, |ui| {
+        egui::ScrollArea::both().bordered_show(ui, |ui| {
             crate::presentation::form_grid(ui, "trade-properties")
                 .striped(true)
                 .show(ui, |ui| {

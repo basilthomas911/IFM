@@ -124,6 +124,50 @@ fn graph_keeps_reserved_height_when_initial_snapshot_has_no_signals() {
 }
 
 
+/// Legend wrapping must not grow the graph panel over successive live frames.
+#[test]
+fn wrapped_legend_does_not_expand_graph_over_successive_frames() {
+    for width in [430.0, 1000.0] {
+        for empty in [false, true] {
+            let (catalog, mut snapshot) = fixture(1);
+            if empty {
+                snapshot.signals.clear();
+            }
+            let mut harness = Harness::builder()
+                .with_size(eframe::egui::vec2(width, 900.0))
+                .build_state(
+                    move |ctx, state: &mut State| {
+                        state.workspace.draw(ctx, &snapshot, &catalog, &mut state.details);
+                    },
+                    State {
+                        workspace: StrategyWorkspace::for_shell(),
+                        details: Default::default(),
+                        actions: vec![],
+                    },
+                );
+            ifm_ui_egui::apply_winforms_typography(&harness.ctx).unwrap();
+            harness.run();
+            let initial = eframe::egui::containers::panel::PanelState::load(
+                &harness.ctx,
+                eframe::egui::Id::new("strategy_graph"),
+            ).unwrap().rect.height();
+            for _ in 0..120 {
+                harness.step();
+            }
+            let final_height = eframe::egui::containers::panel::PanelState::load(
+                &harness.ctx,
+                eframe::egui::Id::new("strategy_graph"),
+            ).unwrap().rect.height();
+            assert!(
+                (final_height - initial).abs() < 1.0,
+                "graph grows without dragging: width={width}, empty={empty}, initial={initial}, final={final_height}"
+            );
+            assert!(harness.query_by_label("Strategy Updates").is_some());
+        }
+    }
+}
+
+
 /// Verifies that pipeline circles stop at first red and use requested colors.
 #[test]
 fn pipeline_circles_stop_at_first_red_and_use_requested_colors() {
@@ -145,4 +189,98 @@ fn pipeline_circles_stop_at_first_red_and_use_requested_colors() {
     assert_eq!(visible_pipeline_count(&actors), 3);
     assert_eq!(visible_pipeline_count(&actors[..2]), 2);
     assert_eq!(visible_pipeline_count(&[]), 0);
+}
+
+
+/// Strategy columns must reach the horizontal scrollbar for empty, fitting and overflowing workflow sets.
+#[test]
+fn updates_grid_fills_the_viewport_down_to_the_horizontal_scrollbar() {
+    use eframe::egui;
+    for scale in [1.0, 2.0] {
+        for height in [760., 815.] {
+            for rows in [0, 1, 100] {
+                let (catalog, snapshot) = fixture(rows);
+                let mut harness = Harness::builder()
+                    .with_size(egui::vec2(430., height))
+                    .with_pixels_per_point(scale)
+                    .build_state(
+                        move |ctx, state: &mut State| {
+                            ifm_ui_egui::presentation::apply(ctx);
+                            state
+                                .workspace
+                                .draw(ctx, &snapshot, &catalog, &mut state.details);
+                        },
+                        State {
+                            workspace: StrategyWorkspace::for_shell(),
+                            details: Default::default(),
+                            actions: vec![],
+                        },
+                    );
+                ifm_ui_egui::apply_winforms_typography(&harness.ctx).unwrap();
+                harness.run();
+                let thumb = harness
+                    .output()
+                    .shapes
+                    .iter()
+                    .filter_map(|shape| {
+                        if let egui::Shape::Rect(rect) = &shape.shape {
+                            if rect.fill == ifm_ui_egui::presentation::SCROLLBAR
+                                && rect.rect.width() > rect.rect.height()
+                            {
+                                return Some(rect.rect);
+                            }
+                        }
+                        None
+                    })
+                    .next()
+                    .expect("Strategy Updates must retain its horizontal scrollbar");
+                let pixel = 1. / harness.ctx.pixels_per_point();
+                let bottom =
+                    thumb.top() - harness.ctx.style().spacing.scroll.bar_inner_margin - pixel / 2.;
+                let mut columns: Vec<_> = harness
+                    .output()
+                    .shapes
+                    .iter()
+                    .filter_map(|shape| {
+                        if let egui::Shape::LineSegment { points, stroke } = &shape.shape {
+                            if stroke.color == ifm_ui_egui::presentation::BORDER
+                                && points[0].x == points[1].x
+                                && points[1].y - points[0].y > 100.
+                                && (points[1].y - bottom).abs() < pixel
+                            {
+                                return Some(points[0].x);
+                            }
+                        }
+                        None
+                    })
+                    .collect();
+                columns.sort_by(f32::total_cmp);
+                columns.dedup_by(|a, b| (*a - *b).abs() < pixel);
+                assert!(
+                    columns.len() >= 3,
+                    "columns stop above scrollbar: rows={rows}, scale={scale}, height={height}, bottom={bottom}, columns={columns:?}"
+                );
+                assert!(harness.query_by_label("Date/Time").is_some());
+                if rows == 0 {
+                    assert!(
+                        harness
+                            .query_by_label("No workflows in this timeframe")
+                            .is_some()
+                    );
+                }
+                if scale == 1.0 && height == 760. {
+                    if let Ok(directory) = std::env::var("IFM_ALIGNMENT_SCREENSHOTS") {
+                        harness
+                            .render()
+                            .unwrap()
+                            .save(
+                                std::path::Path::new(&directory)
+                                    .join(format!("strategy-updates-{rows}.png")),
+                            )
+                            .unwrap();
+                    }
+                }
+            }
+        }
+    }
 }

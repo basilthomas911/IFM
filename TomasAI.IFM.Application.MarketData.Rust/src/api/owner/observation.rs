@@ -1,6 +1,66 @@
 //! Copied status and explicit reconnect queries. No publication queue, resource
 //! ownership or recovery timer is created by observing the native dataset owner.
 use super::*;
+
+/// Installed source/components establish feed readiness without waiting for quotes.
+fn dataset_health(phase: Phase, desired: bool, connected: bool, resources_ready: bool) -> (bool, bool, &'static str) {
+    let healthy = phase == Phase::Running
+        || phase == Phase::Starting && connected && resources_ready;
+    let running = desired && (healthy || connected)
+        && !matches!(phase, Phase::Stopped | Phase::Failed);
+    let lifecycle = match phase {
+        Phase::Stopped => "Stopped",
+        Phase::Starting if healthy => "Healthy",
+        Phase::Starting => "Starting",
+        Phase::Recovering => "Recovering",
+        Phase::Failed => "StoppedError",
+        Phase::Running if desired => "Healthy",
+        Phase::Running => "Idle",
+    };
+    (running, healthy, lifecycle)
+}
+
+#[cfg(test)]
+mod health_tests {
+    use super::*;
+
+    /// Quiet final subscriptions are healthy; absent quotes remain absent proofs.
+    #[tokio::test]
+    async fn installed_quiet_dataset_is_ready_without_financial_proofs() {
+        let required = Requirements::new(&[Proof::Transport, Proof::Reference,
+            Proof::Pricing, Proof::Publication, Proof::Persistence]);
+        let recovery = Recovery::new(required, Deadline::recovery());
+        let ticket = recovery.status().ticket;
+        recovery.monitor_provider();
+        assert!(recovery.prove(ticket, Proof::Retired));
+        assert!(recovery.prove(ticket, Proof::Transport));
+        assert_eq!(dataset_health(recovery.status().phase, true,
+            recovery.connection_alive(), recovery.resources_ready()), (true, false, "Starting"));
+        assert!(recovery.complete_setup(ticket));
+        assert_eq!(dataset_health(recovery.status().phase, true,
+            recovery.connection_alive(), recovery.resources_ready()), (true, true, "Healthy"));
+        assert!(recovery.status().missing.contains(&Proof::Pricing));
+        assert!(recovery.status().missing.contains(&Proof::Publication));
+        assert!(recovery.status().deadline.is_none());
+        let fault = recovery.fault(ticket, "provider disconnected", Deadline::recovery()).unwrap();
+        assert!(!recovery.resources_ready());
+        assert_eq!(dataset_health(recovery.status().phase, true, true,
+            recovery.resources_ready()), (true, false, "Recovering"));
+        recovery.replace(required, Deadline::recovery()).unwrap();
+        assert!(!recovery.complete_setup(fault));
+        assert!(!recovery.resources_ready());
+    }
+
+    #[test]
+    fn stopped_and_failed_datasets_never_claim_running_from_a_connection() {
+        assert_eq!(dataset_health(Phase::Stopped, true, true, true), (false, false, "Stopped"));
+        assert_eq!(dataset_health(Phase::Failed, true, true, true), (false, false, "StoppedError"));
+        assert_eq!(dataset_health(Phase::Recovering, true, true, true), (true, false, "Recovering"));
+        assert_eq!(dataset_health(Phase::Running, false, false, true), (false, true, "Idle"));
+        assert_eq!(dataset_health(Phase::Starting, true, true, false), (true, false, "Starting"));
+    }
+}
+
 impl MarketData {
     /// Copies authoritative backend status without managed epoch/admission state.
     /// Idle health is separate from live demand; no process identity is invented.
@@ -40,16 +100,7 @@ impl MarketData {
                     (h.worker, h.generation, h.revision)
                 });
             let connected = self.health(lane).connection_alive();
-            let healthy = health.phase == Phase::Running || connected;
-            let lifecycle = match health.phase {
-                Phase::Stopped => "Stopped",
-                Phase::Starting if connected => "Healthy",
-                Phase::Starting => "Starting",
-                Phase::Recovering => "Recovering",
-                Phase::Failed => "StoppedError",
-                Phase::Running if desired.is_some() => "Healthy",
-                Phase::Running => "Idle",
-            };
+            let (running, healthy, lifecycle) = dataset_health(health.phase, desired.is_some(), connected, self.health(lane).resources_ready());
             let error = health.latest_error.clone().or(health.root_error.clone());
             let deadline = if matches!(health.phase, Phase::Starting | Phase::Recovering) {
                 health
@@ -67,7 +118,7 @@ impl MarketData {
                 guid(worker).into(),
                 guid(generation).into(),
                 std::process::id().into(),
-                (desired.is_some() && healthy).into(),
+                running.into(),
                 healthy.into(),
                 lifecycle.into(),
                 error.clone().map_or(Value::Nil, Into::into),
@@ -140,6 +191,7 @@ impl MarketData {
             (
                 health.ticket,
                 health.phase,
+                self.health(lane).resources_ready(),
                 self.has_desired(lane),
                 self.publication_identity(lane)
                     .map(|h| (h.worker, h.generation, h.revision)),
@@ -262,12 +314,11 @@ impl MarketData {
             .map(|c| c.active_scopes())
             .transpose()?
             .unwrap_or_default();
-        let health = self.health(Lane::OptionsGlbx).status();
         let identity = self.publication_identity(Lane::OptionsGlbx);
         // Resource proof belongs to the native supervisor, independently of
         // whether current financial inputs produce an executable candidate.
         // Loaded-trade risk/plan checks remain at the application boundary.
-        let resources_ready = self.has_desired(Lane::OptionsGlbx) && health.phase == Phase::Running;
+        let resources_ready = self.has_desired(Lane::OptionsGlbx) && self.health(Lane::OptionsGlbx).resources_ready();
         let mut owned_scopes = scopes
             .iter()
             .map(|(id, _)| (id.clone(), resources_ready && options.is_some()))
@@ -316,7 +367,7 @@ impl MarketData {
         let workload = Value::Array(vec![
             guid(identity.map_or([0; 16], |i| i.generation)).into(),
             codec::utc_offset(now)?,
-            (self.has_desired(Lane::OptionsGlbx) && health.phase != Phase::Running).into(),
+            (self.has_desired(Lane::OptionsGlbx) && !resources_ready).into(),
             Value::Array(all_scopes),
             Value::Array(ready_scopes),
             Value::Array(option_scopes),

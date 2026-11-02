@@ -1,0 +1,465 @@
+{
+  "policies": {
+    "original": {
+      "totals": {
+        "trades": 590,
+        "wins": 380,
+        "losses": 209,
+        "flats": 1,
+        "points": 129.5,
+        "gross_pnl_usd": 6475.0,
+        "profit_factor": 1.053495817411959,
+        "max_closed_trade_drawdown_usd": 11862.5,
+        "exit_reasons": {
+          "Trailing watermark": 364,
+          "Two-band stop": 129,
+          "7.5-band stop": 53,
+          "Session flatten": 44
+        }
+      },
+      "risk": {
+        "worst_trade_usd": -1500.0,
+        "largest_intratrade_adverse_usd": 1500.0,
+        "closed_trade_drawdown_is_not_intraday_equity_drawdown": true
+      },
+      "monthly": [
+        {
+          "month": "2025-11",
+          "trades": 68,
+          "wins": 48,
+          "losses": 20,
+          "flats": 0,
+          "points": 40.5,
+          "gross_pnl_usd": 2025.0,
+          "profit_factor": 1.143362831858407,
+          "max_closed_trade_drawdown_usd": 5662.5,
+          "exit_reasons": {
+            "Trailing watermark": 48,
+            "Two-band stop": 12,
+            "7.5-band stop": 8
+          }
+        },
+        {
+          "month": "2025-12",
+          "trades": 39,
+          "wins": 24,
+          "losses": 15,
+          "flats": 0,
+          "points": 14.0,
+          "gross_pnl_usd": 700.0,
+          "profit_factor": 1.1003584229390682,
+          "max_closed_trade_drawdown_usd": 1712.5,
+          "exit_reasons": {
+            "Session flatten": 5,
+            "7.5-band stop": 3,
+            "Two-band stop": 8,
+            "Trailing watermark": 23
+          }
+        },
+        {
+          "month": "2026-01",
+          "trades": 39,
+          "wins": 29,
+          "losses": 10,
+          "flats": 0,
+          "points": 48.75,
+          "gross_pnl_usd": 2437.5,
+          "profit_factor": 1.422077922077922,
+          "max_closed_trade_drawdown_usd": 1475.0,
+          "exit_reasons": {
+            "Trailing watermark": 27,
+            "Two-band stop": 6,
+            "7.5-band stop": 3,
+            "Session flatten": 3
+          }
+        },
+        {
+          "month": "2026-02",
+          "trades": 60,
+          "wins": 36,
+          "losses": 24,
+          "flats": 0,
+          "points": -41.75,
+          "gross_pnl_usd": -2087.5,
+          "profit_factor": 0.8401913875598086,
+          "max_closed_trade_drawdown_usd": 5137.5,
+          "exit_reasons": {
+            "Two-band stop": 16,
+            "Trailing watermark": 35,
+            "Session flatten": 3,
+            "7.5-band stop": 6
+          }
+        },
+        {
+          "month": "2026-03",
+          "trades": 78,
+          "wins": 45,
+          "losses": 33,
+          "flats": 0,
+          "points": -74.5,
+          "gross_pnl_usd": -3725.0,
+          "profit_factor": 0.8211284513805522,
+          "max_closed_trade_drawdown_usd": 5575.0,
+          "exit_reasons": {
+            "Trailing watermark": 43,
+            "Two-band stop": 21,
+            "7.5-band stop": 10,
+            "Session flatten": 4
+          }
+        },
+        {
+          "month": "2026-04",
+          "trades": 42,
+          "wins": 25,
+          "losses": 17,
+          "flats": 0,
+          "points": 20.75,
+          "gross_pnl_usd": 1037.5,
+          "profit_factor": 1.1402027027027026,
+          "max_closed_trade_drawdown_usd": 2262.5,
+          "exit_reasons": {
+            "Two-band stop": 13,
+            "Trailing watermark": 22,
+            "Session flatten": 5,
+            "7.5-band stop": 2
+          }
+        },
+        {
+          "month": "2026-05",
+          "trades": 41,
+          "wins": 25,
+          "losses": 16,
+          "flats": 0,
+          "points": -67.0,
+          "gross_pnl_usd": -3350.0,
+          "profit_factor": 0.7105831533477321,
+          "max_closed_trade_drawdown_usd": 6937.5,
+          "exit_reasons": {
+            "Trailing watermark": 24,
+            "Two-band stop": 9,
+            "7.5-band stop": 5,
+            "Session flatten": 3
+          }
+        },
+        {
+          "month": "2026-06",
+          "trades": 81,
+          "wins": 57,
+          "losses": 23,
+          "flats": 1,
+          "points": 205.0,
+          "gross_pnl_usd": 10250.0,
+          "profit_factor": 1.9111111111111112,
+          "max_closed_trade_drawdown_usd": 3462.5,
+          "exit_reasons": {
+            "Two-band stop": 17,
+            "Trailing watermark": 57,
+            "Session flatten": 3,
+            "7.5-band stop": 4
+          }
+        },
+        {
+          "month": "2026-07",
+          "trades": 54,
+          "wins": 39,
+          "losses": 15,
+          "flats": 0,
+          "points": 43.0,
+          "gross_pnl_usd": 2150.0,
+          "profit_factor": 1.2227979274611398,
+          "max_closed_trade_drawdown_usd": 4037.5,
+          "exit_reasons": {
+            "Trailing watermark": 38,
+            "Session flatten": 2,
+            "Two-band stop": 9,
+            "7.5-band stop": 5
+          }
+        },
+        {
+          "month": "2026-08",
+          "trades": 21,
+          "wins": 8,
+          "losses": 13,
+          "flats": 0,
+          "points": -62.0,
+          "gross_pnl_usd": -3100.0,
+          "profit_factor": 0.43891402714932126,
+          "max_closed_trade_drawdown_usd": 4462.5,
+          "exit_reasons": {
+            "Trailing watermark": 7,
+            "Two-band stop": 6,
+            "Session flatten": 7,
+            "7.5-band stop": 1
+          }
+        },
+        {
+          "month": "2026-09",
+          "trades": 29,
+          "wins": 20,
+          "losses": 9,
+          "flats": 0,
+          "points": 30.5,
+          "gross_pnl_usd": 1525.0,
+          "profit_factor": 1.2699115044247788,
+          "max_closed_trade_drawdown_usd": 3900.0,
+          "exit_reasons": {
+            "Trailing watermark": 18,
+            "Two-band stop": 4,
+            "Session flatten": 5,
+            "7.5-band stop": 2
+          }
+        },
+        {
+          "month": "2026-10",
+          "trades": 38,
+          "wins": 24,
+          "losses": 14,
+          "flats": 0,
+          "points": -27.75,
+          "gross_pnl_usd": -1387.5,
+          "profit_factor": 0.8495934959349594,
+          "max_closed_trade_drawdown_usd": 3462.5,
+          "exit_reasons": {
+            "Trailing watermark": 22,
+            "Two-band stop": 8,
+            "7.5-band stop": 4,
+            "Session flatten": 4
+          }
+        }
+      ]
+    },
+    "retracement": {
+      "totals": {
+        "trades": 593,
+        "wins": 359,
+        "losses": 233,
+        "flats": 1,
+        "points": -149.0,
+        "gross_pnl_usd": -7450.0,
+        "profit_factor": 0.9374343900902793,
+        "max_closed_trade_drawdown_usd": 13162.5,
+        "exit_reasons": {
+          "Two-band stop": 153,
+          "Session flatten": 33,
+          "Trailing watermark": 351,
+          "7.5-band stop": 56
+        }
+      },
+      "risk": {
+        "worst_trade_usd": -1125.0,
+        "largest_intratrade_adverse_usd": 1125.0,
+        "closed_trade_drawdown_is_not_intraday_equity_drawdown": true
+      },
+      "monthly": [
+        {
+          "month": "2025-11",
+          "trades": 69,
+          "wins": 40,
+          "losses": 29,
+          "flats": 0,
+          "points": 2.75,
+          "gross_pnl_usd": 137.5,
+          "profit_factor": 1.0087301587301587,
+          "max_closed_trade_drawdown_usd": 3450.0,
+          "exit_reasons": {
+            "Two-band stop": 17,
+            "Session flatten": 3,
+            "Trailing watermark": 40,
+            "7.5-band stop": 9
+          }
+        },
+        {
+          "month": "2025-12",
+          "trades": 39,
+          "wins": 24,
+          "losses": 15,
+          "flats": 0,
+          "points": -3.5,
+          "gross_pnl_usd": -175.0,
+          "profit_factor": 0.975177304964539,
+          "max_closed_trade_drawdown_usd": 3337.5,
+          "exit_reasons": {
+            "Session flatten": 3,
+            "Trailing watermark": 22,
+            "Two-band stop": 10,
+            "7.5-band stop": 4
+          }
+        },
+        {
+          "month": "2026-01",
+          "trades": 39,
+          "wins": 22,
+          "losses": 17,
+          "flats": 0,
+          "points": -16.25,
+          "gross_pnl_usd": -812.5,
+          "profit_factor": 0.8973143759873617,
+          "max_closed_trade_drawdown_usd": 3800.0,
+          "exit_reasons": {
+            "Trailing watermark": 22,
+            "Two-band stop": 10,
+            "Session flatten": 3,
+            "7.5-band stop": 4
+          }
+        },
+        {
+          "month": "2026-02",
+          "trades": 62,
+          "wins": 39,
+          "losses": 23,
+          "flats": 0,
+          "points": 30.5,
+          "gross_pnl_usd": 1525.0,
+          "profit_factor": 1.1370786516853932,
+          "max_closed_trade_drawdown_usd": 4375.0,
+          "exit_reasons": {
+            "Trailing watermark": 39,
+            "Two-band stop": 17,
+            "Session flatten": 1,
+            "7.5-band stop": 5
+          }
+        },
+        {
+          "month": "2026-03",
+          "trades": 78,
+          "wins": 50,
+          "losses": 28,
+          "flats": 0,
+          "points": -11.0,
+          "gross_pnl_usd": -550.0,
+          "profit_factor": 0.9635459817729909,
+          "max_closed_trade_drawdown_usd": 3937.5,
+          "exit_reasons": {
+            "Trailing watermark": 49,
+            "Two-band stop": 19,
+            "7.5-band stop": 6,
+            "Session flatten": 4
+          }
+        },
+        {
+          "month": "2026-04",
+          "trades": 42,
+          "wins": 26,
+          "losses": 16,
+          "flats": 0,
+          "points": -0.75,
+          "gross_pnl_usd": -37.5,
+          "profit_factor": 0.995253164556962,
+          "max_closed_trade_drawdown_usd": 3637.5,
+          "exit_reasons": {
+            "Trailing watermark": 26,
+            "Two-band stop": 9,
+            "7.5-band stop": 4,
+            "Session flatten": 3
+          }
+        },
+        {
+          "month": "2026-05",
+          "trades": 41,
+          "wins": 33,
+          "losses": 8,
+          "flats": 0,
+          "points": 97.25,
+          "gross_pnl_usd": 4862.5,
+          "profit_factor": 2.0,
+          "max_closed_trade_drawdown_usd": 1912.5,
+          "exit_reasons": {
+            "Trailing watermark": 32,
+            "Two-band stop": 4,
+            "7.5-band stop": 3,
+            "Session flatten": 2
+          }
+        },
+        {
+          "month": "2026-06",
+          "trades": 81,
+          "wins": 41,
+          "losses": 39,
+          "flats": 1,
+          "points": -180.0,
+          "gross_pnl_usd": -9000.0,
+          "profit_factor": 0.5704057279236276,
+          "max_closed_trade_drawdown_usd": 9562.5,
+          "exit_reasons": {
+            "Trailing watermark": 41,
+            "7.5-band stop": 9,
+            "Two-band stop": 28,
+            "Session flatten": 3
+          }
+        },
+        {
+          "month": "2026-07",
+          "trades": 54,
+          "wins": 34,
+          "losses": 20,
+          "flats": 0,
+          "points": -31.75,
+          "gross_pnl_usd": -1587.5,
+          "profit_factor": 0.8588888888888889,
+          "max_closed_trade_drawdown_usd": 3537.5,
+          "exit_reasons": {
+            "Trailing watermark": 33,
+            "Two-band stop": 13,
+            "Session flatten": 2,
+            "7.5-band stop": 6
+          }
+        },
+        {
+          "month": "2026-08",
+          "trades": 21,
+          "wins": 13,
+          "losses": 8,
+          "flats": 0,
+          "points": -2.5,
+          "gross_pnl_usd": -125.0,
+          "profit_factor": 0.9625468164794008,
+          "max_closed_trade_drawdown_usd": 1537.5,
+          "exit_reasons": {
+            "7.5-band stop": 1,
+            "Trailing watermark": 11,
+            "Two-band stop": 6,
+            "Session flatten": 3
+          }
+        },
+        {
+          "month": "2026-09",
+          "trades": 29,
+          "wins": 18,
+          "losses": 11,
+          "flats": 0,
+          "points": -1.0,
+          "gross_pnl_usd": -50.0,
+          "profit_factor": 0.9903614457831326,
+          "max_closed_trade_drawdown_usd": 1387.5,
+          "exit_reasons": {
+            "Trailing watermark": 17,
+            "Two-band stop": 8,
+            "7.5-band stop": 2,
+            "Session flatten": 2
+          }
+        },
+        {
+          "month": "2026-10",
+          "trades": 38,
+          "wins": 19,
+          "losses": 19,
+          "flats": 0,
+          "points": -32.75,
+          "gross_pnl_usd": -1637.5,
+          "profit_factor": 0.810966810966811,
+          "max_closed_trade_drawdown_usd": 2950.0,
+          "exit_reasons": {
+            "Two-band stop": 12,
+            "Trailing watermark": 19,
+            "Session flatten": 4,
+            "7.5-band stop": 3
+          }
+        }
+      ]
+    }
+  },
+  "analysis_seconds": 157.3958805000002,
+  "raw_ticks": 118631783,
+  "daily_signals": 86366,
+  "gross_pnl_difference_usd": 13925.0
+}

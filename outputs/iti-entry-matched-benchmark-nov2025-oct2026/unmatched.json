@@ -1,0 +1,2501 @@
+[
+  {
+    "opportunity_id": "2025-11-03-281182",
+    "trade_date": "2025-11-03",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-04-206558",
+    "trade_date": "2025-11-04",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-06-115313",
+    "trade_date": "2025-11-06",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-06-232375",
+    "trade_date": "2025-11-06",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-06-241316",
+    "trade_date": "2025-11-06",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-10-127211",
+    "trade_date": "2025-11-10",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-12-163583",
+    "trade_date": "2025-11-12",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-13-137303",
+    "trade_date": "2025-11-13",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-13-503587",
+    "trade_date": "2025-11-13",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-14-218612",
+    "trade_date": "2025-11-14",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-14-222215",
+    "trade_date": "2025-11-14",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-14-229005",
+    "trade_date": "2025-11-14",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-14-241504",
+    "trade_date": "2025-11-14",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-14-251787",
+    "trade_date": "2025-11-14",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-17-142715",
+    "trade_date": "2025-11-17",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-17-330169",
+    "trade_date": "2025-11-17",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-17-424766",
+    "trade_date": "2025-11-17",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-18-225426",
+    "trade_date": "2025-11-18",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-18-283868",
+    "trade_date": "2025-11-18",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-18-661652",
+    "trade_date": "2025-11-18",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-18-666101",
+    "trade_date": "2025-11-18",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-18-668465",
+    "trade_date": "2025-11-18",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-19-159661",
+    "trade_date": "2025-11-19",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-19-166247",
+    "trade_date": "2025-11-19",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-19-618717",
+    "trade_date": "2025-11-19",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-20-174543",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-20-183072",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-20-208848",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-20-382617",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-20-880881",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-21-263526",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-21-390124",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-21-473180",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-21-578161",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-21-599912",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-21-605538",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-21-744273",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-21-783913",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-21-787784",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-21-790972",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-21-795235",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-24-208486",
+    "trade_date": "2025-11-24",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-24-213155",
+    "trade_date": "2025-11-24",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-25-157757",
+    "trade_date": "2025-11-25",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-26-107882",
+    "trade_date": "2025-11-26",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-12-02-89937",
+    "trade_date": "2025-12-02",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-12-04-143348",
+    "trade_date": "2025-12-04",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-12-04-305404",
+    "trade_date": "2025-12-04",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-12-04-307508",
+    "trade_date": "2025-12-04",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-12-05-256064",
+    "trade_date": "2025-12-05",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-12-08-115172",
+    "trade_date": "2025-12-08",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-12-08-144621",
+    "trade_date": "2025-12-08",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-12-08-188263",
+    "trade_date": "2025-12-08",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-12-10-328343",
+    "trade_date": "2025-12-10",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-12-10-334556",
+    "trade_date": "2025-12-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-12-10-362219",
+    "trade_date": "2025-12-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-12-10-365688",
+    "trade_date": "2025-12-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-12-12-248928",
+    "trade_date": "2025-12-12",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-12-15-94398",
+    "trade_date": "2025-12-15",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-12-16-50978",
+    "trade_date": "2025-12-16",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-12-16-54609",
+    "trade_date": "2025-12-16",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-12-16-70653",
+    "trade_date": "2025-12-16",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-12-16-109578",
+    "trade_date": "2025-12-16",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-12-17-30658",
+    "trade_date": "2025-12-17",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-12-17-31747",
+    "trade_date": "2025-12-17",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-12-18-57308",
+    "trade_date": "2025-12-18",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-12-19-120490",
+    "trade_date": "2025-12-19",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-02-146911",
+    "trade_date": "2026-01-02",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-01-05-110028",
+    "trade_date": "2026-01-05",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-01-06-277372",
+    "trade_date": "2026-01-06",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-01-07-293592",
+    "trade_date": "2026-01-07",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-01-09-177841",
+    "trade_date": "2026-01-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-01-12-117384",
+    "trade_date": "2026-01-12",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-01-12-188501",
+    "trade_date": "2026-01-12",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-01-12-239126",
+    "trade_date": "2026-01-12",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-12-260205",
+    "trade_date": "2026-01-12",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-01-14-468774",
+    "trade_date": "2026-01-14",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-01-20-313577",
+    "trade_date": "2026-01-20",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-01-21-205013",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-233006",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-01-21-559853",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-568089",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-570645",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-577712",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-592682",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-01-21-597150",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-01-21-600560",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-01-21-604062",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-01-22-267930",
+    "trade_date": "2026-01-22",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-23-182510",
+    "trade_date": "2026-01-23",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-01-26-116027",
+    "trade_date": "2026-01-26",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-01-28-262857",
+    "trade_date": "2026-01-28",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-29-134326",
+    "trade_date": "2026-01-29",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-01-29-278968",
+    "trade_date": "2026-01-29",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-02-219668",
+    "trade_date": "2026-02-02",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-02-03-342736",
+    "trade_date": "2026-02-03",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-02-03-371150",
+    "trade_date": "2026-02-03",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-02-03-416642",
+    "trade_date": "2026-02-03",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-02-03-474077",
+    "trade_date": "2026-02-03",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-02-04-289122",
+    "trade_date": "2026-02-04",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-02-04-682819",
+    "trade_date": "2026-02-04",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-02-04-685220",
+    "trade_date": "2026-02-04",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-04-687569",
+    "trade_date": "2026-02-04",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-06-219307",
+    "trade_date": "2026-02-06",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-02-09-155873",
+    "trade_date": "2026-02-09",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-13-218593",
+    "trade_date": "2026-02-13",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-02-13-221490",
+    "trade_date": "2026-02-13",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-02-13-230353",
+    "trade_date": "2026-02-13",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-02-17-176838",
+    "trade_date": "2026-02-17",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-02-17-275127",
+    "trade_date": "2026-02-17",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-02-17-514065",
+    "trade_date": "2026-02-17",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-20-131676",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-02-20-155092",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-02-20-160101",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-02-20-180890",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-20-188878",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-20-216688",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-02-20-386852",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-02-20-391923",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-02-20-396312",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-02-23-206343",
+    "trade_date": "2026-02-23",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-02-24-127118",
+    "trade_date": "2026-02-24",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-02-24-134834",
+    "trade_date": "2026-02-24",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-25-98598",
+    "trade_date": "2026-02-25",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-26-129208",
+    "trade_date": "2026-02-26",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-02-26-164028",
+    "trade_date": "2026-02-26",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-02-26-355639",
+    "trade_date": "2026-02-26",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-02-27-146544",
+    "trade_date": "2026-02-27",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-03-02-287875",
+    "trade_date": "2026-03-02",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-02-562254",
+    "trade_date": "2026-03-02",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-03-282473",
+    "trade_date": "2026-03-03",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-03-03-296940",
+    "trade_date": "2026-03-03",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-03-477073",
+    "trade_date": "2026-03-03",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-03-482794",
+    "trade_date": "2026-03-03",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-03-552030",
+    "trade_date": "2026-03-03",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-04-242384",
+    "trade_date": "2026-03-04",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-03-05-410751",
+    "trade_date": "2026-03-05",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-05-457337",
+    "trade_date": "2026-03-05",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-05-616414",
+    "trade_date": "2026-03-05",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-06-235383",
+    "trade_date": "2026-03-06",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-06-323638",
+    "trade_date": "2026-03-06",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-06-327490",
+    "trade_date": "2026-03-06",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-06-515606",
+    "trade_date": "2026-03-06",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-09-318860",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-03-09-706700",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-09-709371",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-09-712281",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-09-715005",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-09-727642",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-09-737822",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-09-739686",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-09-744206",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-09-747618",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-10-342050",
+    "trade_date": "2026-03-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-03-10-378751",
+    "trade_date": "2026-03-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-10-521413",
+    "trade_date": "2026-03-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-10-526808",
+    "trade_date": "2026-03-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-10-536619",
+    "trade_date": "2026-03-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-03-10-544923",
+    "trade_date": "2026-03-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-10-551794",
+    "trade_date": "2026-03-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-11-181053",
+    "trade_date": "2026-03-11",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-03-12-185857",
+    "trade_date": "2026-03-12",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-13-171332",
+    "trade_date": "2026-03-13",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-13-228954",
+    "trade_date": "2026-03-13",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-16-120183",
+    "trade_date": "2026-03-16",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-16-291959",
+    "trade_date": "2026-03-16",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-17-48035",
+    "trade_date": "2026-03-17",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-17-78134",
+    "trade_date": "2026-03-17",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-03-18-83972",
+    "trade_date": "2026-03-18",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-19-105630",
+    "trade_date": "2026-03-19",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-19-108617",
+    "trade_date": "2026-03-19",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-20-437934",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-20-494284",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-23-432034",
+    "trade_date": "2026-03-23",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-23-561964",
+    "trade_date": "2026-03-23",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-23-567747",
+    "trade_date": "2026-03-23",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-23-617019",
+    "trade_date": "2026-03-23",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-23-688238",
+    "trade_date": "2026-03-23",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-24-295606",
+    "trade_date": "2026-03-24",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-24-298649",
+    "trade_date": "2026-03-24",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-24-453971",
+    "trade_date": "2026-03-24",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-25-309350",
+    "trade_date": "2026-03-25",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-25-333063",
+    "trade_date": "2026-03-25",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-25-490987",
+    "trade_date": "2026-03-25",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-03-26-319888",
+    "trade_date": "2026-03-26",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-03-27-159789",
+    "trade_date": "2026-03-27",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-30-210548",
+    "trade_date": "2026-03-30",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-31-425162",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-31-431837",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-31-435776",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-31-438011",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-31-470196",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-03-31-478770",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-04-01-392064",
+    "trade_date": "2026-04-01",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-04-02-227209",
+    "trade_date": "2026-04-02",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-04-02-288907",
+    "trade_date": "2026-04-02",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-04-02-291039",
+    "trade_date": "2026-04-02",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-04-02-297875",
+    "trade_date": "2026-04-02",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-04-02-298728",
+    "trade_date": "2026-04-02",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-04-02-305382",
+    "trade_date": "2026-04-02",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-07-181319",
+    "trade_date": "2026-04-07",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-04-07-365974",
+    "trade_date": "2026-04-07",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-07-450882",
+    "trade_date": "2026-04-07",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-04-07-503239",
+    "trade_date": "2026-04-07",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-04-07-534401",
+    "trade_date": "2026-04-07",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-04-07-537953",
+    "trade_date": "2026-04-07",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-04-08-283167",
+    "trade_date": "2026-04-08",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-04-08-288077",
+    "trade_date": "2026-04-08",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-04-09-232676",
+    "trade_date": "2026-04-09",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-09-262159",
+    "trade_date": "2026-04-09",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-04-13-129632",
+    "trade_date": "2026-04-13",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-04-13-139140",
+    "trade_date": "2026-04-13",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-04-14-103059",
+    "trade_date": "2026-04-14",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-04-14-206946",
+    "trade_date": "2026-04-14",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-04-17-239517",
+    "trade_date": "2026-04-17",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-04-20-235295",
+    "trade_date": "2026-04-20",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-04-21-477669",
+    "trade_date": "2026-04-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-21-489786",
+    "trade_date": "2026-04-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-04-23-317319",
+    "trade_date": "2026-04-23",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-04-23-349294",
+    "trade_date": "2026-04-23",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-04-23-441461",
+    "trade_date": "2026-04-23",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-23-442163",
+    "trade_date": "2026-04-23",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-23-443093",
+    "trade_date": "2026-04-23",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-23-486292",
+    "trade_date": "2026-04-23",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-24-270647",
+    "trade_date": "2026-04-24",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-28-135541",
+    "trade_date": "2026-04-28",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-29-100462",
+    "trade_date": "2026-04-29",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-04-30-170126",
+    "trade_date": "2026-04-30",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-04-30-437373",
+    "trade_date": "2026-04-30",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-05-04-248418",
+    "trade_date": "2026-05-04",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-05-04-284102",
+    "trade_date": "2026-05-04",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-05-04-321748",
+    "trade_date": "2026-05-04",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-06-270187",
+    "trade_date": "2026-05-06",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-05-07-364264",
+    "trade_date": "2026-05-07",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-05-13-127024",
+    "trade_date": "2026-05-13",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-05-13-263291",
+    "trade_date": "2026-05-13",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-05-13-327089",
+    "trade_date": "2026-05-13",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-15-203208",
+    "trade_date": "2026-05-15",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-05-18-213093",
+    "trade_date": "2026-05-18",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-05-18-323398",
+    "trade_date": "2026-05-18",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-05-18-483706",
+    "trade_date": "2026-05-18",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-05-18-612425",
+    "trade_date": "2026-05-18",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-19-174223",
+    "trade_date": "2026-05-19",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-05-19-267862",
+    "trade_date": "2026-05-19",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-05-20-209244",
+    "trade_date": "2026-05-20",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-20-309839",
+    "trade_date": "2026-05-20",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-21-536610",
+    "trade_date": "2026-05-21",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-05-21-545854",
+    "trade_date": "2026-05-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-05-27-120700",
+    "trade_date": "2026-05-27",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-05-28-164093",
+    "trade_date": "2026-05-28",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-29-116623",
+    "trade_date": "2026-05-29",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-06-01-134250",
+    "trade_date": "2026-06-01",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-06-09-556148",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-06-09-566912",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-09-569317",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-09-797851",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-09-802951",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-06-10-237693",
+    "trade_date": "2026-06-10",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-06-10-394239",
+    "trade_date": "2026-06-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-10-448078",
+    "trade_date": "2026-06-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-06-10-459387",
+    "trade_date": "2026-06-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-06-10-559957",
+    "trade_date": "2026-06-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-11-219529",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-11-226013",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-11-525045",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-11-525282",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-11-525885",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-11-537251",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-11-538097",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-11-539239",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-11-713509",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-06-12-179574",
+    "trade_date": "2026-06-12",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-12-283250",
+    "trade_date": "2026-06-12",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-12-290823",
+    "trade_date": "2026-06-12",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-12-293966",
+    "trade_date": "2026-06-12",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-12-401422",
+    "trade_date": "2026-06-12",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-12-402245",
+    "trade_date": "2026-06-12",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-17-52095",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-06-17-54537",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-06-17-57482",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-06-17-59438",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-18-384378",
+    "trade_date": "2026-06-18",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-06-22-199359",
+    "trade_date": "2026-06-22",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-06-22-228943",
+    "trade_date": "2026-06-22",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-24-298634",
+    "trade_date": "2026-06-24",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-06-25-135523",
+    "trade_date": "2026-06-25",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-06-25-139520",
+    "trade_date": "2026-06-25",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-06-25-145725",
+    "trade_date": "2026-06-25",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-06-25-209638",
+    "trade_date": "2026-06-25",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-06-25-216589",
+    "trade_date": "2026-06-25",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-06-25-224007",
+    "trade_date": "2026-06-25",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-06-26-229419",
+    "trade_date": "2026-06-26",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-06-29-221845",
+    "trade_date": "2026-06-29",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-07-08-410233",
+    "trade_date": "2026-07-08",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-07-08-450956",
+    "trade_date": "2026-07-08",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-07-09-249067",
+    "trade_date": "2026-07-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-07-09-274906",
+    "trade_date": "2026-07-09",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-07-10-155570",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-10-166569",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-10-176289",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-07-10-178024",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-07-10-191397",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-07-10-310005",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-07-10-321933",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-07-17-191672",
+    "trade_date": "2026-07-17",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-07-17-449065",
+    "trade_date": "2026-07-17",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-07-22-105735",
+    "trade_date": "2026-07-22",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-07-23-158404",
+    "trade_date": "2026-07-23",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-24-247278",
+    "trade_date": "2026-07-24",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-07-27-306365",
+    "trade_date": "2026-07-27",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-07-27-464707",
+    "trade_date": "2026-07-27",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-07-28-143814",
+    "trade_date": "2026-07-28",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-28-150239",
+    "trade_date": "2026-07-28",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-07-29-510762",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-07-29-535337",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-07-30-407789",
+    "trade_date": "2026-07-30",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-07-30-496789",
+    "trade_date": "2026-07-30",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-07-31-290616",
+    "trade_date": "2026-07-31",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-07-31-432490",
+    "trade_date": "2026-07-31",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-08-04-133027",
+    "trade_date": "2026-08-04",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-08-04-278714",
+    "trade_date": "2026-08-04",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-08-11-238826",
+    "trade_date": "2026-08-11",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-08-13-189187",
+    "trade_date": "2026-08-13",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-08-19-147761",
+    "trade_date": "2026-08-19",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-08-24-109039",
+    "trade_date": "2026-08-24",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-08-31-109837",
+    "trade_date": "2026-08-31",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-09-03-237948",
+    "trade_date": "2026-09-03",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-09-03-343793",
+    "trade_date": "2026-09-03",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-09-10-150832",
+    "trade_date": "2026-09-10",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-09-15-47530",
+    "trade_date": "2026-09-15",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-09-16-47680",
+    "trade_date": "2026-09-16",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-09-18-220496",
+    "trade_date": "2026-09-18",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-09-22-128909",
+    "trade_date": "2026-09-22",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-24-273976",
+    "trade_date": "2026-09-24",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-09-24-276809",
+    "trade_date": "2026-09-24",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-09-24-281414",
+    "trade_date": "2026-09-24",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-24-284476",
+    "trade_date": "2026-09-24",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-25-148589",
+    "trade_date": "2026-09-25",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-10-01-219277",
+    "trade_date": "2026-10-01",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-10-02-250590",
+    "trade_date": "2026-10-02",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-10-05-272477",
+    "trade_date": "2026-10-05",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-10-07-284640",
+    "trade_date": "2026-10-07",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-10-08-293447",
+    "trade_date": "2026-10-08",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-10-09-263918",
+    "trade_date": "2026-10-09",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-10-14-154739",
+    "trade_date": "2026-10-14",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-10-14-203760",
+    "trade_date": "2026-10-14",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-10-20-217327",
+    "trade_date": "2026-10-20",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-10-20-220433",
+    "trade_date": "2026-10-20",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-10-20-308523",
+    "trade_date": "2026-10-20",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-10-21-313839",
+    "trade_date": "2026-10-21",
+    "baseline_status": "Excursion already used",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-10-21-404523",
+    "trade_date": "2026-10-21",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-10-22-413752",
+    "trade_date": "2026-10-22",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-10-28-314297",
+    "trade_date": "2026-10-28",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-10-29-203640",
+    "trade_date": "2026-10-29",
+    "baseline_status": "Executed",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-10-29-467803",
+    "trade_date": "2026-10-29",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-10-30-381537",
+    "trade_date": "2026-10-30",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-10-30-501202",
+    "trade_date": "2026-10-30",
+    "baseline_status": "Daily loss halt",
+    "reason": "Fewer than five prior matched controls",
+    "eligible_controls": 4
+  }
+]

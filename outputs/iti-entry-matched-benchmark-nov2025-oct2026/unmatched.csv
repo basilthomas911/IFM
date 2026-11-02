@@ -1,0 +1,358 @@
+opportunity_id,trade_date,baseline_status,reason,eligible_controls
+2025-11-03-281182,2025-11-03,Daily loss halt,Fewer than five prior matched controls,1
+2025-11-04-206558,2025-11-04,Daily loss halt,Fewer than five prior matched controls,3
+2025-11-06-115313,2025-11-06,Executed,Fewer than five prior matched controls,0
+2025-11-06-232375,2025-11-06,Executed,Fewer than five prior matched controls,1
+2025-11-06-241316,2025-11-06,Daily loss halt,Fewer than five prior matched controls,4
+2025-11-10-127211,2025-11-10,Executed,Fewer than five prior matched controls,1
+2025-11-12-163583,2025-11-12,Executed,Fewer than five prior matched controls,3
+2025-11-13-137303,2025-11-13,Executed,Fewer than five prior matched controls,0
+2025-11-13-503587,2025-11-13,Daily loss halt,Fewer than five prior matched controls,1
+2025-11-14-218612,2025-11-14,Executed,Fewer than five prior matched controls,1
+2025-11-14-222215,2025-11-14,Daily loss halt,Fewer than five prior matched controls,1
+2025-11-14-229005,2025-11-14,Daily loss halt,Fewer than five prior matched controls,2
+2025-11-14-241504,2025-11-14,Daily loss halt,Fewer than five prior matched controls,4
+2025-11-14-251787,2025-11-14,Daily loss halt,Fewer than five prior matched controls,3
+2025-11-17-142715,2025-11-17,Executed,Fewer than five prior matched controls,4
+2025-11-17-330169,2025-11-17,Daily loss halt,Fewer than five prior matched controls,1
+2025-11-17-424766,2025-11-17,Daily loss halt,Fewer than five prior matched controls,3
+2025-11-18-225426,2025-11-18,Executed,Fewer than five prior matched controls,4
+2025-11-18-283868,2025-11-18,Daily loss halt,Fewer than five prior matched controls,4
+2025-11-18-661652,2025-11-18,Daily loss halt,Fewer than five prior matched controls,3
+2025-11-18-666101,2025-11-18,Daily loss halt,Fewer than five prior matched controls,4
+2025-11-18-668465,2025-11-18,Daily loss halt,Fewer than five prior matched controls,4
+2025-11-19-159661,2025-11-19,Executed,Fewer than five prior matched controls,1
+2025-11-19-166247,2025-11-19,Daily loss halt,Fewer than five prior matched controls,3
+2025-11-19-618717,2025-11-19,Daily loss halt,Fewer than five prior matched controls,1
+2025-11-20-174543,2025-11-20,Executed,Fewer than five prior matched controls,1
+2025-11-20-183072,2025-11-20,Excursion already used,Fewer than five prior matched controls,3
+2025-11-20-208848,2025-11-20,Excursion already used,Fewer than five prior matched controls,3
+2025-11-20-382617,2025-11-20,Excursion already used,Fewer than five prior matched controls,3
+2025-11-20-880881,2025-11-20,Daily loss halt,Fewer than five prior matched controls,1
+2025-11-21-263526,2025-11-21,Executed,Fewer than five prior matched controls,2
+2025-11-21-390124,2025-11-21,Daily loss halt,Fewer than five prior matched controls,2
+2025-11-21-473180,2025-11-21,Daily loss halt,Fewer than five prior matched controls,0
+2025-11-21-578161,2025-11-21,Daily loss halt,Fewer than five prior matched controls,2
+2025-11-21-599912,2025-11-21,Daily loss halt,Fewer than five prior matched controls,4
+2025-11-21-605538,2025-11-21,Daily loss halt,Fewer than five prior matched controls,3
+2025-11-21-744273,2025-11-21,Daily loss halt,Fewer than five prior matched controls,0
+2025-11-21-783913,2025-11-21,Daily loss halt,Fewer than five prior matched controls,2
+2025-11-21-787784,2025-11-21,Daily loss halt,Fewer than five prior matched controls,2
+2025-11-21-790972,2025-11-21,Daily loss halt,Fewer than five prior matched controls,0
+2025-11-21-795235,2025-11-21,Daily loss halt,Fewer than five prior matched controls,0
+2025-11-24-208486,2025-11-24,Daily loss halt,Fewer than five prior matched controls,4
+2025-11-24-213155,2025-11-24,Daily loss halt,Fewer than five prior matched controls,1
+2025-11-25-157757,2025-11-25,Executed,Fewer than five prior matched controls,4
+2025-11-26-107882,2025-11-26,Executed,Fewer than five prior matched controls,1
+2025-12-02-89937,2025-12-02,Executed,Fewer than five prior matched controls,4
+2025-12-04-143348,2025-12-04,Excursion already used,Fewer than five prior matched controls,1
+2025-12-04-305404,2025-12-04,Executed,Fewer than five prior matched controls,3
+2025-12-04-307508,2025-12-04,Daily loss halt,Fewer than five prior matched controls,3
+2025-12-05-256064,2025-12-05,Daily loss halt,Fewer than five prior matched controls,2
+2025-12-08-115172,2025-12-08,Executed,Fewer than five prior matched controls,4
+2025-12-08-144621,2025-12-08,Excursion already used,Fewer than five prior matched controls,3
+2025-12-08-188263,2025-12-08,Excursion already used,Fewer than five prior matched controls,3
+2025-12-10-328343,2025-12-10,Executed,Fewer than five prior matched controls,4
+2025-12-10-334556,2025-12-10,Daily loss halt,Fewer than five prior matched controls,3
+2025-12-10-362219,2025-12-10,Daily loss halt,Fewer than five prior matched controls,2
+2025-12-10-365688,2025-12-10,Daily loss halt,Fewer than five prior matched controls,3
+2025-12-12-248928,2025-12-12,Executed,Fewer than five prior matched controls,0
+2025-12-15-94398,2025-12-15,Daily loss halt,Fewer than five prior matched controls,0
+2025-12-16-50978,2025-12-16,Executed,Fewer than five prior matched controls,1
+2025-12-16-54609,2025-12-16,Executed,Fewer than five prior matched controls,4
+2025-12-16-70653,2025-12-16,Daily loss halt,Fewer than five prior matched controls,3
+2025-12-16-109578,2025-12-16,Daily loss halt,Fewer than five prior matched controls,3
+2025-12-17-30658,2025-12-17,Executed,Fewer than five prior matched controls,0
+2025-12-17-31747,2025-12-17,Daily loss halt,Fewer than five prior matched controls,2
+2025-12-18-57308,2025-12-18,Daily loss halt,Fewer than five prior matched controls,0
+2025-12-19-120490,2025-12-19,Executed,Fewer than five prior matched controls,0
+2026-01-02-146911,2026-01-02,Daily loss halt,Fewer than five prior matched controls,4
+2026-01-05-110028,2026-01-05,Executed,Fewer than five prior matched controls,2
+2026-01-06-277372,2026-01-06,Executed,Fewer than five prior matched controls,1
+2026-01-07-293592,2026-01-07,Executed,Fewer than five prior matched controls,2
+2026-01-09-177841,2026-01-09,Daily loss halt,Fewer than five prior matched controls,3
+2026-01-12-117384,2026-01-12,Executed,Fewer than five prior matched controls,1
+2026-01-12-188501,2026-01-12,Daily loss halt,Fewer than five prior matched controls,3
+2026-01-12-239126,2026-01-12,Daily loss halt,Fewer than five prior matched controls,0
+2026-01-12-260205,2026-01-12,Daily loss halt,Fewer than five prior matched controls,4
+2026-01-14-468774,2026-01-14,Daily loss halt,Fewer than five prior matched controls,4
+2026-01-20-313577,2026-01-20,Daily loss halt,Fewer than five prior matched controls,4
+2026-01-21-205013,2026-01-21,Executed,Fewer than five prior matched controls,0
+2026-01-21-233006,2026-01-21,Excursion already used,Fewer than five prior matched controls,2
+2026-01-21-559853,2026-01-21,Daily loss halt,Fewer than five prior matched controls,0
+2026-01-21-568089,2026-01-21,Daily loss halt,Fewer than five prior matched controls,0
+2026-01-21-570645,2026-01-21,Daily loss halt,Fewer than five prior matched controls,0
+2026-01-21-577712,2026-01-21,Daily loss halt,Fewer than five prior matched controls,0
+2026-01-21-592682,2026-01-21,Daily loss halt,Fewer than five prior matched controls,3
+2026-01-21-597150,2026-01-21,Daily loss halt,Fewer than five prior matched controls,4
+2026-01-21-600560,2026-01-21,Daily loss halt,Fewer than five prior matched controls,4
+2026-01-21-604062,2026-01-21,Daily loss halt,Fewer than five prior matched controls,4
+2026-01-22-267930,2026-01-22,Daily loss halt,Fewer than five prior matched controls,0
+2026-01-23-182510,2026-01-23,Executed,Fewer than five prior matched controls,4
+2026-01-26-116027,2026-01-26,Executed,Fewer than five prior matched controls,2
+2026-01-28-262857,2026-01-28,Daily loss halt,Fewer than five prior matched controls,0
+2026-01-29-134326,2026-01-29,Executed,Fewer than five prior matched controls,2
+2026-01-29-278968,2026-01-29,Excursion already used,Fewer than five prior matched controls,3
+2026-02-02-219668,2026-02-02,Executed,Fewer than five prior matched controls,1
+2026-02-03-342736,2026-02-03,Daily loss halt,Fewer than five prior matched controls,4
+2026-02-03-371150,2026-02-03,Daily loss halt,Fewer than five prior matched controls,0
+2026-02-03-416642,2026-02-03,Daily loss halt,Fewer than five prior matched controls,2
+2026-02-03-474077,2026-02-03,Daily loss halt,Fewer than five prior matched controls,1
+2026-02-04-289122,2026-02-04,Daily loss halt,Fewer than five prior matched controls,0
+2026-02-04-682819,2026-02-04,Daily loss halt,Fewer than five prior matched controls,4
+2026-02-04-685220,2026-02-04,Daily loss halt,Fewer than five prior matched controls,3
+2026-02-04-687569,2026-02-04,Daily loss halt,Fewer than five prior matched controls,3
+2026-02-06-219307,2026-02-06,Executed,Fewer than five prior matched controls,2
+2026-02-09-155873,2026-02-09,Executed,Fewer than five prior matched controls,3
+2026-02-13-218593,2026-02-13,Executed,Fewer than five prior matched controls,1
+2026-02-13-221490,2026-02-13,Daily loss halt,Fewer than five prior matched controls,1
+2026-02-13-230353,2026-02-13,Daily loss halt,Fewer than five prior matched controls,2
+2026-02-17-176838,2026-02-17,Executed,Fewer than five prior matched controls,4
+2026-02-17-275127,2026-02-17,Daily loss halt,Fewer than five prior matched controls,2
+2026-02-17-514065,2026-02-17,Daily loss halt,Fewer than five prior matched controls,3
+2026-02-20-131676,2026-02-20,Executed,Fewer than five prior matched controls,4
+2026-02-20-155092,2026-02-20,Executed,Fewer than five prior matched controls,0
+2026-02-20-160101,2026-02-20,Excursion already used,Fewer than five prior matched controls,0
+2026-02-20-180890,2026-02-20,Executed,Fewer than five prior matched controls,3
+2026-02-20-188878,2026-02-20,Excursion already used,Fewer than five prior matched controls,3
+2026-02-20-216688,2026-02-20,Executed,Fewer than five prior matched controls,4
+2026-02-20-386852,2026-02-20,Daily loss halt,Fewer than five prior matched controls,2
+2026-02-20-391923,2026-02-20,Daily loss halt,Fewer than five prior matched controls,4
+2026-02-20-396312,2026-02-20,Daily loss halt,Fewer than five prior matched controls,4
+2026-02-23-206343,2026-02-23,Daily loss halt,Fewer than five prior matched controls,1
+2026-02-24-127118,2026-02-24,Executed,Fewer than five prior matched controls,0
+2026-02-24-134834,2026-02-24,Excursion already used,Fewer than five prior matched controls,3
+2026-02-25-98598,2026-02-25,Executed,Fewer than five prior matched controls,3
+2026-02-26-129208,2026-02-26,Executed,Fewer than five prior matched controls,1
+2026-02-26-164028,2026-02-26,Daily loss halt,Fewer than five prior matched controls,4
+2026-02-26-355639,2026-02-26,Daily loss halt,Fewer than five prior matched controls,2
+2026-02-27-146544,2026-02-27,Executed,Fewer than five prior matched controls,1
+2026-03-02-287875,2026-03-02,Executed,Fewer than five prior matched controls,2
+2026-03-02-562254,2026-03-02,Daily loss halt,Fewer than five prior matched controls,3
+2026-03-03-282473,2026-03-03,Executed,Fewer than five prior matched controls,1
+2026-03-03-296940,2026-03-03,Excursion already used,Fewer than five prior matched controls,4
+2026-03-03-477073,2026-03-03,Daily loss halt,Fewer than five prior matched controls,3
+2026-03-03-482794,2026-03-03,Daily loss halt,Fewer than five prior matched controls,3
+2026-03-03-552030,2026-03-03,Daily loss halt,Fewer than five prior matched controls,3
+2026-03-04-242384,2026-03-04,Executed,Fewer than five prior matched controls,1
+2026-03-05-410751,2026-03-05,Daily loss halt,Fewer than five prior matched controls,2
+2026-03-05-457337,2026-03-05,Daily loss halt,Fewer than five prior matched controls,2
+2026-03-05-616414,2026-03-05,Daily loss halt,Fewer than five prior matched controls,4
+2026-03-06-235383,2026-03-06,Executed,Fewer than five prior matched controls,3
+2026-03-06-323638,2026-03-06,Executed,Fewer than five prior matched controls,3
+2026-03-06-327490,2026-03-06,Daily loss halt,Fewer than five prior matched controls,3
+2026-03-06-515606,2026-03-06,Daily loss halt,Fewer than five prior matched controls,4
+2026-03-09-318860,2026-03-09,Executed,Fewer than five prior matched controls,1
+2026-03-09-706700,2026-03-09,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-09-709371,2026-03-09,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-09-712281,2026-03-09,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-09-715005,2026-03-09,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-09-727642,2026-03-09,Daily loss halt,Fewer than five prior matched controls,2
+2026-03-09-737822,2026-03-09,Daily loss halt,Fewer than five prior matched controls,4
+2026-03-09-739686,2026-03-09,Daily loss halt,Fewer than five prior matched controls,4
+2026-03-09-744206,2026-03-09,Daily loss halt,Fewer than five prior matched controls,4
+2026-03-09-747618,2026-03-09,Daily loss halt,Fewer than five prior matched controls,4
+2026-03-10-342050,2026-03-10,Daily loss halt,Fewer than five prior matched controls,1
+2026-03-10-378751,2026-03-10,Daily loss halt,Fewer than five prior matched controls,2
+2026-03-10-521413,2026-03-10,Daily loss halt,Fewer than five prior matched controls,3
+2026-03-10-526808,2026-03-10,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-10-536619,2026-03-10,Daily loss halt,Fewer than five prior matched controls,1
+2026-03-10-544923,2026-03-10,Daily loss halt,Fewer than five prior matched controls,3
+2026-03-10-551794,2026-03-10,Daily loss halt,Fewer than five prior matched controls,4
+2026-03-11-181053,2026-03-11,Executed,Fewer than five prior matched controls,1
+2026-03-12-185857,2026-03-12,Executed,Fewer than five prior matched controls,3
+2026-03-13-171332,2026-03-13,Executed,Fewer than five prior matched controls,2
+2026-03-13-228954,2026-03-13,Daily loss halt,Fewer than five prior matched controls,3
+2026-03-16-120183,2026-03-16,Executed,Fewer than five prior matched controls,4
+2026-03-16-291959,2026-03-16,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-17-48035,2026-03-17,Executed,Fewer than five prior matched controls,3
+2026-03-17-78134,2026-03-17,Daily loss halt,Fewer than five prior matched controls,1
+2026-03-18-83972,2026-03-18,Executed,Fewer than five prior matched controls,3
+2026-03-19-105630,2026-03-19,Executed,Fewer than five prior matched controls,2
+2026-03-19-108617,2026-03-19,Excursion already used,Fewer than five prior matched controls,3
+2026-03-20-437934,2026-03-20,Daily loss halt,Fewer than five prior matched controls,2
+2026-03-20-494284,2026-03-20,Daily loss halt,Fewer than five prior matched controls,2
+2026-03-23-432034,2026-03-23,Executed,Fewer than five prior matched controls,3
+2026-03-23-561964,2026-03-23,Daily loss halt,Fewer than five prior matched controls,3
+2026-03-23-567747,2026-03-23,Daily loss halt,Fewer than five prior matched controls,4
+2026-03-23-617019,2026-03-23,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-23-688238,2026-03-23,Daily loss halt,Fewer than five prior matched controls,4
+2026-03-24-295606,2026-03-24,Executed,Fewer than five prior matched controls,0
+2026-03-24-298649,2026-03-24,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-24-453971,2026-03-24,Daily loss halt,Fewer than five prior matched controls,2
+2026-03-25-309350,2026-03-25,Daily loss halt,Fewer than five prior matched controls,2
+2026-03-25-333063,2026-03-25,Daily loss halt,Fewer than five prior matched controls,2
+2026-03-25-490987,2026-03-25,Daily loss halt,Fewer than five prior matched controls,1
+2026-03-26-319888,2026-03-26,Excursion already used,Fewer than five prior matched controls,2
+2026-03-27-159789,2026-03-27,Executed,Fewer than five prior matched controls,0
+2026-03-30-210548,2026-03-30,Executed,Fewer than five prior matched controls,3
+2026-03-31-425162,2026-03-31,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-31-431837,2026-03-31,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-31-435776,2026-03-31,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-31-438011,2026-03-31,Daily loss halt,Fewer than five prior matched controls,0
+2026-03-31-470196,2026-03-31,Daily loss halt,Fewer than five prior matched controls,3
+2026-03-31-478770,2026-03-31,Daily loss halt,Fewer than five prior matched controls,4
+2026-04-01-392064,2026-04-01,Executed,Fewer than five prior matched controls,1
+2026-04-02-227209,2026-04-02,Daily loss halt,Fewer than five prior matched controls,4
+2026-04-02-288907,2026-04-02,Daily loss halt,Fewer than five prior matched controls,2
+2026-04-02-291039,2026-04-02,Daily loss halt,Fewer than five prior matched controls,2
+2026-04-02-297875,2026-04-02,Daily loss halt,Fewer than five prior matched controls,2
+2026-04-02-298728,2026-04-02,Daily loss halt,Fewer than five prior matched controls,2
+2026-04-02-305382,2026-04-02,Daily loss halt,Fewer than five prior matched controls,0
+2026-04-07-181319,2026-04-07,Executed,Fewer than five prior matched controls,3
+2026-04-07-365974,2026-04-07,Daily loss halt,Fewer than five prior matched controls,0
+2026-04-07-450882,2026-04-07,Daily loss halt,Fewer than five prior matched controls,1
+2026-04-07-503239,2026-04-07,Daily loss halt,Fewer than five prior matched controls,1
+2026-04-07-534401,2026-04-07,Daily loss halt,Fewer than five prior matched controls,1
+2026-04-07-537953,2026-04-07,Daily loss halt,Fewer than five prior matched controls,1
+2026-04-08-283167,2026-04-08,Executed,Fewer than five prior matched controls,1
+2026-04-08-288077,2026-04-08,Daily loss halt,Fewer than five prior matched controls,2
+2026-04-09-232676,2026-04-09,Excursion already used,Fewer than five prior matched controls,0
+2026-04-09-262159,2026-04-09,Excursion already used,Fewer than five prior matched controls,3
+2026-04-13-129632,2026-04-13,Executed,Fewer than five prior matched controls,4
+2026-04-13-139140,2026-04-13,Excursion already used,Fewer than five prior matched controls,1
+2026-04-14-103059,2026-04-14,Executed,Fewer than five prior matched controls,1
+2026-04-14-206946,2026-04-14,Daily loss halt,Fewer than five prior matched controls,4
+2026-04-17-239517,2026-04-17,Excursion already used,Fewer than five prior matched controls,3
+2026-04-20-235295,2026-04-20,Daily loss halt,Fewer than five prior matched controls,4
+2026-04-21-477669,2026-04-21,Daily loss halt,Fewer than five prior matched controls,0
+2026-04-21-489786,2026-04-21,Daily loss halt,Fewer than five prior matched controls,2
+2026-04-23-317319,2026-04-23,Executed,Fewer than five prior matched controls,4
+2026-04-23-349294,2026-04-23,Daily loss halt,Fewer than five prior matched controls,4
+2026-04-23-441461,2026-04-23,Daily loss halt,Fewer than five prior matched controls,0
+2026-04-23-442163,2026-04-23,Daily loss halt,Fewer than five prior matched controls,0
+2026-04-23-443093,2026-04-23,Daily loss halt,Fewer than five prior matched controls,0
+2026-04-23-486292,2026-04-23,Daily loss halt,Fewer than five prior matched controls,0
+2026-04-24-270647,2026-04-24,Executed,Fewer than five prior matched controls,0
+2026-04-28-135541,2026-04-28,Executed,Fewer than five prior matched controls,0
+2026-04-29-100462,2026-04-29,Executed,Fewer than five prior matched controls,2
+2026-04-30-170126,2026-04-30,Executed,Fewer than five prior matched controls,1
+2026-04-30-437373,2026-04-30,Daily loss halt,Fewer than five prior matched controls,1
+2026-05-04-248418,2026-05-04,Executed,Fewer than five prior matched controls,3
+2026-05-04-284102,2026-05-04,Daily loss halt,Fewer than five prior matched controls,4
+2026-05-04-321748,2026-05-04,Daily loss halt,Fewer than five prior matched controls,0
+2026-05-06-270187,2026-05-06,Executed,Fewer than five prior matched controls,1
+2026-05-07-364264,2026-05-07,Daily loss halt,Fewer than five prior matched controls,1
+2026-05-13-127024,2026-05-13,Executed,Fewer than five prior matched controls,4
+2026-05-13-263291,2026-05-13,Daily loss halt,Fewer than five prior matched controls,2
+2026-05-13-327089,2026-05-13,Daily loss halt,Fewer than five prior matched controls,0
+2026-05-15-203208,2026-05-15,Executed,Fewer than five prior matched controls,1
+2026-05-18-213093,2026-05-18,Executed,Fewer than five prior matched controls,1
+2026-05-18-323398,2026-05-18,Daily loss halt,Fewer than five prior matched controls,2
+2026-05-18-483706,2026-05-18,Daily loss halt,Fewer than five prior matched controls,3
+2026-05-18-612425,2026-05-18,Daily loss halt,Fewer than five prior matched controls,0
+2026-05-19-174223,2026-05-19,Executed,Fewer than five prior matched controls,2
+2026-05-19-267862,2026-05-19,Daily loss halt,Fewer than five prior matched controls,3
+2026-05-20-209244,2026-05-20,Executed,Fewer than five prior matched controls,0
+2026-05-20-309839,2026-05-20,Excursion already used,Fewer than five prior matched controls,0
+2026-05-21-536610,2026-05-21,Executed,Fewer than five prior matched controls,3
+2026-05-21-545854,2026-05-21,Daily loss halt,Fewer than five prior matched controls,2
+2026-05-27-120700,2026-05-27,Executed,Fewer than five prior matched controls,1
+2026-05-28-164093,2026-05-28,Executed,Fewer than five prior matched controls,0
+2026-05-29-116623,2026-05-29,Executed,Fewer than five prior matched controls,2
+2026-06-01-134250,2026-06-01,Executed,Fewer than five prior matched controls,2
+2026-06-09-556148,2026-06-09,Daily loss halt,Fewer than five prior matched controls,4
+2026-06-09-566912,2026-06-09,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-09-569317,2026-06-09,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-09-797851,2026-06-09,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-09-802951,2026-06-09,Daily loss halt,Fewer than five prior matched controls,3
+2026-06-10-237693,2026-06-10,Executed,Fewer than five prior matched controls,4
+2026-06-10-394239,2026-06-10,Daily loss halt,Fewer than five prior matched controls,0
+2026-06-10-448078,2026-06-10,Daily loss halt,Fewer than five prior matched controls,2
+2026-06-10-459387,2026-06-10,Daily loss halt,Fewer than five prior matched controls,3
+2026-06-10-559957,2026-06-10,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-11-219529,2026-06-11,Executed,Fewer than five prior matched controls,0
+2026-06-11-226013,2026-06-11,Executed,Fewer than five prior matched controls,1
+2026-06-11-525045,2026-06-11,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-11-525282,2026-06-11,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-11-525885,2026-06-11,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-11-537251,2026-06-11,Daily loss halt,Fewer than five prior matched controls,0
+2026-06-11-538097,2026-06-11,Daily loss halt,Fewer than five prior matched controls,0
+2026-06-11-539239,2026-06-11,Daily loss halt,Fewer than five prior matched controls,0
+2026-06-11-713509,2026-06-11,Daily loss halt,Fewer than five prior matched controls,2
+2026-06-12-179574,2026-06-12,Executed,Fewer than five prior matched controls,1
+2026-06-12-283250,2026-06-12,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-12-290823,2026-06-12,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-12-293966,2026-06-12,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-12-401422,2026-06-12,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-12-402245,2026-06-12,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-17-52095,2026-06-17,Executed,Fewer than five prior matched controls,2
+2026-06-17-54537,2026-06-17,Excursion already used,Fewer than five prior matched controls,4
+2026-06-17-57482,2026-06-17,Executed,Fewer than five prior matched controls,3
+2026-06-17-59438,2026-06-17,Excursion already used,Fewer than five prior matched controls,1
+2026-06-18-384378,2026-06-18,Daily loss halt,Fewer than five prior matched controls,2
+2026-06-22-199359,2026-06-22,Executed,Fewer than five prior matched controls,3
+2026-06-22-228943,2026-06-22,Daily loss halt,Fewer than five prior matched controls,1
+2026-06-24-298634,2026-06-24,Daily loss halt,Fewer than five prior matched controls,4
+2026-06-25-135523,2026-06-25,Executed,Fewer than five prior matched controls,2
+2026-06-25-139520,2026-06-25,Daily loss halt,Fewer than five prior matched controls,2
+2026-06-25-145725,2026-06-25,Daily loss halt,Fewer than five prior matched controls,2
+2026-06-25-209638,2026-06-25,Daily loss halt,Fewer than five prior matched controls,3
+2026-06-25-216589,2026-06-25,Daily loss halt,Fewer than five prior matched controls,4
+2026-06-25-224007,2026-06-25,Daily loss halt,Fewer than five prior matched controls,4
+2026-06-26-229419,2026-06-26,Excursion already used,Fewer than five prior matched controls,3
+2026-06-29-221845,2026-06-29,Daily loss halt,Fewer than five prior matched controls,1
+2026-07-08-410233,2026-07-08,Daily loss halt,Fewer than five prior matched controls,1
+2026-07-08-450956,2026-07-08,Daily loss halt,Fewer than five prior matched controls,1
+2026-07-09-249067,2026-07-09,Daily loss halt,Fewer than five prior matched controls,4
+2026-07-09-274906,2026-07-09,Daily loss halt,Fewer than five prior matched controls,1
+2026-07-10-155570,2026-07-10,Executed,Fewer than five prior matched controls,0
+2026-07-10-166569,2026-07-10,Executed,Fewer than five prior matched controls,0
+2026-07-10-176289,2026-07-10,Excursion already used,Fewer than five prior matched controls,3
+2026-07-10-178024,2026-07-10,Excursion already used,Fewer than five prior matched controls,3
+2026-07-10-191397,2026-07-10,Excursion already used,Fewer than five prior matched controls,3
+2026-07-10-310005,2026-07-10,Executed,Fewer than five prior matched controls,1
+2026-07-10-321933,2026-07-10,Daily loss halt,Fewer than five prior matched controls,4
+2026-07-17-191672,2026-07-17,Daily loss halt,Fewer than five prior matched controls,2
+2026-07-17-449065,2026-07-17,Daily loss halt,Fewer than five prior matched controls,4
+2026-07-22-105735,2026-07-22,Executed,Fewer than five prior matched controls,4
+2026-07-23-158404,2026-07-23,Executed,Fewer than five prior matched controls,0
+2026-07-24-247278,2026-07-24,Daily loss halt,Fewer than five prior matched controls,2
+2026-07-27-306365,2026-07-27,Executed,Fewer than five prior matched controls,4
+2026-07-27-464707,2026-07-27,Daily loss halt,Fewer than five prior matched controls,1
+2026-07-28-143814,2026-07-28,Executed,Fewer than five prior matched controls,0
+2026-07-28-150239,2026-07-28,Daily loss halt,Fewer than five prior matched controls,2
+2026-07-29-510762,2026-07-29,Daily loss halt,Fewer than five prior matched controls,4
+2026-07-29-535337,2026-07-29,Daily loss halt,Fewer than five prior matched controls,4
+2026-07-30-407789,2026-07-30,Daily loss halt,Fewer than five prior matched controls,4
+2026-07-30-496789,2026-07-30,Daily loss halt,Fewer than five prior matched controls,4
+2026-07-31-290616,2026-07-31,Daily loss halt,Fewer than five prior matched controls,4
+2026-07-31-432490,2026-07-31,Daily loss halt,Fewer than five prior matched controls,4
+2026-08-04-133027,2026-08-04,Executed,Fewer than five prior matched controls,2
+2026-08-04-278714,2026-08-04,Daily loss halt,Fewer than five prior matched controls,1
+2026-08-11-238826,2026-08-11,Daily loss halt,Fewer than five prior matched controls,2
+2026-08-13-189187,2026-08-13,Daily loss halt,Fewer than five prior matched controls,1
+2026-08-19-147761,2026-08-19,Executed,Fewer than five prior matched controls,3
+2026-08-24-109039,2026-08-24,Executed,Fewer than five prior matched controls,1
+2026-08-31-109837,2026-08-31,Executed,Fewer than five prior matched controls,3
+2026-09-03-237948,2026-09-03,Daily loss halt,Fewer than five prior matched controls,2
+2026-09-03-343793,2026-09-03,Daily loss halt,Fewer than five prior matched controls,4
+2026-09-10-150832,2026-09-10,Executed,Fewer than five prior matched controls,4
+2026-09-15-47530,2026-09-15,Executed,Fewer than five prior matched controls,3
+2026-09-16-47680,2026-09-16,Executed,Fewer than five prior matched controls,3
+2026-09-18-220496,2026-09-18,Executed,Fewer than five prior matched controls,4
+2026-09-22-128909,2026-09-22,Executed,Fewer than five prior matched controls,0
+2026-09-24-273976,2026-09-24,Executed,Fewer than five prior matched controls,1
+2026-09-24-276809,2026-09-24,Daily loss halt,Fewer than five prior matched controls,1
+2026-09-24-281414,2026-09-24,Daily loss halt,Fewer than five prior matched controls,0
+2026-09-24-284476,2026-09-24,Daily loss halt,Fewer than five prior matched controls,0
+2026-09-25-148589,2026-09-25,Executed,Fewer than five prior matched controls,3
+2026-10-01-219277,2026-10-01,Excursion already used,Fewer than five prior matched controls,4
+2026-10-02-250590,2026-10-02,Executed,Fewer than five prior matched controls,2
+2026-10-05-272477,2026-10-05,Daily loss halt,Fewer than five prior matched controls,2
+2026-10-07-284640,2026-10-07,Daily loss halt,Fewer than five prior matched controls,1
+2026-10-08-293447,2026-10-08,Daily loss halt,Fewer than five prior matched controls,3
+2026-10-09-263918,2026-10-09,Excursion already used,Fewer than five prior matched controls,1
+2026-10-14-154739,2026-10-14,Executed,Fewer than five prior matched controls,3
+2026-10-14-203760,2026-10-14,Daily loss halt,Fewer than five prior matched controls,3
+2026-10-20-217327,2026-10-20,Daily loss halt,Fewer than five prior matched controls,4
+2026-10-20-220433,2026-10-20,Daily loss halt,Fewer than five prior matched controls,4
+2026-10-20-308523,2026-10-20,Daily loss halt,Fewer than five prior matched controls,2
+2026-10-21-313839,2026-10-21,Excursion already used,Fewer than five prior matched controls,0
+2026-10-21-404523,2026-10-21,Daily loss halt,Fewer than five prior matched controls,3
+2026-10-22-413752,2026-10-22,Daily loss halt,Fewer than five prior matched controls,1
+2026-10-28-314297,2026-10-28,Executed,Fewer than five prior matched controls,3
+2026-10-29-203640,2026-10-29,Executed,Fewer than five prior matched controls,0
+2026-10-29-467803,2026-10-29,Daily loss halt,Fewer than five prior matched controls,2
+2026-10-30-381537,2026-10-30,Daily loss halt,Fewer than five prior matched controls,1
+2026-10-30-501202,2026-10-30,Daily loss halt,Fewer than five prior matched controls,4

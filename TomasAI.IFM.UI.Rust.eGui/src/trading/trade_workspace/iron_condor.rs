@@ -473,7 +473,7 @@ fn table_window<T: Cells>(
                 .auto_shrink([false, false])
                 .max_width(r.width())
                 .max_height(r.height())
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     ui.set_min_width(
                         columns
                             .iter()

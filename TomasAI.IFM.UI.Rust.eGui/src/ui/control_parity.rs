@@ -10,6 +10,84 @@
 //! while data retrieval remains owned by the managed view model.
 use eframe::egui::{self, Color32};
 
+/// Paint the content-facing scrollbar edges even when no scrollbar thumb is needed.
+/// Drawing only changes presentation: hidden scrollbar tracks still reclaim their space.
+fn paint_scrollbar_border(painter: &egui::Painter, viewport: egui::Rect, stroke: egui::Stroke) {
+    // Nested scrollbars are moved into the parent clip by egui. Their inner border
+    // must follow that visible edge, rather than the off-screen content width.
+    let viewport = viewport.intersect(painter.clip_rect());
+    if !viewport.is_positive() {
+        return;
+    }
+    let painter = painter.with_clip_rect(viewport.intersect(painter.clip_rect()));
+    let inset = stroke.width / 2.0;
+    let right = viewport.right() - inset;
+    let bottom = viewport.bottom() - inset;
+    painter.vline(right, viewport.top()..=bottom, stroke);
+    painter.hline(viewport.left()..=right, bottom, stroke);
+}
+
+
+/// Give application-owned scroll views persistent inner edges without changing scrolling or row virtualization.
+pub trait BorderedScrollArea {
+    /// Render scroll content, then join its right and bottom edges with a one-physical-pixel border.
+    fn bordered_show<R>(
+        self,
+        ui: &mut egui::Ui,
+        contents: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> egui::scroll_area::ScrollAreaOutput<R>;
+
+    /// Render only visible rows while retaining the same persistent content-facing border.
+    fn bordered_show_rows<R>(
+        self,
+        ui: &mut egui::Ui,
+        row_height: f32,
+        row_count: usize,
+        contents: impl FnOnce(&mut egui::Ui, std::ops::Range<usize>) -> R,
+    ) -> egui::scroll_area::ScrollAreaOutput<R>;
+}
+
+
+impl BorderedScrollArea for egui::ScrollArea {
+    /// Keep the existing output, scrollbar visibility and event handling; paint the final viewport edge.
+    fn bordered_show<R>(
+        self,
+        ui: &mut egui::Ui,
+        contents: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> egui::scroll_area::ScrollAreaOutput<R> {
+        let output = self.show(ui, contents);
+        paint_scrollbar_border(
+            ui.painter(),
+            output.inner_rect,
+            egui::Stroke::new(
+                1.0 / ui.ctx().pixels_per_point(),
+                crate::presentation::BORDER,
+            ),
+        );
+        output
+    }
+
+    /// Preserve virtualized row ranges and scrolling offsets while painting the final viewport edge.
+    fn bordered_show_rows<R>(
+        self,
+        ui: &mut egui::Ui,
+        row_height: f32,
+        row_count: usize,
+        contents: impl FnOnce(&mut egui::Ui, std::ops::Range<usize>) -> R,
+    ) -> egui::scroll_area::ScrollAreaOutput<R> {
+        let output = self.show_rows(ui, row_height, row_count, contents);
+        paint_scrollbar_border(
+            ui.painter(),
+            output.inner_rect,
+            egui::Stroke::new(
+                1.0 / ui.ctx().pixels_per_point(),
+                crate::presentation::BORDER,
+            ),
+        );
+        output
+    }
+}
+
 /// Keep headers, body and both scrollbars inside a one-physical-pixel grid border.
 pub fn grid_viewport<R>(
     ui: &mut egui::Ui,
@@ -19,6 +97,8 @@ pub fn grid_viewport<R>(
     let inside = bounds.shrink(1. / ui.ctx().pixels_per_point());
     let result = ui
         .scope_builder(egui::UiBuilder::new().max_rect(inside), |ui| {
+            // Join the fixed header directly to the body and its vertical track.
+            ui.spacing_mut().item_spacing.y = 0.;
             ui.set_clip_rect(inside.intersect(ui.clip_rect()));
             ui.set_max_size(inside.size());
             contents(ui)
@@ -124,7 +204,7 @@ fn report_list_content(
         .auto_shrink([false, false])
         .max_width(bounds.width())
         .max_height(height)
-        .show(ui, |ui| {
+        .bordered_show(ui, |ui| {
             ui.set_min_width(content_width);
             ui.spacing_mut().item_spacing.x = 0.;
             ui.visuals_mut().selection.bg_fill = Color32::from_rgb(0, 120, 215);
@@ -353,6 +433,9 @@ impl ColumnBorders {
                 painter.vline(x, clip.top() + inset..=clip.bottom() - inset, self.stroke);
             }
         }
+        // Header cells own their bottom border. Drawing a separator in the
+        // header/body spacing would create a second horizontal line.
+        paint_scrollbar_border(&painter, grid, self.stroke);
     }
 }
 /// Wrap a table body with column-rule capture and final viewport clipping; keeps generated grid rules inside the control border.

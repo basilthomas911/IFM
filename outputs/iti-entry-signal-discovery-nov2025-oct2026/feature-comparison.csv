@@ -1,0 +1,36 @@
+window,feature,group,opportunities,target_hits,target_rate,stop_outcomes,cutoff_outcomes
+Discovery: Nov-Jan,reversal_speed_bands_per_minute,High,224,55,0.24553571428571427,168,1
+Discovery: Nov-Jan,reversal_speed_bands_per_minute,Low,224,67,0.29910714285714285,151,6
+Discovery: Nov-Jan,preceding_trend_efficiency,High,224,52,0.23214285714285715,167,5
+Discovery: Nov-Jan,preceding_trend_efficiency,Low,224,70,0.3125,152,2
+Discovery: Nov-Jan,aligned_rsi_slope,Aligned,136,43,0.3161764705882353,90,3
+Discovery: Nov-Jan,aligned_rsi_slope,Flat,24,6,0.25,15,3
+Discovery: Nov-Jan,aligned_rsi_slope,Opposed,288,73,0.2534722222222222,214,1
+Later internal replication: Feb-Oct,reversal_speed_bands_per_minute,High,616,206,0.3344155844155844,408,2
+Later internal replication: Feb-Oct,reversal_speed_bands_per_minute,Low,562,161,0.28647686832740216,391,10
+Later internal replication: Feb-Oct,preceding_trend_efficiency,High,550,165,0.3,380,5
+Later internal replication: Feb-Oct,preceding_trend_efficiency,Low,628,202,0.321656050955414,419,7
+Later internal replication: Feb-Oct,aligned_rsi_slope,Aligned,389,116,0.2982005141388175,265,8
+Later internal replication: Feb-Oct,aligned_rsi_slope,Flat,39,9,0.23076923076923078,30,0
+Later internal replication: Feb-Oct,aligned_rsi_slope,Opposed,750,242,0.32266666666666666,504,4
+Feb-Apr,reversal_speed_bands_per_minute,High,272,95,0.3492647058823529,176,1
+Feb-Apr,reversal_speed_bands_per_minute,Low,192,54,0.28125,134,4
+Feb-Apr,preceding_trend_efficiency,High,216,69,0.3194444444444444,145,2
+Feb-Apr,preceding_trend_efficiency,Low,248,80,0.3225806451612903,165,3
+Feb-Apr,aligned_rsi_slope,Aligned,122,34,0.2786885245901639,84,4
+Feb-Apr,aligned_rsi_slope,Flat,14,2,0.14285714285714285,12,0
+Feb-Apr,aligned_rsi_slope,Opposed,328,113,0.3445121951219512,214,1
+May-Jul,reversal_speed_bands_per_minute,High,266,88,0.3308270676691729,177,1
+May-Jul,reversal_speed_bands_per_minute,Low,198,58,0.29292929292929293,139,1
+May-Jul,preceding_trend_efficiency,High,209,62,0.2966507177033493,145,2
+May-Jul,preceding_trend_efficiency,Low,255,84,0.32941176470588235,171,0
+May-Jul,aligned_rsi_slope,Aligned,146,46,0.3150684931506849,100,0
+May-Jul,aligned_rsi_slope,Flat,14,3,0.21428571428571427,11,0
+May-Jul,aligned_rsi_slope,Opposed,304,97,0.3190789473684211,205,2
+Aug-Oct,reversal_speed_bands_per_minute,High,78,23,0.2948717948717949,55,0
+Aug-Oct,reversal_speed_bands_per_minute,Low,172,49,0.28488372093023256,118,5
+Aug-Oct,preceding_trend_efficiency,High,125,34,0.272,90,1
+Aug-Oct,preceding_trend_efficiency,Low,125,38,0.304,83,4
+Aug-Oct,aligned_rsi_slope,Aligned,121,36,0.2975206611570248,81,4
+Aug-Oct,aligned_rsi_slope,Flat,11,4,0.36363636363636365,7,0
+Aug-Oct,aligned_rsi_slope,Opposed,118,32,0.2711864406779661,85,1

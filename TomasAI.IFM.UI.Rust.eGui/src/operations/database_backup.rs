@@ -1,4 +1,5 @@
 //! Backup Databases Logs/Setup parity. Every operation is submitted to the original managed service.
+use crate::control_parity::BorderedScrollArea as _;
 use crate::models::backup::*;
 use crate::presentation::TradingLabelUi as _;
 use crate::{contract_editor::ContractPublication, lookup_editor::new_request_id};
@@ -315,7 +316,7 @@ impl DatabaseBackup {
             egui::ScrollArea::both()
                 .id_salt("backup-protection-sets")
                 .auto_shrink([false, false])
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     for set in &dashboard.protection_sets {
                         let id = text(set, "id");
                         let mut checked = self
@@ -364,7 +365,7 @@ impl DatabaseBackup {
             egui::ScrollArea::both()
                 .id_salt("backup-host-settings")
                 .auto_shrink([false, false])
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     ui.add(
                         egui::Label::new(host)
                             .selectable(true)
@@ -475,7 +476,7 @@ impl DatabaseBackup {
             egui::ScrollArea::both()
                 .id_salt("backup-policy-grid")
                 .auto_shrink([false, false])
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     if policy.is_some() {
                         ui.add_enabled_ui(idle, |ui| {
                             crate::presentation::form_grid(ui, "backup-policy-properties").show(
@@ -539,7 +540,7 @@ impl DatabaseBackup {
             egui::ScrollArea::both()
                 .id_salt("backup-status-messages")
                 .auto_shrink([false, false])
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     for (key, label) in [
                         ("latestVerified", "Latest verified point"),
                         ("latestRestoreTested", "Latest restore-tested point"),
@@ -586,7 +587,7 @@ impl DatabaseBackup {
                     .id_salt("backup-restore-field-scroll")
                     .max_height(fields_height)
                     .auto_shrink([false, false])
-                    .show(ui, |ui| {
+                    .bordered_show(ui, |ui| {
                         crate::presentation::form_grid(ui, "backup-restore-fields")
                             .num_columns(2)
                             .show(ui, |ui| {
@@ -643,7 +644,7 @@ impl DatabaseBackup {
         let bounds = ui.available_rect_before_wrap();
         let (tree, output) = crate::system_admin::split(ui, bounds, "backup-log-split", 0.5);
         crate::system_admin::region(ui, tree, |ui| {
-            egui::ScrollArea::both().auto_shrink([false,false]).id_salt("backup-log-tree").show(ui,|ui|{
+            egui::ScrollArea::both().auto_shrink([false,false]).id_salt("backup-log-tree").bordered_show(ui,|ui|{
             for(source,label)in[("AwsCloud","AWS Backup"),("LocalWorkstation","Local Workstation Backup")] {
                 let color=history.get(source).and_then(|rows|rows.first()).map(|op|status(&text(op,"outcome"))).unwrap_or(egui::Color32::GRAY);
                 egui::CollapsingHeader::new(label).id_salt(source).default_open(true).icon(move|ui,_,response|{ui.painter().circle_filled(response.rect.center(),4.,color);}).show(ui,|ui|{
@@ -677,7 +678,7 @@ impl DatabaseBackup {
             egui::ScrollArea::both()
                 .id_salt("backup-output-scroll")
                 .auto_shrink([false, false])
-                .show(ui, |ui| {
+                .bordered_show(ui, |ui| {
                     ui.add(
                         egui::Label::new(output)
                             .selectable(true)

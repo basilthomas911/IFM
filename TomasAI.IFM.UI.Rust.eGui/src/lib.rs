@@ -41,6 +41,7 @@
 //! `cargo doc --no-deps --document-private-items`. See the repository README for
 //! build, fixture/live-mode, deployment, and desktop-test commands.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::control_parity::BorderedTable as _;
 /// Typed native presentation models, separate from configuration/log JSON.
 pub mod models;
@@ -266,7 +267,7 @@ impl DetailsView {
                 egui::ScrollArea::vertical()
                     .id_salt("tree_scroll")
                     .auto_shrink([false, false])
-                    .show(ui, |ui| {
+                    .bordered_show(ui, |ui| {
                         for node in &snapshot.roots {
                             self.node(ui, node, catalog);
                         }

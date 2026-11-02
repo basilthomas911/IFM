@@ -5,7 +5,9 @@
 //! actions rather than rendering every row. Pipeline indicators stop at the first
 //! failed actor. Prices, actor states, and decision summaries are backend projections.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::control_parity::BorderedTable as _;
+use crate::control_parity::FilledGrid as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, DetailsView, Snapshot, strings};
 use eframe::egui;
@@ -189,6 +191,81 @@ impl StrategyWorkspace {
                     ui.trading_caption(catalog.text(strings::NO_SIGNALS));
                 }
                 {
+                    // Lay out the wrapped legend first so its actual height is
+                    // excluded from the plot, without growing the resizable panel.
+                    egui::TopBottomPanel::bottom("strategy_graph_legend")
+                        .show_separator_line(false)
+                        .frame(egui::Frame::NONE)
+                        .min_height(0.0)
+                        .show_inside(ui, |ui| {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.spacing_mut().item_spacing.x = 6.0;
+                                for (label, symbol, color) in [
+                                    ("ITI Price", "line", egui::Color32::YELLOW),
+                                    (
+                                        "Other ITI Event",
+                                        "circle",
+                                        egui::Color32::from_rgb(0, 0, 128),
+                                    ),
+                                    ("Direction Up", "up", egui::Color32::from_rgb(50, 205, 50)),
+                                    ("Direction Down", "down", egui::Color32::RED),
+                                    ("Overshoot Extended", "circle", egui::Color32::GREEN),
+                                    ("Overshoot Reversal", "circle", egui::Color32::RED),
+                                ] {
+                                    // Wrap each marker and caption as one legend entry.
+                                    let caption_width = ui
+                                        .painter()
+                                        .layout_no_wrap(
+                                            label.to_owned(),
+                                            egui::TextStyle::Body.resolve(ui.style()),
+                                            crate::presentation::CAPTION_FOREGROUND,
+                                        )
+                                        .size()
+                                        .x;
+                                    ui.allocate_ui_with_layout(
+                                        egui::vec2(12.0 + ui.spacing().item_spacing.x + caption_width, 14.0),
+                                        egui::Layout::left_to_right(egui::Align::Center),
+                                        |ui| {
+                                            let (rect, _) = ui
+                                                .allocate_exact_size(egui::vec2(12.0, 14.0), egui::Sense::hover());
+                                            let center = rect.center();
+                                            match symbol {
+                                                "line" => {
+                                                    ui.painter().line_segment(
+                                                        [
+                                                            center - egui::vec2(6.0, 0.0),
+                                                            center + egui::vec2(6.0, 0.0),
+                                                        ],
+                                                        egui::Stroke::new(2.0_f32, color),
+                                                    );
+                                                }
+                                                "circle" => {
+                                                    ui.painter().circle(
+                                                        center,
+                                                        3.0,
+                                                        color,
+                                                        egui::Stroke::new(1.0_f32, egui::Color32::LIGHT_GRAY),
+                                                    );
+                                                }
+                                                _ => {
+                                                    let sign = if symbol == "up" { 1.0 } else { -1.0 };
+                                                    ui.painter().add(egui::Shape::convex_polygon(
+                                                        vec![
+                                                            center + egui::vec2(0.0, -4.0 * sign),
+                                                            center + egui::vec2(-4.0, 3.0 * sign),
+                                                            center + egui::vec2(4.0, 3.0 * sign),
+                                                        ],
+                                                        color,
+                                                        egui::Stroke::NONE,
+                                                    ));
+                                                }
+                                            }
+                                            ui.trading_caption(label);
+                                        },
+                                    );
+                                }
+                            });
+                        });
                     let mut plot = egui_plot::Plot::new("iti_price")
                         .x_axis_label("Market Time (ET)")
                         .y_axis_label("ITI Signal Price")
@@ -241,7 +318,7 @@ impl StrategyWorkspace {
                                 })
                                 .unwrap_or_default()
                         })
-                        .height((ui.available_height() - 44.0).max(40.0));
+                        .height(ui.available_height().max(40.0));
                     // A timeframe switch must discard the previous timeframe's zoom/pan.
                     // Ordinary live updates preserve the user's current viewport.
                     if self.graph_time_frame != snapshot.time_frame {
@@ -335,55 +412,6 @@ impl StrategyWorkspace {
                             );
                         }
                     }
-                    ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing.x = 6.0;
-                        for (label, symbol, color) in [
-                            ("ITI Price", "line", egui::Color32::YELLOW),
-                            (
-                                "Other ITI Event",
-                                "circle",
-                                egui::Color32::from_rgb(0, 0, 128),
-                            ),
-                            ("Direction Up", "up", egui::Color32::from_rgb(50, 205, 50)),
-                            ("Direction Down", "down", egui::Color32::RED),
-                        ] {
-                            let (rect, _) = ui
-                                .allocate_exact_size(egui::vec2(12.0, 14.0), egui::Sense::hover());
-                            let center = rect.center();
-                            match symbol {
-                                "line" => {
-                                    ui.painter().line_segment(
-                                        [
-                                            center - egui::vec2(6.0, 0.0),
-                                            center + egui::vec2(6.0, 0.0),
-                                        ],
-                                        egui::Stroke::new(2.0_f32, color),
-                                    );
-                                }
-                                "circle" => {
-                                    ui.painter().circle(
-                                        center,
-                                        3.0,
-                                        color,
-                                        egui::Stroke::new(1.0_f32, egui::Color32::LIGHT_GRAY),
-                                    );
-                                }
-                                _ => {
-                                    let sign = if symbol == "up" { 1.0 } else { -1.0 };
-                                    ui.painter().add(egui::Shape::convex_polygon(
-                                        vec![
-                                            center + egui::vec2(0.0, -4.0 * sign),
-                                            center + egui::vec2(-4.0, 3.0 * sign),
-                                            center + egui::vec2(4.0, 3.0 * sign),
-                                        ],
-                                        color,
-                                        egui::Stroke::NONE,
-                                    ));
-                                }
-                            }
-                            ui.trading_caption(label);
-                        }
-                    });
                     if graph.response.clicked() {
                         if let Some(pointer) = graph.response.interact_pointer_pos() {
                             if let Some((signal, distance)) = snapshot
@@ -447,28 +475,31 @@ impl StrategyWorkspace {
                 egui::CentralPanel::default().show_inside(ui, |ui| {
                     let grid_border = ui.available_rect_before_wrap();
                     crate::control_parity::grid_viewport(ui, grid_border, |ui| {
-                    if snapshot.rows.is_empty() {
-                        ui.trading_caption(catalog.text(strings::NO_WORKFLOWS));
-                    } else {
                         let height = ui.text_style_height(&egui::TextStyle::Body) + 8.0;
                         let mut near_history_end = false;
                         // Keep the horizontal scrollbar below the body instead of over its last row.
                         ui.spacing_mut().scroll.floating = false;
-                        let row_stride = height + ui.spacing().item_spacing.y;
+                        let row_spacing = ui.spacing().item_spacing.y;
                         let body_space = (ui.available_height()
                             - ui.spacing().scroll.allocated_width()
                             - 24.0
-                            - ui.spacing().item_spacing.y)
+                            - row_spacing)
                             .max(0.0);
-                        let body_height = (body_space / row_stride).floor() * row_stride;
+                        // Fill the exact viewport rather than rounding down to complete rows.
                         egui::ScrollArea::horizontal()
-                            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                            .scroll_bar_visibility(
+                                egui::scroll_area::ScrollBarVisibility::AlwaysVisible,
+                            )
                             .auto_shrink([false, false])
-                            .show(ui, |ui| {
+                            .bordered_show(ui, |ui| {
                                 egui_extras::TableBuilder::new(ui)
                                     .id_salt("strategy-workflows-table")
-                                    .min_scrolled_height(0.0)
-                                    .max_scroll_height(body_height)
+                                    .fill_grid(
+                                        snapshot.rows.len(),
+                                        height,
+                                        row_spacing,
+                                        body_space,
+                                    )
                                     .striped(true)
                                     .resizable(true)
                                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
@@ -505,15 +536,21 @@ impl StrategyWorkspace {
                                                 );
                                                 ui.add(
                                                     crate::presentation::label_widget(
-                                                        egui::RichText::new(catalog.text(key))
-                                                            .color(crate::presentation::CAPTION_FOREGROUND),
+                                                        egui::RichText::new(catalog.text(key)).color(
+                                                            crate::presentation::CAPTION_FOREGROUND,
+                                                        ),
                                                     )
                                                     .truncate(),
                                                 );
                                             });
                                         }
                                     })
-                                    .bordered_body(24.0, |body| {
+                                    .bordered_body(24.0, |mut body| {
+                                        if snapshot.rows.is_empty() {
+                                            body.ui_mut()
+                                                .trading_caption(catalog.text(strings::NO_WORKFLOWS));
+                                            return;
+                                        }
                                         body.rows(height, snapshot.rows.len(), |mut table_row| {
                                             self.drawn_rows += 1;
                                             near_history_end |=
@@ -531,9 +568,7 @@ impl StrategyWorkspace {
                                                     action = Some(row.action);
                                                 }
                                             });
-                                            for text in
-                                                [&row.signal, &row.trend, &row.futures_price]
-                                            {
+                                            for text in [&row.signal, &row.trend, &row.futures_price] {
                                                 table_row.col(|ui| {
                                                     ui.trading_label(text);
                                                 });
@@ -547,11 +582,10 @@ impl StrategyWorkspace {
                                                         .take(visible_pipeline_count(&row.actors))
                                                     {
                                                         let color = pipeline_color(&actor.state);
-                                                        let (rect, response) = ui
-                                                            .allocate_exact_size(
-                                                                egui::vec2(12.0, 12.0),
-                                                                egui::Sense::hover(),
-                                                            );
+                                                        let (rect, response) = ui.allocate_exact_size(
+                                                            egui::vec2(12.0, 12.0),
+                                                            egui::Sense::hover(),
+                                                        );
                                                         ui.painter().circle(
                                                             rect.center(),
                                                             6.0,
@@ -596,11 +630,14 @@ impl StrategyWorkspace {
                                 action = Some(13);
                             }
                         }
-                    }
                     });
                     ui.painter().rect_stroke(
-                        grid_border.intersect(ui.clip_rect()), 0.,
-                        egui::Stroke::new(1. / ui.ctx().pixels_per_point(), crate::presentation::BORDER),
+                        grid_border.intersect(ui.clip_rect()),
+                        0.,
+                        egui::Stroke::new(
+                            1. / ui.ctx().pixels_per_point(),
+                            crate::presentation::BORDER,
+                        ),
                         egui::StrokeKind::Inside,
                     );
                 });

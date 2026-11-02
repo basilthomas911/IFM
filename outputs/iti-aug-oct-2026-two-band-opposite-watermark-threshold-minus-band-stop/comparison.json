@@ -1,0 +1,152 @@
+{
+  "policies": {
+    "original": {
+      "totals": {
+        "trades": 89,
+        "wins": 55,
+        "losses": 34,
+        "flats": 0,
+        "points": -81.75,
+        "gross_pnl_usd": -4087.5,
+        "profit_factor": 0.8106543138390272,
+        "max_closed_trade_drawdown_usd": 7250.0,
+        "exit_reasons": {
+          "Trailing watermark": 50,
+          "Session flatten": 8,
+          "4-band stop": 31
+        }
+      },
+      "risk": {
+        "worst_trade_usd": -800.0,
+        "largest_intratrade_adverse_usd": 800.0,
+        "closed_trade_drawdown_is_not_intraday_equity_drawdown": true
+      },
+      "monthly": [
+        {
+          "month": "2026-08",
+          "trades": 21,
+          "wins": 11,
+          "losses": 10,
+          "flats": 0,
+          "points": -37.5,
+          "gross_pnl_usd": -1875.0,
+          "profit_factor": 0.6428571428571429,
+          "max_closed_trade_drawdown_usd": 4462.5,
+          "exit_reasons": {
+            "Trailing watermark": 10,
+            "Session flatten": 4,
+            "4-band stop": 7
+          }
+        },
+        {
+          "month": "2026-09",
+          "trades": 30,
+          "wins": 18,
+          "losses": 12,
+          "flats": 0,
+          "points": -51.75,
+          "gross_pnl_usd": -2587.5,
+          "profit_factor": 0.677570093457944,
+          "max_closed_trade_drawdown_usd": 3800.0,
+          "exit_reasons": {
+            "4-band stop": 12,
+            "Trailing watermark": 16,
+            "Session flatten": 2
+          }
+        },
+        {
+          "month": "2026-10",
+          "trades": 38,
+          "wins": 26,
+          "losses": 12,
+          "flats": 0,
+          "points": 7.5,
+          "gross_pnl_usd": 375.0,
+          "profit_factor": 1.0451127819548873,
+          "max_closed_trade_drawdown_usd": 2850.0,
+          "exit_reasons": {
+            "Trailing watermark": 24,
+            "4-band stop": 12,
+            "Session flatten": 2
+          }
+        }
+      ]
+    },
+    "retracement": {
+      "totals": {
+        "trades": 89,
+        "wins": 55,
+        "losses": 34,
+        "flats": 0,
+        "points": -30.25,
+        "gross_pnl_usd": -1512.5,
+        "profit_factor": 0.9239472030169704,
+        "max_closed_trade_drawdown_usd": 5262.5,
+        "exit_reasons": {
+          "4-band stop": 28,
+          "Trailing watermark": 54,
+          "Session flatten": 7
+        }
+      },
+      "risk": {
+        "worst_trade_usd": -800.0,
+        "largest_intratrade_adverse_usd": 800.0,
+        "closed_trade_drawdown_is_not_intraday_equity_drawdown": true
+      },
+      "monthly": [
+        {
+          "month": "2026-08",
+          "trades": 21,
+          "wins": 13,
+          "losses": 8,
+          "flats": 0,
+          "points": -21.25,
+          "gross_pnl_usd": -1062.5,
+          "profit_factor": 0.7769028871391076,
+          "max_closed_trade_drawdown_usd": 1800.0,
+          "exit_reasons": {
+            "4-band stop": 6,
+            "Trailing watermark": 12,
+            "Session flatten": 3
+          }
+        },
+        {
+          "month": "2026-09",
+          "trades": 30,
+          "wins": 19,
+          "losses": 11,
+          "flats": 0,
+          "points": 4.25,
+          "gross_pnl_usd": 212.5,
+          "profit_factor": 1.0331384015594542,
+          "max_closed_trade_drawdown_usd": 2275.0,
+          "exit_reasons": {
+            "Trailing watermark": 19,
+            "4-band stop": 9,
+            "Session flatten": 2
+          }
+        },
+        {
+          "month": "2026-10",
+          "trades": 38,
+          "wins": 23,
+          "losses": 15,
+          "flats": 0,
+          "points": -13.25,
+          "gross_pnl_usd": -662.5,
+          "profit_factor": 0.9239598278335724,
+          "max_closed_trade_drawdown_usd": 3937.5,
+          "exit_reasons": {
+            "4-band stop": 13,
+            "Trailing watermark": 23,
+            "Session flatten": 2
+          }
+        }
+      ]
+    }
+  },
+  "analysis_seconds": 59.23318599999766,
+  "raw_ticks": 26173186,
+  "daily_signals": 13155,
+  "gross_pnl_difference_usd": -2575.0
+}

@@ -10,7 +10,7 @@ use crate::{
     api::owner::MarketData,
     latest::Asset,
     option_chain::{
-        coverage::Planner,
+        coverage::{Planner, ResultSet, Universe},
         discovery::Discovery,
         preparation::RawPolicy,
         reference_bootstrap::Bootstrap,
@@ -625,13 +625,7 @@ impl Configuration {
                 stop,
                 deadline,
             )?;
-            if !planned.reason.is_empty() {
-                return Err(format!(
-                    "Native background coverage unavailable: {}",
-                    planned.reason
-                ));
-            }
-            for universe in planned.universes {
+            for universe in background_universes(planned)? {
                 selected.extend(universe.contracts.iter().copied());
                 let dte = (universe.expiration - base.date).whole_days();
                 let contracts = universe
@@ -1100,9 +1094,64 @@ fn refresh_budget(
         pending.map_or(incoming, |old| old.earliest(incoming)),
     ))
 }
+/// A strategy with no listed expiry has no background candidates for this date.
+/// Keep monitored positions and other strategies alive; malformed or incomplete
+/// source facts still fail qualification rather than admitting partial coverage.
+fn background_universes(planned: ResultSet) -> Result<Vec<Universe>, String> {
+    if planned.reason.is_empty() || planned.reason == "NoEligibleExpiration" {
+        Ok(planned.universes)
+    } else {
+        Err(format!("Native background coverage unavailable: {}", planned.reason))
+    }
+}
+
 #[cfg(test)]
 mod recovery_budget_tests {
     use super::*;
+    #[tokio::test]
+    async fn unlisted_strategy_expiry_does_not_fail_other_background_coverage() {
+        use crate::option_chain::coverage::Definition;
+        use crate::reference::decimal;
+        let cases: serde_json::Value = serde_json::from_str(include_str!(
+            "../../qualification/ContextWireBridge/strategy-policy.json"
+        )).unwrap();
+        let mut policy = strategy::from_command(&cases[0]["command"]["parameters"]).unwrap();
+        policy.enabled = true;
+        for bias in &mut policy.biases {
+            bias.enabled = true;
+            bias.minimum = 5;
+            bias.maximum = 10;
+            bias.preferred = 5;
+        }
+        let date = time::Date::from_calendar_date(2026, time::Month::November, 2).unwrap();
+        let expiry_ns = |day| chrono::NaiveDate::from_ymd_opt(2026, 11, day).unwrap()
+            .and_hms_opt(21, 0, 0).unwrap().and_utc().timestamp_nanos_opt().unwrap() as u64;
+        let forward = decimal::parse("6000").unwrap();
+        let definitions = [
+            Definition { contract: "first-friday", root: "ES", underlying: "ES20261218",
+                strike: forward, expiration: Some(expiry_ns(6)) },
+            Definition { contract: "second-friday", root: "ES", underlying: "ES20261218",
+                strike: forward, expiration: Some(expiry_ns(13)) },
+        ];
+        let prices = BTreeMap::from([("ES20261218".to_owned(), forward)]);
+        let stop = CancellationToken::new();
+        let planner = Planner::default();
+        let plan = |policy: &strategy::Parameters| planner.plan_available(
+            policy, date, &definitions, true, forward, 0.2,
+            Zone::new("Eastern Standard Time").unwrap(), Some(&prices), &stop, Deadline::recovery()
+        ).unwrap();
+        let missing = plan(&policy);
+        assert_eq!(missing.reason, "NoEligibleExpiration");
+        assert!(background_universes(missing).unwrap().is_empty());
+        for bias in &mut policy.biases {
+            bias.minimum = 4;
+            bias.maximum = 11;
+        }
+        assert!(!background_universes(plan(&policy)).unwrap().is_empty());
+        assert!(background_universes(ResultSet {
+            universes: vec![], reason: "IncompleteDefinitions"
+        }).is_err());
+    }
     #[tokio::test(start_paused = true)]
     async fn planned_change_starts_budget_after_quiet_wait_but_preserves_explicit_handoff() {
         let explicit = Deadline::recovery();

@@ -1,0 +1,18 @@
+{
+  "timestamp_utc": "2026-11-02T01:23:40.160021+00:00",
+  "reason": "Decimal reference found eight sign disagreements only at floating-point roundoff magnitude",
+  "rule": "Classify absolute RSI slope <=1e-10 as flat; feature values and outcomes unchanged",
+  "maximum_affected_absolute_slope": 1.4210854715202004e-14,
+  "affected_opportunity_ids": [
+    "2025-12-12-142668",
+    "2025-12-23-215459",
+    "2026-01-12-260205",
+    "2026-04-08-374474",
+    "2026-06-04-349261",
+    "2026-06-08-487801",
+    "2026-09-09-231343",
+    "2026-09-10-159880"
+  ],
+  "outcome_based_selection": false,
+  "original_reports_retained": true
+}

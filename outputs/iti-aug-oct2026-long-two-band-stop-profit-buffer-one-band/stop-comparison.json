@@ -1,0 +1,268 @@
+{
+  "period": "August\u2013October 2026",
+  "long_stop_bands": 2,
+  "short_stop_bands": 7.5,
+  "long_watermark_buffer_bands": 1,
+  "costs_included": false,
+  "monthly": {
+    "2026-08": {
+      "Long": {
+        "before": {
+          "trades": 8,
+          "wins": 4,
+          "losses": 4,
+          "flats": 0,
+          "gross_pnl_usd": -975.0,
+          "average_r": -0.22297979797979797,
+          "average_winner_usd": 171.875,
+          "average_loser_usd": -415.625,
+          "worst_trade_usd": -562.5
+        },
+        "after": {
+          "trades": 8,
+          "wins": 1,
+          "losses": 7,
+          "flats": 0,
+          "gross_pnl_usd": -1512.5,
+          "average_r": -0.6931818181818182,
+          "average_winner_usd": 137.5,
+          "average_loser_usd": -235.71428571428572,
+          "worst_trade_usd": -275.0
+        },
+        "identical_entry_keys": true
+      },
+      "Short": {
+        "before": {
+          "trades": 13,
+          "wins": 7,
+          "losses": 6,
+          "flats": 0,
+          "gross_pnl_usd": -1587.5,
+          "average_r": -0.08594760637326046,
+          "average_winner_usd": 326.7857142857143,
+          "average_loser_usd": -645.8333333333334,
+          "worst_trade_usd": -1437.5
+        },
+        "after": {
+          "trades": 13,
+          "wins": 7,
+          "losses": 6,
+          "flats": 0,
+          "gross_pnl_usd": -1587.5,
+          "average_r": -0.08594760637326046,
+          "average_winner_usd": 326.7857142857143,
+          "average_loser_usd": -645.8333333333334,
+          "worst_trade_usd": -1437.5
+        },
+        "identical_entry_keys": true
+      }
+    },
+    "2026-09": {
+      "Long": {
+        "before": {
+          "trades": 12,
+          "wins": 8,
+          "losses": 4,
+          "flats": 0,
+          "gross_pnl_usd": 787.5,
+          "average_r": 0.12123169681309215,
+          "average_winner_usd": 376.5625,
+          "average_loser_usd": -556.25,
+          "worst_trade_usd": -562.5
+        },
+        "after": {
+          "trades": 12,
+          "wins": 8,
+          "losses": 4,
+          "flats": 0,
+          "gross_pnl_usd": 1925.0,
+          "average_r": 0.5968614718614719,
+          "average_winner_usd": 376.5625,
+          "average_loser_usd": -271.875,
+          "worst_trade_usd": -275.0
+        },
+        "identical_entry_keys": true
+      },
+      "Short": {
+        "before": {
+          "trades": 17,
+          "wins": 12,
+          "losses": 5,
+          "flats": 0,
+          "gross_pnl_usd": -400.0,
+          "average_r": -0.014524395998789508,
+          "average_winner_usd": 346.875,
+          "average_loser_usd": -912.5,
+          "worst_trade_usd": -1437.5
+        },
+        "after": {
+          "trades": 17,
+          "wins": 12,
+          "losses": 5,
+          "flats": 0,
+          "gross_pnl_usd": -400.0,
+          "average_r": -0.014524395998789508,
+          "average_winner_usd": 346.875,
+          "average_loser_usd": -912.5,
+          "worst_trade_usd": -1437.5
+        },
+        "identical_entry_keys": true
+      }
+    },
+    "2026-10": {
+      "Long": {
+        "before": {
+          "trades": 16,
+          "wins": 11,
+          "losses": 5,
+          "flats": 0,
+          "gross_pnl_usd": -825.0,
+          "average_r": -0.08917668825161887,
+          "average_winner_usd": 184.0909090909091,
+          "average_loser_usd": -570.0,
+          "worst_trade_usd": -575.0
+        },
+        "after": {
+          "trades": 16,
+          "wins": 8,
+          "losses": 8,
+          "flats": 0,
+          "gross_pnl_usd": -625.0,
+          "average_r": -0.1390810276679842,
+          "average_winner_usd": 201.5625,
+          "average_loser_usd": -279.6875,
+          "worst_trade_usd": -287.5
+        },
+        "identical_entry_keys": true
+      },
+      "Short": {
+        "before": {
+          "trades": 22,
+          "wins": 16,
+          "losses": 6,
+          "flats": 0,
+          "gross_pnl_usd": -762.5,
+          "average_r": -0.024537322825961858,
+          "average_winner_usd": 389.0625,
+          "average_loser_usd": -1164.5833333333333,
+          "worst_trade_usd": -1487.5
+        },
+        "after": {
+          "trades": 22,
+          "wins": 16,
+          "losses": 6,
+          "flats": 0,
+          "gross_pnl_usd": -762.5,
+          "average_r": -0.024537322825961858,
+          "average_winner_usd": 389.0625,
+          "average_loser_usd": -1164.5833333333333,
+          "worst_trade_usd": -1487.5
+        },
+        "identical_entry_keys": true
+      }
+    }
+  },
+  "directions": {
+    "Long": {
+      "before": {
+        "trades": 36,
+        "wins": 23,
+        "losses": 13,
+        "flats": 0,
+        "gross_pnl_usd": -1012.5,
+        "average_r": -0.048774584280755005,
+        "average_winner_usd": 248.91304347826087,
+        "average_loser_usd": -518.2692307692307,
+        "worst_trade_usd": -575.0
+      },
+      "after": {
+        "trades": 36,
+        "wins": 17,
+        "losses": 19,
+        "flats": 0,
+        "gross_pnl_usd": -212.5,
+        "average_r": -0.016900370161239728,
+        "average_winner_usd": 280.1470588235294,
+        "average_loser_usd": -261.8421052631579,
+        "worst_trade_usd": -287.5
+      },
+      "identical_entry_keys": true
+    },
+    "Short": {
+      "before": {
+        "trades": 52,
+        "wins": 35,
+        "losses": 17,
+        "flats": 0,
+        "gross_pnl_usd": -2750.0,
+        "average_r": -0.0366164368654417,
+        "average_winner_usd": 362.14285714285717,
+        "average_loser_usd": -907.3529411764706,
+        "worst_trade_usd": -1487.5
+      },
+      "after": {
+        "trades": 52,
+        "wins": 35,
+        "losses": 17,
+        "flats": 0,
+        "gross_pnl_usd": -2750.0,
+        "average_r": -0.0366164368654417,
+        "average_winner_usd": 362.14285714285717,
+        "average_loser_usd": -907.3529411764706,
+        "worst_trade_usd": -1487.5
+      },
+      "identical_entry_keys": true
+    }
+  },
+  "short_trade_fields_unchanged": true,
+  "complete": true,
+  "unit_tests_passed": 39,
+  "independent_verification": {
+    "complete": true,
+    "verified_trades": 88,
+    "raw_ticks": 26173186,
+    "daily_signals": 13155,
+    "entry_reversals": 2,
+    "qualifying_reversal_entries_verified": true,
+    "next_tick_fills_verified": true,
+    "entry_direction": "original",
+    "reversal_profit_exit": false,
+    "entry_threshold_stop_verified": false,
+    "entry_threshold_minus_one_band_stop_verified": false,
+    "entry_threshold_minus_one_and_half_bands_stop_verified": false,
+    "entry_threshold_minus_two_bands_stop_verified": false,
+    "stop_sides": "both",
+    "stop_policy_by_actual_position_side_verified": true,
+    "protective_stop_bands_by_side": {
+      "Long": 2.0,
+      "Short": 7.5
+    },
+    "longs_stopped_shorts_unstopped_verified": false,
+    "long_threshold_minus_one_band_short_one_and_half_thresholds_verified": false,
+    "profit_watermark_buffer_bands_by_side": {
+      "Long": 1.0,
+      "Short": 0
+    },
+    "long_one_band_profit_buffer_short_unchanged_verified": true,
+    "entry_threshold_distance_verified": false,
+    "adverse_recovery": false,
+    "adverse_recovery_rule": "v1",
+    "strict_breach_band_steps_and_first_recovery_exit_verified": false,
+    "deep_rebounds_ignored_until_inside_threshold_and_first_armed_exit_verified": false,
+    "protective_stop_bands": 2.0,
+    "frozen_band_stops_and_first_touches_verified": true,
+    "no_stop_verified": false,
+    "first_reversal_after_favorable_overshoot_verified": false,
+    "daily_loss_limit": null,
+    "daily_loss_policy_verified": true,
+    "mfe_mae_recomputed": true,
+    "raw_hashes_verified": true,
+    "watermark_enabled": true,
+    "watermark_start_bands": 2,
+    "watermark_lag_bands": 0,
+    "watermark_buffer_bands": 0,
+    "strict_watermark_activation_ratchet_and_first_cross_verified": true
+  },
+  "source_trading_dates": 65,
+  "analysis_seconds": 31.14033369999379
+}

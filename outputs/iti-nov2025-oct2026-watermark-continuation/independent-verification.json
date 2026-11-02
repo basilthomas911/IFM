@@ -1,0 +1,12 @@
+{
+  "complete": true,
+  "independent_array_first_passage_verification": true,
+  "verified_paths": 166,
+  "raw_rows_loaded_for_dates_with_watermark_exits": 57499246,
+  "original_exit_prices_and_ordinals_verified": true,
+  "first_stop_and_cutoff_verified": true,
+  "target_first_touches_verified": true,
+  "path_drawdowns_verified": true,
+  "primary_initial_one_band_paths": 162,
+  "parameters_searched": false
+}

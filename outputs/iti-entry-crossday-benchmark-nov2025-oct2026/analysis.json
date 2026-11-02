@@ -1,0 +1,172 @@
+{
+  "protocol": {
+    "opportunity_directory": "outputs\\iti-entry-signal-discovery-nov2025-oct2026",
+    "baseline_directory": "outputs\\iti-nov2025-oct2026-one-reversal-one-band-one-loss-watermark",
+    "opportunity_sha256": "f7abbb66d2d06950ee88fe6bffb68d137b26bd79ef1cf8813f9fb19a9864d6a8",
+    "input_sha256": "277085e5142b36ff6abccbe7c3c5037331ec0fa6d9f30c2083e06a2ac9c8943b",
+    "period": "2025-11-01 inclusive through 2026-11-01 exclusive",
+    "motivation": "Robustness to same-day prior controls sharing the pre-reversal path; specified after inspecting that favorable result, before separate-day outcomes",
+    "primary": "Full-year paired +2-band hit-rate difference across all opportunities with five controls",
+    "controls": "Five sampled without replacement from the preceding 20 source trading dates, strictly different earlier dates, same ES contract, assigned event trade direction",
+    "clock_time": "NY decision clock within 15 minutes of ITI entry signal clock, both 09:45-15:45; control decision at first tick within five seconds of HH:MM:30; next tick fill",
+    "matching": "Trailing 14 completed-minute RMS price change within 25%; own latest published Daily BandSize within 10%; no structural entry trigger in prior 60 seconds",
+    "outcomes": "Same +2 own entry-time bands / inward-rounded -1 band / 15:45 cutoff; no outcome-based selection",
+    "seed": 20261102,
+    "matching_control_count": 5,
+    "calipers_widened": false,
+    "uncertainty": "5000 moving-block bootstrap samples of five consecutive case calendar weeks to accommodate overlapping outcomes and prior-20-date control reuse",
+    "limitations": [
+      "Observational matched benchmark, not causal proof or portfolio P&L",
+      "Unmatched initial/contract-roll/volatility cases excluded; coverage reported",
+      "Whole year already used for development; not untouched validation",
+      "This robustness check follows the same-day result; both results retained and reported"
+    ],
+    "model_fitted": false,
+    "strategy_backtest_run": false,
+    "parameters_searched": false
+  },
+  "checks": {
+    "raw_source_ticks": 118631783,
+    "source_hashes_verified": true,
+    "control_first_touch_prefix_checked": true
+  },
+  "coverage": {
+    "total_opportunities": 1626,
+    "matched": 1354,
+    "unmatched": 272,
+    "fraction_matched": 0.8327183271832719,
+    "executed_total": 346,
+    "executed_matched": 304
+  },
+  "primary": {
+    "events": 1354,
+    "calendar_weeks": 52,
+    "iti_target_hits": 408,
+    "iti_target_rate": 0.30132939438700146,
+    "matched_control_target_rate": 0.3097488921713442,
+    "paired_difference": -0.00841949778434269,
+    "moving_five_week_bootstrap_ci95": [
+      -0.03228393809021296,
+      0.020368354245371416
+    ],
+    "iti_cutoff_rate": 0.011816838995568686,
+    "control_cutoff_rate": 0.015952732644017725
+  },
+  "executed_subset": {
+    "events": 304,
+    "calendar_weeks": 52,
+    "iti_target_hits": 101,
+    "iti_target_rate": 0.33223684210526316,
+    "matched_control_target_rate": 0.29342105263157897,
+    "paired_difference": 0.038815789473684206,
+    "moving_five_week_bootstrap_ci95": [
+      -0.02342502644993748,
+      0.08379352099834744
+    ],
+    "iti_cutoff_rate": 0.01644736842105263,
+    "control_cutoff_rate": 0.007236842105263159
+  },
+  "windows": [
+    {
+      "window": "Nov-Jan",
+      "events": 361,
+      "calendar_weeks": 13,
+      "iti_target_hits": 102,
+      "iti_target_rate": 0.28254847645429365,
+      "matched_control_target_rate": 0.3063711911357341,
+      "paired_difference": -0.02382271468144044,
+      "moving_five_week_bootstrap_ci95": [
+        -0.05592105263157895,
+        0.056209150326797394
+      ],
+      "iti_cutoff_rate": 0.01662049861495845,
+      "control_cutoff_rate": 0.01662049861495845
+    },
+    {
+      "window": "Feb-Oct",
+      "events": 993,
+      "calendar_weeks": 39,
+      "iti_target_hits": 306,
+      "iti_target_rate": 0.3081570996978852,
+      "matched_control_target_rate": 0.3109768378650554,
+      "paired_difference": -0.002819738167170195,
+      "moving_five_week_bootstrap_ci95": [
+        -0.03684796400152823,
+        0.027595460287056978
+      ],
+      "iti_cutoff_rate": 0.010070493454179255,
+      "control_cutoff_rate": 0.01570996978851964
+    },
+    {
+      "window": "Feb-Apr",
+      "events": 401,
+      "calendar_weeks": 13,
+      "iti_target_hits": 127,
+      "iti_target_rate": 0.3167082294264339,
+      "matched_control_target_rate": 0.30423940149625933,
+      "paired_difference": 0.01246882793017456,
+      "moving_five_week_bootstrap_ci95": [
+        -0.030071599045346065,
+        0.0481375358166189
+      ],
+      "iti_cutoff_rate": 0.007481296758104738,
+      "control_cutoff_rate": 0.012468827930174564
+    },
+    {
+      "window": "May-Jul",
+      "events": 389,
+      "calendar_weeks": 14,
+      "iti_target_hits": 120,
+      "iti_target_rate": 0.30848329048843187,
+      "matched_control_target_rate": 0.32853470437017995,
+      "paired_difference": -0.020051413881748067,
+      "moving_five_week_bootstrap_ci95": [
+        -0.03852459016393443,
+        0.030967741935483874
+      ],
+      "iti_cutoff_rate": 0.005141388174807198,
+      "control_cutoff_rate": 0.016966580976863755
+    },
+    {
+      "window": "Aug-Oct",
+      "events": 203,
+      "calendar_weeks": 13,
+      "iti_target_hits": 59,
+      "iti_target_rate": 0.29064039408866993,
+      "matched_control_target_rate": 0.29064039408866993,
+      "paired_difference": 8.750526302464288e-18,
+      "moving_five_week_bootstrap_ci95": [
+        -0.0718232044198895,
+        0.09846153846153846
+      ],
+      "iti_cutoff_rate": 0.024630541871921183,
+      "control_cutoff_rate": 0.019704433497536946
+    }
+  ],
+  "control_reuse": {
+    "matched_rows": 6770,
+    "unique_controls": 6008
+  },
+  "balance": {
+    "trading_dates_before": {
+      "mean": 8.250221565731167,
+      "minimum": 1,
+      "maximum": 20
+    },
+    "clock_difference_minutes": {
+      "mean": 0.03841845438200873,
+      "minimum": -14.996505440833346,
+      "maximum": 14.996992442166686
+    },
+    "volatility_ratio": {
+      "mean": 0.9541099492749312,
+      "minimum": 0.75,
+      "maximum": 1.2499469653577477
+    },
+    "band_ratio": {
+      "mean": 0.9938068154573871,
+      "minimum": 0.9014300058309225,
+      "maximum": 1.0998610168845877
+    }
+  }
+}

@@ -1,0 +1,1634 @@
+[
+  {
+    "opportunity_id": "2025-11-03-118282",
+    "trade_date": "2025-11-03",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-03-127212",
+    "trade_date": "2025-11-03",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-03-153804",
+    "trade_date": "2025-11-03",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-03-178473",
+    "trade_date": "2025-11-03",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-03-254321",
+    "trade_date": "2025-11-03",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-03-268870",
+    "trade_date": "2025-11-03",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-03-281182",
+    "trade_date": "2025-11-03",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-04-185928",
+    "trade_date": "2025-11-04",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-04-188613",
+    "trade_date": "2025-11-04",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-04-198947",
+    "trade_date": "2025-11-04",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-04-206558",
+    "trade_date": "2025-11-04",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-04-227506",
+    "trade_date": "2025-11-04",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-04-249490",
+    "trade_date": "2025-11-04",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-04-409910",
+    "trade_date": "2025-11-04",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-05-307634",
+    "trade_date": "2025-11-05",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-05-335760",
+    "trade_date": "2025-11-05",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-05-341827",
+    "trade_date": "2025-11-05",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-06-115313",
+    "trade_date": "2025-11-06",
+    "baseline_status": "Executed",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-06-248788",
+    "trade_date": "2025-11-06",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-06-318304",
+    "trade_date": "2025-11-06",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-06-332650",
+    "trade_date": "2025-11-06",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-06-345066",
+    "trade_date": "2025-11-06",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-06-499869",
+    "trade_date": "2025-11-06",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-06-524247",
+    "trade_date": "2025-11-06",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-07-190568",
+    "trade_date": "2025-11-07",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-07-506469",
+    "trade_date": "2025-11-07",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-07-578491",
+    "trade_date": "2025-11-07",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-07-606856",
+    "trade_date": "2025-11-07",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-10-127211",
+    "trade_date": "2025-11-10",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-10-414214",
+    "trade_date": "2025-11-10",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-11-17-463190",
+    "trade_date": "2025-11-17",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-18-468588",
+    "trade_date": "2025-11-18",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-18-500765",
+    "trade_date": "2025-11-18",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-18-516555",
+    "trade_date": "2025-11-18",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-18-661652",
+    "trade_date": "2025-11-18",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-18-680484",
+    "trade_date": "2025-11-18",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-18-759989",
+    "trade_date": "2025-11-18",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-20-394058",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-20-428550",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-20-453819",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-20-467079",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-20-475863",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-20-517093",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Executed",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-20-524366",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-20-531193",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-20-537431",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-20-542155",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-20-601919",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-20-618419",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-20-627603",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-20-637318",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-20-695447",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-11-20-796227",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-11-20-848290",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-20-960052",
+    "trade_date": "2025-11-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-21-555733",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-11-21-562480",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-21-790972",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-21-795235",
+    "trade_date": "2025-11-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-11-28-45999",
+    "trade_date": "2025-11-28",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-12-10-356126",
+    "trade_date": "2025-12-10",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2025-12-12-248928",
+    "trade_date": "2025-12-12",
+    "baseline_status": "Executed",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2025-12-12-271675",
+    "trade_date": "2025-12-12",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2025-12-19-120490",
+    "trade_date": "2025-12-19",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-12-19-143972",
+    "trade_date": "2025-12-19",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-12-23-215459",
+    "trade_date": "2025-12-23",
+    "baseline_status": "Executed",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2025-12-31-189390",
+    "trade_date": "2025-12-31",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2025-12-31-199383",
+    "trade_date": "2025-12-31",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-02-211552",
+    "trade_date": "2026-01-02",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-01-02-216505",
+    "trade_date": "2026-01-02",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-02-383816",
+    "trade_date": "2026-01-02",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-02-390009",
+    "trade_date": "2026-01-02",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-02-394468",
+    "trade_date": "2026-01-02",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-06-132195",
+    "trade_date": "2026-01-06",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-01-12-239126",
+    "trade_date": "2026-01-12",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-01-14-468774",
+    "trade_date": "2026-01-14",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-14-471707",
+    "trade_date": "2026-01-14",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-568089",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-570645",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-577712",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-592682",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-597150",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-600560",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-604062",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-628447",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-01-21-637123",
+    "trade_date": "2026-01-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-01-29-172910",
+    "trade_date": "2026-01-29",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-03-371150",
+    "trade_date": "2026-02-03",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-02-05-497714",
+    "trade_date": "2026-02-05",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-02-20-188878",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-20-231752",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Executed",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-20-233940",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-02-20-517888",
+    "trade_date": "2026-02-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-05-601797",
+    "trade_date": "2026-03-05",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-05-607250",
+    "trade_date": "2026-03-05",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-09-715005",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-09-727642",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-09-737822",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-09-739686",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-09-744206",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-09-747618",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-09-772013",
+    "trade_date": "2026-03-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-10-526808",
+    "trade_date": "2026-03-10",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-10-536619",
+    "trade_date": "2026-03-10",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-10-544923",
+    "trade_date": "2026-03-10",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-10-551794",
+    "trade_date": "2026-03-10",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-20-179912",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-20-203108",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-20-250358",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-20-421190",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-20-427040",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-20-437934",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-20-463061",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-20-481714",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-20-494284",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-20-508731",
+    "trade_date": "2026-03-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-23-432034",
+    "trade_date": "2026-03-23",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-23-561964",
+    "trade_date": "2026-03-23",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-23-567747",
+    "trade_date": "2026-03-23",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-23-571483",
+    "trade_date": "2026-03-23",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-23-617019",
+    "trade_date": "2026-03-23",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-23-688238",
+    "trade_date": "2026-03-23",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-24-295606",
+    "trade_date": "2026-03-24",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-24-298649",
+    "trade_date": "2026-03-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-24-323384",
+    "trade_date": "2026-03-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-24-360981",
+    "trade_date": "2026-03-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-24-383394",
+    "trade_date": "2026-03-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-03-25-329571",
+    "trade_date": "2026-03-25",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-03-25-440060",
+    "trade_date": "2026-03-25",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-25-499572",
+    "trade_date": "2026-03-25",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-03-31-431837",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-31-435776",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-31-438011",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-31-470196",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-31-478770",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-31-651766",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-31-664295",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-03-31-672877",
+    "trade_date": "2026-03-31",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-01-392064",
+    "trade_date": "2026-04-01",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-02-305382",
+    "trade_date": "2026-04-02",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-07-181319",
+    "trade_date": "2026-04-07",
+    "baseline_status": "Executed",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-04-07-365974",
+    "trade_date": "2026-04-07",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-07-450882",
+    "trade_date": "2026-04-07",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-04-07-537953",
+    "trade_date": "2026-04-07",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-14-157389",
+    "trade_date": "2026-04-14",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-21-489786",
+    "trade_date": "2026-04-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-04-23-441461",
+    "trade_date": "2026-04-23",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-23-442163",
+    "trade_date": "2026-04-23",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-23-443093",
+    "trade_date": "2026-04-23",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-04-23-486292",
+    "trade_date": "2026-04-23",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-05-15-203208",
+    "trade_date": "2026-05-15",
+    "baseline_status": "Executed",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-05-18-237829",
+    "trade_date": "2026-05-18",
+    "baseline_status": "Executed",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-05-18-241282",
+    "trade_date": "2026-05-18",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-05-18-483706",
+    "trade_date": "2026-05-18",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-05-18-612425",
+    "trade_date": "2026-05-18",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-20-209244",
+    "trade_date": "2026-05-20",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-20-309839",
+    "trade_date": "2026-05-20",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-21-431440",
+    "trade_date": "2026-05-21",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-21-442758",
+    "trade_date": "2026-05-21",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-21-545854",
+    "trade_date": "2026-05-21",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-05-28-164093",
+    "trade_date": "2026-05-28",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-287317",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-09-291875",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-294867",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-298845",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-375391",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-06-09-382728",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-09-456538",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-472064",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-480078",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-503614",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-06-09-512117",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-06-09-566912",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-569317",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-624568",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-730996",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-736380",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-09-742018",
+    "trade_date": "2026-06-09",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-10-237693",
+    "trade_date": "2026-06-10",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-10-459387",
+    "trade_date": "2026-06-10",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-06-11-537251",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-11-538097",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-11-539239",
+    "trade_date": "2026-06-11",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-17-52095",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-17-54537",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-17-57482",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-17-59438",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-17-74793",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-17-74981",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-17-75742",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-17-93372",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-17-95110",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-17-97446",
+    "trade_date": "2026-06-17",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-18-170658",
+    "trade_date": "2026-06-18",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-18-384378",
+    "trade_date": "2026-06-18",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-22-228943",
+    "trade_date": "2026-06-22",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-22-249337",
+    "trade_date": "2026-06-22",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-23-227147",
+    "trade_date": "2026-06-23",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-23-229093",
+    "trade_date": "2026-06-23",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-24-423771",
+    "trade_date": "2026-06-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-24-430907",
+    "trade_date": "2026-06-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-24-442589",
+    "trade_date": "2026-06-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-24-450360",
+    "trade_date": "2026-06-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-24-456177",
+    "trade_date": "2026-06-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-25-359299",
+    "trade_date": "2026-06-25",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-25-526835",
+    "trade_date": "2026-06-25",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-06-29-454323",
+    "trade_date": "2026-06-29",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-06-30-177014",
+    "trade_date": "2026-06-30",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-07-08-410233",
+    "trade_date": "2026-07-08",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-07-10-155570",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-10-166569",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-10-176289",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-10-178024",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-10-186156",
+    "trade_date": "2026-07-10",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-24-247278",
+    "trade_date": "2026-07-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-07-29-510762",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-29-517662",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-29-518680",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-29-522877",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-29-563903",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-29-590272",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-29-602727",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-29-621430",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-29-637808",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-07-29-645379",
+    "trade_date": "2026-07-29",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-08-03-227880",
+    "trade_date": "2026-08-03",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-08-03-243532",
+    "trade_date": "2026-08-03",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-08-28-337743",
+    "trade_date": "2026-08-28",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-08-28-345168",
+    "trade_date": "2026-08-28",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-14-177223",
+    "trade_date": "2026-09-14",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-14-189644",
+    "trade_date": "2026-09-14",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-09-16-45234",
+    "trade_date": "2026-09-16",
+    "baseline_status": "Executed",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-09-16-47680",
+    "trade_date": "2026-09-16",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-16-49996",
+    "trade_date": "2026-09-16",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-16-50534",
+    "trade_date": "2026-09-16",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-16-51785",
+    "trade_date": "2026-09-16",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-16-59535",
+    "trade_date": "2026-09-16",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-09-16-61613",
+    "trade_date": "2026-09-16",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-16-62307",
+    "trade_date": "2026-09-16",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-16-63974",
+    "trade_date": "2026-09-16",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-18-220496",
+    "trade_date": "2026-09-18",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-18-277670",
+    "trade_date": "2026-09-18",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-21-107869",
+    "trade_date": "2026-09-21",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-21-131396",
+    "trade_date": "2026-09-21",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-21-165431",
+    "trade_date": "2026-09-21",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-21-182252",
+    "trade_date": "2026-09-21",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-21-199715",
+    "trade_date": "2026-09-21",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-21-211260",
+    "trade_date": "2026-09-21",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-21-229834",
+    "trade_date": "2026-09-21",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-21-244609",
+    "trade_date": "2026-09-21",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-21-269371",
+    "trade_date": "2026-09-21",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-09-23-280866",
+    "trade_date": "2026-09-23",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-24-273976",
+    "trade_date": "2026-09-24",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-24-276809",
+    "trade_date": "2026-09-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-24-281414",
+    "trade_date": "2026-09-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-24-284476",
+    "trade_date": "2026-09-24",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-25-148589",
+    "trade_date": "2026-09-25",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-25-162244",
+    "trade_date": "2026-09-25",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-25-284453",
+    "trade_date": "2026-09-25",
+    "baseline_status": "Executed",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-09-25-288654",
+    "trade_date": "2026-09-25",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-09-28-211397",
+    "trade_date": "2026-09-28",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-09-28-316391",
+    "trade_date": "2026-09-28",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 2
+  },
+  {
+    "opportunity_id": "2026-10-01-219277",
+    "trade_date": "2026-10-01",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-10-01-481374",
+    "trade_date": "2026-10-01",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-10-01-486186",
+    "trade_date": "2026-10-01",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-10-01-488865",
+    "trade_date": "2026-10-01",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-10-01-492890",
+    "trade_date": "2026-10-01",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 1
+  },
+  {
+    "opportunity_id": "2026-10-02-338329",
+    "trade_date": "2026-10-02",
+    "baseline_status": "Excursion already used",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-10-07-284640",
+    "trade_date": "2026-10-07",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 3
+  },
+  {
+    "opportunity_id": "2026-10-16-521327",
+    "trade_date": "2026-10-16",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 0
+  },
+  {
+    "opportunity_id": "2026-10-20-308523",
+    "trade_date": "2026-10-20",
+    "baseline_status": "Daily loss halt",
+    "eligible_controls": 4
+  },
+  {
+    "opportunity_id": "2026-10-28-314297",
+    "trade_date": "2026-10-28",
+    "baseline_status": "Executed",
+    "eligible_controls": 0
+  }
+]

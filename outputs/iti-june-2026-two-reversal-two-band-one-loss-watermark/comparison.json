@@ -1,0 +1,35 @@
+{
+  "previous": {
+    "trades": 22,
+    "wins": 3,
+    "losses": 19,
+    "flats": 0,
+    "points": -69.75,
+    "gross_pnl_usd": -3487.5,
+    "profit_factor": 0.4442231075697211,
+    "max_closed_trade_drawdown_usd": 4887.5,
+    "exit_reasons": {
+      "Session flatten": 2,
+      "Two-band stop": 19,
+      "First reversal after favorable overshoot": 1
+    }
+  },
+  "watermark": {
+    "trades": 31,
+    "wins": 13,
+    "losses": 17,
+    "flats": 1,
+    "points": -34.0,
+    "gross_pnl_usd": -1700.0,
+    "profit_factor": 0.7056277056277056,
+    "max_closed_trade_drawdown_usd": 2837.5,
+    "exit_reasons": {
+      "Trailing watermark": 13,
+      "Two-band stop": 17,
+      "Session flatten": 1
+    }
+  },
+  "gross_improvement_usd": 1787.5,
+  "verified": true,
+  "rule": "Arm only after gain >2 frozen entry bands; watermark starts at +2 bands of signed profit and advances at each further whole-band gain; never retreats; exit first raw trade strictly below the signed watermark; protective stop takes priority, then watermark, then pending original profit exit"
+}

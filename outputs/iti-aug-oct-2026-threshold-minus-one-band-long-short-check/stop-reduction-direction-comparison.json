@@ -1,0 +1,101 @@
+{
+  "threshold_minus_one_band": {
+    "Long": {
+      "trades": 37,
+      "wins": 23,
+      "losses": 14,
+      "flats": 0,
+      "points": -26.5,
+      "gross_pnl_usd": -1325.0,
+      "profit_factor": 0.8178694158075601,
+      "max_closed_trade_drawdown_usd": 2250.0,
+      "exit_reasons": {
+        "Trailing watermark": 21,
+        "4-band stop": 13,
+        "Session flatten": 3
+      },
+      "win_rate": 0.6216216216216216,
+      "average_trade_points": -0.7162162162162162,
+      "average_winner_points": 5.173913043478261,
+      "average_loser_points": 10.392857142857142,
+      "average_stop_points": 11.182432432432432,
+      "mean_return_in_entry_band_units": -0.25348749099040285,
+      "mean_return_in_planned_stop_units": -0.0646352731211712
+    },
+    "Short": {
+      "trades": 52,
+      "wins": 32,
+      "losses": 20,
+      "flats": 0,
+      "points": -55.25,
+      "gross_pnl_usd": -2762.5,
+      "profit_factor": 0.8069868995633188,
+      "max_closed_trade_drawdown_usd": 5387.5,
+      "exit_reasons": {
+        "Trailing watermark": 29,
+        "Session flatten": 5,
+        "4-band stop": 18
+      },
+      "win_rate": 0.6153846153846154,
+      "average_trade_points": -1.0625,
+      "average_winner_points": 7.21875,
+      "average_loser_points": 14.3125,
+      "average_stop_points": 15.20673076923077,
+      "mean_return_in_entry_band_units": -0.2813616027547904,
+      "mean_return_in_planned_stop_units": -0.07113427910205333
+    }
+  },
+  "threshold_minus_one_and_half_bands": {
+    "Long": {
+      "trades": 37,
+      "wins": 23,
+      "losses": 14,
+      "flats": 0,
+      "points": -8.25,
+      "gross_pnl_usd": -412.5,
+      "profit_factor": 0.9351669941060904,
+      "max_closed_trade_drawdown_usd": 1887.5,
+      "exit_reasons": {
+        "Trailing watermark": 21,
+        "3.5-band stop": 13,
+        "Session flatten": 3
+      },
+      "win_rate": 0.6216216216216216,
+      "average_trade_points": -0.22297297297297297,
+      "average_winner_points": 5.173913043478261,
+      "average_loser_points": 9.089285714285714,
+      "average_stop_points": 9.79054054054054,
+      "net_entry_band_units": -2.9537670936632434,
+      "mean_return_in_entry_band_units": -0.07983154307197955,
+      "mean_return_in_planned_stop_units": -0.02452161601712307
+    },
+    "Short": {
+      "trades": 52,
+      "wins": 30,
+      "losses": 22,
+      "flats": 0,
+      "points": -73.0,
+      "gross_pnl_usd": -3650.0,
+      "profit_factor": 0.7440841367221736,
+      "max_closed_trade_drawdown_usd": 4800.0,
+      "exit_reasons": {
+        "Trailing watermark": 27,
+        "Session flatten": 4,
+        "3.5-band stop": 21
+      },
+      "win_rate": 0.5769230769230769,
+      "average_trade_points": -1.4038461538461537,
+      "average_winner_points": 7.075,
+      "average_loser_points": 12.965909090909092,
+      "average_stop_points": 13.307692307692308,
+      "net_entry_band_units": -19.38089911982298,
+      "mean_return_in_entry_band_units": -0.3727095984581343,
+      "mean_return_in_planned_stop_units": -0.10644272775728716
+    }
+  },
+  "change_points": {
+    "Long": -18.25,
+    "Short": 17.75
+  },
+  "costs_included": false
+}

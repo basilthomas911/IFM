@@ -1,5 +1,6 @@
 //! Risk/workflow inspection with paged results, decision evidence, and the shared details tree. Queries and refreshes are correlated through publication outcomes; the UI does not re-evaluate risk.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog, DetailsView, Snapshot,
@@ -262,7 +263,7 @@ impl StrategyInspection {
                 if result_matches {
                     egui::ScrollArea::vertical()
                         .id_salt("inspection-rows")
-                        .show_rows(ui, 24.0, s.result.rows.len(), |ui, range| {
+                        .bordered_show_rows(ui, 24.0, s.result.rows.len(), |ui, range| {
                             self.drawn_rows = range.len();
                             for i in range {
                                 let row = &s.result.rows[i];
@@ -305,7 +306,7 @@ impl StrategyInspection {
                         } else {
                             s.result.decision.as_str()
                         };
-                        egui::ScrollArea::both().show(ui, |ui| {
+                        egui::ScrollArea::both().bordered_show(ui, |ui| {
                             ui.add(
                                 egui::TextEdit::multiline(&mut content)
                                     .desired_width(f32::INFINITY),

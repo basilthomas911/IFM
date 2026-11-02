@@ -1,5 +1,6 @@
 //! Provider instrument browser and draft mapping workflow. Filters, selected instruments, mapping edits, preview evidence, and confirmation are local state; the managed bridge owns discovery and mapping persistence.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings};
@@ -241,7 +242,7 @@ impl ProviderBrowser {
                     ui.heading(c.text(strings::PROVIDER_DETAILS));
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, false])
-                        .show(ui, |ui| {
+                        .bordered_show(ui, |ui| {
                             if matches {
                                 if let Some(row) = s
                                     .result
@@ -377,7 +378,7 @@ impl ProviderBrowser {
                     if let Some(value) = s.result.document::<serde_json::Value>("previewContract") {
                         egui::ScrollArea::vertical()
                             .max_height(300.)
-                            .show(ui, |ui| {
+                            .bordered_show(ui, |ui| {
                                 crate::presentation::form_grid(ui, "provider-mapping-preview")
                                     .max_col_width(460.)
                                     .striped(true)

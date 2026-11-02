@@ -1,5 +1,6 @@
 //! Scheduled-task setup, daily-time editing, preview/confirmation, and run history. Draft schedule fields are sent to the managed scheduler; Rust does not create its own timer or execute jobs.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings};
 use eframe::egui;
@@ -417,7 +418,7 @@ impl ScheduledTasks {
                 egui::ScrollArea::vertical()
                     .id_salt("schedule-definitions")
                     .max_height(150.)
-                    .show_rows(
+                    .bordered_show_rows(
                         ui,
                         24.,
                         if matching { s.result.rows.len() } else { 0 },
@@ -453,7 +454,7 @@ impl ScheduledTasks {
                     );
                 egui::ScrollArea::vertical()
                     .id_salt("schedule-fields")
-                    .show(ui, |ui| {
+                    .bordered_show(ui, |ui| {
                         crate::presentation::form_grid(ui, "schedule-edit")
                             .num_columns(2)
                             .show(ui, |ui| {
@@ -598,7 +599,7 @@ impl ScheduledTasks {
                     (content_size.x - 5.0) * crate::presentation::SCHEDULE_LOG_TREE_RATIO;
                 ui.horizontal_top(|ui| {
      ui.allocate_ui_with_layout(egui::vec2(tree_width, content_size.y), egui::Layout::top_down(egui::Align::Min), |ui| {
-     egui::ScrollArea::both().auto_shrink([false, false]).id_salt("schedule-tree").show(ui,|ui| {
+     egui::ScrollArea::both().auto_shrink([false, false]).id_salt("schedule-tree").bordered_show(ui,|ui| {
       for row in s.result.rows.iter().filter(|_|matching){let name=row.fields.get("name").unwrap_or(&row.id);
                         let root_color={let latest=histories.get(&row.id).and_then(|r|r.last());let status=if row.fields.get("enabled").is_some_and(|v|v.eq_ignore_ascii_case("false")){"Unscheduled"}else{latest.map(|r|r.status.as_str()).unwrap_or("Scheduled")};status_color(status)};
                         egui::CollapsingHeader::new({
@@ -617,7 +618,7 @@ impl ScheduledTasks {
      });
      ui.separator();
      ui.allocate_ui_with_layout(egui::vec2((content_size.x - tree_width - 5.0).max(0.0), content_size.y), egui::Layout::top_down(egui::Align::Min), |ui| {
-     if !manager{ui.heading(c.text(strings::SCHEDULE_OUTPUT));}if s.result.context.get("outputRun")==self.selected_run.as_ref(){let lines=&documents.output;let output=s.result.context.get("output").map(String::as_str).unwrap_or_default();egui::ScrollArea::both().id_salt("task-output").show_rows(ui,20.,lines.len(),|ui,range|{for i in range{ui.monospace(lines.line(output,i));}});}else{ui.trading_caption(c.text(strings::SCHEDULE_NO_OUTPUT));}
+     if !manager{ui.heading(c.text(strings::SCHEDULE_OUTPUT));}if s.result.context.get("outputRun")==self.selected_run.as_ref(){let lines=&documents.output;let output=s.result.context.get("output").map(String::as_str).unwrap_or_default();egui::ScrollArea::both().id_salt("task-output").bordered_show_rows(ui,20.,lines.len(),|ui,range|{for i in range{ui.monospace(lines.line(output,i));}});}else{ui.trading_caption(c.text(strings::SCHEDULE_NO_OUTPUT));}
      if manager&&ui.add_enabled(idle&&self.selected_run.is_some()&&s.result.context.get("outputEnd").is_some_and(|v|v.eq_ignore_ascii_case("false")),egui::Button::new("Load more output")).clicked(){action=Some("more-output");}
      });
     });

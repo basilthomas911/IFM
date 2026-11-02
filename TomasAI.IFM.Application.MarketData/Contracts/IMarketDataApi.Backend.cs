@@ -177,8 +177,9 @@ public sealed record MarketDataReadSnapshot([property: Key(0)] MarketDataBackend
 
 /// <summary>Native-only copied ownership evidence. Empty scopes prove idle only
 /// when replacement is complete; readiness alone never proves cached pricing.
-/// Version 1 additionally attests the native transport/reference/pricing/broker/
-/// persistence readiness proofs for this exact replacement. This permits valid
+/// Version 1 attests installed native subscriptions and reference/pricing/broker/
+/// persistence components for this exact replacement, independently of quote
+/// arrival or completed valuations. This permits valid
 /// background workloads with no executable candidates; loaded-trade checks remain
 /// independent and mandatory.</summary>
 [MessagePackObject]

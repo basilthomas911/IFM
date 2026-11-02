@@ -6,6 +6,7 @@
 //! render virtualization, not server paging. Production trade plans use the separate
 //! offset/page-size loading path in the trade workspace.
 
+use crate::control_parity::BorderedScrollArea as _;
 use crate::presentation::TradingLabelUi as _;
 use eframe::egui;
 use serde::Deserialize;
@@ -205,7 +206,7 @@ impl GridView {
                 scroll = scroll.vertical_scroll_offset(y);
                 ctx.request_repaint();
             }
-            scroll.show_rows(
+            scroll.bordered_show_rows(
                 ui,
                 height - ui.spacing().item_spacing.y,
                 self.order.len(),

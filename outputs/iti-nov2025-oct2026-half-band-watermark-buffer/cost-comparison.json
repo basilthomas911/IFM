@@ -1,0 +1,1605 @@
+{
+  "baseline_directory": "outputs\\iti-nov2025-oct2026-one-reversal-one-band-one-loss-watermark",
+  "candidate_directory": "outputs\\iti-nov2025-oct2026-half-band-watermark-buffer",
+  "primary_cost_per_round_trip_usd": 10,
+  "cost_model": "Illustrative fixed all-in commission/fees/spread/slippage deduction per completed one-contract trade; no bid/ask reconstruction; source trade-price stop gaps already retained",
+  "daily_loss_halt": "Unchanged: first gross losing trade; cost deductions are reporting only",
+  "only_strategy_change": {
+    "watermark_buffer_bands": {
+      "baseline": 0,
+      "candidate": 0.5
+    }
+  },
+  "identical_entry_sets": true,
+  "changed_exits": [
+    {
+      "trade_date": "2025-11-06",
+      "entry_time_ny": "2025-11-06T09:45:29.506802-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2025-11-11",
+      "entry_time_ny": "2025-11-11T10:07:50.599636-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 1.5,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2025-11-12",
+      "entry_time_ny": "2025-11-12T10:37:37.335324-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 5.0,
+      "improvement_usd": 87.5
+    },
+    {
+      "trade_date": "2025-11-13",
+      "entry_time_ny": "2025-11-13T09:45:17.157614-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2025-11-20",
+      "entry_time_ny": "2025-11-20T09:45:32.048265-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2025-11-20",
+      "entry_time_ny": "2025-11-20T11:05:44.072030-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2025-11-21",
+      "entry_time_ny": "2025-11-21T09:47:10.285448-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2025-11-21",
+      "entry_time_ny": "2025-11-21T09:54:53.759893-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2025-11-25",
+      "entry_time_ny": "2025-11-25T09:50:34.546992-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2025-11-28",
+      "entry_time_ny": "2025-11-28T10:21:47.121613-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2025-12-01",
+      "entry_time_ny": "2025-12-01T14:33:48.251565-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 5.0,
+      "improvement_usd": 87.5
+    },
+    {
+      "trade_date": "2025-12-03",
+      "entry_time_ny": "2025-12-03T15:21:01.926143-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2025-12-04",
+      "entry_time_ny": "2025-12-04T10:13:49.061398-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 5.0,
+      "improvement_usd": 87.5
+    },
+    {
+      "trade_date": "2025-12-08",
+      "entry_time_ny": "2025-12-08T10:27:18.121889-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 1.5,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2025-12-10",
+      "entry_time_ny": "2025-12-10T14:35:49.902933-05:00",
+      "side": "Short",
+      "baseline_points": 2.25,
+      "candidate_points": 3.5,
+      "improvement_usd": 62.5
+    },
+    {
+      "trade_date": "2025-12-12",
+      "entry_time_ny": "2025-12-12T10:10:00.979423-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 1.5,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2025-12-16",
+      "entry_time_ny": "2025-12-16T09:46:09.682080-05:00",
+      "side": "Long",
+      "baseline_points": 6.5,
+      "candidate_points": 11.5,
+      "improvement_usd": 250.0
+    },
+    {
+      "trade_date": "2025-12-19",
+      "entry_time_ny": "2025-12-19T09:45:26.122731-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2025-12-29",
+      "entry_time_ny": "2025-12-29T12:32:04.401955-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 8.25,
+      "improvement_usd": 250.0
+    },
+    {
+      "trade_date": "2025-12-31",
+      "entry_time_ny": "2025-12-31T11:19:17.369205-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 1.5,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-01-05",
+      "entry_time_ny": "2026-01-05T09:47:17.636357-05:00",
+      "side": "Short",
+      "baseline_points": 2.25,
+      "candidate_points": 1.0,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-01-05",
+      "entry_time_ny": "2026-01-05T11:52:26.350984-05:00",
+      "side": "Short",
+      "baseline_points": 2.25,
+      "candidate_points": 1.0,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-01-06",
+      "entry_time_ny": "2026-01-06T09:52:16.607210-05:00",
+      "side": "Short",
+      "baseline_points": 2.25,
+      "candidate_points": 1.0,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-01-09",
+      "entry_time_ny": "2026-01-09T10:09:03.313172-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 1.5,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-01-13",
+      "entry_time_ny": "2026-01-13T09:52:46.176867-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 1.5,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-01-13",
+      "entry_time_ny": "2026-01-13T14:14:01.132855-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 1.5,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-01-15",
+      "entry_time_ny": "2026-01-15T15:21:59.088454-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 1.5,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-01-16",
+      "entry_time_ny": "2026-01-16T10:03:24.488372-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 5.0,
+      "improvement_usd": 87.5
+    },
+    {
+      "trade_date": "2026-01-16",
+      "entry_time_ny": "2026-01-16T11:46:39.414385-05:00",
+      "side": "Short",
+      "baseline_points": 2.25,
+      "candidate_points": 1.0,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-01-21",
+      "entry_time_ny": "2026-01-21T10:02:17.244584-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-01-23",
+      "entry_time_ny": "2026-01-23T11:05:50.862664-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-01-23",
+      "entry_time_ny": "2026-01-23T13:00:14.908032-05:00",
+      "side": "Long",
+      "baseline_points": 6.75,
+      "candidate_points": 5.0,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-01-29",
+      "entry_time_ny": "2026-01-29T09:47:15.042342-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 9.0,
+      "improvement_usd": 275.0
+    },
+    {
+      "trade_date": "2026-02-04",
+      "entry_time_ny": "2026-02-04T10:02:55.799998-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-02-06",
+      "entry_time_ny": "2026-02-06T09:46:32.436701-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-02-06",
+      "entry_time_ny": "2026-02-06T11:22:17.447701-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 3.75,
+      "improvement_usd": 62.5
+    },
+    {
+      "trade_date": "2026-02-10",
+      "entry_time_ny": "2026-02-10T13:35:12.105017-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-02-16",
+      "entry_time_ny": "2026-02-16T09:50:03.643798-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 5.5,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-02-18",
+      "entry_time_ny": "2026-02-18T10:06:38.145343-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-02-18",
+      "entry_time_ny": "2026-02-18T14:39:57.521519-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-02-19",
+      "entry_time_ny": "2026-02-19T13:20:39.828807-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 5.5,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-02-20",
+      "entry_time_ny": "2026-02-20T09:48:42.396192-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-02-20",
+      "entry_time_ny": "2026-02-20T10:01:15.779526-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-02-20",
+      "entry_time_ny": "2026-02-20T10:05:33.552864-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-02-20",
+      "entry_time_ny": "2026-02-20T10:17:09.711769-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 12.75,
+      "improvement_usd": 462.5
+    },
+    {
+      "trade_date": "2026-02-24",
+      "entry_time_ny": "2026-02-24T09:45:26.205344-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-02-24",
+      "entry_time_ny": "2026-02-24T10:01:43.618625-05:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 5.5,
+      "improvement_usd": 112.5
+    },
+    {
+      "trade_date": "2026-02-24",
+      "entry_time_ny": "2026-02-24T10:31:44.203224-05:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 4.0,
+      "improvement_usd": 75.0
+    },
+    {
+      "trade_date": "2026-02-27",
+      "entry_time_ny": "2026-02-27T09:46:18.147486-05:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-03-03",
+      "entry_time_ny": "2026-03-03T09:45:41.496928-05:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.75,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-03-06",
+      "entry_time_ny": "2026-03-06T09:47:34.853949-05:00",
+      "side": "Long",
+      "baseline_points": 4.0,
+      "candidate_points": 2.0,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-03-09",
+      "entry_time_ny": "2026-03-09T09:46:02.356435-04:00",
+      "side": "Long",
+      "baseline_points": 4.0,
+      "candidate_points": 6.0,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-03-10",
+      "entry_time_ny": "2026-03-10T10:01:44.814767-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-03-11",
+      "entry_time_ny": "2026-03-11T10:01:43.088397-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 4.25,
+      "improvement_usd": 75.0
+    },
+    {
+      "trade_date": "2026-03-11",
+      "entry_time_ny": "2026-03-11T10:29:01.916999-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.75,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-03-11",
+      "entry_time_ny": "2026-03-11T11:18:34.070286-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-03-12",
+      "entry_time_ny": "2026-03-12T09:47:58.047361-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 13.75,
+      "improvement_usd": 500.0
+    },
+    {
+      "trade_date": "2026-03-13",
+      "entry_time_ny": "2026-03-13T09:46:36.096509-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-03-16",
+      "entry_time_ny": "2026-03-16T09:48:40.187084-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 4.25,
+      "improvement_usd": 75.0
+    },
+    {
+      "trade_date": "2026-03-18",
+      "entry_time_ny": "2026-03-18T10:30:05.820758-04:00",
+      "side": "Long",
+      "baseline_points": 7.5,
+      "candidate_points": 5.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-03-19",
+      "entry_time_ny": "2026-03-19T09:55:15.514819-04:00",
+      "side": "Short",
+      "baseline_points": 2.25,
+      "candidate_points": 1.25,
+      "improvement_usd": -50.0
+    },
+    {
+      "trade_date": "2026-03-19",
+      "entry_time_ny": "2026-03-19T11:45:54.763876-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-03-19",
+      "entry_time_ny": "2026-03-19T13:15:14.338948-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.5,
+      "improvement_usd": 87.5
+    },
+    {
+      "trade_date": "2026-03-19",
+      "entry_time_ny": "2026-03-19T15:03:01.094658-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-03-19",
+      "entry_time_ny": "2026-03-19T15:36:03.265103-04:00",
+      "side": "Long",
+      "baseline_points": 3.25,
+      "candidate_points": 5.5,
+      "improvement_usd": 112.5
+    },
+    {
+      "trade_date": "2026-03-20",
+      "entry_time_ny": "2026-03-20T10:02:47.113011-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-03-23",
+      "entry_time_ny": "2026-03-23T10:24:48.523732-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-03-24",
+      "entry_time_ny": "2026-03-24T10:10:29.663117-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 15.5,
+      "improvement_usd": 637.5
+    },
+    {
+      "trade_date": "2026-03-26",
+      "entry_time_ny": "2026-03-26T09:52:32.644451-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-03-26",
+      "entry_time_ny": "2026-03-26T10:55:58.378417-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.75,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-03-27",
+      "entry_time_ny": "2026-03-27T09:45:22.873449-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.75,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-03-31",
+      "entry_time_ny": "2026-03-31T09:55:54.210023-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 4.25,
+      "improvement_usd": 75.0
+    },
+    {
+      "trade_date": "2026-03-31",
+      "entry_time_ny": "2026-03-31T10:58:48.760223-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 9.75,
+      "improvement_usd": 300.0
+    },
+    {
+      "trade_date": "2026-04-07",
+      "entry_time_ny": "2026-04-07T09:49:23.127620-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-04-09",
+      "entry_time_ny": "2026-04-09T11:32:57.924264-04:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-04-10",
+      "entry_time_ny": "2026-04-10T12:10:26.344721-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-04-13",
+      "entry_time_ny": "2026-04-13T09:48:47.596338-04:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-04-15",
+      "entry_time_ny": "2026-04-15T12:25:35.291068-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-04-16",
+      "entry_time_ny": "2026-04-16T11:37:52.495780-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 4.0,
+      "improvement_usd": 62.5
+    },
+    {
+      "trade_date": "2026-04-17",
+      "entry_time_ny": "2026-04-17T10:11:23.799806-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-04-24",
+      "entry_time_ny": "2026-04-24T09:57:02.816070-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-05-01",
+      "entry_time_ny": "2026-05-01T09:55:33.901630-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-05-05",
+      "entry_time_ny": "2026-05-05T09:54:17.188132-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-05-08",
+      "entry_time_ny": "2026-05-08T12:30:52.736521-04:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 4.0,
+      "improvement_usd": 75.0
+    },
+    {
+      "trade_date": "2026-05-11",
+      "entry_time_ny": "2026-05-11T10:27:28.991205-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-05-12",
+      "entry_time_ny": "2026-05-12T10:36:33.273061-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.75,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-05-13",
+      "entry_time_ny": "2026-05-13T09:49:06.414522-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-05-18",
+      "entry_time_ny": "2026-05-18T09:45:43.015215-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-05-19",
+      "entry_time_ny": "2026-05-19T09:47:16.823751-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 9.75,
+      "improvement_usd": 300.0
+    },
+    {
+      "trade_date": "2026-05-20",
+      "entry_time_ny": "2026-05-20T10:17:11.347456-04:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 4.25,
+      "improvement_usd": 87.5
+    },
+    {
+      "trade_date": "2026-05-20",
+      "entry_time_ny": "2026-05-20T11:15:51.073483-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-05-21",
+      "entry_time_ny": "2026-05-21T13:17:35.561662-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 4.25,
+      "improvement_usd": 75.0
+    },
+    {
+      "trade_date": "2026-05-21",
+      "entry_time_ny": "2026-05-21T13:55:42.518917-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 7.0,
+      "improvement_usd": 212.5
+    },
+    {
+      "trade_date": "2026-05-22",
+      "entry_time_ny": "2026-05-22T10:25:15.159356-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.75,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-05-22",
+      "entry_time_ny": "2026-05-22T11:31:54.046011-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-05-22",
+      "entry_time_ny": "2026-05-22T15:31:23.463088-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-05-29",
+      "entry_time_ny": "2026-05-29T10:04:25.415487-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-06-05",
+      "entry_time_ny": "2026-06-05T09:50:11.956141-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-06-08",
+      "entry_time_ny": "2026-06-08T11:34:42.638065-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 13.25,
+      "improvement_usd": 475.0
+    },
+    {
+      "trade_date": "2026-06-08",
+      "entry_time_ny": "2026-06-08T13:05:34.462491-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-06-09",
+      "entry_time_ny": "2026-06-09T09:50:08.624459-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 4.0,
+      "improvement_usd": 62.5
+    },
+    {
+      "trade_date": "2026-06-10",
+      "entry_time_ny": "2026-06-10T09:49:14.345642-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-06-10",
+      "entry_time_ny": "2026-06-10T10:53:01.919149-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-06-11",
+      "entry_time_ny": "2026-06-11T09:45:17.243718-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-06-11",
+      "entry_time_ny": "2026-06-11T09:46:39.029210-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-06-11",
+      "entry_time_ny": "2026-06-11T10:11:33.696556-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-06-12",
+      "entry_time_ny": "2026-06-12T09:46:01.843375-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-06-12",
+      "entry_time_ny": "2026-06-12T10:04:44.061923-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-06-16",
+      "entry_time_ny": "2026-06-16T11:50:49.199282-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 5.25,
+      "improvement_usd": 87.5
+    },
+    {
+      "trade_date": "2026-06-16",
+      "entry_time_ny": "2026-06-16T15:17:37.154302-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 5.25,
+      "improvement_usd": 87.5
+    },
+    {
+      "trade_date": "2026-06-17",
+      "entry_time_ny": "2026-06-17T10:00:27.105299-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.5,
+      "improvement_usd": -112.5
+    },
+    {
+      "trade_date": "2026-06-17",
+      "entry_time_ny": "2026-06-17T10:47:41.213291-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-06-17",
+      "entry_time_ny": "2026-06-17T14:03:24.871217-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-06-17",
+      "entry_time_ny": "2026-06-17T14:10:21.648535-04:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-06-26",
+      "entry_time_ny": "2026-06-26T10:00:21.723239-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-06-26",
+      "entry_time_ny": "2026-06-26T11:31:16.723872-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-06-30",
+      "entry_time_ny": "2026-06-30T09:59:25.008471-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 7.0,
+      "improvement_usd": 212.5
+    },
+    {
+      "trade_date": "2026-07-08",
+      "entry_time_ny": "2026-07-08T10:50:53.107818-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 9.5,
+      "improvement_usd": 287.5
+    },
+    {
+      "trade_date": "2026-07-10",
+      "entry_time_ny": "2026-07-10T10:04:21.922772-04:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-07-10",
+      "entry_time_ny": "2026-07-10T10:33:08.403368-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-07-10",
+      "entry_time_ny": "2026-07-10T10:34:24.207510-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-07-13",
+      "entry_time_ny": "2026-07-13T12:37:07.689303-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 5.5,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-07-14",
+      "entry_time_ny": "2026-07-14T10:34:13.959857-04:00",
+      "side": "Short",
+      "baseline_points": 2.0,
+      "candidate_points": 1.25,
+      "improvement_usd": -37.5
+    },
+    {
+      "trade_date": "2026-07-15",
+      "entry_time_ny": "2026-07-15T11:17:13.441354-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-07-27",
+      "entry_time_ny": "2026-07-27T10:00:38.125767-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-07-27",
+      "entry_time_ny": "2026-07-27T11:06:46.188941-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-07-27",
+      "entry_time_ny": "2026-07-27T11:38:53.532740-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-07-30",
+      "entry_time_ny": "2026-07-30T09:51:39.901916-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 4.0,
+      "improvement_usd": 62.5
+    },
+    {
+      "trade_date": "2026-08-07",
+      "entry_time_ny": "2026-08-07T10:30:31.697194-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-08-12",
+      "entry_time_ny": "2026-08-12T10:31:14.074230-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 5.5,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-08-14",
+      "entry_time_ny": "2026-08-14T14:02:17.430011-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-08-19",
+      "entry_time_ny": "2026-08-19T09:52:21.991319-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.75,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-08-19",
+      "entry_time_ny": "2026-08-19T11:06:58.060290-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-08-21",
+      "entry_time_ny": "2026-08-21T11:55:28.498275-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 9.75,
+      "improvement_usd": 350.0
+    },
+    {
+      "trade_date": "2026-08-24",
+      "entry_time_ny": "2026-08-24T09:46:19.610423-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.5,
+      "improvement_usd": 87.5
+    },
+    {
+      "trade_date": "2026-08-25",
+      "entry_time_ny": "2026-08-25T10:30:29.561490-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-08-26",
+      "entry_time_ny": "2026-08-26T15:06:14.667968-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-09-02",
+      "entry_time_ny": "2026-09-02T10:29:43.109764-04:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-09-03",
+      "entry_time_ny": "2026-09-03T09:53:11.331662-04:00",
+      "side": "Short",
+      "baseline_points": 2.5,
+      "candidate_points": 1.25,
+      "improvement_usd": -62.5
+    },
+    {
+      "trade_date": "2026-09-04",
+      "entry_time_ny": "2026-09-04T10:13:54.412053-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-09-08",
+      "entry_time_ny": "2026-09-08T10:12:27.858608-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 1.75,
+      "improvement_usd": -87.5
+    },
+    {
+      "trade_date": "2026-09-09",
+      "entry_time_ny": "2026-09-09T11:29:52.006490-04:00",
+      "side": "Long",
+      "baseline_points": 3.5,
+      "candidate_points": 5.5,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-09-16",
+      "entry_time_ny": "2026-09-16T14:38:06.742460-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.75,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-09-16",
+      "entry_time_ny": "2026-09-16T14:43:50.606324-04:00",
+      "side": "Short",
+      "baseline_points": 5.5,
+      "candidate_points": 7.0,
+      "improvement_usd": 75.0
+    },
+    {
+      "trade_date": "2026-09-17",
+      "entry_time_ny": "2026-09-17T10:10:25.631990-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 13.25,
+      "improvement_usd": 475.0
+    },
+    {
+      "trade_date": "2026-09-18",
+      "entry_time_ny": "2026-09-18T12:27:23.903913-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.75,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-09-18",
+      "entry_time_ny": "2026-09-18T14:54:38.735609-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-09-21",
+      "entry_time_ny": "2026-09-21T10:02:02.702160-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-09-24",
+      "entry_time_ny": "2026-09-24T10:10:19.950650-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-09-25",
+      "entry_time_ny": "2026-09-25T10:07:36.411052-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-09-28",
+      "entry_time_ny": "2026-09-28T10:50:02.844143-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-09-29",
+      "entry_time_ny": "2026-09-29T10:00:15.805871-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-09-30",
+      "entry_time_ny": "2026-09-30T14:58:19.614272-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-10-01",
+      "entry_time_ny": "2026-10-01T09:50:32.064682-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 5.75,
+      "improvement_usd": 100.0
+    },
+    {
+      "trade_date": "2026-10-02",
+      "entry_time_ny": "2026-10-02T10:27:58.522182-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-10-02",
+      "entry_time_ny": "2026-10-02T11:13:52.299116-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-10-09",
+      "entry_time_ny": "2026-10-09T12:55:09.909098-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 4.25,
+      "improvement_usd": 75.0
+    },
+    {
+      "trade_date": "2026-10-15",
+      "entry_time_ny": "2026-10-15T09:57:39.064319-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 17.5,
+      "improvement_usd": 687.5
+    },
+    {
+      "trade_date": "2026-10-16",
+      "entry_time_ny": "2026-10-16T10:11:25.813775-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-10-19",
+      "entry_time_ny": "2026-10-19T10:05:14.506748-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-10-19",
+      "entry_time_ny": "2026-10-19T13:53:22.779047-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-10-21",
+      "entry_time_ny": "2026-10-21T11:54:52.985183-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-10-26",
+      "entry_time_ny": "2026-10-26T11:03:17.596376-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    },
+    {
+      "trade_date": "2026-10-26",
+      "entry_time_ny": "2026-10-26T12:51:25.431525-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 9.75,
+      "improvement_usd": 300.0
+    },
+    {
+      "trade_date": "2026-10-27",
+      "entry_time_ny": "2026-10-27T10:22:26.457219-04:00",
+      "side": "Long",
+      "baseline_points": 3.75,
+      "candidate_points": 1.75,
+      "improvement_usd": -100.0
+    },
+    {
+      "trade_date": "2026-10-27",
+      "entry_time_ny": "2026-10-27T11:05:41.811517-04:00",
+      "side": "Short",
+      "baseline_points": 2.75,
+      "candidate_points": 1.25,
+      "improvement_usd": -75.0
+    }
+  ],
+  "baseline_trades_reaching_two_bands_before_exit": 4,
+  "scenarios": [
+    {
+      "cost_per_round_trip_usd": 0,
+      "baseline": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -1350.0,
+        "cost_per_round_trip_usd": 0,
+        "total_cost_usd": 0,
+        "net_pnl_usd": -1350.0,
+        "average_net_trade_usd": -3.901734104046243,
+        "average_win_points": 3.238023952095808,
+        "average_loss_points": 3.171787709497207,
+        "profit_factor": 0.952443857331572,
+        "max_closed_trade_drawdown_usd": 3012.5
+      },
+      "candidate": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -837.5,
+        "cost_per_round_trip_usd": 0,
+        "total_cost_usd": 0,
+        "net_pnl_usd": -837.5,
+        "average_net_trade_usd": -2.4205202312138727,
+        "average_win_points": 3.2994011976047903,
+        "average_loss_points": 3.171787709497207,
+        "profit_factor": 0.9704975781594012,
+        "max_closed_trade_drawdown_usd": 3912.5
+      },
+      "net_improvement_usd": 512.5
+    },
+    {
+      "cost_per_round_trip_usd": 5,
+      "baseline": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -1350.0,
+        "cost_per_round_trip_usd": 5,
+        "total_cost_usd": 1730,
+        "net_pnl_usd": -3080.0,
+        "average_net_trade_usd": -8.901734104046243,
+        "average_win_points": 3.1380239520958084,
+        "average_loss_points": 3.2717877094972065,
+        "profit_factor": 0.8948177238965253,
+        "max_closed_trade_drawdown_usd": 3810.0
+      },
+      "candidate": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -837.5,
+        "cost_per_round_trip_usd": 5,
+        "total_cost_usd": 1730,
+        "net_pnl_usd": -2567.5,
+        "average_net_trade_usd": -7.420520231213873,
+        "average_win_points": 3.1994011976047902,
+        "average_loss_points": 3.2717877094972065,
+        "profit_factor": 0.9123196448390677,
+        "max_closed_trade_drawdown_usd": 4557.5
+      },
+      "net_improvement_usd": 512.5
+    },
+    {
+      "cost_per_round_trip_usd": 10,
+      "baseline": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -1350.0,
+        "cost_per_round_trip_usd": 10,
+        "total_cost_usd": 3460,
+        "net_pnl_usd": -4810.0,
+        "average_net_trade_usd": -13.901734104046243,
+        "average_win_points": 3.0380239520958083,
+        "average_loss_points": 3.3717877094972066,
+        "profit_factor": 0.8406097257890812,
+        "max_closed_trade_drawdown_usd": 5195.0
+      },
+      "candidate": {
+        "trades": 346,
+        "wins": 167,
+        "losses": 179,
+        "flats": 0,
+        "gross_pnl_usd": -837.5,
+        "cost_per_round_trip_usd": 10,
+        "total_cost_usd": 3460,
+        "net_pnl_usd": -4297.5,
+        "average_net_trade_usd": -12.420520231213873,
+        "average_win_points": 3.09940119760479,
+        "average_loss_points": 3.3717877094972066,
+        "profit_factor": 0.8575925772512634,
+        "max_closed_trade_drawdown_usd": 5270.0
+      },
+      "net_improvement_usd": 512.5
+    },
+    {
+      "cost_per_round_trip_usd": 20,
+      "baseline": {
+        "trades": 346,
+        "wins": 166,
+        "losses": 180,
+        "flats": 0,
+        "gross_pnl_usd": -1350.0,
+        "cost_per_round_trip_usd": 20,
+        "total_cost_usd": 6920,
+        "net_pnl_usd": -8270.0,
+        "average_net_trade_usd": -23.90173410404624,
+        "average_win_points": 2.856024096385542,
+        "average_loss_points": 3.5527777777777776,
+        "profit_factor": 0.7413604378420641,
+        "max_closed_trade_drawdown_usd": 8270.0
+      },
+      "candidate": {
+        "trades": 346,
+        "wins": 166,
+        "losses": 180,
+        "flats": 0,
+        "gross_pnl_usd": -837.5,
+        "cost_per_round_trip_usd": 20,
+        "total_cost_usd": 6920,
+        "net_pnl_usd": -7757.5,
+        "average_net_trade_usd": -22.420520231213874,
+        "average_win_points": 2.9177710843373497,
+        "average_loss_points": 3.5527777777777776,
+        "profit_factor": 0.7573885848319,
+        "max_closed_trade_drawdown_usd": 8057.5
+      },
+      "net_improvement_usd": 512.5
+    }
+  ],
+  "monthly": [
+    {
+      "month": "2025-11",
+      "baseline_trades": 27,
+      "candidate_trades": 27,
+      "baseline_gross_usd": -950.0,
+      "candidate_gross_usd": -1575.0,
+      "baseline_net_usd": -1220.0,
+      "candidate_net_usd": -1845.0,
+      "net_improvement_usd": -625.0
+    },
+    {
+      "month": "2025-12",
+      "baseline_trades": 23,
+      "candidate_trades": 23,
+      "baseline_gross_usd": -75.0,
+      "candidate_gross_usd": 275.0,
+      "baseline_net_usd": -305.0,
+      "candidate_net_usd": 45.0,
+      "net_improvement_usd": 350.0
+    },
+    {
+      "month": "2026-01",
+      "baseline_trades": 26,
+      "candidate_trades": 26,
+      "baseline_gross_usd": 125.0,
+      "candidate_gross_usd": -325.0,
+      "baseline_net_usd": -135.0,
+      "candidate_net_usd": -585.0,
+      "net_improvement_usd": -450.0
+    },
+    {
+      "month": "2026-02",
+      "baseline_trades": 30,
+      "candidate_trades": 30,
+      "baseline_gross_usd": 337.5,
+      "candidate_gross_usd": 500.0,
+      "baseline_net_usd": 37.5,
+      "candidate_net_usd": 200.0,
+      "net_improvement_usd": 162.5
+    },
+    {
+      "month": "2026-03",
+      "baseline_trades": 43,
+      "candidate_trades": 43,
+      "baseline_gross_usd": 962.5,
+      "candidate_gross_usd": 2400.0,
+      "baseline_net_usd": 532.5,
+      "candidate_net_usd": 1970.0,
+      "net_improvement_usd": 1437.5
+    },
+    {
+      "month": "2026-04",
+      "baseline_trades": 23,
+      "candidate_trades": 23,
+      "baseline_gross_usd": -1137.5,
+      "candidate_gross_usd": -1637.5,
+      "baseline_net_usd": -1367.5,
+      "candidate_net_usd": -1867.5,
+      "net_improvement_usd": -500.0
+    },
+    {
+      "month": "2026-05",
+      "baseline_trades": 29,
+      "candidate_trades": 29,
+      "baseline_gross_usd": 337.5,
+      "candidate_gross_usd": 537.5,
+      "baseline_net_usd": 47.5,
+      "candidate_net_usd": 247.5,
+      "net_improvement_usd": 200.0
+    },
+    {
+      "month": "2026-06",
+      "baseline_trades": 40,
+      "candidate_trades": 40,
+      "baseline_gross_usd": -100.0,
+      "candidate_gross_usd": -487.5,
+      "baseline_net_usd": -500.0,
+      "candidate_net_usd": -887.5,
+      "net_improvement_usd": -387.5
+    },
+    {
+      "month": "2026-07",
+      "baseline_trades": 30,
+      "candidate_trades": 30,
+      "baseline_gross_usd": -1225.0,
+      "candidate_gross_usd": -1412.5,
+      "baseline_net_usd": -1525.0,
+      "candidate_net_usd": -1712.5,
+      "net_improvement_usd": -187.5
+    },
+    {
+      "month": "2026-08",
+      "baseline_trades": 19,
+      "candidate_trades": 19,
+      "baseline_gross_usd": -200.0,
+      "candidate_gross_usd": 25.0,
+      "baseline_net_usd": -390.0,
+      "candidate_net_usd": -165.0,
+      "net_improvement_usd": 225.0
+    },
+    {
+      "month": "2026-09",
+      "baseline_trades": 27,
+      "candidate_trades": 27,
+      "baseline_gross_usd": 1050.0,
+      "candidate_gross_usd": 975.0,
+      "baseline_net_usd": 780.0,
+      "candidate_net_usd": 705.0,
+      "net_improvement_usd": -75.0
+    },
+    {
+      "month": "2026-10",
+      "baseline_trades": 29,
+      "candidate_trades": 29,
+      "baseline_gross_usd": -475.0,
+      "candidate_gross_usd": -112.5,
+      "baseline_net_usd": -765.0,
+      "candidate_net_usd": -402.5,
+      "net_improvement_usd": 362.5
+    }
+  ]
+}

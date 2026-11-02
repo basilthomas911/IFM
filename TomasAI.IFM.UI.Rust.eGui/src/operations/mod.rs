@@ -1,5 +1,6 @@
 //! Operational diagnostics and scheduled-task administration. Actions are sent through existing managed services and require the published eligibility/confirmation state.
 
+use crate::control_parity::BorderedScrollArea as _;
 /// Actor hierarchy, resource health, and operator actions. A confirmation captures generation and target identity so a changed selection cannot silently redirect an operation.
 pub mod actor_health;
 /// Operational health and dataset projections. Visible rows are rendered from the published query result; severity colors communicate backend state without recalculating it.
@@ -42,7 +43,7 @@ pub(super) fn health_scroll<R>(
         .auto_shrink([false, false])
         .max_width(inner.width())
         .max_height(inner.height())
-        .show(&mut child, contents);
+        .bordered_show(&mut child, contents);
     ui.painter().rect_stroke(
         bounds,
         0.,

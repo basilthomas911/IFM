@@ -1,0 +1,54 @@
+{
+  "policies": {
+    "original": {
+      "totals": {
+        "trades": 38,
+        "wins": 27,
+        "losses": 11,
+        "flats": 0,
+        "points": -11.5,
+        "gross_pnl_usd": -575.0,
+        "profit_factor": 0.9397116644823067,
+        "max_closed_trade_drawdown_usd": 3800.0,
+        "exit_reasons": {
+          "Trailing watermark": 25,
+          "Threshold recovery": 8,
+          "Session flatten": 4,
+          "Adverse watermark rebound": 1
+        }
+      },
+      "risk": {
+        "worst_trade_usd": -1337.5,
+        "largest_intratrade_adverse_usd": 1487.5,
+        "closed_trade_drawdown_is_not_intraday_equity_drawdown": true
+      }
+    },
+    "retracement": {
+      "totals": {
+        "trades": 38,
+        "wins": 26,
+        "losses": 12,
+        "flats": 0,
+        "points": 13.25,
+        "gross_pnl_usd": 662.5,
+        "profit_factor": 1.0795795795795795,
+        "max_closed_trade_drawdown_usd": 3887.5,
+        "exit_reasons": {
+          "Threshold recovery": 8,
+          "Trailing watermark": 26,
+          "Session flatten": 3,
+          "Adverse watermark rebound": 1
+        }
+      },
+      "risk": {
+        "worst_trade_usd": -1175.0,
+        "largest_intratrade_adverse_usd": 1425.0,
+        "closed_trade_drawdown_is_not_intraday_equity_drawdown": true
+      }
+    }
+  },
+  "analysis_seconds": 16.32841550000012,
+  "raw_ticks": 10800331,
+  "daily_signals": 5288,
+  "gross_pnl_difference_usd": -1237.5
+}

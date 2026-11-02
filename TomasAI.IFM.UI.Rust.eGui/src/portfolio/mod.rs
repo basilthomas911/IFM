@@ -15,6 +15,7 @@
 //! immediate-mode layout feedback that could grow the dialog on pointer movement.
 
 //! Portfolio administration surfaces; business commands remain in the managed service adapter.
+use crate::control_parity::BorderedScrollArea as _;
 use crate::contract_editor::ContractPublication;
 use crate::control_parity::{BorderedTable as _, FilledGrid as _};
 use crate::presentation::{self, TradingLabelUi as _};
@@ -1030,7 +1031,7 @@ impl PortfolioManager {
                         egui::ScrollArea::vertical()
                             .id_salt("inline-risk-policy-scroll")
                             .auto_shrink([false, false])
-                            .show(ui, |ui| {
+                            .bordered_show(ui, |ui| {
                                 let rect = egui::Rect::from_min_size(
                                     ui.cursor().min,
                                     egui::vec2(ui.available_width(), form.height().max(380.)),
@@ -1317,7 +1318,7 @@ impl PortfolioManager {
                     .id_salt(("portfolio-editor-fields", &d.key))
                     .max_height(content.height())
                     .auto_shrink([false, false])
-                    .show(ui, |ui| {
+                    .bordered_show(ui, |ui| {
                         self.fields(ui, d, ready, action);
                     });
             });
@@ -1727,7 +1728,7 @@ impl PortfolioManager {
                                     .max_height(180.)
                                     .min_scrolled_height(180.)
                                     .auto_shrink([false, false])
-                                    .show(ui, |ui| {
+                                    .bordered_show(ui, |ui| {
                                         ui.set_clip_rect(ui.clip_rect().shrink(1.));
                                         ui.vertical(|ui| draw(ui));
                                     });
@@ -1742,7 +1743,7 @@ impl PortfolioManager {
                                 egui::ScrollArea::both()
                                     .id_salt(&prefix)
                                     .max_height(120.)
-                                    .show(ui, |ui| draw(ui));
+                                    .bordered_show(ui, |ui| draw(ui));
                             })
                             .response
                     };
@@ -2098,7 +2099,7 @@ fn draw_grid(
             .id_salt(("portfolio-grid-scroll", &g.key))
             .max_height(height)
             .auto_shrink([false, false])
-            .show(ui, |ui| {
+            .bordered_show(ui, |ui| {
                 let list = matches!(g.key.as_str(), "portfolios" | "funds");
                 let widths = g
                     .columns
