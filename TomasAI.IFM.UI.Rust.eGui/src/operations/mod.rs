@@ -25,11 +25,12 @@ pub(super) fn split_health_body(ui: &mut eframe::egui::Ui) -> [eframe::egui::Rec
 }
 
 
-/// Keep content and both scrollbars inside a complete border, with full text reachable by scrolling.
+/// Keep content inside a complete pane border; optional scrollbar edges are separate decoration.
 pub(super) fn health_scroll<R>(
     ui: &mut eframe::egui::Ui,
     bounds: eframe::egui::Rect,
     id: impl std::hash::Hash,
+    scrollbar_border: bool,
     contents: impl FnOnce(&mut eframe::egui::Ui) -> R,
 ) -> eframe::egui::scroll_area::ScrollAreaOutput<R> {
     use eframe::egui;
@@ -38,12 +39,17 @@ pub(super) fn health_scroll<R>(
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
     child.set_clip_rect(inner.intersect(ui.clip_rect()));
     child.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-    let output = egui::ScrollArea::both()
+    let scroll = egui::ScrollArea::both()
         .id_salt(id)
         .auto_shrink([false, false])
         .max_width(inner.width())
-        .max_height(inner.height())
-        .bordered_show(&mut child, contents);
+        .max_height(inner.height());
+    let output = if scrollbar_border {
+        scroll.bordered_show(&mut child, contents)
+    } else {
+        // The Operations panes already have an enclosing border; avoid an extra bottom rule.
+        scroll.show(&mut child, contents)
+    };
     ui.painter().rect_stroke(
         bounds,
         0.,
@@ -198,7 +204,7 @@ mod health_scroll_tests {
                     },
                     |ctx| {
                         egui::CentralPanel::default().show(ctx, |ui| {
-                            latest = Some(health_scroll(ui, bounds, "overflow-health", |ui| {
+                            latest = Some(health_scroll(ui, bounds, "overflow-health", false, |ui| {
                                 for row in 0..80 {
                                     last_label = ui
                                         .label(format!(

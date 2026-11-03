@@ -3,7 +3,7 @@
 //! Tables bind the authoritative position legs and published risk/price values.
 //! Snapshot metrics are displayed, not recomputed locally. The trade-plan table uses
 //! the backend total row count plus an offset/page-size window; unloaded visible rows
-//! request a new window. The chart consumes its separately published recent series
+//! request a new window. The chart consumes its separately published lifetime series
 //! and labels timestamps in America/New_York, including daylight-saving offsets.
 //! Fixed reference dimensions are scaled into the available center workspace.
 
@@ -621,12 +621,80 @@ impl SpreadChartClock {
     }
 }
 
-
-/// Merge the history/live boundary while retaining the latest sample in each UTC minute.
-fn coalesce_chart_minutes(points: &mut Vec<[f64; 2]>) {
+/// Merge the history/live boundary while retaining the latest sample in each UTC quarter hour.
+fn coalesce_chart_quarters(points: &mut Vec<[f64; 2]>) {
     points.sort_by(|a, b| b[0].total_cmp(&a[0]));
-    points.dedup_by_key(|point| (point[0] / 60.).floor() as i64);
+    points.dedup_by_key(|point| (point[0] / 900.).floor() as i64);
     points.reverse();
+}
+
+/// Match the backend futures value-date session rather than calendar midnight.
+fn condor_session_bounds(value_date: &str) -> Option<(f64, f64)> {
+    use chrono::TimeZone;
+    let date = chrono::NaiveDate::parse_from_str(value_date, "%Y-%m-%d").ok()?;
+    let zone = chrono_tz::America::New_York;
+    let start = zone
+        .from_local_datetime(&date.pred_opt()?.and_hms_opt(18, 0, 0)?)
+        .single()?;
+    let end = zone
+        .from_local_datetime(&date.and_hms_opt(17, 0, 0)?)
+        .single()?;
+    Some((start.timestamp() as f64, end.timestamp() as f64))
+}
+
+/// Daily session boundaries include DST changes and label the following value date.
+fn condor_day_marks(input: egui_plot::GridInput) -> Vec<egui_plot::GridMark> {
+    use chrono::TimeZone;
+    let (start, end) = input.bounds;
+    let Some(at) = chrono::DateTime::from_timestamp(start as i64, 0) else {
+        return vec![];
+    };
+    if !start.is_finite() || !end.is_finite() || end < start {
+        return vec![];
+    }
+    let zone = chrono_tz::America::New_York;
+    let mut date = at.with_timezone(&zone).date_naive();
+    let mut marks = Vec::new();
+    while marks.len() < 10000 {
+        let Some(local) = date.and_hms_opt(18, 0, 0) else {
+            break;
+        };
+        let Some(boundary) = zone.from_local_datetime(&local).single() else {
+            break;
+        };
+        let value = boundary.timestamp() as f64;
+        if value > end {
+            break;
+        }
+        if value >= start {
+            marks.push(egui_plot::GridMark {
+                value,
+                step_size: 86400.,
+            });
+        }
+        let Some(next) = date.succ_opt() else {
+            break;
+        };
+        date = next;
+    }
+    marks
+}
+
+/// Draw only adjacent observed intraday buckets; daily EOD values remain discrete markers.
+fn draw_sample_lines(
+    plot: &mut egui_plot::PlotUi<'_>,
+    name: &str,
+    points: &[egui_plot::PlotPoint],
+    color: Color32,
+) {
+    for pair in points.windows(2) {
+        if (pair[1].x / 900.).floor() - (pair[0].x / 900.).floor() == 1. {
+            plot.line(
+                egui_plot::Line::new(name, vec![[pair[0].x, pair[0].y], [pair[1].x, pair[1].y]])
+                    .color(color),
+            );
+        }
+    }
 }
 
 impl TradeWorkspace {
@@ -1347,7 +1415,16 @@ impl TradeWorkspace {
             "maxProfitLimit",
         )
         .map(f64::abs);
-        let mut end = display.chart_end_utc_seconds;
+        let end = display.chart_end_utc_seconds;
+        let start = display
+            .chart
+            .as_ref()
+            .and_then(|chart| chart.start_utc_seconds);
+        let session = s
+            .result
+            .context
+            .get("planDate")
+            .and_then(|date| condor_session_bounds(date));
         if live {
             let realtime = one(&display, "realtime").realtime();
             let clock_id = egui::Id::new((
@@ -1370,7 +1447,10 @@ impl TradeWorkspace {
                     .map(|value| value.as_str()),
             ) {
                 if let Ok(at) = chrono::DateTime::parse_from_rfc3339(at) {
-                    if clock.accept(std::time::Instant::now()) {
+                    if session.is_some_and(|(start, end)| {
+                        at.timestamp() as f64 >= start && at.timestamp() as f64 <= end
+                    }) && clock.accept(std::time::Instant::now())
+                    {
                         chart_dirty = true;
                         let time = at.timestamp_millis() as f64 / 1000.;
                         if self
@@ -1379,7 +1459,7 @@ impl TradeWorkspace {
                             .is_none_or(|point| point[0] < time)
                         {
                             if self.loaded_spread_points.last().is_some_and(|point| {
-                                (point[0] / 60.).floor() == (time / 60.).floor()
+                                (point[0] / 900.).floor() == (time / 900.).floor()
                             }) {
                                 self.loaded_spread_points.pop();
                             }
@@ -1395,28 +1475,22 @@ impl TradeWorkspace {
                                 .is_none_or(|point| point[0] < time)
                             {
                                 if self.loaded_forward_points.last().is_some_and(|point| {
-                                    (point[0] / 60.).floor() == (time / 60.).floor()
+                                    (point[0] / 900.).floor() == (time / 900.).floor()
                                 }) {
                                     self.loaded_forward_points.pop();
                                 }
                                 self.loaded_forward_points.push([time, forward]);
                             }
                         }
-                        end = Some(end.unwrap_or(time).max(time));
                     }
                     ui.ctx().data_mut(|data| data.insert_temp(clock_id, clock));
                 }
             }
-            if let Some(last) = self.loaded_spread_points.last() {
-                end = Some(end.unwrap_or(last[0]).max(last[0]));
-            }
-            if let Some(end) = end {
+            if let Some((start, end)) = session {
                 self.loaded_spread_points
-                    .retain(|point| point[0] >= end - 21600.);
-            }
-            if let Some(end) = end {
+                    .retain(|point| point[0] >= start && point[0] <= end);
                 self.loaded_forward_points
-                    .retain(|point| point[0] >= end - 21600.);
+                    .retain(|point| point[0] >= start && point[0] <= end);
             }
         }
         if chart_dirty
@@ -1449,11 +1523,13 @@ impl TradeWorkspace {
                 forward_points.extend_from_slice(&self.loaded_forward_points);
             }
             if let Some(end) = end {
-                points.retain(|point| point[0] >= end - 21600. && point[0] <= end);
-                forward_points.retain(|point| point[0] >= end - 21600. && point[0] <= end);
+                points
+                    .retain(|point| start.is_none_or(|start| point[0] >= start) && point[0] <= end);
+                forward_points
+                    .retain(|point| start.is_none_or(|start| point[0] >= start) && point[0] <= end);
             }
-            coalesce_chart_minutes(&mut points);
-            coalesce_chart_minutes(&mut forward_points);
+            coalesce_chart_quarters(&mut points);
+            coalesce_chart_quarters(&mut forward_points);
             self.spread_plot = Some(SpreadPlotCache {
                 trade: display.established_arc().cloned(),
                 chart: display.chart.clone(),
@@ -1474,7 +1550,10 @@ impl TradeWorkspace {
                 ui.visuals_mut().extreme_bg_color = BLACK;
                 let mut chart = egui_plot::Plot::new(("condor-spread", format!("{:?}", trade.id)));
                 if let Some(end) = end {
-                    chart = chart.include_x(end - 21600.).include_x(end);
+                    chart = chart.include_x(end);
+                }
+                if let Some(start) = start {
+                    chart = chart.include_x(start);
                 }
                 if let Some(loss) = loss {
                     chart = chart.include_y(loss);
@@ -1487,11 +1566,24 @@ impl TradeWorkspace {
                     .height(ui.available_height())
                     .show_background(false)
                     .show_grid(false)
+                    .x_grid_spacer(condor_day_marks)
+                    .label_formatter(|name, point| {
+                        let time = chrono::DateTime::from_timestamp(point.x as i64, 0)
+                            .map(|at| {
+                                at.with_timezone(&chrono_tz::America::New_York)
+                                    .format("%Y-%m-%d %H:%M %Z")
+                                    .to_string()
+                            })
+                            .unwrap_or_default();
+                        format!("{name}: {:.4}\n{time}", point.y)
+                    })
                     .x_axis_formatter(|mark, _| {
                         chrono::DateTime::from_timestamp(mark.value as i64, 0)
                             .map(|d| {
                                 d.with_timezone(&chrono_tz::America::New_York)
-                                    .format("%m-%d %H:%M %Z")
+                                    .checked_add_signed(chrono::Duration::hours(6))
+                                    .unwrap_or(d.with_timezone(&chrono_tz::America::New_York))
+                                    .format("%m-%d")
                                     .to_string()
                             })
                             .unwrap_or_default()
@@ -1513,9 +1605,11 @@ impl TradeWorkspace {
                                     .color(Color32::from_rgb(0, 191, 255))
                                     .radius(2.0_f32),
                             );
-                            plot.line(
-                                egui_plot::Line::new("ForwardSpread", forward_points)
-                                    .color(Color32::from_rgb(0, 191, 255)),
+                            draw_sample_lines(
+                                plot,
+                                "ForwardSpread",
+                                forward_points,
+                                Color32::from_rgb(0, 191, 255),
                             );
                         }
                         plot.points(
@@ -1524,9 +1618,7 @@ impl TradeWorkspace {
                                 .radius(3.0_f32),
                         );
                         if points.len() > 1 {
-                            plot.line(
-                                egui_plot::Line::new("NetSpread", points).color(Color32::YELLOW),
-                            );
+                            draw_sample_lines(plot, "NetSpread", points, Color32::YELLOW);
                         }
                     });
             },
@@ -1722,39 +1814,54 @@ mod eastern_chart_time_tests {
 
 #[cfg(test)]
 mod spread_chart_sampling_tests {
+    #[test]
+    fn session_bounds_and_daily_ticks_follow_eastern_dst() {
+        let start = chrono::DateTime::parse_from_rfc3339("2026-10-31T22:00:00Z")
+            .unwrap()
+            .timestamp() as f64;
+        let end = chrono::DateTime::parse_from_rfc3339("2026-11-02T23:00:00Z")
+            .unwrap()
+            .timestamp() as f64;
+        let marks = super::condor_day_marks(egui_plot::GridInput {
+            bounds: (start, end),
+            base_step_size: 86400.,
+        });
+        assert_eq!(marks.len(), 3);
+        assert_eq!(marks[1].value - marks[0].value, 25. * 3600.);
+        assert_eq!(marks[2].value - marks[1].value, 24. * 3600.);
+        let (open, close) = super::condor_session_bounds("2026-11-02").unwrap();
+        assert_eq!(open, marks[1].value);
+        assert_eq!(close - open, 23. * 3600.);
+    }
+
     /// Verifies that database baseline survives new session live points and boundary duplicates.
     #[test]
     fn database_baseline_survives_new_session_live_points_and_boundary_duplicates() {
-        let mut points = vec![[60., -1.], [120., -2.], [180., -3.]];
-        points.extend_from_slice(&[[185., -3.5], [240., -4.]]);
-        super::coalesce_chart_minutes(&mut points);
-        assert_eq!(
-            points,
-            vec![[60., -1.], [120., -2.], [185., -3.5], [240., -4.]]
-        );
+        let mut points = vec![[60., -1.], [900., -2.], [1800., -3.]];
+        points.extend_from_slice(&[[1805., -3.5], [2700., -4.]]);
+        super::coalesce_chart_quarters(&mut points);
+        assert_eq!(points, vec![[60., -1.], [900., -2.], [1805., -3.5], [2700., -4.]]);
     }
-    use super::{SpreadChartClock, coalesce_chart_minutes};
+    use super::{SpreadChartClock, coalesce_chart_quarters};
     use std::time::{Duration, Instant};
 
-
-    /// Verifies that history and live points keep only the latest sample per minute.
+    /// Verifies that history and live points keep only the latest sample per quarter hour.
     #[test]
-    fn history_and_live_points_keep_only_the_latest_sample_per_minute() {
-        let mut points = vec![[61., -11.], [40., -10.], [65., -12.], [120., -13.]];
-        coalesce_chart_minutes(&mut points);
-        assert_eq!(points, vec![[40., -10.], [65., -12.], [120., -13.]]);
+    fn history_and_live_points_keep_only_the_latest_sample_per_quarter_hour() {
+        let mut points = vec![[901., -11.], [40., -10.], [905., -12.], [1800., -13.]];
+        coalesce_chart_quarters(&mut points);
+        assert_eq!(points, vec![[40., -10.], [905., -12.], [1800., -13.]]);
     }
 
-
-    /// Verifies that six hour window bounds even dense input to at most 361 plot samples.
+    /// Verifies that six hour window bounds even dense input to at most 25 plot samples.
     #[test]
-    fn six_hour_window_bounds_even_dense_input_to_at_most_361_plot_samples() {
+    fn six_hour_window_bounds_even_dense_input_to_at_most_25_plot_samples() {
         let mut points: Vec<_> = (0..100_000)
             .map(|i| [i as f64 * 21600. / 99999., i as f64])
             .collect();
-        coalesce_chart_minutes(&mut points);
-        assert!(points.len() <= 361);
-        assert_eq!(points.first().unwrap()[0].floor() as i64 / 60, 0);
+        coalesce_chart_quarters(&mut points);
+        assert!(points.len() <= 25);
+        assert_eq!(points.first().unwrap()[0].floor() as i64 / 900, 0);
         assert_eq!(points.last().unwrap()[0], 21600.);
     }
 

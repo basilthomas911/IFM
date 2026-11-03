@@ -60,8 +60,7 @@ fn backend_typed_series_preserves_exact_decimal_text_and_existing_projection() {
         &source,
     )
     .unwrap();
-    let expected =
-        json!({"chartEndUtc":named["EndUtc"],"points":monitor_display::document(&named["Points"])});
+    let expected = json!({"chartStartUtc":named["StartUtc"],"chartEndUtc":named["EndUtc"],"points":monitor_display::document(&named["Points"])});
     let wire = wire::encode(&TradeChartRow::from(Some(&typed))).unwrap();
     let actual: serde_json::Value = wire::decode(&wire).unwrap();
     assert_eq!(actual, expected);
@@ -69,7 +68,7 @@ fn backend_typed_series_preserves_exact_decimal_text_and_existing_projection() {
         PreparedTradeChart::from_messagepack(&wire).unwrap(),
         baseline::legacy(&wire)
     );
-    assert!(TradeChartSeries::from_backend(&series(21_601, &[])).is_err());
+    assert!(TradeChartSeries::from_backend(&series(90 * 86400, &[])).is_ok());
     assert!(TradeChartSeries::from_backend(&series(-1, &[])).is_err());
     assert!(TradeChartSeries::from_backend(&series(60, &[(61, "1", None)])).is_err());
     assert!(

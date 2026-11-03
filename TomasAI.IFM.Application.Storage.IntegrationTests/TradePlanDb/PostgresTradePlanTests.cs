@@ -66,11 +66,11 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Range_chart_includes_both_trading_dates_without_payload_reads_and_excludes_outside_bounds(bool rawClosingCost)
+    public async Task Session_chart_samples_latest_quarter_hour_across_full_session_and_excludes_outside_bounds(bool rawClosingCost)
     {
         var position=Plan().Position.Id;
-        var start=new DateTime(2026,10,22,16,30,0,DateTimeKind.Utc);
-        var end=start.AddHours(6);
+        var start=new DateTime(2026,10,22,22,0,0,DateTimeKind.Utc);
+        var end=start.AddHours(23);
         await using var connection=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(fixture.Connection);
         await connection.OpenAsync();
         long revision=0;
@@ -87,12 +87,12 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
                 command.Parameters.Add(new NpgsqlParameter{Value=value});
             await command.ExecuteNonQueryAsync();
         }
-        var first=new DateOnly(2026,10,22);var last=first.AddDays(1);
+        var first=new DateOnly(2026,10,23);var last=first;
         await Insert(first,start.AddSeconds(-1),-99m);
         await Insert(first,start,-1m);
         await Insert(first,start.AddHours(4),-2m);
         await Insert(last,end.AddMinutes(-30),-3m);
-        await Insert(last,end.AddMinutes(-30).AddSeconds(45),-4m);
+        await Insert(last,end.AddMinutes(-25),-4m);
         await Insert(last,end,-5m);
         await Insert(last,end.AddSeconds(1),-99m);
         await Insert(first.AddDays(-1),start.AddHours(2),-99m);

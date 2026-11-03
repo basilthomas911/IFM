@@ -222,7 +222,7 @@ impl OperationsHealth {
             });
             let [list_rect, details_rect] = super::split_health_body(ui);
             self.panes = Some([list_rect, details_rect]);
-            super::health_scroll(ui, list_rect, ("health-rows", self.datasets), |ui| {
+            super::health_scroll(ui, list_rect, ("health-rows", self.datasets), false, |ui| {
                 self.drawn_rows = 0;
                 for row in &rows {
                     let name = row
@@ -250,6 +250,7 @@ impl OperationsHealth {
                 ui,
                 details_rect,
                 ("health-properties", self.datasets),
+                false,
                 |ui| {
                     if let Some(row) = rows
                         .iter()

@@ -75,19 +75,19 @@ internal static class TradePlanDbContextExtensions
     {
         position.RequireTradePlanScope(TradeStrategyKind.IronCondor, firstValueDate);
         if (lastValueDate < firstValueDate || startUtc.Kind != DateTimeKind.Utc || endUtc.Kind != DateTimeKind.Utc
-            || endUtc < startUtc || endUtc - startUtc > TimeSpan.FromHours(6))
-            throw new ArgumentException("Chart history requires ordered trading dates and a UTC range of at most six hours.");
+            || endUtc < startUtc || endUtc - startUtc > TimeSpan.FromHours(25))
+            throw new ArgumentException("Chart history requires ordered trading dates and a UTC range of at most one trading session.");
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(context.ConnectionString);
         await connection.OpenAsync(token).ConfigureAwait(false);
         await using var command = new NpgsqlCommand("""
-            SELECT DISTINCT ON (date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01'))
+            SELECT DISTINCT ON (date_bin(interval '15 minutes',calculatedAtUtc,timestamptz '2000-01-01'))
                 calculatedAtUtc,combinedSpreadPrice,
                 CASE WHEN calculationVersion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedForwardPrice ELSE combinedForwardPrice END
             FROM trade_plan.iron_condor_trade_plan
             WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 AND tradeId=$4 AND positionId=$5
                 AND valueDate >= $6 AND valueDate <= $7 AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9
                 AND combinedSpreadPrice IS NOT NULL
-            ORDER BY date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC
+            ORDER BY date_bin(interval '15 minutes',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC
             """, connection);
         foreach (var value in new object[] { position.Trade.PortfolioId,position.Trade.FundId,position.Trade.OrderId,
             position.Trade.TradeId,position.PositionId,firstValueDate,lastValueDate,startUtc,endUtc })

@@ -3,7 +3,7 @@
 //! calculations or order submission. No JSON tree is created by this path.
 use serde::Deserialize;
 
-/// Authoritative six-hour backend series. Decimal text remains exact until plot preparation.
+/// Authoritative lifetime backend series. Decimal text remains exact until plot preparation.
 #[derive(Clone, Debug, Default, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TradeChartPoint {
@@ -37,8 +37,8 @@ impl TradeChartSeries {
             .ok_or("Invalid chart series contract")?;
         let start = timestamp(&fields[0])?;
         let end = timestamp(&fields[1])?;
-        if end < start || end - start > chrono::Duration::hours(6) {
-            return Err("Chart history crossed its six-hour backend window".into());
+        if end < start {
+            return Err("Chart history has a reversed backend window".into());
         }
         let rows = fields[2]
             .as_array()
@@ -84,6 +84,8 @@ impl TradeChartSeries {
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TradeChartRow<'a> {
+    /// Inclusive trade-session start.
+    pub chart_start_utc: Option<&'a str>,
     /// Absent while historical hydration is still running.
     pub chart_end_utc: Option<&'a str>,
     /// Absent before the first successful database query.
@@ -93,6 +95,7 @@ impl<'a> From<Option<&'a TradeChartSeries>> for TradeChartRow<'a> {
     /// Converts the supplied value into this representation.
     fn from(series: Option<&'a TradeChartSeries>) -> Self {
         Self {
+            chart_start_utc: series.map(|v| v.start_utc.as_str()),
             chart_end_utc: series.map(|v| v.end_utc.as_str()),
             points: series.map(|v| v.points.as_slice()),
         }
@@ -319,6 +322,8 @@ impl<'de> Deserialize<'de> for PointRecord {
 #[derive(Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 struct Chart {
+    /// Full trade-session range start.
+    chart_start_utc: Option<PlotTime>,
     /// Optional chart end utc; `None` represents an absent value.
     chart_end_utc: Option<PlotTime>,
     /// Optional points; `None` represents an absent value.
@@ -328,6 +333,8 @@ struct Chart {
 /// Ready-to-render points and authoritative backend window end. Reused by frames.
 #[derive(Debug, Default, PartialEq)]
 pub struct PreparedTradeChart {
+    /// Trade-session start in UTC seconds.
+    pub start_utc_seconds: Option<f64>,
     /// UTC seconds, derived solely from the published backend timestamp.
     pub end_utc_seconds: Option<f64>,
     /// Net spread plot coordinates.
@@ -346,6 +353,7 @@ impl PreparedTradeChart {
     /// Prepares trade chart for prepared trade chart.
     fn prepare(chart: Chart) -> Self {
         let mut result = Self {
+            start_utc_seconds: chart.chart_start_utc.as_ref().and_then(PlotTime::seconds),
             end_utc_seconds: chart.chart_end_utc.as_ref().and_then(PlotTime::seconds),
             ..Default::default()
         };

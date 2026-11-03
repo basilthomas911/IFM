@@ -1,19 +1,13 @@
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Command.Actor;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Command.Model;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Command.State;
-using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Command.Validation;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain;
-using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.Model;
-using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.Actor;
 using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Command;
 /// <summary>Handles the RegisterScheduledTaskProject command through one explicit decision and event application.</summary>
 public static class RegisterScheduledTaskProject

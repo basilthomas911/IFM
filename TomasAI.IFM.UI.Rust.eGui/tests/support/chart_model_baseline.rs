@@ -8,6 +8,10 @@ use serde_json::Value;
 pub fn legacy(bytes: &[u8]) -> PreparedTradeChart {
     let value: Value = wire::decode(bytes).unwrap();
     let mut result = PreparedTradeChart::default();
+    result.start_utc_seconds = value["chartStartUtc"]
+        .as_str()
+        .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
+        .map(|at| at.timestamp_millis() as f64 / 1000.0);
     result.end_utc_seconds = value["chartEndUtc"]
         .as_str()
         .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())

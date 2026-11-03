@@ -216,7 +216,7 @@ impl ActorHealth {
             groups.dedup();
             let [upper, lower] = super::split_health_body(ui);
             self.panes = Some([upper, lower]);
-            super::health_scroll(ui, upper, "actor-tree", |ui| {
+            super::health_scroll(ui, upper, "actor-tree", true, |ui| {
                 for row in rows.iter().filter(|row| {
                     row.fields
                         .get("parent")
@@ -237,7 +237,7 @@ impl ActorHealth {
                         });
                 }
             });
-            super::health_scroll(ui, lower, "actor-properties", |ui| {
+            super::health_scroll(ui, lower, "actor-properties", true, |ui| {
                 if let Some(row) = rows.iter().find(|r| Some(&r.id) == self.selected.as_ref()) {
                     super::detail_tree(ui, &row.id, "Actor details", &row.fields, |key| {
                         let label = c.text(&format!("actor_field_{}", key.replace('.', "_")));

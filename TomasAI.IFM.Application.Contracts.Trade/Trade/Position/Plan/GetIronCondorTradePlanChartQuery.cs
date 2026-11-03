@@ -3,7 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
-/// <summary>Requests six hours of chart history ending within the supplied trading session.</summary>
+/// <summary>Requests daily EOD history and selected-session 15-minute observations from trade date through maturity.</summary>
 [MessagePackObject]
 public sealed record GetIronCondorTradePlanChartQuery : IQuery<StrategyTradePlanChartSeries>
 {

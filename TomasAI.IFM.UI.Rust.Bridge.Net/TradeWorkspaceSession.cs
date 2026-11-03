@@ -24,6 +24,7 @@ sealed class TradeWorkspaceSession : IDisposable
         public string PlanError { get; set; } = "";
         public TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanChartPoint[] ChartPoints { get; set; } = [];
         public DateTime? ChartEndUtc { get; set; }
+        public DateTime? ChartStartUtc { get; set; }
         public string ChartError { get; set; } = "";
         public TradeMonitorRowSections Sections { get; } = new();
         public StrategyPositionId PositionId { get; } = StrategyPositionId.Create(Trade.Id, TradeStrategyKind.IronCondor);
@@ -215,7 +216,7 @@ sealed class TradeWorkspaceSession : IDisposable
                 break;
             case "position":if(monitor is null||!monitor.CanSelectPositionHistory)throw new InvalidOperationException("Position selection is unavailable while live");await monitor.LoadSavedPositionDataAsync(Index(input));if(ActiveTrade is { } selectedHistory){selectedHistory.PlanDate=monitor.SelectedSavedPosition?.ValueDate??apiValueDate;selectedHistory.PlanPage=null;selectedHistory.PlanError="";await LoadChartAsync(selectedHistory);}break;
             case "live-on":if(monitor is null||!monitor.CanEnableLiveFeed)throw new InvalidOperationException("Live feed is unavailable for this trade or session");
-                // Refresh the six-hour database baseline on every live start; subsequent points use notifications only.
+                // Refresh the lifetime database baseline on every live start; subsequent points use notifications only.
                 if (ActiveTrade is {} startingTrade) {
                     if (startingTrade.PlanDate != apiValueDate) {
                         startingTrade.PlanDate = apiValueDate;
@@ -263,6 +264,7 @@ sealed class TradeWorkspaceSession : IDisposable
                 StrategyPositionId.Create(active.Trade.Id,TradeStrategyKind.IronCondor),active.PlanDate,stopping.Token);
             active.ChartPoints = series.Points;
             active.ChartEndUtc = series.EndUtc;
+            active.ChartStartUtc = series.StartUtc;
             active.ChartError = "";
         } catch (Exception error) when (error is not OperationCanceledException) {
             active.ChartError = error.Message;
@@ -302,7 +304,7 @@ sealed class TradeWorkspaceSession : IDisposable
             rows.AddRange(active.Sections.Rows(TradeMonitorSection.Limits, activeMonitor.TradeLimitSnapshot, revisions.Limits,
                 activeMonitor.TradeLimitSnapshot, static limits => [Row("limits", "0", limits)]));
             rows.AddRange(active.Sections.Rows(TradeMonitorSection.Chart, active.ChartPoints, active.ChartEndUtc?.Ticks ?? 0,
-                (active.ChartEndUtc, active.ChartPoints), static chart => [Row("chart", "0", new { ChartEndUtc = chart.ChartEndUtc, Points = chart.ChartPoints })]));
+                (active.ChartStartUtc, active.ChartEndUtc, active.ChartPoints), static chart => [Row("chart", "0", new { ChartStartUtc = chart.ChartStartUtc, ChartEndUtc = chart.ChartEndUtc, Points = chart.ChartPoints })]));
             var position = live?.Position ?? activeMonitor.SelectedSavedPosition;
             rows.AddRange(active.Sections.Rows(TradeMonitorSection.PositionDetails, position, revisions.Position,
                 position, static selected => [Row("position-details", "0", selected)]));

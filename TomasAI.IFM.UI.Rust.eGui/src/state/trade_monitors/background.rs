@@ -240,7 +240,7 @@ impl Hub {
             async move {
                 let deadline = tokio::time::Instant::now() + backend.default_timeout();
                 let result = measure(
-                    "six_hour_chart",
+                    "lifetime_chart",
                     api::chart(&backend, &registry, scope, date, deadline),
                 )
                 .await;

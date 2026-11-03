@@ -1915,6 +1915,32 @@ fn spread_chart_shows_price_limits_and_forward_spread_without_forward_limit() {
 }
 
 
+/// The painted chart keeps future maturity dates visible with sparse EOD/intraday observations.
+#[test]
+fn spread_chart_paints_daily_lifetime_axis_through_unobserved_maturity() {
+    let mut h = loaded_tabs_harness();
+    let mut row: ifm_ui_egui::contract_editor::ContractRow = serde_json::from_value(
+        serde_json::json!({"id":"chart:0","fields":{"kind":"chart"}})).unwrap();
+    row.data = Some(ifm_ui_egui::wire::encode_value(&serde_json::json!({
+        "chartStartUtc":"2026-10-18T22:00:00Z", "chartEndUtc":"2026-10-23T21:00:00Z",
+        "points":[
+            {"atUtc":"2026-10-19T21:00:00Z","netSpread":"-14"},
+            {"atUtc":"2026-10-20T14:00:00Z","netSpread":"-12"},
+            {"atUtc":"2026-10-20T14:15:00Z","netSpread":"-11"},
+            {"atUtc":"2026-10-20T14:45:00Z","netSpread":"-10"}
+        ]})).unwrap().into());
+    h.state_mut().snapshot.result.rows.push(row);
+    h.state_mut().snapshot.generation += 1;
+    h.state_mut().snapshot.invalidate_render_cache();
+    h.set_size(eframe::egui::vec2(1800., 1000.));
+    h.run_steps(3);
+    let labels = text_baselines(&h.output().shapes, h.ctx.screen_rect());
+    for date in ["10-19", "10-20", "10-21", "10-22", "10-23"] {
+        assert!(labels.iter().any(|(text, _)| text == date), "Missing daily chart tick {date}");
+    }
+}
+
+
 /// Verifies that live plan grid never requests database pages and stopped grid does.
 #[test]
 fn live_plan_grid_never_requests_database_pages_and_stopped_grid_does() {
