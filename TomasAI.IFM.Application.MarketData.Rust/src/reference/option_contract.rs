@@ -26,6 +26,7 @@ pub struct CoverageRow {
     legacy_strike: u64,
     browser_kind: Option<String>,
     mapping_version: String,
+    maturity: i32,
 }
 impl CoverageRow {
     /// Decodes the compact 24-field projection without retaining full raw graphs.
@@ -98,6 +99,8 @@ impl CoverageRow {
                 .to_bits(),
             browser_kind: Some(model.text(10).to_owned()),
             mapping_version: model.text(29).to_owned(),
+            maturity: i32::try_from(model.number(8).ok_or("Missing compact maturity")?)
+                .map_err(|_| "Invalid compact maturity")?,
         })
     }
     /// Borrows exact legacy display fields from a browser source projection.
@@ -120,6 +123,20 @@ impl CoverageRow {
     /// explicit business qualification failure, never permission to read latest.
     pub fn mapping_version(&self) -> &str {
         &self.mapping_version
+    }
+    /// Selects full metadata from the same published expiry partition and version
+    /// as this compact row, never from an unrelated canonical/latest record.
+    ///
+    /// # Errors
+    /// Missing captured mapping version or invalid request serialization.
+    pub fn selected_model_request(&self) -> Result<Vec<u8>, String> {
+        if self.mapping_version.trim().is_empty() {
+            return Err("Selected option definition is not reviewed".into());
+        }
+        serde_json::to_vec(&serde_json::json!({
+            "contract": self.contract, "version": self.mapping_version,
+            "source": {"root": self.root, "underlying": self.underlying, "expiry": self.maturity}
+        })).map_err(|_| "Invalid selected option source request".into())
     }
     /// Exact native planner input, borrowing only compact copied strings.
     pub fn coverage_definition(

@@ -80,11 +80,12 @@ public sealed class NativeReferenceFacts(IDbContextFactory databases,IOptionPric
                 }
                 return JsonSerializer.SerializeToUtf8Bytes(definitions);
             case 6:
+                if(value.TryGetProperty("source",out _))
+                    return await definitionSnapshots.ReadSelectedAsync(value,cancellationToken).ConfigureAwait(false);
                 var canonical=value.GetProperty("contract").GetString();
                 if(string.IsNullOrWhiteSpace(canonical)||canonical.Length>1024)throw new InvalidDataException("Invalid raw canonical option identity.");
                 var raw=value.TryGetProperty("version",out var immutableVersion)
                     ?(await databases.SecuritiesDb.GetReferenceVersionAsync(canonical,immutableVersion.GetString()??throw new InvalidDataException("Missing immutable version."),cancellationToken).ConfigureAwait(false))?.Option
-                        ??await databases.SecuritiesDb.GetFuturesOptionContractAsync(canonical,cancellationToken).ConfigureAwait(false)
                     :await databases.SecuritiesDb.GetFuturesOptionContractAsync(canonical,cancellationToken).ConfigureAwait(false);
                 return JsonSerializer.SerializeToUtf8Bytes(raw is null?null:NativeReferenceProjection.Option(raw));
             case 7: return await definitionSnapshots.ReadAsync(value,cancellationToken).ConfigureAwait(false);

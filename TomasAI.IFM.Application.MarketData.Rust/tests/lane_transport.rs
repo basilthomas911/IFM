@@ -5465,7 +5465,7 @@ async fn native_futures_configured_case(
             .unwrap();
             let terminal = if quiet_no_quotes {
                 // Heartbeats prove transport health even when no quote arrives.
-                // Financial readiness is deliberately a separate result field.
+                // Monitoring readiness does not imply a financial quote exists.
                 tokio::time::timeout(Duration::from_secs(6), receive)
                     .await
                     .unwrap_or_else(|_| panic!("Quiet final source did not become connected: health={:?}; accepted={}; contracts={:?}", market.health(Lane::FuturesGlbx).status(),fixture.accepted.load(Ordering::SeqCst),market.futures_contracts(Lane::FuturesGlbx)))
@@ -5496,10 +5496,11 @@ async fn native_futures_configured_case(
             let result = terminal.as_array().unwrap();
             assert_eq!(result[3].as_bool(), Some(quiet_no_quotes));
             assert_eq!(result[4].as_bool(), Some(quiet_no_quotes));
-            assert_eq!(result[5].as_bool(), Some(false));
+            assert_eq!(result[5].as_bool(), Some(quiet_no_quotes));
             assert_eq!(result[6].is_nil(), quiet_no_quotes);
             assert_eq!(market.health(Lane::FuturesXcbf).status().ticket, sibling);
             if quiet_no_quotes {
+                assert!(market.contract_price("ES20261218", false, 9_000_000_000).unwrap().1.is_none());
                 assert!(market.health(Lane::FuturesGlbx).connection_alive());
                 assert!(
                     market.health(Lane::FuturesGlbx).status().deadline.is_none(),
@@ -6060,6 +6061,12 @@ async fn native_browser_and_background_share_option_without_recovery_loop() {
     native_options_group_case(false, true, true, true, true, false, false, 13).await;
 }
 
+/// A reviewed published definition must not be replaced by a stale canonical row.
+#[tokio::test]
+async fn native_browser_and_background_pin_the_published_source_when_canonical_is_unreviewed() {
+    native_options_group_case(false, true, true, true, true, false, false, 14).await;
+}
+
 #[tokio::test]
 async fn native_browser_metadata_maintenance_preserves_unchanged_provider_connection() {
     native_options_group_case(false, true, true, true, false, false, false, 10).await;
@@ -6070,6 +6077,20 @@ async fn native_browser_metadata_maintenance_preserves_unchanged_provider_connec
 #[ignore = "Actual DLL browser acceptance: build current DLL and OwnerBrowserBridge first"]
 async fn native_browser_crosses_actual_public_csharp_api_ffi_and_sdk_boundaries() {
     native_options_group_case(false, true, true, true, false, false, false, 9).await;
+}
+
+/// Financial assertions wait for publication; transport readiness intentionally returns earlier.
+async fn wait_option_publication(market: &ifm_market_data_native::api::owner::MarketData) {
+    use ifm_market_data_native::runtime::recovery::Phase;
+    let mut changes = market.health(Lane::OptionsGlbx).subscribe();
+    tokio::time::timeout(Duration::from_secs(6), async {
+        loop {
+            let status = changes.borrow_and_update().clone();
+            if status.phase == Phase::Running { return; }
+            assert_ne!(status.phase, Phase::Failed, "{status:?}");
+            changes.changed().await.unwrap();
+        }
+    }).await.expect("Option financial publication did not become ready");
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -6330,7 +6351,22 @@ async fn native_options_group_case(
                                         else if args["snapshot"].is_null(){assert_eq!(args["authority"],"IFM");serde_json::to_vec(&serde_json::json!({"id":"22222222222222222222222222222222","total":journal_body.len(),"digest":format!("{:X}",Sha256::digest(&journal_body)),"page_bytes":32768})).unwrap()}
                                         else {assert_eq!(args["snapshot"],"22222222222222222222222222222222");let at=args["offset"].as_u64().unwrap() as usize;journal_body[at..(at+32768).min(journal_body.len())].to_vec()}
                                     }
-                                    else if input[1].as_u64()==Some(6){assert_eq!(args["contract"],"ES20261110C6000");canonical_body.clone()}
+                                    else if input[1].as_u64()==Some(6){
+                                        assert_eq!(args["contract"],"ES20261110C6000");
+                                        if discovery_mode==14 && args["version"].is_null(){
+                                            let mut stale:serde_json::Value=serde_json::from_slice(&canonical_body).unwrap();
+                                            stale[13]=1.into();stale[29]=serde_json::Value::Null;
+                                            serde_json::to_vec(&stale).unwrap()
+                                        }else{
+                                            if discovery_mode==14{
+                                                assert_eq!(args["version"],"fixture/v1");
+                                                assert_eq!(args["source"]["root"],"ES");
+                                                assert_eq!(args["source"]["underlying"],"ES20261218");
+                                                assert!(args["source"]["expiry"].is_number());
+                                            }
+                                            canonical_body.clone()
+                                        }
+                                    }
                                     else if input[1].as_u64()==Some(2){assert_eq!(args["contracts"][0]["contract"],"ES20261110C6000");serde_json::to_vec(&vec![if stage_reference{serde_json::Value::Null}else{raw_reference.clone()}]).unwrap()}else if input[1].as_u64()==Some(3){
                                         assert!(stage_reference);assert_eq!(args["contract"],"ES20261110C6000");assert_eq!(args["version"],"fixture/v1");
                                         let model=base64::engine::general_purpose::STANDARD.decode(args["model"].as_str().unwrap()).unwrap();let model=rmpv::decode::read_value(&mut model.as_slice()).unwrap();let model=model.as_array().unwrap();assert_eq!(model.len(),45);assert_eq!(model[12].as_i64(),Some(1));assert_eq!(model[13].as_i64(),Some(2));assert_eq!(model[16].as_i64(),Some(43));serde_json::to_vec(&raw_reference).unwrap()
@@ -6617,7 +6653,7 @@ async fn native_options_group_case(
             } else {
                 configuration
             };
-            let configuration = if discovery_mode == 13 {
+            let configuration = if matches!(discovery_mode, 13 | 14) {
                 configuration
             } else if matches!(discovery_mode, 8 | 10) {
                 configuration.monitored_only()
@@ -6669,7 +6705,7 @@ async fn native_options_group_case(
                 vec![("ES20261110C6000".into(), [42; 32])],
             )
             .unwrap();
-        if matches!(discovery_mode, 8 | 10 | 13) {
+        if matches!(discovery_mode, 8 | 10 | 13 | 14) {
             use ifm_market_data_native::option_chain::browser::Command;
             let mut command=Command::parse(&serde_json::json!({"contract":raw_model[33],"root":"ES","expiry":date.to_julian_day()-1721426+14,"providers":[],"owner":"view-one","required":[raw_model[0]],"multiplier":2.5,"wing":"25","release":false})).unwrap();
             market.begin_browser(command.clone()).unwrap();
@@ -6696,7 +6732,7 @@ async fn native_options_group_case(
                 .unwrap_err().contains("DeadlineExpired"));
             assert!(market.browser_result(&command, &CancellationToken::new(), Deadline::after(Duration::ZERO)).await
                 .unwrap_err().contains("DeadlineExpired"));
-            if discovery_mode == 13 {
+            if matches!(discovery_mode, 13 | 14) {
                 let stable = market.publication_identity(Lane::OptionsGlbx).unwrap();
                 tokio::time::sleep(Duration::from_millis(200)).await;
                 assert_eq!(market.publication_identity(Lane::OptionsGlbx).unwrap().generation, stable.generation);
@@ -6823,7 +6859,7 @@ async fn native_options_group_case(
             market.wait_ready(Lane::OptionsGlbx, false).await.unwrap();
             assert_eq!(
                 market.has_desired(Lane::OptionsGlbx),
-                discovery_mode == 13,
+                matches!(discovery_mode, 13 | 14),
                 "Releasing browser views must preserve background policy coverage"
             );
             market.stop_feeds().unwrap();
@@ -6854,7 +6890,8 @@ async fn native_options_group_case(
                 )
             })
             .unwrap();
-            let state = market.committed_state().unwrap();
+            let state = tokio::time::timeout(Duration::from_secs(6), market.wait_committed_state())
+                .await.unwrap().unwrap();
             assert_eq!(state.as_array().unwrap()[0].as_i64(), Some(1));
             assert_eq!(state.as_array().unwrap()[2].as_bool(), Some(true));
             assert!(market.options_current().unwrap().monitored.contains(&43));
@@ -7017,9 +7054,11 @@ async fn native_options_group_case(
             );
             assert_eq!(reference_calls.load(Ordering::SeqCst), before);
             assert_eq!(fixture.accepted.load(Ordering::SeqCst), 3);
+            let restored = tokio::time::timeout(Duration::from_secs(6), market.wait_committed_state())
+                .await.unwrap().unwrap();
             assert!(market.options_current().unwrap().monitored.contains(&43));
             assert!(
-                market.committed_state().unwrap().as_array().unwrap()[2]
+                restored.as_array().unwrap()[2]
                     .as_bool()
                     .unwrap()
             );
@@ -7052,6 +7091,7 @@ async fn native_options_group_case(
                 )
             })
             .unwrap();
+            if discovery_mode == 1 { wait_option_publication(&market).await; }
             let result = market
                 .discovery_scope_result(111u128.to_le_bytes())
                 .unwrap();
@@ -7164,6 +7204,7 @@ async fn native_options_group_case(
                     old.generation
                 );
                 assert_eq!(reference_calls.load(Ordering::SeqCst), before);
+                wait_option_publication(&market).await;
                 let named = market
                     .discovery_scope_result(111u128.to_le_bytes())
                     .unwrap();
@@ -7263,6 +7304,7 @@ async fn native_options_group_case(
                 )
             })
             .unwrap();
+            wait_option_publication(&market).await;
             assert!(market.stream_active("ES20261110C6000").unwrap());
             let request = market
                 .monitored_risk_command("ES20261110C6000", date)

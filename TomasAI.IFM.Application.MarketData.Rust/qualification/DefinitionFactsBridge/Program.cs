@@ -77,6 +77,28 @@ var exactPage=JsonDocument.Parse(await Transfer(Query(new{snapshot=exactHeader.G
 if(exactPage.GetArrayLength()!=256||exactPage[0].GetArrayLength()!=25||exactPage[0][24].GetString()!=model.OptionType)throw new InvalidDataException("Browser projection lost untouched legacy option-type text.");
 foreach(var invalid in new object[]{new{root="ES",from=1,until=2,browser=true},new{root="ES",underlying="future",from=1,until=2,browser=true},new{root="ES",underlying="future",from=1,until=1,provider_roots=new[]{""},browser=true}}){try{await Transfer(Query(invalid),default);throw new Exception("Invalid exact browser filter accepted.");}catch(InvalidDataException){}}
 if(typeof(NativeDefinitionFacts).GetFields(BindingFlags.Instance|BindingFlags.NonPublic).Any(field=>field.FieldType.FullName?.Contains("NativeMarketDataRuntime")==true))throw new Exception("Passive source retained native owner.");
+// Published definitions can be reviewed while an older canonical contract is not.
+// Selected metadata must come from the captured partition/version, without consulting canonical storage.
+count=1;
+var selectedQuery=Query(new{contract="ES20261110C6000",version=model.MappingVersion,source=new{root="ES",underlying="ES20261218",expiry=new DateOnly(2026,11,10).DayNumber}});
+var conventions=Proxy.Create<TomasAI.IFM.Shared.MarketData.Contracts.Pricing.IOptionPricingConventionStore>((method,input)=>throw new Exception("Selected published lookup consulted conventions."));
+var rawFacts=new NativeReferenceFacts(factory,conventions);
+var selected=JsonDocument.Parse(await rawFacts.ReadAsync(6,JsonSerializer.SerializeToUtf8Bytes(selectedQuery),default)).RootElement;
+if(selected[0].GetString()!="ES20261110C6000"||selected[29].GetString()!=model.MappingVersion
+    ||lastDefinitionQuery?[1] as string!="ES20261218"||lastDefinitionQuery?[2] is not DateOnly selectedExpiry||selectedExpiry!=new DateOnly(2026,11,10))
+    throw new Exception("Selected full metadata changed its captured source/version.");
+foreach(var version in new[]{"missing-version",""}){
+    try{await rawFacts.ReadAsync(6,JsonSerializer.SerializeToUtf8Bytes(new{contract="ES20261110C6000",version,source=new{root="ES",underlying="ES20261218",expiry=new DateOnly(2026,11,10).DayNumber}}),default);throw new Exception("Missing selected source/version was accepted.");}
+    catch(InvalidDataException){}
+}
+var missingVersions=Proxy.Create<ISecuritiesDbContext>((method,input)=>method.Name=="GetReferenceVersionAsync"
+    ?Task.FromResult<TomasAI.IFM.Domain.Reference.Shared.ViewModels.ReferenceContractVersion?>(null)
+    :throw new Exception("An exact-version miss fell back to canonical/latest storage."));
+var missingFactory=Proxy.Create<IDbContextFactory>((method,input)=>method.Name=="get_SecuritiesDb"?missingVersions:throw new Exception("Unexpected database."));
+var absent=JsonDocument.Parse(await new NativeReferenceFacts(missingFactory,conventions).ReadAsync(6,
+    JsonSerializer.SerializeToUtf8Bytes(new{contract="ES20261110C6000",version="absent"}),default)).RootElement;
+if(absent.ValueKind!=JsonValueKind.Null)throw new Exception("Missing exact reference version returned substituted metadata.");
+Console.WriteLine("PASS selected full metadata uses the published expiry source and exact mapping version; stale canonical rows are never read; missing/empty versions fail closed.");
 Console.WriteLine("PASS compact C# raw source through actual eight-entry/4096-byte paging wrapper: complete 100000 rows; cross-partition duplicates preserve exact first-row pages/digest; 24-field bounded pages; SHA-256 full source integrity; immutable pages; partial/empty boundaries; invalid/expired identities; oversized/concurrent/cancelled capture; exact-expiry/underlying/provider-root filter propagation without expiry scanning; untouched 25-field browser source; malformed browser filters; no native resource handle.");
 public class Proxy:DispatchProxy {
  public Func<MethodInfo,object?[]?,object?> Handler=null!;

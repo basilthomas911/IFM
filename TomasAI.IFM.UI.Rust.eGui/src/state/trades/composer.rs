@@ -672,8 +672,18 @@ impl Composer {
                     return Err("Invalid execution selection".into());
                 }
                 self.quantity = quantity;
-                if let Some(price) = entered(field(intent, "price")) {
-                    self.market.draft.entered_price = Some(price);
+                if field(intent, "priceEdited") != "false" {
+                    let published_price = self.totals.as_ref()
+                        .map(|totals| totals.cell("OrderPrice"))
+                        .filter(|price| !price.is_missing())
+                        .map(exact_cell)
+                        .transpose()?;
+                    self.market.draft.update_order_price(
+                        if field(intent, "price").trim().is_empty() {
+                            None
+                        } else {
+                            Some(entered(field(intent, "price")).ok_or("Enter a valid order price")?)
+                        }, published_price.as_ref());
                 }
                 self.order_type = order_type.into();
                 self.algorithm = algorithm.into();
@@ -946,6 +956,7 @@ impl Composer {
             ("live", flag(self.market.live)),
             ("quantity", self.quantity.to_string()),
             ("price", self.totals.cell("OrderPrice").text()),
+            ("comboTick", self.totals.cell("ResolvedTickIncrement").text()),
             (
                 "previewKey",
                 self.market

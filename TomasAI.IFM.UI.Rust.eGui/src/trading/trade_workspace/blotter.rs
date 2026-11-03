@@ -219,6 +219,7 @@ impl TradeWorkspace {
             for key in [
                 "submitted",
                 "previewKey",
+                "publishedOrderPrice",
                 "quantity",
                 "price",
                 "orderType",
@@ -262,6 +263,7 @@ impl TradeWorkspace {
                 "parentOrderAction",
                 "submitted",
                 "previewKey",
+                "publishedOrderPrice",
             ] {
                 self.draft.remove(key);
             }
@@ -269,8 +271,12 @@ impl TradeWorkspace {
                 .insert("composerSessionId".into(), session.into());
         }
         let key = context(s, "previewKey");
-        if self.draft.get("previewKey").map(String::as_str) != Some(key) {
+        let published_price = context(s, "price");
+        if self.draft.get("previewKey").map(String::as_str) != Some(key)
+            || self.draft.get("publishedOrderPrice").map(String::as_str) != Some(published_price)
+        {
             self.draft.insert("previewKey".into(), key.into());
+            self.draft.insert("publishedOrderPrice".into(), published_price.into());
             self.draft
                 .insert("price".into(), context(s, "price").into());
         }
@@ -1160,13 +1166,7 @@ impl TradeWorkspace {
                                         let displayed = match *caption {
                                             "Directed venue" => context(s, "venue").into(),
                                             "Combo tick" => {
-                                                if context(s, "compositionType")
-                                                    == "FuturesOutright"
-                                                {
-                                                    "0.25".into()
-                                                } else {
-                                                    "0.05".into()
-                                                }
+                                                context(s, "comboTick").into()
                                             }
                                             "Broker route" => {
                                                 if context(s, "brokerMode") == "Emulator" {

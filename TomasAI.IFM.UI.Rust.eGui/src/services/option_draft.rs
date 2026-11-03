@@ -179,6 +179,21 @@ pub(crate) fn validate(settings: &Settings) -> Result<(), String> {
     Ok(())
 }
 impl Draft {
+    /// Retains a deliberate limit edit without pinning an automatically displayed midpoint
+    /// when another execution control republishes the form. Clearing the field restores pricing at mid.
+    pub fn update_order_price(
+        &mut self,
+        price: Option<ExactDecimal>,
+        published_price: Option<&ExactDecimal>,
+    ) {
+        if price.as_ref().is_none_or(|price| {
+            published_price.is_none_or(|published| option_selection::compare(price, published).is_ne())
+        }) {
+            self.entered_price = price;
+        }
+    }
+
+
     /// Accepts an incoming value only when this component's identity and revision checks pass.
     pub fn accept(
         &mut self,

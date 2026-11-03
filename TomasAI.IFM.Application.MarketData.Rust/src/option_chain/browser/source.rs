@@ -204,10 +204,7 @@ impl Discovery {
             if version.trim().is_empty() {
                 return Err("Selected browser definition is not reviewed".into());
             }
-            let contract = row.coverage_definition()?.contract;
-            let args =
-                serde_json::to_vec(&serde_json::json!({"contract":contract,"version":version}))
-                    .map_err(|_| "Invalid native exact browser model request")?;
+            let args = row.selected_model_request()?;
             wanted.push((row.clone(), args));
         }
         stream::iter(wanted)

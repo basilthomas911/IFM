@@ -679,8 +679,7 @@ impl Configuration {
                 {
                     return Ok::<_, String>(known);
                 }
-                let args = serde_json::to_vec(&serde_json::json!({"contract":contract}))
-                    .map_err(|_| "Invalid selected model request")?;
+                let args = compact.selected_model_request()?;
                 let bytes = crate::messaging::raw_io::read(
                     self.discovery.broker.clone(),
                     self.discovery.scope.clone(),

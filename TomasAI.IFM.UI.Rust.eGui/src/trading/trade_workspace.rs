@@ -197,6 +197,12 @@ impl TradeWorkspace {
     /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     pub fn request(&mut self, action: &str, s: &ContractPublication) -> String {
         let id = new_request_id();
+        // A form refresh carries its displayed price too. Only a user edit may
+        // turn automatic midpoint pricing into a fixed limit, even if quotes raced this intent.
+        if let Some(published) = self.draft.get("publishedOrderPrice") {
+            let edited = self.draft.get("price").is_some_and(|price| price != published);
+            self.draft.insert("priceEdited".into(), edited.to_string());
+        }
         self.pending = Some(id.clone());
         self.pending_action = action.into();
         if let Some(trade) = s.result.context.get("tradeId") {

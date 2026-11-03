@@ -2,6 +2,25 @@ use ifm_ui_egui::{backend::contracts::ExactDecimal, services::option_draft::*};
 use serde_json::{Value as Json, json};
 
 
+/// Automatic mid pricing survives form recalculation; deliberate signed limits remain fixed.
+#[test]
+fn order_price_tracks_mid_until_deliberately_overridden() {
+    for (mid, equivalent, edited) in [("-3.20", "-3.2", "-3.15"), ("3.20", "3.2", "3.25")] {
+        let mut draft = Draft::default();
+        let published = ExactDecimal::parse(mid).unwrap();
+        draft.update_order_price(Some(ExactDecimal::parse(equivalent).unwrap()), Some(&published));
+        assert!(draft.entered_price.is_none(), "Recalculating must not pin the midpoint");
+        draft.update_order_price(Some(ExactDecimal::parse(edited).unwrap()), Some(&published));
+        assert_eq!(draft.entered_price.as_ref().unwrap().as_str(), edited);
+        let published = ExactDecimal::parse(edited).unwrap();
+        draft.update_order_price(Some(published.clone()), Some(&published));
+        assert_eq!(draft.entered_price.as_ref().unwrap().as_str(), edited);
+        draft.update_order_price(None, Some(&published));
+        assert!(draft.entered_price.is_none(), "Clearing restores automatic pricing");
+    }
+}
+
+
 /// Provides chain for the option draft implementation.
 fn chain() -> Json {
     let row = |id: &str, strike: &str, call: bool, delta: f64| json!({"ContractId":id,"Strike":strike,"IsCall":call,"Delta":delta,"Vega":0.3,"IsStale":false,"GreeksValid":true,"SelectionValid":false,"Bid":"1.25","Ask":"1.5","QuoteAtUtc":"2026-10-26T12:30:00Z"});

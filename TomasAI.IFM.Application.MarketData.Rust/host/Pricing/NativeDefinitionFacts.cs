@@ -16,6 +16,27 @@ public sealed class NativeDefinitionFacts(IDbContextFactory databases,TimeProvid
     readonly Dictionary<string,Snapshot> snapshots=[];
     int building;
     sealed record Snapshot(byte[][] Rows,string Digest,long Created);
+    /// <summary>Reads selected full metadata from the published expiry source
+    /// that supplied its compact row. Canonical/latest records cannot replace it.</summary>
+    public async Task<byte[]> ReadSelectedAsync(JsonElement input,CancellationToken token)
+    {
+        var contract=input.GetProperty("contract").GetString();
+        var version=input.GetProperty("version").GetString();
+        var source=input.GetProperty("source");
+        var root=source.GetProperty("root").GetString();
+        var underlying=source.GetProperty("underlying").GetString();
+        var expiry=DateOnly.FromDayNumber(source.GetProperty("expiry").GetInt32());
+        if(string.IsNullOrWhiteSpace(contract)||contract.Length>1024
+            ||string.IsNullOrWhiteSpace(version)||version.Length>512
+            ||string.IsNullOrWhiteSpace(root)||root.Length>60
+            ||string.IsNullOrWhiteSpace(underlying)||underlying.Length>1024)
+            throw new InvalidDataException("Invalid selected published option identity.");
+        var rows=await databases.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(root,underlying,expiry,null,token).ConfigureAwait(false);
+        var exact=rows.Where(row=>string.Equals(row.Definition.ContractId,contract,StringComparison.Ordinal)
+            &&string.Equals(row.Definition.MappingVersion,version,StringComparison.Ordinal)).ToArray();
+        if(exact.Length!=1)throw new InvalidDataException("Selected published option version is missing or ambiguous.");
+        return JsonSerializer.SerializeToUtf8Bytes(NativeReferenceProjection.Option(exact[0].Definition));
+    }
     /// <summary>Captures a complete compact source or reads an immutable bounded
     /// page. A snapshot identity prevents mixing data from concurrent refreshes.</summary>
     public async Task<byte[]> ReadAsync(JsonElement input,CancellationToken token)

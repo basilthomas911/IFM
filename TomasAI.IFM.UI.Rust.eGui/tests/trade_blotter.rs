@@ -1070,6 +1070,22 @@ fn load_trade_closes_the_editor_and_keeps_monitoring_outside_the_blotter() {
 }
 
 
+/// A quote refresh for unchanged legs must update the actual order-price input.
+#[test]
+fn unchanged_legs_refresh_the_order_price_used_by_submission() {
+    let mut h = harness();
+    h.state_mut().snapshot.result.context.insert("live".into(), "True".into());
+    h.state_mut().snapshot.result.context.insert("price".into(), "-3.45".into());
+    h.run();
+    let state = h.state_mut();
+    let request: serde_json::Value = serde_json::from_str(
+        &state.view.request("submit-order", &state.snapshot)).unwrap();
+    assert_eq!(request["fields"]["price"], "-3.45");
+    assert_eq!(request["fields"]["priceEdited"], "false");
+    assert_eq!(state.snapshot.result.context["previewKey"], "SC");
+}
+
+
 /// Verifies that late composer snapshot replaces the initial empty draft.
 #[test]
 fn late_composer_snapshot_replaces_the_initial_empty_draft() {
