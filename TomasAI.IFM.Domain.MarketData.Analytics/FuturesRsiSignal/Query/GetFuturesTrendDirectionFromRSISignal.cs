@@ -16,32 +16,34 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Query;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "The published query handler name preserves the domain acronym and existing query-family convention.")]
 public static class GetFuturesTrendDirectionFromRSISignal
 {
-    /// <summary>Loads the RSI trend-direction read model for this query.</summary>
-    private static async ValueTask<FuturesTrendDirectionReadModel> GetFuturesTrendDirectionAsync(
-        this GetFuturesTrendDirectionFromRSISignalQuery q,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-        => await dbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
-                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, q.Timestamp,
-                q.LookBackInterval, q.StartTime, q.EndTime, cancellationToken).ConfigureAwait(false);
 
-    /// <summary>Reads and replies to the GetFuturesTrendDirectionFromRSISignalQuery message.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesTrendDirectionFromRSISignalQuery q,
-        IQueryActorContext<FuturesRsiSignalQueryActor> ctx,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken)
+    extension(GetFuturesTrendDirectionFromRSISignalQuery q)
     {
-        ArgumentNullException.ThrowIfNull(ctx);
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        var query = q;
-        var result = await query.GetFuturesTrendDirectionAsync(dbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        var serviceResult = new ServiceResult<FuturesTrendDirectionReadModel>(result);
-        await ctx.ReplyAsync(
-            q.Subject.ThreadId,
-            GetFuturesTrendDirectionFromRSISignalQuery.Verb,
-            serviceResult).ConfigureAwait(false);
+        /// <summary>Loads the RSI trend-direction read model for this query.</summary>
+        private async ValueTask<FuturesTrendDirectionReadModel> GetFuturesTrendDirectionAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+            => await dbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
+                    q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, q.Timestamp,
+                    q.LookBackInterval, q.StartTime, q.EndTime, cancellationToken).ConfigureAwait(false);
+
+        /// <summary>Reads and replies to the GetFuturesTrendDirectionFromRSISignalQuery message.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesRsiSignalQueryActor> ctx,
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(ctx);
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            var query = q;
+            var result = await query.GetFuturesTrendDirectionAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var serviceResult = new ServiceResult<FuturesTrendDirectionReadModel>(result);
+            await ctx.ReplyAsync(
+                q.Subject.ThreadId,
+                GetFuturesTrendDirectionFromRSISignalQuery.Verb,
+                serviceResult).ConfigureAwait(false);
+        }
     }
 }

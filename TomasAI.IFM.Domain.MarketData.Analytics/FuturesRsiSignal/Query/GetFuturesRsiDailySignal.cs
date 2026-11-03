@@ -13,34 +13,39 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Query;
 
 public static class GetFuturesRsiDailySignal
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="q"></param>
-    /// <param name="dbFactory"></param>
-    /// <param name="context"></param>
-    /// <returns></returns>
-    internal static async ValueTask<FuturesRsiSignalReadModel?> GetLastFuturesRsiDailySignalAsync(
-        this GetFuturesRsiDailySignalQuery q,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-        => await dbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
-                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
 
-    /// <summary>Reads and replies to the GetFuturesRsiDailySignalQuery message.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesRsiDailySignalQuery q,
-        IQueryActorContext<FuturesRsiSignalQueryActor> ctx,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken)
+    /// <param name="q">
+    ///
+    /// </param>
+    extension(GetFuturesRsiDailySignalQuery q)
     {
-        ArgumentNullException.ThrowIfNull(ctx);
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        var query = q;
-        var result = await query.GetLastFuturesRsiDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);
-        await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
+        /// <summary>
+        ///
+        /// </summary>
+        ///
+        /// <param name="dbFactory"></param>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        internal async ValueTask<FuturesRsiSignalReadModel?> GetLastFuturesRsiDailySignalAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+            => await dbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
+                    q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
+
+        /// <summary>Reads and replies to the GetFuturesRsiDailySignalQuery message.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesRsiSignalQueryActor> ctx,
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(ctx);
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            var query = q;
+            var result = await query.GetLastFuturesRsiDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
+        }
     }
 }

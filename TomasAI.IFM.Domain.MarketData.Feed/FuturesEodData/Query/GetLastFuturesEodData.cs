@@ -11,18 +11,22 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query;
 
 public static class GetLastFuturesEodData
 {
-    internal static async ValueTask<FuturesEodDataV2ReadModel> ExecuteAsync(
-       this GetLastFuturesEodDataQuery q, IDbContextFactory dbFactory)
+
+    extension(GetLastFuturesEodDataQuery q)
     {
-        var db = dbFactory.MarketDataDb;
-        var futuresEodData = await (db.GetLastFuturesEodDataAsync(q.ContractId, q.ValueDate)).ConfigureAwait(false);
-        if (futuresEodData is not null)
+        internal async ValueTask<FuturesEodDataV2ReadModel> ExecuteAsync(
+        IDbContextFactory dbFactory)
         {
-            var contractIdInfo = futuresEodData.GetContractId();
-            var movingAverages = await (dbFactory.GetFuturesEodMovingAveragesAsync(contractIdInfo.ContractId, contractIdInfo.Symbol, futuresEodData.ValueDate)).ConfigureAwait(false);
-            futuresEodData = futuresEodData with { FiftyDMA = movingAverages.FiftyDMA, TwoHundredDMA = movingAverages.TwoHundredDMA };
+            var db = dbFactory.MarketDataDb;
+            var futuresEodData = await (db.GetLastFuturesEodDataAsync(q.ContractId, q.ValueDate)).ConfigureAwait(false);
+            if (futuresEodData is not null)
+            {
+                var contractIdInfo = futuresEodData.GetContractId();
+                var movingAverages = await (dbFactory.GetFuturesEodMovingAveragesAsync(contractIdInfo.ContractId, contractIdInfo.Symbol, futuresEodData.ValueDate)).ConfigureAwait(false);
+                futuresEodData = futuresEodData with { FiftyDMA = movingAverages.FiftyDMA, TwoHundredDMA = movingAverages.TwoHundredDMA };
+            }
+            return futuresEodData!;
         }
-        return futuresEodData!;
     }
 
 }

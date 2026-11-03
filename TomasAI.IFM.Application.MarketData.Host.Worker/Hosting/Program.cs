@@ -140,6 +140,12 @@ async Task<int> RunWorkerAsync()
                         await WriteAsync(DatasetWorkerMessageKind.MarketDataApiResult, datasetRuntime.IsHealthy,
                             "Market-data API operation completed.", command.CorrelationId, apiResult: result).ConfigureAwait(false);
                     }
+                    catch (TomasAI.IFM.Application.MarketData.Remote.MarketDataApiRequestRejectedException rejected) when (!stopping.IsCancellationRequested)
+                    {
+                        Log.Warning("Worker API request rejected; CorrelationId={CorrelationId}; Failure={Failure}", command.CorrelationId, DatasetWorkerLogging.Redact(rejected.Message));
+                        await WriteAsync(DatasetWorkerMessageKind.MarketDataApiResult, datasetRuntime?.IsHealthy == true,
+                            "Market-data API request rejected.", command.CorrelationId, apiError: DatasetWorkerLogging.Redact(rejected.Message)).ConfigureAwait(false);
+                    }
                     catch (Exception apiFailure) when (!stopping.IsCancellationRequested)
                     {
                         datasetRuntime?.MarkFailed(apiFailure);

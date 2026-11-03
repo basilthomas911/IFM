@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 
     public static class QuoteTypeExtensions
     {
-        public static string ToStringFast(this QuoteType value) => value switch
+
+        extension(QuoteType value)
         {
-            QuoteType.Price => nameof(QuoteType.Price),
-            QuoteType.Size => nameof(QuoteType.Size),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                QuoteType.Price => nameof(QuoteType.Price),
+                QuoteType.Size => nameof(QuoteType.Size),
+                _ => value.ToString()
+            };
+        }
     }
 }

@@ -9,33 +9,36 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.E
 /// <summary>Publishes the consumer realtime event only after successful ScyllaDB projection.</summary>
 public static class FuturesTradeSessionBarPublishedComplete
 {
-    /// <summary>Forwards one persisted bar to all realtime bar-derived consumers.</summary>
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesTradeSessionBarPublishedCompleteEvent @event,
-        IFuturesTradeSessionBarSignalEventContext context,
-        ILogger<FuturesTradeSessionBarSignalEventActor> logger)
+
+    extension(FuturesTradeSessionBarPublishedCompleteEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        var realtime = new FuturesTradeSessionBarClosedRealtimeEvent
+        /// <summary>Forwards one persisted bar to all realtime bar-derived consumers.</summary>
+        public async ValueTask<bool> ExecuteAsync(
+            IFuturesTradeSessionBarSignalEventContext context,
+            ILogger<FuturesTradeSessionBarSignalEventActor> logger)
         {
-            Subject = new(
-                ActorType.Realtime,
-                FuturesTradeSessionBarClosedRealtimeEvent.Actor,
-                FuturesTradeSessionBarClosedRealtimeEvent.Verb,
-                @event.EntityId.Format()),
-            Id = @event.Bar.ObservationId.Value,
-            EntityId = @event.EntityId,
-            CommandId = @event.CommandId,
-            AggregateId = @event.EntityId.Format(),
-            EventSource = nameof(FuturesTradeSessionBarSignalEventActor),
-            ReceivedOn = context.TimeProvider.GetUtcNow().UtcDateTime,
-            Observation = @event.Bar
-        };
-        await context.SendAsync<FuturesTradeSessionBarClosedRealtimeEvent,
-            FuturesTradeSessionBarEntityId>(realtime).ConfigureAwait(false);
-        FuturesTradeSessionBarPublicationProgress.Record(@event.Bar);
-        return true;
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            var realtime = new FuturesTradeSessionBarClosedRealtimeEvent
+            {
+                Subject = new(
+                    ActorType.Realtime,
+                    FuturesTradeSessionBarClosedRealtimeEvent.Actor,
+                    FuturesTradeSessionBarClosedRealtimeEvent.Verb,
+                    @event.EntityId.Format()),
+                Id = @event.Bar.ObservationId.Value,
+                EntityId = @event.EntityId,
+                CommandId = @event.CommandId,
+                AggregateId = @event.EntityId.Format(),
+                EventSource = nameof(FuturesTradeSessionBarSignalEventActor),
+                ReceivedOn = context.TimeProvider.GetUtcNow().UtcDateTime,
+                Observation = @event.Bar
+            };
+            await context.SendAsync<FuturesTradeSessionBarClosedRealtimeEvent,
+                FuturesTradeSessionBarEntityId>(realtime).ConfigureAwait(false);
+            FuturesTradeSessionBarPublicationProgress.Record(@event.Bar);
+            return true;
+        }
     }
 }

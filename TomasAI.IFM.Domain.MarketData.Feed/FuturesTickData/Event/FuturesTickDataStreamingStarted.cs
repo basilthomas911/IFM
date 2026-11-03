@@ -26,58 +26,61 @@ public static class FuturesTickDataStreamingStarted
     }
 
     static string ServiceId { get; }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
-    /// <summary>Attaches the futures stream and publishes its completion or failure event.</summary>
-    public static async ValueTask<bool> ExecuteAsync(
-    this FuturesTickDataStreamingStartedEvent e,
-    IEventActorContext context,
-    IEventActorContext eventApi,
-    FuturesTickDataEventParameters p, ILogger<FuturesTickDataEventActor> logger)
+
+    extension(FuturesTickDataStreamingStartedEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(eventApi);
-        ArgumentNullException.ThrowIfNull(p);
-        var source = $"FuturesTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
+        /// <summary>Attaches the futures stream and publishes its completion or failure event.</summary>
+        public async ValueTask<bool> ExecuteAsync(
+            IEventActorContext context,
+            IEventActorContext eventApi,
+            FuturesTickDataEventParameters p, ILogger<FuturesTickDataEventActor> logger)
         {
-            var runtime = p.MarketDataApi.GetRuntimeStatus();
-            if (!runtime.IsRunning || runtime.ActiveValueDate != e.ValueDate)
-                throw new InvalidOperationException(
-                    "The Databento watchdog must start and qualify the value-date runtime before a futures route is attached.");
-            if (p.MarketDataApi.CoreFuturesRoutesAreRuntimeOwned)
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(eventApi);
+            ArgumentNullException.ThrowIfNull(p);
+            var source = $"FuturesTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
+            try
             {
-                if (!p.MarketDataApi.IsTickDataStreamActive(e.Contract.ContractId))
+                var runtime = p.MarketDataApi.GetRuntimeStatus();
+                if (!runtime.IsRunning || runtime.ActiveValueDate != e.ValueDate)
                     throw new InvalidOperationException(
-                        $"The supervised dataset worker has not admitted the futures tick route for {e.Contract.ContractId}.");
+                        "The Databento watchdog must start and qualify the value-date runtime before a futures route is attached.");
+                if (p.MarketDataApi.CoreFuturesRoutesAreRuntimeOwned)
+                {
+                    if (!p.MarketDataApi.IsTickDataStreamActive(e.Contract.ContractId))
+                        throw new InvalidOperationException(
+                            $"The supervised dataset worker has not admitted the futures tick route for {e.Contract.ContractId}.");
+                    await (eventApi.FuturesTickDataStreamingStartedCompleteAsync(e)).ConfigureAwait(false);
+                    logger.LogInformationEvent(ServiceId,
+                        "{Source}: futures {ContractId} streaming is owned by the supervised dataset worker",
+                        source, e.Contract.ContractId);
+                    return true;
+                }
+                var owner = CreateOwner(e.EntityId, e.Contract.ContractId);
+                _ = await p.MarketDataApi.StartStreamingFuturesTickDataAsync(
+                    e.Contract.ContractId,
+                    owner).ConfigureAwait(false);
+                p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
+                if (e.Contract.Id.IsVxContract)
+                {
+                    p.BlackboardService.MarketDataFeed.VixFuturesContractId.Set(
+                        e.ValueDate,
+                        e.Contract.ContractId);
+                }
                 await (eventApi.FuturesTickDataStreamingStartedCompleteAsync(e)).ConfigureAwait(false);
-                logger.LogInformationEvent(ServiceId,
-                    "{Source}: futures {ContractId} streaming is owned by the supervised dataset worker",
-                    source, e.Contract.ContractId);
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started")).ConfigureAwait(false);
+                logger.LogInformationEvent(ServiceId, "{Source}: futures {e.Contract.ContractId} streaming started", source, e.Contract.ContractId);
                 return true;
             }
-            var owner = CreateOwner(e.EntityId, e.Contract.ContractId);
-            _ = await p.MarketDataApi.StartStreamingFuturesTickDataAsync(
-                e.Contract.ContractId,
-                owner).ConfigureAwait(false);
-            p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
-            if (e.Contract.Id.IsVxContract)
+            catch (Exception ex)
             {
-                p.BlackboardService.MarketDataFeed.VixFuturesContractId.Set(
-                    e.ValueDate,
-                    e.Contract.ContractId);
+                logger.LogErrorEvent(ServiceId, ex, "{Source}: futures {e.Contract.ContractId} streaming start failed", source, e.Contract.ContractId);
+                await (eventApi.FuturesTickDataStreamingStartedFailAsync(e, ex)).ConfigureAwait(false);
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, 6003, ex.GetErrorMessage())).ConfigureAwait(false);
             }
-            await (eventApi.FuturesTickDataStreamingStartedCompleteAsync(e)).ConfigureAwait(false);
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started")).ConfigureAwait(false);
-            logger.LogInformationEvent(ServiceId, "{Source}: futures {e.Contract.ContractId} streaming started", source, e.Contract.ContractId);
-            return true;
+            return false;
         }
-        catch (Exception ex)
-        {
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures {e.Contract.ContractId} streaming start failed", source, e.Contract.ContractId);
-            await (eventApi.FuturesTickDataStreamingStartedFailAsync(e, ex)).ConfigureAwait(false);
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, 6003, ex.GetErrorMessage())).ConfigureAwait(false);
-        }
-        return false;
     }
 
     /// <summary>Creates the owner identity used to track this actor's futures stream.</summary>

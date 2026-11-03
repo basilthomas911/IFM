@@ -8,15 +8,19 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
 
 public static class TradeOrderStateExtensions
 {
-    public static string ToStringFast(this TradeOrderState value) => value switch
+
+    extension(TradeOrderState value)
     {
-        TradeOrderState.OrderPlaced => nameof(TradeOrderState.OrderPlaced),
-        TradeOrderState.OrderOpened => nameof(TradeOrderState.OrderOpened),
-        TradeOrderState.OrderPartiallyFilled => nameof(TradeOrderState.OrderPartiallyFilled),
-        TradeOrderState.OrderFilled => nameof(TradeOrderState.OrderFilled),
-        TradeOrderState.OrderClosed => nameof(TradeOrderState.OrderClosed),
-        TradeOrderState.OrderCancelled => nameof(TradeOrderState.OrderCancelled),
-        TradeOrderState.OrderFailed => nameof(TradeOrderState.OrderFailed),
-        _ => value.ToString()
-    };
+        public string ToStringFast() => value switch
+        {
+            TradeOrderState.OrderPlaced => nameof(TradeOrderState.OrderPlaced),
+            TradeOrderState.OrderOpened => nameof(TradeOrderState.OrderOpened),
+            TradeOrderState.OrderPartiallyFilled => nameof(TradeOrderState.OrderPartiallyFilled),
+            TradeOrderState.OrderFilled => nameof(TradeOrderState.OrderFilled),
+            TradeOrderState.OrderClosed => nameof(TradeOrderState.OrderClosed),
+            TradeOrderState.OrderCancelled => nameof(TradeOrderState.OrderCancelled),
+            TradeOrderState.OrderFailed => nameof(TradeOrderState.OrderFailed),
+            _ => value.ToString()
+        };
+    }
 }

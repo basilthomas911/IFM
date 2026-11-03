@@ -31,7 +31,7 @@ public sealed class OptionChainCacheTests
         { ConfigurationDigest = Policy };
     internal static async Task<MarketCompositionSnapshot> Snapshot()
     {
-        var provider = new MarketCompositionSnapshotProvider(new Source(), new Clock(At));
+        var provider = new MarketCompositionSnapshotProvider(new Source(), new Harness.ManualTestTimeProvider(At));
         var result = await provider.CaptureAsync(new(Guid.NewGuid(), "fixture-scope", "Daily", Generation, At, At.AddSeconds(2), true), default);
         Assert.Null(result.Failure); return result.Snapshot!;
     }

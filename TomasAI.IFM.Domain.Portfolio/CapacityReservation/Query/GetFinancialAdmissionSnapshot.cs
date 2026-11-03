@@ -9,12 +9,16 @@ namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Query;
 /// <summary>Handles the GetFinancialAdmissionSnapshot financial query.</summary>
 public static class GetFinancialAdmissionSnapshot
 {
-    /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
-    public static ValueTask ExecuteAsync<TActor>(this GetFinancialAdmissionSnapshotQuery query, IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
-        
+
+    extension(GetFinancialAdmissionSnapshotQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        return FinancialQueryReply.ExecuteAsync(query, context, "CapacityReservationQuery", "GetFinancialAdmissionSnapshot", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+        /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
+        public ValueTask ExecuteAsync<TActor>(IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            return FinancialQueryReply.ExecuteAsync(query, context, "CapacityReservationQuery", "GetFinancialAdmissionSnapshot", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+        }
     }
 }

@@ -562,10 +562,14 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
 
 file static class PostgreSqlTestListExtensions
 {
-    public static int IndexOf<T>(this IReadOnlyList<T> values, T expected)
+
+    extension<T>(IReadOnlyList<T> values)
     {
-        for (var index = 0; index < values.Count; index++)
-            if (EqualityComparer<T>.Default.Equals(values[index], expected)) return index;
-        return -1;
+        public int IndexOf(T expected)
+        {
+            for (var index = 0; index < values.Count; index++)
+                if (EqualityComparer<T>.Default.Equals(values[index], expected)) return index;
+            return -1;
+        }
     }
 }

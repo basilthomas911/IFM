@@ -138,92 +138,96 @@ namespace TomasAI.IFM.Application.Api.Server.Core.DependencyInjection;
 
 public static partial class CoreServiceRegistration
 {
-    public static WebApplication ConfigureRequestPipeline(this WebApplication app, Microsoft.Extensions.Logging.ILogger logger)
-    {
-        var siContainer = app.Services.GetRequiredService<Container>();
-        // configure the HTTP request pipeline...
-        siContainer.RegisterInstance(
-                app.Services.GetRequiredService<IFuturesMarketSessionAuthority>());
-        siContainer.RegisterInstance(app.Services.GetRequiredService<ICompletedFuturesEndOfDayProjection>());
-        app.Services.UseSimpleInjector(siContainer);
-        siContainer.Verify();
-        logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"configure HTTP request pipeline...",nameof(CoreServiceRegistration),nameof(ConfigureRequestPipeline));
-        if (app.Environment.IsDevelopment())
-        {
-            app.UseSwagger();
-            app.UseSwaggerUI(options =>
-            {
-                options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
-                options.RoutePrefix = string.Empty;
-            });
-        }
-        else if (EventLogQualification.Active is null)
-        {
-            app.UseHttpsRedirection();
-        }
-        app.UseOutputCache();
-        app.MapGet("/health/recovery-ready", (TomasAI.IFM.Application.Api.Server.Core.HostedServices.TradeFeedRecoveryStartupService startup,
-            TomasAI.IFM.Domain.MarketData.Shared.IFuturesMarketSessionAuthority sessions,
-            TomasAI.IFM.Shared.EventModelActor.Contracts.IActorSupervisor supervisor,
-            TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry caches) =>
-                Results.Ok(TomasAI.IFM.Application.Api.Server.Core.HostedServices.ApiRecoveryReadinessProbe.Capture(startup.Current, sessions, supervisor, caches)));
-        app.MapHealthChecks("/health/live", new HealthCheckOptions
-        {
-            Predicate = registration => registration.Tags.Contains("live"),
-            ResponseWriter = WriteHealthResponseAsync
-        });
-        app.MapHealthChecks("/health/bootstrap", new HealthCheckOptions
-        {
-            Predicate = registration => registration.Tags.Contains("bootstrap"),
-            ResponseWriter = WriteHealthResponseAsync
-        }).CacheOutput(ApiOutputCachePolicies.HealthSnapshot);
-        app.MapHealthChecks("/health/launch-ready", new HealthCheckOptions
-        {
-            Predicate = registration => registration.Tags.Contains("launch"),
-            ResultStatusCodes =
-            {
-                [HealthStatus.Healthy] = StatusCodes.Status200OK,
-                [HealthStatus.Degraded] = StatusCodes.Status503ServiceUnavailable,
-                [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
-            },
-            ResponseWriter = WriteHealthResponseAsync
-        }).CacheOutput(ApiOutputCachePolicies.HealthSnapshot);
-        app.MapHealthChecks("/health/ready", new HealthCheckOptions
-        {
-            Predicate = registration => registration.Tags.Contains("ready"),
-            ResultStatusCodes =
-            {
-                [HealthStatus.Healthy] = StatusCodes.Status200OK,
-                [HealthStatus.Degraded] = StatusCodes.Status503ServiceUnavailable,
-                [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
-            },
-            ResponseWriter = WriteHealthResponseAsync
-        }).CacheOutput(ApiOutputCachePolicies.HealthSnapshot);
-        app.MapHealthChecks("/health/actors", new HealthCheckOptions
-        {
-            Predicate = registration => registration.Tags.Contains("actor"),
-            ResponseWriter = WriteHealthResponseAsync
-        }).CacheOutput(ApiOutputCachePolicies.HealthSnapshot);
-        logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"web app configuration completed",nameof(CoreServiceRegistration),nameof(ConfigureRequestPipeline));
-        return app;
 
-        static async Task WriteHealthResponseAsync(HttpContext context, HealthReport report)
+    extension(WebApplication app)
+    {
+        public WebApplication ConfigureRequestPipeline(Microsoft.Extensions.Logging.ILogger logger)
         {
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsJsonAsync(new
+            var siContainer = app.Services.GetRequiredService<Container>();
+            // configure the HTTP request pipeline...
+            siContainer.RegisterInstance(
+                    app.Services.GetRequiredService<IFuturesMarketSessionAuthority>());
+            siContainer.RegisterInstance(app.Services.GetRequiredService<ICompletedFuturesEndOfDayProjection>());
+            app.Services.UseSimpleInjector(siContainer);
+            siContainer.Verify();
+            logger.LogInformationEvent("ApiServer", "{Component}.{Method} " + "configure HTTP request pipeline...", nameof(CoreServiceRegistration), nameof(ConfigureRequestPipeline));
+            if (app.Environment.IsDevelopment())
             {
-                status = report.Status.ToString(),
-                totalDurationMilliseconds = report.TotalDuration.TotalMilliseconds,
-                entries = report.Entries.ToDictionary(
-                    entry => entry.Key,
-                    entry => new
-                    {
-                        status = entry.Value.Status.ToString(),
-                        entry.Value.Description,
-                        durationMilliseconds = entry.Value.Duration.TotalMilliseconds,
-                        entry.Value.Data
-                    })
+                app.UseSwagger();
+                app.UseSwaggerUI(options =>
+                {
+                    options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
+                    options.RoutePrefix = string.Empty;
+                });
+            }
+            else if (EventLogQualification.Active is null)
+            {
+                app.UseHttpsRedirection();
+            }
+            app.UseOutputCache();
+            app.MapGet("/health/recovery-ready", (TomasAI.IFM.Application.Api.Server.Core.HostedServices.TradeFeedRecoveryStartupService startup,
+                TomasAI.IFM.Domain.MarketData.Shared.IFuturesMarketSessionAuthority sessions,
+                TomasAI.IFM.Shared.EventModelActor.Contracts.IActorSupervisor supervisor,
+                TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry caches) =>
+                    Results.Ok(TomasAI.IFM.Application.Api.Server.Core.HostedServices.ApiRecoveryReadinessProbe.Capture(startup.Current, sessions, supervisor, caches)));
+            app.MapHealthChecks("/health/live", new HealthCheckOptions
+            {
+                Predicate = registration => registration.Tags.Contains("live"),
+                ResponseWriter = WriteHealthResponseAsync
             });
+            app.MapHealthChecks("/health/bootstrap", new HealthCheckOptions
+            {
+                Predicate = registration => registration.Tags.Contains("bootstrap"),
+                ResponseWriter = WriteHealthResponseAsync
+            }).CacheOutput(ApiOutputCachePolicies.HealthSnapshot);
+            app.MapHealthChecks("/health/launch-ready", new HealthCheckOptions
+            {
+                Predicate = registration => registration.Tags.Contains("launch"),
+                ResultStatusCodes =
+                {
+                    [HealthStatus.Healthy] = StatusCodes.Status200OK,
+                    [HealthStatus.Degraded] = StatusCodes.Status503ServiceUnavailable,
+                    [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+                },
+                ResponseWriter = WriteHealthResponseAsync
+            }).CacheOutput(ApiOutputCachePolicies.HealthSnapshot);
+            app.MapHealthChecks("/health/ready", new HealthCheckOptions
+            {
+                Predicate = registration => registration.Tags.Contains("ready"),
+                ResultStatusCodes =
+                {
+                    [HealthStatus.Healthy] = StatusCodes.Status200OK,
+                    [HealthStatus.Degraded] = StatusCodes.Status503ServiceUnavailable,
+                    [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+                },
+                ResponseWriter = WriteHealthResponseAsync
+            }).CacheOutput(ApiOutputCachePolicies.HealthSnapshot);
+            app.MapHealthChecks("/health/actors", new HealthCheckOptions
+            {
+                Predicate = registration => registration.Tags.Contains("actor"),
+                ResponseWriter = WriteHealthResponseAsync
+            }).CacheOutput(ApiOutputCachePolicies.HealthSnapshot);
+            logger.LogInformationEvent("ApiServer", "{Component}.{Method} " + "web app configuration completed", nameof(CoreServiceRegistration), nameof(ConfigureRequestPipeline));
+            return app;
+
+            static async Task WriteHealthResponseAsync(HttpContext context, HealthReport report)
+            {
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    status = report.Status.ToString(),
+                    totalDurationMilliseconds = report.TotalDuration.TotalMilliseconds,
+                    entries = report.Entries.ToDictionary(
+                        entry => entry.Key,
+                        entry => new
+                        {
+                            status = entry.Value.Status.ToString(),
+                            entry.Value.Description,
+                            durationMilliseconds = entry.Value.Duration.TotalMilliseconds,
+                            entry.Value.Data
+                        })
+                });
+            }
         }
     }
 }

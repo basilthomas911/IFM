@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 /// <summary>Retains an actual synthetic child-process replacement timing baseline for DHR-00.</summary>
+[Collection(ProcessResourceQualificationCollection.Name)]
 public sealed class DatabentoHardRecoveryBaselineTests
 {
     [Fact]
@@ -64,7 +65,7 @@ public sealed class DatabentoHardRecoveryBaselineTests
     static DatasetWorkerStartRequest Request(DatasetSubscriptionManifest manifest) => new()
     {
         ExecutablePath = DotNetHost(),
-        PrefixArguments = [typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
+        PrefixArguments = [Harness.WorkerTestProcess.AssemblyPath],
         Dataset = manifest.Dataset,
         ValueDate = manifest.ValueDate,
         GenerationId = Guid.NewGuid(),

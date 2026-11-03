@@ -10,13 +10,17 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Query
 
 public static class GetIronCondorTradePlanChart
 {
-    public static async ValueTask ExecuteAsync(this GetIronCondorTradePlanChartQuery query, IIronCondorTradePlanQueryContext context, CancellationToken token)
+
+    extension(GetIronCondorTradePlanChartQuery query)
     {
-        var series = await LoadSeriesAsync(context.DbFactory.TradeDb, context.DbFactory.TradePlanDb.DbReader,
-            query.PlanId.Position, query.PlanId.ValueDate, context.Clock.GetUtcNow(), token).ConfigureAwait(false);
-        context.Logger.LogInformation("Iron Condor lifetime chart loaded; PositionId={PositionId}; ValueDate={ValueDate}; Samples={Samples}",
-            query.PlanId.Position.Format(), query.PlanId.ValueDate, series.Points.Length);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<StrategyTradePlanChartSeries>(series)).ConfigureAwait(false);
+        public async ValueTask ExecuteAsync(IIronCondorTradePlanQueryContext context, CancellationToken token)
+        {
+            var series = await LoadSeriesAsync(context.DbFactory.TradeDb, context.DbFactory.TradePlanDb.DbReader,
+                query.PlanId.Position, query.PlanId.ValueDate, context.Clock.GetUtcNow(), token).ConfigureAwait(false);
+            context.Logger.LogInformation("Iron Condor lifetime chart loaded; PositionId={PositionId}; ValueDate={ValueDate}; Samples={Samples}",
+                query.PlanId.Position.Format(), query.PlanId.ValueDate, series.Points.Length);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<StrategyTradePlanChartSeries>(series)).ConfigureAwait(false);
+        }
     }
 
     internal static async Task<StrategyTradePlanChartSeries> LoadSeriesAsync(ITradeDbReadContext tradeDb, ITradePlanDbReadContext planDb,
@@ -43,8 +47,10 @@ public static class GetIronCondorTradePlanChart
         var dayEnds = daily.ToDictionary(p => p.ValueDate, p => p.CloseBoundaryUtc ?? p.AsOfUtc);
         var forwards = dayEnds.Count == 0 ? new Dictionary<DateOnly, decimal?>()
             : await planDb.GetDailyForwardSpreadsAsync(position, dayEnds, token).ConfigureAwait(false);
-        var points = daily.Select(p => DailyPoint(p, trade) with {
-            ForwardSpread = forwards.GetValueOrDefault(p.ValueDate) }).ToList();
+        var points = daily.Select(p => DailyPoint(p, trade) with
+        {
+            ForwardSpread = forwards.GetValueOrDefault(p.ValueDate)
+        }).ToList();
         if (window.ObservationEndUtc >= window.SessionStartUtc)
         {
             var intraday = await planDb.GetChartRangeAsync(position,
@@ -65,8 +71,11 @@ public static class GetIronCondorTradePlanChart
     static IEnumerable<StrategyPositionSnapshot> DailySnapshots(IEnumerable<StrategyPositionSnapshot> history,
         EstablishedTradeDefinition trade, DateOnly valueDate, DateTime observationEndUtc)
         => history.Where(p => p.Phase == StrategyPositionPhase.EndOfDay)
-            .Select(p => p.ValueDate == default ? p with { ValueDate = DateOnly.FromDateTime(
-                TimeZoneInfo.ConvertTimeFromUtc(p.AsOfUtc, FuturesTradingValueDate.MarketTimeZone)) } : p)
+            .Select(p => p.ValueDate == default ? p with
+            {
+                ValueDate = DateOnly.FromDateTime(
+                TimeZoneInfo.ConvertTimeFromUtc(p.AsOfUtc, FuturesTradingValueDate.MarketTimeZone))
+            } : p)
             .Where(p => p.ValueDate >= trade.TradeDate
                 && p.ValueDate < valueDate && p.ValueDate <= trade.MaturityDate && p.AsOfUtc <= observationEndUtc)
             .GroupBy(p => p.ValueDate)

@@ -19,53 +19,55 @@ public static class FuturesTickTradeDataInserted
 {
     static readonly string ServiceId = $"{LogSourceType.FuturesTickTradeDataInserted}";
 
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesTickTradeDataInsertedEvent source,
-        IEventActorContext eventApi,
-        IMarketDataApi marketDataApi,
-        IStatusConsoleWriter statusConsoleWriter,
-        ILogger logger)
+    extension(FuturesTickTradeDataInsertedEvent source)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(eventApi);
-        ArgumentNullException.ThrowIfNull(marketDataApi);
-        ArgumentNullException.ThrowIfNull(statusConsoleWriter);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        if (source.AssetTypeId != AssetTypeId.FuturesOption
-            || !marketDataApi.IsTickDataStreamActive(source.EntityId.ContractId))
-            return true;
-
-        try
+        public async ValueTask<bool> ExecuteAsync(
+            IEventActorContext eventApi,
+            IMarketDataApi marketDataApi,
+            IStatusConsoleWriter statusConsoleWriter,
+            ILogger logger)
         {
-            var contract = await marketDataApi.GetFuturesOptionContractAsync(
-                    source.EntityId.ContractId)
-                .ConfigureAwait(false);
-            if (contract is null
-                || !marketDataApi.TryGetLastOptionTickPrice(
-                    source.EntityId.ContractId,
-                    out var optionPrice))
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(eventApi);
+            ArgumentNullException.ThrowIfNull(marketDataApi);
+            ArgumentNullException.ThrowIfNull(statusConsoleWriter);
+            ArgumentNullException.ThrowIfNull(logger);
+
+            if (source.AssetTypeId != AssetTypeId.FuturesOption
+                || !marketDataApi.IsTickDataStreamActive(source.EntityId.ContractId))
                 return true;
 
-            await eventApi.SendOptionTradeTickPriceDataUpdatedEventAsync(
-                    source,
-                    ToOptionTickData(source, optionPrice))
-                .ConfigureAwait(false);
-            return true;
-        }
-        catch (Exception exception)
-        {
-            await statusConsoleWriter.WriteConsoleAsync(
-                LogSourceType.FuturesOptionTickDataEvent,
-                5003,
-                exception.GetErrorMessage()).ConfigureAwait(false);
-            logger.LogErrorEvent(
-                ServiceId,
-                exception,
-                "{EventName} for {ContractId}: realtime option trade update failed",
-                nameof(FuturesTickTradeDataInsertedEvent),
-                source.EntityId.ContractId);
-            throw;
+            try
+            {
+                var contract = await marketDataApi.GetFuturesOptionContractAsync(
+                        source.EntityId.ContractId)
+                    .ConfigureAwait(false);
+                if (contract is null
+                    || !marketDataApi.TryGetLastOptionTickPrice(
+                        source.EntityId.ContractId,
+                        out var optionPrice))
+                    return true;
+
+                await eventApi.SendOptionTradeTickPriceDataUpdatedEventAsync(
+                        source,
+                        ToOptionTickData(source, optionPrice))
+                    .ConfigureAwait(false);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                await statusConsoleWriter.WriteConsoleAsync(
+                    LogSourceType.FuturesOptionTickDataEvent,
+                    5003,
+                    exception.GetErrorMessage()).ConfigureAwait(false);
+                logger.LogErrorEvent(
+                    ServiceId,
+                    exception,
+                    "{EventName} for {ContractId}: realtime option trade update failed",
+                    nameof(FuturesTickTradeDataInsertedEvent),
+                    source.EntityId.ContractId);
+                throw;
+            }
         }
     }
 

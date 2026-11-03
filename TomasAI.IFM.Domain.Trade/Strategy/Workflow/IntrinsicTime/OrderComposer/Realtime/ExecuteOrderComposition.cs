@@ -16,39 +16,43 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer
 public static class ExecuteOrderComposition
 {
     static readonly JsonSerializerOptions MarketDataSerializerOptions = new() { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow };
-    public static async ValueTask ExecuteAsync(this WorkflowStrategyStateUpdatedEvent snapshot, IIntrinsicTimeStrategyWorkflowRealtimeContext context)
+
+    extension(WorkflowStrategyStateUpdatedEvent snapshot)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(snapshot);
-        try
+        public async ValueTask ExecuteAsync(IIntrinsicTimeStrategyWorkflowRealtimeContext context)
         {
-            await PrepareOrDispatchAsync(snapshot, context).ConfigureAwait(false);
-        }
-        catch (CompositionMarketSourceException failure)
-        {
-            var view = snapshot.State;
-            var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-            var command = new FailOrderCompositionCommand
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(snapshot);
+            try
             {
-                CommandId = snapshot.Id,
-                Subject = new(ActorType.Command, FailOrderCompositionCommand.Actor, FailOrderCompositionCommand.Verb, view.EntityId.Format()),
-                EntityId = view.EntityId,
-                WorkflowId = view.WorkflowId,
-                InputWorkflowRevision = view.WorkflowRevision,
-                SourceEventId = snapshot.Id,
-                CorrelationId = view.CorrelationId,
-                CausationId = snapshot.Id,
-                FailedAtUtc = now,
-                Failure = new()
+                await PrepareOrDispatchAsync(snapshot, context).ConfigureAwait(false);
+            }
+            catch (CompositionMarketSourceException failure)
+            {
+                var view = snapshot.State;
+                var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+                var command = new FailOrderCompositionCommand
                 {
-                    ErrorCode = StartOrderCompositionPipelineCommand.ErrorId,
-                    ErrorType = failure.CacheUnavailable ? "OptionChainUnavailable" : "OrderCompositionPreparationFailed",
-                    ErrorMessage = failure.Code,
-                    ErrorData = failure.Code,
-                    FailedAtUtc = now
-                }
-            };
-            await context.SendAsync<FailOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, view.EntityId).ConfigureAwait(false);
+                    CommandId = snapshot.Id,
+                    Subject = new(ActorType.Command, FailOrderCompositionCommand.Actor, FailOrderCompositionCommand.Verb, view.EntityId.Format()),
+                    EntityId = view.EntityId,
+                    WorkflowId = view.WorkflowId,
+                    InputWorkflowRevision = view.WorkflowRevision,
+                    SourceEventId = snapshot.Id,
+                    CorrelationId = view.CorrelationId,
+                    CausationId = snapshot.Id,
+                    FailedAtUtc = now,
+                    Failure = new()
+                    {
+                        ErrorCode = StartOrderCompositionPipelineCommand.ErrorId,
+                        ErrorType = failure.CacheUnavailable ? "OptionChainUnavailable" : "OrderCompositionPreparationFailed",
+                        ErrorMessage = failure.Code,
+                        ErrorData = failure.Code,
+                        FailedAtUtc = now
+                    }
+                };
+                await context.SendAsync<FailOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, view.EntityId).ConfigureAwait(false);
+            }
         }
     }
 
@@ -78,7 +82,7 @@ public static class ExecuteOrderComposition
             using var timing_composer_market_prepare = WorkflowTrace.Start("composer.market.prepare", view);
             var preparationDeadline = view.SelectionBinding?.SchemaVersion == 2 ? view.OrderComposition.ExpiresAtUtc ?? view.ExpiresAtUtc : view.CompositionHandoff!.Request.ExpiresAtUtc;
             CompositionPreparationResult result;
-            if (construction.CachePolicy(selection.SelectedCandidate.StructureKey)is { } cached)
+            if (construction.CachePolicy(selection.SelectedCandidate.StructureKey) is { } cached)
             {
                 var bias = string.Equals(selection.SelectedCandidate.Bias, "Balanced", StringComparison.Ordinal) ? "Neutral" : selection.SelectedCandidate.Bias;
                 var valueDate = context.ValueDateProvider.ValueDate;

@@ -12,9 +12,13 @@ namespace TomasAI.IFM.UI.Net.Extensions
     {
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = false)]
         static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr w, IntPtr l);
-        public static void SetState(this ProgressBar pBar, int state)
+
+        extension(ProgressBar pBar)
         {
-            SendMessage(pBar.Handle, 1040, (IntPtr)state, IntPtr.Zero);
+            public void SetState(int state)
+            {
+                SendMessage(pBar.Handle, 1040, (IntPtr)state, IntPtr.Zero);
+            }
         }
     }
 }

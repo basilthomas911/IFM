@@ -28,251 +28,235 @@ namespace TomasAI.IFM.Domain.Portfolio.Fund.Command.Validation;
 /// <summary>Accumulates Fund command payload and identity errors before state loading.</summary>
 public static class PortfolioFundCommandValidation
 {
-    /// <summary>Validates the SynchronizeFundRiskOutcomeCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, SynchronizeFundRiskOutcomeCommand typed)
 
+    extension<TErrors>(TErrors errors)
         where TErrors : class, ICollection<ValidationError>
     {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        if (typed.Evidence is not { } e || typed.ExpectedVersion <= 0 || e.PortfolioId != typed.EntityId?.PortfolioId || e.FundId != typed.EntityId?.FundId)
-            errors.Add(new("Exact terminal evidence and Fund version are required."));
-        return errors;
-    }
-    /// <summary>Validates the AuthorizeFundOrderRiskCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, AuthorizeFundOrderRiskCommand typed)
+        /// <summary>Validates the SynchronizeFundRiskOutcomeCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(SynchronizeFundRiskOutcomeCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            if (typed.Evidence is not { } e || typed.ExpectedVersion <= 0 || e.PortfolioId != typed.EntityId?.PortfolioId || e.FundId != typed.EntityId?.FundId)
+                errors.Add(new("Exact terminal evidence and Fund version are required."));
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        errors.ValidateFundRiskAuthorization(typed);
-        
-        ValidateIdentity(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the CreateFundMandateCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, CreateFundMandateCommand typed)
+        /// <summary>Validates the AuthorizeFundOrderRiskCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(AuthorizeFundOrderRiskCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            errors.ValidateFundRiskAuthorization(typed);
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateCreate(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the AddFundMandateVersionCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, AddFundMandateVersionCommand typed)
+            ValidateIdentity(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateVersion(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the ChangeFundOperatingStateCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, ChangeFundOperatingStateCommand typed)
+        /// <summary>Validates the CreateFundMandateCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(CreateFundMandateCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateCreate(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateStateChange(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the AssignTradeTemplateCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, AssignTradeTemplateCommand typed)
+        /// <summary>Validates the AddFundMandateVersionCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(AddFundMandateVersionCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateVersion(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateAssignment(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the ReserveFundOrderCompositionCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, ReserveFundOrderCompositionCommand typed)
+        /// <summary>Validates the ChangeFundOperatingStateCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(ChangeFundOperatingStateCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateStateChange(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateReservation(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the CreateManualFundOrderCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, CreateManualFundOrderCommand typed)
+        /// <summary>Validates the AssignTradeTemplateCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(AssignTradeTemplateCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateAssignment(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateManualOrder(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the AddManualFundOrderTradeCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, AddManualFundOrderTradeCommand typed)
+        /// <summary>Validates the ReserveFundOrderCompositionCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(ReserveFundOrderCompositionCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateReservation(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateManualTrade(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the RemoveManualFundOrderTradeCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, RemoveManualFundOrderTradeCommand typed)
+        /// <summary>Validates the CreateManualFundOrderCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(CreateManualFundOrderCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateManualOrder(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateManualTradeMutation(errors, typed.Request, typed.EntityId, typed.CommandName, false);
-        return errors;
-    }
-    /// <summary>Validates the DeleteManualFundOrderCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, DeleteManualFundOrderCommand typed)
+        /// <summary>Validates the AddManualFundOrderTradeCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(AddManualFundOrderTradeCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateManualTrade(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateManualOrderMutation(errors, typed.Request, typed.EntityId, typed.CommandName);
-        return errors;
-    }
-    /// <summary>Validates the MarkFundOrderComposingCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, MarkFundOrderComposingCommand typed)
+        /// <summary>Validates the RemoveManualFundOrderTradeCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(RemoveManualFundOrderTradeCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateManualTradeMutation(errors, typed.Request, typed.EntityId, typed.CommandName, false);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateMarkComposing(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the RecordFundOrderComposedCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, RecordFundOrderComposedCommand typed)
+        /// <summary>Validates the DeleteManualFundOrderCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(DeleteManualFundOrderCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateManualOrderMutation(errors, typed.Request, typed.EntityId, typed.CommandName);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateCompositionResult(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the RecordFundOrderRiskOutcomeCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, RecordFundOrderRiskOutcomeCommand typed)
+        /// <summary>Validates the MarkFundOrderComposingCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(MarkFundOrderComposingCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateMarkComposing(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateRiskResult(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the CancelFundOrderCompositionCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, CancelFundOrderCompositionCommand typed)
+        /// <summary>Validates the RecordFundOrderComposedCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(RecordFundOrderComposedCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateCompositionResult(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateCancel(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the ExpireFundOrderCompositionCommand payload and its Fund identity.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, ExpireFundOrderCompositionCommand typed)
+        /// <summary>Validates the RecordFundOrderRiskOutcomeCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(RecordFundOrderRiskOutcomeCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateRiskResult(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        ValidateExpire(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the identity and evidence for RecordFundTradeSubmission.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, RecordFundTradeSubmissionCommand typed)
+        /// <summary>Validates the CancelFundOrderCompositionCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(CancelFundOrderCompositionCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateCancel(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        var evidence = typed.ExecutionEvidence;
-        if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
-            || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
-            || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
-            || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
-            errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
-        return errors;
-    }
-    /// <summary>Validates the identity and evidence for RecordFundTradeOpening.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, RecordFundTradeOpeningCommand typed)
+        /// <summary>Validates the ExpireFundOrderCompositionCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(ExpireFundOrderCompositionCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateExpire(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        var evidence = typed.ExecutionEvidence;
-        if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
-            || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
-            || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
-            || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
-            errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
-        return errors;
-    }
-    /// <summary>Validates the identity and evidence for RecordFundTradeClosing.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, RecordFundTradeClosingCommand typed)
+        /// <summary>Validates the identity and evidence for RecordFundTradeSubmission.</summary>
+        public TErrors ValidateFundCommand(RecordFundTradeSubmissionCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            var evidence = typed.ExecutionEvidence;
+            if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
+                || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
+                || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
+                || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
+                errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        var evidence = typed.ExecutionEvidence;
-        if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
-            || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
-            || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
-            || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
-            errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
-        return errors;
-    }
-    /// <summary>Validates the identity and evidence for ReleaseFundTradeSubmission.</summary>
-    public static TErrors ValidateFundCommand<TErrors>(this TErrors errors, ReleaseFundTradeSubmissionCommand typed)
+        /// <summary>Validates the identity and evidence for RecordFundTradeOpening.</summary>
+        public TErrors ValidateFundCommand(RecordFundTradeOpeningCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            var evidence = typed.ExecutionEvidence;
+            if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
+                || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
+                || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
+                || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
+                errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        ValidateIdentity(errors, typed);
-        var evidence = typed.ExecutionEvidence;
-        if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
-            || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
-            || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
-            || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
-            errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
-        return errors;
+        /// <summary>Validates the identity and evidence for RecordFundTradeClosing.</summary>
+        public TErrors ValidateFundCommand(RecordFundTradeClosingCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            var evidence = typed.ExecutionEvidence;
+            if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
+                || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
+                || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
+                || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
+                errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
+            return errors;
+        }
+
+        /// <summary>Validates the identity and evidence for ReleaseFundTradeSubmission.</summary>
+        public TErrors ValidateFundCommand(ReleaseFundTradeSubmissionCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            var evidence = typed.ExecutionEvidence;
+            if (evidence is null || evidence.PortfolioId != typed.EntityId?.PortfolioId || evidence.FundId != typed.EntityId?.FundId
+                || evidence.SetupTrade is null || evidence.SetupTrade.OrderId <= 0 || evidence.SetupTrade.TradeId <= 0
+                || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty
+                || evidence.OccurredAtUtc.Kind != DateTimeKind.Utc)
+                errors.Add(new($"{typed.CommandName}.ExecutionEvidence is invalid"));
+            return errors;
+        }
     }
 
     /// <summary>Checks ValidateIdentity without changing state.</summary>
     static void ValidateIdentity(
-        ICollection<ValidationError> errors,        ICommand<PortfolioFundId> command)
+        ICollection<ValidationError> errors, ICommand<PortfolioFundId> command)
     {
         if (command.EntityId is null)
         {
@@ -284,7 +268,7 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateCreate without changing state.</summary>
-    static void ValidateCreate(ICollection<ValidationError> errors,CreateFundMandateCommand command)
+    static void ValidateCreate(ICollection<ValidationError> errors, CreateFundMandateCommand command)
     {
         if (command.IdempotencyKey == Guid.Empty)
             errors.Add(new($"{command.CommandName}.IdempotencyKey is empty"));
@@ -292,14 +276,14 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateVersion without changing state.</summary>
-    static void ValidateVersion(ICollection<ValidationError> errors,AddFundMandateVersionCommand command)
+    static void ValidateVersion(ICollection<ValidationError> errors, AddFundMandateVersionCommand command)
     {
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
         ValidateMandate(errors, command, command.Mandate);
     }
 
     /// <summary>Checks ValidateStateChange without changing state.</summary>
-    static void ValidateStateChange(ICollection<ValidationError> errors,ChangeFundOperatingStateCommand command)
+    static void ValidateStateChange(ICollection<ValidationError> errors, ChangeFundOperatingStateCommand command)
     {
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
         if (command.State == FundOperatingState.Unknown)
@@ -308,7 +292,7 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateAssignment without changing state.</summary>
-    static void ValidateAssignment(ICollection<ValidationError> errors,AssignTradeTemplateCommand command)
+    static void ValidateAssignment(ICollection<ValidationError> errors, AssignTradeTemplateCommand command)
     {
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
         if (command.Assignment is null)
@@ -326,7 +310,7 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateReservation without changing state.</summary>
-    static void ValidateReservation(ICollection<ValidationError> errors,ReserveFundOrderCompositionCommand command)
+    static void ValidateReservation(ICollection<ValidationError> errors, ReserveFundOrderCompositionCommand command)
     {
         var request = command.Request;
         var snapshot = command.Snapshot;
@@ -371,7 +355,7 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateManualOrder without changing state.</summary>
-    static void ValidateManualOrder(ICollection<ValidationError> errors,CreateManualFundOrderCommand command)
+    static void ValidateManualOrder(ICollection<ValidationError> errors, CreateManualFundOrderCommand command)
     {
         var request = command.Request;
         if (request is null)
@@ -387,7 +371,7 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateManualTrade without changing state.</summary>
-    static void ValidateManualTrade(ICollection<ValidationError> errors,AddManualFundOrderTradeCommand command)
+    static void ValidateManualTrade(ICollection<ValidationError> errors, AddManualFundOrderTradeCommand command)
     {
         var request = command.Request;
         if (request is null)
@@ -411,7 +395,7 @@ public static class PortfolioFundCommandValidation
 
     /// <summary>Checks ValidateManualTradeMutation without changing state.</summary>
     static void ValidateManualTradeMutation(
-        ICollection<ValidationError> errors,        ManualFundOrderTradeMutationRequest? request,        PortfolioFundId? entityId,        string commandName,        bool requireState)
+        ICollection<ValidationError> errors, ManualFundOrderTradeMutationRequest? request, PortfolioFundId? entityId, string commandName, bool requireState)
     {
         if (request is null)
         {
@@ -431,7 +415,7 @@ public static class PortfolioFundCommandValidation
 
     /// <summary>Checks ValidateManualOrderMutation without changing state.</summary>
     static void ValidateManualOrderMutation(
-        ICollection<ValidationError> errors,        ManualFundOrderMutationRequest? request,        PortfolioFundId? entityId,        string commandName)
+        ICollection<ValidationError> errors, ManualFundOrderMutationRequest? request, PortfolioFundId? entityId, string commandName)
     {
         if (request is null)
         {
@@ -448,7 +432,7 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateMarkComposing without changing state.</summary>
-    static void ValidateMarkComposing(ICollection<ValidationError> errors,MarkFundOrderComposingCommand command)
+    static void ValidateMarkComposing(ICollection<ValidationError> errors, MarkFundOrderComposingCommand command)
     {
         ValidateOrderId(errors, command.OrderId, command.EntityId, command.CommandName);
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
@@ -457,7 +441,7 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateCompositionResult without changing state.</summary>
-    static void ValidateCompositionResult(ICollection<ValidationError> errors,RecordFundOrderComposedCommand command)
+    static void ValidateCompositionResult(ICollection<ValidationError> errors, RecordFundOrderComposedCommand command)
     {
         ValidateOrderId(errors, command.OrderId, command.EntityId, command.CommandName);
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
@@ -470,7 +454,7 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateRiskResult without changing state.</summary>
-    static void ValidateRiskResult(ICollection<ValidationError> errors,RecordFundOrderRiskOutcomeCommand command)
+    static void ValidateRiskResult(ICollection<ValidationError> errors, RecordFundOrderRiskOutcomeCommand command)
     {
         ValidateOrderId(errors, command.OrderId, command.EntityId, command.CommandName);
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
@@ -484,7 +468,7 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateCancel without changing state.</summary>
-    static void ValidateCancel(ICollection<ValidationError> errors,CancelFundOrderCompositionCommand command)
+    static void ValidateCancel(ICollection<ValidationError> errors, CancelFundOrderCompositionCommand command)
     {
         ValidateOrderId(errors, command.OrderId, command.EntityId, command.CommandName);
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
@@ -492,7 +476,7 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateExpire without changing state.</summary>
-    static void ValidateExpire(ICollection<ValidationError> errors,ExpireFundOrderCompositionCommand command)
+    static void ValidateExpire(ICollection<ValidationError> errors, ExpireFundOrderCompositionCommand command)
     {
         ValidateOrderId(errors, command.OrderId, command.EntityId, command.CommandName);
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
@@ -501,7 +485,7 @@ public static class PortfolioFundCommandValidation
 
     /// <summary>Checks ValidateMandate without changing state.</summary>
     static void ValidateMandate(
-        ICollection<ValidationError> errors,        ICommand<PortfolioFundId> command,        FundMandateReadModel? mandate)
+        ICollection<ValidationError> errors, ICommand<PortfolioFundId> command, FundMandateReadModel? mandate)
     {
         if (mandate is null)
         {
@@ -522,7 +506,7 @@ public static class PortfolioFundCommandValidation
 
     /// <summary>Checks ValidateOrderId without changing state.</summary>
     static void ValidateOrderId(
-        ICollection<ValidationError> errors,        PortfolioFundOrderId? orderId,        PortfolioFundId? entityId,        string commandName)
+        ICollection<ValidationError> errors, PortfolioFundOrderId? orderId, PortfolioFundId? entityId, string commandName)
     {
         if (orderId is null)
         {
@@ -535,28 +519,28 @@ public static class PortfolioFundCommandValidation
     }
 
     /// <summary>Checks ValidateExpectedVersion without changing state.</summary>
-    static void ValidateExpectedVersion(ICollection<ValidationError> errors,long expectedVersion,string commandName)
+    static void ValidateExpectedVersion(ICollection<ValidationError> errors, long expectedVersion, string commandName)
     {
         if (expectedVersion < 0)
             errors.Add(new($"{commandName}.ExpectedVersion cannot be negative"));
     }
 
     /// <summary>Checks ValidateReason without changing state.</summary>
-    static void ValidateReason(ICollection<ValidationError> errors,string? reason,string commandName)
+    static void ValidateReason(ICollection<ValidationError> errors, string? reason, string commandName)
     {
         if (string.IsNullOrWhiteSpace(reason))
             errors.Add(new($"{commandName}.Reason is required"));
     }
 
     /// <summary>Checks ValidateUtcWindow without changing state.</summary>
-    static void ValidateUtcWindow(ICollection<ValidationError> errors,DateTime start,DateTime end,string commandName)
+    static void ValidateUtcWindow(ICollection<ValidationError> errors, DateTime start, DateTime end, string commandName)
     {
         if (start.Kind != DateTimeKind.Utc || end.Kind != DateTimeKind.Utc || end <= start)
             errors.Add(new($"{commandName}.time window must contain ordered UTC values"));
     }
 
     /// <summary>Checks AddErrors without changing state.</summary>
-    static void AddErrors(ICollection<ValidationError> errors,IEnumerable<string> messages,string commandName)
+    static void AddErrors(ICollection<ValidationError> errors, IEnumerable<string> messages, string commandName)
     {
         foreach (var message in messages)
             errors.Add(new($"{commandName}.{message}"));

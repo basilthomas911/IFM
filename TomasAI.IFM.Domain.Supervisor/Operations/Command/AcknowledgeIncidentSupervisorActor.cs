@@ -10,31 +10,35 @@ namespace TomasAI.IFM.Domain.Supervisor.Operations.Command;
 /// <summary>Handles the concrete AcknowledgeIncident Supervisor operation command.</summary>
 public static class AcknowledgeIncidentSupervisorActor
 {
-    /// <summary>Executes AcknowledgeIncident and applies the resulting private outcome event.</summary>
-    public static ValueTask<ServiceResult<GuidResult>> ExecuteAsync(
-        this AcknowledgeIncidentSupervisorActorCommand command, SupervisorCommandState state,
-        ISupervisorCommandActorContext context, CancellationToken cancellationToken)
+
+    extension(AcknowledgeIncidentSupervisorActorCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(state);
-        cancellationToken.ThrowIfCancellationRequested();
-        SupervisorActorOperationResult result;
-        if (!context.Authorizer.IsAuthorized(command.Requester,
-                SupervisorActorOperationKind.AcknowledgeIncident))
+        /// <summary>Executes AcknowledgeIncident and applies the resulting private outcome event.</summary>
+        public ValueTask<ServiceResult<GuidResult>> ExecuteAsync(
+        SupervisorCommandState state,
+            ISupervisorCommandActorContext context, CancellationToken cancellationToken)
         {
-            result = new(SupervisorOperationOutcome.Rejected, command.CommandId, command.Target,
-                command.ExpectedGeneration, "Authorization", "The requester is not authorized.");
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(state);
+            cancellationToken.ThrowIfCancellationRequested();
+            SupervisorActorOperationResult result;
+            if (!context.Authorizer.IsAuthorized(command.Requester,
+                    SupervisorActorOperationKind.AcknowledgeIncident))
+            {
+                result = new(SupervisorOperationOutcome.Rejected, command.CommandId, command.Target,
+                    command.ExpectedGeneration, "Authorization", "The requester is not authorized.");
+            }
+            else
+            {
+                var acknowledged = context.Incidents.ActiveIncidents
+                    .Any(incident => incident.ThreadId == command.Target);
+                result = new(acknowledged ? SupervisorOperationOutcome.Succeeded : SupervisorOperationOutcome.Rejected,
+                    command.CommandId, command.Target, command.ExpectedGeneration,
+                    "IncidentAcknowledgement", acknowledged ? null : "The incident could not be acknowledged.");
+            }
+            return ValueTask.FromResult(
+                SupervisorOperationOutcomeRecorder.Record(command, state, result));
         }
-        else
-        {
-            var acknowledged = context.Incidents.ActiveIncidents
-                .Any(incident => incident.ThreadId == command.Target);
-            result = new(acknowledged ? SupervisorOperationOutcome.Succeeded : SupervisorOperationOutcome.Rejected,
-                command.CommandId, command.Target, command.ExpectedGeneration,
-                "IncidentAcknowledgement", acknowledged ? null : "The incident could not be acknowledged.");
-        }
-        return ValueTask.FromResult(
-            SupervisorOperationOutcomeRecorder.Record(command, state, result));
     }
 }

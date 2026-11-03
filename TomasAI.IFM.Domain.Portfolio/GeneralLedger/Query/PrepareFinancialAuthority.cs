@@ -9,12 +9,16 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query;
 /// <summary>Handles the PrepareFinancialAuthority financial query.</summary>
 public static class PrepareFinancialAuthority
 {
-    /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
-    public static ValueTask ExecuteAsync<TActor>(this PrepareFinancialAuthorityQuery query, FinancialAuthorityPreparation preparation, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
-        
+
+    extension(PrepareFinancialAuthorityQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        return FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "PrepareFinancialAuthority", () => preparation.PrepareAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+        /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
+        public ValueTask ExecuteAsync<TActor>(FinancialAuthorityPreparation preparation, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            return FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "PrepareFinancialAuthority", () => preparation.PrepareAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+        }
     }
 }

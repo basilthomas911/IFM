@@ -7,33 +7,34 @@ namespace TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Validation
 /// <summary>Pure validation of Regime Discovery versioned configuration commands.</summary>
 public static class RegimeDiscoveryConfigurationCommandValidation
 {
-    /// <summary>Checks the parameter-set identity and positive version.</summary>
-    public static TErrors ValidateRegimeDiscoveryConfigurationId<TErrors>(this TErrors errors, RegimeDiscoveryParameterSetEntityId id)
 
+    extension<TErrors>(TErrors errors)
         where TErrors : class, ICollection<ValidationError>
     {
-        ArgumentNullException.ThrowIfNull(errors);
-        if (id.ParameterSetId == Guid.Empty) errors.Add(new("RegimeDiscovery.ParameterSetId is required."));
-        if (id.Version <= 0) errors.Add(new("RegimeDiscovery.Version must be positive."));
-        return errors;
-    }
-
-    /// <summary>Checks all parameter payload rules, creator and payload identity.</summary>
-    public static TErrors ValidateRegimeDiscoveryCreation<TErrors>(this TErrors errors, CreateRegimeDiscoveryParameterSetCommand command)
-
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(errors);
-        if (command.ParameterSet is null) errors.Add(new("RegimeDiscovery.ParameterSet is required."));
-        else
+        /// <summary>Checks the parameter-set identity and positive version.</summary>
+        public TErrors ValidateRegimeDiscoveryConfigurationId(RegimeDiscoveryParameterSetEntityId id)
         {
-            foreach (var validationFailure in new RegimeDiscoveryParameterSetValidationRules().Execute(command.ParameterSet))
-                errors.Add(validationFailure);
-            if (command.EntityId.ParameterSetId != command.ParameterSet.ParameterSetId || command.EntityId.Version != command.ParameterSet.Version)
-                errors.Add(new("RegimeDiscovery.EntityId must match ParameterSet identity."));
+            ArgumentNullException.ThrowIfNull(errors);
+            if (id.ParameterSetId == Guid.Empty) errors.Add(new("RegimeDiscovery.ParameterSetId is required."));
+            if (id.Version <= 0) errors.Add(new("RegimeDiscovery.Version must be positive."));
+            return errors;
         }
-        if (string.IsNullOrWhiteSpace(command.CreatedBy)) errors.Add(new("RegimeDiscovery.CreatedBy is required."));
-        return errors;
+
+        /// <summary>Checks all parameter payload rules, creator and payload identity.</summary>
+        public TErrors ValidateRegimeDiscoveryCreation(CreateRegimeDiscoveryParameterSetCommand command)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(errors);
+            if (command.ParameterSet is null) errors.Add(new("RegimeDiscovery.ParameterSet is required."));
+            else
+            {
+                foreach (var validationFailure in new RegimeDiscoveryParameterSetValidationRules().Execute(command.ParameterSet))
+                    errors.Add(validationFailure);
+                if (command.EntityId.ParameterSetId != command.ParameterSet.ParameterSetId || command.EntityId.Version != command.ParameterSet.Version)
+                    errors.Add(new("RegimeDiscovery.EntityId must match ParameterSet identity."));
+            }
+            if (string.IsNullOrWhiteSpace(command.CreatedBy)) errors.Add(new("RegimeDiscovery.CreatedBy is required."));
+            return errors;
+        }
     }
 }

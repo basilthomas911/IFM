@@ -11,38 +11,41 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Realtime;
 /// <summary>Handles closed observations routed to the stateless MACD realtime actor.</summary>
 public static class FuturesTradeSessionBarClosed
 {
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Forwards one MACD command for every matching attached identity.</summary>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesTradeSessionBarClosedRealtimeEvent @event,
-        IFuturesMacdSignalRealtimeContext context, ILogger logger)
+
+    extension(FuturesTradeSessionBarClosedRealtimeEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        var observation = IsArgumentNull.Set(@event.Observation);
-        if (!observation.IsValid) return true;
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Forwards one MACD command for every matching attached identity.</summary>
+        public async ValueTask<bool> ExecuteAsync(IFuturesMacdSignalRealtimeContext context, ILogger logger)
         {
-            var succeeded = true;
-            foreach (var entityId in FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>
-                         .Snapshot().Where(entityId => Matches(entityId, observation)))
+            ArgumentNullException.ThrowIfNull(@event);
+            var observation = IsArgumentNull.Set(@event.Observation);
+            if (!observation.IsValid) return true;
+            try
             {
-                var signalId = new FuturesMacdSignalId(entityId.ContractId, entityId.ValueDate,
-                    entityId.TimePeriod, entityId.SignalEmaPeriod, entityId.FastEmaPeriod,
-                    entityId.SlowEmaPeriod, TimeOnly.FromDateTime(observation.LastMarketEventUtc.UtcDateTime));
-                var result = await context.GenerateFuturesMacdSignalAsync(signalId, observation.Close, observation)
-                    .ConfigureAwait(false);
-                FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Observe(entityId, observation.LastMarketEventUtc, result is not ServiceFailed<GuidResult>);
-                if (result is ServiceFailed<GuidResult> failed)
+                var succeeded = true;
+                foreach (var entityId in FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>
+                             .Snapshot().Where(entityId => Matches(entityId, observation)))
                 {
-                    succeeded = false;
-                    global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write36(logger, null, observation.ObservationId, entityId, failed.ErrorMessage);
+                    var signalId = new FuturesMacdSignalId(entityId.ContractId, entityId.ValueDate,
+                        entityId.TimePeriod, entityId.SignalEmaPeriod, entityId.FastEmaPeriod,
+                        entityId.SlowEmaPeriod, TimeOnly.FromDateTime(observation.LastMarketEventUtc.UtcDateTime));
+                    var result = await context.GenerateFuturesMacdSignalAsync(signalId, observation.Close, observation)
+                        .ConfigureAwait(false);
+                    FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Observe(entityId, observation.LastMarketEventUtc, result is not ServiceFailed<GuidResult>);
+                    if (result is ServiceFailed<GuidResult> failed)
+                    {
+                        succeeded = false;
+                        global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write36(logger, null, observation.ObservationId, entityId, failed.ErrorMessage);
+                    }
                 }
+                return succeeded;
             }
-            return succeeded;
-        }
-        catch (Exception exception)
-        {
-            logger.LogErrorEvent(nameof(FuturesTradeSessionBarClosedRealtimeEvent), exception,
-                "Unable to forward observation {ObservationId} to the MACD command actor", observation.ObservationId);
-            return false;
+            catch (Exception exception)
+            {
+                logger.LogErrorEvent(nameof(FuturesTradeSessionBarClosedRealtimeEvent), exception,
+                    "Unable to forward observation {ObservationId} to the MACD command actor", observation.ObservationId);
+                return false;
+            }
         }
     }
 

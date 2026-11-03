@@ -23,74 +23,80 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event;
 /// <summary>Provides the FuturesItiSignalGeneratedComplete implementation.</summary>
 public static class FuturesItiSignalGeneratedComplete
 {
-    /// <summary>
-    /// Handles the completion of the Futures ITI signal generation process. It retrieves necessary data, updates the trade signal, and logs any errors that occur during the process.
-    /// </summary>
-    /// <param name = "e">The event instance containing details required for generating the futures trade signal, including the entity
-    /// identifier.</param>
-    /// <param name = "context">The context in which the event is processed, supplying information necessary for asynchronous operations.</param>
-    /// <param name = "statusConsoleWriter">The writer used to output status messages to the console.</param>
-    /// <param name = "logger">The logger used to log error messages.</param>
-    /// <returns>A value indicating whether the execution completed successfully. Returns <see langword="true"/> if the operation
-    /// succeeded; otherwise, <see langword="false"/>.</returns>
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This realtime message boundary records the failed signal operation and contains it according to the existing telemetry and completion contract.")]
-    public static async ValueTask<bool> ExecuteAsync(this FuturesItiSignalGeneratedCompleteEvent e, IEventActorContext<FuturesItiSignalEventActor> context, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesItiSignalEventActor> logger, FuturesItiSignalRuntimeTelemetry? telemetry = null)
+
+    /// <param name="e">
+    /// The event instance containing details required for generating the futures trade signal, including the entity identifier.
+    /// </param>
+    extension(FuturesItiSignalGeneratedCompleteEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(statusConsoleWriter);
-        var started = Stopwatch.GetTimestamp();
-        FuturesItiSignalEventLogging.CompletionReceived(logger, e.Id, e.CommandId, e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod);
-        try
+        /// <summary>
+        /// Handles the completion of the Futures ITI signal generation process. It retrieves necessary data, updates the trade signal, and logs any errors that occur during the process.
+        /// </summary>
+        ///
+        /// <param name = "context">The context in which the event is processed, supplying information necessary for asynchronous operations.</param>
+        /// <param name = "statusConsoleWriter">The writer used to output status messages to the console.</param>
+        /// <param name = "logger">The logger used to log error messages.</param>
+        /// <returns>A value indicating whether the execution completed successfully. Returns <see langword="true"/> if the operation
+        /// succeeded; otherwise, <see langword="false"/>.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This realtime message boundary records the failed signal operation and contains it according to the existing telemetry and completion contract.")]
+        public async ValueTask<bool> ExecuteAsync(IEventActorContext<FuturesItiSignalEventActor> context, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesItiSignalEventActor> logger, FuturesItiSignalRuntimeTelemetry? telemetry = null)
         {
-            await e.PublishUpdatedNotificationAsync(context, logger).ConfigureAwait(false);
-            await context.PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
-            var derivedPeriodsSucceeded = await GenerateDerivedPeriodsAsync(e, context, logger).ConfigureAwait(false);
-            await StartStrategyWorkflowAsync(e, context, logger, telemetry).ConfigureAwait(false);
-            if (!FuturesTradeSignalPrerequisites.ShouldGenerate(e))
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(statusConsoleWriter);
+            var started = Stopwatch.GetTimestamp();
+            FuturesItiSignalEventLogging.CompletionReceived(logger, e.Id, e.CommandId, e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod);
+            try
             {
+                await e.PublishUpdatedNotificationAsync(context, logger).ConfigureAwait(false);
+                await context.PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
+                var derivedPeriodsSucceeded = await GenerateDerivedPeriodsAsync(e, context, logger).ConfigureAwait(false);
+                await StartStrategyWorkflowAsync(e, context, logger, telemetry).ConfigureAwait(false);
+                if (!FuturesTradeSignalPrerequisites.ShouldGenerate(e))
+                {
+                    telemetry?.RecordCompletionHandled();
+                    if (logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+                    {
+                        var logValue1 = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                        FuturesItiSignalEventLogging.CompletionHandled(logger, e.Id, e.CommandId, e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, true, derivedPeriodsSucceeded, logValue1);
+                    }
+
+                    return derivedPeriodsSucceeded;
+                }
+
+                var prerequisites = await FuturesTradeSignalPrerequisites.LoadAsync(e, context).ConfigureAwait(false);
+                if (prerequisites.Inputs is not { } inputs)
+                {
+                    global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write57(logger, null, e.EntityId.ContractId, e.EntityId.ValueDate, prerequisites.MissingInputs);
+                    telemetry?.RecordCompletionHandled();
+                    if (logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+                    {
+                        var logValue2 = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                        FuturesItiSignalEventLogging.CompletionHandled(logger, e.Id, e.CommandId, e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, true, derivedPeriodsSucceeded, logValue2);
+                    }
+
+                    return true;
+                }
+
+                await (MarketDataAnalyticsCommandApiExtensions.UpdateFuturesTradeSignalAsync(context, inputs.FuturesEodData, inputs.FuturesRsiSignal, inputs.FuturesTdiSignal, inputs.FuturesItiSignalData, inputs.VixFuturesPrice, FuturesTradeSignalPrerequisites.SignalTimePeriod)).ConfigureAwait(false);
                 telemetry?.RecordCompletionHandled();
                 if (logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
                 {
-                    var logValue1 = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-FuturesItiSignalEventLogging.CompletionHandled(logger, e.Id, e.CommandId, e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, true, derivedPeriodsSucceeded, logValue1);
+                    var logValue3 = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                    FuturesItiSignalEventLogging.CompletionHandled(logger, e.Id, e.CommandId, e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, true, derivedPeriodsSucceeded, logValue3);
                 }
 
                 return derivedPeriodsSucceeded;
             }
-
-            var prerequisites = await FuturesTradeSignalPrerequisites.LoadAsync(e, context).ConfigureAwait(false);
-            if (prerequisites.Inputs is not { } inputs)
+            catch (Exception ex)
             {
-                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write57(logger, null, e.EntityId.ContractId, e.EntityId.ValueDate, prerequisites.MissingInputs);
-                telemetry?.RecordCompletionHandled();
-                if (logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
-                {
-                    var logValue2 = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-FuturesItiSignalEventLogging.CompletionHandled(logger, e.Id, e.CommandId, e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, true, derivedPeriodsSucceeded, logValue2);
-                }
-
-                return true;
+                telemetry?.RecordFailure(ex.Message);
+                var logValue4 = ex.GetType().Name;
+                FuturesItiSignalEventLogging.CompletionFailed(logger, ex, e.Id, e.CommandId, e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, nameof(FuturesItiSignalGeneratedComplete), logValue4);
+                await (statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesItiSignalEvent, FuturesItiSignalGeneratedCompleteEvent.ErrorCode, ex.Message)).ConfigureAwait(false);
             }
 
-            await (MarketDataAnalyticsCommandApiExtensions.UpdateFuturesTradeSignalAsync(context, inputs.FuturesEodData, inputs.FuturesRsiSignal, inputs.FuturesTdiSignal, inputs.FuturesItiSignalData, inputs.VixFuturesPrice, FuturesTradeSignalPrerequisites.SignalTimePeriod)).ConfigureAwait(false);
-            telemetry?.RecordCompletionHandled();
-            if (logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
-            {
-                var logValue3 = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-FuturesItiSignalEventLogging.CompletionHandled(logger, e.Id, e.CommandId, e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, true, derivedPeriodsSucceeded, logValue3);
-            }
-
-            return derivedPeriodsSucceeded;
+            return false;
         }
-        catch (Exception ex)
-        {
-            telemetry?.RecordFailure(ex.Message);
-            var logValue4 = ex.GetType().Name;
-FuturesItiSignalEventLogging.CompletionFailed(logger, ex, e.Id, e.CommandId, e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, nameof(FuturesItiSignalGeneratedComplete), logValue4);
-            await (statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesItiSignalEvent, FuturesItiSignalGeneratedCompleteEvent.ErrorCode, ex.Message)).ConfigureAwait(false);
-        }
-
-        return false;
     }
 
     /// <summary>
@@ -193,9 +199,9 @@ FuturesItiSignalEventLogging.CompletionFailed(logger, ex, e.Id, e.CommandId, e.E
         telemetry?.RecordWorkflowRequested();
         if (logger is not null && logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
         {
-                var logValue1 = command.ProposedWorkflowId.ToString();
-var logValue2 = workflowEntityId.Format();
-FuturesItiSignalEventLogging.WorkflowRequested(logger, triggerId, command.CommandId, logValue1, logValue2, signal.ContractId, signal.ValueDate, signal.TimePeriod);
+            var logValue1 = command.ProposedWorkflowId.ToString();
+            var logValue2 = workflowEntityId.Format();
+            FuturesItiSignalEventLogging.WorkflowRequested(logger, triggerId, command.CommandId, logValue1, logValue2, signal.ContractId, signal.ValueDate, signal.TimePeriod);
         }
 
         return context.SendAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, workflowEntityId);

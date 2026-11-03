@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Text.Json;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento;
@@ -182,7 +182,7 @@ public sealed class DatasetWorkerContainmentQualificationTests(ITestOutputHelper
     {
         var launch = new ProcessStartInfo(DotNetHost())
         { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        launch.ArgumentList.Add(typeof(QualificationHostMarker).Assembly.Location);
+        launch.ArgumentList.Add(Harness.WorkerTestProcess.QualificationAssemblyPath);
         launch.ArgumentList.Add("--parent");
         using var parent = Process.Start(launch)!;
         Process? worker = null;
@@ -341,8 +341,8 @@ public sealed class DatasetWorkerContainmentQualificationTests(ITestOutputHelper
         {
             ExecutablePath = DotNetHost(),
             PrefixArguments = helper
-                ? [typeof(QualificationHostMarker).Assembly.Location, "--worker", "true"]
-                : [typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
+                ? [Harness.WorkerTestProcess.QualificationAssemblyPath, "--worker", "true"]
+                : [Harness.WorkerTestProcess.AssemblyPath],
             Dataset = manifest.Dataset,
             ValueDate = manifest.ValueDate,
             GenerationId = Guid.NewGuid(),

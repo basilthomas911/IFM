@@ -10,23 +10,27 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Extensions;
 
 internal static class FuturesEodDataEventExtensions
 {
-    /// <summary>
-    /// Queries the VIX futures EOD data actor for the specified contract and value date.
-    /// Returns an empty array when no data is available.
-    /// </summary>
-    internal static async ValueTask<VixFuturesEodDataReadModel[]> GetVixFuturesEodDataAsync(
-        this IEventActorContext context, string contractId, DateOnly valueDate)
+
+    extension(IEventActorContext context)
     {
-        var entityId = new GetVixFuturesEodDataParameter(contractId, valueDate);
-        GetVixFuturesEodDataQuery query = new(contractId, valueDate)
+        /// <summary>
+        /// Queries the VIX futures EOD data actor for the specified contract and value date.
+        /// Returns an empty array when no data is available.
+        /// </summary>
+        internal async ValueTask<VixFuturesEodDataReadModel[]> GetVixFuturesEodDataAsync(
+        string contractId, DateOnly valueDate)
         {
-            Subject = new ActorSubject(ActorType.Query, GetVixFuturesEodDataQuery.Actor, GetVixFuturesEodDataQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetVixFuturesEodDataQuery.ErrorId
-        };
-        var serviceResult = await (context.RequestAsync<VixFuturesEodDataReadModel[], GetVixFuturesEodDataQuery>(query)).ConfigureAwait(false);
-        return serviceResult?.Success == true && serviceResult.Value is not null
-            ? serviceResult.Value
-            : [];
+            var entityId = new GetVixFuturesEodDataParameter(contractId, valueDate);
+            GetVixFuturesEodDataQuery query = new(contractId, valueDate)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetVixFuturesEodDataQuery.Actor, GetVixFuturesEodDataQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = GetVixFuturesEodDataQuery.ErrorId
+            };
+            var serviceResult = await (context.RequestAsync<VixFuturesEodDataReadModel[], GetVixFuturesEodDataQuery>(query)).ConfigureAwait(false);
+            return serviceResult?.Success == true && serviceResult.Value is not null
+                ? serviceResult.Value
+                : [];
+        }
     }
 }

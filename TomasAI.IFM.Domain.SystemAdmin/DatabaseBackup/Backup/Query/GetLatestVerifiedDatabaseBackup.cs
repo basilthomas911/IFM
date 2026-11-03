@@ -10,13 +10,17 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Backup.Query;
 /// <summary>Handles <see cref="GetLatestVerifiedDatabaseBackupQuery"/>.</summary>
 public static class GetLatestVerifiedDatabaseBackup
 {
-    /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
-    public static async ValueTask ExecuteAsync(this GetLatestVerifiedDatabaseBackupQuery query, ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetLatestVerifiedDatabaseBackupQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dbContext);
-        ArgumentNullException.ThrowIfNull(query);
-        var result = await (dbContext.GetLatestVerifiedBackupAsync(query, cancellationToken)).ConfigureAwait(false);
-        await (DatabaseBackupQueryReply.OptionalAsync(context, query, result)).ConfigureAwait(false);
+        /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
+        public async ValueTask ExecuteAsync(ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupQueryActor> context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dbContext);
+            ArgumentNullException.ThrowIfNull(query);
+            var result = await (dbContext.GetLatestVerifiedBackupAsync(query, cancellationToken)).ConfigureAwait(false);
+            await (DatabaseBackupQueryReply.OptionalAsync(context, query, result)).ConfigureAwait(false);
+        }
     }
 }

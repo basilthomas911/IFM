@@ -10,11 +10,15 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Event;
 /// <summary>Handles the failed terminal event for YieldCurveRatesImported.</summary>
 public static class YieldCurveRatesImportedFail
 {
-    /// <summary>Forwards the terminal download outcome without starting another import.</summary>
-    public static ValueTask<bool> ExecuteAsync(this YieldCurveRatesImportedFailEvent eventValue, IEventActorContext context, ILogger<YieldCurveRateEventActor> logger)
-        
+
+    extension(YieldCurveRatesImportedFailEvent eventValue)
     {
-        ArgumentNullException.ThrowIfNull(eventValue);
-        return DownloadLogDelivery.ForwardAsync(eventValue.DownloadOutcome, eventValue, MarketDataDownloadDataset.TreasuryCurve, MarketDataDownloadStatus.Failed, context, logger);
+        /// <summary>Forwards the terminal download outcome without starting another import.</summary>
+        public ValueTask<bool> ExecuteAsync(IEventActorContext context, ILogger<YieldCurveRateEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(eventValue);
+            return DownloadLogDelivery.ForwardAsync(eventValue.DownloadOutcome, eventValue, MarketDataDownloadDataset.TreasuryCurve, MarketDataDownloadStatus.Failed, context, logger);
+        }
     }
 }

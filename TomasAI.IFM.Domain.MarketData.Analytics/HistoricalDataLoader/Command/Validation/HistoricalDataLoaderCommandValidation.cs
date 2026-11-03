@@ -13,46 +13,47 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Command.V
 /// <summary>Aggregate historical loader identity and payload validation.</summary>
 public static class HistoricalDataLoaderCommandValidation
 {
-    /// <summary>Validates the intrinsic data-load attempt identity.</summary>
-    public static TErrors ValidateDataLoadAttemptId<TErrors>(this TErrors errors, FuturesAnalyticsHistoricalDataLoaderEntityId id)
 
+    extension<TErrors>(TErrors errors)
         where TErrors : class, ICollection<ValidationError>
     {
-        ArgumentNullException.ThrowIfNull(errors);
-        if (id.Value == Guid.Empty) errors.Add(new("DataLoadAttemptId is required."));
-        return errors;
-    }
-
-    /// <summary>Validates all inclusive date, budget, version and series requirements without throwing.</summary>
-    public static TErrors ValidateHistoricalLoad<TErrors>(this TErrors errors, LoadFuturesAnalyticsHistoricalDataCommand value)
-
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(value);
-
-        if (value.CommandId == Guid.Empty || value.EntityId.Value == Guid.Empty
-            || value.CommandId != value.EntityId.Value)
-            errors.Add(new("CommandId and DataLoadAttemptId must be the same non-empty identity."));
-        if (value.FuturesAnalyticsHistoricalDataLoaderParameters is null) { errors.Add(new("FuturesAnalyticsHistoricalDataLoaderParameters are required.")); return errors; }
-        if (value.FuturesAnalyticsHistoricalDataLoaderParameters.StartDate == default || value.FuturesAnalyticsHistoricalDataLoaderParameters.EndDate < value.FuturesAnalyticsHistoricalDataLoaderParameters.StartDate)
-            errors.Add(new("A valid inclusive data load date range is required."));
-        if (value.FuturesAnalyticsHistoricalDataLoaderParameters.Series is null || value.FuturesAnalyticsHistoricalDataLoaderParameters.Series.Length == 0)
-            errors.Add(new("At least one historical series is required."));
-        if (value.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumCostUsd <= 0 || value.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumBytes <= 0)
-            errors.Add(new("Positive cost and byte budgets are required."));
-        if (string.IsNullOrWhiteSpace(value.FuturesAnalyticsHistoricalDataLoaderParameters.NormalizationVersion)
-            || string.IsNullOrWhiteSpace(value.FuturesAnalyticsHistoricalDataLoaderParameters.CalculationConfigurationVersion)
-            || string.IsNullOrWhiteSpace(value.FuturesAnalyticsHistoricalDataLoaderParameters.RequestedBy))
-            errors.Add(new("Normalization, calculation configuration, and requester are required."));
-        foreach (var series in value.FuturesAnalyticsHistoricalDataLoaderParameters.Series ?? [])
+        /// <summary>Validates the intrinsic data-load attempt identity.</summary>
+        public TErrors ValidateDataLoadAttemptId(FuturesAnalyticsHistoricalDataLoaderEntityId id)
         {
-            if (series is null) { errors.Add(new("Historical series identity is required.")); continue; }
-            if (new MarketSeriesIdentityValidationRules().Execute(series.MarketSeriesIdentity).Length != 0)
-                errors.Add(new("Every data load series identity must be valid."));
-            if (!Enum.IsDefined(series.Schema))
-                errors.Add(new("Every data load historical schema must be supported."));
+            ArgumentNullException.ThrowIfNull(errors);
+            if (id.Value == Guid.Empty) errors.Add(new("DataLoadAttemptId is required."));
+            return errors;
         }
-        return errors;
+
+        /// <summary>Validates all inclusive date, budget, version and series requirements without throwing.</summary>
+        public TErrors ValidateHistoricalLoad(LoadFuturesAnalyticsHistoricalDataCommand value)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(value);
+
+            if (value.CommandId == Guid.Empty || value.EntityId.Value == Guid.Empty
+                || value.CommandId != value.EntityId.Value)
+                errors.Add(new("CommandId and DataLoadAttemptId must be the same non-empty identity."));
+            if (value.FuturesAnalyticsHistoricalDataLoaderParameters is null) { errors.Add(new("FuturesAnalyticsHistoricalDataLoaderParameters are required.")); return errors; }
+            if (value.FuturesAnalyticsHistoricalDataLoaderParameters.StartDate == default || value.FuturesAnalyticsHistoricalDataLoaderParameters.EndDate < value.FuturesAnalyticsHistoricalDataLoaderParameters.StartDate)
+                errors.Add(new("A valid inclusive data load date range is required."));
+            if (value.FuturesAnalyticsHistoricalDataLoaderParameters.Series is null || value.FuturesAnalyticsHistoricalDataLoaderParameters.Series.Length == 0)
+                errors.Add(new("At least one historical series is required."));
+            if (value.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumCostUsd <= 0 || value.FuturesAnalyticsHistoricalDataLoaderParameters.MaximumBytes <= 0)
+                errors.Add(new("Positive cost and byte budgets are required."));
+            if (string.IsNullOrWhiteSpace(value.FuturesAnalyticsHistoricalDataLoaderParameters.NormalizationVersion)
+                || string.IsNullOrWhiteSpace(value.FuturesAnalyticsHistoricalDataLoaderParameters.CalculationConfigurationVersion)
+                || string.IsNullOrWhiteSpace(value.FuturesAnalyticsHistoricalDataLoaderParameters.RequestedBy))
+                errors.Add(new("Normalization, calculation configuration, and requester are required."));
+            foreach (var series in value.FuturesAnalyticsHistoricalDataLoaderParameters.Series ?? [])
+            {
+                if (series is null) { errors.Add(new("Historical series identity is required.")); continue; }
+                if (new MarketSeriesIdentityValidationRules().Execute(series.MarketSeriesIdentity).Length != 0)
+                    errors.Add(new("Every data load series identity must be valid."));
+                if (!Enum.IsDefined(series.Schema))
+                    errors.Add(new("Every data load historical schema must be supported."));
+            }
+            return errors;
+        }
     }
 }

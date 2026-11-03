@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
     public static class TradeSubTypeExtensions
     {
-        public static string ToStringFast(this TradeSubType value) => value switch
+
+        extension(TradeSubType value)
         {
-            TradeSubType.Primary => nameof(TradeSubType.Primary),
-            TradeSubType.Hedge => nameof(TradeSubType.Hedge),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                TradeSubType.Primary => nameof(TradeSubType.Primary),
+                TradeSubType.Hedge => nameof(TradeSubType.Hedge),
+                _ => value.ToString()
+            };
+        }
     }
 }

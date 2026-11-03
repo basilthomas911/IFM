@@ -14,63 +14,64 @@ public static class EconomicCalendarValidationExtensions
 {
     static readonly EconomicCalendarValidationRules EconomicCalendarRules = new();
     static readonly EconomicCalendarIdValidationRules EconomicCalendarIdRules = new();
-    /// <summary>
-    /// Validates an economic calendar view model.
-    /// </summary>
-    /// <param name="validationErrors">The list of validation errors to which any new errors will be added.</param>
-    /// <param name="economicCalendar">The economic calendar view model to validate.</param>
-    /// <returns>The updated list of validation errors.</returns>
-    public static TErrors ValidateEconomicCalendar<TErrors>(this TErrors validationErrors, EconomicCalendarReadModel economicCalendar)
 
+    /// <param name="validationErrors">
+    /// The list of validation errors to which any new errors will be added.
+    /// </param>
+    extension<TErrors>(TErrors validationErrors)
         where TErrors : class, ICollection<ValidationError>
     {
-        ArgumentNullException.ThrowIfNull(validationErrors);
-        var ruleErrors = EconomicCalendarRules.Execute(economicCalendar);
-        if (ruleErrors is not null)
-            foreach (var validationFailure in ruleErrors)
-                validationErrors.Add(validationFailure);
-        return validationErrors;
-    }
-
-    /// <summary>Validates the optional provider-neutral country filters on an import request.</summary>
-    public static TErrors ValidateImportCountryCodes<TErrors>(
-        this TErrors validationErrors,
-        string[]? countryCodes,
-        string commandName)
-
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(validationErrors);
-        if (countryCodes is null)
+        /// <summary>
+        /// Validates an economic calendar view model.
+        /// </summary>
+        ///
+        /// <param name="economicCalendar">The economic calendar view model to validate.</param>
+        /// <returns>The updated list of validation errors.</returns>
+        public TErrors ValidateEconomicCalendar(EconomicCalendarReadModel economicCalendar)
         {
-            validationErrors.Add(new ValidationError($"{commandName}.CountryCodes is null"));
+            ArgumentNullException.ThrowIfNull(validationErrors);
+            var ruleErrors = EconomicCalendarRules.Execute(economicCalendar);
+            if (ruleErrors is not null)
+                foreach (var validationFailure in ruleErrors)
+                    validationErrors.Add(validationFailure);
             return validationErrors;
         }
 
-        foreach (var countryCode in countryCodes)
-            if (string.IsNullOrWhiteSpace(countryCode)
-                || countryCode.Trim().Length is < 2 or > 3
-                || countryCode.Trim().Any(character => !char.IsAsciiLetter(character)))
-                validationErrors.Add(new ValidationError(
-                    $"{commandName}.CountryCodes contains an invalid two- or three-letter country code"));
-        return validationErrors;
-    }
+        /// <summary>Validates the optional provider-neutral country filters on an import request.</summary>
+        public TErrors ValidateImportCountryCodes(
+            string[]? countryCodes,
+            string commandName)
+        {
+            ArgumentNullException.ThrowIfNull(validationErrors);
+            if (countryCodes is null)
+            {
+                validationErrors.Add(new ValidationError($"{commandName}.CountryCodes is null"));
+                return validationErrors;
+            }
 
-    /// <summary>
-    /// Validates an economic calendar identifier.
-    /// </summary>
-    /// <param name="validationErrors">The list of validation errors to which any new errors will be added.</param>
-    /// <param name="economicCalendarId">The economic calendar identifier to validate.</param>
-    /// <returns>The updated list of validation errors.</returns>
-    public static TErrors ValidateEconomicCalendarId<TErrors>(this TErrors validationErrors, EconomicCalendarId economicCalendarId)
+            foreach (var countryCode in countryCodes)
+                if (string.IsNullOrWhiteSpace(countryCode)
+                    || countryCode.Trim().Length is < 2 or > 3
+                    || countryCode.Trim().Any(character => !char.IsAsciiLetter(character)))
+                    validationErrors.Add(new ValidationError(
+                        $"{commandName}.CountryCodes contains an invalid two- or three-letter country code"));
+            return validationErrors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(validationErrors);
-        var ruleErrors = EconomicCalendarIdRules.Execute(economicCalendarId);
-        if (ruleErrors is not null)
-            foreach (var validationFailure in ruleErrors)
-                validationErrors.Add(validationFailure);
-        return validationErrors;
+        /// <summary>
+        /// Validates an economic calendar identifier.
+        /// </summary>
+        ///
+        /// <param name="economicCalendarId">The economic calendar identifier to validate.</param>
+        /// <returns>The updated list of validation errors.</returns>
+        public TErrors ValidateEconomicCalendarId(EconomicCalendarId economicCalendarId)
+        {
+            ArgumentNullException.ThrowIfNull(validationErrors);
+            var ruleErrors = EconomicCalendarIdRules.Execute(economicCalendarId);
+            if (ruleErrors is not null)
+                foreach (var validationFailure in ruleErrors)
+                    validationErrors.Add(validationFailure);
+            return validationErrors;
+        }
     }
 }

@@ -8,13 +8,17 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelectio
 /// <summary>Handles <see cref = "GetTradeSelectionInvocationQuery"/>.</summary>
 public static class GetTradeSelectionInvocation
 {
-    /// <summary>Reads and returns the exact Trade Selection invocation.</summary>
-    public static async ValueTask ExecuteAsync(this GetTradeSelectionInvocationQuery query, ITradeSelectionQueryContext services, IQueryActorContext<TradeSelectionQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetTradeSelectionInvocationQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        ArgumentNullException.ThrowIfNull(services);
-        var value = await (TradeSelectionQueryModel.ExactAsync(services, query.Access, query.WorkflowId, query.InvocationId, cancellationToken)).ConfigureAwait(false);
-        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<TradeSelectionProjection>(value))).ConfigureAwait(false);
+        /// <summary>Reads and returns the exact Trade Selection invocation.</summary>
+        public async ValueTask ExecuteAsync(ITradeSelectionQueryContext services, IQueryActorContext<TradeSelectionQueryActor> context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            ArgumentNullException.ThrowIfNull(services);
+            var value = await (TradeSelectionQueryModel.ExactAsync(services, query.Access, query.WorkflowId, query.InvocationId, cancellationToken)).ConfigureAwait(false);
+            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<TradeSelectionProjection>(value))).ConfigureAwait(false);
+        }
     }
 }

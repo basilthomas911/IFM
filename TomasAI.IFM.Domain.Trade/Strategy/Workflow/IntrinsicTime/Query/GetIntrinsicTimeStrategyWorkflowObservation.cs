@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query;
 /// <summary>Handles <see cref = "GetIntrinsicTimeStrategyWorkflowObservationQuery"/>.</summary>
 public static class GetIntrinsicTimeStrategyWorkflowObservation
 {
-    /// <summary>Executes the mapped workflow projection query and replies with its typed result.</summary>
-    public static ValueTask ExecuteAsync(this GetIntrinsicTimeStrategyWorkflowObservationQuery query, IIntrinsicTimeStrategyWorkflowQueryContext services, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetIntrinsicTimeStrategyWorkflowObservationQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        return IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(services, context, query, cancellationToken);
+        /// <summary>Executes the mapped workflow projection query and replies with its typed result.</summary>
+        public ValueTask ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            return IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(services, context, query, cancellationToken);
+        }
     }
 }

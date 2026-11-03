@@ -7,16 +7,19 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.E
 /// <summary>Handles one failed VX term-structure projection.</summary>
 public static class FuturesVxTermStructureSignalUpdatedFail
 {
-    /// <summary>Logs the typed projection failure and acknowledges its terminal event.</summary>
-    public static ValueTask<bool> ExecuteAsync(
-        this FuturesVxTermStructureSignalUpdatedFailEvent @event,
-        IFuturesVxTermStructureSignalEventContext context,
-        ILogger<FuturesVxTermStructureSignalEventActor> logger)
+
+    extension(FuturesVxTermStructureSignalUpdatedFailEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write32(logger, null, @event.EntityId, @event.ErrorMessage);
-        return ValueTask.FromResult(true);
+        /// <summary>Logs the typed projection failure and acknowledges its terminal event.</summary>
+        public ValueTask<bool> ExecuteAsync(
+            IFuturesVxTermStructureSignalEventContext context,
+            ILogger<FuturesVxTermStructureSignalEventActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write32(logger, null, @event.EntityId, @event.ErrorMessage);
+            return ValueTask.FromResult(true);
+        }
     }
 }

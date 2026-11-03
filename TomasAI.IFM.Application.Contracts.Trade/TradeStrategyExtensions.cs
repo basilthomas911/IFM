@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
     public static class TradeStrategyExtensions
     {
-        public static string ToStringFast(this TradeStrategy value) => value switch
+
+        extension(TradeStrategy value)
         {
-            TradeStrategy.Unknown => nameof(TradeStrategy.Unknown),
-            TradeStrategy.IntrinsicTimeLongShort => nameof(TradeStrategy.IntrinsicTimeLongShort),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                TradeStrategy.Unknown => nameof(TradeStrategy.Unknown),
+                TradeStrategy.IntrinsicTimeLongShort => nameof(TradeStrategy.IntrinsicTimeLongShort),
+                _ => value.ToString()
+            };
+        }
     }
 }

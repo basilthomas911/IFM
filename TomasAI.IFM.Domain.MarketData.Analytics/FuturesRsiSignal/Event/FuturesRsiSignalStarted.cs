@@ -27,42 +27,45 @@ public static class FuturesRsiSignalStarted
         _serviceId = $"{LogSourceType.FuturesRsiSignalEvent}";
     }
 
-    static string _serviceId { get; } 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
-    /// Executes the start operation for a Futures RSI signal timer, initiating the generation of RSI signals for the specified contract and value date.
-    /// </summary>
-    /// <param name="e">The event containing details about the futures RSI signal to be processed, including the contract ID and value date.</param>
-    /// <param name="context">The event actor context used to dispatch queries and commands.</param>
-    /// <param name="statusConsoleWriter">The status console writer used to log messages and errors to the console.</param>
-    /// <param name="logger">The logger used to log errors and informational messages related to the execution of the event handler.</param>
-    /// <returns>A value indicating whether the execution completed successfully. Returns <see langword="true"/> if the operation
-    /// succeeded; otherwise, <see langword="false"/>.</returns>
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesRsiSignalStartedEvent e,
-        IFuturesRsiSignalEventContext context,
-        ILogger<FuturesRsiSignalEventActor> logger)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(e);
-        var source = $"FuturesRsiSignalStartedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
-        try
-        {
-            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write46(logger, null, e.EntityId, e.HistoricalSeedCount, e.HistoricalSeedReason);
-            if (e.RestoredSignal is { IsWarm: true, Metadata.IsValid: true } restored)
-            {
-                TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.RegimeDiscoverySignalCacheAdapter.Publish(restored);
-                context.BlackboardService.MarketDataAnalytics.FuturesRsiSignal.Set(e.EntityId, restored);
-            }
-            FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(e.EntityId);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            logger.LogErrorEvent(_serviceId, ex, "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
-            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStartedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
-        }
-        return false;
+    static string _serviceId { get; }
 
+    extension(FuturesRsiSignalStartedEvent e)
+    {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
+                                                                                                                                                                                                                                         /// Executes the start operation for a Futures RSI signal timer, initiating the generation of RSI signals for the specified contract and value date.
+                                                                                                                                                                                                                                         /// </summary>
+                                                                                                                                                                                                                                         /// <param name="e">The event containing details about the futures RSI signal to be processed, including the contract ID and value date.</param>
+                                                                                                                                                                                                                                         /// <param name="context">The event actor context used to dispatch queries and commands.</param>
+                                                                                                                                                                                                                                         /// <param name="statusConsoleWriter">The status console writer used to log messages and errors to the console.</param>
+                                                                                                                                                                                                                                         /// <param name="logger">The logger used to log errors and informational messages related to the execution of the event handler.</param>
+                                                                                                                                                                                                                                         /// <returns>A value indicating whether the execution completed successfully. Returns <see langword="true"/> if the operation
+                                                                                                                                                                                                                                         /// succeeded; otherwise, <see langword="false"/>.</returns>
+        public async ValueTask<bool> ExecuteAsync(
+                IFuturesRsiSignalEventContext context,
+                ILogger<FuturesRsiSignalEventActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(e);
+            var source = $"FuturesRsiSignalStartedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
+            try
+            {
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write46(logger, null, e.EntityId, e.HistoricalSeedCount, e.HistoricalSeedReason);
+                if (e.RestoredSignal is { IsWarm: true, Metadata.IsValid: true } restored)
+                {
+                    TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.RegimeDiscoverySignalCacheAdapter.Publish(restored);
+                    context.BlackboardService.MarketDataAnalytics.FuturesRsiSignal.Set(e.EntityId, restored);
+                }
+                FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(e.EntityId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.LogErrorEvent(_serviceId, ex, "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
+                await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStartedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
+            }
+            return false;
+
+        }
     }
 
 }

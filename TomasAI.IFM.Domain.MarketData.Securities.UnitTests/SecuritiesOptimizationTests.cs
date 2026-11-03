@@ -70,6 +70,7 @@ public class SecuritiesOptimizationTests
     [Fact]
     public async Task GetOptionContractIds_UsesOneBulkReadAndPreservesInputOrderAndDuplicates()
     {
+        using var cancellation = new CancellationTokenSource();
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<ISecuritiesDbContext>();
         dbFactory.SecuritiesDb.Returns(db);
@@ -80,18 +81,19 @@ public class SecuritiesOptimizationTests
             SampleData.FuturesOptionContract1.ContractId,
             SampleData.FuturesOptionContract2.ContractId
         };
-        db.GetFuturesOptionContractsByIdsAsync(Arg.Any<ICollection<string>>())
+        db.GetFuturesOptionContractsByIdsAsync(Arg.Any<ICollection<string>>(), cancellation.Token)
             .Returns(new[] { SampleData.FuturesOptionContract1, SampleData.FuturesOptionContract2 });
         var query = new GetFuturesOptionContractIdsQuery(input);
 
-        var result = await query.ExecuteAsync(dbFactory);
+        var result = await query.ExecuteAsync(dbFactory, cancellation.Token);
 
         result.Should().Equal(
             SampleData.FuturesOptionContract2.ContractId,
             SampleData.FuturesOptionContract1.ContractId,
             SampleData.FuturesOptionContract2.ContractId);
         await db.Received(1).GetFuturesOptionContractsByIdsAsync(
-            Arg.Is<ICollection<string>>(ids => ids.SequenceEqual(input)));
+            Arg.Is<ICollection<string>>(ids => ids.SequenceEqual(input)), cancellation.Token);
+        await db.DidNotReceive().GetFuturesOptionContractsByIdsAsync(Arg.Any<ICollection<string>>());
         await db.DidNotReceive().GetFuturesOptionContractAsync(Arg.Any<string>());
     }
 
@@ -183,7 +185,7 @@ public class SecuritiesOptimizationTests
         stateFactory.CreateState<FuturesOptionContractCommandState>()
             .Returns(new FuturesOptionContractCommandState());
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
-        eventSource.GetEventStreamIdAsync(Arg.Any<string>()).Returns(42L);
+        eventSource.GetEventStreamIdAsync(Arg.Any<string>(), CancellationToken.None).Returns(42L);
         var context = Substitute.For<IFuturesOptionContractCommandContext>();
         context.StateFactory.Returns(stateFactory);
         context.DbEventSource.Returns(eventSource);
@@ -209,13 +211,13 @@ public class SecuritiesOptimizationTests
                 FuturesOptionContractCommandState,
                 FuturesOptionContractsAddedEvent>(
                 42L,
-                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>());
+                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
         await eventSource.DidNotReceive()
             .MapReduceActorEventStreamAsync<
                 FuturesOptionContractCommandState,
                 FuturesOptionContractAddedEvent>(
                 Arg.Any<long>(),
-                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>());
+                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>());
     }
 
     static FuturesOptionContractCommandState CreateStateWith(FuturesOptionContractReadModel contract)

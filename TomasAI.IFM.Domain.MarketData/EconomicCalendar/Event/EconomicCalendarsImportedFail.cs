@@ -10,11 +10,15 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event;
 /// <summary>Handles the failed terminal event for EconomicCalendarsImported.</summary>
 public static class EconomicCalendarsImportedFail
 {
-    /// <summary>Forwards the terminal download outcome without starting another import.</summary>
-    public static ValueTask<bool> ExecuteAsync(this EconomicCalendarsImportedFailEvent eventValue, IEventActorContext context, ILogger<EconomicCalendarEventActor> logger)
-        
+
+    extension(EconomicCalendarsImportedFailEvent eventValue)
     {
-        ArgumentNullException.ThrowIfNull(eventValue);
-        return DownloadLogDelivery.ForwardAsync(eventValue.DownloadOutcome, eventValue, MarketDataDownloadDataset.EconomicCalendar, MarketDataDownloadStatus.Failed, context, logger);
+        /// <summary>Forwards the terminal download outcome without starting another import.</summary>
+        public ValueTask<bool> ExecuteAsync(IEventActorContext context, ILogger<EconomicCalendarEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(eventValue);
+            return DownloadLogDelivery.ForwardAsync(eventValue.DownloadOutcome, eventValue, MarketDataDownloadDataset.EconomicCalendar, MarketDataDownloadStatus.Failed, context, logger);
+        }
     }
 }

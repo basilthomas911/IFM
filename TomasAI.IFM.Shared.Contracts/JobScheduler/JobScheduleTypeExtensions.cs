@@ -3,10 +3,14 @@ namespace TomasAI.IFM.Shared.JobScheduler
 
     public static class JobScheduleTypeExtensions
     {
-        public static string ToStringFast(this JobScheduleType value) => value switch
+
+        extension(JobScheduleType value)
         {
-            JobScheduleType.Daily => nameof(JobScheduleType.Daily),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                JobScheduleType.Daily => nameof(JobScheduleType.Daily),
+                _ => value.ToString()
+            };
+        }
     }
 }

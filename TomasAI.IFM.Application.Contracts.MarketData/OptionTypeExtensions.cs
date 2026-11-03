@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.MarketData.Shared
 
     public static class OptionTypeExtensions
     {
-        public static string ToStringFast(this OptionType value) => value switch
+
+        extension(OptionType value)
         {
-            OptionType.Put => nameof(OptionType.Put),
-            OptionType.Call => nameof(OptionType.Call),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                OptionType.Put => nameof(OptionType.Put),
+                OptionType.Call => nameof(OptionType.Call),
+                _ => value.ToString()
+            };
+        }
     }
 }

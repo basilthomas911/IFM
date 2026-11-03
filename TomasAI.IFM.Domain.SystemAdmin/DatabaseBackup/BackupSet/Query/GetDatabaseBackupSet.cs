@@ -11,15 +11,19 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.BackupSet.Query;
 /// <summary>Handles <see cref="GetDatabaseBackupSetQuery"/>.</summary>
 public static class GetDatabaseBackupSet
 {
-    /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
-    public static async ValueTask ExecuteAsync(this GetDatabaseBackupSetQuery query, ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupSetQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetDatabaseBackupSetQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dbContext);
-        ArgumentNullException.ThrowIfNull(query);
-        var operations = await dbContext.GetBackupSetOperationsAsync(query.BackupSetId!.Value.Value, cancellationToken).ConfigureAwait(false);
-        var result = BuildReadModel(query, operations);
-        await (DatabaseBackupQueryReply.OptionalAsync(context, query, result)).ConfigureAwait(false);
+        /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
+        public async ValueTask ExecuteAsync(ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupSetQueryActor> context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dbContext);
+            ArgumentNullException.ThrowIfNull(query);
+            var operations = await dbContext.GetBackupSetOperationsAsync(query.BackupSetId!.Value.Value, cancellationToken).ConfigureAwait(false);
+            var result = BuildReadModel(query, operations);
+            await (DatabaseBackupQueryReply.OptionalAsync(context, query, result)).ConfigureAwait(false);
+        }
     }
     /// <summary>Builds backup-set completeness from persisted operation facts.</summary>
     internal static DatabaseBackupSetReadModel? BuildReadModel(GetDatabaseBackupSetQuery query, DatabaseBackupOperationReadModel[] operations)

@@ -10,35 +10,40 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketConditi
 /// <summary>Maps domain, transport and lifecycle failures to a non-durable assessment response.</summary>
 public static class FailMarketConditionAssessment
 {
-    /// <summary>Classifies one failure and constructs its terminal event without projection or persistence.</summary>
-    public static FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent> Fail(this FunctionEventContext<ExecuteMarketConditionAssessmentCommand> input, TimeProvider clock)
+
+    extension(FunctionEventContext<ExecuteMarketConditionAssessmentCommand> input)
     {
-        ArgumentNullException.ThrowIfNull(clock);
-        ArgumentNullException.ThrowIfNull(input);
-        var c = input.Request;
-        var outcome = input.Outcome as MarketConditionExecutionFailed;
-        if (!input.IsConflict && outcome is null && input.Exception is null)
-            throw new ArgumentException("Failure requires an outcome, conflict or exception.",nameof(input));
-        var category = ((input.IsConflict) switch
+        /// <summary>Classifies one failure and constructs its terminal event without projection or persistence.</summary>
+        public FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent> Fail(TimeProvider clock)
         {
-            true => MarketConditionFailureCategory.ContractInvalid,
-            _ => outcome?.Category ?? (input.Exception is TimeoutException ? MarketConditionFailureCategory.Timeout : input.Stage switch
+            ArgumentNullException.ThrowIfNull(clock);
+            ArgumentNullException.ThrowIfNull(input);
+            var c = input.Request;
+            var outcome = input.Outcome as MarketConditionExecutionFailed;
+            if (!input.IsConflict && outcome is null && input.Exception is null)
+                throw new ArgumentException("Failure requires an outcome, conflict or exception.", nameof(input));
+            var category = ((input.IsConflict) switch
             {
-                FunctionFailureStage.Loading or FunctionFailureStage.Persistence => MarketConditionFailureCategory.PersistenceFailed,
-                FunctionFailureStage.Projection => MarketConditionFailureCategory.ProjectionFailed,
-                FunctionFailureStage.Execution => MarketConditionFailureCategory.CalculationFailed,
-                _ => MarketConditionFailureCategory.ContractInvalid
-            })});
-        var reason = input.IsConflict ? "MC.ASSESSMENT.CONFLICTING_DUPLICATE" : outcome?.Reason ?? $"MC.ASSESSMENT.{category.ToString().ToUpperInvariant()}";
-        if (c is not null && !input.IsConflict)
-            MarketConditionTelemetry.RecordFailure(category, reason, c.TargetHorizon, Math.Max(0, (clock.GetUtcNow().UtcDateTime - c.RequestedAtUtc).TotalMilliseconds));
-        var failed = CreateFailedEvent(c, category, reason, clock);
-        if (outcome?.Message is { } message)
-            failed = failed with
-            {
-                ErrorMessage = message
-            };
-        return FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>.Fail(failed);
+                true => MarketConditionFailureCategory.ContractInvalid,
+                _ => outcome?.Category ?? (input.Exception is TimeoutException ? MarketConditionFailureCategory.Timeout : input.Stage switch
+                {
+                    FunctionFailureStage.Loading or FunctionFailureStage.Persistence => MarketConditionFailureCategory.PersistenceFailed,
+                    FunctionFailureStage.Projection => MarketConditionFailureCategory.ProjectionFailed,
+                    FunctionFailureStage.Execution => MarketConditionFailureCategory.CalculationFailed,
+                    _ => MarketConditionFailureCategory.ContractInvalid
+                })
+            });
+            var reason = input.IsConflict ? "MC.ASSESSMENT.CONFLICTING_DUPLICATE" : outcome?.Reason ?? $"MC.ASSESSMENT.{category.ToString().ToUpperInvariant()}";
+            if (c is not null && !input.IsConflict)
+                MarketConditionTelemetry.RecordFailure(category, reason, c.TargetHorizon, Math.Max(0, (clock.GetUtcNow().UtcDateTime - c.RequestedAtUtc).TotalMilliseconds));
+            var failed = CreateFailedEvent(c, category, reason, clock);
+            if (outcome?.Message is { } message)
+                failed = failed with
+                {
+                    ErrorMessage = message
+                };
+            return FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>.Fail(failed);
+        }
     }
 
     /// <summary>Creates a typed domain failure without saving Function state.</summary>

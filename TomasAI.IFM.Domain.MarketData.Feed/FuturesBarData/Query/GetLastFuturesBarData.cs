@@ -8,14 +8,21 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Query;
 
 public static class GetLastFuturesBarData
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="q"></param>
-    /// <param name="context"></param>
-    /// <param name="dbFactory"></param>
-    /// <returns></returns>
-    internal static async ValueTask<FuturesBarDataReadModel> ExecuteAsync(
-       this GetLastFuturesBarDataQuery q, IDbContextFactory dbFactory)
-        => await (dbFactory.MarketDataDb.GetLastFuturesBarDataAsync(q.ContractId, q.Symbol, q.ValueDate)).ConfigureAwait(false);
+
+    /// <param name="q">
+    ///
+    /// </param>
+    extension(GetLastFuturesBarDataQuery q)
+    {
+        /// <summary>
+        ///
+        /// </summary>
+        ///
+        /// <param name="context"></param>
+        /// <param name="dbFactory"></param>
+        /// <returns></returns>
+        internal async ValueTask<FuturesBarDataReadModel> ExecuteAsync(
+        IDbContextFactory dbFactory)
+            => await (dbFactory.MarketDataDb.GetLastFuturesBarDataAsync(q.ContractId, q.Symbol, q.ValueDate)).ConfigureAwait(false);
+    }
 }

@@ -16,34 +16,39 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Query;
 
 public static class GetFuturesTradeSignal
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="q"></param>
-    /// <param name="dbFactory"></param>
-    /// <param name="context"></param>
-    /// <returns></returns>
-    internal static async ValueTask<FuturesTradeSignalV2ReadModel?> GetFuturesTradeSignalAsync(
-        this GetFuturesTradeSignalQuery q,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-        => await dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync(
-                q.ContractId, q.ValueDate, cancellationToken).ConfigureAwait(false);
 
-    /// <summary>Reads and replies to the GetFuturesTradeSignalQuery message.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesTradeSignalQuery q,
-        IQueryActorContext<FuturesTradeSignalQueryActor> ctx,
-        IDbContextFactory db,
-        CancellationToken cancellationToken)
+    /// <param name="q">
+    ///
+    /// </param>
+    extension(GetFuturesTradeSignalQuery q)
     {
-        ArgumentNullException.ThrowIfNull(ctx);
-        ArgumentNullException.ThrowIfNull(db);
-        ArgumentNullException.ThrowIfNull(q);
-        var query = q;
-        var result = await query.GetFuturesTradeSignalAsync(db, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalQuery.Verb,
-            new ServiceResult<FuturesTradeSignalV2ReadModel?>(result)).ConfigureAwait(false);
+        /// <summary>
+        ///
+        /// </summary>
+        ///
+        /// <param name="dbFactory"></param>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        internal async ValueTask<FuturesTradeSignalV2ReadModel?> GetFuturesTradeSignalAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+            => await dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync(
+                    q.ContractId, q.ValueDate, cancellationToken).ConfigureAwait(false);
+
+        /// <summary>Reads and replies to the GetFuturesTradeSignalQuery message.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesTradeSignalQueryActor> ctx,
+            IDbContextFactory db,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(ctx);
+            ArgumentNullException.ThrowIfNull(db);
+            ArgumentNullException.ThrowIfNull(q);
+            var query = q;
+            var result = await query.GetFuturesTradeSignalAsync(db, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalQuery.Verb,
+                new ServiceResult<FuturesTradeSignalV2ReadModel?>(result)).ConfigureAwait(false);
+        }
     }
 }

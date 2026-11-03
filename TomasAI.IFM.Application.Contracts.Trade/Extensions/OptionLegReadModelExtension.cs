@@ -11,86 +11,89 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions;
 /// operations on collections of <see cref="OptionTradeLegReadModel"/> instances.</remarks>
 public static class OptionLegReadModelExtension
 {
-    public static OptionTradeLegReadModel? Get(this OptionTradeLegReadModel[] optionLegs, string contractId)
+
+    extension(OptionTradeLegReadModel[] optionLegs)
     {
-        ArgumentNullException.ThrowIfNull(optionLegs);
-        OptionTradeLegReadModel? result = null;
-        foreach (var optionLeg in optionLegs)
+        public OptionTradeLegReadModel? Get(string contractId)
         {
-            if (!string.Equals(optionLeg.ContractId, contractId, StringComparison.Ordinal))
-                continue;
-            EnsureUnique(result);
-            result = optionLeg;
+            ArgumentNullException.ThrowIfNull(optionLegs);
+            OptionTradeLegReadModel? result = null;
+            foreach (var optionLeg in optionLegs)
+            {
+                if (!string.Equals(optionLeg.ContractId, contractId, StringComparison.Ordinal))
+                    continue;
+                EnsureUnique(result);
+                result = optionLeg;
+            }
+            return result;
         }
-        return result;
-    }
 
-    public static OptionTradeLegReadModel? Get(this OptionTradeLegReadModel[] optionLegs, OptionLegAction optionLegAction, OptionType optionType)
-    {
-        ArgumentNullException.ThrowIfNull(optionLegs);
-        OptionTradeLegReadModel? result = null;
-        foreach (var optionLeg in optionLegs)
+        public OptionTradeLegReadModel? Get(OptionLegAction optionLegAction, OptionType optionType)
         {
-            if (optionLeg.OptionLegType != optionType || optionLeg.OptionLegAction != optionLegAction)
-                continue;
-            EnsureUnique(result);
-            result = optionLeg;
+            ArgumentNullException.ThrowIfNull(optionLegs);
+            OptionTradeLegReadModel? result = null;
+            foreach (var optionLeg in optionLegs)
+            {
+                if (optionLeg.OptionLegType != optionType || optionLeg.OptionLegAction != optionLegAction)
+                    continue;
+                EnsureUnique(result);
+                result = optionLeg;
+            }
+            return result;
         }
-        return result;
-    }
 
-    public static string? GetContractId(this OptionTradeLegReadModel[] optionLegs, OptionLegAction optionLegAction, OptionType optionType)
-    {
-        var item = optionLegs.Get(optionLegAction, optionType);
-        return item?.ContractId;
-    }
+        public string? GetContractId(OptionLegAction optionLegAction, OptionType optionType)
+        {
+            var item = optionLegs.Get(optionLegAction, optionType);
+            return item?.ContractId;
+        }
 
+        public int? GetQuantity(OptionLegAction optionLegAction, OptionType optionType)
+        {
+            var item = optionLegs.Get(optionLegAction, optionType);
+            return item?.Quantity;
+        }
 
-    public static int? GetQuantity(this OptionTradeLegReadModel[] optionLegs, OptionLegAction optionLegAction, OptionType optionType)
-    {
-        var item = optionLegs.Get(optionLegAction, optionType);
-        return item?.Quantity;
-    }
+        public decimal? GetStrikePrice(OptionLegAction optionLegAction, OptionType optionType)
+        {
+            var item = optionLegs.Get(optionLegAction, optionType);
+            return item?.StrikePrice;
+        }
 
-    public static decimal? GetStrikePrice(this OptionTradeLegReadModel[] optionLegs, OptionLegAction optionLegAction, OptionType optionType)
-    {
-        var item = optionLegs.Get(optionLegAction, optionType);
-        return item?.StrikePrice;
-    }
+        public void SetContractId(int tradeId, string contractId, string newContractId)
 
-    public static void SetContractId(this OptionTradeLegReadModel[] optionLegs, int tradeId, string contractId, string newContractId)
-        
-    {
-        ArgumentNullException.ThrowIfNull(optionLegs);
-        SetOptionLeg(optionLegs, tradeId, contractId, optionLeg => optionLeg with { ContractId = newContractId });
-    }
+        {
+            ArgumentNullException.ThrowIfNull(optionLegs);
+            SetOptionLeg(optionLegs, tradeId, contractId, optionLeg => optionLeg with { ContractId = newContractId });
+        }
 
-    public static void SetStrikePrice(this OptionTradeLegReadModel[] optionLegs, int tradeId, string contractId, decimal newStrikePrice)
-        
-    {
-        ArgumentNullException.ThrowIfNull(optionLegs);
-        SetOptionLeg(optionLegs, tradeId, contractId, optionLeg => optionLeg with { StrikePrice = newStrikePrice });
-    }
+        public void SetStrikePrice(int tradeId, string contractId, decimal newStrikePrice)
 
-    public static void SetOptionLegType(this OptionTradeLegReadModel[] optionLegs, int tradeId, string contractId, OptionType newOptionLegType)
-        
-    {
-        ArgumentNullException.ThrowIfNull(optionLegs);
-        SetOptionLeg(optionLegs, tradeId, contractId, optionLeg => optionLeg with { OptionLegType = newOptionLegType });
-    }
+        {
+            ArgumentNullException.ThrowIfNull(optionLegs);
+            SetOptionLeg(optionLegs, tradeId, contractId, optionLeg => optionLeg with { StrikePrice = newStrikePrice });
+        }
 
-    public static void SetOptionLegAction(this OptionTradeLegReadModel[] optionLegs, int tradeId, string contractId, OptionLegAction newOptionLegAction)
-        
-    {
-        ArgumentNullException.ThrowIfNull(optionLegs);
-        SetOptionLeg(optionLegs, tradeId, contractId, optionLeg => optionLeg with { OptionLegAction = newOptionLegAction });
-    }
+        public void SetOptionLegType(int tradeId, string contractId, OptionType newOptionLegType)
 
-    public static void SetQuantity(this OptionTradeLegReadModel[] optionLegs, int tradeId, string contractId, int newQuantity)
-        
-    {
-        ArgumentNullException.ThrowIfNull(optionLegs);
-        SetOptionLeg(optionLegs, tradeId, contractId, optionLeg => optionLeg with { Quantity = newQuantity });
+        {
+            ArgumentNullException.ThrowIfNull(optionLegs);
+            SetOptionLeg(optionLegs, tradeId, contractId, optionLeg => optionLeg with { OptionLegType = newOptionLegType });
+        }
+
+        public void SetOptionLegAction(int tradeId, string contractId, OptionLegAction newOptionLegAction)
+
+        {
+            ArgumentNullException.ThrowIfNull(optionLegs);
+            SetOptionLeg(optionLegs, tradeId, contractId, optionLeg => optionLeg with { OptionLegAction = newOptionLegAction });
+        }
+
+        public void SetQuantity(int tradeId, string contractId, int newQuantity)
+
+        {
+            ArgumentNullException.ThrowIfNull(optionLegs);
+            SetOptionLeg(optionLegs, tradeId, contractId, optionLeg => optionLeg with { Quantity = newQuantity });
+        }
     }
 
     private static void SetOptionLeg(OptionTradeLegReadModel[] optionLegs, int tradeId, string contractId, Func<OptionTradeLegReadModel, OptionTradeLegReadModel> getOptionLeg)
@@ -98,7 +101,7 @@ public static class OptionLegReadModelExtension
         for (var index = 0; index < optionLegs.Length; index++)
         {
             var optionLeg = optionLegs[index];
-            if (optionLeg.TradeId == tradeId && string.Equals(optionLeg.ContractId,contractId,StringComparison.Ordinal))
+            if (optionLeg.TradeId == tradeId && string.Equals(optionLeg.ContractId, contractId, StringComparison.Ordinal))
             {
                 optionLegs[index] = getOptionLeg(optionLeg);
                 break;

@@ -7,18 +7,25 @@ namespace TomasAI.IFM.Domain.Reference.LookupType.Query;
 
 public static class GetLookupTypeNames
 {
-    /// <summary>
-    /// Handles the GetLookupTypeNamesQuery by retrieving lookup type names from the database and replying with the result.
-    /// </summary>
-    /// <param name="q">The query for retrieving lookup type names.</param>
-    /// <param name="context">The query actor context.</param>
-    /// <param name="dbFactory">The database context factory.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask<string[]> ExecuteAsync(
-        this GetLookupTypeNamesQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        
+
+    /// <param name="q">
+    /// The query for retrieving lookup type names.
+    /// </param>
+    extension(GetLookupTypeNamesQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        return [.. await (dbFactory.ReferenceDb.GetLookupTypeNamesAsync(cancellationToken)).ConfigureAwait(false)];
+        /// <summary>
+        /// Handles the GetLookupTypeNamesQuery by retrieving lookup type names from the database and replying with the result.
+        /// </summary>
+        ///
+        /// <param name="context">The query actor context.</param>
+        /// <param name="dbFactory">The database context factory.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public async ValueTask<string[]> ExecuteAsync(
+        IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            return [.. await (dbFactory.ReferenceDb.GetLookupTypeNamesAsync(cancellationToken)).ConfigureAwait(false)];
+        }
     }
 }

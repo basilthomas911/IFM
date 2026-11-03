@@ -8,15 +8,18 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Realtime
 /// <summary>Handles one durably projected Market Outlook snapshot notification.</summary>
 public static class MarketOutlookSnapshotInserted
 {
-    /// <summary>Preserves the intentional terminal realtime no-op.</summary>
-    public static ValueTask ExecuteAsync(
-        this MarketOutlookSnapshotInsertedEvent @event,
-        IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
-        ILogger<MarketOutlookSnapshotRealtimeActor> logger)
+
+    extension(MarketOutlookSnapshotInsertedEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        return ValueTask.CompletedTask;
+        /// <summary>Preserves the intentional terminal realtime no-op.</summary>
+        public ValueTask ExecuteAsync(
+            IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
+            ILogger<MarketOutlookSnapshotRealtimeActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            return ValueTask.CompletedTask;
+        }
     }
 }

@@ -6,12 +6,16 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query;
 
 public static class GetFuturesOptionContractsPage
 {
-    public static Task<FuturesOptionContractPageReadModel> ExecuteAsync(
-        this GetFuturesOptionContractsPageQuery query, IDbContextFactory factory, CancellationToken cancellationToken = default)
+
+    extension(GetFuturesOptionContractsPageQuery query)
     {
-        ArgumentNullException.ThrowIfNull(factory);
-        ArgumentNullException.ThrowIfNull(query);
-        query.Request.Validate();
-        return factory.SecuritiesDb.GetFuturesOptionContractsPageAsync(query.Request, cancellationToken);
+        public Task<FuturesOptionContractPageReadModel> ExecuteAsync(
+        IDbContextFactory factory, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(factory);
+            ArgumentNullException.ThrowIfNull(query);
+            query.Request.Validate();
+            return factory.SecuritiesDb.GetFuturesOptionContractsPageAsync(query.Request, cancellationToken);
+        }
     }
 }

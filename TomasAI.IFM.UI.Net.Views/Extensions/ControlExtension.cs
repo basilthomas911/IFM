@@ -7,7 +7,11 @@ namespace TomasAI.IFM.UI.Net.Extensions
 {
     public static class ControlExtension
     {
-        public static void InvokeAsync(this Control control, Action controlAction)
-            => controlAction();
+
+        extension(Control control)
+        {
+            public void InvokeAsync(Action controlAction)
+                => controlAction();
+        }
     }
 }

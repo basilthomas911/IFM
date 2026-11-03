@@ -6,10 +6,14 @@ namespace TomasAI.IFM.Shared.StatusConsole;
 
 public static class StatusCodeTypeExtensions
 {
-    public static string ToStringFast(this StatusCodeType value) => value switch
+
+    extension(StatusCodeType value)
     {
-        StatusCodeType.Ok => nameof(StatusCodeType.Ok),
-        StatusCodeType.Error => nameof(StatusCodeType.Error),
-        _ => value.ToString()
-    };
+        public string ToStringFast() => value switch
+        {
+            StatusCodeType.Ok => nameof(StatusCodeType.Ok),
+            StatusCodeType.Error => nameof(StatusCodeType.Error),
+            _ => value.ToString()
+        };
+    }
 }

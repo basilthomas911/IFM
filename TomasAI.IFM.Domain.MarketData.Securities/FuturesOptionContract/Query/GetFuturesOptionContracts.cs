@@ -8,17 +8,20 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query;
 
 public static class GetFuturesOptionContracts
 {
-    /// <summary>
-    /// Handles a request to retrieve all futures option contracts by symbol.
-    /// </summary>
-    public static async ValueTask<FuturesOptionContractReadModel[]> ExecuteAsync(
-        this GetFuturesOptionContractsQuery q,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-        
+
+    extension(GetFuturesOptionContractsQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        return [.. await (dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync(q.Symbol, cancellationToken)).ConfigureAwait(false)];
+        /// <summary>
+        /// Handles a request to retrieve all futures option contracts by symbol.
+        /// </summary>
+        public async ValueTask<FuturesOptionContractReadModel[]> ExecuteAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            return [.. await (dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync(q.Symbol, cancellationToken)).ConfigureAwait(false)];
+        }
     }
 }

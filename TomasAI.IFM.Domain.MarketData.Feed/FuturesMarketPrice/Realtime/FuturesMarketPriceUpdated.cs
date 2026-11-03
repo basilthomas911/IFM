@@ -23,47 +23,52 @@ public static class FuturesMarketPriceUpdated
     /// <summary>Gets the structured logging service identifier for this realtime event family.</summary>
     static string ServiceId { get; }
 
-    /// <summary>
-    /// Forwards a qualifying trade-driven market-price update to tick storage and EOD. Quote and VWAP
-    /// checkpoint notifications do not generate trade changes.
-    /// </summary>
-    /// <param name="event">The normalized realtime futures market-price update.</param>
-    /// <param name="context">The realtime actor context processing the event.</param>
-    /// <param name="logger">The typed primary-actor logger.</param>
-    /// <returns><see langword="true"/> when the event has been handled.</returns>
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesMarketPriceUpdatedRealtimeEvent @event,
-        IEventActorContext context,
-        ILogger<FuturesMarketPriceRealtimeActor> logger)
+    /// <param name="event">
+    /// The normalized realtime futures market-price update.
+    /// </param>
+    extension(FuturesMarketPriceUpdatedRealtimeEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-        IsArgumentNull.Check(logger);
-        try
+        /// <summary>
+        /// Forwards a qualifying trade-driven market-price update to tick storage and EOD. Quote and VWAP
+        /// checkpoint notifications do not generate trade changes.
+        /// </summary>
+        ///
+        /// <param name="context">The realtime actor context processing the event.</param>
+        /// <param name="logger">The typed primary-actor logger.</param>
+        /// <returns><see langword="true"/> when the event has been handled.</returns>
+        public async ValueTask<bool> ExecuteAsync(
+            IEventActorContext context,
+            ILogger<FuturesMarketPriceRealtimeActor> logger)
         {
-            IsArgumentNull.Check(@event);
-            IsArgumentNull.Check(context);
-            if (@event.UpdateSource == FuturesMarketPriceUpdateSource.Trade
-                && @event.VwapCheckpoint is null
-                && string.Equals(@event.Subject.Name,FuturesMarketPriceUpdatedRealtimeEvent.Actor,StringComparison.Ordinal)
-                && @event.SourceTrade is { } trade)
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            IsArgumentNull.Check(logger);
+            try
             {
-                await context.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(
-                    trade with
-                    {
-                        SourceDataset = @event.SourceDataset,
-                        SourceGenerationId = @event.SourceGenerationId
-                    }).ConfigureAwait(false);
+                IsArgumentNull.Check(@event);
+                IsArgumentNull.Check(context);
+                if (@event.UpdateSource == FuturesMarketPriceUpdateSource.Trade
+                    && @event.VwapCheckpoint is null
+                    && string.Equals(@event.Subject.Name, FuturesMarketPriceUpdatedRealtimeEvent.Actor, StringComparison.Ordinal)
+                    && @event.SourceTrade is { } trade)
+                {
+                    await context.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(
+                        trade with
+                        {
+                            SourceDataset = @event.SourceDataset,
+                            SourceGenerationId = @event.SourceGenerationId
+                        }).ConfigureAwait(false);
+                }
+                return true;
             }
-            return true;
-        }
-        catch (Exception exception)
-        {
-            logger.LogErrorEvent(
-                ServiceId,
-                exception,
-                "Futures market-price realtime update handling failed");
-            throw;
+            catch (Exception exception)
+            {
+                logger.LogErrorEvent(
+                    ServiceId,
+                    exception,
+                    "Futures market-price realtime update handling failed");
+                throw;
+            }
         }
     }
 }

@@ -9,11 +9,15 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Retention.Event;
 /// <summary>Handles <see cref="DatabaseRetentionPlanCreatedEvent"/>.</summary>
 public static class DatabaseRetentionPlanCreated
 {
-    /// <summary>Translates and records this Database Backup service event through the command actor.</summary>
-    public static ValueTask ExecuteAsync(this DatabaseRetentionPlanCreatedEvent eventValue, IEventActorContext<DatabaseBackupRetentionEventActor> context, ILogger<DatabaseBackupRetentionEventActor> logger)
-        
+
+    extension(DatabaseRetentionPlanCreatedEvent eventValue)
     {
-        ArgumentNullException.ThrowIfNull(eventValue);
-        return DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+        /// <summary>Translates and records this Database Backup service event through the command actor.</summary>
+        public ValueTask ExecuteAsync(IEventActorContext<DatabaseBackupRetentionEventActor> context, ILogger<DatabaseBackupRetentionEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(eventValue);
+            return DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+        }
     }
 }

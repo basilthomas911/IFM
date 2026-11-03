@@ -13,74 +13,78 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Command.Validation;
 /// <summary>Pure ingress checks shared by established Trade and strategy Position commands.</summary>
 public static class TradeLifecycleCommandValidation
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
-    /// <summary>Validates immutable trade evidence and its owning actor identity.</summary>
-    public static List<ValidationError> ValidateEstablishedTradeCommand(this List<ValidationError> errors, ICommand<TradeEntityId> command, TradeAssetFamily assetFamily, TradeStrategyKind? strategy)
+
+    extension(List<ValidationError> errors)
     {
-        ArgumentNullException.ThrowIfNull(errors);
-        if (command is CreateEstablishedTradeCommand create)
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+        /// <summary>Validates immutable trade evidence and its owning actor identity.</summary>
+        public List<ValidationError> ValidateEstablishedTradeCommand(ICommand<TradeEntityId> command, TradeAssetFamily assetFamily, TradeStrategyKind? strategy)
         {
-            errors.ValidateEstablishedTrade(create.Trade);
-            if (create.Trade is not null)
+            ArgumentNullException.ThrowIfNull(errors);
+            if (command is CreateEstablishedTradeCommand create)
             {
-                if (create.Trade.Id != command.EntityId)
-                    errors.Add(new("Trade.Id must match EntityId."));
-                if (create.Trade.AssetFamily != assetFamily || strategy is not null && create.Trade.StrategyKind != strategy)
-                    errors.Add(new("Trade asset family and strategy must match the owning actor."));
+                errors.ValidateEstablishedTrade(create.Trade);
+                if (create.Trade is not null)
+                {
+                    if (create.Trade.Id != command.EntityId)
+                        errors.Add(new("Trade.Id must match EntityId."));
+                    if (create.Trade.AssetFamily != assetFamily || strategy is not null && create.Trade.StrategyKind != strategy)
+                        errors.Add(new("Trade asset family and strategy must match the owning actor."));
+                }
             }
+
+            if (command is AmendEstablishedTradeEvidenceCommand amend && amend.AmendmentId == Guid.Empty)
+                errors.Add(new("AmendmentId is required."));
+            var closingFills = command switch
+            {
+                CloseFuturesTradeCommand close => close.ClosingFills,
+                CloseOptionTradeCommand close => close.ClosingFills,
+                _ => null
+            };
+            if (command is CloseFuturesTradeCommand or CloseOptionTradeCommand)
+            {
+                errors.ValidateClosingFills(closingFills, true);
+                var closedAt = command switch { CloseFuturesTradeCommand close => close.ClosedAtUtc, CloseOptionTradeCommand close => close.ClosedAtUtc, _ => throw new InvalidOperationException("A closing trade command is required.") };
+                if (closedAt.Kind != DateTimeKind.Utc)
+                    errors.Add(new("ClosedAtUtc must be UTC."));
+            }
+
+            if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
+                errors.Add(new("Subject.EntityId must match EntityId."));
+            return errors;
         }
 
-        if (command is AmendEstablishedTradeEvidenceCommand amend && amend.AmendmentId == Guid.Empty)
-            errors.Add(new("AmendmentId is required."));
-        var closingFills = command switch
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+        /// <summary>Validates position inputs without changing position state or routing subscriptions.</summary>
+        public List<ValidationError> ValidatePositionCommand(ICommand<StrategyPositionId> command, TradeAssetFamily assetFamily, TradeStrategyKind? strategy)
         {
-            CloseFuturesTradeCommand close => close.ClosingFills,
-            CloseOptionTradeCommand close => close.ClosingFills,
-            _ => null
-        };
-        if (command is CloseFuturesTradeCommand or CloseOptionTradeCommand)
-        {
-            errors.ValidateClosingFills(closingFills, true);
-            var closedAt = command switch { CloseFuturesTradeCommand close => close.ClosedAtUtc, CloseOptionTradeCommand close => close.ClosedAtUtc, _ => throw new InvalidOperationException("A closing trade command is required.") };
-            if (closedAt.Kind != DateTimeKind.Utc)
-                errors.Add(new("ClosedAtUtc must be UTC."));
+            ArgumentNullException.ThrowIfNull(errors);
+            var trade = command switch
+            {
+                OpenFuturesPositionCommand open => open.Trade,
+                OpenPositionCommand open => open.Trade,
+                _ => null
+            };
+            if (command is OpenFuturesPositionCommand or OpenPositionCommand)
+            {
+                errors.ValidateEstablishedTrade(trade);
+                if (trade is not null && (trade.Id != command.EntityId.Trade || trade.AssetFamily != assetFamily || trade.StrategyKind != strategy))
+                    errors.Add(new("Opening Trade identity, asset family and strategy must match the Position."));
+            }
+
+            var effectiveAt = GetEffectiveAt(command);
+            if (effectiveAt is not null && effectiveAt.Value.Kind != DateTimeKind.Utc)
+                errors.Add(new("EffectiveAtUtc must be UTC."));
+            ValidateMarketEvidence(errors, command, assetFamily);
+            if (command is ChangeTradeLegDataCommand routed && (routed.TradeType != strategy || string.IsNullOrWhiteSpace(routed.ContractId)))
+                errors.Add(new("Routed ContractId and TradeType must match the strategy Position."));
+            ValidateCorrectionAndClose(errors, command);
+            if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
+                errors.Add(new("Subject.EntityId must match EntityId."));
+            return errors;
         }
-
-        if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
-            errors.Add(new("Subject.EntityId must match EntityId."));
-        return errors;
-    }
-
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
-    /// <summary>Validates position inputs without changing position state or routing subscriptions.</summary>
-    public static List<ValidationError> ValidatePositionCommand(this List<ValidationError> errors, ICommand<StrategyPositionId> command, TradeAssetFamily assetFamily, TradeStrategyKind? strategy)
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        var trade = command switch
-        {
-            OpenFuturesPositionCommand open => open.Trade,
-            OpenPositionCommand open => open.Trade,
-            _ => null
-        };
-        if (command is OpenFuturesPositionCommand or OpenPositionCommand)
-        {
-            errors.ValidateEstablishedTrade(trade);
-            if (trade is not null && (trade.Id != command.EntityId.Trade || trade.AssetFamily != assetFamily || trade.StrategyKind != strategy))
-                errors.Add(new("Opening Trade identity, asset family and strategy must match the Position."));
-        }
-
-        var effectiveAt = GetEffectiveAt(command);
-        if (effectiveAt is not null && effectiveAt.Value.Kind != DateTimeKind.Utc)
-            errors.Add(new("EffectiveAtUtc must be UTC."));
-        ValidateMarketEvidence(errors, command, assetFamily);
-        if (command is ChangeTradeLegDataCommand routed && (routed.TradeType != strategy || string.IsNullOrWhiteSpace(routed.ContractId)))
-            errors.Add(new("Routed ContractId and TradeType must match the strategy Position."));
-        ValidateCorrectionAndClose(errors, command);
-        if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
-            errors.Add(new("Subject.EntityId must match EntityId."));
-        return errors;
     }
 
     /// <summary>Reads the supplied position timestamp without consulting wall-clock time.</summary>
@@ -98,7 +102,7 @@ public static class TradeLifecycleCommandValidation
             CloseFuturesPositionCommand value => value.EffectiveAtUtc,
             TimedPositionCommand value => value.EffectiveAtUtc,
             ChangeTradeLegDataCommand value => value.EffectiveAtUtc,
-            _ => (DateTime? )null
+            _ => (DateTime?)null
         };
     }
 
@@ -110,7 +114,7 @@ public static class TradeLifecycleCommandValidation
             UpdateFuturesPositionMarketPriceCommand value => (TradeLegId: value.TradeLegId, Price: value.Price, SourceSequence: value.SourceSequence, RouteGeneration: value.RouteGeneration),
             UpdatePositionLegMarketPriceCommand value => (TradeLegId: value.TradeLegId, Price: value.Price, SourceSequence: value.SourceSequence, RouteGeneration: value.RouteGeneration),
             ChangeTradeLegDataCommand value => (TradeLegId: value.TradeLegId, Price: value.Price, SourceSequence: value.SourceSequence, RouteGeneration: value.RouteGeneration),
-            _ => ((Guid TradeLegId, decimal Price, long SourceSequence, long RouteGeneration)? )null
+            _ => ((Guid TradeLegId, decimal Price, long SourceSequence, long RouteGeneration)?)null
         };
         if (market is { } quote)
         {
@@ -132,7 +136,7 @@ public static class TradeLifecycleCommandValidation
         {
             CorrectFuturesPositionBasisCommand value => (TradeLegId: value.TradeLegId, Price: value.Price),
             CorrectPositionBasisCommand value => (TradeLegId: value.TradeLegId, Price: value.Price),
-            _ => ((Guid TradeLegId, decimal Price)? )null
+            _ => ((Guid TradeLegId, decimal Price)?)null
         };
         if (correction is { } basis && (basis.TradeLegId == Guid.Empty || basis.Price <= 0))
             errors.Add(new("Correction requires TradeLegId and a positive Price."));
@@ -147,13 +151,16 @@ public static class TradeLifecycleCommandValidation
             errors.ValidateClosingFills(closingFills, false);
     }
 
-    /// <summary>Validates supplied close executions; legacy position closure may have an empty array.</summary>
-    private static List<ValidationError> ValidateClosingFills(this List<ValidationError> errors, ExecutionFillEvidence[]? fills, bool required)
+    extension(List<ValidationError> errors)
     {
-        if (fills is null || required && fills.Length == 0)
-            errors.Add(new("ClosingFills are required."));
-        foreach (var fill in fills ?? [])
-            errors.ValidateExecutionFill(fill);
-        return errors;
+        /// <summary>Validates supplied close executions; legacy position closure may have an empty array.</summary>
+        private List<ValidationError> ValidateClosingFills(ExecutionFillEvidence[]? fills, bool required)
+        {
+            if (fills is null || required && fills.Length == 0)
+                errors.Add(new("ClosingFills are required."));
+            foreach (var fill in fills ?? [])
+                errors.ValidateExecutionFill(fill);
+            return errors;
+        }
     }
 }

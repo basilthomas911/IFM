@@ -18,7 +18,7 @@ public sealed class OrderCompositionSnapshotTests
         var context = Context() with { Contract = Contract() with { ContractId = id } };
         return new(id, Quote(id, 100), context, 5000, true, Quote("ES-future", 5000));
     }
-    static MarketCompositionSnapshotProvider Provider(params CompositionMarketPage[] pages) => new(new Pages(pages), new Clock(At));
+    static MarketCompositionSnapshotProvider Provider(params CompositionMarketPage[] pages) => new(new Pages(pages), new Harness.ManualTestTimeProvider(At));
 
     [Fact]
     public async Task All_pages_are_consumed_before_a_deterministic_snapshot_is_returned()
@@ -189,6 +189,21 @@ public sealed class OrderCompositionSnapshotTests
     }
 
     [Fact]
+    public async Task Snapshot_deadline_fires_only_when_the_fixture_clock_advances()
+    {
+        var clock = new Harness.ManualTestTimeProvider(At);
+        var source = new WaitingSource();
+        var pending = new MarketCompositionSnapshotProvider(source, clock).CaptureAsync(Request(), default);
+        await source.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.False(pending.IsCompleted);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        var result = await pending.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("SnapshotTimeout", result.Failure?.Code);
+        Assert.Null(result.Snapshot);
+    }
+
+    [Fact]
     public async Task European_universe_excludes_known_american_and_fails_unknown_scope()
     {
         var european = Contract();
@@ -252,6 +267,16 @@ public sealed class OrderCompositionSnapshotTests
         int next;
         public Task<CompositionMarketPage> ReadAsync(CompositionSnapshotRequest request, string? continuation, CancellationToken cancellationToken)
             => Task.FromResult(pages[next++]);
+    }
+    sealed class WaitingSource : ICompositionMarketSource
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<CompositionMarketPage> ReadAsync(CompositionSnapshotRequest request, string? continuation, CancellationToken cancellationToken)
+        {
+            Entered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("A cancelled source must not return a page.");
+        }
     }
     sealed class Conventions(IEnumerable<OptionPricingConvention> values) : IOptionPricingConventionStore
     {

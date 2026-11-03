@@ -1,7 +1,7 @@
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Command.Actor;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Command.Validation;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Persistence;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 using Microsoft.Extensions.Logging;
@@ -19,9 +19,12 @@ public sealed class ScheduledTaskCatalogStateRepository(IEventSourceActorStateFa
     : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<ScheduledTaskCatalogCommandState>
 {
     /// <inheritdoc />
-    public ValueTask<ScheduledTaskCatalogCommandState> LoadStateAsync(ICommand command) => LoadStateAsync(command, CancellationToken.None);
-    /// <summary>Restores the latest project-registration snapshot and replays all subsequent catalog events.</summary>
-    public async ValueTask<ScheduledTaskCatalogCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) => await LoadStateFromSnapshotAsync<ScheduledTaskCatalogCommandState, ScheduledTaskCatalogProjectRegisteredEvent>(command, cancellationToken).ConfigureAwait(false);
+    public ValueTask<ScheduledTaskCatalogCommandState> LoadStateAsync(ICommand command)
+        => LoadStateAsync(command, CancellationToken.None);
+    /// <summary>Restores the latest registration snapshot and replays subsequent source events.</summary>
+    public async ValueTask<ScheduledTaskCatalogCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+        => await LoadStateFromSnapshotAsync<ScheduledTaskCatalogCommandState, ScheduledTaskCatalogProjectRegisteredEvent>(command, cancellationToken).ConfigureAwait(false);
+
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context, ScheduledTaskCatalogCommandState state, ICommand command) => SaveStateAsync(context, state, command, CancellationToken.None);
     /// <inheritdoc />

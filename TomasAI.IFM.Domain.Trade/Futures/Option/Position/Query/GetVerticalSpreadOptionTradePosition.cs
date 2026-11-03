@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.Query;
 /// <summary>Handles <see cref = "GetVerticalSpreadOptionTradePositionQuery"/>.</summary>
 public static class GetVerticalSpreadOptionTradePosition
 {
-    /// <summary>Reads and replies with the requested VerticalSpread position data.</summary>
-    public static ValueTask ExecuteAsync(this GetVerticalSpreadOptionTradePositionQuery query, IFuturesOptionPositionQueryContext context, CancellationToken cancellationToken)
+
+    extension(GetVerticalSpreadOptionTradePositionQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        return PositionQueryModel.OneAsync(query, context, TradeStrategyKind.VerticalSpread, cancellationToken);
+        /// <summary>Reads and replies with the requested VerticalSpread position data.</summary>
+        public ValueTask ExecuteAsync(IFuturesOptionPositionQueryContext context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            return PositionQueryModel.OneAsync(query, context, TradeStrategyKind.VerticalSpread, cancellationToken);
+        }
     }
 }

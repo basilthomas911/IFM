@@ -4,29 +4,39 @@ namespace TomasAI.IFM.Framework.Storage.ScyllaDb;
 
 public static class ScyllaDbObjectDataExtensions
 {
-    public static DateTime AsDateTime(this DateOnly dateOnly)
-        => dateOnly.ToDateTime(TimeOnly.MinValue);
 
-    public static DateOnly AsDateOnly(this DateTime dateTime)
-        => new(dateTime.Year, dateTime.Month, dateTime.Day);
-
-    public static LocalDate AsLocalDate(this DateTime dateTime)
-        => new(dateTime.Year, dateTime.Month, dateTime.Day);
-
-    public static LocalTime AsLocalTime(this DateTime dateTime)
-        => new(dateTime.Hour, dateTime.Minute, dateTime.Second, dateTime.Nanosecond);
-
-    public static int AsMilliseconds(this LocalTime localTime)
-        
+    extension(DateOnly dateOnly)
     {
-        ArgumentNullException.ThrowIfNull(localTime);
-        return (int)(localTime.TotalNanoseconds % 1_000_000_000) % 1_000_000;
+        public DateTime AsDateTime()
+            => dateOnly.ToDateTime(TimeOnly.MinValue);
     }
 
-    public static int AsMicroseconds(this LocalTime localTime)
-        
+    extension(DateTime dateTime)
     {
-        ArgumentNullException.ThrowIfNull(localTime);
-        return (int)(localTime.TotalNanoseconds % 1_000_000_000) % 1_000;
+        public DateOnly AsDateOnly()
+            => new(dateTime.Year, dateTime.Month, dateTime.Day);
+
+        public LocalDate AsLocalDate()
+            => new(dateTime.Year, dateTime.Month, dateTime.Day);
+
+        public LocalTime AsLocalTime()
+            => new(dateTime.Hour, dateTime.Minute, dateTime.Second, dateTime.Nanosecond);
+    }
+
+    extension(LocalTime localTime)
+    {
+        public int AsMilliseconds()
+
+        {
+            ArgumentNullException.ThrowIfNull(localTime);
+            return (int)(localTime.TotalNanoseconds % 1_000_000_000) % 1_000_000;
+        }
+
+        public int AsMicroseconds()
+
+        {
+            ArgumentNullException.ThrowIfNull(localTime);
+            return (int)(localTime.TotalNanoseconds % 1_000_000_000) % 1_000;
+        }
     }
 }

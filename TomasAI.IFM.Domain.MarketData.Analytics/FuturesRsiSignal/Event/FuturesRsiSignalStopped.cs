@@ -19,31 +19,35 @@ public static class FuturesRsiSignalStopped
         ServiceId = $"{LogSourceType.FuturesRsiSignalEvent}";
     }
 
-    static string ServiceId { get; } 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
-    /// Executes the stop operation for a Futures RSI signal timer, halting the generation of RSI signals for the specified contract and value date.
-    /// </summary>
-    /// <param name="e">The event containing details about the stopped Futures RSI signal.</param>
-    /// <param name="context">The event actor context.</param>
-    /// <param name="statusConsoleWriter">The status console writer for logging messages.</param>
-    /// <param name="logger">The logger for recording error messages.</param>
-    /// <returns>A value indicating whether the execution completed successfully. Returns <see langword="true"/> if the operation
-    /// succeeded; otherwise, <see langword="false"/>.</returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesRsiSignalStoppedEvent e, IFuturesRsiSignalEventContext context, ILogger<FuturesRsiSignalEventActor> logger)
+    static string ServiceId { get; }
+
+    extension(FuturesRsiSignalStoppedEvent e)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(e);
-        var source = $"FuturesRsiSignalStoppedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
+                                                                                                                                                                                                                                         /// Executes the stop operation for a Futures RSI signal timer, halting the generation of RSI signals for the specified contract and value date.
+                                                                                                                                                                                                                                         /// </summary>
+                                                                                                                                                                                                                                         /// <param name="e">The event containing details about the stopped Futures RSI signal.</param>
+                                                                                                                                                                                                                                         /// <param name="context">The event actor context.</param>
+                                                                                                                                                                                                                                         /// <param name="statusConsoleWriter">The status console writer for logging messages.</param>
+                                                                                                                                                                                                                                         /// <param name="logger">The logger for recording error messages.</param>
+                                                                                                                                                                                                                                         /// <returns>A value indicating whether the execution completed successfully. Returns <see langword="true"/> if the operation
+                                                                                                                                                                                                                                         /// succeeded; otherwise, <see langword="false"/>.</returns>
+        public async ValueTask<bool> ExecuteAsync(IFuturesRsiSignalEventContext context, ILogger<FuturesRsiSignalEventActor> logger)
         {
-            FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Detach(e.EntityId);
-            return true;
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(e);
+            var source = $"FuturesRsiSignalStoppedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
+            try
+            {
+                FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Detach(e.EntityId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.LogErrorEvent(ServiceId, ex, "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
+                await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStoppedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
+            }
+            return false;
         }
-        catch (Exception ex)
-        {
-            logger.LogErrorEvent(ServiceId, ex, "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
-            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStoppedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
-        }
-        return false;
     }
 }

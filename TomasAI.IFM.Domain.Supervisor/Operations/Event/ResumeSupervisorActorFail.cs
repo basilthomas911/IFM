@@ -8,16 +8,19 @@ namespace TomasAI.IFM.Domain.Supervisor.Operations.Event;
 /// <summary>Projects the Resume Supervisor fail event.</summary>
 public static class ResumeSupervisorActorFail
 {
-    /// <summary>Records the Resume fail outcome in Supervisor operation history.</summary>
-    public static ValueTask ExecuteAsync(this ResumeSupervisorActorFailEvent value,
-        ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
-        
+
+    extension(ResumeSupervisorActorFailEvent value)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        ArgumentNullException.ThrowIfNull(value);
-        return SupervisorTerminalProjection.Fail(context, logger, value.CommandId, value.Target,
-            value.ExpectedGeneration, SupervisorActorOperationKind.Resume, value.Requester,
-            value.Reason, value.TimeoutTicks, value.Outcome, value.Stage, value.ErrorMessage);
+        /// <summary>Records the Resume fail outcome in Supervisor operation history.</summary>
+        public ValueTask ExecuteAsync(ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            ArgumentNullException.ThrowIfNull(value);
+            return SupervisorTerminalProjection.Fail(context, logger, value.CommandId, value.Target,
+                value.ExpectedGeneration, SupervisorActorOperationKind.Resume, value.Requester,
+                value.Reason, value.TimeoutTicks, value.Outcome, value.Stage, value.ErrorMessage);
+        }
     }
 }

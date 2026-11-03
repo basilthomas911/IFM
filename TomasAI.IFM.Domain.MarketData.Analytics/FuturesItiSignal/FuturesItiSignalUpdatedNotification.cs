@@ -14,67 +14,73 @@ internal static class FuturesItiSignalUpdatedNotification
 {
     static readonly string ServiceId = $"{LogSourceType.FuturesItiSignalEvent}";
 
-    internal static async ValueTask<bool> PublishUpdatedNotificationAsync<TActor>(
-        this FuturesItiSignalGeneratedCompleteEvent source,
-        IEventActorContext<TActor> context,
-        ILogger logger)
-        where TActor : IActor
-        => await PublishAsync(
-            source.EntityId,
-            source.Id,
-            source.EventId,
-            source.CommandId,
-            source.AggregateId,
-            source.FuturesItiSignal,
-            source.EventName,
-            context,
-            logger).ConfigureAwait(false);
+    extension(FuturesItiSignalGeneratedCompleteEvent source)
+    {
+        internal async ValueTask<bool> PublishUpdatedNotificationAsync<TActor>(
+            IEventActorContext<TActor> context,
+            ILogger logger)
+            where TActor : IActor
+            => await PublishAsync(
+                source.EntityId,
+                source.Id,
+                source.EventId,
+                source.CommandId,
+                source.AggregateId,
+                source.FuturesItiSignal,
+                source.EventName,
+                context,
+                logger).ConfigureAwait(false);
+    }
 
-    /// <summary>Publishes a notification after the Hold state has been persisted.</summary>
-    internal static async ValueTask<bool> PublishUpdatedNotificationAsync<TActor>(
-        this FuturesItiSignalHoldTradeSetCompleteEvent source,
-        IEventActorContext<TActor> context,
-        ILogger logger)
-        where TActor : IActor
-        => await PublishAsync(
-            source.EntityId,
-            source.Id,
-            source.EventId,
-            source.CommandId,
-            source.AggregateId,
-            source.FuturesItiSignal,
-            source.EventName,
-            context,
-            logger).ConfigureAwait(false);
+    extension(FuturesItiSignalHoldTradeSetCompleteEvent source)
+    {
+        /// <summary>Publishes a notification after the Hold state has been persisted.</summary>
+        internal async ValueTask<bool> PublishUpdatedNotificationAsync<TActor>(
+            IEventActorContext<TActor> context,
+            ILogger logger)
+            where TActor : IActor
+            => await PublishAsync(
+                source.EntityId,
+                source.Id,
+                source.EventId,
+                source.CommandId,
+                source.AggregateId,
+                source.FuturesItiSignal,
+                source.EventName,
+                context,
+                logger).ConfigureAwait(false);
+    }
 
-    /// <summary>Publishes a notification after the Ready state has been persisted.</summary>
-    internal static async ValueTask<bool> PublishUpdatedNotificationAsync<TActor>(
-        this FuturesItiSignalHoldTradeClearedCompleteEvent source,
-        IEventActorContext<TActor> context,
-        ILogger logger)
-        where TActor : IActor
-        => await PublishAsync(
-            source.EntityId,
-            source.Id,
-            source.EventId,
-            source.CommandId,
-            source.AggregateId,
-            source.FuturesItiSignal,
-            source.EventName,
-            context,
-            logger).ConfigureAwait(false);
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
+    extension(FuturesItiSignalHoldTradeClearedCompleteEvent source)
+    {
+        /// <summary>Publishes a notification after the Ready state has been persisted.</summary>
+        internal async ValueTask<bool> PublishUpdatedNotificationAsync<TActor>(
+            IEventActorContext<TActor> context,
+            ILogger logger)
+            where TActor : IActor
+            => await PublishAsync(
+                source.EntityId,
+                source.Id,
+                source.EventId,
+                source.CommandId,
+                source.AggregateId,
+                source.FuturesItiSignal,
+                source.EventName,
+                context,
+                logger).ConfigureAwait(false);
+    }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
     static async ValueTask<bool> PublishAsync<TActor>(
-        FuturesItiSignalEntityId entityId,
-        Guid sourceEventId,
-        long eventId,
-        Guid commandId,
-        string aggregateId,
-        FuturesItiSignalV2ReadModel? signal,
-        string eventSource,
-        IEventActorContext<TActor> context,
-        ILogger logger)
-        where TActor : IActor
+            FuturesItiSignalEntityId entityId,
+            Guid sourceEventId,
+            long eventId,
+            Guid commandId,
+            string aggregateId,
+            FuturesItiSignalV2ReadModel? signal,
+            string eventSource,
+            IEventActorContext<TActor> context,
+            ILogger logger)
+            where TActor : IActor
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(logger);

@@ -4,14 +4,19 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Query;
+
 public static class GetOptionTradeSpreadBarData
 {
-    /// <summary>Reads legacy option spread bars for the requested date range.</summary>
-    public static async ValueTask ExecuteAsync(this GetOptionTradeSpreadBarDataQuery query, IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
+
+    extension(GetOptionTradeSpreadBarDataQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        OptionTradeSpreadBarsDataModel[] result = [..await context.DbFactory.TradeDb.GetOptionTradeSpreadBarDataAsync(query.OrderId, query.TradeId, query.ValueDate, query.TradeType, query.StartDate, query.EndDate, cancellationToken).ConfigureAwait(false)];
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<OptionTradeSpreadBarsDataModel[]>(result)).ConfigureAwait(false);
+        /// <summary>Reads legacy option spread bars for the requested date range.</summary>
+        public async ValueTask ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            OptionTradeSpreadBarsDataModel[] result = [.. await context.DbFactory.TradeDb.GetOptionTradeSpreadBarDataAsync(query.OrderId, query.TradeId, query.ValueDate, query.TradeType, query.StartDate, query.EndDate, cancellationToken).ConfigureAwait(false)];
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<OptionTradeSpreadBarsDataModel[]>(result)).ConfigureAwait(false);
+        }
     }
 }

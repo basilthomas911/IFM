@@ -6,12 +6,16 @@ namespace TomasAI.IFM.Shared.Exceptions
 {
     public static class ExceptionExtension
     {
-        public static Exception UnWrapException(this Exception ex)
+
+        extension(Exception ex)
         {
-            ArgumentNullException.ThrowIfNull(ex);
-            while (ex.InnerException != null)
-                ex = ex.InnerException;
-            return ex;
+            public Exception UnWrapException()
+            {
+                ArgumentNullException.ThrowIfNull(ex);
+                while (ex.InnerException != null)
+                    ex = ex.InnerException;
+                return ex;
+            }
         }
     }
 }

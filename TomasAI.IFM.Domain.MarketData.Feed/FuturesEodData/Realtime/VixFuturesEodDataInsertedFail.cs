@@ -7,14 +7,18 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime;
 /// <summary>Handles one failed VX EOD projection.</summary>
 public static class VixFuturesEodDataInsertedFail
 {
-    /// <summary>Logs the classified projection failure without retrying it.</summary>
-    public static ValueTask ExecuteAsync(this VixFuturesEodDataInsertedFailEvent domainEvent, IFuturesEodDataRealtimeContext context)
+
+    extension(VixFuturesEodDataInsertedFailEvent domainEvent)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(domainEvent);
-        context.Logger.LogErrorEvent(FuturesEodDataRealtimeActor.ActorName,
-            "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
-            domainEvent.EventName, domainEvent.Subject.EntityId, domainEvent.ErrorMessage);
-        return ValueTask.CompletedTask;
+        /// <summary>Logs the classified projection failure without retrying it.</summary>
+        public ValueTask ExecuteAsync(IFuturesEodDataRealtimeContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(domainEvent);
+            context.Logger.LogErrorEvent(FuturesEodDataRealtimeActor.ActorName,
+                "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
+                domainEvent.EventName, domainEvent.Subject.EntityId, domainEvent.ErrorMessage);
+            return ValueTask.CompletedTask;
+        }
     }
 }

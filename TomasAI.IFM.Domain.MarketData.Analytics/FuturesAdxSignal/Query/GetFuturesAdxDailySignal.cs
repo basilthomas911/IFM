@@ -15,19 +15,22 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Query;
 /// <summary>Handles the GetFuturesAdxDailySignalQuery query.</summary>
 public static class GetFuturesAdxDailySignal
 {
-    /// <summary>Reads and replies to the GetFuturesAdxDailySignalQuery message.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesAdxDailySignalQuery q,
-        IQueryActorContext<FuturesAdxSignalQueryActor> ctx,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken)
+
+    extension(GetFuturesAdxDailySignalQuery q)
     {
-        ArgumentNullException.ThrowIfNull(ctx);
-        ArgumentNullException.ThrowIfNull(q);
-        var query = q;
-        var queryResult = await query.GetLastFuturesAdxDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        var serviceResult = new ServiceResult<FuturesAdxSignalReadModel?>(queryResult);
-        await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesAdxDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
+        /// <summary>Reads and replies to the GetFuturesAdxDailySignalQuery message.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesAdxSignalQueryActor> ctx,
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(ctx);
+            ArgumentNullException.ThrowIfNull(q);
+            var query = q;
+            var queryResult = await query.GetLastFuturesAdxDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var serviceResult = new ServiceResult<FuturesAdxSignalReadModel?>(queryResult);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesAdxDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
+        }
     }
 }

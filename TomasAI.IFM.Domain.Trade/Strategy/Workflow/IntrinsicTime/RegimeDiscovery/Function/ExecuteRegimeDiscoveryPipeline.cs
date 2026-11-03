@@ -13,27 +13,35 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscove
 /// <summary>Produces one completed candidate or one non-durable failed Function response before the deadline.</summary>
 public static class ExecuteRegimeDiscoveryPipeline
 {
-    /// <summary>Captures market signals and calculates one Regime Discovery result within the request deadline.</summary>
-    /// <param name = "command">The validated execution request, including frozen parameters and workflow identity.</param>
-    /// <param name = "context">The Function context providing the clock, snapshot provider, and calculation model.</param>
-    /// <param name = "dispatchEvent">The actor callback that resolves its exact-type terminal event map.</param>
-    /// <param name = "cancellationToken">Caller/deadline cancellation supplied by the base and forwarded to capture and calculation.</param>
-    /// <returns>A completed candidate or failed response for the owning Function actor to handle.</returns>
-    /// <exception cref = "ArgumentNullException">The domain context is null.</exception>
-    /// <remarks>This method does not project, persist, or publish the result; those responsibilities remain with the actor lifecycle.</remarks>
-    public static async ValueTask<FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>> ExecuteAsync(this ExecuteRegimeDiscoveryPipelineCommand command, IRegimeDiscoveryFunctionContext context, Func<FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand>, FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>> dispatchEvent, CancellationToken cancellationToken = default)
+
+    /// <param name="command">
+    /// The validated execution request, including frozen parameters and workflow identity.
+    /// </param>
+    extension(ExecuteRegimeDiscoveryPipelineCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(dispatchEvent);
-        ArgumentNullException.ThrowIfNull(context);
-        cancellationToken.ThrowIfCancellationRequested();
-        var outcome = await CaptureAndCalculateAsync(command, context, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        return outcome switch
+        /// <summary>Captures market signals and calculates one Regime Discovery result within the request deadline.</summary>
+        ///
+        /// <param name = "context">The Function context providing the clock, snapshot provider, and calculation model.</param>
+        /// <param name = "dispatchEvent">The actor callback that resolves its exact-type terminal event map.</param>
+        /// <param name = "cancellationToken">Caller/deadline cancellation supplied by the base and forwarded to capture and calculation.</param>
+        /// <returns>A completed candidate or failed response for the owning Function actor to handle.</returns>
+        /// <exception cref = "ArgumentNullException">The domain context is null.</exception>
+        /// <remarks>This method does not project, persist, or publish the result; those responsibilities remain with the actor lifecycle.</remarks>
+        public async ValueTask<FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>> ExecuteAsync(IRegimeDiscoveryFunctionContext context, Func<FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand>, FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>> dispatchEvent, CancellationToken cancellationToken = default)
         {
-            RegimeDiscoveryExecutionCompleted completed => dispatchEvent(new(typeof(RegimeDiscoveryPipelineCompletedEvent), command, completed)),
-            RegimeDiscoveryExecutionFailed failed => dispatchEvent(new(typeof(RegimeDiscoveryPipelineFailedEvent), command, failed)),
-            _ => throw new InvalidOperationException($"Unknown Regime Discovery outcome {outcome.GetType().Name}.")};
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(dispatchEvent);
+            ArgumentNullException.ThrowIfNull(context);
+            cancellationToken.ThrowIfCancellationRequested();
+            var outcome = await CaptureAndCalculateAsync(command, context, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return outcome switch
+            {
+                RegimeDiscoveryExecutionCompleted completed => dispatchEvent(new(typeof(RegimeDiscoveryPipelineCompletedEvent), command, completed)),
+                RegimeDiscoveryExecutionFailed failed => dispatchEvent(new(typeof(RegimeDiscoveryPipelineFailedEvent), command, failed)),
+                _ => throw new InvalidOperationException($"Unknown Regime Discovery outcome {outcome.GetType().Name}.")
+            };
+        }
     }
 
     /// <summary>Evaluates the immutable signal snapshot qualified by pipeline initialization.</summary>

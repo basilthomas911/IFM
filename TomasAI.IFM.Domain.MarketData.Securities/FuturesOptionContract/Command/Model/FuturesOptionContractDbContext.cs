@@ -6,22 +6,30 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Model;
+
 internal static class FuturesOptionContractDbContext
 {
     const int EnrichmentConcurrency = 8;
-    internal static ValueTask<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(this IDbContextFactory dbFactory, string contractId) => new(dbFactory.SecuritiesDb.GetFuturesOptionContractAsync(contractId));
-    internal static async ValueTask<FuturesOptionContractReadModel[]> GetFuturesOptionContractsAsync(this IDbContextFactory dbFactory, string symbol) => [..await (dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync(symbol)).ConfigureAwait(false)];
-    internal static async ValueTask<FuturesOptionContractReadModel[]> GetFuturesOptionContractsAsync(this IDbContextFactory dbFactory) => [..await (dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync()).ConfigureAwait(false)];
-    internal static async ValueTask<string[]> GetFuturesOptionContractIdsAsync(this IDbContextFactory dbFactory, string[] contractIds, CancellationToken cancellationToken = default)
+
+    extension(IDbContextFactory dbFactory)
     {
-        if (contractIds.Length == 0)
-            return[];
-        var contracts = await (dbFactory.SecuritiesDb.GetFuturesOptionContractsByIdsAsync(contractIds, cancellationToken)).ConfigureAwait(false);
-        var existingIds = new HashSet<string>(contracts.Select(static contract => contract.ContractId), StringComparer.Ordinal);
-        var existingContractIds = new List<string>(Math.Min(contractIds.Length, existingIds.Count));
-        foreach (var contractId in (contractIds).Where(contractId => existingIds.Contains(contractId)))
-            existingContractIds.Add(contractId);
-        return[..existingContractIds];
+        internal ValueTask<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(string contractId) => new(dbFactory.SecuritiesDb.GetFuturesOptionContractAsync(contractId));
+
+        internal async ValueTask<FuturesOptionContractReadModel[]> GetFuturesOptionContractsAsync(string symbol) => [.. await (dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync(symbol)).ConfigureAwait(false)];
+
+        internal async ValueTask<FuturesOptionContractReadModel[]> GetFuturesOptionContractsAsync() => [.. await (dbFactory.SecuritiesDb.GetFuturesOptionContractsAsync()).ConfigureAwait(false)];
+
+        internal async ValueTask<string[]> GetFuturesOptionContractIdsAsync(string[] contractIds, CancellationToken cancellationToken = default)
+        {
+            if (contractIds.Length == 0)
+                return [];
+            var contracts = await (dbFactory.SecuritiesDb.GetFuturesOptionContractsByIdsAsync(contractIds, cancellationToken)).ConfigureAwait(false);
+            var existingIds = new HashSet<string>(contracts.Select(static contract => contract.ContractId), StringComparer.Ordinal);
+            var existingContractIds = new List<string>(Math.Min(contractIds.Length, existingIds.Count));
+            foreach (var contractId in (contractIds).Where(contractId => existingIds.Contains(contractId)))
+                existingContractIds.Add(contractId);
+            return [.. existingContractIds];
+        }
     }
 
     /// <summary>Resolves broker facts before accepted source event creation.</summary>
@@ -39,41 +47,44 @@ internal static class FuturesOptionContractDbContext
         return enriched;
     }
 
-    internal static async ValueTask InsertFuturesOptionContractAsync(this IDbContextFactory dbFactory, FuturesOptionContractReadModel qfOptionContract, IActorService actorService)
+    extension(IDbContextFactory dbFactory)
     {
-        var oc = await (EnrichFuturesOptionContractAsync(qfOptionContract, qfOptionContract.ContractId, actorService)).ConfigureAwait(false);
-        await (dbFactory.SecuritiesDb.InsertFuturesOptionContractAsync(oc)).ConfigureAwait(false);
-    }
-
-    internal static async ValueTask InsertFuturesOptionContractsAsync(this IDbContextFactory dbFactory, FuturesOptionContractReadModel[] qfOptionContracts, IActorService actorService)
-    {
-        if (qfOptionContracts.Length == 0)
-            return;
-        var enrichedContracts = new FuturesOptionContractReadModel[qfOptionContracts.Length];
-        for (var offset = 0; offset < qfOptionContracts.Length; offset += EnrichmentConcurrency)
+        internal async ValueTask InsertFuturesOptionContractAsync(FuturesOptionContractReadModel qfOptionContract, IActorService actorService)
         {
-            var count = Math.Min(EnrichmentConcurrency, qfOptionContracts.Length - offset);
-            var enrichments = new Task<FuturesOptionContractReadModel>[count];
-            for (var index = 0; index < count; index++)
-            {
-                var contract = qfOptionContracts[offset + index];
-                enrichments[index] = EnrichFuturesOptionContractAsync(contract, contract.ContractId, actorService).AsTask();
-            }
-
-            var results = await (Task.WhenAll(enrichments)).ConfigureAwait(false);
-            Array.Copy(results, 0, enrichedContracts, offset, results.Length);
+            var oc = await (EnrichFuturesOptionContractAsync(qfOptionContract, qfOptionContract.ContractId, actorService)).ConfigureAwait(false);
+            await (dbFactory.SecuritiesDb.InsertFuturesOptionContractAsync(oc)).ConfigureAwait(false);
         }
 
-        await (dbFactory.SecuritiesDb.InsertFuturesOptionContractsAsync(enrichedContracts)).ConfigureAwait(false);
-    }
+        internal async ValueTask InsertFuturesOptionContractsAsync(FuturesOptionContractReadModel[] qfOptionContracts, IActorService actorService)
+        {
+            if (qfOptionContracts.Length == 0)
+                return;
+            var enrichedContracts = new FuturesOptionContractReadModel[qfOptionContracts.Length];
+            for (var offset = 0; offset < qfOptionContracts.Length; offset += EnrichmentConcurrency)
+            {
+                var count = Math.Min(EnrichmentConcurrency, qfOptionContracts.Length - offset);
+                var enrichments = new Task<FuturesOptionContractReadModel>[count];
+                for (var index = 0; index < count; index++)
+                {
+                    var contract = qfOptionContracts[offset + index];
+                    enrichments[index] = EnrichFuturesOptionContractAsync(contract, contract.ContractId, actorService).AsTask();
+                }
 
-    internal static async ValueTask UpdateFuturesOptionContractAsync(this IDbContextFactory dbFactory, string originalContractId, FuturesOptionContractReadModel qfOptionContract, IActorService actorService)
-    {
-        var oc = await (EnrichFuturesOptionContractAsync(qfOptionContract, originalContractId, actorService)).ConfigureAwait(false);
-        await (dbFactory.SecuritiesDb.UpdateFuturesOptionContractAsync(originalContractId, oc)).ConfigureAwait(false);
-    }
+                var results = await (Task.WhenAll(enrichments)).ConfigureAwait(false);
+                Array.Copy(results, 0, enrichedContracts, offset, results.Length);
+            }
 
-    internal static ValueTask DeleteFuturesOptionContractAsync(this IDbContextFactory dbFactory, string contractId) => new(dbFactory.SecuritiesDb.DeleteFuturesOptionContractAsync(contractId));
+            await (dbFactory.SecuritiesDb.InsertFuturesOptionContractsAsync(enrichedContracts)).ConfigureAwait(false);
+        }
+
+        internal async ValueTask UpdateFuturesOptionContractAsync(string originalContractId, FuturesOptionContractReadModel qfOptionContract, IActorService actorService)
+        {
+            var oc = await (EnrichFuturesOptionContractAsync(qfOptionContract, originalContractId, actorService)).ConfigureAwait(false);
+            await (dbFactory.SecuritiesDb.UpdateFuturesOptionContractAsync(originalContractId, oc)).ConfigureAwait(false);
+        }
+
+        internal ValueTask DeleteFuturesOptionContractAsync(string contractId) => new(dbFactory.SecuritiesDb.DeleteFuturesOptionContractAsync(contractId));
+    }
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality is required for persisted observation deduplication, exact contract strikes and defined zero/uninitialized sentinels; an epsilon would change these decisions.")]
     internal static async ValueTask<FuturesOptionContractReadModel> EnrichFuturesOptionContractAsync(FuturesOptionContractReadModel optionContract, string routeContractId, IActorService actorService)
     {

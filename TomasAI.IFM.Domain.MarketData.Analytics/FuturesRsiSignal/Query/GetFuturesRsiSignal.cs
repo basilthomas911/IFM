@@ -13,33 +13,38 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Query;
 
 public static class GetFuturesRsiSignal
 {
-    /// <summary>
-    /// Handles a request to retrieve the most recent RSI signal for a specified contract, value date, and signal type.
-    /// </summary>
-    /// <param name="q">The query containing contract identifier, value date, and signal type filters.</param>
-    /// <param name="dbFactory">The database context factory used to access futures RSI signal data.</param>
-    /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
-    private static async ValueTask<FuturesRsiSignalReadModel?> GetLastFuturesRsiSignalAsync(
-        this GetFuturesRsiSignalQuery q,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-        => await dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
-                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
 
-    /// <summary>Reads and replies to the GetFuturesRsiSignalQuery message.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesRsiSignalQuery q,
-        IQueryActorContext<FuturesRsiSignalQueryActor> ctx,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken)
+    /// <param name="q">
+    /// The query containing contract identifier, value date, and signal type filters.
+    /// </param>
+    extension(GetFuturesRsiSignalQuery q)
     {
-        ArgumentNullException.ThrowIfNull(ctx);
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        var query = q;
-        var result = await query.GetLastFuturesRsiSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);
-        await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiSignalQuery.Verb, serviceResult).ConfigureAwait(false);
+        /// <summary>
+        /// Handles a request to retrieve the most recent RSI signal for a specified contract, value date, and signal type.
+        /// </summary>
+        ///
+        /// <param name="dbFactory">The database context factory used to access futures RSI signal data.</param>
+        /// <returns>A <see cref="ValueTask"/> that completes after the reply has been sent.</returns>
+        private async ValueTask<FuturesRsiSignalReadModel?> GetLastFuturesRsiSignalAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+            => await dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
+                    q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
+
+        /// <summary>Reads and replies to the GetFuturesRsiSignalQuery message.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesRsiSignalQueryActor> ctx,
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(ctx);
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            var query = q;
+            var result = await query.GetLastFuturesRsiSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiSignalQuery.Verb, serviceResult).ConfigureAwait(false);
+        }
     }
 }

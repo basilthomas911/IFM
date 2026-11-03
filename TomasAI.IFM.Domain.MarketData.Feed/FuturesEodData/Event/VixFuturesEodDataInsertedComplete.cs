@@ -15,20 +15,23 @@ public static class VixFuturesEodDataInsertedComplete
     {
         ServiceId = $"{LogSourceType.FuturesEodDataEvent}";
     }
-    static string ServiceId { get; } 
-    /// <summary>Caches a completed VIX futures EOD observation and reports the outcome.</summary>
-    public static ValueTask<bool> ExecuteAsync(this VixFuturesEodDataInsertedCompleteEvent e,
-        IEventActorContext context, FuturesEodDataEventParameters p, ILogger<FuturesEodDataEventActor> logger)
-        
+    static string ServiceId { get; }
+
+    extension(VixFuturesEodDataInsertedCompleteEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(p);
-        return ExecuteCoreAsync(e, context, p, logger);
+        /// <summary>Caches a completed VIX futures EOD observation and reports the outcome.</summary>
+        public ValueTask<bool> ExecuteAsync(IEventActorContext context, FuturesEodDataEventParameters p, ILogger<FuturesEodDataEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(p);
+            return ExecuteCoreAsync(e, context, p, logger);
+        }
     }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
     /// <summary>Runs the shared VX cache behavior for Event and Realtime ownership.</summary>
     internal static async ValueTask<bool> ExecuteCoreAsync(VixFuturesEodDataInsertedCompleteEvent e,
-        IEventActorContext context, FuturesEodDataEventParameters p, ILogger logger)
+            IEventActorContext context, FuturesEodDataEventParameters p, ILogger logger)
     {
         var source = $"VixFuturesEodDataInsertedCompleteEvent for EntityId: {e.EntityId}";
         try

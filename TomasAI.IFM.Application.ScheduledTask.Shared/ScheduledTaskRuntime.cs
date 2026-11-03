@@ -97,10 +97,14 @@ public sealed class ScheduledTaskControlService(
 
 public static class ScheduledTaskRuntimeExtensions
 {
-    public static IServiceCollection AddScheduledTaskRuntime(this IServiceCollection services)
+
+    extension(IServiceCollection services)
     {
-        services.AddSingleton<ScheduledTaskOutcome>();
-        services.AddHostedService<ScheduledTaskControlService>();
-        return services;
+        public IServiceCollection AddScheduledTaskRuntime()
+        {
+            services.AddSingleton<ScheduledTaskOutcome>();
+            services.AddHostedService<ScheduledTaskControlService>();
+            return services;
+        }
     }
 }

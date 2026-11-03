@@ -9,11 +9,15 @@ namespace TomasAI.IFM.Shared.EventModelActor
 
     public static class ThreadQueueTypeExtensions
     {
-        public static string ToStringFast(this ThreadQueueType value) => value switch
+
+        extension(ThreadQueueType value)
         {
-            ThreadQueueType.Channel => nameof(ThreadQueueType.Channel),
-            ThreadQueueType.RingBuffer => nameof(ThreadQueueType.RingBuffer),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                ThreadQueueType.Channel => nameof(ThreadQueueType.Channel),
+                ThreadQueueType.RingBuffer => nameof(ThreadQueueType.RingBuffer),
+                _ => value.ToString()
+            };
+        }
     }
 }

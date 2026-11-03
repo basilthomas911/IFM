@@ -9,12 +9,16 @@ namespace TomasAI.IFM.Shared.Reports
 
     public static class ReportTypeEnumExtensions
     {
-        public static string ToStringFast(this ReportTypeEnum value) => value switch
+
+        extension(ReportTypeEnum value)
         {
-            ReportTypeEnum.Unknown => nameof(ReportTypeEnum.Unknown),
-            ReportTypeEnum.DailyPosition => nameof(ReportTypeEnum.DailyPosition),
-            ReportTypeEnum.MonthlyNetAssetValue => nameof(ReportTypeEnum.MonthlyNetAssetValue),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                ReportTypeEnum.Unknown => nameof(ReportTypeEnum.Unknown),
+                ReportTypeEnum.DailyPosition => nameof(ReportTypeEnum.DailyPosition),
+                ReportTypeEnum.MonthlyNetAssetValue => nameof(ReportTypeEnum.MonthlyNetAssetValue),
+                _ => value.ToString()
+            };
+        }
     }
 }

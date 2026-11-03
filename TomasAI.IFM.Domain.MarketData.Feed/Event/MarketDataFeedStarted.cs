@@ -20,42 +20,45 @@ public static class MarketDataFeedStarted
         ServiceId = $"{LogSourceType.MarketDataFeedEvent}";
     }
 
-    static string ServiceId { get; } 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="e"></param>
-    /// <param name="p"></param>
-    /// <returns></returns>
-    /// <exception cref="InvalidOperationException"></exception>
-    public static async ValueTask<bool> ExecuteAsync(
-        this MarketDataFeedStartedEvent e,
-        IEventActorContext context,
-        IEventActorContext eventApi,
-        MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
+    static string ServiceId { get; }
+
+    extension(MarketDataFeedStartedEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(eventApi);
-        ArgumentNullException.ThrowIfNull(p);
-        var source = $"MarketDataFeedStartedEvent for EntityId: {e.EntityId}";
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
+                                                                                                                                                                                                                                         ///
+                                                                                                                                                                                                                                         /// </summary>
+                                                                                                                                                                                                                                         /// <param name="e"></param>
+                                                                                                                                                                                                                                         /// <param name="p"></param>
+                                                                                                                                                                                                                                         /// <returns></returns>
+                                                                                                                                                                                                                                         /// <exception cref="InvalidOperationException"></exception>
+        public async ValueTask<bool> ExecuteAsync(
+                IEventActorContext context,
+                IEventActorContext eventApi,
+                MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
         {
-            await (p.MarketDataLifecycle.StartAsync(
-                e.ValueDate,
-                (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
-                    LogSourceType.MarketDataFeedEvent, errorCode, errorMsg))).ConfigureAwait(false);
-            await (eventApi.SendMarketDataFeedStartedCompleteAsync(e)).ConfigureAwait(false);
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed started")).ConfigureAwait(false);
-            logger.LogInformationEvent(ServiceId, "{Source}: market data feed started", source);
-            return true;
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(eventApi);
+            ArgumentNullException.ThrowIfNull(p);
+            var source = $"MarketDataFeedStartedEvent for EntityId: {e.EntityId}";
+            try
+            {
+                await (p.MarketDataLifecycle.StartAsync(
+                    e.ValueDate,
+                    (_, errorCode, errorMsg) => p.StatusConsoleWriter.WriteConsoleAsync(
+                        LogSourceType.MarketDataFeedEvent, errorCode, errorMsg))).ConfigureAwait(false);
+                await (eventApi.SendMarketDataFeedStartedCompleteAsync(e)).ConfigureAwait(false);
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed started")).ConfigureAwait(false);
+                logger.LogInformationEvent(ServiceId, "{Source}: market data feed started", source);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed start failed", source);
+                await (eventApi.SendMarketDataFeedStartedFailAsync(e, ex)).ConfigureAwait(false);
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStartedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
+            }
+            return false;
         }
-        catch (Exception ex)
-        {
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed start failed", source);
-            await (eventApi.SendMarketDataFeedStartedFailAsync(e, ex)).ConfigureAwait(false);
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStartedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
-        }
-        return false;
     }
 
 }

@@ -7,14 +7,18 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime;
 /// <summary>Handles one classified tick projection failure.</summary>
 public static class FuturesTickTradeDataInsertedFail
 {
-    /// <summary>Logs the failure without replaying the realtime observation.</summary>
-    public static ValueTask ExecuteAsync(this FuturesTickTradeDataInsertedFailEvent domainEvent, ITickAggregationRealtimeContext context)
+
+    extension(FuturesTickTradeDataInsertedFailEvent domainEvent)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(domainEvent);
-        context.Logger.LogErrorEvent(Actor.TickAggregationRealtimeActor.ActorName,
-            "{EventName} for {EntityId}: {ErrorMessage}",
-            domainEvent.EventName, domainEvent.EntityId, domainEvent.ErrorMessage);
-        return ValueTask.CompletedTask;
+        /// <summary>Logs the failure without replaying the realtime observation.</summary>
+        public ValueTask ExecuteAsync(ITickAggregationRealtimeContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(domainEvent);
+            context.Logger.LogErrorEvent(Actor.TickAggregationRealtimeActor.ActorName,
+                "{EventName} for {EntityId}: {ErrorMessage}",
+                domainEvent.EventName, domainEvent.EntityId, domainEvent.ErrorMessage);
+            return ValueTask.CompletedTask;
+        }
     }
 }

@@ -5,49 +5,58 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Model;
 /// <summary>
-/// 
+///
 /// </summary>
 public static class TradePositionCollectionExtension
 {
-    /// <summary>
-    ///  get added event
-    /// </summary>
-    /// <param name = "tradePositions"></param>
-    /// <param name = "tradeType"></param>
-    /// <param name = "commandId"></param>
-    /// <param name = "key"></param>
-    /// <param name = "assetPrice"></param>
-    /// <param name = "riskFreeRate"></param>
-    /// <param name = "updatedOn"></param>
-    /// <param name = "updatedBy"></param>
-    /// <returns></returns>
-    /// <exception cref = "NotSupportedException"></exception>
-    public static TradePositionAddedEvent GetTradePositionAddedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType tradeType, decimal assetPrice, double riskFreeRate, DateTime updatedOn, string updatedBy) => tradeType switch
+
+    /// <param name="tradePositions">
+    ///
+    /// </param>
+    extension(ITradePositionCollection tradePositions)
     {
-        TradeType.PutCreditSpread or TradeType.CallCreditSpread or TradeType.PutDebitSpread or TradeType.CallDebitSpread => CreateIronCondorTradePositionAddedEvent(tradePositions, key, assetPrice, riskFreeRate, updatedOn, updatedBy),
-        _ => throw new NotSupportedException()};
-    /// <summary>
-    /// get updated event
-    /// </summary>
-    /// <param name = "tradePositions"></param>
-    /// <param name = "baseTradeType"></param>
-    /// <param name = "key"></param>
-    /// <param name = "optionLegId"></param>
-    /// <param name = "updatedOn"></param>
-    /// <param name = "updatedBy"></param>
-    /// <returns></returns>
-    public static TradePositionUpdatedEvent GetTradePositionUpdatedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType baseTradeType, string optionLegId, DateTime updatedOn, string updatedBy)
-    {
-        ArgumentNullException.ThrowIfNull(tradePositions);
-        return new()
+        /// <summary>
+        ///  get added event
+        /// </summary>
+        ///
+        /// <param name = "tradeType"></param>
+        /// <param name = "commandId"></param>
+        /// <param name = "key"></param>
+        /// <param name = "assetPrice"></param>
+        /// <param name = "riskFreeRate"></param>
+        /// <param name = "updatedOn"></param>
+        /// <param name = "updatedBy"></param>
+        /// <returns></returns>
+        /// <exception cref = "NotSupportedException"></exception>
+        public TradePositionAddedEvent GetTradePositionAddedEvent(TradePositionEntityId key, TradeType tradeType, decimal assetPrice, double riskFreeRate, DateTime updatedOn, string updatedBy) => tradeType switch
         {
-            OptionLegId = optionLegId,
-            PutTradePosition = tradePositions.IntraDay(baseTradeType == TradeType.ShortIronCondor ? TradeType.PutCreditSpread : TradeType.PutDebitSpread, key.ValueDate)?.ToViewModel(),
-            CallTradePosition = tradePositions.IntraDay(baseTradeType == TradeType.ShortIronCondor ? TradeType.CallCreditSpread : TradeType.CallDebitSpread, key.ValueDate)?.ToViewModel(),
-            TradePositionChangeSource = tradePositions.Source(key.TradeType),
-            UpdatedOn = updatedOn,
-            UpdatedBy = updatedBy
+            TradeType.PutCreditSpread or TradeType.CallCreditSpread or TradeType.PutDebitSpread or TradeType.CallDebitSpread => CreateIronCondorTradePositionAddedEvent(tradePositions, key, assetPrice, riskFreeRate, updatedOn, updatedBy),
+            _ => throw new NotSupportedException()
         };
+
+        /// <summary>
+        /// get updated event
+        /// </summary>
+        ///
+        /// <param name = "baseTradeType"></param>
+        /// <param name = "key"></param>
+        /// <param name = "optionLegId"></param>
+        /// <param name = "updatedOn"></param>
+        /// <param name = "updatedBy"></param>
+        /// <returns></returns>
+        public TradePositionUpdatedEvent GetTradePositionUpdatedEvent(TradePositionEntityId key, TradeType baseTradeType, string optionLegId, DateTime updatedOn, string updatedBy)
+        {
+            ArgumentNullException.ThrowIfNull(tradePositions);
+            return new()
+            {
+                OptionLegId = optionLegId,
+                PutTradePosition = tradePositions.IntraDay(baseTradeType == TradeType.ShortIronCondor ? TradeType.PutCreditSpread : TradeType.PutDebitSpread, key.ValueDate)?.ToViewModel(),
+                CallTradePosition = tradePositions.IntraDay(baseTradeType == TradeType.ShortIronCondor ? TradeType.CallCreditSpread : TradeType.CallDebitSpread, key.ValueDate)?.ToViewModel(),
+                TradePositionChangeSource = tradePositions.Source(key.TradeType),
+                UpdatedOn = updatedOn,
+                UpdatedBy = updatedBy
+            };
+        }
     }
 
     /// <summary>
@@ -67,7 +76,8 @@ public static class TradePositionCollectionExtension
         var tradePosition = key.TradeType switch
         {
             TradeType.PutCreditSpread or TradeType.CallCreditSpread or TradeType.PutDebitSpread or TradeType.CallDebitSpread => GetIronCondorTradePosition(key.TradeType),
-            _ => throw new NotSupportedException()};
+            _ => throw new NotSupportedException()
+        };
         return new TradePositionAddedEvent
         {
             OrderId = key.OrderId,

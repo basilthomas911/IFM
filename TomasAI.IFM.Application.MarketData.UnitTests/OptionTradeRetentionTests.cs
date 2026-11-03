@@ -8,6 +8,9 @@ using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Host.Worker;
 using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using static TomasAI.IFM.Application.MarketData.UnitTests.OrderCompositionPricingPrerequisiteTests;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
@@ -39,9 +42,21 @@ public sealed class OptionTradeRetentionTests
             Kind = DatasetPublicationKind.OptionTradeEvidence, Payload = MessagePackSerializer.Serialize(Evidence())
         };
         var persisting = relay.PublishAsync(envelope, deadline.Token).AsTask();
-        await relay.PublishAsync(envelope with { Kind = DatasetPublicationKind.OptionQuoteObservation, PublicationSequence = 2, Payload = [1] }, deadline.Token);
+        var observation = new FuturesTickTradeDataChangedEvent
+        {
+            OptionMarketPriceObservation = new("ES-future", OptionMarketPriceBasis.QuoteMidpoint,
+                new FuturesOptionTickDataV2ReadModel
+                {
+                    ContractId = "ES-option-call", ValueDate = envelope.ValueDate, SourceGeneration = Generation,
+                    ObservedAtUtc = At, CalculatedAtUtc = At, OptionPrice = 100, BidPrice = 99, AskPrice = 101
+                }, 2, At.UtcDateTime)
+        };
+        var quotePayload = MessagePackSerializer.Serialize(observation);
+        await relay.PublishAsync(envelope with { Kind = DatasetPublicationKind.OptionQuoteObservation, PublicationSequence = 2, Payload = quotePayload }, deadline.Token);
         var quote = await subscription.Msgs.ReadAsync(deadline.Token);
         Assert.Equal(DatasetPublicationKind.OptionQuoteObservation, quote.Data!.Kind);
+        Assert.Equal(quotePayload, quote.Data.Payload);
+        Assert.Equal(quotePayload, Assert.Single(relay.CaptureObservations()).Payload);
         Assert.False(persisting.IsCompleted);
         store.Completed.SetResult();
         await persisting;

@@ -10,49 +10,56 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscove
 /// <summary>Builds failed Regime Discovery events through the Function event map.</summary>
 public static class FailRegimeDiscoveryPipeline
 {
-    /// <summary>Builds the mapped failure for an outcome, conflict, or lifecycle exception.</summary>
-    /// <param name = "input">The decoded request and failure details; the request may be null after parsing fails.</param>
-    /// <param name = "timeProvider">The clock used for conflict and lifecycle failure timestamps.</param>
-    /// <returns>A non-durable failure response carrying workflow identity and diagnostic information.</returns>
-    public static FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent> Fail(this FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand> input, TimeProvider timeProvider)
+
+    /// <param name="input">
+    /// The decoded request and failure details; the request may be null after parsing fails.
+    /// </param>
+    extension(FunctionEventContext<ExecuteRegimeDiscoveryPipelineCommand> input)
     {
-        ArgumentNullException.ThrowIfNull(input);
-        ArgumentNullException.ThrowIfNull(timeProvider);
-        var command = input.Request;
-        var now = timeProvider.GetUtcNow().UtcDateTime;
-        RegimeDiscoveryPipelineFailedEvent failed;
-        if (command is null)
+        /// <summary>Builds the mapped failure for an outcome, conflict, or lifecycle exception.</summary>
+        ///
+        /// <param name = "timeProvider">The clock used for conflict and lifecycle failure timestamps.</param>
+        /// <returns>A non-durable failure response carrying workflow identity and diagnostic information.</returns>
+        public FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent> Fail(TimeProvider timeProvider)
         {
-            failed = new RegimeDiscoveryPipelineFailedEvent
+            ArgumentNullException.ThrowIfNull(input);
+            ArgumentNullException.ThrowIfNull(timeProvider);
+            var command = input.Request;
+            var now = timeProvider.GetUtcNow().UtcDateTime;
+            RegimeDiscoveryPipelineFailedEvent failed;
+            if (command is null)
             {
-                Subject = new ActorSubject(ActorType.Function, ExecuteRegimeDiscoveryPipelineCommand.Actor, RegimeDiscoveryPipelineFailedEvent.Verb, string.Empty),
-                Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)),
-                ErrorDate = now,
-                ReceivedOn = now,
-                ErrorCode = RegimeDiscoveryPipelineFailedEvent.ErrorId,
-                ErrorMessage = "Regime Discovery Function request could not be processed.",
-                ErrorType = ErrorType.Command,
-                ErrorData = input.Stage.ToString(),
-                EventSource = $"{ExecuteRegimeDiscoveryPipelineCommand.Actor}Actor",
-                CommandName = nameof(ExecuteRegimeDiscoveryPipelineCommand),
-                PipelineStage = StrategyWorkflowStage.RegimeDiscovery
-            };
+                failed = new RegimeDiscoveryPipelineFailedEvent
+                {
+                    Subject = new ActorSubject(ActorType.Function, ExecuteRegimeDiscoveryPipelineCommand.Actor, RegimeDiscoveryPipelineFailedEvent.Verb, string.Empty),
+                    Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)),
+                    ErrorDate = now,
+                    ReceivedOn = now,
+                    ErrorCode = RegimeDiscoveryPipelineFailedEvent.ErrorId,
+                    ErrorMessage = "Regime Discovery Function request could not be processed.",
+                    ErrorType = ErrorType.Command,
+                    ErrorData = input.Stage.ToString(),
+                    EventSource = $"{ExecuteRegimeDiscoveryPipelineCommand.Actor}Actor",
+                    CommandName = nameof(ExecuteRegimeDiscoveryPipelineCommand),
+                    PipelineStage = StrategyWorkflowStage.RegimeDiscovery
+                };
+            }
+            else if (input.IsConflict)
+                failed = CreateFailedEvent(command, RegimeDiscoveryPipelineFailedEvent.ErrorId, "A conflicting completed Regime Discovery input already exists for this execution.", "FunctionConflict", string.Empty, now);
+            else if (input.Outcome is RegimeDiscoveryExecutionFailed outcome)
+                failed = CreateFailedEvent(command, outcome.ErrorCode, outcome.ErrorMessage, outcome.ErrorType, string.IsNullOrWhiteSpace(outcome.DiagnosticData) ? string.Join(',', outcome.Reasons.Select(reason => reason.Code)) : outcome.DiagnosticData, outcome.FailedAtUtc);
+            else if (input.Exception is TimeoutException)
+                failed = CreateFailedEvent(command, 23103, "Regime Discovery exceeded its fixed workflow deadline.", "Timeout", "RegimeDiscoveryExecutionTimedOut", now);
+            else if (input.Exception is { } exception)
+                failed = CreateFailedEvent(command, command.ErrorCode, ((input.Stage == FunctionFailureStage.Projection) switch
+                {
+                    true => "Regime Discovery result projection failed.",
+                    _ => input.Stage == FunctionFailureStage.Persistence ? "Regime Discovery completed state could not be persisted." : "Regime Discovery Function execution failed."
+                }), input.Stage.ToString(), PipelineExceptionDiagnostics.Format(exception), now);
+            else
+                throw new InvalidOperationException("Failure requires a failed outcome, conflict, or lifecycle exception.");
+            return FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>.Fail(failed);
         }
-        else if (input.IsConflict)
-            failed = CreateFailedEvent(command, RegimeDiscoveryPipelineFailedEvent.ErrorId, "A conflicting completed Regime Discovery input already exists for this execution.", "FunctionConflict", string.Empty, now);
-        else if (input.Outcome is RegimeDiscoveryExecutionFailed outcome)
-            failed = CreateFailedEvent(command, outcome.ErrorCode, outcome.ErrorMessage, outcome.ErrorType, string.IsNullOrWhiteSpace(outcome.DiagnosticData) ? string.Join(',', outcome.Reasons.Select(reason => reason.Code)) : outcome.DiagnosticData, outcome.FailedAtUtc);
-        else if (input.Exception is TimeoutException)
-            failed = CreateFailedEvent(command, 23103, "Regime Discovery exceeded its fixed workflow deadline.", "Timeout", "RegimeDiscoveryExecutionTimedOut", now);
-        else if (input.Exception is { } exception)
-            failed = CreateFailedEvent(command, command.ErrorCode, ((input.Stage == FunctionFailureStage.Projection) switch
-            {
-                true => "Regime Discovery result projection failed.",
-                _ => input.Stage == FunctionFailureStage.Persistence ? "Regime Discovery completed state could not be persisted." : "Regime Discovery Function execution failed."
-            }), input.Stage.ToString(), PipelineExceptionDiagnostics.Format(exception), now);
-        else
-            throw new InvalidOperationException("Failure requires a failed outcome, conflict, or lifecycle exception.");
-        return FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>.Fail(failed);
     }
 
     /// <summary>Builds a failure event carrying the originating execution's routing and workflow metadata.</summary>

@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
     public static class OrderActionExtensions
     {
-        public static string ToStringFast(this OrderAction value) => value switch
+
+        extension(OrderAction value)
         {
-            OrderAction.Buy => nameof(OrderAction.Buy),
-            OrderAction.Sell => nameof(OrderAction.Sell),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                OrderAction.Buy => nameof(OrderAction.Buy),
+                OrderAction.Sell => nameof(OrderAction.Sell),
+                _ => value.ToString()
+            };
+        }
     }
 }

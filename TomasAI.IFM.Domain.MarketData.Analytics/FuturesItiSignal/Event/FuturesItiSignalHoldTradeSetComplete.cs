@@ -8,16 +8,19 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event;
 /// <summary>Handles a successfully persisted ITI Hold state transition.</summary>
 public static class FuturesItiSignalHoldTradeSetComplete
 {
-    /// <summary>Publishes the authoritative Hold state to observers.</summary>
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesItiSignalHoldTradeSetCompleteEvent @event,
-        IEventActorContext<FuturesItiSignalEventActor> context,
-        ILogger<FuturesItiSignalEventActor> logger)
+
+    extension(FuturesItiSignalHoldTradeSetCompleteEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        _ = await @event.PublishUpdatedNotificationAsync(context, logger).ConfigureAwait(false);
-        return true;
+        /// <summary>Publishes the authoritative Hold state to observers.</summary>
+        public async ValueTask<bool> ExecuteAsync(
+            IEventActorContext<FuturesItiSignalEventActor> context,
+            ILogger<FuturesItiSignalEventActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            _ = await @event.PublishUpdatedNotificationAsync(context, logger).ConfigureAwait(false);
+            return true;
+        }
     }
 }

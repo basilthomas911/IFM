@@ -13,39 +13,45 @@ namespace TomasAI.IFM.Application.Api.Server.Core.Actors.Registration;
 /// actor-based event model architecture.</remarks>
 public static class ActorMaps
 {
-    /// <summary>
-    /// Configures and registers event model actors, producers, and consumers with the application's actor supervisor,
-    /// and starts all actors and consumers required for event-driven processing.
-    /// </summary>
-    /// <remarks>This method resolves required actor services from the application's dependency injection
-    /// container, adds all domain actors to the supervisor, and starts both actors and consumers asynchronously. It
-    /// logs the status of each actor as it is started and reports errors encountered during initialization. Call this
-    /// method during application startup to ensure all event model actors are properly configured and
-    /// running.</remarks>
-    /// <param name="app">The web application instance to which the event model actors and related services will be registered.</param>
-    /// <param name="logger">The logger used to record informational and error messages during actor initialization and startup.</param>
-    /// <param name="cancellationToken">Cancels actor infrastructure startup before the host begins accepting requests.</param>
-    /// <returns>The same web application instance, enabling method chaining.</returns>
-    public static async Task<WebApplication> MapEventModelActorsAsync(
-        this WebApplication app,
-        ILogger logger,
-        CancellationToken cancellationToken = default)
+
+    /// <param name="app">
+    /// The web application instance to which the event model actors and related services will be registered.
+    /// </param>
+    extension(WebApplication app)
     {
-        var bootstrap = app.Services.GetRequiredService<ISupervisorBootstrap>();
-        var bootstrapResult = await bootstrap.StartSupervisorAsync(cancellationToken).ConfigureAwait(false);
-        if (!bootstrapResult.Succeeded)
-            throw new InvalidOperationException(
-                $"Supervisor bootstrap failed at {bootstrapResult.Stage}: {bootstrapResult.FailureReason}");
-
-        var lifecycle = app.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();
-        var managedResult = await lifecycle.StartupActorsAsync(cancellationToken).ConfigureAwait(false);
-        if (!managedResult.Succeeded)
+        /// <summary>
+        /// Configures and registers event model actors, producers, and consumers with the application's actor supervisor,
+        /// and starts all actors and consumers required for event-driven processing.
+        /// </summary>
+        /// <remarks>This method resolves required actor services from the application's dependency injection
+        /// container, adds all domain actors to the supervisor, and starts both actors and consumers asynchronously. It
+        /// logs the status of each actor as it is started and reports errors encountered during initialization. Call this
+        /// method during application startup to ensure all event model actors are properly configured and
+        /// running.</remarks>
+        ///
+        /// <param name="logger">The logger used to record informational and error messages during actor initialization and startup.</param>
+        /// <param name="cancellationToken">Cancels actor infrastructure startup before the host begins accepting requests.</param>
+        /// <returns>The same web application instance, enabling method chaining.</returns>
+        public async Task<WebApplication> MapEventModelActorsAsync(
+            ILogger logger,
+            CancellationToken cancellationToken = default)
         {
-            await bootstrap.StopSupervisorAsync(CancellationToken.None).ConfigureAwait(false);
-            throw new InvalidOperationException(
-                $"Managed actor startup failed at {managedResult.Stage}: {managedResult.FailureReason}");
-        }
+            var bootstrap = app.Services.GetRequiredService<ISupervisorBootstrap>();
+            var bootstrapResult = await bootstrap.StartSupervisorAsync(cancellationToken).ConfigureAwait(false);
+            if (!bootstrapResult.Succeeded)
+                throw new InvalidOperationException(
+                    $"Supervisor bootstrap failed at {bootstrapResult.Stage}: {bootstrapResult.FailureReason}");
 
-        return app;
+            var lifecycle = app.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();
+            var managedResult = await lifecycle.StartupActorsAsync(cancellationToken).ConfigureAwait(false);
+            if (!managedResult.Succeeded)
+            {
+                await bootstrap.StopSupervisorAsync(CancellationToken.None).ConfigureAwait(false);
+                throw new InvalidOperationException(
+                    $"Managed actor startup failed at {managedResult.Stage}: {managedResult.FailureReason}");
+            }
+
+            return app;
+        }
     }
 }

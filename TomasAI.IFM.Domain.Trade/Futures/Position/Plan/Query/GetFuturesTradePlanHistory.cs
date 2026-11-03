@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Position.Plan.Query;
 /// <summary>Handles the outright Futures Trade Plan history query.</summary>
 public static class GetFuturesTradePlanHistory
 {
-    /// <summary>Reads and replies with one bounded history page.</summary>
-    public static ValueTask ExecuteAsync(this GetFuturesTradePlanHistoryQuery query, IFuturesTradePlanQueryContext context, CancellationToken cancellationToken)
+
+    extension(GetFuturesTradePlanHistoryQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        return StrategyTradePlanQueryExecution.ReplyHistoryAsync(context, context.DbFactory, query, query.PlanId.Position, TradeStrategyKind.FuturesOutright, query.PlanId.ValueDate, query.PageSize, query.PagingState, cancellationToken);
+        /// <summary>Reads and replies with one bounded history page.</summary>
+        public ValueTask ExecuteAsync(IFuturesTradePlanQueryContext context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            return StrategyTradePlanQueryExecution.ReplyHistoryAsync(context, context.DbFactory, query, query.PlanId.Position, TradeStrategyKind.FuturesOutright, query.PlanId.ValueDate, query.PageSize, query.PagingState, cancellationToken);
+        }
     }
 }

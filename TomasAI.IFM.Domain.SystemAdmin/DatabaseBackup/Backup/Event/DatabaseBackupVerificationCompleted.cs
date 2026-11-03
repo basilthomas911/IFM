@@ -9,11 +9,15 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Backup.Event;
 /// <summary>Handles <see cref="DatabaseBackupVerificationCompletedEvent"/>.</summary>
 public static class DatabaseBackupVerificationCompleted
 {
-    /// <summary>Translates and records this Database Backup service event through the command actor.</summary>
-    public static ValueTask ExecuteAsync(this DatabaseBackupVerificationCompletedEvent eventValue, IEventActorContext<DatabaseBackupEventActor> context, ILogger<DatabaseBackupEventActor> logger)
-        
+
+    extension(DatabaseBackupVerificationCompletedEvent eventValue)
     {
-        ArgumentNullException.ThrowIfNull(eventValue);
-        return DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+        /// <summary>Translates and records this Database Backup service event through the command actor.</summary>
+        public ValueTask ExecuteAsync(IEventActorContext<DatabaseBackupEventActor> context, ILogger<DatabaseBackupEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(eventValue);
+            return DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+        }
     }
 }

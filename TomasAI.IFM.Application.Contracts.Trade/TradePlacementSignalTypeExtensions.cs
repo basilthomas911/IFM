@@ -7,13 +7,17 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
     public static class TradePlacementSignalTypeExtensions
     {
-        public static string ToStringFast(this TradePlacementSignalType value) => value switch
+
+        extension(TradePlacementSignalType value)
         {
-            TradePlacementSignalType.Cleared => nameof(TradePlacementSignalType.Cleared),
-            TradePlacementSignalType.Wait => nameof(TradePlacementSignalType.Wait),
-            TradePlacementSignalType.Set => nameof(TradePlacementSignalType.Set),
-            TradePlacementSignalType.Rangebound => nameof(TradePlacementSignalType.Rangebound),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                TradePlacementSignalType.Cleared => nameof(TradePlacementSignalType.Cleared),
+                TradePlacementSignalType.Wait => nameof(TradePlacementSignalType.Wait),
+                TradePlacementSignalType.Set => nameof(TradePlacementSignalType.Set),
+                TradePlacementSignalType.Rangebound => nameof(TradePlacementSignalType.Rangebound),
+                _ => value.ToString()
+            };
+        }
     }
 }

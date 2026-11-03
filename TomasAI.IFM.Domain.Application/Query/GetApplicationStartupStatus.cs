@@ -9,12 +9,16 @@ namespace TomasAI.IFM.Domain.Application.Query;
 /// <summary>Handles <see cref="GetApplicationStartupStatusQuery"/>.</summary>
 public static class GetApplicationStartupStatus
 {
-    /// <summary>Returns the current immutable application startup status.</summary>
-    public static ValueTask ExecuteAsync(this GetApplicationStartupStatusQuery query, IApplicationQueryContext context, CancellationToken cancellationToken)
+
+    extension(GetApplicationStartupStatusQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        cancellationToken.ThrowIfCancellationRequested();
-        return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ApplicationStartupStatus>(context.StatusStore.Current));
+        /// <summary>Returns the current immutable application startup status.</summary>
+        public ValueTask ExecuteAsync(IApplicationQueryContext context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            cancellationToken.ThrowIfCancellationRequested();
+            return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ApplicationStartupStatus>(context.StatusStore.Current));
+        }
     }
 }

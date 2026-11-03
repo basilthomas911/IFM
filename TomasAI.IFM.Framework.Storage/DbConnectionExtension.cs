@@ -5,12 +5,16 @@ namespace TomasAI.IFM.Framework.Storage
 {
     public static class DbConnectionExtension
     {
-        public static IDbConnection SetConnectionString(this IDbConnection dbConn, string connectionString)
+
+        extension(IDbConnection dbConn)
         {
-            if (dbConn == null)
-                throw new InvalidOperationException("DbConnectionExtension.SetConnectionString: dbConnection parameter is null");
-            dbConn.ConnectionString = connectionString;
-            return dbConn;
+            public IDbConnection SetConnectionString(string connectionString)
+            {
+                if (dbConn == null)
+                    throw new InvalidOperationException("DbConnectionExtension.SetConnectionString: dbConnection parameter is null");
+                dbConn.ConnectionString = connectionString;
+                return dbConn;
+            }
         }
     }
 

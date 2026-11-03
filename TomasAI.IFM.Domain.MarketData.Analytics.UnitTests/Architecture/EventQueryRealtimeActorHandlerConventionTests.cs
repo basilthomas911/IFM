@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Reflection;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.Architecture;
 
@@ -93,10 +94,13 @@ public sealed class EventQueryRealtimeActorHandlerConventionTests
                 Assert.True(File.Exists(handlerPath), $"{actorName}: missing {role}/{handlerName}.cs");
                 var handler = File.ReadAllText(handlerPath);
                 Assert.Matches(@"\bclass\s+" + Regex.Escape(handlerName) + @"\b", handler);
-                Assert.Matches(@"\bthis\s+" + Regex.Escape(message) + @"\b", handler);
-                Assert.Single(Regex.Matches(handler,
-                    @"public\s+static\s+[\s\S]{0,140}?\bExecute(?:Async)?\s*\(\s*this\s+"
-                    + Regex.Escape(message) + @"\b"));
+                Assert.Matches(@"\bextension\s*\(\s*" + Regex.Escape(message) + @"\s+@?\w+\s*\)", handler);
+                var handlerNamespace = Regex.Match(handler, @"\bnamespace\s+([^;\s{]+)").Groups[1].Value;
+                var handlerType = Assembly.Load("TomasAI.IFM.Domain.MarketData.Analytics")
+                    .GetType(handlerNamespace + "." + handlerName, throwOnError: true)!;
+                Assert.Single(handlerType.GetMethods(BindingFlags.Public | BindingFlags.Static),
+                    method => method.Name is "Execute" or "ExecuteAsync"
+                        && method.GetParameters().FirstOrDefault()?.ParameterType.Name == message);
 
                 var entryStart = receiveMap.IndexOf("[typeof(" + message + ")]", StringComparison.Ordinal);
                 var nextStart = receiveMap.IndexOf("[typeof(", entryStart + 1, StringComparison.Ordinal);

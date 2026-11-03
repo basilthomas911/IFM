@@ -10,14 +10,18 @@ namespace TomasAI.IFM.Framework.Storage.ScyllaDb;
 /// </summary>
 public static class RowSetExtension
 {
-    /// <summary>
-    /// Creates a reusable <see cref="IObjectDataRecord"/> adapter for the specified <see cref="RowSet"/>.
-    /// Call <see cref="ScyllaDbDataRecord.SetRow"/> to advance to each row during iteration.
-    /// </summary>
-    public static ScyllaDbDataRecord ToObjectDataRecord(this RowSet rowSet)
-        
+
+    extension(RowSet rowSet)
     {
-        ArgumentNullException.ThrowIfNull(rowSet);
-        return new(rowSet.Columns);
+        /// <summary>
+        /// Creates a reusable <see cref="IObjectDataRecord"/> adapter for the specified <see cref="RowSet"/>.
+        /// Call <see cref="ScyllaDbDataRecord.SetRow"/> to advance to each row during iteration.
+        /// </summary>
+        public ScyllaDbDataRecord ToObjectDataRecord()
+
+        {
+            ArgumentNullException.ThrowIfNull(rowSet);
+            return new(rowSet.Columns);
+        }
     }
 }

@@ -18,16 +18,19 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Realtime
 /// <summary>Handles one FuturesSessionStatisticsUpdatedRealtimeEvent message.</summary>
 public static class FuturesSessionStatisticsUpdated
 {
-    /// <summary>Submits this realtime observation through the existing Market Outlook writer.</summary>
-    public static ValueTask ExecuteAsync(
-        this FuturesSessionStatisticsUpdatedRealtimeEvent source,
-        IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
-        ILogger<MarketOutlookSnapshotRealtimeActor> logger)
+
+    extension(FuturesSessionStatisticsUpdatedRealtimeEvent source)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        return SubmitVxSessionStatisticsAsync(source, context);
+        /// <summary>Submits this realtime observation through the existing Market Outlook writer.</summary>
+        public ValueTask ExecuteAsync(
+            IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
+            ILogger<MarketOutlookSnapshotRealtimeActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            return SubmitVxSessionStatisticsAsync(source, context);
+        }
     }
 
     static async ValueTask SubmitVxSessionStatisticsAsync(

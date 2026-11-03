@@ -8,20 +8,26 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Query;
 
 public static class GetEconomicCalendarDate
 {
-    /// <summary>
-    /// Gets the economic calendar date based on the provided query parameters and replies with the result.
-    /// </summary>
-    /// <param name="q">The economic calendar date query.</param>
-    /// <param name="context">The query actor context.</param>
-    /// <param name="dbFactory">The database context factory.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public static ValueTask<string> ExecuteAsync(
-        this GetEconomicCalendarDateQuery q,
-        CancellationToken cancellationToken = default)
+
+    /// <param name="q">
+    /// The economic calendar date query.
+    /// </param>
+    extension(GetEconomicCalendarDateQuery q)
     {
-        ArgumentNullException.ThrowIfNull(q);
-        cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(GetEconomicCalendarEventDate(q.TodaysDate, q.CalendarViewType));
+        /// <summary>
+        /// Gets the economic calendar date based on the provided query parameters and replies with the result.
+        /// </summary>
+        ///
+        /// <param name="context">The query actor context.</param>
+        /// <param name="dbFactory">The database context factory.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public ValueTask<string> ExecuteAsync(
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(q);
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(GetEconomicCalendarEventDate(q.TodaysDate, q.CalendarViewType));
+        }
     }
 
     /// <summary>

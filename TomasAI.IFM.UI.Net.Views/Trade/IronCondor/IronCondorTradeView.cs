@@ -1489,7 +1489,7 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
             txtRtNetSpread.Text = position.NetSpread.ToString("0.00");
             txtRtValueDate.Text = position.ValueDate.ToString("yyyy-MM-dd");
             txtRtDaysToExpiry.Text = position.DaysToExpiry.ToString();
-            txtRtTradePnl.Text = position.TradePnl.ToString("0.00");
+            txtRtTradePnl.Text = position.TradePnl?.ToString("0.00") ?? string.Empty;
             if (!_viewModel.IsLiveFeedEnabled)
             {
                 try { await (_historyLoad = Task.WhenAll(_viewModel.LoadTradePlans(index), _viewModel.LoadSavedPositionDataAsync(index))); }

@@ -12,18 +12,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Model
 internal static class FuturesOptionTickDataModel
 {
 
-
-
-
-
-
-    internal static FuturesOptionTickDataStreamingStoppedEvent CreateFuturesOptionTickDataStreamingStoppedEvent(this StopFuturesOptionTickDataStreamingCommand e)
-        => new()
-        {
-            Subject = new ActorSubject(ActorType.Event, FuturesOptionTickDataStreamingStoppedEvent.Actor, FuturesOptionTickDataStreamingStoppedEvent.Verb, e.EntityId.Format()),
-            EntityId = e.EntityId,
-            ContractId = e.ContractId,
-            StoppedOn = e.OriginatedOn,
-            StoppedBy = e.OriginatedBy
-        };
+    extension(StopFuturesOptionTickDataStreamingCommand e)
+    {
+        internal FuturesOptionTickDataStreamingStoppedEvent CreateFuturesOptionTickDataStreamingStoppedEvent()
+            => new()
+            {
+                Subject = new ActorSubject(ActorType.Event, FuturesOptionTickDataStreamingStoppedEvent.Actor, FuturesOptionTickDataStreamingStoppedEvent.Verb, e.EntityId.Format()),
+                EntityId = e.EntityId,
+                ContractId = e.ContractId,
+                StoppedOn = e.OriginatedOn,
+                StoppedBy = e.OriginatedBy
+            };
+    }
 }

@@ -16,27 +16,31 @@ public static class FuturesMacdSignalGeneratedComplete
     {
         ServiceId = $"{LogSourceType.FuturesMacdSignalEvent}";
     }
-    static string ServiceId { get; } 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Publishes the completed MACD observation to market outlook.</summary>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesMacdSignalGeneratedCompleteEvent e, IFuturesMacdSignalEventContext context, ILogger<FuturesMacdSignalEventActor> logger)
+    static string ServiceId { get; }
+
+    extension(FuturesMacdSignalGeneratedCompleteEvent e)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(e);
-        var source = $"FuturesMacdSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Publishes the completed MACD observation to market outlook.</summary>
+        public async ValueTask<bool> ExecuteAsync(IFuturesMacdSignalEventContext context, ILogger<FuturesMacdSignalEventActor> logger)
         {
-            if (e.FuturesMacdSignal is { IsWarm: true } && e.FuturesMacdSignal.Metadata is { IsValid: true })
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(e);
+            var source = $"FuturesMacdSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
+            try
             {
-                await ((IEventActorContext<FuturesMacdSignalEventActor>)context)
-                    .PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
+                if (e.FuturesMacdSignal is { IsWarm: true } && e.FuturesMacdSignal.Metadata is { IsValid: true })
+                {
+                    await ((IEventActorContext<FuturesMacdSignalEventActor>)context)
+                        .PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
+                }
+                return true;
             }
-            return true;
+            catch (Exception ex)
+            {
+                logger.LogErrorEvent(ServiceId, ex, "{Source}:  {ContractId} complete handler failed", source, e.EntityId.ContractId);
+                await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesMacdSignalEvent, FuturesMacdSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
+            }
+            return false;
         }
-        catch (Exception ex)
-        {
-            logger.LogErrorEvent(ServiceId, ex, "{Source}:  {ContractId} complete handler failed", source, e.EntityId.ContractId);
-            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesMacdSignalEvent, FuturesMacdSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
-        }
-        return false;
     }
 }

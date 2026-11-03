@@ -7,16 +7,21 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Query.Model;
+
 internal static class FuturesOptionTradeQueryModel
 {
-    /// <summary>
-    /// Retrieves trade history for the specified order, ordered by value date and grouped by trade status.
-    /// </summary>
-    internal static async ValueTask<ICollection<TradeHistoryReadModel>> GetTradeHistoryAsync(this IDbContextFactory dbFactory, int orderId, CancellationToken cancellationToken = default)
+
+    extension(IDbContextFactory dbFactory)
     {
-        var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetTradeHistory)}", FuturesOptionTradeQueryCql.GetTradeHistory).SetParameters(new GetTradeHistory(orderId));
-        var trades = cancellationToken.CanBeCanceled ? await (query.ExecuteQueryAsync(MapToTradeHistory!, cancellationToken)).ConfigureAwait(false) : await (query.ExecuteQueryAsync(MapToTradeHistory!)).ConfigureAwait(false);
-        return[..trades.Where(trade => StatusOrder(trade.TradeStatus) >= 0).OrderBy(trade => trade.ValueDate).ThenBy(trade => StatusOrder(trade.TradeStatus))];
+        /// <summary>
+        /// Retrieves trade history for the specified order, ordered by value date and grouped by trade status.
+        /// </summary>
+        internal async ValueTask<ICollection<TradeHistoryReadModel>> GetTradeHistoryAsync(int orderId, CancellationToken cancellationToken = default)
+        {
+            var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetTradeHistory)}", FuturesOptionTradeQueryCql.GetTradeHistory).SetParameters(new GetTradeHistory(orderId));
+            var trades = cancellationToken.CanBeCanceled ? await (query.ExecuteQueryAsync(MapToTradeHistory!, cancellationToken)).ConfigureAwait(false) : await (query.ExecuteQueryAsync(MapToTradeHistory!)).ConfigureAwait(false);
+            return [.. trades.Where(trade => StatusOrder(trade.TradeStatus) >= 0).OrderBy(trade => trade.ValueDate).ThenBy(trade => StatusOrder(trade.TradeStatus))];
+        }
     }
 
     static int StatusOrder(TradeStatus status) => status switch
@@ -27,57 +32,61 @@ internal static class FuturesOptionTradeQueryModel
         TradeStatus.Close => 3,
         _ => -1
     };
-    /// <summary>
-    /// Retrieves the trade limit for the specified trade, enriched with trade type limit thresholds.
-    /// </summary>
-    internal static async ValueTask<TradeLimitReadModel> GetTradeLimitAsync(this IDbContextFactory dbFactory, int tradeId, CancellationToken cancellationToken = default)
+
+    extension(IDbContextFactory dbFactory)
     {
-        if (string.Equals(dbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            return await dbFactory.TradeDb.GetTradeLimitAsync(tradeId, cancellationToken).ConfigureAwait(false) ?? new();
-        var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetTradeLimit)}", FuturesOptionTradeQueryCql.GetTradeLimit).SetParameters(new GetTradeLimit(tradeId));
-        var tradeLimit = cancellationToken.CanBeCanceled ? await (query.ExecuteSingleAsync(MapToTradeLimit!, cancellationToken)).ConfigureAwait(false) : await (query.ExecuteSingleAsync(MapToTradeLimit!)).ConfigureAwait(false);
-        if (tradeLimit is null)
-            return new();
-        var tradeTypeLimit = await (dbFactory.GetTradeTypeLimitAsync(tradeLimit.TradeId, tradeLimit.TradeType, cancellationToken)).ConfigureAwait(false);
-        return tradeTypeLimit is not null ? tradeLimit with
+        /// <summary>
+        /// Retrieves the trade limit for the specified trade, enriched with trade type limit thresholds.
+        /// </summary>
+        internal async ValueTask<TradeLimitReadModel> GetTradeLimitAsync(int tradeId, CancellationToken cancellationToken = default)
         {
-            MaxLossLimit = tradeTypeLimit.MaxLossLimit,
-            MinProfitLimit = tradeTypeLimit.MinProfitLimit,
-            MaxProfitLimit = tradeTypeLimit.MaxProfitLimit
+            if (string.Equals(dbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+                return await dbFactory.TradeDb.GetTradeLimitAsync(tradeId, cancellationToken).ConfigureAwait(false) ?? new();
+            var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetTradeLimit)}", FuturesOptionTradeQueryCql.GetTradeLimit).SetParameters(new GetTradeLimit(tradeId));
+            var tradeLimit = cancellationToken.CanBeCanceled ? await (query.ExecuteSingleAsync(MapToTradeLimit!, cancellationToken)).ConfigureAwait(false) : await (query.ExecuteSingleAsync(MapToTradeLimit!)).ConfigureAwait(false);
+            if (tradeLimit is null)
+                return new();
+            var tradeTypeLimit = await (dbFactory.GetTradeTypeLimitAsync(tradeLimit.TradeId, tradeLimit.TradeType, cancellationToken)).ConfigureAwait(false);
+            return tradeTypeLimit is not null ? tradeLimit with
+            {
+                MaxLossLimit = tradeTypeLimit.MaxLossLimit,
+                MinProfitLimit = tradeTypeLimit.MinProfitLimit,
+                MaxProfitLimit = tradeTypeLimit.MaxProfitLimit
+            }
+
+            : tradeLimit;
         }
 
-        : tradeLimit;
-    }
+        /// <summary>
+        /// Retrieves the trade type limit for the specified trade and trade type.
+        /// </summary>
+        internal async ValueTask<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync(int tradeId, TradeType tradeType, CancellationToken cancellationToken = default)
+        {
+            if (string.Equals(dbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+                return await dbFactory.TradeDb.GetTradeTypeLimitAsync(tradeId, tradeType, cancellationToken).ConfigureAwait(false);
+            var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetTradeTypeLimit)}", FuturesOptionTradeQueryCql.GetTradeTypeLimit).SetParameters(new GetTradeTypeLimit(tradeId, tradeType.ToStringFast()));
+            return await (cancellationToken.CanBeCanceled ? query.ExecuteSingleAsync(MapToTradeTypeLimit, cancellationToken) : query.ExecuteSingleAsync(MapToTradeTypeLimit)).ConfigureAwait(false);
+        }
 
-    /// <summary>
-    /// Retrieves the trade type limit for the specified trade and trade type.
-    /// </summary>
-    internal static async ValueTask<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync(this IDbContextFactory dbFactory, int tradeId, TradeType tradeType, CancellationToken cancellationToken = default)
-    {
-        if (string.Equals(dbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            return await dbFactory.TradeDb.GetTradeTypeLimitAsync(tradeId, tradeType, cancellationToken).ConfigureAwait(false);
-        var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetTradeTypeLimit)}", FuturesOptionTradeQueryCql.GetTradeTypeLimit).SetParameters(new GetTradeTypeLimit(tradeId, tradeType.ToStringFast()));
-        return await (cancellationToken.CanBeCanceled ? query.ExecuteSingleAsync(MapToTradeTypeLimit, cancellationToken) : query.ExecuteSingleAsync(MapToTradeTypeLimit)).ConfigureAwait(false);
-    }
+        /// <summary>
+        /// Retrieves a single trade position for the specified order, trade, type, date, days to expiry, and status.
+        /// </summary>
+        internal async ValueTask<TradePositionReadModel> GetTradePositionAsync(int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus, CancellationToken cancellationToken = default)
+        {
+            var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetTradePosition)}", FuturesOptionTradeQueryCql.GetTradePosition).SetParameters(new GetTradePosition(orderId, tradeId, tradeType.ToStringFast(), valueDate, daysToExpiry, tradeStatus.ToStringFast()));
+            return (cancellationToken.CanBeCanceled ? await (query.ExecuteSingleAsync(MapToTradePosition!, cancellationToken)).ConfigureAwait(false) : await (query.ExecuteSingleAsync(MapToTradePosition!)).ConfigureAwait(false)) ?? new();
+        }
 
-    /// <summary>
-    /// Retrieves a single trade position for the specified order, trade, type, date, days to expiry, and status.
-    /// </summary>
-    internal static async ValueTask<TradePositionReadModel> GetTradePositionAsync(this IDbContextFactory dbFactory, int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus, CancellationToken cancellationToken = default)
-    {
-        var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetTradePosition)}", FuturesOptionTradeQueryCql.GetTradePosition).SetParameters(new GetTradePosition(orderId, tradeId, tradeType.ToStringFast(), valueDate, daysToExpiry, tradeStatus.ToStringFast()));
-        return (cancellationToken.CanBeCanceled ? await (query.ExecuteSingleAsync(MapToTradePosition!, cancellationToken)).ConfigureAwait(false) : await (query.ExecuteSingleAsync(MapToTradePosition!)).ConfigureAwait(false)) ?? new();
-    }
-
-    /// <summary>
-    /// Retrieves the trade quantity for the specified trade, computed as the average option leg quantity.
-    /// </summary>
-    internal static async ValueTask<ScalarReadModel<int>> GetTradeQuantityAsync(this IDbContextFactory dbFactory, int tradeId, CancellationToken cancellationToken = default)
-    {
-        var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetOptionLegs)}", FuturesOptionTradeQueryCql.GetOptionLegs).SetParameters(new GetOptionLegs(tradeId));
-        var optionLegs = cancellationToken.CanBeCanceled ? await (query.ExecuteQueryAsync(MapToOptionLeg!, cancellationToken)).ConfigureAwait(false) : await (query.ExecuteQueryAsync(MapToOptionLeg!)).ConfigureAwait(false);
-        var quantity = optionLegs.Count > 0 ? optionLegs.Sum(e => e.Quantity) / optionLegs.Count : 0;
-        return new ScalarReadModel<int>(quantity);
+        /// <summary>
+        /// Retrieves the trade quantity for the specified trade, computed as the average option leg quantity.
+        /// </summary>
+        internal async ValueTask<ScalarReadModel<int>> GetTradeQuantityAsync(int tradeId, CancellationToken cancellationToken = default)
+        {
+            var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetOptionLegs)}", FuturesOptionTradeQueryCql.GetOptionLegs).SetParameters(new GetOptionLegs(tradeId));
+            var optionLegs = cancellationToken.CanBeCanceled ? await (query.ExecuteQueryAsync(MapToOptionLeg!, cancellationToken)).ConfigureAwait(false) : await (query.ExecuteQueryAsync(MapToOptionLeg!)).ConfigureAwait(false);
+            var quantity = optionLegs.Count > 0 ? optionLegs.Sum(e => e.Quantity) / optionLegs.Count : 0;
+            return new ScalarReadModel<int>(quantity);
+        }
     }
 
     // --- mappers ---
@@ -94,7 +103,7 @@ internal static class FuturesOptionTradeQueryModel
     // --- bind value structs ---
     internal readonly record struct GetTradeHistory(int orderId) : IBindValue
     {
-        public object Bind() => new object? []
+        public object Bind() => new object?[]
         {
             orderId
         };
@@ -102,7 +111,7 @@ internal static class FuturesOptionTradeQueryModel
 
     internal readonly record struct GetTradeLimit(int tradeId) : IBindValue
     {
-        public object Bind() => new object? []
+        public object Bind() => new object?[]
         {
             tradeId
         };
@@ -110,7 +119,7 @@ internal static class FuturesOptionTradeQueryModel
 
     internal readonly record struct GetTradeTypeLimit(int tradeId, string tradeType) : IBindValue
     {
-        public object Bind() => new object? []
+        public object Bind() => new object?[]
         {
             tradeId,
             tradeType
@@ -119,7 +128,7 @@ internal static class FuturesOptionTradeQueryModel
 
     internal readonly record struct GetTradePosition(int orderId, int tradeId, string tradeType, DateOnly valueDate, int daysToExpiry, string tradeStatus) : IBindValue
     {
-        public object Bind() => new object? []
+        public object Bind() => new object?[]
         {
             orderId,
             tradeId,
@@ -132,7 +141,7 @@ internal static class FuturesOptionTradeQueryModel
 
     internal readonly record struct GetOptionLegs(int tradeId) : IBindValue
     {
-        public object Bind() => new object? []
+        public object Bind() => new object?[]
         {
             tradeId
         };

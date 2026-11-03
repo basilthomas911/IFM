@@ -16,92 +16,101 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 /// <summary>Handles successful Risk Management completion.</summary>
 public static class CompleteRiskManagement
 {
-    /// <summary>Accepts a verified sizing proposal. Approval still awaits Portfolio reservation and execution ownership.</summary>
-    /// <param name = "command">The concrete workflow command.</param>
-    /// <param name = "context">The authorized workflow services, clock, and logger.</param>
-    /// <param name = "state">The authoritative workflow state.</param>
-    /// <returns>The command acceptance or rejection.</returns>
-    public static ServiceResult<GuidResult> Execute(this CompleteRiskManagementCommand command, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
+
+    /// <param name="command">
+    /// The concrete workflow command.
+    /// The concrete command intent.
+    /// </param>
+    extension(CompleteRiskManagementCommand command)
     {
-        ArgumentNullException.ThrowIfNull(state);
-        var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
-        var preparationResult = PrepareWorkflow(command, context, preparation);
-        if (!preparationResult.Success)
-            return preparationResult;
-        var errorMsg = "IntrinsicTimeStrategyWorkflow.STATE.APPLY_FAILED: unable to apply CompleteRiskManagement event";
-        var updated = command.Compute(preparation.Freeze(), out var workflowTransition) switch
+        /// <summary>Accepts a verified sizing proposal. Approval still awaits Portfolio reservation and execution ownership.</summary>
+        ///
+        /// <param name = "context">The authorized workflow services, clock, and logger.</param>
+        /// <param name = "state">The authoritative workflow state.</param>
+        /// <returns>The command acceptance or rejection.</returns>
+        public ServiceResult<GuidResult> Execute(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
-            _ when workflowTransition.RejectionReason is not null => command.UpdateFailed(ref errorMsg, workflowTransition.RejectionReason),
-            _ => state.Update(command.CreateWorkflowLifecycleEvents(workflowTransition), command)};
-        return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
-    }
-
-    /// <summary>Prepares immutable workflow changes while preserving deadline, stale-result, and financial-read ordering.</summary>
-    /// <param name = "command">The concrete command intent.</param>
-    /// <param name = "context">The authorized actor services and logging context.</param>
-    /// <param name = "state">The authoritative state or local preparation snapshot, as declared by the method.</param>
-    /// <returns>The prepared business result or command acceptance.</returns>
-    internal static ServiceResult<GuidResult> PrepareWorkflow(this CompleteRiskManagementCommand command, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(state);
-        var current = state.CurrentView;
-        if (current is not { Status: WorkflowStrategyMachineStatus.Started } || current.WorkflowId != command.WorkflowId || current.WorkflowRevision != command.InputWorkflowRevision || current.CurrentStage != StrategyWorkflowStage.RiskManagement || current.RiskManagement.SourceEventId == command.SourceEventId)
-        {
-            if (context.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning))
-                global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write11(context.Logger, nameof(CompleteRiskManagement), nameof(Execute), command.CommandName, command.Subject.EntityId, current?.WorkflowId, current?.WorkflowRevision);
-            return Ok(command);
-        }
-
-        var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-        if (now >= current.ExpiresAtUtc || current.RiskExecution is { } execution && now >= execution.ExpiresAtUtc)
-        {
-            return PrepareTimedOut(command, context, state, current, now);
-        }
-
-        if (command.PortfolioDecision is { } portfolioDecision)
-            return CompletePortfolioDecision(command, context, state, current, portfolioDecision, now);
-        RiskAssessmentResult result;
-        try
-        {
-            var accepted = current.RiskExecution ?? throw new RiskCalculationException("RM.RESULT.LEGACY_READ_ONLY");
-            using var deadline = new CancellationTokenSource(accepted.ExpiresAtUtc - now);
-            result = RiskAcceptance.Validate(accepted, command, new RiskEvaluator(), now, deadline.Token);
-        }
-        catch (Exception ex)when (ex is ArgumentException or InvalidOperationException or OperationCanceledException)
-        {
-            var expired = ex is OperationCanceledException || ex is RiskCalculationException { ReasonCode: "RM.TIME.EXPIRED" };
-            var invalid = current with
+            ArgumentNullException.ThrowIfNull(state);
+            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparationResult = PrepareWorkflow(command, context, preparation);
+            if (!preparationResult.Success)
+                return preparationResult;
+            var errorMsg = "IntrinsicTimeStrategyWorkflow.STATE.APPLY_FAILED: unable to apply CompleteRiskManagement event";
+            var updated = command.Compute(preparation.Freeze(), out var workflowTransition) switch
             {
-                Status = expired ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,
-                Outcome = expired ? StrategyWorkflowOutcome.TimedOut : StrategyWorkflowOutcome.InvalidResult,
-                WorkflowRevision = current.WorkflowRevision + 1,
-                UpdatedAtUtc = now,
-                TerminalAtUtc = now,
-                CausationId = command.SourceEventId,
-                StopReasonCode = expired ? "RM.TIME.EXPIRED" : "RM.RESULT.INVALID",
-                RiskManagement = current.RiskManagement with
-                {
-                    ProcessingStatus = expired ? StrategyActorProcessingStatus.TimedOut : StrategyActorProcessingStatus.Failed,
-                    SourceEventId = command.SourceEventId,
-                    FailedAtUtc = now,
-                    Failure = new()
-                    {
-                        ErrorCode = 23025,
-                        ErrorType = "RiskManagementResultInvalid",
-                        ErrorMessage = "Risk result failed immutable-input verification.",
-                        FailedAtUtc = now
-                    }
-                }
+                _ when workflowTransition.RejectionReason is not null => command.UpdateFailed(ref errorMsg, workflowTransition.RejectionReason),
+                _ => state.Update(command.CreateWorkflowLifecycleEvents(workflowTransition), command)
             };
-            AppendSnapshot(state, command, current.Status, invalid, now);
-            return Ok(command);
+            return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
         }
 
-        var updated = CreateCompletedView(command, current, result, now);
-        AppendSnapshot(state, command, current.Status, updated, now);
-        return Ok(command);
+        /// <summary>Prepares immutable workflow changes while preserving deadline, stale-result, and financial-read ordering.</summary>
+        ///
+        /// <param name = "context">The authorized actor services and logging context.</param>
+        /// <param name = "state">The authoritative state or local preparation snapshot, as declared by the method.</param>
+        /// <returns>The prepared business result or command acceptance.</returns>
+        internal ServiceResult<GuidResult> PrepareWorkflow(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(state);
+            var current = state.CurrentView;
+            if (current is not { Status: WorkflowStrategyMachineStatus.Started } || current.WorkflowId != command.WorkflowId || current.WorkflowRevision != command.InputWorkflowRevision || current.CurrentStage != StrategyWorkflowStage.RiskManagement || current.RiskManagement.SourceEventId == command.SourceEventId)
+            {
+                if (context.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning))
+                    global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write11(context.Logger, nameof(CompleteRiskManagement), nameof(Execute), command.CommandName, command.Subject.EntityId, current?.WorkflowId, current?.WorkflowRevision);
+                return Ok(command);
+            }
+
+            var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+            if (now >= current.ExpiresAtUtc || current.RiskExecution is { } execution && now >= execution.ExpiresAtUtc)
+            {
+                return PrepareTimedOut(command, context, state, current, now);
+            }
+
+            if (command.PortfolioDecision is { } portfolioDecision)
+                return CompletePortfolioDecision(command, context, state, current, portfolioDecision, now);
+            RiskAssessmentResult result;
+            try
+            {
+                var accepted = current.RiskExecution ?? throw new RiskCalculationException("RM.RESULT.LEGACY_READ_ONLY");
+                using var deadline = new CancellationTokenSource(accepted.ExpiresAtUtc - now);
+                result = RiskAcceptance.Validate(accepted, command, new RiskEvaluator(), now, deadline.Token);
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OperationCanceledException)
+            {
+                var expired = ex is OperationCanceledException || ex is RiskCalculationException { ReasonCode: "RM.TIME.EXPIRED" };
+                var invalid = current with
+                {
+                    Status = expired ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,
+                    Outcome = expired ? StrategyWorkflowOutcome.TimedOut : StrategyWorkflowOutcome.InvalidResult,
+                    WorkflowRevision = current.WorkflowRevision + 1,
+                    UpdatedAtUtc = now,
+                    TerminalAtUtc = now,
+                    CausationId = command.SourceEventId,
+                    StopReasonCode = expired ? "RM.TIME.EXPIRED" : "RM.RESULT.INVALID",
+                    RiskManagement = current.RiskManagement with
+                    {
+                        ProcessingStatus = expired ? StrategyActorProcessingStatus.TimedOut : StrategyActorProcessingStatus.Failed,
+                        SourceEventId = command.SourceEventId,
+                        FailedAtUtc = now,
+                        Failure = new()
+                        {
+                            ErrorCode = 23025,
+                            ErrorType = "RiskManagementResultInvalid",
+                            ErrorMessage = "Risk result failed immutable-input verification.",
+                            FailedAtUtc = now
+                        }
+                    }
+                };
+                AppendSnapshot(state, command, current.Status, invalid, now);
+                return Ok(command);
+            }
+
+            var updated = CreateCompletedView(command, current, result, now);
+            AppendSnapshot(state, command, current.Status, updated, now);
+            return Ok(command);
+        }
     }
 
     /// <summary>Evaluates append snapshot business information.</summary>
@@ -166,22 +175,29 @@ public static class CompleteRiskManagement
         return Ok(command);
     }
 
-    /// <summary>Checks ownership and required data of prepared workflow changes without mutation.</summary>
-    /// <param name = "command">The concrete workflow intent.</param>
-    /// <param name = "workflowChanges">The immutable proposals prepared from the current workflow and observed inputs.</param>
-    /// <param name = "workflowTransition">The accepted proposals or business rejection.</param>
-    /// <returns>True when every proposed workflow snapshot belongs to the command.</returns>
-    internal static bool Compute(this CompleteRiskManagementCommand command, IReadOnlyList<WorkflowSnapshotChange> workflowChanges, out WorkflowSnapshotTransition workflowTransition)
+    /// <param name="command">
+    /// The concrete workflow intent.
+    /// The originating workflow command.
+    /// </param>
+    extension(CompleteRiskManagementCommand command)
     {
-        workflowTransition = workflowChanges.Any(change => change.WorkflowDefinition is null || !Equals(change.EntityId, command.EntityId)) ? new([], "IntrinsicTimeStrategyWorkflow: the computed workflow snapshot is missing or belongs to another entity.") : new(workflowChanges);
-        return workflowTransition.RejectionReason is null;
-    }
+        /// <summary>Checks ownership and required data of prepared workflow changes without mutation.</summary>
+        ///
+        /// <param name = "workflowChanges">The immutable proposals prepared from the current workflow and observed inputs.</param>
+        /// <param name = "workflowTransition">The accepted proposals or business rejection.</param>
+        /// <returns>True when every proposed workflow snapshot belongs to the command.</returns>
+        internal bool Compute(IReadOnlyList<WorkflowSnapshotChange> workflowChanges, out WorkflowSnapshotTransition workflowTransition)
+        {
+            workflowTransition = workflowChanges.Any(change => change.WorkflowDefinition is null || !Equals(change.EntityId, command.EntityId)) ? new([], "IntrinsicTimeStrategyWorkflow: the computed workflow snapshot is missing or belongs to another entity.") : new(workflowChanges);
+            return workflowTransition.RejectionReason is null;
+        }
 
-    /// <summary>Creates each ordered source event with the originating command identity.</summary>
-    /// <param name = "command">The originating workflow command.</param>
-    /// <param name = "workflowTransition">The accepted workflow snapshots.</param>
-    /// <returns>The source events ready for state application.</returns>
-    internal static IReadOnlyList<WorkflowStrategyStateUpdatedEvent> CreateWorkflowLifecycleEvents(this CompleteRiskManagementCommand command, WorkflowSnapshotTransition workflowTransition) => workflowTransition.WorkflowChanges.Select(change => new WorkflowStrategyStateUpdatedEvent { CommandId = command.CommandId, Subject = new(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor, WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()), Id = change.SnapshotEventId, EntityId = command.EntityId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource, ReceivedOn = change.UpdatedAtUtc, WorkflowId = change.WorkflowId, WorkflowRevision = change.WorkflowRevision, CorrelationId = change.CorrelationId, CausationId = change.CausationId, PreviousStatus = change.PreviousStatus, WorkflowDefinition = change.WorkflowDefinition, UpdatedAtUtc = change.UpdatedAtUtc }).ToArray();
+        /// <summary>Creates each ordered source event with the originating command identity.</summary>
+        ///
+        /// <param name = "workflowTransition">The accepted workflow snapshots.</param>
+        /// <returns>The source events ready for state application.</returns>
+        internal IReadOnlyList<WorkflowStrategyStateUpdatedEvent> CreateWorkflowLifecycleEvents(WorkflowSnapshotTransition workflowTransition) => workflowTransition.WorkflowChanges.Select(change => new WorkflowStrategyStateUpdatedEvent { CommandId = command.CommandId, Subject = new(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor, WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()), Id = change.SnapshotEventId, EntityId = command.EntityId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource, ReceivedOn = change.UpdatedAtUtc, WorkflowId = change.WorkflowId, WorkflowRevision = change.WorkflowRevision, CorrelationId = change.CorrelationId, CausationId = change.CausationId, PreviousStatus = change.PreviousStatus, WorkflowDefinition = change.WorkflowDefinition, UpdatedAtUtc = change.UpdatedAtUtc }).ToArray();
+    }
     static ServiceResult<GuidResult> PrepareTimedOut(global::TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands.CompleteRiskManagementCommand command, global::TomasAI.IFM.Shared.EventModelActor.Contracts.ICommandActorContext<global::TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor.IntrinsicTimeStrategyWorkflowCommandActor> context, global::TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Model.WorkflowSnapshotPreparation state, global::TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView current, global::System.DateTime now)
     {
         var failure = TimeoutFailure(now);

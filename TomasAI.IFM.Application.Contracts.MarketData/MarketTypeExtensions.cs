@@ -9,11 +9,15 @@ namespace TomasAI.IFM.Domain.MarketData.Shared
 
     public static class MarketTypeExtensions
     {
-        public static string ToStringFast(this MarketType value) => value switch
+
+        extension(MarketType value)
         {
-            MarketType.Equity => nameof(MarketType.Equity),
-            MarketType.Futures => nameof(MarketType.Futures),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                MarketType.Equity => nameof(MarketType.Equity),
+                MarketType.Futures => nameof(MarketType.Futures),
+                _ => value.ToString()
+            };
+        }
     }
 }

@@ -9,12 +9,16 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Q
 /// <summary>Handles <see cref = "GetRiskInvocationQuery"/>.</summary>
 public static class GetRiskInvocation
 {
-    /// <summary>Reads and returns the exact risk invocation observation.</summary>
-    public static async ValueTask ExecuteAsync(this GetRiskInvocationQuery query, IRiskQueryContext services, IQueryActorContext<RiskQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetRiskInvocationQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        ArgumentNullException.ThrowIfNull(services);
-        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<RiskObservation>(await(RiskQueryModel.ExactAsync(services, query.Access, query.WorkflowId, query.InvocationId, cancellationToken)).ConfigureAwait(false)))).ConfigureAwait(false);
+        /// <summary>Reads and returns the exact risk invocation observation.</summary>
+        public async ValueTask ExecuteAsync(IRiskQueryContext services, IQueryActorContext<RiskQueryActor> context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            ArgumentNullException.ThrowIfNull(services);
+            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<RiskObservation>(await (RiskQueryModel.ExactAsync(services, query.Access, query.WorkflowId, query.InvocationId, cancellationToken)).ConfigureAwait(false)))).ConfigureAwait(false);
+        }
     }
 }

@@ -14,57 +14,68 @@ namespace TomasAI.IFM.Shared.Extensions;
 /// common event-handling scenarios and promote consistency when working with domain events.</remarks>
 public static class EventExtension
 {
-    public static void CheckForEmptyCommandId(this IEvent @event)
+
+    extension(IEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        if (@event.CommandId == Guid.Empty)
-            throw new InvalidOperationException($"CheckForEmptyCommandId: {@event.GetType().Name}.CommandId is empty");
+        public void CheckForEmptyCommandId()
+        {
+            ArgumentNullException.ThrowIfNull(@event);
+            if (@event.CommandId == Guid.Empty)
+                throw new InvalidOperationException($"CheckForEmptyCommandId: {@event.GetType().Name}.CommandId is empty");
+        }
     }
 
-    public static void CheckForEmptyCommandId(this ICommand cmd)
+    extension(ICommand cmd)
     {
-        ArgumentNullException.ThrowIfNull(cmd);
-        if (cmd.CommandId == Guid.Empty)
-            throw new InvalidOperationException($"CheckForEmptyCommandId: {cmd.GetType().Name}.CommandId is empty");
+        public void CheckForEmptyCommandId()
+        {
+            ArgumentNullException.ThrowIfNull(cmd);
+            if (cmd.CommandId == Guid.Empty)
+                throw new InvalidOperationException($"CheckForEmptyCommandId: {cmd.GetType().Name}.CommandId is empty");
+        }
     }
 
-
-    public static IEvent SetEventSource(this IEvent @event, string eventSource)
+    extension(IEvent @event)
     {
-        EventModelActor.EventInitHelper.SetProperty(@event, nameof(IEvent.EventSource), eventSource);
-        return @event;
+        public IEvent SetEventSource(string eventSource)
+        {
+            EventModelActor.EventInitHelper.SetProperty(@event, nameof(IEvent.EventSource), eventSource);
+            return @event;
+        }
+
+        public IEvent SetReceivedOn(DateTime receivedOn)
+        {
+            EventModelActor.EventInitHelper.SetProperty(@event, nameof(IEvent.ReceivedOn), receivedOn);
+            return @event;
+        }
+
+        public IEvent RoutedFrom(Guid correlationId, string aggregateId, string eventSource)
+        {
+            EventModelActor.EventInitHelper.SetProperty(@event, nameof(IEvent.CommandId), correlationId);
+            EventModelActor.EventInitHelper.SetProperty(@event, nameof(IEvent.AggregateId), aggregateId);
+            EventModelActor.EventInitHelper.SetProperty(@event, nameof(IEvent.EventSource), eventSource);
+            return @event;
+        }
+
+        public IEvent RoutedFrom()
+
+        {
+            ArgumentNullException.ThrowIfNull(@event);
+            return RoutedFrom(@event, @event.CommandId, @event.AggregateId, @event.EventSource);
+        }
+
+        public IEvent RoutedFrom(ICommand command)
+
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            return RoutedFrom(@event, command.CommandId, command.StreamId, command.EventSource);
+        }
     }
 
-    public static IEvent SetReceivedOn(this IEvent @event, DateTime receivedOn)
+    extension(IEvent domainEvent)
     {
-        EventModelActor.EventInitHelper.SetProperty(@event, nameof(IEvent.ReceivedOn), receivedOn);
-        return @event;
+        public string ToEventData()
+            => JsonConvert.SerializeObject(domainEvent, Formatting.Indented);
     }
-
-
-    public static IEvent RoutedFrom(this IEvent @event, Guid correlationId, string aggregateId, string eventSource)
-    {
-        EventModelActor.EventInitHelper.SetProperty(@event, nameof(IEvent.CommandId), correlationId);
-        EventModelActor.EventInitHelper.SetProperty(@event, nameof(IEvent.AggregateId), aggregateId);
-        EventModelActor.EventInitHelper.SetProperty(@event, nameof(IEvent.EventSource), eventSource);
-        return @event;
-    }
-
-    public static IEvent RoutedFrom(this IEvent @event)
-        
-    {
-        ArgumentNullException.ThrowIfNull(@event);
-        return RoutedFrom(@event, @event.CommandId, @event.AggregateId, @event.EventSource);
-    }
-
-    public static IEvent RoutedFrom(this IEvent @event, ICommand command)
-        
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        return RoutedFrom(@event, command.CommandId, command.StreamId, command.EventSource);
-    }
-
-    public static string ToEventData(this IEvent domainEvent)
-        => JsonConvert.SerializeObject(domainEvent, Formatting.Indented);
 
 }

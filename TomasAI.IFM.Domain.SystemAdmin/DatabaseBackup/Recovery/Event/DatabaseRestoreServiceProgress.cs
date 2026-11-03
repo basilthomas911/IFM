@@ -9,11 +9,15 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Recovery.Event;
 /// <summary>Handles <see cref="DatabaseRestoreServiceProgressEvent"/>.</summary>
 public static class DatabaseRestoreServiceProgress
 {
-    /// <summary>Translates and records this Database Backup service event through the command actor.</summary>
-    public static ValueTask ExecuteAsync(this DatabaseRestoreServiceProgressEvent eventValue, IEventActorContext<DatabaseRecoveryEventActor> context, ILogger<DatabaseRecoveryEventActor> logger)
-        
+
+    extension(DatabaseRestoreServiceProgressEvent eventValue)
     {
-        ArgumentNullException.ThrowIfNull(eventValue);
-        return DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+        /// <summary>Translates and records this Database Backup service event through the command actor.</summary>
+        public ValueTask ExecuteAsync(IEventActorContext<DatabaseRecoveryEventActor> context, ILogger<DatabaseRecoveryEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(eventValue);
+            return DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+        }
     }
 }

@@ -8,15 +8,19 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelectio
 /// <summary>Handles <see cref = "GetTradeSelectionResultQuery"/>.</summary>
 public static class GetTradeSelectionResult
 {
-    /// <summary>Reads and returns the exact Trade Selection result.</summary>
-    public static async ValueTask ExecuteAsync(this GetTradeSelectionResultQuery query, ITradeSelectionQueryContext services, IQueryActorContext<TradeSelectionQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetTradeSelectionResultQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        ArgumentNullException.ThrowIfNull(services);
-        var value = await (TradeSelectionQueryModel.ExactAsync(services, query.Access, query.WorkflowId, query.InvocationId, cancellationToken)).ConfigureAwait(false);
-        if (value.Completion.Result.ResultId != query.ResultId)
-            throw new KeyNotFoundException("Exact selector result not found.");
-        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<TradeSelectionResult>(TradeSelectionContracts.ReadResult(value.Completion.Result)))).ConfigureAwait(false);
+        /// <summary>Reads and returns the exact Trade Selection result.</summary>
+        public async ValueTask ExecuteAsync(ITradeSelectionQueryContext services, IQueryActorContext<TradeSelectionQueryActor> context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            ArgumentNullException.ThrowIfNull(services);
+            var value = await (TradeSelectionQueryModel.ExactAsync(services, query.Access, query.WorkflowId, query.InvocationId, cancellationToken)).ConfigureAwait(false);
+            if (value.Completion.Result.ResultId != query.ResultId)
+                throw new KeyNotFoundException("Exact selector result not found.");
+            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<TradeSelectionResult>(TradeSelectionContracts.ReadResult(value.Completion.Result)))).ConfigureAwait(false);
+        }
     }
 }

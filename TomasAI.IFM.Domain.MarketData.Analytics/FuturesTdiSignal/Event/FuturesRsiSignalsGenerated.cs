@@ -15,56 +15,58 @@ public static class FuturesRsiSignalsGenerated
 {
     static readonly Guid TdiCommandNamespace = new("2d1fa1ea-f02a-4790-bc5b-3ae581dedb41");
 
-    /// <summary>
-    /// Validates and bounds the RSI window, then sends one deterministic TDI command.
-    /// Non-standard RSI configurations and non-intraday periods are intentionally ignored.
-    /// </summary>
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesRsiSignalsGeneratedEvent e,
-        IEventActorContext<FuturesTdiSignalEventActor> context,
-        ILogger<FuturesTdiSignalEventActor> logger)
+    extension(FuturesRsiSignalsGeneratedEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        var configuration = FuturesTdiConfiguration.Standard;
-        if (e.PeriodLength != configuration.RsiPeriod
-            || !FuturesTdiConfiguration.IsSupportedIntraday(e.EntityId.TimePeriod))
-            return true;
-
-        var signals = e.FuturesRsiSignals
-            .Where(signal =>
-                StringComparer.Ordinal.Equals(signal.ContractId, e.EntityId.ContractId)
-                && signal.ValueDate <= e.EntityId.ValueDate
-                && signal.TimePeriod == e.EntityId.TimePeriod
-                && signal.PeriodLength == configuration.RsiPeriod
-                && signal.RSI >= 0d)
-            .OrderBy(FuturesTdiSignalCompute.SampleTime)
-            .TakeLast(configuration.RequiredRsiSamples)
-            .ToArray();
-
-        if (signals.Length < configuration.RequiredRsiSamples)
+        /// <summary>
+        /// Validates and bounds the RSI window, then sends one deterministic TDI command.
+        /// Non-standard RSI configurations and non-intraday periods are intentionally ignored.
+        /// </summary>
+        public async ValueTask<bool> ExecuteAsync(
+            IEventActorContext<FuturesTdiSignalEventActor> context,
+            ILogger<FuturesTdiSignalEventActor> logger)
         {
-            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write51(logger, null, nameof(ExecuteAsync), e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, signals.Length, configuration.RequiredRsiSamples);
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+
+            var configuration = FuturesTdiConfiguration.Standard;
+            if (e.PeriodLength != configuration.RsiPeriod
+                || !FuturesTdiConfiguration.IsSupportedIntraday(e.EntityId.TimePeriod))
+                return true;
+
+            var signals = e.FuturesRsiSignals
+                .Where(signal =>
+                    StringComparer.Ordinal.Equals(signal.ContractId, e.EntityId.ContractId)
+                    && signal.ValueDate <= e.EntityId.ValueDate
+                    && signal.TimePeriod == e.EntityId.TimePeriod
+                    && signal.PeriodLength == configuration.RsiPeriod
+                    && signal.RSI >= 0d)
+                .OrderBy(FuturesTdiSignalCompute.SampleTime)
+                .TakeLast(configuration.RequiredRsiSamples)
+                .ToArray();
+
+            if (signals.Length < configuration.RequiredRsiSamples)
+            {
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write51(logger, null, nameof(ExecuteAsync), e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, signals.Length, configuration.RequiredRsiSamples);
+                return true;
+            }
+
+            var latest = signals[^1];
+            var signalId = new FuturesTdiSignalId(
+                latest.ContractId,
+                latest.ValueDate,
+                latest.TimePeriod,
+                latest.Timestamp,
+                configuration.ConfigurationId);
+
+            await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(context,
+                signalId,
+                signals,
+                latest.TimePeriod,
+                configuration,
+                DerivedCommandId(e, signalId)).ConfigureAwait(false);
             return true;
         }
-
-        var latest = signals[^1];
-        var signalId = new FuturesTdiSignalId(
-            latest.ContractId,
-            latest.ValueDate,
-            latest.TimePeriod,
-            latest.Timestamp,
-            configuration.ConfigurationId);
-
-        await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(context,
-            signalId,
-            signals,
-            latest.TimePeriod,
-            configuration,
-            DerivedCommandId(e, signalId)).ConfigureAwait(false);
-        return true;
     }
 
     static Guid DerivedCommandId(FuturesRsiSignalsGeneratedEvent source, FuturesTdiSignalId signalId)

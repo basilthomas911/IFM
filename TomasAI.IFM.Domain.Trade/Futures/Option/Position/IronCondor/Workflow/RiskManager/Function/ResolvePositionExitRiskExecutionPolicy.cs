@@ -6,9 +6,12 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.R
 
 public static class ResolvePositionExitRiskExecutionPolicy
 {
-    public static FunctionExecutionPolicy ResolveExecutionPolicy(
-        this EvaluatePositionExitRiskCommand command,
-        FunctionFailureStage stage,
-        TimeProvider clock) =>
-        new(clock, null);
+
+    extension(EvaluatePositionExitRiskCommand command)
+    {
+        public FunctionExecutionPolicy ResolveExecutionPolicy(
+            FunctionFailureStage stage,
+            TimeProvider clock) =>
+            new(clock, null);
+    }
 }

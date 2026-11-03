@@ -8,81 +8,84 @@ namespace TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Validation;
 /// <summary>Accumulates Database Backup command failures without mutating recovery state.</summary>
 public static class DatabaseBackupCommandValidation
 {
-    /// <summary>Checks the common request and every command-specific backup requirement.</summary>
-    public static TErrors ValidateBackupCommand<TErrors>(this TErrors errors, IDatabaseBackupCommand command)
+
+    extension<TErrors>(TErrors errors)
         where TErrors : class, ICollection<ValidationError>
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(errors);
-        errors.ValidateBackupRequest(command.Request);
-        Check(command.RequiredDestinations is not null && command.RequiredDestinations.Length <= DatabaseBackupContractLimits.MaximumCollectionCount, "RequiredDestinations exceeds its collection bound or is null.");
-        Check(command.ExpectedPolicyRevision >= 0, "ExpectedPolicyRevision cannot be negative.");
-        Check(command.ExpectedStateRevision >= 0, "ExpectedStateRevision cannot be negative.");
-        Check(command.ExpectedManifestRevision >= 0, "ExpectedManifestRevision cannot be negative.");
-        Check(command.Source == BackupSource.None || IsConcrete(command.Source), "Source must be a concrete supported backup source.");
-        Check(Enum.IsDefined(command.ConsistencyMode), "ConsistencyMode is invalid.");
-        Check(Enum.IsDefined(command.RestoreClass), "RestoreClass is invalid.");
-        Check(Enum.IsDefined(command.RequestedBackupMode), "RequestedBackupMode is invalid.");
-        ValidateCommandSpecific(command, errors, Check);
-
-        if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
-            Check(false, "Subject.EntityId must match EntityId.");
-        return errors;
-        void Check(bool valid, string message)
+        /// <summary>Checks the common request and every command-specific backup requirement.</summary>
+        public TErrors ValidateBackupCommand(IDatabaseBackupCommand command)
         {
-            if (!valid)
-                errors.Add(new($"{command.CommandName}: {message}"));
-        }
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(errors);
+            errors.ValidateBackupRequest(command.Request);
+            Check(command.RequiredDestinations is not null && command.RequiredDestinations.Length <= DatabaseBackupContractLimits.MaximumCollectionCount, "RequiredDestinations exceeds its collection bound or is null.");
+            Check(command.ExpectedPolicyRevision >= 0, "ExpectedPolicyRevision cannot be negative.");
+            Check(command.ExpectedStateRevision >= 0, "ExpectedStateRevision cannot be negative.");
+            Check(command.ExpectedManifestRevision >= 0, "ExpectedManifestRevision cannot be negative.");
+            Check(command.Source == BackupSource.None || IsConcrete(command.Source), "Source must be a concrete supported backup source.");
+            Check(Enum.IsDefined(command.ConsistencyMode), "ConsistencyMode is invalid.");
+            Check(Enum.IsDefined(command.RestoreClass), "RestoreClass is invalid.");
+            Check(Enum.IsDefined(command.RequestedBackupMode), "RequestedBackupMode is invalid.");
+            ValidateCommandSpecific(command, errors, Check);
 
-
-    }
-
-    /// <summary>Checks sourced internal callbacks and optional lineage without throwing.</summary>
-    public static TErrors ValidateBackupCommand<TErrors>(this TErrors errors, DatabaseBackupInternalCommand command)
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(errors);
-        errors.ValidateBackupSource(command.Source);
-        Check(command.Source is not null && command.EntityId == command.Source.OperationId, "EntityId must match Source.OperationId.");
-        Check(command.ProgressPercent is >= 0 and <= 100, "ProgressPercent must be between 0 and 100.");
-        Check(IsSafeText(command.SafeDiagnosticReference, DatabaseBackupContractLimits.DiagnosticReferenceLength, false), "SafeDiagnosticReference is invalid.");
-        Check(Enum.IsDefined(command.VerificationLevel), "VerificationLevel is invalid.");
-        Check(Enum.IsDefined(command.Outcome), "Outcome is invalid.");
-        Check(Enum.IsDefined(command.ErrorClassification), "ErrorClassification is invalid.");
-        Check(Enum.IsDefined(command.CutoverState), "CutoverState is invalid.");
-        Check(Enum.IsDefined(command.CapabilityState), "CapabilityState is invalid.");
-        Check(Enum.IsDefined(command.RestoreClass), "RestoreClass is invalid.");
-        Check(command.EvaluationBoundaryUtc == default || command.EvaluationBoundaryUtc.Offset == TimeSpan.Zero, "EvaluationBoundaryUtc must be UTC.");
-        Check(command.ManifestRevision >= 0, "ManifestRevision cannot be negative.");
-        if (command.BackupLineage is { } lineage)
-        {
-            Check(Enum.IsDefined(lineage.RequestedMode), "BackupLineage.RequestedMode is invalid.");
-            Check(Enum.IsDefined(lineage.ResolvedMode), "BackupLineage.ResolvedMode is invalid.");
-            Check(Enum.IsDefined(lineage.NativeKind), "BackupLineage.NativeKind is invalid.");
-            Check(lineage.ChainDepth >= 0, "BackupLineage.ChainDepth cannot be negative.");
-            if (lineage.ResolvedMode == DatabaseBackupMode.Full)
+            if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
+                Check(false, "Subject.EntityId must match EntityId.");
+            return errors;
+            void Check(bool valid, string message)
             {
-                Check(lineage.ParentRestorePointId is null && lineage.ChainDepth == 0, "Full backup cannot have a parent or non-zero ChainDepth.");
-                Check(lineage.NativeKind is not (DatabaseNativeBackupKind.PostgreSqlIncremental or DatabaseNativeBackupKind.ScyllaManagerDeduplicatedSnapshot), "Full backup cannot use an incremental native kind.");
+                if (!valid)
+                    errors.Add(new($"{command.CommandName}: {message}"));
             }
 
-            if (lineage.ResolvedMode == DatabaseBackupMode.Incremental)
-            {
-                Check(lineage.BaseRestorePointId is not null && lineage.ParentRestorePointId is not null && lineage.ChainDepth > 0, "Incremental backup requires base, parent and ChainDepth.");
-                Check(lineage.NativeKind is DatabaseNativeBackupKind.PostgreSqlIncremental or DatabaseNativeBackupKind.ScyllaManagerDeduplicatedSnapshot, "Incremental backup requires an incremental native kind.");
-            }
 
-            Check(IsSafeText(lineage.NativeIdentity, required: false), "BackupLineage.NativeIdentity is invalid.");
         }
 
-        if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
-            Check(false, "Subject.EntityId must match EntityId.");
-        return errors;
-        void Check(bool valid, string message)
+        /// <summary>Checks sourced internal callbacks and optional lineage without throwing.</summary>
+        public TErrors ValidateBackupCommand(DatabaseBackupInternalCommand command)
         {
-            if (!valid)
-                errors.Add(new($"{command.CommandName}: {message}"));
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(errors);
+            errors.ValidateBackupSource(command.Source);
+            Check(command.Source is not null && command.EntityId == command.Source.OperationId, "EntityId must match Source.OperationId.");
+            Check(command.ProgressPercent is >= 0 and <= 100, "ProgressPercent must be between 0 and 100.");
+            Check(IsSafeText(command.SafeDiagnosticReference, DatabaseBackupContractLimits.DiagnosticReferenceLength, false), "SafeDiagnosticReference is invalid.");
+            Check(Enum.IsDefined(command.VerificationLevel), "VerificationLevel is invalid.");
+            Check(Enum.IsDefined(command.Outcome), "Outcome is invalid.");
+            Check(Enum.IsDefined(command.ErrorClassification), "ErrorClassification is invalid.");
+            Check(Enum.IsDefined(command.CutoverState), "CutoverState is invalid.");
+            Check(Enum.IsDefined(command.CapabilityState), "CapabilityState is invalid.");
+            Check(Enum.IsDefined(command.RestoreClass), "RestoreClass is invalid.");
+            Check(command.EvaluationBoundaryUtc == default || command.EvaluationBoundaryUtc.Offset == TimeSpan.Zero, "EvaluationBoundaryUtc must be UTC.");
+            Check(command.ManifestRevision >= 0, "ManifestRevision cannot be negative.");
+            if (command.BackupLineage is { } lineage)
+            {
+                Check(Enum.IsDefined(lineage.RequestedMode), "BackupLineage.RequestedMode is invalid.");
+                Check(Enum.IsDefined(lineage.ResolvedMode), "BackupLineage.ResolvedMode is invalid.");
+                Check(Enum.IsDefined(lineage.NativeKind), "BackupLineage.NativeKind is invalid.");
+                Check(lineage.ChainDepth >= 0, "BackupLineage.ChainDepth cannot be negative.");
+                if (lineage.ResolvedMode == DatabaseBackupMode.Full)
+                {
+                    Check(lineage.ParentRestorePointId is null && lineage.ChainDepth == 0, "Full backup cannot have a parent or non-zero ChainDepth.");
+                    Check(lineage.NativeKind is not (DatabaseNativeBackupKind.PostgreSqlIncremental or DatabaseNativeBackupKind.ScyllaManagerDeduplicatedSnapshot), "Full backup cannot use an incremental native kind.");
+                }
+
+                if (lineage.ResolvedMode == DatabaseBackupMode.Incremental)
+                {
+                    Check(lineage.BaseRestorePointId is not null && lineage.ParentRestorePointId is not null && lineage.ChainDepth > 0, "Incremental backup requires base, parent and ChainDepth.");
+                    Check(lineage.NativeKind is DatabaseNativeBackupKind.PostgreSqlIncremental or DatabaseNativeBackupKind.ScyllaManagerDeduplicatedSnapshot, "Incremental backup requires an incremental native kind.");
+                }
+
+                Check(IsSafeText(lineage.NativeIdentity, required: false), "BackupLineage.NativeIdentity is invalid.");
+            }
+
+            if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
+                Check(false, "Subject.EntityId must match EntityId.");
+            return errors;
+            void Check(bool valid, string message)
+            {
+                if (!valid)
+                    errors.Add(new($"{command.CommandName}: {message}"));
+            }
         }
     }
 
@@ -149,22 +152,22 @@ public static class DatabaseBackupCommandValidation
     /// <summary>Requires the concrete source and named protection set for data acquisition or recovery requests.</summary>
     static void RequireSourceAndProtectionSet(IDatabaseBackupCommand command, Action<bool, string> Check)
     {
-            Check(IsConcrete(command.Source), "A concrete Source is required.");
-            Check(command.ProtectionSetId is { } id && IsIdentifier(id.Value), "ProtectionSetId is required.");
+        Check(IsConcrete(command.Source), "A concrete Source is required.");
+        Check(command.ProtectionSetId is { } id && IsIdentifier(id.Value), "ProtectionSetId is required.");
     }
 
     /// <summary>Requires an identified restore point, fresh target and explicit restore class.</summary>
     static void ValidateRestore(IDatabaseBackupCommand command, Action<bool, string> Check)
     {
-                Check(command.RestorePointId is not null, "RestorePointId is required.");
-                Check(command.FreshTarget is not null, "FreshTarget is required.");
-                if (command.FreshTarget is { } target)
-                {
-                    Check(IsIdentifier(target.Profile), "FreshTarget.Profile must be a valid identifier.");
-                    Check(IsIdentifier(target.LogicalTarget), "FreshTarget.LogicalTarget must be a valid identifier.");
-                }
+        Check(command.RestorePointId is not null, "RestorePointId is required.");
+        Check(command.FreshTarget is not null, "FreshTarget is required.");
+        if (command.FreshTarget is { } target)
+        {
+            Check(IsIdentifier(target.Profile), "FreshTarget.Profile must be a valid identifier.");
+            Check(IsIdentifier(target.LogicalTarget), "FreshTarget.LogicalTarget must be a valid identifier.");
+        }
 
-                Check(command.RestoreClass != DatabaseRestoreClass.None, "RestoreClass is required.");
+        Check(command.RestoreClass != DatabaseRestoreClass.None, "RestoreClass is required.");
     }
 
     private static void ValidatePolicy(ICollection<ValidationError> errors, DatabaseBackupPolicyDefinition? policy)

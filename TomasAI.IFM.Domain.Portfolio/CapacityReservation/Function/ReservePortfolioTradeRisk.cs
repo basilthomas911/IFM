@@ -10,14 +10,18 @@ namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function;
 /// <summary>Authorizes execution and maps a candidate; only the transactional repository can produce the committed receipt.</summary>
 public static class ReservePortfolioTradeRisk
 {
-    /// <summary>Validates the reservation request and dispatches its candidate completion for transactional commitment.</summary>
-    public static ValueTask<FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>> ExecuteAsync(this ReservePortfolioTradeRiskCommand request, ICapacityReservationFunctionContext context,
-        Func<FunctionEventContext<ReservePortfolioTradeRiskCommand>, FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>> dispatch, CancellationToken token)
+
+    extension(ReservePortfolioTradeRiskCommand request)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dispatch);
-        token.ThrowIfCancellationRequested();
-        FinancialRequestValidation.Demand(request, "CapacityReserve", context.TimeProvider.GetUtcNow().UtcDateTime);
-        return ValueTask.FromResult(dispatch(new(typeof(CapacityReservationCompletedEvent), request, new CapacityReservationReceipt())));
+        /// <summary>Validates the reservation request and dispatches its candidate completion for transactional commitment.</summary>
+        public ValueTask<FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>> ExecuteAsync(ICapacityReservationFunctionContext context,
+            Func<FunctionEventContext<ReservePortfolioTradeRiskCommand>, FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>> dispatch, CancellationToken token)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dispatch);
+            token.ThrowIfCancellationRequested();
+            FinancialRequestValidation.Demand(request, "CapacityReserve", context.TimeProvider.GetUtcNow().UtcDateTime);
+            return ValueTask.FromResult(dispatch(new(typeof(CapacityReservationCompletedEvent), request, new CapacityReservationReceipt())));
+        }
     }
 }

@@ -28,33 +28,35 @@ public static class FuturesTradeSessionBarSignalRealtimeExtensions
         public ILogger<FuturesTradeSessionBarSignalRealtimeActor> Logger => context.DomainContext.Logger;
     }
 
-    /// <summary>Validates and submits one completed bar without throwing for expected rejection.</summary>
-    public static async ValueTask<ServiceResult<GuidResult>> PublishFuturesTradeSessionBarAsync(
-        this IEventActorContext context,
-        FuturesTradeSessionBarReadModel bar)
+    extension(IEventActorContext context)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(bar);
-        var entityId = new FuturesTradeSessionBarEntityId(bar.MarketSeriesIdentity, bar.TimeFrame);
-        var command = new PublishFuturesTradeSessionBarCommand
+        /// <summary>Validates and submits one completed bar without throwing for expected rejection.</summary>
+        public async ValueTask<ServiceResult<GuidResult>> PublishFuturesTradeSessionBarAsync(
+            FuturesTradeSessionBarReadModel bar)
         {
-            CommandId = Guid.NewGuid(),
-            Subject = new(
-                ActorType.Command,
-                PublishFuturesTradeSessionBarCommand.Actor,
-                PublishFuturesTradeSessionBarCommand.Verb,
-                entityId.Format()),
-            EntityId = entityId,
-            Bar = bar
-        };
-        var errors = new List<TomasAI.IFM.Shared.Validation.ValidationError>()
-            .ValidatePublishBar(command);
-        if (errors.Count != 0)
-            return new ServiceFailed<GuidResult>(command.ErrorCode,
-                string.Join("; ", errors.Select(error => $"{error.ErrorCode}: {error.ErrorMessage}")));
-        var result = await context.RequestAsync<PublishFuturesTradeSessionBarCommand,
-            FuturesTradeSessionBarEntityId>(command).ConfigureAwait(false);
-        return result ?? new ServiceFailed<GuidResult>(command.ErrorCode,
-            "BAR.NO_RESULT;Bar publication command returned no result.");
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(bar);
+            var entityId = new FuturesTradeSessionBarEntityId(bar.MarketSeriesIdentity, bar.TimeFrame);
+            var command = new PublishFuturesTradeSessionBarCommand
+            {
+                CommandId = Guid.NewGuid(),
+                Subject = new(
+                    ActorType.Command,
+                    PublishFuturesTradeSessionBarCommand.Actor,
+                    PublishFuturesTradeSessionBarCommand.Verb,
+                    entityId.Format()),
+                EntityId = entityId,
+                Bar = bar
+            };
+            var errors = new List<TomasAI.IFM.Shared.Validation.ValidationError>()
+                .ValidatePublishBar(command);
+            if (errors.Count != 0)
+                return new ServiceFailed<GuidResult>(command.ErrorCode,
+                    string.Join("; ", errors.Select(error => $"{error.ErrorCode}: {error.ErrorMessage}")));
+            var result = await context.RequestAsync<PublishFuturesTradeSessionBarCommand,
+                FuturesTradeSessionBarEntityId>(command).ConfigureAwait(false);
+            return result ?? new ServiceFailed<GuidResult>(command.ErrorCode,
+                "BAR.NO_RESULT;Bar publication command returned no result.");
+        }
     }
 }

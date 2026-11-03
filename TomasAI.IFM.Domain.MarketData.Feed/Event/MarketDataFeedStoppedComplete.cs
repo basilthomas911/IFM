@@ -15,31 +15,35 @@ public static class MarketDataFeedStoppedComplete
         ServiceId = $"{LogSourceType.MarketDataFeedEvent}";
     }
 
-    static string ServiceId { get; } 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="e"></param>
-    /// <param name="statusConsoleWriter"></param>
-    /// <param name="logger"></param>
-    /// <returns></returns>
-    public static async ValueTask<bool> ExecuteAsync(
-        this MarketDataFeedStoppedCompleteEvent e, IEventActorContext context, MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
+    static string ServiceId { get; }
+
+    extension(MarketDataFeedStoppedCompleteEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(p);
-        var source = $"MarketDataFeedStoppedCompleteEvent for EntityId: {e.EntityId}";
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
+                                                                                                                                                                                                                                         ///
+                                                                                                                                                                                                                                         /// </summary>
+                                                                                                                                                                                                                                         /// <param name="e"></param>
+                                                                                                                                                                                                                                         /// <param name="statusConsoleWriter"></param>
+                                                                                                                                                                                                                                         /// <param name="logger"></param>
+                                                                                                                                                                                                                                         /// <returns></returns>
+        public async ValueTask<bool> ExecuteAsync(
+        IEventActorContext context, MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
         {
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Futures bar data streaming stopped")).ConfigureAwait(false);
-            logger.LogInformationEvent(ServiceId, "{Source}: futures bar data streaming stopped", source);
-            return true;
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(p);
+            var source = $"MarketDataFeedStoppedCompleteEvent for EntityId: {e.EntityId}";
+            try
+            {
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Futures bar data streaming stopped")).ConfigureAwait(false);
+                logger.LogInformationEvent(ServiceId, "{Source}: futures bar data streaming stopped", source);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.LogErrorEvent(ServiceId, ex, "{Source}: stopping futures bar data feed failed", source);
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStoppedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
+            }
+            return false;
         }
-        catch (Exception ex)
-        {
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: stopping futures bar data feed failed", source);
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStoppedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
-        }
-        return false;
     }
 }

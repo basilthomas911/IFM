@@ -8,10 +8,13 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Position.Workflow.RiskManager.Functio
 
 public static class CompletePositionExitRisk
 {
-    public static FunctionResult<PositionExitRiskCompletedEvent, ExitPositionWorkflowFailedEvent>
-        Complete(
-            this FunctionEventContext<EvaluatePositionExitRiskCommand> input,
-            TimeProvider clock) =>
-        StrategyExitFunctionEventMapping.CompleteRisk(
-            input, FuturesPositionExitRiskFunctionActor.ActorName, clock);
+
+    extension(FunctionEventContext<EvaluatePositionExitRiskCommand> input)
+    {
+        public FunctionResult<PositionExitRiskCompletedEvent, ExitPositionWorkflowFailedEvent>
+            Complete(
+                TimeProvider clock) =>
+            StrategyExitFunctionEventMapping.CompleteRisk(
+                input, FuturesPositionExitRiskFunctionActor.ActorName, clock);
+    }
 }

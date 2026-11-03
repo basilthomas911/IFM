@@ -7,74 +7,75 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.Vali
 /// <summary>Checks live and recovery VWAP command payloads before calculation.</summary>
 public static class FuturesVwapSignalCommandValidation
 {
-    /// <summary>Checks a live trade against its VWAP stream.</summary>
-    public static TErrors ValidateLiveInputs<TErrors>(
-        this TErrors errors, UpdateFuturesVwapSignalCommand command)
 
+    extension<TErrors>(TErrors errors)
         where TErrors : class, ICollection<ValidationError>
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(errors);
-        ValidateConfiguration(errors, command.EntityId, command.Subject.EntityId, command.Configuration);
-        if (command.SourceCheckpoint is { } source)
+        /// <summary>Checks a live trade against its VWAP stream.</summary>
+        public TErrors ValidateLiveInputs(
+        UpdateFuturesVwapSignalCommand command)
         {
-            if (source.Version != 1 || source.StreamEpochId == Guid.Empty
-                || !source.IsReplayComplete || source.LastTradeOrdinal < 0
-                || source.AsOfUtc.Offset != TimeSpan.Zero
-                || command.SessionStartUtc.Offset != TimeSpan.Zero
-                || command.SessionEndUtc.Offset != TimeSpan.Zero
-                || command.SessionStartUtc >= command.SessionEndUtc
-                || source.AsOfUtc < command.SessionStartUtc
-                || source.AsOfUtc > command.SessionEndUtc)
-                errors.Add(new("VWAP.CHECKPOINT", "VWAP source checkpoint is invalid."));
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(errors);
+            ValidateConfiguration(errors, command.EntityId, command.Subject.EntityId, command.Configuration);
+            if (command.SourceCheckpoint is { } source)
+            {
+                if (source.Version != 1 || source.StreamEpochId == Guid.Empty
+                    || !source.IsReplayComplete || source.LastTradeOrdinal < 0
+                    || source.AsOfUtc.Offset != TimeSpan.Zero
+                    || command.SessionStartUtc.Offset != TimeSpan.Zero
+                    || command.SessionEndUtc.Offset != TimeSpan.Zero
+                    || command.SessionStartUtc >= command.SessionEndUtc
+                    || source.AsOfUtc < command.SessionStartUtc
+                    || source.AsOfUtc > command.SessionEndUtc)
+                    errors.Add(new("VWAP.CHECKPOINT", "VWAP source checkpoint is invalid."));
+            }
+            else ValidateTrade(errors, command.EntityId, command.Observation, true);
+            return errors;
         }
-        else ValidateTrade(errors, command.EntityId, command.Observation, true);
-        return errors;
+
+        /// <summary>Checks bounded recovery identity, order, and trade payloads.</summary>
+        public TErrors ValidateRecoveryInputs(
+        RecoverFuturesVwapSignalCommand command)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(errors);
+            ValidateConfiguration(errors, command.EntityId, command.Subject.EntityId, command.Configuration);
+            if (command.RecoveryGenerationId == Guid.Empty || command.BatchOrdinal < 0
+                || (command.IsFirstBatch && command.BatchOrdinal != 0))
+                errors.Add(new("VWAP.RECOVERY.LINEAGE", "Recovery generation and batch ordinal are invalid."));
+            if (command.LiveTradeOrdinal < 0
+                || command.LiveStreamEpochId == Guid.Empty && command.LiveTradeOrdinal != 0
+                || !command.IsFinalBatch
+                    && (command.LiveStreamEpochId != Guid.Empty || command.LiveTradeOrdinal != 0))
+                errors.Add(new("VWAP.RECOVERY.HANDOFF",
+                    "A live stream handoff must be nonnegative and may appear only on a final batch."));
+            if (command.Trades is null || command.Trades.Length > 4096)
+                errors.Add(new("VWAP.RECOVERY.SIZE", "A recovery batch must contain at most 4096 trades."));
+            else
+                foreach (var trade in command.Trades)
+                    ValidateTrade(errors, command.EntityId, trade, false);
+            return errors;
+        }
     }
 
-    /// <summary>Checks bounded recovery identity, order, and trade payloads.</summary>
-    public static TErrors ValidateRecoveryInputs<TErrors>(
-        this TErrors errors, RecoverFuturesVwapSignalCommand command)
-
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(errors);
-        ValidateConfiguration(errors, command.EntityId, command.Subject.EntityId, command.Configuration);
-        if (command.RecoveryGenerationId == Guid.Empty || command.BatchOrdinal < 0
-            || (command.IsFirstBatch && command.BatchOrdinal != 0))
-            errors.Add(new("VWAP.RECOVERY.LINEAGE", "Recovery generation and batch ordinal are invalid."));
-        if (command.LiveTradeOrdinal < 0
-            || command.LiveStreamEpochId == Guid.Empty && command.LiveTradeOrdinal != 0
-            || !command.IsFinalBatch
-                && (command.LiveStreamEpochId != Guid.Empty || command.LiveTradeOrdinal != 0))
-            errors.Add(new("VWAP.RECOVERY.HANDOFF",
-                "A live stream handoff must be nonnegative and may appear only on a final batch."));
-        if (command.Trades is null || command.Trades.Length > 4096)
-            errors.Add(new("VWAP.RECOVERY.SIZE", "A recovery batch must contain at most 4096 trades."));
-        else
-            foreach (var trade in command.Trades)
-                ValidateTrade(errors, command.EntityId, trade, false);
-        return errors;
-    }
-
-    static void ValidateConfiguration(ICollection<ValidationError> errors,        FuturesVwapSignalEntityId entityId,string routedId,FuturesVwapConfiguration? configuration)
+    static void ValidateConfiguration(ICollection<ValidationError> errors, FuturesVwapSignalEntityId entityId, string routedId, FuturesVwapConfiguration? configuration)
     {
         if (configuration is null || string.IsNullOrWhiteSpace(configuration.ConfigurationId)
-            || !string.Equals(entityId.ConfigurationId,configuration.ConfigurationId,StringComparison.Ordinal))
+            || !string.Equals(entityId.ConfigurationId, configuration.ConfigurationId, StringComparison.Ordinal))
             errors.Add(new("VWAP.CONFIG", "Configuration must match the VWAP stream."));
-        if (!string.Equals(routedId,entityId.Format(),StringComparison.Ordinal))
+        if (!string.Equals(routedId, entityId.Format(), StringComparison.Ordinal))
             errors.Add(new("VWAP.ROUTE", "Command routing identity must match the VWAP stream."));
     }
 
-    static void ValidateTrade(ICollection<ValidationError> errors,FuturesVwapSignalEntityId entityId,        FuturesVwapTradeObservation? trade,bool live)
+    static void ValidateTrade(ICollection<ValidationError> errors, FuturesVwapSignalEntityId entityId, FuturesVwapTradeObservation? trade, bool live)
     {
         if (trade is null)
         {
             errors.Add(new("VWAP.TRADE.NULL", "A futures trade observation is required."));
             return;
         }
-        if (!string.Equals(trade.ContractId,entityId.ContractId,StringComparison.Ordinal) || trade.ValueDate != entityId.ValueDate)
+        if (!string.Equals(trade.ContractId, entityId.ContractId, StringComparison.Ordinal) || trade.ValueDate != entityId.ValueDate)
             errors.Add(new("VWAP.TRADE.IDENTITY", "Trade contract and value date must match the VWAP stream."));
         if (trade.EventTimestampUtc.Offset != TimeSpan.Zero
             || trade.SessionStartUtc.Offset != TimeSpan.Zero

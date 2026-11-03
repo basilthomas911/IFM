@@ -6,11 +6,15 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime;
 /// <summary>Projects one normalized quote change through the realtime projector.</summary>
 public static class FuturesTickQuoteDataChanged
 {
-    /// <summary>Converts and submits the normalized observation.</summary>
-    public static async ValueTask ExecuteAsync(this FuturesTickQuoteDataChangedEvent domainEvent, ITickAggregationRealtimeContext context)
+
+    extension(FuturesTickQuoteDataChangedEvent domainEvent)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(domainEvent);
-        _ = await context.Projector.ProcessRealtimeEventAsync(domainEvent.ToInsertedEvent()).ConfigureAwait(false);
+        /// <summary>Converts and submits the normalized observation.</summary>
+        public async ValueTask ExecuteAsync(ITickAggregationRealtimeContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(domainEvent);
+            _ = await context.Projector.ProcessRealtimeEventAsync(domainEvent.ToInsertedEvent()).ConfigureAwait(false);
+        }
     }
 }

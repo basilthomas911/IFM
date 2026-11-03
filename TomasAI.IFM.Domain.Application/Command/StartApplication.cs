@@ -9,28 +9,35 @@ namespace TomasAI.IFM.Domain.Application.Command;
 internal static class StartApplication
 {
 
-    /// <summary>
-    /// Handle a <see cref="StartApplicationCommand"/> by building the corresponding
-    /// <see cref="ApplicationStartupEvent"/> and updating the actor state.
-    /// </summary>
-    /// <param name="e">The start command to execute.</param>
-    /// <param name="state">The current actor command state to update.</param>
-    /// <returns>The standard command service result containing the command identity.</returns>
-    public static ServiceResult<GuidResult> Execute(this StartApplicationCommand e, ApplicationCommandState state)
-        => e.UpdateResult(() => state.Update(e.CreateApplicationStartupEvent(), e));
+    /// <param name="e">
+    /// The start command to execute.
+    /// The command containing the application startup details.
+    /// </param>
+    extension(StartApplicationCommand e)
+    {
+        /// <summary>
+        /// Handle a <see cref="StartApplicationCommand"/> by building the corresponding
+        /// <see cref="ApplicationStartupEvent"/> and updating the actor state.
+        /// </summary>
+        ///
+        /// <param name="state">The current actor command state to update.</param>
+        /// <returns>The standard command service result containing the command identity.</returns>
+        public ServiceResult<GuidResult> Execute(ApplicationCommandState state)
+            => e.UpdateResult(() => state.Update(e.CreateApplicationStartupEvent(), e));
 
-    /// <summary>
-    /// Creates an <see cref="ApplicationStartupEvent"/> from a <see cref="StartApplicationCommand"/>.
-    /// </summary>
-    /// <param name="e">The command containing the application startup details.</param>
-    /// <returns>A fully populated <see cref="ApplicationStartupEvent"/>.</returns>
-    static ApplicationStartupEvent CreateApplicationStartupEvent(this StartApplicationCommand e)
-        => new()
-        {
-            CommandId = e.CommandId,
-            Subject = new ActorSubject(ActorType.Event, ApplicationStartupEvent.Actor, ApplicationStartupEvent.Verb, e.EntityId.Format()),
-            EntityId = e.EntityId,
-            CreatedOn = e.OriginatedOn,
-            CreatedBy = e.OriginatedBy
-        };
+        /// <summary>
+        /// Creates an <see cref="ApplicationStartupEvent"/> from a <see cref="StartApplicationCommand"/>.
+        /// </summary>
+        ///
+        /// <returns>A fully populated <see cref="ApplicationStartupEvent"/>.</returns>
+        ApplicationStartupEvent CreateApplicationStartupEvent()
+            => new()
+            {
+                CommandId = e.CommandId,
+                Subject = new ActorSubject(ActorType.Event, ApplicationStartupEvent.Actor, ApplicationStartupEvent.Verb, e.EntityId.Format()),
+                EntityId = e.EntityId,
+                CreatedOn = e.OriginatedOn,
+                CreatedBy = e.OriginatedBy
+            };
+    }
 }

@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 
     public static class StreamingParameterTypeExtensions
     {
-        public static string ToStringFast(this StreamingParameterType value) => value switch
+
+        extension(StreamingParameterType value)
         {
-            StreamingParameterType.FuturesTickData => nameof(StreamingParameterType.FuturesTickData),
-            StreamingParameterType.FuturesOptionTickData => nameof(StreamingParameterType.FuturesOptionTickData),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                StreamingParameterType.FuturesTickData => nameof(StreamingParameterType.FuturesTickData),
+                StreamingParameterType.FuturesOptionTickData => nameof(StreamingParameterType.FuturesOptionTickData),
+                _ => value.ToString()
+            };
+        }
     }
 }

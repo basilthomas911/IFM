@@ -18,48 +18,53 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query;
 
 public static class GetFuturesItiSignalData
 {
-    /// <summary>
-    /// Handles the GetFuturesItiSignalDataQuery by retrieving the last Futures ITI signal data for a given contract and value date from the database, and replies with the result.
-    /// </summary>
-    /// <param name="q">The query for retrieving Futures ITI signal data.</param>
-    /// <param name="dbFactory">The factory for creating database contexts.</param>
-    /// <param name="context">The query actor context for replying to the query.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    internal static async ValueTask<FuturesItiSignalDataReadModel> GetFuturesItiSignalDataAsync(
-        this GetFuturesItiSignalDataQuery q,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-    {
-        var db = dbFactory.MarketDataDb;
-        var trendDirectionTask = db.GetLastFuturesItiSignalTrendDirectionChangeAsync(
-                q.ContractId, q.ValueDate, cancellationToken);
-        var trendExtremeTask = db.GetLastFuturesItiSignalTrendExtremeChangeAsync(
-                q.ContractId, q.ValueDate, cancellationToken);
-        var trendReversalTask = db.GetLastFuturesItiSignalTrendReversalChangeAsync(
-                q.ContractId, q.ValueDate, cancellationToken);
-        await Task.WhenAll(trendDirectionTask, trendExtremeTask, trendReversalTask)
-            .ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        return new FuturesItiSignalDataReadModel(
-            trendDirectionChange: await trendDirectionTask.ConfigureAwait(false),
-            trendExtremeChange: await trendExtremeTask.ConfigureAwait(false),
-            trendReversalChange: await trendReversalTask.ConfigureAwait(false));
-    }
 
-    /// <summary>Reads and replies to the GetFuturesItiSignalDataQuery message.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesItiSignalDataQuery q,
-        IQueryActorContext<FuturesItiSignalQueryActor> ctx,
-        IDbContextFactory db,
-        CancellationToken cancellationToken)
+    /// <param name="q">
+    /// The query for retrieving Futures ITI signal data.
+    /// </param>
+    extension(GetFuturesItiSignalDataQuery q)
     {
-        ArgumentNullException.ThrowIfNull(ctx);
-        ArgumentNullException.ThrowIfNull(db);
-        ArgumentNullException.ThrowIfNull(q);
-        var query = q;
-        var result = await query.GetFuturesItiSignalDataAsync(db, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalDataQuery.Verb,
-            new ServiceResult<FuturesItiSignalDataReadModel>(result)).ConfigureAwait(false);
+        /// <summary>
+        /// Handles the GetFuturesItiSignalDataQuery by retrieving the last Futures ITI signal data for a given contract and value date from the database, and replies with the result.
+        /// </summary>
+        ///
+        /// <param name="dbFactory">The factory for creating database contexts.</param>
+        /// <param name="context">The query actor context for replying to the query.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        internal async ValueTask<FuturesItiSignalDataReadModel> GetFuturesItiSignalDataAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+        {
+            var db = dbFactory.MarketDataDb;
+            var trendDirectionTask = db.GetLastFuturesItiSignalTrendDirectionChangeAsync(
+                    q.ContractId, q.ValueDate, cancellationToken);
+            var trendExtremeTask = db.GetLastFuturesItiSignalTrendExtremeChangeAsync(
+                    q.ContractId, q.ValueDate, cancellationToken);
+            var trendReversalTask = db.GetLastFuturesItiSignalTrendReversalChangeAsync(
+                    q.ContractId, q.ValueDate, cancellationToken);
+            await Task.WhenAll(trendDirectionTask, trendExtremeTask, trendReversalTask)
+                .ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return new FuturesItiSignalDataReadModel(
+                trendDirectionChange: await trendDirectionTask.ConfigureAwait(false),
+                trendExtremeChange: await trendExtremeTask.ConfigureAwait(false),
+                trendReversalChange: await trendReversalTask.ConfigureAwait(false));
+        }
+
+        /// <summary>Reads and replies to the GetFuturesItiSignalDataQuery message.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesItiSignalQueryActor> ctx,
+            IDbContextFactory db,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(ctx);
+            ArgumentNullException.ThrowIfNull(db);
+            ArgumentNullException.ThrowIfNull(q);
+            var query = q;
+            var result = await query.GetFuturesItiSignalDataAsync(db, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalDataQuery.Verb,
+                new ServiceResult<FuturesItiSignalDataReadModel>(result)).ConfigureAwait(false);
+        }
     }
 }

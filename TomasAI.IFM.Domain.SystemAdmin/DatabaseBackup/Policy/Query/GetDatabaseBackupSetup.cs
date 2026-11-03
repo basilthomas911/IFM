@@ -8,11 +8,15 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Policy.Query;
 /// <summary>Reads safe host-published setup references without querying command state.</summary>
 public static class GetDatabaseBackupSetup
 {
-    /// <summary>Replies with configured host references or explicit unavailable metadata.</summary>
-    public static async ValueTask ExecuteAsync(this GetDatabaseBackupSetupQuery query, ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupPolicyQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetDatabaseBackupSetupQuery query)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        var metadata = (context as IDatabaseBackupPolicyQueryContext)?.OutputReader is { } reader ? await (reader.ReadSetupAsync(query.Source, cancellationToken)).ConfigureAwait(false) : new DatabaseBackupSetupReadModel();
-        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<DatabaseBackupSetupReadModel>(metadata))).ConfigureAwait(false);
+        /// <summary>Replies with configured host references or explicit unavailable metadata.</summary>
+        public async ValueTask ExecuteAsync(ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupPolicyQueryActor> context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(query);
+            var metadata = (context as IDatabaseBackupPolicyQueryContext)?.OutputReader is { } reader ? await (reader.ReadSetupAsync(query.Source, cancellationToken)).ConfigureAwait(false) : new DatabaseBackupSetupReadModel();
+            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<DatabaseBackupSetupReadModel>(metadata))).ConfigureAwait(false);
+        }
     }
 }

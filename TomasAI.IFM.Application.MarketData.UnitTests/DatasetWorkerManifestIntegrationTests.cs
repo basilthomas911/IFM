@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 /// <summary>Real synthetic-native child processes, not mocked manifest acknowledgments.</summary>
+[Collection(ProcessResourceQualificationCollection.Name)]
 public sealed class DatasetWorkerManifestIntegrationTests
 {
     [Fact]
@@ -339,7 +340,7 @@ public sealed class DatasetWorkerManifestIntegrationTests
     static DatasetWorkerStartRequest Request(DatasetSubscriptionManifest manifest) => new()
     {
         ExecutablePath = DotNetHost(),
-        PrefixArguments = ["exec", "--runtimeconfig", Path.ChangeExtension(typeof(DatasetWorkerManifestIntegrationTests).Assembly.Location, "runtimeconfig.json"), typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
+        PrefixArguments = [Harness.WorkerTestProcess.AssemblyPath],
         Dataset = manifest.Dataset,
         ValueDate = manifest.ValueDate,
         GenerationId = Guid.NewGuid(),

@@ -16,37 +16,41 @@ public static class FuturesRsiSignalGenerated
     {
         ServiceId = $"{LogSourceType.FuturesRsiSignalEvent}";
     }
-    static string ServiceId { get; } 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="e"> </param>
-    /// <param name="context"> </param>
-    /// <param name="statusConsoleWriter"></param>
-    /// <param name="logger"></param>
-    /// <param name="blackboardService"></param>
-    /// <returns></returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesRsiSignalGeneratedEvent e, IFuturesRsiSignalEventContext context, ILogger<FuturesRsiSignalEventActor> logger)
+    static string ServiceId { get; }
+
+    extension(FuturesRsiSignalGeneratedEvent e)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(e);
-        var source = $"FuturesRsiSignalGeneratedEvent for ContractId: {e.FuturesRsiSignal.ContractId}, ValueDate: {e.FuturesRsiSignal.ValueDate}";
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
+        /// <summary>
+        ///
+        /// </summary>
+        /// <param name="e"> </param>
+        /// <param name="context"> </param>
+        /// <param name="statusConsoleWriter"></param>
+        /// <param name="logger"></param>
+        /// <param name="blackboardService"></param>
+        /// <returns></returns>
+        public async ValueTask<bool> ExecuteAsync(IFuturesRsiSignalEventContext context, ILogger<FuturesRsiSignalEventActor> logger)
         {
-            if (e.FuturesRsiSignal is { IsWarm: true, RSI: >= 0d }
-                && e.FuturesRsiSignal.Metadata is { IsValid: true })
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(e);
+            var source = $"FuturesRsiSignalGeneratedEvent for ContractId: {e.FuturesRsiSignal.ContractId}, ValueDate: {e.FuturesRsiSignal.ValueDate}";
+            try
             {
-                context.BlackboardService.MarketDataAnalytics.FuturesRsiSignal.Set(
-                    e.EntityId,
-                    e.FuturesRsiSignal);
+                if (e.FuturesRsiSignal is { IsWarm: true, RSI: >= 0d }
+                    && e.FuturesRsiSignal.Metadata is { IsValid: true })
+                {
+                    context.BlackboardService.MarketDataAnalytics.FuturesRsiSignal.Set(
+                        e.EntityId,
+                        e.FuturesRsiSignal);
+                }
             }
+            catch (Exception ex)
+            {
+                logger.LogErrorEvent(ServiceId, ex, "{Source}:  event handler failed", source);
+                await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalsGeneratedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
+            }
+            return false;
         }
-        catch (Exception ex)
-        {
-            logger.LogErrorEvent(ServiceId, ex, "{Source}:  event handler failed", source);
-            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalsGeneratedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
-        }
-        return false;
     }
 }

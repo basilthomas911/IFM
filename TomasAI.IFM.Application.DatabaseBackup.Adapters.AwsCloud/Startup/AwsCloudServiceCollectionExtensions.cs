@@ -24,89 +24,92 @@ namespace TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Startup;
 
 public static class AwsCloudServiceCollectionExtensions
 {
-    public static IServiceCollection AddAwsCloudDatabaseBackup(
-        this IServiceCollection services,
-        AwsCloudDatabaseBackupOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(options);
-        options.Validate();
-        services.AddSingleton(options);
-        if (!options.Enabled) return services;
 
-        services.AddSingleton(TimeProvider.System);
-        services.AddSingleton(provider => new AwsCloudWatchMetricBuffer(options.CloudWatchMetricBufferCapacity));
-        services.AddSingleton(provider => new AwsDatabaseBackupTelemetry(
-            options.CloudWatchMetricsEnabled
-                ? provider.GetRequiredService<AwsCloudWatchMetricBuffer>()
-                : null));
-        services.AddSingleton<AWSCredentials>(_ => CreateCredentials(options));
-        services.AddSingleton<IAmazonSecurityTokenService>(provider => new AmazonSecurityTokenServiceClient(
-            provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonSecurityTokenServiceConfig>(options.PrimaryRegion, options)));
-        services.AddSingleton<IAmazonS3>(provider => new AmazonS3Client(
-            provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonS3Config>(options.PrimaryRegion, options)));
-        services.AddSingleton(provider =>
+    extension(IServiceCollection services)
+    {
+        public IServiceCollection AddAwsCloudDatabaseBackup(
+            AwsCloudDatabaseBackupOptions options)
         {
-            var source = provider.GetRequiredService<AWSCredentials>();
-            var recoveryCredentials = new AssumeRoleAWSCredentials(
-                source, options.RecoveryReadRoleArn, $"ifm-recovery-{Environment.ProcessId}",
-                new AssumeRoleAWSCredentialsOptions
-                {
-                    ExternalId = $"ifm-database-backup-{options.Environment.ToString().ToLowerInvariant()}"
-                });
-            return new AwsRecoveryVaultClient(new AmazonS3Client(
-                recoveryCredentials, ServiceConfig<AmazonS3Config>(options.RecoveryRegion, options)));
-        });
-        services.AddSingleton<IAmazonDynamoDB>(provider => new AmazonDynamoDBClient(
-            provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonDynamoDBConfig>(options.PrimaryRegion, options)));
-        services.AddSingleton<IAmazonKeyManagementService>(provider => new AmazonKeyManagementServiceClient(
-            provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonKeyManagementServiceConfig>(options.PrimaryRegion, options)));
-        if (options.CloudWatchMetricsEnabled)
-        {
-            services.AddSingleton<IAmazonCloudWatch>(provider => new AmazonCloudWatchClient(
-                provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonCloudWatchConfig>(options.PrimaryRegion, options)));
-            services.AddSingleton<AwsCloudWatchMetricExporter>();
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(options);
+            options.Validate();
+            services.AddSingleton(options);
+            if (!options.Enabled) return services;
+
+            services.AddSingleton(TimeProvider.System);
+            services.AddSingleton(provider => new AwsCloudWatchMetricBuffer(options.CloudWatchMetricBufferCapacity));
+            services.AddSingleton(provider => new AwsDatabaseBackupTelemetry(
+                options.CloudWatchMetricsEnabled
+                    ? provider.GetRequiredService<AwsCloudWatchMetricBuffer>()
+                    : null));
+            services.AddSingleton<AWSCredentials>(_ => CreateCredentials(options));
+            services.AddSingleton<IAmazonSecurityTokenService>(provider => new AmazonSecurityTokenServiceClient(
+                provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonSecurityTokenServiceConfig>(options.PrimaryRegion, options)));
+            services.AddSingleton<IAmazonS3>(provider => new AmazonS3Client(
+                provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonS3Config>(options.PrimaryRegion, options)));
+            services.AddSingleton(provider =>
+            {
+                var source = provider.GetRequiredService<AWSCredentials>();
+                var recoveryCredentials = new AssumeRoleAWSCredentials(
+                    source, options.RecoveryReadRoleArn, $"ifm-recovery-{Environment.ProcessId}",
+                    new AssumeRoleAWSCredentialsOptions
+                    {
+                        ExternalId = $"ifm-database-backup-{options.Environment.ToString().ToLowerInvariant()}"
+                    });
+                return new AwsRecoveryVaultClient(new AmazonS3Client(
+                    recoveryCredentials, ServiceConfig<AmazonS3Config>(options.RecoveryRegion, options)));
+            });
+            services.AddSingleton<IAmazonDynamoDB>(provider => new AmazonDynamoDBClient(
+                provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonDynamoDBConfig>(options.PrimaryRegion, options)));
+            services.AddSingleton<IAmazonKeyManagementService>(provider => new AmazonKeyManagementServiceClient(
+                provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonKeyManagementServiceConfig>(options.PrimaryRegion, options)));
+            if (options.CloudWatchMetricsEnabled)
+            {
+                services.AddSingleton<IAmazonCloudWatch>(provider => new AmazonCloudWatchClient(
+                    provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonCloudWatchConfig>(options.PrimaryRegion, options)));
+                services.AddSingleton<AwsCloudWatchMetricExporter>();
+            }
+            services.AddSingleton<IAwsIdentityPreflight, AwsIdentityPreflight>();
+            services.AddSingleton<AwsCredentialSessionInspector>();
+            services.AddSingleton<DynamoDbDatabaseBackupExecutionJournal>();
+            services.AddSingleton<TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Journal.IAwsDatabaseBackupExecutionJournal>(provider => provider.GetRequiredService<DynamoDbDatabaseBackupExecutionJournal>());
+            services.AddSingleton<DynamoDbMultipartCheckpointStore>();
+            services.AddSingleton<IAwsMultipartCheckpointStore>(static provider => provider.GetRequiredService<DynamoDbMultipartCheckpointStore>());
+            services.AddSingleton<KmsDocumentSignatureService>();
+            services.AddSingleton<IAwsDocumentSignatureService>(static provider => provider.GetRequiredService<KmsDocumentSignatureService>());
+            services.AddSingleton<S3ImmutableObjectStore>();
+            services.AddSingleton<S3DatabaseBackupCatalog>();
+            services.AddSingleton<AwsPostgreSqlWalArchive>();
+            services.AddSingleton<AwsPostgreSqlWalSpool>();
+            services.AddSingleton<S3DatabaseBackupPublicationCapability>();
+            services.AddSingleton<S3DatabaseRestoreSourceCapability>();
+            services.AddSingleton<AwsRecoverySourceQualificationService>();
+            services.AddSingleton<AwsRetentionPlanAuthorizationService>();
+            services.AddSingleton(provider =>
+            {
+                var source = provider.GetRequiredService<AWSCredentials>();
+                AWSCredentials deletion = string.IsNullOrWhiteSpace(options.RetentionExecutionRoleArn)
+                    ? source
+                    : new AssumeRoleAWSCredentials(source, options.RetentionExecutionRoleArn, $"ifm-retention-{Environment.ProcessId}");
+                return new AwsRetentionExecutionClients(
+                    new AmazonS3Client(deletion, ServiceConfig<AmazonS3Config>(options.PrimaryRegion, options)),
+                    new AmazonS3Client(deletion, ServiceConfig<AmazonS3Config>(options.RecoveryRegion, options)));
+            });
+            services.AddSingleton(provider =>
+            {
+                var source = provider.GetRequiredService<AWSCredentials>();
+                AWSCredentials read = string.IsNullOrWhiteSpace(options.RetentionReadRoleArn)
+                    ? source
+                    : new AssumeRoleAWSCredentials(source, options.RetentionReadRoleArn, $"ifm-retention-read-{Environment.ProcessId}");
+                return new AwsRetentionReadClient(new AmazonS3Client(read, ServiceConfig<AmazonS3Config>(options.PrimaryRegion, options)));
+            });
+            services.AddSingleton<AwsCloudRetentionCapability>();
+            services.AddSingleton<AwsRecoveryEvidenceStore>();
+            services.AddSingleton<AwsDatabaseRecoveryEngineSelector>();
+            services.AddSingleton<AwsCloudDatabaseRecoveryProcessor>();
+            services.AddSingleton<IDatabaseRecoveryProcessor>(provider => provider.GetRequiredService<AwsCloudDatabaseRecoveryProcessor>());
+            return services;
         }
-        services.AddSingleton<IAwsIdentityPreflight, AwsIdentityPreflight>();
-        services.AddSingleton<AwsCredentialSessionInspector>();
-        services.AddSingleton<DynamoDbDatabaseBackupExecutionJournal>();
-        services.AddSingleton<TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Journal.IAwsDatabaseBackupExecutionJournal>(provider => provider.GetRequiredService<DynamoDbDatabaseBackupExecutionJournal>());
-        services.AddSingleton<DynamoDbMultipartCheckpointStore>();
-        services.AddSingleton<IAwsMultipartCheckpointStore>(static provider => provider.GetRequiredService<DynamoDbMultipartCheckpointStore>());
-        services.AddSingleton<KmsDocumentSignatureService>();
-        services.AddSingleton<IAwsDocumentSignatureService>(static provider => provider.GetRequiredService<KmsDocumentSignatureService>());
-        services.AddSingleton<S3ImmutableObjectStore>();
-        services.AddSingleton<S3DatabaseBackupCatalog>();
-        services.AddSingleton<AwsPostgreSqlWalArchive>();
-        services.AddSingleton<AwsPostgreSqlWalSpool>();
-        services.AddSingleton<S3DatabaseBackupPublicationCapability>();
-        services.AddSingleton<S3DatabaseRestoreSourceCapability>();
-        services.AddSingleton<AwsRecoverySourceQualificationService>();
-        services.AddSingleton<AwsRetentionPlanAuthorizationService>();
-        services.AddSingleton(provider =>
-        {
-            var source = provider.GetRequiredService<AWSCredentials>();
-            AWSCredentials deletion = string.IsNullOrWhiteSpace(options.RetentionExecutionRoleArn)
-                ? source
-                : new AssumeRoleAWSCredentials(source, options.RetentionExecutionRoleArn, $"ifm-retention-{Environment.ProcessId}");
-            return new AwsRetentionExecutionClients(
-                new AmazonS3Client(deletion, ServiceConfig<AmazonS3Config>(options.PrimaryRegion, options)),
-                new AmazonS3Client(deletion, ServiceConfig<AmazonS3Config>(options.RecoveryRegion, options)));
-        });
-        services.AddSingleton(provider =>
-        {
-            var source = provider.GetRequiredService<AWSCredentials>();
-            AWSCredentials read = string.IsNullOrWhiteSpace(options.RetentionReadRoleArn)
-                ? source
-                : new AssumeRoleAWSCredentials(source, options.RetentionReadRoleArn, $"ifm-retention-read-{Environment.ProcessId}");
-            return new AwsRetentionReadClient(new AmazonS3Client(read, ServiceConfig<AmazonS3Config>(options.PrimaryRegion, options)));
-        });
-        services.AddSingleton<AwsCloudRetentionCapability>();
-        services.AddSingleton<AwsRecoveryEvidenceStore>();
-        services.AddSingleton<AwsDatabaseRecoveryEngineSelector>();
-        services.AddSingleton<AwsCloudDatabaseRecoveryProcessor>();
-        services.AddSingleton<IDatabaseRecoveryProcessor>(provider => provider.GetRequiredService<AwsCloudDatabaseRecoveryProcessor>());
-        return services;
     }
 
     static AWSCredentials CreateCredentials(AwsCloudDatabaseBackupOptions options)

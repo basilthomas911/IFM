@@ -20,66 +20,68 @@ internal static class VxQuoteMarketPriceUpdated
 {
     static readonly string ServiceId = $"{LogSourceType.FuturesEodDataEvent}";
 
-    internal static async ValueTask<bool> ExecuteVxQuoteAsync(
-        this FuturesMarketPriceUpdatedRealtimeEvent source,
-        IMarketDataApi marketDataApi,
-        IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
-        IStatusConsoleWriter statusConsoleWriter,
-        ILogger logger)
+    extension(FuturesMarketPriceUpdatedRealtimeEvent source)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(marketDataApi);
-        ArgumentNullException.ThrowIfNull(projector);
-        ArgumentNullException.ThrowIfNull(statusConsoleWriter);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        if (source.UpdateSource != FuturesMarketPriceUpdateSource.Quote
-            || source.Price.AssetTypeId != AssetTypeId.Futures
-            || !marketDataApi.IsTickDataStreamActive(source.EntityId.ContractId))
-            return true;
-
-        try
+        internal async ValueTask<bool> ExecuteVxQuoteAsync(
+            IMarketDataApi marketDataApi,
+            IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
+            IStatusConsoleWriter statusConsoleWriter,
+            ILogger logger)
         {
-            ValidateIdentity(source);
-            var contract = await marketDataApi.GetFuturesContractAsync(
-                    source.EntityId.ContractId)
-                .ConfigureAwait(false);
-            if (contract is null || !contract.Id.IsVxContract)
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(marketDataApi);
+            ArgumentNullException.ThrowIfNull(projector);
+            ArgumentNullException.ThrowIfNull(statusConsoleWriter);
+            ArgumentNullException.ThrowIfNull(logger);
+
+            if (source.UpdateSource != FuturesMarketPriceUpdateSource.Quote
+                || source.Price.AssetTypeId != AssetTypeId.Futures
+                || !marketDataApi.IsTickDataStreamActive(source.EntityId.ContractId))
                 return true;
 
-            if (!TryGetMidpoint(source.Price.Quote, out var midpoint, out var quote))
-                return true;
+            try
+            {
+                ValidateIdentity(source);
+                var contract = await marketDataApi.GetFuturesContractAsync(
+                        source.EntityId.ContractId)
+                    .ConfigureAwait(false);
+                if (contract is null || !contract.Id.IsVxContract)
+                    return true;
 
-            if (source.Price.Trade is { } trade
-                && trade.EventTimestamp >= quote.EventTimestamp)
-                return true;
+                if (!TryGetMidpoint(source.Price.Quote, out var midpoint, out var quote))
+                    return true;
 
-            var tickData = CreateQuoteObservation(source, quote, midpoint);
-            FuturesSessionStatisticsSnapshot? statistics =
-                marketDataApi.TryGetFuturesSessionStatistics(
-                    source.EntityId.ContractId,
-                    out var currentStatistics)
-                && currentStatistics.ValueDate == source.EntityId.ValueDate
-                    ? currentStatistics
-                    : null;
-            return await projector.ProcessRealtimeEventAsync(
-                    VxFuturesEodDataEventFactory.Create(source, tickData, statistics))
-                .ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            await statusConsoleWriter.WriteConsoleAsync(
-                    LogSourceType.MarketDataFeedEvent,
-                    6009,
-                    exception.GetErrorMessage())
-                .ConfigureAwait(false);
-            logger.LogErrorEvent(
-                ServiceId,
-                exception,
-                "{EventName} for {ContractId}: realtime VX quote projection failed",
-                nameof(FuturesMarketPriceUpdatedRealtimeEvent),
-                source.EntityId.ContractId);
-            throw;
+                if (source.Price.Trade is { } trade
+                    && trade.EventTimestamp >= quote.EventTimestamp)
+                    return true;
+
+                var tickData = CreateQuoteObservation(source, quote, midpoint);
+                FuturesSessionStatisticsSnapshot? statistics =
+                    marketDataApi.TryGetFuturesSessionStatistics(
+                        source.EntityId.ContractId,
+                        out var currentStatistics)
+                    && currentStatistics.ValueDate == source.EntityId.ValueDate
+                        ? currentStatistics
+                        : null;
+                return await projector.ProcessRealtimeEventAsync(
+                        VxFuturesEodDataEventFactory.Create(source, tickData, statistics))
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                await statusConsoleWriter.WriteConsoleAsync(
+                        LogSourceType.MarketDataFeedEvent,
+                        6009,
+                        exception.GetErrorMessage())
+                    .ConfigureAwait(false);
+                logger.LogErrorEvent(
+                    ServiceId,
+                    exception,
+                    "{EventName} for {ContractId}: realtime VX quote projection failed",
+                    nameof(FuturesMarketPriceUpdatedRealtimeEvent),
+                    source.EntityId.ContractId);
+                throw;
+            }
         }
     }
 

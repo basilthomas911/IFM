@@ -10,25 +10,32 @@ namespace TomasAI.IFM.Domain.Reference.Query;
 
 public static class GetDefaultFuturesContractDefinitions
 {
-    /// <summary>
-    /// Handles a request to retrieve default futures contract definitions.
-    /// </summary>
-    public static ValueTask<DefaultFuturesContractDefinitionsReadModel> ExecuteAsync(
-        this GetDefaultFuturesContractDefinitionsQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        
+
+    extension(GetDefaultFuturesContractDefinitionsQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        return GetDefaultFuturesContractDefinitionsAsync(dbFactory.ReferenceDb, cancellationToken);
+        /// <summary>
+        /// Handles a request to retrieve default futures contract definitions.
+        /// </summary>
+        public ValueTask<DefaultFuturesContractDefinitionsReadModel> ExecuteAsync(
+        IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            return GetDefaultFuturesContractDefinitionsAsync(dbFactory.ReferenceDb, cancellationToken);
+        }
     }
 
-    /// <summary>Reads and replies with the requested Reference result.</summary>
-    public static async ValueTask ExecuteAsync(this GetDefaultFuturesContractDefinitionsQuery query, Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
+    extension(GetDefaultFuturesContractDefinitionsQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(result)).ConfigureAwait(false);
+        /// <summary>Reads and replies with the requested Reference result.</summary>
+        public async ValueTask ExecuteAsync(Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(result)).ConfigureAwait(false);
+        }
     }
 
     internal static async ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(

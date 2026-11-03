@@ -7,16 +7,19 @@ namespace TomasAI.IFM.Domain.Reference.ParameterSets.Query;
 
 public static class ListLegacyParameterVersions
 {
-    public static async ValueTask ExecuteAsync(
-        this ListLegacyParameterVersionsQuery query,
-        IParameterSetQueryContext context,
-        ILogger<ParameterSetQueryActor> logger,
-        CancellationToken token)
+
+    extension(ListLegacyParameterVersionsQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        context.AccessPolicy.Demand(ParameterCapability.Read);
-        var rows = await (context.ConfigurationDb.GetLegacyParameterVersionsAsync(offset: query.Offset, cancellationToken: token)).ConfigureAwait(false);
-        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterLegacyVersion[]>(rows))).ConfigureAwait(false);
+        public async ValueTask ExecuteAsync(
+            IParameterSetQueryContext context,
+            ILogger<ParameterSetQueryActor> logger,
+            CancellationToken token)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            context.AccessPolicy.Demand(ParameterCapability.Read);
+            var rows = await (context.ConfigurationDb.GetLegacyParameterVersionsAsync(offset: query.Offset, cancellationToken: token)).ConfigureAwait(false);
+            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterLegacyVersion[]>(rows))).ConfigureAwait(false);
+        }
     }
 }

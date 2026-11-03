@@ -24,42 +24,47 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
     /// <returns>The operation result.</returns>
     static readonly ConcurrentDictionary<int, SemaphoreSlim> PortfolioAssignmentLocks = new();
 
-    /// <summary>Serializes assignment per portfolio and applies the policy activation and assignment.</summary>
-    /// <param name="command">The concrete business command and originating identity.</param>
-    /// <param name="aggregate">The current authoritative business state.</param>
-    /// <param name="policyId">The exact Portfolio financial-policy identity.</param>
-    /// <param name="events">The authoritative event store used for lookup and commit.</param>
-    /// <param name="projections">The committed-event read-model projection writer.</param>
-    /// <param name="projector">The command-owned committed-event projector.</param>
-    /// <param name="principal">The authenticated and authorized operator.</param>
-    /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
-    /// <returns>Command acceptance or its classified failure; durable completion remains tied to commit.</returns>
-    /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
-    public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(
-        this ActivateAndAssignPortfolioFinancialPolicyCommand command,
-        PortfolioFinancialPolicyAggregate aggregate,
-        PortfolioFinancialPolicyId policyId,
-        IPortfolioEventStore events,
-        IPortfolioDbWriteContext projections,
-        IEventProjector<PortfolioFinancialPolicyCommandActor> projector,
-        string principal,
-        CancellationToken cancellationToken)
+    /// <param name="command">
+    /// The concrete business command and originating identity.
+    /// </param>
+    extension(ActivateAndAssignPortfolioFinancialPolicyCommand command)
     {
-        ArgumentNullException.ThrowIfNull(aggregate);
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(events);
-        ArgumentNullException.ThrowIfNull(policyId);
-        ArgumentNullException.ThrowIfNull(projections);
-        ArgumentNullException.ThrowIfNull(projector);
-        var assignmentLock = PortfolioAssignmentLocks.GetOrAdd(policyId.PortfolioId, static _ => new SemaphoreSlim(1, 1));
-        await assignmentLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        /// <summary>Serializes assignment per portfolio and applies the policy activation and assignment.</summary>
+        ///
+        /// <param name="aggregate">The current authoritative business state.</param>
+        /// <param name="policyId">The exact Portfolio financial-policy identity.</param>
+        /// <param name="events">The authoritative event store used for lookup and commit.</param>
+        /// <param name="projections">The committed-event read-model projection writer.</param>
+        /// <param name="projector">The command-owned committed-event projector.</param>
+        /// <param name="principal">The authenticated and authorized operator.</param>
+        /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
+        /// <returns>Command acceptance or its classified failure; durable completion remains tied to commit.</returns>
+        /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
+        public async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(
+            PortfolioFinancialPolicyAggregate aggregate,
+            PortfolioFinancialPolicyId policyId,
+            IPortfolioEventStore events,
+            IPortfolioDbWriteContext projections,
+            IEventProjector<PortfolioFinancialPolicyCommandActor> projector,
+            string principal,
+            CancellationToken cancellationToken)
         {
-            return await ActivateAndAssignAsync(command, aggregate, policyId, events, projections, projector, principal, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            assignmentLock.Release();
+            ArgumentNullException.ThrowIfNull(aggregate);
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(events);
+            ArgumentNullException.ThrowIfNull(policyId);
+            ArgumentNullException.ThrowIfNull(projections);
+            ArgumentNullException.ThrowIfNull(projector);
+            var assignmentLock = PortfolioAssignmentLocks.GetOrAdd(policyId.PortfolioId, static _ => new SemaphoreSlim(1, 1));
+            await assignmentLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return await ActivateAndAssignAsync(command, aggregate, policyId, events, projections, projector, principal, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                assignmentLock.Release();
+            }
         }
     }
 
@@ -101,7 +106,8 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
         if (!command.Compute(aggregate, now, principal, out var financialPolicyChange))
             return command.UpdateFailed($"{financialPolicyChange.RejectionCode};{financialPolicyChange.RejectionReason}");
         var candidate = aggregate.Versions.Single(policy => policy.PolicyVersion == command.PolicyVersion)
-            with { OperatingState = TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFinancialPolicyState.Active };
+            with
+        { OperatingState = TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFinancialPolicyState.Active };
         if (!command.ComputeAssignment(portfolio, candidate, now, principal, out var portfolioAssignment))
             return command.UpdateFailed($"{portfolioAssignment.RejectionCode};{portfolioAssignment.RejectionReason}");
         var policyEvent = command.CreatePortfolioFinancialPolicyActivatedEvent(financialPolicyChange);
@@ -120,7 +126,7 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
         if (!updated) return command.UpdateFailed(errorMsg);
         TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(policyEvent, aggregate);
         TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(portfolioEvent, portfolio);
-        await events.AppendPolicyAndPortfolioAsync(policyId,policyEvent,portfolioId,portfolioEvent,cancellationToken).ConfigureAwait(false);
+        await events.AppendPolicyAndPortfolioAsync(policyId, policyEvent, portfolioId, portfolioEvent, cancellationToken).ConfigureAwait(false);
         await projector.DomainEventsProjectionAsync(new DomainEventCollection([policyEvent])).ConfigureAwait(false);
         await ProjectAllAsync(aggregate, policyEvent, projections, cancellationToken).ConfigureAwait(false);
         if (portfolioEvent.ProjectionFacts is null) await projections.UpsertPortfolioAsync(
@@ -138,27 +144,27 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
         PortfolioFinancialPolicyActivatedEvent activated, IPortfolioEventStore events, IPortfolioDbWriteContext projections,
         IEventProjector<PortfolioFinancialPolicyCommandActor> projector, string principal, CancellationToken cancellationToken)
     {
-            if (portfolio.Current?.ActivePolicyId != policyId.PolicyId || portfolio.Current.ActivePolicyVersion != activated.PolicyVersion)
-            {
-                var replayCandidate = aggregate.Versions.Single(x => x.PolicyVersion == activated.PolicyVersion);
-                if (!command.ComputeAssignment(portfolio, replayCandidate, DateTime.UtcNow, principal, out var portfolioChange))
-                    return command.UpdateFailed($"{portfolioChange.RejectionCode};{portfolioChange.RejectionReason}");
-                var assignment = command.CreatePortfolioFinancialPolicyAssignedEvent(portfolioChange);
-                if (!portfolio.Update(assignment, command))
-                    return command.UpdateFailed("Portfolio policy assignment event could not be applied during repair");
-                TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(assignment, portfolio);
-                await events.AppendPortfolioAsync(portfolioId, assignment, assignment.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
-                if (assignment.ProjectionFacts is null) await projections.UpsertPortfolioAsync(
-                    PortfolioProjection<PortfolioReadModel>.Create(portfolio.Current!, portfolio.Revision, Math.Max(1, assignment.EventId == 0 ? assignment.Revision : assignment.EventId), assignment.OccurredOnUtc),
-                    TomasAI.IFM.Domain.Portfolio.Projection.PortfolioProjectionHandler.StateBucket(portfolioId.Id), cancellationToken).ConfigureAwait(false);
-            }
-            // A prior attempt may have committed the policy event and failed before
-            // projection/assignment. Both operations are idempotent, so replay heals
-            // every derived surface as well as the authoritative Portfolio reference.
-            await projector.DomainEventsProjectionAsync(new DomainEventCollection([activated])).ConfigureAwait(false);
-            await ProjectAllAsync(aggregate, activated, projections, cancellationToken).ConfigureAwait(false);
-            return new ServiceOk<GuidResult>(new(command.CommandId));
+        if (portfolio.Current?.ActivePolicyId != policyId.PolicyId || portfolio.Current.ActivePolicyVersion != activated.PolicyVersion)
+        {
+            var replayCandidate = aggregate.Versions.Single(x => x.PolicyVersion == activated.PolicyVersion);
+            if (!command.ComputeAssignment(portfolio, replayCandidate, DateTime.UtcNow, principal, out var portfolioChange))
+                return command.UpdateFailed($"{portfolioChange.RejectionCode};{portfolioChange.RejectionReason}");
+            var assignment = command.CreatePortfolioFinancialPolicyAssignedEvent(portfolioChange);
+            if (!portfolio.Update(assignment, command))
+                return command.UpdateFailed("Portfolio policy assignment event could not be applied during repair");
+            TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(assignment, portfolio);
+            await events.AppendPortfolioAsync(portfolioId, assignment, assignment.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (assignment.ProjectionFacts is null) await projections.UpsertPortfolioAsync(
+                PortfolioProjection<PortfolioReadModel>.Create(portfolio.Current!, portfolio.Revision, Math.Max(1, assignment.EventId == 0 ? assignment.Revision : assignment.EventId), assignment.OccurredOnUtc),
+                TomasAI.IFM.Domain.Portfolio.Projection.PortfolioProjectionHandler.StateBucket(portfolioId.Id), cancellationToken).ConfigureAwait(false);
         }
+        // A prior attempt may have committed the policy event and failed before
+        // projection/assignment. Both operations are idempotent, so replay heals
+        // every derived surface as well as the authoritative Portfolio reference.
+        await projector.DomainEventsProjectionAsync(new DomainEventCollection([activated])).ConfigureAwait(false);
+        await ProjectAllAsync(aggregate, activated, projections, cancellationToken).ConfigureAwait(false);
+        return new ServiceOk<GuidResult>(new(command.CommandId));
+    }
 
 
     /// <summary>Refreshes all materialized policy versions after the authoritative event commits.</summary>
@@ -175,84 +181,89 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
             await projections.UpsertPolicyAsync(PortfolioProjection<PortfolioFinancialPolicyReadModel>.Create(
                 policy.DefensiveCopy() with { AggregateRevision = aggregate.Revision }, domainEvent.Revision, Math.Max(1, domainEvent.EventId == 0 ? domainEvent.Revision : domainEvent.EventId), domainEvent.OccurredOnUtc), cancellationToken).ConfigureAwait(false);
     }
-    /// <summary>Computes the accepted Activate business values without mutating state.</summary>
-    /// <param name="command">The concrete business command and originating identity.</param>
-    /// <param name="state">The owning authoritative command state.</param>
-    /// <param name="now">The authoritative UTC decision time.</param>
-    /// <param name="principal">The authenticated and authorized operator.</param>
-    /// <param name="financialPolicyChange">The immutable computed financial-policy change.</param>
-    /// <returns>True for an accepted calculation; false with the original business rejection reason otherwise.</returns>
-    internal static bool Compute(this ActivateAndAssignPortfolioFinancialPolicyCommand command, PortfolioFinancialPolicyAggregate state,
-        DateTime now, string principal, out PortfolioFinancialPolicyActivatedCompute financialPolicyChange)
+
+    /// <param name="command">
+    /// The concrete business command and originating identity.
+    /// </param>
+    extension(ActivateAndAssignPortfolioFinancialPolicyCommand command)
     {
-        try
+        /// <summary>Computes the accepted Activate business values without mutating state.</summary>
+        ///
+        /// <param name="state">The owning authoritative command state.</param>
+        /// <param name="now">The authoritative UTC decision time.</param>
+        /// <param name="principal">The authenticated and authorized operator.</param>
+        /// <param name="financialPolicyChange">The immutable computed financial-policy change.</param>
+        /// <returns>True for an accepted calculation; false with the original business rejection reason otherwise.</returns>
+        internal bool Compute(PortfolioFinancialPolicyAggregate state,
+            DateTime now, string principal, out PortfolioFinancialPolicyActivatedCompute financialPolicyChange)
         {
-            financialPolicyChange = (PortfolioFinancialPolicyActivatedCompute)state.ComputeActivate(command.CommandId, command.ExpectedPolicyRevision, command.PolicyVersion, now, principal);
-            return true;
+            try
+            {
+                financialPolicyChange = (PortfolioFinancialPolicyActivatedCompute)state.ComputeActivate(command.CommandId, command.ExpectedPolicyRevision, command.PolicyVersion, now, principal);
+                return true;
+            }
+            catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException)
+            {
+                financialPolicyChange = new PortfolioFinancialPolicyActivatedCompute { Accepted = false, RejectionCode = "PortfolioFinancialPolicy.TransitionRejected", RejectionReason = rejection.Message };
+                return false;
+            }
         }
-        catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException)
+
+        /// <summary>Creates the accepted PortfolioFinancialPolicyActivatedEvent with the originating command identity.</summary>
+        ///
+        /// <param name="financialPolicyChange">The immutable computed financial-policy change.</param>
+        /// <returns>The computed business values or created event; no transport or storage effects.</returns>
+        internal PortfolioFinancialPolicyActivatedEvent CreatePortfolioFinancialPolicyActivatedEvent(PortfolioFinancialPolicyActivatedCompute financialPolicyChange) => new()
         {
-            financialPolicyChange = new PortfolioFinancialPolicyActivatedCompute { Accepted = false, RejectionCode = "PortfolioFinancialPolicy.TransitionRejected", RejectionReason = rejection.Message };
-            return false;
+            Id = financialPolicyChange.Id,
+            CommandId = command.CommandId,
+            ReceivedOn = financialPolicyChange.OccurredOnUtc,
+            Revision = financialPolicyChange.Revision,
+            OccurredOnUtc = financialPolicyChange.OccurredOnUtc,
+            Principal = financialPolicyChange.Principal,
+            OriginatedOnUtc = financialPolicyChange.OccurredOnUtc,
+            PolicyVersion = financialPolicyChange.PolicyVersion,
+        };
+
+        /// <summary>Computes the accepted AssignFinancialPolicy business values without mutating state.</summary>
+        ///
+        /// <param name="state">The owning authoritative command state.</param>
+        /// <param name="financialPolicy">The financial policy business input.</param>
+        /// <param name="now">The authoritative UTC decision time.</param>
+        /// <param name="principal">The authenticated and authorized operator.</param>
+        /// <param name="portfolioChange">The immutable computed Portfolio business change.</param>
+        /// <returns>True for an accepted calculation; false with the original business rejection reason otherwise.</returns>
+        internal bool ComputeAssignment(PortfolioAggregate state, PortfolioFinancialPolicyReadModel financialPolicy,
+            DateTime now, string principal, out PortfolioFinancialPolicyAssignedCompute portfolioChange)
+        {
+            try
+            {
+                portfolioChange = (PortfolioFinancialPolicyAssignedCompute)state.ComputeAssignFinancialPolicy(command.CommandId, command.ExpectedPortfolioRevision, financialPolicy, now, principal);
+                return true;
+            }
+            catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException)
+            {
+                portfolioChange = new PortfolioFinancialPolicyAssignedCompute { Accepted = false, RejectionCode = "PortfolioFinancialPolicy.TransitionRejected", RejectionReason = rejection.Message };
+                return false;
+            }
         }
+
+        /// <summary>Creates the accepted PortfolioFinancialPolicyAssignedEvent with the originating command identity.</summary>
+        ///
+        /// <param name="portfolioChange">The immutable computed Portfolio business change.</param>
+        /// <returns>The computed business values or created event; no transport or storage effects.</returns>
+        internal PortfolioFinancialPolicyAssignedEvent CreatePortfolioFinancialPolicyAssignedEvent(PortfolioFinancialPolicyAssignedCompute portfolioChange) => new()
+        {
+            Id = portfolioChange.Id,
+            CommandId = command.CommandId,
+            ReceivedOn = portfolioChange.OccurredOnUtc,
+            Revision = portfolioChange.Revision,
+            OccurredOnUtc = portfolioChange.OccurredOnUtc,
+            Principal = portfolioChange.Principal,
+            OriginatedOnUtc = portfolioChange.OccurredOnUtc,
+            PolicyId = portfolioChange.PolicyId,
+            PolicyVersion = portfolioChange.PolicyVersion,
+        };
     }
-
-    /// <summary>Creates the accepted PortfolioFinancialPolicyActivatedEvent with the originating command identity.</summary>
-    /// <param name="command">The concrete business command and originating identity.</param>
-    /// <param name="financialPolicyChange">The immutable computed financial-policy change.</param>
-    /// <returns>The computed business values or created event; no transport or storage effects.</returns>
-    internal static PortfolioFinancialPolicyActivatedEvent CreatePortfolioFinancialPolicyActivatedEvent(this ActivateAndAssignPortfolioFinancialPolicyCommand command,
-        PortfolioFinancialPolicyActivatedCompute financialPolicyChange) => new()
-    {
-        Id = financialPolicyChange.Id,
-        CommandId = command.CommandId,
-        ReceivedOn = financialPolicyChange.OccurredOnUtc,
-        Revision = financialPolicyChange.Revision,
-        OccurredOnUtc = financialPolicyChange.OccurredOnUtc,
-        Principal = financialPolicyChange.Principal,
-        OriginatedOnUtc = financialPolicyChange.OccurredOnUtc,
-        PolicyVersion = financialPolicyChange.PolicyVersion,
-    };
-
-    /// <summary>Computes the accepted AssignFinancialPolicy business values without mutating state.</summary>
-    /// <param name="command">The concrete business command and originating identity.</param>
-    /// <param name="state">The owning authoritative command state.</param>
-    /// <param name="financialPolicy">The financial policy business input.</param>
-    /// <param name="now">The authoritative UTC decision time.</param>
-    /// <param name="principal">The authenticated and authorized operator.</param>
-    /// <param name="portfolioChange">The immutable computed Portfolio business change.</param>
-    /// <returns>True for an accepted calculation; false with the original business rejection reason otherwise.</returns>
-    internal static bool ComputeAssignment(this ActivateAndAssignPortfolioFinancialPolicyCommand command, PortfolioAggregate state, PortfolioFinancialPolicyReadModel financialPolicy,
-        DateTime now, string principal, out PortfolioFinancialPolicyAssignedCompute portfolioChange)
-    {
-        try
-        {
-            portfolioChange = (PortfolioFinancialPolicyAssignedCompute)state.ComputeAssignFinancialPolicy(command.CommandId, command.ExpectedPortfolioRevision, financialPolicy, now, principal);
-            return true;
-        }
-        catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException)
-        {
-            portfolioChange = new PortfolioFinancialPolicyAssignedCompute { Accepted = false, RejectionCode = "PortfolioFinancialPolicy.TransitionRejected", RejectionReason = rejection.Message };
-            return false;
-        }
-    }
-
-    /// <summary>Creates the accepted PortfolioFinancialPolicyAssignedEvent with the originating command identity.</summary>
-    /// <param name="command">The concrete business command and originating identity.</param>
-    /// <param name="portfolioChange">The immutable computed Portfolio business change.</param>
-    /// <returns>The computed business values or created event; no transport or storage effects.</returns>
-    internal static PortfolioFinancialPolicyAssignedEvent CreatePortfolioFinancialPolicyAssignedEvent(this ActivateAndAssignPortfolioFinancialPolicyCommand command,
-        PortfolioFinancialPolicyAssignedCompute portfolioChange) => new()
-    {
-        Id = portfolioChange.Id,
-        CommandId = command.CommandId,
-        ReceivedOn = portfolioChange.OccurredOnUtc,
-        Revision = portfolioChange.Revision,
-        OccurredOnUtc = portfolioChange.OccurredOnUtc,
-        Principal = portfolioChange.Principal,
-        OriginatedOnUtc = portfolioChange.OccurredOnUtc,
-        PolicyId = portfolioChange.PolicyId,
-        PolicyVersion = portfolioChange.PolicyVersion,
-    };
 
 }

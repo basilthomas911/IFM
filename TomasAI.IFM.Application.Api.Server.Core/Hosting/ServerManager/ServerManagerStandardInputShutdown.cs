@@ -8,20 +8,22 @@ public static class ServerManagerStandardInputShutdown
     private const string EnableArgument = "--server-manager-stdin-shutdown";
     private const string ShutdownMessage = "shutdown";
 
-    public static void EnableServerManagerStandardInputShutdown(
-        this WebApplication application,
-        IReadOnlyCollection<string> arguments,
-        ILogger logger)
+    extension(WebApplication application)
     {
-        if (!arguments.Contains(EnableArgument, StringComparer.OrdinalIgnoreCase))
+        public void EnableServerManagerStandardInputShutdown(
+            IReadOnlyCollection<string> arguments,
+            ILogger logger)
         {
-            return;
-        }
+            if (!arguments.Contains(EnableArgument, StringComparer.OrdinalIgnoreCase))
+            {
+                return;
+            }
 
-        _ = MonitorAsync(
-            Console.In,
-            application.Services.GetRequiredService<IHostApplicationLifetime>(),
-            logger);
+            _ = MonitorAsync(
+                Console.In,
+                application.Services.GetRequiredService<IHostApplicationLifetime>(),
+                logger);
+        }
     }
 
     public static async Task MonitorAsync(
@@ -46,18 +48,18 @@ public static class ServerManagerStandardInputShutdown
                 if (message is null)
                 {
                     logger.LogInformation(
-                        "{Component}.{Method} "+"Server Manager standard-input channel closed; requesting graceful API shutdown.",nameof(ServerManagerStandardInputShutdown),nameof(MonitorAsync));
+                        "{Component}.{Method} " + "Server Manager standard-input channel closed; requesting graceful API shutdown.", nameof(ServerManagerStandardInputShutdown), nameof(MonitorAsync));
                     lifetime.StopApplication();
                     return;
                 }
 
                 if (!string.Equals(message, ShutdownMessage, StringComparison.OrdinalIgnoreCase))
                 {
-                    logger.LogWarning("{Component}.{Method} "+"Ignoring an unrecognized Server Manager standard-input control message.",nameof(ServerManagerStandardInputShutdown),nameof(MonitorAsync));
+                    logger.LogWarning("{Component}.{Method} " + "Ignoring an unrecognized Server Manager standard-input control message.", nameof(ServerManagerStandardInputShutdown), nameof(MonitorAsync));
                     continue;
                 }
 
-                logger.LogInformation("{Component}.{Method} "+"Server Manager requested graceful API shutdown.",nameof(ServerManagerStandardInputShutdown),nameof(MonitorAsync));
+                logger.LogInformation("{Component}.{Method} " + "Server Manager requested graceful API shutdown.", nameof(ServerManagerStandardInputShutdown), nameof(MonitorAsync));
                 lifetime.StopApplication();
                 return;
             }
@@ -68,7 +70,7 @@ public static class ServerManagerStandardInputShutdown
         }
         catch (Exception exception)
         {
-            logger.LogError(exception,"{Component}.{Method} "+"Server Manager standard-input shutdown monitoring failed.",nameof(ServerManagerStandardInputShutdown),nameof(MonitorAsync));
+            logger.LogError(exception, "{Component}.{Method} " + "Server Manager standard-input shutdown monitoring failed.", nameof(ServerManagerStandardInputShutdown), nameof(MonitorAsync));
         }
     }
 }

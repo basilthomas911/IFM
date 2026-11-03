@@ -9,16 +9,19 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Realtime;
 /// <summary>Forwards valid closed bars to the event-sourced EMA command actor.</summary>
 public static class FuturesTradeSessionBarClosed
 {
-    /// <summary>Handles one routed bar without retaining realtime state.</summary>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesTradeSessionBarClosedRealtimeEvent @event,
-        IFuturesEmaSignalRealtimeContext context, ILogger logger)
+
+    extension(FuturesTradeSessionBarClosedRealtimeEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-        if (!@event.Observation.IsValid) return true;
-        var result = await (context.GenerateFuturesEmaSignalAsync(@event.Observation)).ConfigureAwait(false);
-        if (result is ServiceFailed<GuidResult>)
-            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write34(logger, null, @event.Observation.ObservationId);
-        return result is not ServiceFailed<GuidResult>;
+        /// <summary>Handles one routed bar without retaining realtime state.</summary>
+        public async ValueTask<bool> ExecuteAsync(IFuturesEmaSignalRealtimeContext context, ILogger logger)
+        {
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            if (!@event.Observation.IsValid) return true;
+            var result = await (context.GenerateFuturesEmaSignalAsync(@event.Observation)).ConfigureAwait(false);
+            if (result is ServiceFailed<GuidResult>)
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write34(logger, null, @event.Observation.ObservationId);
+            return result is not ServiceFailed<GuidResult>;
+        }
     }
 }

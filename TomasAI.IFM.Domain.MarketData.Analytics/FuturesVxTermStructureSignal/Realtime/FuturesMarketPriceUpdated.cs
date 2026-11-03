@@ -11,48 +11,51 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.R
 /// <summary>Translates eligible routed VX trades into durable Command actor updates.</summary>
 public static class FuturesMarketPriceUpdated
 {
-    /// <summary>Forwards one front or back VX trade without retaining calculation state.</summary>
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesMarketPriceUpdatedRealtimeEvent @event,
-        IFuturesVxTermStructureSignalRealtimeContext context,
-        FuturesTermStructureContracts contracts,
-        ILogger logger)
+
+    extension(FuturesMarketPriceUpdatedRealtimeEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-        if (@event.UpdateSource != FuturesMarketPriceUpdateSource.Trade
-            || @event.Price.Trade is not { } trade
-            || trade.LastPrice <= 0
-            || trade.NormalizedTradeAction is NormalizedTradeAction.Cancel
-                or NormalizedTradeAction.Clear
-                or NormalizedTradeAction.None)
-            return true;
-        var contract = (StringComparer.Ordinal.Equals(@event.Price.ContractId, contracts.Front.ContractId)) switch
-{
-    true => contracts.Front,
-    false => StringComparer.Ordinal.Equals(@event.Price.ContractId, contracts.Back.ContractId) ? contracts.Back : null
-};
-        if (contract is null) return true;
-        var leg = StringComparer.Ordinal.Equals(contract.ContractId, contracts.Front.ContractId)
-            ? FuturesVxTermStructureLeg.Front : FuturesVxTermStructureLeg.Back;
-        var configuration = FuturesVxTermStructureConfiguration.Standard;
-        var entityId = new FuturesVxTermStructureSignalEntityId(
-            @event.Price.ValueDate, contracts.Front.ContractId, contracts.Back.ContractId,
-            configuration.ConfigurationId);
-        var observation = new FuturesVxTermStructureLegObservation
+        /// <summary>Forwards one front or back VX trade without retaining calculation state.</summary>
+        public async ValueTask<bool> ExecuteAsync(
+            IFuturesVxTermStructureSignalRealtimeContext context,
+            FuturesTermStructureContracts contracts,
+            ILogger logger)
         {
-            Leg = leg,
-            ContractId = contract.ContractId,
-            Expiry = contract.LastTradeDate,
-            Price = trade.LastPrice,
-            SourceSequence = trade.SourceSequence,
-            SourceTimestampUtc = trade.EventTimestamp.ToUniversalTime(),
-            StreamEpochId = trade.StreamEpochId
-        };
-        var result = await context.UpdateFuturesVxTermStructureSignalAsync(
-            entityId, observation, configuration).ConfigureAwait(false);
-        if (result is ServiceFailed<GuidResult>)
-            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write31(logger, null, leg, contract.ContractId, trade.SourceSequence);
-        return result is not ServiceFailed<GuidResult>;
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            if (@event.UpdateSource != FuturesMarketPriceUpdateSource.Trade
+                || @event.Price.Trade is not { } trade
+                || trade.LastPrice <= 0
+                || trade.NormalizedTradeAction is NormalizedTradeAction.Cancel
+                    or NormalizedTradeAction.Clear
+                    or NormalizedTradeAction.None)
+                return true;
+            var contract = (StringComparer.Ordinal.Equals(@event.Price.ContractId, contracts.Front.ContractId)) switch
+            {
+                true => contracts.Front,
+                false => StringComparer.Ordinal.Equals(@event.Price.ContractId, contracts.Back.ContractId) ? contracts.Back : null
+            };
+            if (contract is null) return true;
+            var leg = StringComparer.Ordinal.Equals(contract.ContractId, contracts.Front.ContractId)
+                ? FuturesVxTermStructureLeg.Front : FuturesVxTermStructureLeg.Back;
+            var configuration = FuturesVxTermStructureConfiguration.Standard;
+            var entityId = new FuturesVxTermStructureSignalEntityId(
+                @event.Price.ValueDate, contracts.Front.ContractId, contracts.Back.ContractId,
+                configuration.ConfigurationId);
+            var observation = new FuturesVxTermStructureLegObservation
+            {
+                Leg = leg,
+                ContractId = contract.ContractId,
+                Expiry = contract.LastTradeDate,
+                Price = trade.LastPrice,
+                SourceSequence = trade.SourceSequence,
+                SourceTimestampUtc = trade.EventTimestamp.ToUniversalTime(),
+                StreamEpochId = trade.StreamEpochId
+            };
+            var result = await context.UpdateFuturesVxTermStructureSignalAsync(
+                entityId, observation, configuration).ConfigureAwait(false);
+            if (result is ServiceFailed<GuidResult>)
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write31(logger, null, leg, contract.ContractId, trade.SourceSequence);
+            return result is not ServiceFailed<GuidResult>;
+        }
     }
 }

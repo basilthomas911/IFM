@@ -11,68 +11,72 @@ public static class FuturesRsiSignalTimer
 {
     static readonly ConcurrentDictionary<FuturesRsiSignalEntityId, TimerRegistration> Timers = new();
 
-    /// <summary>
-    /// Starts one non-overlapping asynchronous callback loop for an RSI signal entity.
-    /// A duplicate start is idempotent and leaves the existing loop in place.
-    /// </summary>
-    public static bool StartTimer(
-        this FuturesRsiSignalStartedEvent e,
-        Func<FuturesRsiSignalEntityId, ValueTask> timerAction)
-        
+    extension(FuturesRsiSignalStartedEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        return StartTimer(e, timerAction, GetTimerPeriod(e.EntityId));
-    }
+        /// <summary>
+        /// Starts one non-overlapping asynchronous callback loop for an RSI signal entity.
+        /// A duplicate start is idempotent and leaves the existing loop in place.
+        /// </summary>
+        public bool StartTimer(
+            Func<FuturesRsiSignalEntityId, ValueTask> timerAction)
 
-    internal static bool StartTimer(
-        this FuturesRsiSignalStartedEvent e,
-        Func<FuturesRsiSignalEntityId, ValueTask> timerAction,
-        TimeSpan period)
-    {
-        ArgumentNullException.ThrowIfNull(timerAction);
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(period, TimeSpan.Zero);
-
-        var registration = new TimerRegistration(e.EntityId, timerAction, period);
-        if (!Timers.TryAdd(e.EntityId, registration))
         {
-            registration.DisposeUnstarted();
-            return false;
+            ArgumentNullException.ThrowIfNull(e);
+            return StartTimer(e, timerAction, GetTimerPeriod(e.EntityId));
         }
 
-        registration.Start();
-        return true;
+        internal bool StartTimer(
+            Func<FuturesRsiSignalEntityId, ValueTask> timerAction,
+            TimeSpan period)
+        {
+            ArgumentNullException.ThrowIfNull(timerAction);
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(period, TimeSpan.Zero);
+
+            var registration = new TimerRegistration(e.EntityId, timerAction, period);
+            if (!Timers.TryAdd(e.EntityId, registration))
+            {
+                registration.DisposeUnstarted();
+                return false;
+            }
+
+            registration.Start();
+            return true;
+        }
+
+        /// <summary>
+        /// Accepts a source sequence once for the active timer registration.
+        /// </summary>
+        public bool TryAcceptSourceSequence(long sourceSequence)
+
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return sourceSequence >= 0
+               && Timers.TryGetValue(e.EntityId, out var registration)
+               && registration.TryAcceptSequence(sourceSequence);
+        }
     }
 
-    /// <summary>
-    /// Accepts a source sequence once for the active timer registration.
-    /// </summary>
-    public static bool TryAcceptSourceSequence(this FuturesRsiSignalStartedEvent e, long sourceSequence)
-        
+    extension(FuturesRsiSignalStoppedEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        return sourceSequence >= 0
-           && Timers.TryGetValue(e.EntityId, out var registration)
-           && registration.TryAcceptSequence(sourceSequence);
-    }
-
-    /// <summary>
-    /// Stops the callback loop and waits for an in-flight callback to finish.
-    /// </summary>
-    public static async ValueTask<bool> StopTimerAsync(this FuturesRsiSignalStoppedEvent e)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-        if (!Timers.TryGetValue(e.EntityId, out var registration))
-            return false;
-
-        try
+        /// <summary>
+        /// Stops the callback loop and waits for an in-flight callback to finish.
+        /// </summary>
+        public async ValueTask<bool> StopTimerAsync()
         {
-            await registration.StopAsync().ConfigureAwait(false);
+            ArgumentNullException.ThrowIfNull(e);
+            if (!Timers.TryGetValue(e.EntityId, out var registration))
+                return false;
+
+            try
+            {
+                await registration.StopAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                Timers.TryRemove(new KeyValuePair<FuturesRsiSignalEntityId, TimerRegistration>(e.EntityId, registration));
+            }
+            return true;
         }
-        finally
-        {
-            Timers.TryRemove(new KeyValuePair<FuturesRsiSignalEntityId, TimerRegistration>(e.EntityId, registration));
-        }
-        return true;
     }
 
     /// <summary>

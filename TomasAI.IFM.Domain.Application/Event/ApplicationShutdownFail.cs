@@ -9,13 +9,17 @@ public static class ApplicationShutdownFail
 {
     /// <summary>Gets the shared log source for this lifecycle family.</summary>
     public static string ServiceId { get; } = nameof(TomasAI.IFM.Shared.StatusConsole.LogSourceType.ApplicationShutdown);
-    /// <summary>Acknowledges the terminal lifecycle event after honoring cancellation.</summary>
-    public static ValueTask ExecuteAsync(this ApplicationShutdownFailEvent eventValue, IApplicationEventContext context, ILogger<ApplicationEventActor> logger, CancellationToken cancellationToken)
+
+    extension(ApplicationShutdownFailEvent eventValue)
     {
-        ArgumentNullException.ThrowIfNull(eventValue);
-        ArgumentNullException.ThrowIfNull(context);
-        cancellationToken.ThrowIfCancellationRequested();
-        global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write8(logger, null, ServiceId, eventValue.Id, eventValue.CommandId, eventValue.EntityId, eventValue.ErrorCode, eventValue.ErrorMessage);
-        return ValueTask.CompletedTask;
+        /// <summary>Acknowledges the terminal lifecycle event after honoring cancellation.</summary>
+        public ValueTask ExecuteAsync(IApplicationEventContext context, ILogger<ApplicationEventActor> logger, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(eventValue);
+            ArgumentNullException.ThrowIfNull(context);
+            cancellationToken.ThrowIfCancellationRequested();
+            global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write8(logger, null, ServiceId, eventValue.Id, eventValue.CommandId, eventValue.EntityId, eventValue.ErrorCode, eventValue.ErrorMessage);
+            return ValueTask.CompletedTask;
+        }
     }
 }

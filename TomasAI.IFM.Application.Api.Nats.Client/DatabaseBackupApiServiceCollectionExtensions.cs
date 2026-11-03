@@ -6,11 +6,15 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 public static class DatabaseBackupApiServiceCollectionExtensions
 {
-    public static IServiceCollection AddDatabaseBackupNatsClientApis(this IServiceCollection services)
+
+    extension(IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        services.TryAddScoped<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
-        services.TryAddScoped<IDatabaseBackupQueryApi, DatabaseBackupQueryApi>();
-        return services;
+        public IServiceCollection AddDatabaseBackupNatsClientApis()
+        {
+            ArgumentNullException.ThrowIfNull(services);
+            services.TryAddScoped<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
+            services.TryAddScoped<IDatabaseBackupQueryApi, DatabaseBackupQueryApi>();
+            return services;
+        }
     }
 }

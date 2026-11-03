@@ -7,13 +7,16 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Exten
 /// <summary>Enforces the invariant that a preflighted workflow snapshot must be accepted by state.</summary>
 internal static class IntrinsicTimeStrategyWorkflowStateExtensions
 {
-    /// <summary>Applies a workflow snapshot or raises an invariant failure before the command can report success.</summary>
-    internal static void UpdateRequired(
-        this IntrinsicTimeStrategyWorkflowCommandState state,
-        WorkflowStrategyStateUpdatedEvent domainEvent,
-        ICommand command)
+
+    extension(IntrinsicTimeStrategyWorkflowCommandState state)
     {
-        if (!state.Update(domainEvent, command))
-            throw new InvalidOperationException("WORKFLOW.STATE.APPLY_FAILED");
+        /// <summary>Applies a workflow snapshot or raises an invariant failure before the command can report success.</summary>
+        internal void UpdateRequired(
+            WorkflowStrategyStateUpdatedEvent domainEvent,
+            ICommand command)
+        {
+            if (!state.Update(domainEvent, command))
+                throw new InvalidOperationException("WORKFLOW.STATE.APPLY_FAILED");
+        }
     }
 }

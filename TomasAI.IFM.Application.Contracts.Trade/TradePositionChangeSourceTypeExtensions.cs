@@ -7,13 +7,17 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
     public static class TradePositionChangeSourceTypeExtensions
     {
-        public static string ToStringFast(this TradePositionChangeSourceType value) => value switch
+
+        extension(TradePositionChangeSourceType value)
         {
-            TradePositionChangeSourceType.PutCreditSpreadLeg => nameof(TradePositionChangeSourceType.PutCreditSpreadLeg),
-            TradePositionChangeSourceType.CallCreditSpreadLeg => nameof(TradePositionChangeSourceType.CallCreditSpreadLeg),
-            TradePositionChangeSourceType.SpreadDistributionStatistics => nameof(TradePositionChangeSourceType.SpreadDistributionStatistics),
-            TradePositionChangeSourceType.None => nameof(TradePositionChangeSourceType.None),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                TradePositionChangeSourceType.PutCreditSpreadLeg => nameof(TradePositionChangeSourceType.PutCreditSpreadLeg),
+                TradePositionChangeSourceType.CallCreditSpreadLeg => nameof(TradePositionChangeSourceType.CallCreditSpreadLeg),
+                TradePositionChangeSourceType.SpreadDistributionStatistics => nameof(TradePositionChangeSourceType.SpreadDistributionStatistics),
+                TradePositionChangeSourceType.None => nameof(TradePositionChangeSourceType.None),
+                _ => value.ToString()
+            };
+        }
     }
 }

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Host.Worker;
@@ -9,6 +9,7 @@ using NSubstitute;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
+[Collection(ProcessResourceQualificationCollection.Name)]
 public sealed class SupervisedDatabentoHardRecoveryRuntimeTests
 {
     [Fact]
@@ -30,7 +31,7 @@ public sealed class SupervisedDatabentoHardRecoveryRuntimeTests
             desiredSubscriptions: desired);
         var runtime = new SupervisedDatabentoHardRecoveryRuntime(workers,
             new() { DotNetHostPath = DotNetHost(),
-                WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location },
+                WorkerAssemblyPath = Harness.WorkerTestProcess.AssemblyPath },
             TimeProvider.System);
 
         var staleResult = await runtime.AttemptAsync(stale, true, TimeSpan.FromMinutes(5),
@@ -72,7 +73,7 @@ public sealed class SupervisedDatabentoHardRecoveryRuntimeTests
             0, 0, 0, 0, 0, 0, 0, 0, RealtimeTickPublisherFailure.NonCooperativeSend, "stuck"));
         var runtime = new SupervisedDatabentoHardRecoveryRuntime(workers,
             new() { DotNetHostPath = DotNetHost(),
-                WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location },
+                WorkerAssemblyPath = Harness.WorkerTestProcess.AssemblyPath },
             TimeProvider.System, diagnostics);
 
         var result = await runtime.AttemptAsync([manifest], true, TimeSpan.FromSeconds(1),
@@ -108,7 +109,7 @@ public sealed class SupervisedDatabentoHardRecoveryRuntimeTests
         });
         var runtime = new SupervisedDatabentoHardRecoveryRuntime(workers,
             new() { DotNetHostPath = DotNetHost(),
-                WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location },
+                WorkerAssemblyPath = Harness.WorkerTestProcess.AssemblyPath },
             TimeProvider.System, diagnostics);
 
         var result = await runtime.AttemptAsync([manifest], true, TimeSpan.FromSeconds(1),
@@ -141,7 +142,7 @@ public sealed class SupervisedDatabentoHardRecoveryRuntimeTests
             "send completed but downstream acceptance is unknown"));
         var runtime = new SupervisedDatabentoHardRecoveryRuntime(workers,
             new() { DotNetHostPath = DotNetHost(),
-                WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location },
+                WorkerAssemblyPath = Harness.WorkerTestProcess.AssemblyPath },
             TimeProvider.System, diagnostics);
 
         var result = await runtime.AttemptAsync([manifest], true, TimeSpan.FromSeconds(1),
@@ -170,7 +171,7 @@ public sealed class SupervisedDatabentoHardRecoveryRuntimeTests
         var options = new DatabentoSupervisedWorkerOptions
         {
             DotNetHostPath = DotNetHost(),
-            WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location,
+            WorkerAssemblyPath = Harness.WorkerTestProcess.AssemblyPath,
             DeploymentProfile = FeedDeploymentProfile.SyntheticCi,
             Synthetic = new SyntheticFeedOptions { RecordCount = 100_000, RecordsPerSecond = 50 }
         };
@@ -205,7 +206,7 @@ public sealed class SupervisedDatabentoHardRecoveryRuntimeTests
         var options = new DatabentoSupervisedWorkerOptions
         {
             DotNetHostPath = DotNetHost(),
-            WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location,
+            WorkerAssemblyPath = Harness.WorkerTestProcess.AssemblyPath,
             DeploymentProfile = FeedDeploymentProfile.SyntheticCi,
             Synthetic = new SyntheticFeedOptions { RecordCount = 100_000, RecordsPerSecond = 50 }
         };

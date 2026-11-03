@@ -8,10 +8,13 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Position.Workflow.OrderComposer.Funct
 
 public static class FailExitOrderComposition
 {
-    public static FunctionResult<ExitOrderCompositionCompletedEvent, ExitPositionWorkflowFailedEvent>
-        Fail(
-            this FunctionEventContext<ComposeExitOrderCommand> input,
-            TimeProvider clock) =>
-        StrategyExitFunctionEventMapping.FailComposition(
-            input, FuturesExitOrderCompositionFunctionActor.ActorName, clock);
+
+    extension(FunctionEventContext<ComposeExitOrderCommand> input)
+    {
+        public FunctionResult<ExitOrderCompositionCompletedEvent, ExitPositionWorkflowFailedEvent>
+            Fail(
+                TimeProvider clock) =>
+            StrategyExitFunctionEventMapping.FailComposition(
+                input, FuturesExitOrderCompositionFunctionActor.ActorName, clock);
+    }
 }

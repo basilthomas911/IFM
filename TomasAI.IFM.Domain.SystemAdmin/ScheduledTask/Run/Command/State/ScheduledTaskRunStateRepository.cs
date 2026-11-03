@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Persistence;
-using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Command.Actor;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain;
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Command.Actor;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Command.Validation;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
@@ -19,9 +19,13 @@ public sealed class ScheduledTaskRunStateRepository(IEventSourceActorStateFactor
     : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<ScheduledTaskRunCommandState>
 {
     /// <inheritdoc />
-    public ValueTask<ScheduledTaskRunCommandState> LoadStateAsync(ICommand command) => LoadStateAsync(command, CancellationToken.None);
-    /// <summary>Restores the requested-run snapshot and replays every subsequent lifecycle event.</summary>
-    public async ValueTask<ScheduledTaskRunCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) => await LoadStateFromSnapshotAsync<ScheduledTaskRunCommandState, ScheduledTaskRunRequestedEvent>(command, cancellationToken).ConfigureAwait(false);
+    public ValueTask<ScheduledTaskRunCommandState> LoadStateAsync(ICommand command)
+        => LoadStateAsync(command, CancellationToken.None);
+
+    /// <summary>Restores the requested-run snapshot and replays subsequent lifecycle events.</summary>
+    public async ValueTask<ScheduledTaskRunCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+        => await LoadStateFromSnapshotAsync<ScheduledTaskRunCommandState, ScheduledTaskRunRequestedEvent>(command, cancellationToken).ConfigureAwait(false);
+
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context, ScheduledTaskRunCommandState state, ICommand command) => SaveStateAsync(context, state, command, CancellationToken.None);
     /// <inheritdoc />

@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.Query;
 /// <summary>Handles <see cref = "GetIronCondorOptionTradePositionHistoryQuery"/>.</summary>
 public static class GetIronCondorOptionTradePositionHistory
 {
-    /// <summary>Reads and replies with the requested IronCondor position data.</summary>
-    public static ValueTask ExecuteAsync(this GetIronCondorOptionTradePositionHistoryQuery query, IFuturesOptionPositionQueryContext context, CancellationToken cancellationToken)
+
+    extension(GetIronCondorOptionTradePositionHistoryQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        return PositionQueryModel.ManyAsync(query, context, TradeStrategyKind.IronCondor, cancellationToken);
+        /// <summary>Reads and replies with the requested IronCondor position data.</summary>
+        public ValueTask ExecuteAsync(IFuturesOptionPositionQueryContext context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            return PositionQueryModel.ManyAsync(query, context, TradeStrategyKind.IronCondor, cancellationToken);
+        }
     }
 }

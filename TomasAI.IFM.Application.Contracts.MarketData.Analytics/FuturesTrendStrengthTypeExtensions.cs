@@ -7,13 +7,17 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared
 
     public static class FuturesTrendStrengthTypeExtensions
     {
-        public static string ToStringFast(this FuturesTrendStrengthType value) => value switch
+
+        extension(FuturesTrendStrengthType value)
         {
-            FuturesTrendStrengthType.None => nameof(FuturesTrendStrengthType.None),
-            FuturesTrendStrengthType.Low => nameof(FuturesTrendStrengthType.Low),
-            FuturesTrendStrengthType.Medium => nameof(FuturesTrendStrengthType.Medium),
-            FuturesTrendStrengthType.High => nameof(FuturesTrendStrengthType.High),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                FuturesTrendStrengthType.None => nameof(FuturesTrendStrengthType.None),
+                FuturesTrendStrengthType.Low => nameof(FuturesTrendStrengthType.Low),
+                FuturesTrendStrengthType.Medium => nameof(FuturesTrendStrengthType.Medium),
+                FuturesTrendStrengthType.High => nameof(FuturesTrendStrengthType.High),
+                _ => value.ToString()
+            };
+        }
     }
 }

@@ -9,11 +9,15 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Recovery.Event;
 /// <summary>Handles <see cref="DatabaseRestoreReadyForCutoverEvent"/>.</summary>
 public static class DatabaseRestoreReadyForCutover
 {
-    /// <summary>Translates and records this Database Backup service event through the command actor.</summary>
-    public static ValueTask ExecuteAsync(this DatabaseRestoreReadyForCutoverEvent eventValue, IEventActorContext<DatabaseRecoveryEventActor> context, ILogger<DatabaseRecoveryEventActor> logger)
-        
+
+    extension(DatabaseRestoreReadyForCutoverEvent eventValue)
     {
-        ArgumentNullException.ThrowIfNull(eventValue);
-        return DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+        /// <summary>Translates and records this Database Backup service event through the command actor.</summary>
+        public ValueTask ExecuteAsync(IEventActorContext<DatabaseRecoveryEventActor> context, ILogger<DatabaseRecoveryEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(eventValue);
+            return DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+        }
     }
 }

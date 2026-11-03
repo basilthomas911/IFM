@@ -8,13 +8,16 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscove
 /// <summary>Resolves RegimeDiscovery lifecycle policy without owning timeout mechanics or transport.</summary>
 public static class ResolveRegimeDiscoveryExecutionPolicy
 {
-    /// <summary>Returns the domain clock and the stage's existing absolute deadline policy.</summary>
-    public static FunctionExecutionPolicy ResolveExecutionPolicy(this ExecuteRegimeDiscoveryPipelineCommand command,
-        FunctionFailureStage stage, IRegimeDiscoveryFunctionContext context)
+
+    extension(ExecuteRegimeDiscoveryPipelineCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(context);
-        // Regime Discovery historically bounded capture/calculation only; other stages remain explicitly unbounded.
-        return new(context.TimeProvider, stage == FunctionFailureStage.Execution ? command.ExpiresAtUtc : null);
+        /// <summary>Returns the domain clock and the stage's existing absolute deadline policy.</summary>
+        public FunctionExecutionPolicy ResolveExecutionPolicy(FunctionFailureStage stage, IRegimeDiscoveryFunctionContext context)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(context);
+            // Regime Discovery historically bounded capture/calculation only; other stages remain explicitly unbounded.
+            return new(context.TimeProvider, stage == FunctionFailureStage.Execution ? command.ExpiresAtUtc : null);
+        }
     }
 }

@@ -9,18 +9,25 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Query;
 
 public static class GetEconomicCalendarAll
 {
-    /// <summary>
-    /// Handles the GetEconomicCalendarAllQuery by retrieving all economic calendar entries from the database and replying with the results.
-    /// </summary>
-    /// <param name="q">The query requesting all economic calendar entries.</param>
-    /// <param name="context">The query actor context for replying with results.</param>
-    /// <param name="dbFactory">The database context factory used to access reference storage.</param>
-    /// <returns>A value task that completes after the reply has been posted.</returns>
-    public static async ValueTask<EconomicCalendarReadModel[]> ExecuteAsync(
-        this GetEconomicCalendarAllQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        
+
+    /// <param name="q">
+    /// The query requesting all economic calendar entries.
+    /// </param>
+    extension(GetEconomicCalendarAllQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        return [.. await (dbFactory.MarketDataDb.GetEconomicCalendarAllAsync(cancellationToken)).ConfigureAwait(false)];
+        /// <summary>
+        /// Handles the GetEconomicCalendarAllQuery by retrieving all economic calendar entries from the database and replying with the results.
+        /// </summary>
+        ///
+        /// <param name="context">The query actor context for replying with results.</param>
+        /// <param name="dbFactory">The database context factory used to access reference storage.</param>
+        /// <returns>A value task that completes after the reply has been posted.</returns>
+        public async ValueTask<EconomicCalendarReadModel[]> ExecuteAsync(
+        IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            return [.. await (dbFactory.MarketDataDb.GetEconomicCalendarAllAsync(cancellationToken)).ConfigureAwait(false)];
+        }
     }
 }

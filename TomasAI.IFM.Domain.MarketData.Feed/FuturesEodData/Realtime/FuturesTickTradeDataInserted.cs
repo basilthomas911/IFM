@@ -30,28 +30,29 @@ public static class FuturesTickTradeDataInserted
 {
     static readonly string ServiceId = $"{LogSourceType.FuturesTickTradeDataInserted}";
 
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesTickTradeDataInsertedEvent source,
-        IEventActorContext context,
-        IMarketDataApi marketDataApi,
-        IBlackboardService blackboardService,
-        IStatusConsoleWriter statusConsoleWriter,
-        IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
-        ILogger logger)
-        => await ExecuteCoreAsync(source, context, marketDataApi, blackboardService,
-            statusConsoleWriter, projector, logger, null).ConfigureAwait(false);
+    extension(FuturesTickTradeDataInsertedEvent source)
+    {
+        public async ValueTask<bool> ExecuteAsync(
+            IEventActorContext context,
+            IMarketDataApi marketDataApi,
+            IBlackboardService blackboardService,
+            IStatusConsoleWriter statusConsoleWriter,
+            IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
+            ILogger logger)
+            => await ExecuteCoreAsync(source, context, marketDataApi, blackboardService,
+                statusConsoleWriter, projector, logger, null).ConfigureAwait(false);
 
-    internal static ValueTask<bool> ExecuteWithCacheAsync(
-        this FuturesTickTradeDataInsertedEvent source,
-        IEventActorContext context,
-        IMarketDataApi marketDataApi,
-        IBlackboardService blackboardService,
-        IStatusConsoleWriter statusConsoleWriter,
-        IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
-        ILogger logger,
-        FuturesEodTradeReadCache cache)
-        => ExecuteCoreAsync(source, context, marketDataApi, blackboardService,
-            statusConsoleWriter, projector, logger, cache);
+        internal ValueTask<bool> ExecuteWithCacheAsync(
+            IEventActorContext context,
+            IMarketDataApi marketDataApi,
+            IBlackboardService blackboardService,
+            IStatusConsoleWriter statusConsoleWriter,
+            IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
+            ILogger logger,
+            FuturesEodTradeReadCache cache)
+            => ExecuteCoreAsync(source, context, marketDataApi, blackboardService,
+                statusConsoleWriter, projector, logger, cache);
+    }
 
     static async ValueTask<bool> ExecuteCoreAsync(
         FuturesTickTradeDataInsertedEvent source,
@@ -121,18 +122,18 @@ public static class FuturesTickTradeDataInserted
     static async ValueTask RecordWorkflowFailureAsync(FuturesTickTradeDataInsertedEvent source,
         IStatusConsoleWriter statusConsoleWriter, ILogger logger, FuturesEodTradeReadCache? cache, Exception exception)
     {
-            cache?.Invalidate(new FuturesEodDataId(
-                source.EntityId.ContractId, source.EntityId.ValueDate));
-            await statusConsoleWriter.WriteConsoleAsync(
-                LogSourceType.MarketDataFeedEvent,
-                6009,
-                exception.GetErrorMessage()).ConfigureAwait(false);
-            logger.LogErrorEvent(
-                ServiceId,
-                exception,
-                "{EventName} for {ContractId}: realtime futures EOD workflow failed",
-                nameof(FuturesTickTradeDataInsertedEvent),
-                source.EntityId.ContractId);
+        cache?.Invalidate(new FuturesEodDataId(
+            source.EntityId.ContractId, source.EntityId.ValueDate));
+        await statusConsoleWriter.WriteConsoleAsync(
+            LogSourceType.MarketDataFeedEvent,
+            6009,
+            exception.GetErrorMessage()).ConfigureAwait(false);
+        logger.LogErrorEvent(
+            ServiceId,
+            exception,
+            "{EventName} for {ContractId}: realtime futures EOD workflow failed",
+            nameof(FuturesTickTradeDataInsertedEvent),
+            source.EntityId.ContractId);
     }
 
     /// <summary>Projects a VX trade with matching official session statistics and records the projection duration.</summary>
@@ -140,19 +141,19 @@ public static class FuturesTickTradeDataInserted
         FuturesTickDataV2ReadModel tickData, IMarketDataApi marketDataApi,
         IRealtimeProjector<FuturesEodDataRealtimeActor> projector, ILogger logger)
     {
-                FuturesSessionStatisticsSnapshot? statistics =
-                    marketDataApi.TryGetFuturesSessionStatistics(
-                        source.EntityId.ContractId,
-                        out var currentStatistics)
-                    && currentStatistics.ValueDate == source.EntityId.ValueDate
-                        ? currentStatistics
-                        : null;
-                var stageStarted = Stopwatch.GetTimestamp();
-                var projected = await projector.ProcessRealtimeEventAsync(
-                        VxFuturesEodDataEventFactory.Create(source, tickData, statistics))
-                    .ConfigureAwait(false);
-                LogSlowStage(logger, source, "vx_projection", stageStarted);
-                return projected;
+        FuturesSessionStatisticsSnapshot? statistics =
+            marketDataApi.TryGetFuturesSessionStatistics(
+                source.EntityId.ContractId,
+                out var currentStatistics)
+            && currentStatistics.ValueDate == source.EntityId.ValueDate
+                ? currentStatistics
+                : null;
+        var stageStarted = Stopwatch.GetTimestamp();
+        var projected = await projector.ProcessRealtimeEventAsync(
+                VxFuturesEodDataEventFactory.Create(source, tickData, statistics))
+            .ConfigureAwait(false);
+        LogSlowStage(logger, source, "vx_projection", stageStarted);
+        return projected;
     }
 
     static async ValueTask<FuturesEodDataInsertedEvent?> CreateFuturesInsertedEventAsync(
@@ -229,13 +230,13 @@ public static class FuturesTickTradeDataInserted
     static FuturesEodDataV2ReadModel ApplyCompleteStatistics(FuturesEodDataV2ReadModel current,
         FuturesSessionStatisticsSnapshot statistics)
     {
-            return current with
-            {
-                OpenPrice = statistics.OpenPrice,
-                HighPrice = statistics.HighPrice,
-                LowPrice = statistics.LowPrice,
-                Volume = statistics.HasVolume ? statistics.Volume : current.Volume
-            };
+        return current with
+        {
+            OpenPrice = statistics.OpenPrice,
+            HighPrice = statistics.HighPrice,
+            LowPrice = statistics.LowPrice,
+            Volume = statistics.HasVolume ? statistics.Volume : current.Volume
+        };
     }
 
     /// <summary>Creates the EOD row observation without changing its realtime source identity.</summary>

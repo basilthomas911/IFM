@@ -23,48 +23,51 @@ public static class FuturesOptionTickDataStreamingStarted
     }
 
     static string ServiceId { get; }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
-    /// <summary>Attaches the option stream and publishes its completion or failure event.</summary>
-    public static async ValueTask<bool> ExecuteAsync(
-    this FuturesOptionTickDataStreamingStartedEvent e,
-    IEventActorContext context,
-    IEventActorContext eventApi,
-    FuturesOptionTickDataEventParameters p, ILogger<FuturesOptionTickDataEventActor> logger)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(eventApi);
-        ArgumentNullException.ThrowIfNull(p);
-        var source = $"FuturesOptionTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
-        try
-        {
-            var runtime = p.MarketDataApi.GetRuntimeStatus();
-            if (!runtime.IsRunning || runtime.ActiveValueDate != e.ValueDate)
-                throw new InvalidOperationException(
-                    "The Databento watchdog must start and qualify the value-date runtime before an option route is attached.");
-            var owner = CreateOwner(e.EntityId, e.Contract.ContractId);
-            p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
-            if (p.QualifiedFeeds is { } feeds)
-                await feeds.AcquireAsync(owner, e.Contract, e.ValueDate).ConfigureAwait(false);
-            else
-            {
-                _ = await (p.MarketDataApi.GetFuturesOptionContractAsync(e.Contract.ContractId)).ConfigureAwait(false)
-                    ?? throw new InvalidOperationException($"Option contract '{e.Contract.ContractId}' is unavailable.");
-                if (!await p.MarketDataApi.StartStreamingFuturesOptionTickDataAsync(e.Contract.ContractId, owner).ConfigureAwait(false))
-                    throw new InvalidOperationException($"Option contract '{e.Contract.ContractId}' acquisition was rejected.");
-            }
-            await (eventApi.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e)).ConfigureAwait(false);
 
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"futures option {e.Contract.ContractId} streaming started")).ConfigureAwait(false);
-            logger.LogInformationEvent("{Source}: futures option {ContractId} streaming started", source, e.Contract.ContractId);
-            return true;
-        }
-        catch (Exception ex)
+    extension(FuturesOptionTickDataStreamingStartedEvent e)
+    {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
+        /// <summary>Attaches the option stream and publishes its completion or failure event.</summary>
+        public async ValueTask<bool> ExecuteAsync(
+            IEventActorContext context,
+            IEventActorContext eventApi,
+            FuturesOptionTickDataEventParameters p, ILogger<FuturesOptionTickDataEventActor> logger)
         {
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures option {ContractId} streaming start failed", source, e.Contract.ContractId);
-            await (eventApi.SendFuturesOptionTickDataStreamingStartedFailAsync(e, ex)).ConfigureAwait(false);
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, FuturesOptionTickDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(eventApi);
+            ArgumentNullException.ThrowIfNull(p);
+            var source = $"FuturesOptionTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
+            try
+            {
+                var runtime = p.MarketDataApi.GetRuntimeStatus();
+                if (!runtime.IsRunning || runtime.ActiveValueDate != e.ValueDate)
+                    throw new InvalidOperationException(
+                        "The Databento watchdog must start and qualify the value-date runtime before an option route is attached.");
+                var owner = CreateOwner(e.EntityId, e.Contract.ContractId);
+                p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
+                if (p.QualifiedFeeds is { } feeds)
+                    await feeds.AcquireAsync(owner, e.Contract, e.ValueDate).ConfigureAwait(false);
+                else
+                {
+                    _ = await (p.MarketDataApi.GetFuturesOptionContractAsync(e.Contract.ContractId)).ConfigureAwait(false)
+                        ?? throw new InvalidOperationException($"Option contract '{e.Contract.ContractId}' is unavailable.");
+                    if (!await p.MarketDataApi.StartStreamingFuturesOptionTickDataAsync(e.Contract.ContractId, owner).ConfigureAwait(false))
+                        throw new InvalidOperationException($"Option contract '{e.Contract.ContractId}' acquisition was rejected.");
+                }
+                await (eventApi.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e)).ConfigureAwait(false);
+
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"futures option {e.Contract.ContractId} streaming started")).ConfigureAwait(false);
+                logger.LogInformationEvent("{Source}: futures option {ContractId} streaming started", source, e.Contract.ContractId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.LogErrorEvent(ServiceId, ex, "{Source}: futures option {ContractId} streaming start failed", source, e.Contract.ContractId);
+                await (eventApi.SendFuturesOptionTickDataStreamingStartedFailAsync(e, ex)).ConfigureAwait(false);
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, FuturesOptionTickDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
+            }
+            return false;
         }
-        return false;
     }
 
     /// <summary>Creates the owner identity used to track this actor's option stream.</summary>

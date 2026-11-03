@@ -7,12 +7,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 
     public static class QuoteSideExtensions
     {
-        public static string ToStringFast(this QuoteSide value) => value switch
+
+        extension(QuoteSide value)
         {
-            QuoteSide.Undefined => nameof(QuoteSide.Undefined),
-            QuoteSide.Ask => nameof(QuoteSide.Ask),
-            QuoteSide.Bid => nameof(QuoteSide.Bid),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                QuoteSide.Undefined => nameof(QuoteSide.Undefined),
+                QuoteSide.Ask => nameof(QuoteSide.Ask),
+                QuoteSide.Bid => nameof(QuoteSide.Bid),
+                _ => value.ToString()
+            };
+        }
     }
 }

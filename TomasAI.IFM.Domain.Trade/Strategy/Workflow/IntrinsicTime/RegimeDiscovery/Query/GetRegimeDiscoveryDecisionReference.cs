@@ -10,13 +10,17 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscove
 /// <summary>Handles <see cref = "GetRegimeDiscoveryDecisionReferenceQuery"/>.</summary>
 public static class GetRegimeDiscoveryDecisionReference
 {
-    /// <summary>Generates and returns the immutable Regime Discovery decision reference.</summary>
-    public static ValueTask ExecuteAsync(this GetRegimeDiscoveryDecisionReferenceQuery query, IRegimeDiscoveryQueryContext services, IQueryActorContext<RegimeDiscoveryQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetRegimeDiscoveryDecisionReferenceQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        cancellationToken.ThrowIfCancellationRequested();
-        var result = new RegimeDiscoveryDecisionReferenceGenerator().Generate();
-        return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<RegimeDiscoveryDecisionReferenceDto[]>(result));
+        /// <summary>Generates and returns the immutable Regime Discovery decision reference.</summary>
+        public ValueTask ExecuteAsync(IRegimeDiscoveryQueryContext services, IQueryActorContext<RegimeDiscoveryQueryActor> context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = new RegimeDiscoveryDecisionReferenceGenerator().Generate();
+            return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<RegimeDiscoveryDecisionReferenceDto[]>(result));
+        }
     }
 }

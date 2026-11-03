@@ -13,34 +13,40 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.F
 /// <summary>Maps contract, calculation, transport and lifecycle failures to non-durable terminal events.</summary>
 public static class FailRiskManagementPipeline
 {
-    /// <summary>Classifies a failure and builds its event without persisting incomplete state.</summary>
-    public static FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent> Fail(this FunctionEventContext<ExecuteRiskManagementPipelineCommand> input, TimeProvider clock)
-    {
-        ArgumentNullException.ThrowIfNull(clock);
-        ArgumentNullException.ThrowIfNull(input);
-        if (!input.IsConflict && input.Exception is null)
-            throw new ArgumentException("Failure requires a conflict or exception.",nameof(input));
-        var reason = ((input.IsConflict) switch
-        {
-            true => "RM.INPUT.CONFLICTING_DUPLICATE",
-            _ => (input.Exception switch
-            {
-RiskCalculationException validation=> validation.ReasonCode,
-                _ => input.Exception is TimeoutException ? "RM.TIME.EXPIRED" : input.Stage switch
-                {
-                    FunctionFailureStage.Loading or FunctionFailureStage.Persistence => "RM.PERSISTENCE.FAILED",
-                    FunctionFailureStage.Projection => "RM.PROJECTION.FAILED",
-                    FunctionFailureStage.Execution => "RM.CALCULATION.FAILED",
-                    _ => "RM.INPUT.INVALID"
-                }})});
-        if (!input.IsConflict && input.Exception is TomasAI.IFM.Shared.Exceptions.CommandValidationException mapped)
-        {
-            var code = System.Text.RegularExpressions.Regex.Match(mapped.Message, @"RM\.[A-Z_]+\.[A-Z_]+", System.Text.RegularExpressions.RegexOptions.NonBacktracking);
-            if (code.Success)
-                reason = code.Value;
-        }
 
-        return FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>.Fail(CreateFailedEvent(input.Request, reason, clock));
+    extension(FunctionEventContext<ExecuteRiskManagementPipelineCommand> input)
+    {
+        /// <summary>Classifies a failure and builds its event without persisting incomplete state.</summary>
+        public FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent> Fail(TimeProvider clock)
+        {
+            ArgumentNullException.ThrowIfNull(clock);
+            ArgumentNullException.ThrowIfNull(input);
+            if (!input.IsConflict && input.Exception is null)
+                throw new ArgumentException("Failure requires a conflict or exception.", nameof(input));
+            var reason = ((input.IsConflict) switch
+            {
+                true => "RM.INPUT.CONFLICTING_DUPLICATE",
+                _ => (input.Exception switch
+                {
+                    RiskCalculationException validation => validation.ReasonCode,
+                    _ => input.Exception is TimeoutException ? "RM.TIME.EXPIRED" : input.Stage switch
+                    {
+                        FunctionFailureStage.Loading or FunctionFailureStage.Persistence => "RM.PERSISTENCE.FAILED",
+                        FunctionFailureStage.Projection => "RM.PROJECTION.FAILED",
+                        FunctionFailureStage.Execution => "RM.CALCULATION.FAILED",
+                        _ => "RM.INPUT.INVALID"
+                    }
+                })
+            });
+            if (!input.IsConflict && input.Exception is TomasAI.IFM.Shared.Exceptions.CommandValidationException mapped)
+            {
+                var code = System.Text.RegularExpressions.Regex.Match(mapped.Message, @"RM\.[A-Z_]+\.[A-Z_]+", System.Text.RegularExpressions.RegexOptions.NonBacktracking);
+                if (code.Success)
+                    reason = code.Value;
+            }
+
+            return FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>.Fail(CreateFailedEvent(input.Request, reason, clock));
+        }
     }
 
     /// <summary>Constructs failure metadata for valid or malformed ingress.</summary>

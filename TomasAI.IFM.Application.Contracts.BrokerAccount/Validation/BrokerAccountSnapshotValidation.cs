@@ -8,19 +8,21 @@ public static class BrokerAccountSnapshotValidation
 {
     private static readonly SnapshotRules Rules = new();
 
-    /// <summary>Appends all snapshot failures, including missing position collections.</summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the published broker message storage width and collection contract.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the published broker message storage width and collection contract.")]
-    public static TErrors ValidateAccountSnapshot<TErrors>(this TErrors errors, BrokerAccountSnapshotEvidence? snapshot)
-
+    extension<TErrors>(TErrors errors)
         where TErrors : class, ICollection<ValidationError>
     {
-        ArgumentNullException.ThrowIfNull(errors);
-        if (snapshot is null) errors.Add(new("BrokerAccount.Snapshot is required."));
-        else
-            foreach (var failure in Rules.Validate(snapshot).Errors)
-                errors.Add(new ValidationError(failure.ErrorMessage));
-        return errors;
+        /// <summary>Appends all snapshot failures, including missing position collections.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the published broker message storage width and collection contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the published broker message storage width and collection contract.")]
+        public TErrors ValidateAccountSnapshot(BrokerAccountSnapshotEvidence? snapshot)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            if (snapshot is null) errors.Add(new("BrokerAccount.Snapshot is required."));
+            else
+                foreach (var failure in Rules.Validate(snapshot).Errors)
+                    errors.Add(new ValidationError(failure.ErrorMessage));
+            return errors;
+        }
     }
 
     private sealed class SnapshotRules : AbstractValidator<BrokerAccountSnapshotEvidence>

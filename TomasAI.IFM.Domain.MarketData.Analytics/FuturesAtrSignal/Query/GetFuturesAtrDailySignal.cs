@@ -13,32 +13,33 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Query;
 
 public static class GetFuturesAtrDailySignal
 {
-    /// <summary>
-    /// Handles a <see cref="GetFuturesAtrSignalQuery"/> by retrieving the most recent ATR signal
-    /// for the specified futures contract and value date. The result is published back to the caller via a NATS reply.
-    /// </summary>
-    private static async ValueTask<FuturesAtrSignalReadModel?> GetLastFuturesAtrDailySignalAsync(
-        this GetFuturesAtrDailySignalQuery q,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-        => await dbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
-                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
 
-
-    /// <summary>Reads and replies to the GetFuturesAtrDailySignalQuery message.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesAtrDailySignalQuery q,
-        IQueryActorContext<FuturesAtrSignalQueryActor> ctx,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken)
+    extension(GetFuturesAtrDailySignalQuery q)
     {
-        ArgumentNullException.ThrowIfNull(ctx);
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        var query = q;
-        var queryResult = await query.GetLastFuturesAtrDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        var serviceResult = new ServiceResult<FuturesAtrSignalReadModel?>(queryResult);
-        await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesAtrDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
+        /// <summary>
+        /// Handles a <see cref="GetFuturesAtrSignalQuery"/> by retrieving the most recent ATR signal
+        /// for the specified futures contract and value date. The result is published back to the caller via a NATS reply.
+        /// </summary>
+        private async ValueTask<FuturesAtrSignalReadModel?> GetLastFuturesAtrDailySignalAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+            => await dbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
+                    q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
+
+        /// <summary>Reads and replies to the GetFuturesAtrDailySignalQuery message.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesAtrSignalQueryActor> ctx,
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(ctx);
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            var query = q;
+            var queryResult = await query.GetLastFuturesAtrDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var serviceResult = new ServiceResult<FuturesAtrSignalReadModel?>(queryResult);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesAtrDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
+        }
     }
 }

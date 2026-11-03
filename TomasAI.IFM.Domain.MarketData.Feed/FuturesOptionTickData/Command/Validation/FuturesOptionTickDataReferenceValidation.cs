@@ -22,22 +22,25 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Valid
 /// <summary>Checks reference-dependent command fields outside the actor.</summary>
 public static class FuturesOptionTickDataReferenceValidation
 {
-    /// <summary>Validates fields against the resolved reference lookup service.</summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The existing fluent validation pipeline consumes this mutable error list through ThrowCommandValidationExceptionOnAnyError.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "The existing fluent validation pipeline consumes this mutable error list through ThrowCommandValidationExceptionOnAnyError.")]
-    public static List<ValidationError> ValidateReferenceData(
-        this ICommand command,
-        IReferenceLookupService referenceLookupService)
-        => command switch
-        {
-            StartFuturesOptionTickDataStreamingCommand start => new List<ValidationError>()
-                .ValidateFuturesOptionContract(
-                    start.Contract,
-                    referenceLookupService,
-                    start.CommandName),
-            InsertFuturesOptionTickDataCommand or StopFuturesOptionTickDataStreamingCommand => [],
-            _ => throw new InvalidOperationException(
-                $"Unable to validate FuturesOptionTickDataCommandActor reference data for command: {command.Subject}")
-        };
+
+    extension(ICommand command)
+    {
+        /// <summary>Validates fields against the resolved reference lookup service.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The existing fluent validation pipeline consumes this mutable error list through ThrowCommandValidationExceptionOnAnyError.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "The existing fluent validation pipeline consumes this mutable error list through ThrowCommandValidationExceptionOnAnyError.")]
+        public List<ValidationError> ValidateReferenceData(
+            IReferenceLookupService referenceLookupService)
+            => command switch
+            {
+                StartFuturesOptionTickDataStreamingCommand start => new List<ValidationError>()
+                    .ValidateFuturesOptionContract(
+                        start.Contract,
+                        referenceLookupService,
+                        start.CommandName),
+                InsertFuturesOptionTickDataCommand or StopFuturesOptionTickDataStreamingCommand => [],
+                _ => throw new InvalidOperationException(
+                    $"Unable to validate FuturesOptionTickDataCommandActor reference data for command: {command.Subject}")
+            };
+    }
 
 }

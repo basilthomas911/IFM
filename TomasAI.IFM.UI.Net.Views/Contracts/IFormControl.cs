@@ -22,77 +22,87 @@ namespace TomasAI.IFM.UI.Net.Contracts
 
     public static class IControlExtension
     {
-        public static void ShowErrorMessage(this Control view, string errorMsg, string caption)
+
+        /// <param name="view">
+        ///
+        /// </param>
+        extension(Control view)
         {
-            try
+            public void ShowErrorMessage(string errorMsg, string caption)
             {
-                if (view is null)
-                    return;
-                new WinFormsUiDispatcher(view).Post(() => UiExceptionReporter.Observe(
-                    new WinFormsUserInteraction(view).NotifyAsync(
-                        new UserNotification(errorMsg, caption, UserNotificationSeverity.Error)),
-                    nameof(WinFormsUserInteraction.NotifyAsync), view));
-            }
-            catch (Exception exception)
-            {
-                UiExceptionReporter.Report(exception, "UiNotification", nameof(ShowErrorMessage), view);
+                try
+                {
+                    if (view is null)
+                        return;
+                    new WinFormsUiDispatcher(view).Post(() => UiExceptionReporter.Observe(
+                        new WinFormsUserInteraction(view).NotifyAsync(
+                            new UserNotification(errorMsg, caption, UserNotificationSeverity.Error)),
+                        nameof(WinFormsUserInteraction.NotifyAsync), view));
+                }
+                catch (Exception exception)
+                {
+                    UiExceptionReporter.Report(exception, "UiNotification", nameof(ShowErrorMessage), view);
+                }
+
             }
 
-        }
-
-        /// <summary>
-        /// post onto ui thread of control to call suppiled action when thread is ready
-        /// </summary>
-        /// <param name="view"></param>
-        /// <param name="viewAction"></param>
-        public static void Post(this Control view, Action viewAction)
-        {
-            try
+            /// <summary>
+            /// post onto ui thread of control to call suppiled action when thread is ready
+            /// </summary>
+            ///
+            /// <param name="viewAction"></param>
+            public void Post(Action viewAction)
             {
-                if (view is not null && viewAction is not null)
-                    new WinFormsUiDispatcher(view).Post(viewAction);
+                try
+                {
+                    if (view is not null && viewAction is not null)
+                        new WinFormsUiDispatcher(view).Post(viewAction);
+                }
+                catch (Exception exception)
+                {
+                    UiExceptionReporter.Report(exception, "UiDispatch", nameof(Post), view);
+                }
             }
-            catch (Exception exception)
+
+            /// <summary>
+            /// Dispatches an action to the UI thread and completes after the action has executed.
+            /// </summary>
+            public async ValueTask PostAsync(
+                Action viewAction,
+                CancellationToken cancellationToken = default)
             {
-                UiExceptionReporter.Report(exception, "UiDispatch", nameof(Post), view);
+                ArgumentNullException.ThrowIfNull(view);
+                ArgumentNullException.ThrowIfNull(viewAction);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                await new WinFormsUiDispatcher(view).InvokeAsync(viewAction, cancellationToken);
             }
-        }
-
-        /// <summary>
-        /// Dispatches an action to the UI thread and completes after the action has executed.
-        /// </summary>
-        public static async ValueTask PostAsync(
-            this Control view,
-            Action viewAction,
-            CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(view);
-            ArgumentNullException.ThrowIfNull(viewAction);
-            cancellationToken.ThrowIfCancellationRequested();
-
-            await new WinFormsUiDispatcher(view).InvokeAsync(viewAction, cancellationToken);
         }
 
 
         [DllImport("user32.dll")]
         public static extern int SendMessage(IntPtr hWnd, Int32 wMsg, bool wParam, Int32 lParam);
         const int WM_SETREDRAW = 11;
-        public static void Draw(this Control view, Action drawAction)
+
+        extension(Control view)
         {
-            ArgumentNullException.ThrowIfNull(view);
-            ArgumentNullException.ThrowIfNull(drawAction);
-            if (view.IsDisposed || !view.IsHandleCreated) return;
-            view.BeginInvoke((MethodInvoker)(() =>
+            public void Draw(Action drawAction)
             {
+                ArgumentNullException.ThrowIfNull(view);
+                ArgumentNullException.ThrowIfNull(drawAction);
                 if (view.IsDisposed || !view.IsHandleCreated) return;
-                SendMessage(view.Handle, WM_SETREDRAW, false, 0);
-                try { drawAction(); }
-                finally
+                view.BeginInvoke((MethodInvoker)(() =>
                 {
-                    SendMessage(view.Handle, WM_SETREDRAW, true, 0);
-                    view.Invalidate(true);
-                }
-            }));
+                    if (view.IsDisposed || !view.IsHandleCreated) return;
+                    SendMessage(view.Handle, WM_SETREDRAW, false, 0);
+                    try { drawAction(); }
+                    finally
+                    {
+                        SendMessage(view.Handle, WM_SETREDRAW, true, 0);
+                        view.Invalidate(true);
+                    }
+                }));
+            }
         }
     }
 }

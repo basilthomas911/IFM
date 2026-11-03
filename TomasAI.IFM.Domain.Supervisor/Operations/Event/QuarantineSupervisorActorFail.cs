@@ -8,16 +8,19 @@ namespace TomasAI.IFM.Domain.Supervisor.Operations.Event;
 /// <summary>Projects the Quarantine Supervisor fail event.</summary>
 public static class QuarantineSupervisorActorFail
 {
-    /// <summary>Records the Quarantine fail outcome in Supervisor operation history.</summary>
-    public static ValueTask ExecuteAsync(this QuarantineSupervisorActorFailEvent value,
-        ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
-        
+
+    extension(QuarantineSupervisorActorFailEvent value)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        ArgumentNullException.ThrowIfNull(value);
-        return SupervisorTerminalProjection.Fail(context, logger, value.CommandId, value.Target,
-            value.ExpectedGeneration, SupervisorActorOperationKind.Quarantine, value.Requester,
-            value.Reason, value.TimeoutTicks, value.Outcome, value.Stage, value.ErrorMessage);
+        /// <summary>Records the Quarantine fail outcome in Supervisor operation history.</summary>
+        public ValueTask ExecuteAsync(ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            ArgumentNullException.ThrowIfNull(value);
+            return SupervisorTerminalProjection.Fail(context, logger, value.CommandId, value.Target,
+                value.ExpectedGeneration, SupervisorActorOperationKind.Quarantine, value.Requester,
+                value.Reason, value.TimeoutTicks, value.Outcome, value.Stage, value.ErrorMessage);
+        }
     }
 }

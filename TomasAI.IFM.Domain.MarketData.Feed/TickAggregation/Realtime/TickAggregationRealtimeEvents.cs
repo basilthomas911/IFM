@@ -5,28 +5,37 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime;
 
 internal static class TickAggregationRealtimeEvents
 {
-    internal static FuturesTickTradeDataChangedEvent RestoreSource(
-        this FuturesTickTradeDataChangedEvent value, string? dataset, Guid generationId) => value with
-    {
-        SourceDataset = dataset ?? string.Empty,
-        SourceGenerationId = generationId
-    };
 
-    internal static FuturesTickQuoteDataChangedEvent RestoreSource(
-        this FuturesTickQuoteDataChangedEvent value, string? dataset, Guid generationId) => value with
+    extension(FuturesTickTradeDataChangedEvent value)
     {
-        SourceDataset = dataset ?? string.Empty,
-        SourceGenerationId = generationId
-    };
+        internal FuturesTickTradeDataChangedEvent RestoreSource(
+        string? dataset, Guid generationId) => value with
+        {
+            SourceDataset = dataset ?? string.Empty,
+            SourceGenerationId = generationId
+        };
+    }
 
-    internal static FuturesTickTradeDataInsertedEvent ToInsertedEvent(
-        this FuturesTickTradeDataChangedEvent source) => new()
+    extension(FuturesTickQuoteDataChangedEvent value)
+    {
+        internal FuturesTickQuoteDataChangedEvent RestoreSource(
+        string? dataset, Guid generationId) => value with
+        {
+            SourceDataset = dataset ?? string.Empty,
+            SourceGenerationId = generationId
+        };
+    }
+
+    extension(FuturesTickTradeDataChangedEvent source)
+    {
+        internal FuturesTickTradeDataInsertedEvent ToInsertedEvent(
+        ) => new()
         {
             Subject = new ActorSubject(
-            ActorType.Realtime,
-            FuturesTickTradeDataInsertedEvent.Actor,
-            FuturesTickTradeDataInsertedEvent.Verb,
-            source.EntityId.Format()),
+                ActorType.Realtime,
+                FuturesTickTradeDataInsertedEvent.Actor,
+                FuturesTickTradeDataInsertedEvent.Verb,
+                source.EntityId.Format()),
             Id = source.Id,
             EntityId = source.EntityId,
             EventId = 0,
@@ -45,15 +54,18 @@ internal static class TickAggregationRealtimeEvents
             SourceDataset = source.SourceDataset,
             SourceGenerationId = source.SourceGenerationId
         };
+    }
 
-    internal static FuturesTickQuoteDataInsertedEvent ToInsertedEvent(
-        this FuturesTickQuoteDataChangedEvent source) => new()
+    extension(FuturesTickQuoteDataChangedEvent source)
+    {
+        internal FuturesTickQuoteDataInsertedEvent ToInsertedEvent(
+        ) => new()
         {
             Subject = new ActorSubject(
-            ActorType.Realtime,
-            FuturesTickQuoteDataInsertedEvent.Actor,
-            FuturesTickQuoteDataInsertedEvent.Verb,
-            source.EntityId.Format()),
+                ActorType.Realtime,
+                FuturesTickQuoteDataInsertedEvent.Actor,
+                FuturesTickQuoteDataInsertedEvent.Verb,
+                source.EntityId.Format()),
             Id = source.Id,
             EntityId = source.EntityId,
             EventId = 0,
@@ -74,4 +86,5 @@ internal static class TickAggregationRealtimeEvents
             SourceDataset = source.SourceDataset,
             SourceGenerationId = source.SourceGenerationId
         };
+    }
 }

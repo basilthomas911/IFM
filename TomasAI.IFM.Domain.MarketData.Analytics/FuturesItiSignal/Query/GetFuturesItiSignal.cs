@@ -13,31 +13,33 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query;
 
 public static class GetFuturesItiSignal
 {
-    /// <summary>
-    /// Handles <see cref="GetFuturesItiSignalQuery"/> by retrieving the latest ITI signal snapshot for the
-    /// requested contract and value date, then replying to the caller.
-    /// </summary>
-    internal static async ValueTask<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(
-        this GetFuturesItiSignalQuery q,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-        => await dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(
-                q.ContractId, q.ValueDate, q.TimePeriod, cancellationToken).ConfigureAwait(false);
 
-    /// <summary>Reads and replies to the GetFuturesItiSignalQuery message.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesItiSignalQuery q,
-        IQueryActorContext<FuturesItiSignalQueryActor> ctx,
-        IDbContextFactory db,
-        CancellationToken cancellationToken)
+    extension(GetFuturesItiSignalQuery q)
     {
-        ArgumentNullException.ThrowIfNull(ctx);
-        ArgumentNullException.ThrowIfNull(db);
-        ArgumentNullException.ThrowIfNull(q);
-        var query = q;
-        var result = await query.GetLastFuturesItiSignalAsync(db, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalQuery.Verb,
-            new ServiceResult<FuturesItiSignalV2ReadModel?>(result)).ConfigureAwait(false);
+        /// <summary>
+        /// Handles <see cref="GetFuturesItiSignalQuery"/> by retrieving the latest ITI signal snapshot for the
+        /// requested contract and value date, then replying to the caller.
+        /// </summary>
+        internal async ValueTask<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+            => await dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(
+                    q.ContractId, q.ValueDate, q.TimePeriod, cancellationToken).ConfigureAwait(false);
+
+        /// <summary>Reads and replies to the GetFuturesItiSignalQuery message.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesItiSignalQueryActor> ctx,
+            IDbContextFactory db,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(ctx);
+            ArgumentNullException.ThrowIfNull(db);
+            ArgumentNullException.ThrowIfNull(q);
+            var query = q;
+            var result = await query.GetLastFuturesItiSignalAsync(db, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalQuery.Verb,
+                new ServiceResult<FuturesItiSignalV2ReadModel?>(result)).ConfigureAwait(false);
+        }
     }
 }

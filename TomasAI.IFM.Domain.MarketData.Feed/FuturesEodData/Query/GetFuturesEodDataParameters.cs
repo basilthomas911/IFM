@@ -9,16 +9,20 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query;
 
 public static class GetFuturesEodDataParameters
 {
-    internal static async ValueTask<FuturesEodDataParametersReadModel> ExecuteAsync(
-       this GetFuturesEodDataParametersQuery q, IDbContextFactory dbFactory)
-    {
-        return await (GetFuturesEodDataParametersAsync(dbFactory.MarketDataDb, q.ContractId, q.ValueDate)).ConfigureAwait(false);
 
-        async ValueTask<FuturesEodDataParametersReadModel> GetFuturesEodDataParametersAsync(
-            IMarketDataDbContext db, string contractId, DateOnly valueDate)
-            => new(
-                FuturesEodDataToday: await (db.GetFuturesEodDataAsync(contractId, valueDate)).ConfigureAwait(false),
-                FuturesEodDataRange: [.. await (db.GetFuturesEodDataByDateRangeAsync(contractId, valueDate.AddMonths(-2), valueDate.AddDays(-1))).ConfigureAwait(false)],
-                NormalCurveTable: await (db.GetNormalCurveTableAsync()).ConfigureAwait(false));
+    extension(GetFuturesEodDataParametersQuery q)
+    {
+        internal async ValueTask<FuturesEodDataParametersReadModel> ExecuteAsync(
+        IDbContextFactory dbFactory)
+        {
+            return await (GetFuturesEodDataParametersAsync(dbFactory.MarketDataDb, q.ContractId, q.ValueDate)).ConfigureAwait(false);
+
+            async ValueTask<FuturesEodDataParametersReadModel> GetFuturesEodDataParametersAsync(
+                IMarketDataDbContext db, string contractId, DateOnly valueDate)
+                => new(
+                    FuturesEodDataToday: await (db.GetFuturesEodDataAsync(contractId, valueDate)).ConfigureAwait(false),
+                    FuturesEodDataRange: [.. await (db.GetFuturesEodDataByDateRangeAsync(contractId, valueDate.AddMonths(-2), valueDate.AddDays(-1))).ConfigureAwait(false)],
+                    NormalCurveTable: await (db.GetNormalCurveTableAsync()).ConfigureAwait(false));
+        }
     }
 }

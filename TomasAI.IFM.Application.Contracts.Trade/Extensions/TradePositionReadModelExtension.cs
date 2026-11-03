@@ -6,110 +6,111 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions
     public static class TradePositionReadModelExtension
     {
 
-        public static TradePositionReadModel? Get(this TradePositionReadModel[] tradePosition, TradeType tradeType, TradeStatus tradeStatus)
-           
+        extension(TradePositionReadModel[] tradePosition)
         {
-            ArgumentNullException.ThrowIfNull(tradePosition);
-            return GetLatest(tradePosition, tradeType, tradeStatus);
-        }
+            public TradePositionReadModel? Get(TradeType tradeType, TradeStatus tradeStatus)
 
-        public static TradePositionReadModel? Get(this TradePositionReadModel[] tradePosition, TradeType baseTradeType, OptionType optionType, TradeStatus tradeStatus)
-        {
-            ArgumentNullException.ThrowIfNull(tradePosition);
-            var tradeType = GetTradePositionTradeType(baseTradeType, optionType);
-            return GetLatest(tradePosition, tradeType, tradeStatus);
-        }
-
-
-        public static TradePositionReadModel? Get(this TradePositionReadModel[] tradePosition, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate)
-             
-        {
-            ArgumentNullException.ThrowIfNull(tradePosition);
-            return GetLast(tradePosition, tradeType, tradeStatus, valueDate);
-        }
-
-        public static TradePositionReadModel? Get(this TradePositionReadModel[] tradePosition, TradeType baseTradeType, OptionType optionType, TradeStatus tradeStatus, DateOnly valueDate)
-        {
-            ArgumentNullException.ThrowIfNull(tradePosition);
-            var tradeType = GetTradePositionTradeType(baseTradeType, optionType);
-            return GetLast(tradePosition, tradeType, tradeStatus, valueDate);
-        }
-
-        public static TradePositionReadModel? Get(this TradePositionReadModel[] tradePosition, TradePositionEntityId key)
-        {
-            ArgumentNullException.ThrowIfNull(tradePosition);
-            for (var index = tradePosition.Length - 1; index >= 0; index--)
-                if (tradePosition[index].EntityId.Equals(key))
-                    return tradePosition[index];
-            return null;
-        }
-
-        public static decimal GetTradePnl(this TradePositionReadModel[] tradePosition)
-            => tradePosition.Sum(e => e.TradePnl);
-
-        public static decimal GetEodTradePnl(this TradePositionReadModel[] tradePosition)
-        {
-            ArgumentNullException.ThrowIfNull(tradePosition);
-            var result = 0m;
-            foreach (var position in tradePosition.Where(position => position.TradeStatus is TradeStatus.Open or TradeStatus.EndOfDay))
-                result += position.TradePnl;
-            return result;
-        }
-
-        public static decimal GetNetSpread(this TradePositionReadModel[] tradePosition, TradeType baseTradeType, TradeStatus tradeStatus)
-        {
-            var putSpreadTradeType = GetTradePositionTradeType(baseTradeType, OptionType.Put);
-            var putTradePosition = tradePosition.Get(putSpreadTradeType, tradeStatus);
-            var callSpreadTradeType = GetTradePositionTradeType(baseTradeType, OptionType.Call);
-            var callTradePosition = tradePosition.Get(callSpreadTradeType, tradeStatus);
-            return putTradePosition is not null && callTradePosition is not null
-                ? Math.Abs(putTradePosition.NetSpread + callTradePosition.NetSpread)
-                : 0.0m;
-        }
-
-        public static decimal GetForwardPrice(this TradePositionReadModel[] tradePosition, TradeType baseTradeType, TradeStatus tradeStatus)
-        {
-            var putSpreadTradeType = GetTradePositionTradeType(baseTradeType, OptionType.Put);
-            var putTradePosition = tradePosition.Get(putSpreadTradeType, tradeStatus);
-            var callSpreadTradeType = GetTradePositionTradeType(baseTradeType, OptionType.Call);
-            var callTradePosition = tradePosition.Get(callSpreadTradeType, tradeStatus);
-            return putTradePosition is not null && callTradePosition is not null
-                ? Math.Abs(putTradePosition.ForwardPrice) + Math.Abs(callTradePosition.ForwardPrice)
-                : 0.0m;
-        }
-
-
-        public static double GetFowardLossRatio(this TradePositionReadModel[] tradePosition, TradeType baseTradeType, TradeStatus tradeStatus, decimal limitPrice)
-        {
-            var forwardPrice = GetForwardPrice(tradePosition, baseTradeType, tradeStatus);
-            return (double)(forwardPrice == 0.0m ? 0.0m : forwardPrice / limitPrice);
-        }
-
-        public static void Set(this TradePositionReadModel[] tradePosition, TradePositionReadModel? newTradePosition)
-        {
-            if (tradePosition is null || newTradePosition is null) return;
-            for (var index = tradePosition.Length - 1; index >= 0; index--)
             {
-                var e = tradePosition[index];
-                if (e.EntityId.Equals(newTradePosition.EntityId))
+                ArgumentNullException.ThrowIfNull(tradePosition);
+                return GetLatest(tradePosition, tradeType, tradeStatus);
+            }
+
+            public TradePositionReadModel? Get(TradeType baseTradeType, OptionType optionType, TradeStatus tradeStatus)
+            {
+                ArgumentNullException.ThrowIfNull(tradePosition);
+                var tradeType = GetTradePositionTradeType(baseTradeType, optionType);
+                return GetLatest(tradePosition, tradeType, tradeStatus);
+            }
+
+            public TradePositionReadModel? Get(TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate)
+
+            {
+                ArgumentNullException.ThrowIfNull(tradePosition);
+                return GetLast(tradePosition, tradeType, tradeStatus, valueDate);
+            }
+
+            public TradePositionReadModel? Get(TradeType baseTradeType, OptionType optionType, TradeStatus tradeStatus, DateOnly valueDate)
+            {
+                ArgumentNullException.ThrowIfNull(tradePosition);
+                var tradeType = GetTradePositionTradeType(baseTradeType, optionType);
+                return GetLast(tradePosition, tradeType, tradeStatus, valueDate);
+            }
+
+            public TradePositionReadModel? Get(TradePositionEntityId key)
+            {
+                ArgumentNullException.ThrowIfNull(tradePosition);
+                for (var index = tradePosition.Length - 1; index >= 0; index--)
+                    if (tradePosition[index].EntityId.Equals(key))
+                        return tradePosition[index];
+                return null;
+            }
+
+            public decimal GetTradePnl()
+                => tradePosition.Sum(e => e.TradePnl);
+
+            public decimal GetEodTradePnl()
+            {
+                ArgumentNullException.ThrowIfNull(tradePosition);
+                var result = 0m;
+                foreach (var position in tradePosition.Where(position => position.TradeStatus is TradeStatus.Open or TradeStatus.EndOfDay))
+                    result += position.TradePnl;
+                return result;
+            }
+
+            public decimal GetNetSpread(TradeType baseTradeType, TradeStatus tradeStatus)
+            {
+                var putSpreadTradeType = GetTradePositionTradeType(baseTradeType, OptionType.Put);
+                var putTradePosition = tradePosition.Get(putSpreadTradeType, tradeStatus);
+                var callSpreadTradeType = GetTradePositionTradeType(baseTradeType, OptionType.Call);
+                var callTradePosition = tradePosition.Get(callSpreadTradeType, tradeStatus);
+                return putTradePosition is not null && callTradePosition is not null
+                    ? Math.Abs(putTradePosition.NetSpread + callTradePosition.NetSpread)
+                    : 0.0m;
+            }
+
+            public decimal GetForwardPrice(TradeType baseTradeType, TradeStatus tradeStatus)
+            {
+                var putSpreadTradeType = GetTradePositionTradeType(baseTradeType, OptionType.Put);
+                var putTradePosition = tradePosition.Get(putSpreadTradeType, tradeStatus);
+                var callSpreadTradeType = GetTradePositionTradeType(baseTradeType, OptionType.Call);
+                var callTradePosition = tradePosition.Get(callSpreadTradeType, tradeStatus);
+                return putTradePosition is not null && callTradePosition is not null
+                    ? Math.Abs(putTradePosition.ForwardPrice) + Math.Abs(callTradePosition.ForwardPrice)
+                    : 0.0m;
+            }
+
+            public double GetFowardLossRatio(TradeType baseTradeType, TradeStatus tradeStatus, decimal limitPrice)
+            {
+                var forwardPrice = GetForwardPrice(tradePosition, baseTradeType, tradeStatus);
+                return (double)(forwardPrice == 0.0m ? 0.0m : forwardPrice / limitPrice);
+            }
+
+            public void Set(TradePositionReadModel? newTradePosition)
+            {
+                if (tradePosition is null || newTradePosition is null) return;
+                for (var index = tradePosition.Length - 1; index >= 0; index--)
                 {
-                    tradePosition[index] = newTradePosition;
-                    break;
+                    var e = tradePosition[index];
+                    if (e.EntityId.Equals(newTradePosition.EntityId))
+                    {
+                        tradePosition[index] = newTradePosition;
+                        break;
+                    }
                 }
             }
-        }
 
-        public static void Set(this TradePositionReadModel[] tradePosition, TradePositionReadModel oldTradePosition, TradePositionReadModel? newTradePosition)
-        {
-            ArgumentNullException.ThrowIfNull(oldTradePosition);
-            if (tradePosition is null || newTradePosition is null) return;
-            for (var index = tradePosition.Length - 1; index >= 0; index--)
+            public void Set(TradePositionReadModel oldTradePosition, TradePositionReadModel? newTradePosition)
             {
-                var e = tradePosition[index];
-                if (e.EntityId.Equals(oldTradePosition.EntityId))
+                ArgumentNullException.ThrowIfNull(oldTradePosition);
+                if (tradePosition is null || newTradePosition is null) return;
+                for (var index = tradePosition.Length - 1; index >= 0; index--)
                 {
-                    tradePosition[index] = newTradePosition;
-                    break;
+                    var e = tradePosition[index];
+                    if (e.EntityId.Equals(oldTradePosition.EntityId))
+                    {
+                        tradePosition[index] = newTradePosition;
+                        break;
+                    }
                 }
             }
         }

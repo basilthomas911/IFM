@@ -7,7 +7,11 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime;
 /// <summary>Acknowledges a tick aggregation lifecycle notification.</summary>
 public static class FuturesSessionStatisticsUpdated
 {
-    /// <summary>Completes because the owning projection already applied the observation.</summary>
-    public static ValueTask ExecuteAsync(this FuturesSessionStatisticsUpdatedRealtimeEvent domainEvent, ITickAggregationRealtimeContext context)
-        => ValueTask.CompletedTask;
+
+    extension(FuturesSessionStatisticsUpdatedRealtimeEvent domainEvent)
+    {
+        /// <summary>Completes because the owning projection already applied the observation.</summary>
+        public ValueTask ExecuteAsync(ITickAggregationRealtimeContext context)
+            => ValueTask.CompletedTask;
+    }
 }

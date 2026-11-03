@@ -6,13 +6,17 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 public static class FuturesTrendDirectionTypeExtensions
 {
-    public static string ToStringFast(this FuturesTrendDirectionType value) => value switch
+
+    extension(FuturesTrendDirectionType value)
     {
-        FuturesTrendDirectionType.Init => nameof(FuturesTrendDirectionType.Init),
-        FuturesTrendDirectionType.TrendReversal => nameof(FuturesTrendDirectionType.TrendReversal),
-        FuturesTrendDirectionType.UpTrending => nameof(FuturesTrendDirectionType.UpTrending),
-        FuturesTrendDirectionType.DownTrending => nameof(FuturesTrendDirectionType.DownTrending),
-        FuturesTrendDirectionType.Flat => nameof(FuturesTrendDirectionType.Flat),
-        _ => value.ToString()
-    };
+        public string ToStringFast() => value switch
+        {
+            FuturesTrendDirectionType.Init => nameof(FuturesTrendDirectionType.Init),
+            FuturesTrendDirectionType.TrendReversal => nameof(FuturesTrendDirectionType.TrendReversal),
+            FuturesTrendDirectionType.UpTrending => nameof(FuturesTrendDirectionType.UpTrending),
+            FuturesTrendDirectionType.DownTrending => nameof(FuturesTrendDirectionType.DownTrending),
+            FuturesTrendDirectionType.Flat => nameof(FuturesTrendDirectionType.Flat),
+            _ => value.ToString()
+        };
+    }
 }

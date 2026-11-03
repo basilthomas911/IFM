@@ -23,23 +23,26 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command
 /// <summary>Checks reference-dependent command fields outside the actor.</summary>
 public static class FuturesOptionContractReferenceValidation
 {
-    /// <summary>Validates fields against the resolved reference lookup service.</summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The existing fluent validation pipeline consumes this mutable error list through ThrowCommandValidationExceptionOnAnyError.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "The existing fluent validation pipeline consumes this mutable error list through ThrowCommandValidationExceptionOnAnyError.")]
-    public static List<ValidationError> ValidateReferenceData(
-        this ICommand command,
-        IReferenceLookupService referenceLookupService)
-        => command switch
-        {
-            AddFuturesOptionContractCommand add => new List<ValidationError>()
-                .ValidateFuturesOptionContract(add.Contract, referenceLookupService),
-            AddFuturesOptionContractsCommand addMany => new List<ValidationError>()
-                .ValidateFuturesOptionContracts(addMany.Contracts, referenceLookupService),
-            ChangeFuturesOptionContractCommand change => new List<ValidationError>()
-                .ValidateFuturesOptionContract(change.Contract, referenceLookupService),
-            RemoveFuturesOptionContractCommand => [],
-            _ => throw new InvalidOperationException(
-                $"Unable to validate FuturesOptionContractCommandActor reference data for command: {command.Subject}")
-        };
+
+    extension(ICommand command)
+    {
+        /// <summary>Validates fields against the resolved reference lookup service.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The existing fluent validation pipeline consumes this mutable error list through ThrowCommandValidationExceptionOnAnyError.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "The existing fluent validation pipeline consumes this mutable error list through ThrowCommandValidationExceptionOnAnyError.")]
+        public List<ValidationError> ValidateReferenceData(
+            IReferenceLookupService referenceLookupService)
+            => command switch
+            {
+                AddFuturesOptionContractCommand add => new List<ValidationError>()
+                    .ValidateFuturesOptionContract(add.Contract, referenceLookupService),
+                AddFuturesOptionContractsCommand addMany => new List<ValidationError>()
+                    .ValidateFuturesOptionContracts(addMany.Contracts, referenceLookupService),
+                ChangeFuturesOptionContractCommand change => new List<ValidationError>()
+                    .ValidateFuturesOptionContract(change.Contract, referenceLookupService),
+                RemoveFuturesOptionContractCommand => [],
+                _ => throw new InvalidOperationException(
+                    $"Unable to validate FuturesOptionContractCommandActor reference data for command: {command.Subject}")
+            };
+    }
 
 }

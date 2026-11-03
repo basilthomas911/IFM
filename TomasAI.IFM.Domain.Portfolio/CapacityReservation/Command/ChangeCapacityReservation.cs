@@ -14,56 +14,64 @@ namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command;
 
 public static class ChangeCapacityReservation
 {
-    /// <summary>Handles Execute Async at the command boundary.</summary>
-    /// <param name="command">The concrete business command and originating identity.</param>
-    /// <param name="services">The enlisted persistence, receipt replay and projection services.</param>
-    /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
-    /// <returns>Command acceptance or its classified failure; durable completion remains tied to commit.</returns>
-    /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
-    public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this ChangeCapacityReservationCommand command, CapacityReservationCommandServices services, CancellationToken cancellationToken)
+
+    /// <param name="command">
+    /// The concrete business command and originating identity.
+    /// </param>
+    extension(ChangeCapacityReservationCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(services);
-        var replay = await (services.Database.ReadOperationAsync<CapacityLifecycleCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
-        if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
-        FinancialRequestValidation.Demand(command, "CapacityLifecycle", DateTime.UtcNow);
-        var completed = await (services.Store.ChangeAsync(command, false, command.Compute, receipt => command.Complete(receipt), cancellationToken)).ConfigureAwait(false);
-        return await (completed.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
+        /// <summary>Handles Execute Async at the command boundary.</summary>
+        ///
+        /// <param name="services">The enlisted persistence, receipt replay and projection services.</param>
+        /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
+        /// <returns>Command acceptance or its classified failure; durable completion remains tied to commit.</returns>
+        /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
+        public async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(CapacityReservationCommandServices services, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(services);
+            var replay = await (services.Database.ReadOperationAsync<CapacityLifecycleCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
+            if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
+            FinancialRequestValidation.Demand(command, "CapacityLifecycle", DateTime.UtcNow);
+            var completed = await (services.Store.ChangeAsync(command, false, command.Compute, receipt => command.Complete(receipt), cancellationToken)).ConfigureAwait(false);
+            return await (completed.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
+        }
+
+        /// <summary>Handles Complete at the command boundary.</summary>
+        ///
+        /// <param name="receipt">The verified committed financial receipt.</param>
+        /// <returns>The operation result.</returns>
+        public CapacityLifecycleCompletedEvent Complete(CapacityLifecycleReceipt receipt)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(receipt);
+            return new()
+            {
+                Id = receipt.CompletedEventId,
+                Subject = new(ActorType.Event, ChangeCapacityReservationCommand.Actor, nameof(CapacityLifecycleCompletedEvent), command.EntityId.Format()),
+                EntityId = command.EntityId,
+                CommandId = command.CommandId,
+                OperationId = command.OperationId,
+                PortfolioId = command.PortfolioId,
+                CorrelationId = command.CorrelationId,
+                CausationId = command.CausationId,
+                CommittedAtUtc = receipt.CommittedAtUtc,
+                ReceivedOn = receipt.CommittedAtUtc,
+                InputHash = command.InputSha256,
+                AggregateId = command.EntityId.Format(),
+                Receipt = receipt
+            };
+        }
+
+        /// <summary>Calculates a capacity transition from the reservation read inside the financial fence.</summary>
+        ///
+        /// <param name="reservation">The reservation business input.</param>
+        /// <param name="capacityChange">The capacity change business input.</param>
+        /// <param name="consumptionFunction">The consumption function business input.</param>
+        /// <param name="nowUtc">The authoritative UTC decision time.</param>
+        /// <returns>The computed business values or created event; no transport or storage effects.</returns>
+        /// <exception cref="InvalidOperationException">The current business state cannot accept the requested transition.</exception>
+        internal CapacityTransition Compute(ReservationSnapshot reservation, CapacityLifecycleRequest capacityChange, bool consumptionFunction, DateTime nowUtc)
+            => CapacityLifecycleModel.Apply(reservation, capacityChange, consumptionFunction, nowUtc);
     }
-    /// <summary>Handles Complete at the command boundary.</summary>
-    /// <param name="command">The concrete business command and originating identity.</param>
-    /// <param name="receipt">The verified committed financial receipt.</param>
-    /// <returns>The operation result.</returns>
-    public static CapacityLifecycleCompletedEvent Complete(this ChangeCapacityReservationCommand command, CapacityLifecycleReceipt receipt) 
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(receipt);
-        return new()
-    {
-        Id = receipt.CompletedEventId,
-        Subject = new(ActorType.Event, ChangeCapacityReservationCommand.Actor, nameof(CapacityLifecycleCompletedEvent), command.EntityId.Format()),
-        EntityId = command.EntityId,
-        CommandId = command.CommandId,
-        OperationId = command.OperationId,
-        PortfolioId = command.PortfolioId,
-        CorrelationId = command.CorrelationId,
-        CausationId = command.CausationId,
-        CommittedAtUtc = receipt.CommittedAtUtc,
-        ReceivedOn = receipt.CommittedAtUtc,
-        InputHash = command.InputSha256,
-        AggregateId = command.EntityId.Format(),
-        Receipt = receipt
-    };
-    }
-    /// <summary>Calculates a capacity transition from the reservation read inside the financial fence.</summary>
-    /// <param name="command">The concrete business command and originating identity.</param>
-    /// <param name="reservation">The reservation business input.</param>
-    /// <param name="capacityChange">The capacity change business input.</param>
-    /// <param name="consumptionFunction">The consumption function business input.</param>
-    /// <param name="nowUtc">The authoritative UTC decision time.</param>
-    /// <returns>The computed business values or created event; no transport or storage effects.</returns>
-    /// <exception cref="InvalidOperationException">The current business state cannot accept the requested transition.</exception>
-    internal static CapacityTransition Compute(this ChangeCapacityReservationCommand command,
-        ReservationSnapshot reservation, CapacityLifecycleRequest capacityChange, bool consumptionFunction, DateTime nowUtc)
-        => CapacityLifecycleModel.Apply(reservation, capacityChange, consumptionFunction, nowUtc);
 }

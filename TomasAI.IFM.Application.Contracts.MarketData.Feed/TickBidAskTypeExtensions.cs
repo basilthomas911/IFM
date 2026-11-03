@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 
     public static class TickBidAskTypeExtensions
     {
-        public static string ToStringFast(this TickBidAskType value) => value switch
+
+        extension(TickBidAskType value)
         {
-            TickBidAskType.Bid => nameof(TickBidAskType.Bid),
-            TickBidAskType.Ask => nameof(TickBidAskType.Ask),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                TickBidAskType.Bid => nameof(TickBidAskType.Bid),
+                TickBidAskType.Ask => nameof(TickBidAskType.Ask),
+                _ => value.ToString()
+            };
+        }
     }
 }

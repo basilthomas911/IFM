@@ -6,14 +6,17 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime;
 /// <summary>Handles one VX market-price observation for the EOD realtime branch.</summary>
 public static class FuturesMarketPriceUpdated
 {
-    /// <summary>Updates the VX EOD quote projection.</summary>
-    public static async ValueTask ExecuteAsync(
-        this FuturesMarketPriceUpdatedRealtimeEvent domainEvent,
-        IFuturesEodDataRealtimeContext context)
+
+    extension(FuturesMarketPriceUpdatedRealtimeEvent domainEvent)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        _ = await VxQuoteMarketPriceUpdated.ExecuteVxQuoteAsync(
-            domainEvent, context.MarketDataApi, context.Projector,
-            context.StatusConsoleWriter, context.Logger).ConfigureAwait(false);
+        /// <summary>Updates the VX EOD quote projection.</summary>
+        public async ValueTask ExecuteAsync(
+            IFuturesEodDataRealtimeContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            _ = await VxQuoteMarketPriceUpdated.ExecuteVxQuoteAsync(
+                domainEvent, context.MarketDataApi, context.Projector,
+                context.StatusConsoleWriter, context.Logger).ConfigureAwait(false);
+        }
     }
 }

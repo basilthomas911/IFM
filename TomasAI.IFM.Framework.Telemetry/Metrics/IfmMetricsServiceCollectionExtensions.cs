@@ -19,51 +19,53 @@ public static class IfmMetricsServiceCollectionExtensions
     const string PortfolioInstrumentationName = "TomasAI.IFM.Domain.Portfolio";
     const string PortfolioFinancialInstrumentationName = "TomasAI.IFM.PortfolioFinancial";
 
-    /// <summary>
-    /// Adds IFM, .NET runtime, ASP.NET Core, Kestrel, and HTTP client metrics when
-    /// <c>Telemetry:Metrics:Enabled</c> is true.
-    /// </summary>
-    public static IServiceCollection AddIfmMetrics(
-        this IServiceCollection services,
-        IConfiguration configuration,
-        string defaultServiceName)
+    extension(IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configuration);
-        ArgumentException.ThrowIfNullOrWhiteSpace(defaultServiceName);
+        /// <summary>
+        /// Adds IFM, .NET runtime, ASP.NET Core, Kestrel, and HTTP client metrics when
+        /// <c>Telemetry:Metrics:Enabled</c> is true.
+        /// </summary>
+        public IServiceCollection AddIfmMetrics(
+            IConfiguration configuration,
+            string defaultServiceName)
+        {
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentException.ThrowIfNullOrWhiteSpace(defaultServiceName);
 
-        var section = configuration.GetSection("Telemetry:Metrics");
-        if (!section.GetValue("Enabled", false))
+            var section = configuration.GetSection("Telemetry:Metrics");
+            if (!section.GetValue("Enabled", false))
+                return services;
+
+            var serviceName = section.GetValue<string>("ServiceName");
+            if (string.IsNullOrWhiteSpace(serviceName))
+                serviceName = defaultServiceName;
+
+            var endpointText = section.GetValue<string>("OtlpEndpoint");
+            var protocolText = section.GetValue<string>("OtlpProtocol");
+
+            var telemetry = services
+                .AddOpenTelemetry()
+                .ConfigureResource(resource => resource.AddService(serviceName, serviceInstanceId: ProcessGcRunIdentity.InstanceId)
+                    .AddAttributes([new KeyValuePair<string, object>("process.pid", Environment.ProcessId),
+                        new("process.start_time", ProcessGcRunIdentity.StartedUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture))]))
+                .WithMetrics(metrics =>
+                {
+                    AddMeters(metrics)
+        .AddOtlpExporter(options => ConfigureExporter(options, endpointText, protocolText));
+                });
+
+            if (configuration.GetValue("Telemetry:Traces:Enabled", false))
+                telemetry.WithTracing(tracing =>
+                {
+                    tracing.AddSource("TomasAI.IFM.OptionFeed").AddSource("TomasAI.IFM.ActorTracing").AddSource("TomasAI.IFM.StrategyWorkflow").AddSource(MarketConditionInstrumentationName)
+                        .AddSource(PortfolioInstrumentationName)
+                        .AddSource(PortfolioFinancialInstrumentationName)
+        .AddOtlpExporter(options => ConfigureExporter(options, endpointText, protocolText));
+                });
+
             return services;
-
-        var serviceName = section.GetValue<string>("ServiceName");
-        if (string.IsNullOrWhiteSpace(serviceName))
-            serviceName = defaultServiceName;
-
-        var endpointText = section.GetValue<string>("OtlpEndpoint");
-        var protocolText = section.GetValue<string>("OtlpProtocol");
-
-        var telemetry = services
-            .AddOpenTelemetry()
-            .ConfigureResource(resource => resource.AddService(serviceName, serviceInstanceId: ProcessGcRunIdentity.InstanceId)
-                .AddAttributes([new KeyValuePair<string, object>("process.pid", Environment.ProcessId),
-                    new("process.start_time", ProcessGcRunIdentity.StartedUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture))]))
-            .WithMetrics(metrics =>
-            {
-                AddMeters(metrics)
-.AddOtlpExporter(options => ConfigureExporter(options, endpointText, protocolText));
-            });
-
-        if (configuration.GetValue("Telemetry:Traces:Enabled", false))
-            telemetry.WithTracing(tracing =>
-            {
-                tracing.AddSource("TomasAI.IFM.OptionFeed").AddSource("TomasAI.IFM.ActorTracing").AddSource("TomasAI.IFM.StrategyWorkflow").AddSource(MarketConditionInstrumentationName)
-                    .AddSource(PortfolioInstrumentationName)
-                    .AddSource(PortfolioFinancialInstrumentationName)
-.AddOtlpExporter(options => ConfigureExporter(options, endpointText, protocolText));
-            });
-
-        return services;
+        }
     }
     static MeterProviderBuilder AddMeters(MeterProviderBuilder metrics)
         => metrics

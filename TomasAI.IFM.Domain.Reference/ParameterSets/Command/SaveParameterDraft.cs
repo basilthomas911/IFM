@@ -12,70 +12,79 @@ namespace TomasAI.IFM.Domain.Reference.ParameterSets.Command;
 
 public static class SaveParameterDraft
 {
-    /// <summary>Authorizes the request, checks replay, and applies its computed source event.</summary>
-    /// <param name="command">The concrete lifecycle intent.</param>
-    /// <param name="context">The authorized command services and repositories.</param>
-    /// <param name="state">The authoritative actor state.</param>
-    /// <param name="logger">The actor logger.</param>
-    /// <returns>The command acceptance or business failure.</returns>
-    public static Task<ServiceResult<GuidResult>> ExecuteAsync(this SaveParameterDraftCommand command, IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
-        context.AccessPolicy.Demand(ParameterCapability.Author);
-        var hash = ParameterMutationModel.RequestHash(command);
-        if (state.Operations.TryGetValue(command.CommandId, out var previous))
-        {
-            if (!string.Equals(previous,hash,StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
-            return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(command.CommandId)));
-        }
-        var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply SaveParameterDraft event";
-        var updated = command.Compute(state, hash, out var parameterChange) switch
-        {
-            _ when parameterChange.RejectionReason is not null
-                => command.UpdateFailed(ref errorMsg, parameterChange.RejectionReason),
-            _ => state.Update(command.CreateParameterDraftSavedEvent(parameterChange), command)
-        };
-        var result = updated
-            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
-            : command.UpdateFailed(errorMsg);
-        return Task.FromResult<ServiceResult<GuidResult>>(result);
-    }
-    /// <summary>Computes the proposed business change without changing actor state.</summary>
-    /// <param name="command">The concrete lifecycle intent.</param>
-    /// <param name="state">The authoritative state, read without mutation.</param>
-    /// <param name="hash">The request identity hash.</param>
-    /// <param name="parameterChange">The proposed business change or rejection reason.</param>
-    /// <returns>True when computation succeeds; otherwise false with its business rejection.</returns>
-    internal static bool Compute(this SaveParameterDraftCommand command, ParameterSetCommandState state, string hash, out ParameterVersionChange parameterChange)
-    {
-        try
-        {
-            var parameterVersion = ParameterMutationModel.Decide(command, state.CatalogRevision, state.Versions, DateTime.UtcNow);
-            parameterChange = new(parameterVersion, state.CatalogRevision + 1, hash, ParameterAuditModel.ForSet(command, state.Versions, parameterVersion));
-            return true;
-        }
-        catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)
-        {
-            parameterChange = new(null, state.CatalogRevision, hash, null, rejection.Message);
-            return false;
-        }
-    }
 
-    /// <summary>Creates the source event with the originating command identity.</summary>
-    /// <param name="command">The originating command.</param>
-    /// <param name="parameterChange">The accepted immutable business change.</param>
-    /// <returns>The source event ready for state application.</returns>
-    internal static ParameterDraftSavedEvent CreateParameterDraftSavedEvent(this SaveParameterDraftCommand command, ParameterVersionChange parameterChange)
-        => new()
+    /// <param name="command">
+    /// The concrete lifecycle intent.
+    /// The originating command.
+    /// </param>
+    extension(SaveParameterDraftCommand command)
+    {
+        /// <summary>Authorizes the request, checks replay, and applies its computed source event.</summary>
+        ///
+        /// <param name="context">The authorized command services and repositories.</param>
+        /// <param name="state">The authoritative actor state.</param>
+        /// <param name="logger">The actor logger.</param>
+        /// <returns>The command acceptance or business failure.</returns>
+        public Task<ServiceResult<GuidResult>> ExecuteAsync(IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
         {
-            CommandId = command.CommandId,
-            Subject = new ActorSubject(ActorType.Event, ParameterDraftSavedEvent.Actor, ParameterDraftSavedEvent.Verb, command.EntityId.Format()),
-            EntityId = command.EntityId,
-            Revision = parameterChange.CatalogRevision,
-            RequestHash = parameterChange.RequestHash,
-            Version = parameterChange.ParameterVersion,
-            Audit = parameterChange.ParameterAudit,
-        };
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(state);
+            ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
+            context.AccessPolicy.Demand(ParameterCapability.Author);
+            var hash = ParameterMutationModel.RequestHash(command);
+            if (state.Operations.TryGetValue(command.CommandId, out var previous))
+            {
+                if (!string.Equals(previous, hash, StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
+                return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(command.CommandId)));
+            }
+            var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply SaveParameterDraft event";
+            var updated = command.Compute(state, hash, out var parameterChange) switch
+            {
+                _ when parameterChange.RejectionReason is not null
+                    => command.UpdateFailed(ref errorMsg, parameterChange.RejectionReason),
+                _ => state.Update(command.CreateParameterDraftSavedEvent(parameterChange), command)
+            };
+            var result = updated
+                ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+                : command.UpdateFailed(errorMsg);
+            return Task.FromResult<ServiceResult<GuidResult>>(result);
+        }
+
+        /// <summary>Computes the proposed business change without changing actor state.</summary>
+        ///
+        /// <param name="state">The authoritative state, read without mutation.</param>
+        /// <param name="hash">The request identity hash.</param>
+        /// <param name="parameterChange">The proposed business change or rejection reason.</param>
+        /// <returns>True when computation succeeds; otherwise false with its business rejection.</returns>
+        internal bool Compute(ParameterSetCommandState state, string hash, out ParameterVersionChange parameterChange)
+        {
+            try
+            {
+                var parameterVersion = ParameterMutationModel.Decide(command, state.CatalogRevision, state.Versions, DateTime.UtcNow);
+                parameterChange = new(parameterVersion, state.CatalogRevision + 1, hash, ParameterAuditModel.ForSet(command, state.Versions, parameterVersion));
+                return true;
+            }
+            catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)
+            {
+                parameterChange = new(null, state.CatalogRevision, hash, null, rejection.Message);
+                return false;
+            }
+        }
+
+        /// <summary>Creates the source event with the originating command identity.</summary>
+        ///
+        /// <param name="parameterChange">The accepted immutable business change.</param>
+        /// <returns>The source event ready for state application.</returns>
+        internal ParameterDraftSavedEvent CreateParameterDraftSavedEvent(ParameterVersionChange parameterChange)
+            => new()
+            {
+                CommandId = command.CommandId,
+                Subject = new ActorSubject(ActorType.Event, ParameterDraftSavedEvent.Actor, ParameterDraftSavedEvent.Verb, command.EntityId.Format()),
+                EntityId = command.EntityId,
+                Revision = parameterChange.CatalogRevision,
+                RequestHash = parameterChange.RequestHash,
+                Version = parameterChange.ParameterVersion,
+                Audit = parameterChange.ParameterAudit,
+            };
+    }
 }

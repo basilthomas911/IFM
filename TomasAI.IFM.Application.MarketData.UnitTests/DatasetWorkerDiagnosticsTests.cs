@@ -11,6 +11,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
+[Collection(ProcessResourceQualificationCollection.Name)]
 public sealed class DatasetWorkerDiagnosticsTests
 {
     static readonly DateTime Observed = new(2026, 9, 4, 14, 0, 0, DateTimeKind.Utc);
@@ -154,7 +155,7 @@ public sealed class DatasetWorkerDiagnosticsTests
             ExecutablePath = DotNetHost(),
             PrefixArguments = [Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_HOST_DIRECTORY") is { Length: > 0 } testHost
                 ? Path.Combine(testHost, "Workers", "TomasAI.IFM.Application.MarketData.Host.Worker.dll")
-                : typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
+                : Harness.WorkerTestProcess.AssemblyPath],
             Dataset = "GLBX.MDP3",
             ValueDate = new(2026, 9, 4),
             WorkerInstanceId = Guid.NewGuid(),

@@ -1,0 +1,8 @@
+<RunSettings>
+  <RunConfiguration>
+    <EnvironmentVariables>
+      <!-- Synthetic worker shutdown must not wait for an unrelated OTLP collector. -->
+      <Telemetry__Logs__Enabled>false</Telemetry__Logs__Enabled>
+    </EnvironmentVariables>
+  </RunConfiguration>
+</RunSettings>

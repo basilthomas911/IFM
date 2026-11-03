@@ -11,55 +11,63 @@ namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command;
 /// <summary>Handles the AdmitScheduledTaskRun command through one explicit decision and event application.</summary>
 public static class AdmitScheduledTaskRun
 {
-    /// <summary>Computes the business change, rejects failed guards and applies one source event to the owning state.</summary>
-    /// <param name="command">The concrete operation and originating command identity.</param>
-    /// <param name="context">The owning actor's explicit services and clock.</param>
-    /// <param name="state">The aggregate reconstructed from committed source events.</param>
-    /// <returns>The command acknowledgement; the repository owns subsequent persistence.</returns>
-    public static ServiceResult<GuidResult> Execute(this AdmitScheduledTaskRunCommand command,
-        ICommandActorContext<ScheduledTaskCommandActor> context, ScheduledTaskCommandState state)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(state);
-        var owner = context as ScheduledTaskCommandContext ?? throw new ArgumentException("Typed scheduled-task context required.", nameof(context));
-        var now = owner.Clock.GetUtcNow();
-        var errorMsg = "ScheduledTask.STATE.APPLY_FAILED;unable to apply AdmitScheduledTaskRun event";
-        var updated = command.Compute(state.ScheduledTaskDefinition, now, out var scheduledTaskChange) switch
-        {
-            _ when !scheduledTaskChange.Accepted => command.UpdateFailed(ref errorMsg, scheduledTaskChange.RejectionReason),
-            _ when !scheduledTaskChange.IsValidFor(command.EntityId) => command.UpdateFailed(ref errorMsg, "ScheduledTask.IDENTITY.INVALID;computed aggregate identity is invalid"),
-            _ => state.Update(command.CreateScheduledTaskRunAdmittedEvent(scheduledTaskChange), command)
-        };
-        return updated
-            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
-            : command.UpdateFailed($"{command.CommandName}: {errorMsg}");
-    }
 
-    /// <summary>Computes the proposed scheduled-task definition without mutating state or performing I/O.</summary>
-    /// <param name="command">The concrete operation and originating identity.</param>
-    /// <param name="current">The accepted business snapshot; computation never mutates it.</param>
-    /// <param name="now">The explicit UTC instant from the owning actor clock.</param>
-    /// <param name="scheduledTaskChange">The proposed business change or classified rejection.</param>
-    /// <returns>Whether a proposed change was accepted.</returns>
-    internal static bool Compute(this AdmitScheduledTaskRunCommand command, ScheduledTaskDefinition? current,
-        DateTimeOffset now, out ScheduledTaskChange scheduledTaskChange)
+    /// <param name="command">
+    /// The concrete operation and originating command identity.
+    /// The concrete operation and originating identity.
+    /// </param>
+    extension(AdmitScheduledTaskRunCommand command)
     {
-        scheduledTaskChange = ScheduledTaskComputation.Compute(command, current, now);
-        return scheduledTaskChange.Accepted;
+        /// <summary>Computes the business change, rejects failed guards and applies one source event to the owning state.</summary>
+        ///
+        /// <param name="context">The owning actor's explicit services and clock.</param>
+        /// <param name="state">The aggregate reconstructed from committed source events.</param>
+        /// <returns>The command acknowledgement; the repository owns subsequent persistence.</returns>
+        public ServiceResult<GuidResult> Execute(ICommandActorContext<ScheduledTaskCommandActor> context, ScheduledTaskCommandState state)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(state);
+            var owner = context as ScheduledTaskCommandContext ?? throw new ArgumentException("Typed scheduled-task context required.", nameof(context));
+            var now = owner.Clock.GetUtcNow();
+            var errorMsg = "ScheduledTask.STATE.APPLY_FAILED;unable to apply AdmitScheduledTaskRun event";
+            var updated = command.Compute(state.ScheduledTaskDefinition, now, out var scheduledTaskChange) switch
+            {
+                _ when !scheduledTaskChange.Accepted => command.UpdateFailed(ref errorMsg, scheduledTaskChange.RejectionReason),
+                _ when !scheduledTaskChange.IsValidFor(command.EntityId) => command.UpdateFailed(ref errorMsg, "ScheduledTask.IDENTITY.INVALID;computed aggregate identity is invalid"),
+                _ => state.Update(command.CreateScheduledTaskRunAdmittedEvent(scheduledTaskChange), command)
+            };
+            return updated
+                ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+                : command.UpdateFailed($"{command.CommandName}: {errorMsg}");
+        }
+
+        /// <summary>Computes the proposed scheduled-task definition without mutating state or performing I/O.</summary>
+        ///
+        /// <param name="current">The accepted business snapshot; computation never mutates it.</param>
+        /// <param name="now">The explicit UTC instant from the owning actor clock.</param>
+        /// <param name="scheduledTaskChange">The proposed business change or classified rejection.</param>
+        /// <returns>Whether a proposed change was accepted.</returns>
+        internal bool Compute(ScheduledTaskDefinition? current,
+            DateTimeOffset now, out ScheduledTaskChange scheduledTaskChange)
+        {
+            scheduledTaskChange = ScheduledTaskComputation.Compute(command, current, now);
+            return scheduledTaskChange.Accepted;
+        }
+
+        /// <summary>Creates the source event with the originating command identity and calculated payload.</summary>
+        ///
+        /// <param name="scheduledTaskChange">The proposed definition or classified rejection.</param>
+        /// <returns>The source event carrying the command identity and accepted business payload.</returns>
+        internal ScheduledTaskRunAdmittedEvent CreateScheduledTaskRunAdmittedEvent(ScheduledTaskChange scheduledTaskChange) => new()
+        {
+            CommandId = command.CommandId,
+            OperationCommandId = command.OperationCommandId == Guid.Empty ? command.CommandId : command.OperationCommandId,
+            Subject = new(ActorType.Event, ScheduledTaskRunAdmittedEvent.Actor, ScheduledTaskRunAdmittedEvent.Verb, command.EntityId.Format()),
+            EntityId = command.EntityId,
+            AggregateId = command.EntityId.Format(),
+            EventSource = command.EventSource,
+            ScheduledTaskDefinition = scheduledTaskChange.ScheduledTaskDefinition
+        };
     }
-    /// <summary>Creates the source event with the originating command identity and calculated payload.</summary>
-    /// <param name="command">The concrete operation and originating identity.</param>
-    /// <param name="scheduledTaskChange">The proposed definition or classified rejection.</param>
-    /// <returns>The source event carrying the command identity and accepted business payload.</returns>
-    internal static ScheduledTaskRunAdmittedEvent CreateScheduledTaskRunAdmittedEvent(this AdmitScheduledTaskRunCommand command, ScheduledTaskChange scheduledTaskChange) => new()
-    {
-        CommandId = command.CommandId,
-        OperationCommandId = command.OperationCommandId == Guid.Empty ? command.CommandId : command.OperationCommandId,
-        Subject = new(ActorType.Event, ScheduledTaskRunAdmittedEvent.Actor, ScheduledTaskRunAdmittedEvent.Verb, command.EntityId.Format()),
-        EntityId = command.EntityId,
-        AggregateId = command.EntityId.Format(),
-        EventSource = command.EventSource,
-        ScheduledTaskDefinition = scheduledTaskChange.ScheduledTaskDefinition
-    };
 }

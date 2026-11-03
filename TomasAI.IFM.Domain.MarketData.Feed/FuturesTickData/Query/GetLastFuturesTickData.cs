@@ -8,19 +8,26 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Query;
 
 public static class GetLastFuturesTickData
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="q"></param>
-    /// <param name="context"></param>
-    /// <param name="dbFactory"></param>
-    /// <returns></returns>
-    public static async ValueTask<FuturesTickDataV2ReadModel?> ExecuteAsync(
-        this GetLastFuturesTickDataQuery q, IDbContextFactory dbFactory)
-        
+
+    /// <param name="q">
+    ///
+    /// </param>
+    extension(GetLastFuturesTickDataQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        return await (dbFactory.MarketDataDb.GetLastFuturesTickDataAsync(q.ContractId, q.ValueDate)).ConfigureAwait(false);
+        /// <summary>
+        ///
+        /// </summary>
+        ///
+        /// <param name="context"></param>
+        /// <param name="dbFactory"></param>
+        /// <returns></returns>
+        public async ValueTask<FuturesTickDataV2ReadModel?> ExecuteAsync(
+        IDbContextFactory dbFactory)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            return await (dbFactory.MarketDataDb.GetLastFuturesTickDataAsync(q.ContractId, q.ValueDate)).ConfigureAwait(false);
+        }
     }
 }

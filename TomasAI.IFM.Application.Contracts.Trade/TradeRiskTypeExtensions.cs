@@ -7,13 +7,17 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 
 public static class TradeRiskTypeExtensions
 {
-    public static string ToStringFast(this TradeRiskType value) => value switch
+
+    extension(TradeRiskType value)
     {
-        TradeRiskType.Unknown => nameof(TradeRiskType.Unknown),
-        TradeRiskType.Low => nameof(TradeRiskType.Low),
-        TradeRiskType.Medium => nameof(TradeRiskType.Medium),
-        TradeRiskType.High => nameof(TradeRiskType.High),
-        TradeRiskType.Critical => nameof(TradeRiskType.Critical),
-        _ => value.ToString()
-    };
+        public string ToStringFast() => value switch
+        {
+            TradeRiskType.Unknown => nameof(TradeRiskType.Unknown),
+            TradeRiskType.Low => nameof(TradeRiskType.Low),
+            TradeRiskType.Medium => nameof(TradeRiskType.Medium),
+            TradeRiskType.High => nameof(TradeRiskType.High),
+            TradeRiskType.Critical => nameof(TradeRiskType.Critical),
+            _ => value.ToString()
+        };
+    }
 }

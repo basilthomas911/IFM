@@ -264,6 +264,10 @@ public sealed class MarketDataProjectionPolicyTests
 
 file static class StringAssertions
 {
-    public static void ShouldContain(this string actual, string expected)
-        => Assert.Contains(expected, actual, StringComparison.OrdinalIgnoreCase);
+
+    extension(string actual)
+    {
+        public void ShouldContain(string expected)
+            => Assert.Contains(expected, actual, StringComparison.OrdinalIgnoreCase);
+    }
 }

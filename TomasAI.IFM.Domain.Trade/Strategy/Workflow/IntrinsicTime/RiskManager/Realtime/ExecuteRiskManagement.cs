@@ -21,99 +21,103 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.R
 /// <summary>Maps committed workflow snapshots to preparation or the exact saved Function request. It never constructs fresh retry inputs.</summary>
 public static class ExecuteRiskManagement
 {
-    public static async ValueTask ExecuteAsync(this WorkflowStrategyStateUpdatedEvent snapshot, IIntrinsicTimeStrategyWorkflowRealtimeContext context)
+
+    extension(WorkflowStrategyStateUpdatedEvent snapshot)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(snapshot);
-        using var trace = WorkflowTrace.Start("risk.dispatch", snapshot.State);
-        var read = new RedispatchCurrentStrategyPipelineCommand
+        public async ValueTask ExecuteAsync(IIntrinsicTimeStrategyWorkflowRealtimeContext context)
         {
-            EntityId = snapshot.EntityId,
-            Subject = new(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor, RedispatchCurrentStrategyPipelineCommand.Verb, snapshot.EntityId.Format())
-        };
-        var loaded = await context.WorkflowRepository.LoadStateAsync(read).ConfigureAwait(false);
-        using var currentViewTrace = WorkflowTrace.Start("risk.dispatch.current_view", snapshot.State);
-        var view = loaded.CurrentView;
-        currentViewTrace?.Stop();
-        if (view is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.RiskManagement } || view.WorkflowId != snapshot.WorkflowId || view.WorkflowRevision != snapshot.WorkflowRevision)
-            return;
-        if (view.RiskManagement.ProcessingStatus == StrategyActorProcessingStatus.Completed)
-        {
-            await view.ExecuteFinancialHandoffAsync(context).ConfigureAwait(false);
-            return;
-        }
-
-        if (view.SelectionBinding?.SchemaVersion == 2)
-        {
-            await EvaluatePortfolioAsync(view, context).ConfigureAwait(false);
-            return;
-        }
-
-        if (view.RiskExecution is not { } execute)
-        {
-            await EnsureFundCompositionAsync(view, context).ConfigureAwait(false);
-            var prepare = new PrepareRiskManagementCommand
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(snapshot);
+            using var trace = WorkflowTrace.Start("risk.dispatch", snapshot.State);
+            var read = new RedispatchCurrentStrategyPipelineCommand
             {
-                CommandId = StableId(view.WorkflowId, view.WorkflowRevision, view.OrderComposition.SourceEventId, PrepareRiskManagementCommand.Verb),
-                EntityId = view.EntityId,
-                Subject = new(ActorType.Command, PrepareRiskManagementCommand.Actor, PrepareRiskManagementCommand.Verb, view.EntityId.Format()),
-                WorkflowId = view.WorkflowId,
-                InputWorkflowRevision = view.WorkflowRevision
+                EntityId = snapshot.EntityId,
+                Subject = new(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor, RedispatchCurrentStrategyPipelineCommand.Verb, snapshot.EntityId.Format())
             };
-            await context.SendAsync<PrepareRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(prepare, view.EntityId).ConfigureAwait(false);
-            return;
-        }
+            var loaded = await context.WorkflowRepository.LoadStateAsync(read).ConfigureAwait(false);
+            using var currentViewTrace = WorkflowTrace.Start("risk.dispatch.current_view", snapshot.State);
+            var view = loaded.CurrentView;
+            currentViewTrace?.Stop();
+            if (view is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.RiskManagement } || view.WorkflowId != snapshot.WorkflowId || view.WorkflowRevision != snapshot.WorkflowRevision)
+                return;
+            if (view.RiskManagement.ProcessingStatus == StrategyActorProcessingStatus.Completed)
+            {
+                await view.ExecuteFinancialHandoffAsync(context).ConfigureAwait(false);
+                return;
+            }
 
-        RiskUnitModel.Require(string.Equals(execute.InputSha256, execute.Fingerprint(), StringComparison.Ordinal) && execute.WorkflowId == view.WorkflowId && execute.InputWorkflowRevision == view.WorkflowRevision, "RM.DISPATCH.INVALID");
-        var remaining = execute.ExpiresAtUtc - context.TimeProvider.GetUtcNow().UtcDateTime;
-        using var timeout = new CancellationTokenSource((remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + TimeSpan.FromSeconds(5));
-        // A lost reply is recoverable by redispatching this persisted invocation, not by inventing a failed business outcome.
-        var reply = await context.RequestFunctionAsync<ExecuteRiskManagementPipelineCommand, RiskManagementExecutionId, FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>>(execute, timeout.Token).ConfigureAwait(false);
-        var terminal = reply.Value ?? throw new InvalidDataException("Missing Risk Function reply.");
-        RiskUnitModel.Require(terminal.IsTerminal, "RM.RESULT.INVALID");
-        if (terminal.Completed is { } completed)
-        {
-            RiskUnitModel.Require(completed.Id == execute.CommandId && completed.CommandId == execute.CommandId && completed.WorkflowId == execute.WorkflowId && completed.EntityId == execute.WorkflowEntityId && completed.InputWorkflowRevision == execute.InputWorkflowRevision && string.Equals(completed.RequestFingerprint, execute.InputSha256, StringComparison.Ordinal), "RM.RESULT.INVALID");
-            var command = new CompleteRiskManagementCommand
+            if (view.SelectionBinding?.SchemaVersion == 2)
             {
-                CommandId = StableId(execute.WorkflowId, execute.InputWorkflowRevision, execute.CommandId, CompleteRiskManagementCommand.Verb),
-                Subject = new(ActorType.Command, CompleteRiskManagementCommand.Actor, CompleteRiskManagementCommand.Verb, execute.WorkflowEntityId.Format()),
-                EntityId = execute.WorkflowEntityId,
-                WorkflowId = execute.WorkflowId,
-                InputWorkflowRevision = execute.InputWorkflowRevision,
-                SourceEventId = completed.Id,
-                Result = StrategyStageResultEnvelope.CreateRisk(completed.Result),
-                CorrelationId = execute.CorrelationId,
-                CausationId = completed.Id,
-                CompletedAtUtc = completed.Result.ProducedAtUtc
-            };
-            await context.SendAsync<CompleteRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
-        }
-        else
-        {
-            var failed = terminal.Failed!;
-            RiskUnitModel.Require(failed.CommandId == execute.CommandId && failed.WorkflowId == execute.WorkflowId && failed.EntityId == execute.WorkflowEntityId && failed.InputWorkflowRevision == execute.InputWorkflowRevision, "RM.RESULT.INVALID");
-            var command = new FailRiskManagementCommand
+                await EvaluatePortfolioAsync(view, context).ConfigureAwait(false);
+                return;
+            }
+
+            if (view.RiskExecution is not { } execute)
             {
-                CommandId = StableId(execute.WorkflowId, execute.InputWorkflowRevision, execute.CommandId, FailRiskManagementCommand.Verb),
-                Subject = new(ActorType.Command, FailRiskManagementCommand.Actor, FailRiskManagementCommand.Verb, execute.WorkflowEntityId.Format()),
-                EntityId = execute.WorkflowEntityId,
-                WorkflowId = execute.WorkflowId,
-                InputWorkflowRevision = execute.InputWorkflowRevision,
-                SourceEventId = execute.CommandId,
-                CorrelationId = execute.CorrelationId,
-                CausationId = execute.CommandId,
-                FailedAtUtc = failed.ErrorDate,
-                Failure = new()
+                await EnsureFundCompositionAsync(view, context).ConfigureAwait(false);
+                var prepare = new PrepareRiskManagementCommand
                 {
-                    ErrorCode = failed.ErrorCode,
-                    ErrorType = "RiskManagementFailed",
-                    ErrorMessage = failed.ErrorMessage,
-                    ErrorData = failed.ReasonCode,
-                    FailedAtUtc = failed.ErrorDate
-                }
-            };
-            await context.SendAsync<FailRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+                    CommandId = StableId(view.WorkflowId, view.WorkflowRevision, view.OrderComposition.SourceEventId, PrepareRiskManagementCommand.Verb),
+                    EntityId = view.EntityId,
+                    Subject = new(ActorType.Command, PrepareRiskManagementCommand.Actor, PrepareRiskManagementCommand.Verb, view.EntityId.Format()),
+                    WorkflowId = view.WorkflowId,
+                    InputWorkflowRevision = view.WorkflowRevision
+                };
+                await context.SendAsync<PrepareRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(prepare, view.EntityId).ConfigureAwait(false);
+                return;
+            }
+
+            RiskUnitModel.Require(string.Equals(execute.InputSha256, execute.Fingerprint(), StringComparison.Ordinal) && execute.WorkflowId == view.WorkflowId && execute.InputWorkflowRevision == view.WorkflowRevision, "RM.DISPATCH.INVALID");
+            var remaining = execute.ExpiresAtUtc - context.TimeProvider.GetUtcNow().UtcDateTime;
+            using var timeout = new CancellationTokenSource((remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + TimeSpan.FromSeconds(5));
+            // A lost reply is recoverable by redispatching this persisted invocation, not by inventing a failed business outcome.
+            var reply = await context.RequestFunctionAsync<ExecuteRiskManagementPipelineCommand, RiskManagementExecutionId, FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>>(execute, timeout.Token).ConfigureAwait(false);
+            var terminal = reply.Value ?? throw new InvalidDataException("Missing Risk Function reply.");
+            RiskUnitModel.Require(terminal.IsTerminal, "RM.RESULT.INVALID");
+            if (terminal.Completed is { } completed)
+            {
+                RiskUnitModel.Require(completed.Id == execute.CommandId && completed.CommandId == execute.CommandId && completed.WorkflowId == execute.WorkflowId && completed.EntityId == execute.WorkflowEntityId && completed.InputWorkflowRevision == execute.InputWorkflowRevision && string.Equals(completed.RequestFingerprint, execute.InputSha256, StringComparison.Ordinal), "RM.RESULT.INVALID");
+                var command = new CompleteRiskManagementCommand
+                {
+                    CommandId = StableId(execute.WorkflowId, execute.InputWorkflowRevision, execute.CommandId, CompleteRiskManagementCommand.Verb),
+                    Subject = new(ActorType.Command, CompleteRiskManagementCommand.Actor, CompleteRiskManagementCommand.Verb, execute.WorkflowEntityId.Format()),
+                    EntityId = execute.WorkflowEntityId,
+                    WorkflowId = execute.WorkflowId,
+                    InputWorkflowRevision = execute.InputWorkflowRevision,
+                    SourceEventId = completed.Id,
+                    Result = StrategyStageResultEnvelope.CreateRisk(completed.Result),
+                    CorrelationId = execute.CorrelationId,
+                    CausationId = completed.Id,
+                    CompletedAtUtc = completed.Result.ProducedAtUtc
+                };
+                await context.SendAsync<CompleteRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+            }
+            else
+            {
+                var failed = terminal.Failed!;
+                RiskUnitModel.Require(failed.CommandId == execute.CommandId && failed.WorkflowId == execute.WorkflowId && failed.EntityId == execute.WorkflowEntityId && failed.InputWorkflowRevision == execute.InputWorkflowRevision, "RM.RESULT.INVALID");
+                var command = new FailRiskManagementCommand
+                {
+                    CommandId = StableId(execute.WorkflowId, execute.InputWorkflowRevision, execute.CommandId, FailRiskManagementCommand.Verb),
+                    Subject = new(ActorType.Command, FailRiskManagementCommand.Actor, FailRiskManagementCommand.Verb, execute.WorkflowEntityId.Format()),
+                    EntityId = execute.WorkflowEntityId,
+                    WorkflowId = execute.WorkflowId,
+                    InputWorkflowRevision = execute.InputWorkflowRevision,
+                    SourceEventId = execute.CommandId,
+                    CorrelationId = execute.CorrelationId,
+                    CausationId = execute.CommandId,
+                    FailedAtUtc = failed.ErrorDate,
+                    Failure = new()
+                    {
+                        ErrorCode = failed.ErrorCode,
+                        ErrorType = "RiskManagementFailed",
+                        ErrorMessage = failed.ErrorMessage,
+                        ErrorData = failed.ReasonCode,
+                        FailedAtUtc = failed.ErrorDate
+                    }
+                };
+                await context.SendAsync<FailRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+            }
         }
     }
 
@@ -126,7 +130,7 @@ public static class ExecuteRiskManagement
         {
             request = PortfolioOrderCompositionMapper.CreateRequest(view, context.Options.PortfolioId, now);
         }
-        catch (Exception ex)when (ex is ArgumentException or InvalidOperationException or OverflowException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OverflowException)
         {
             await FailAsync(view, context, "RM.PORTFOLIO.MAPPING_FAILED", ex.Message, now).ConfigureAwait(false);
             return;
@@ -159,7 +163,7 @@ public static class ExecuteRiskManagement
             foreach (var order in completed.Receipt.TradeOrders.OrderBy(value => value.Id.FundId))
                 await DispatchTradeOrderAsync(order.ToTradeOrder(), completed.Id, context).ConfigureAwait(false);
         }
-        catch (Exception ex)when (ex is ArgumentException or InvalidOperationException or OverflowException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OverflowException)
         {
             await FailAsync(view, context, "RM.TRADE_ORDER.DISPATCH_FAILED", ex.Message, now).ConfigureAwait(false);
             return;

@@ -10,17 +10,24 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Recovery.Query;
 /// <summary>Handles <see cref="GetDatabaseRecoveryObjectiveComplianceQuery"/>.</summary>
 public static class GetDatabaseRecoveryObjectiveCompliance
 {
-    /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
-    public static async ValueTask ExecuteAsync(this GetDatabaseRecoveryObjectiveComplianceQuery query, ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseRecoveryQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetDatabaseRecoveryObjectiveComplianceQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dbContext);
-        ArgumentNullException.ThrowIfNull(query);
-        var result = await (dbContext.GetProtectionSetsAsync(new GetDatabaseProtectionSetsQuery
+        /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
+        public async ValueTask ExecuteAsync(ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseRecoveryQueryActor> context, CancellationToken cancellationToken)
         {
-            EntityId = query.EntityId, Request = query.Request, Source = query.Source,
-            Subject = query.Subject, PageSize = query.PageSize
-        }, cancellationToken)).ConfigureAwait(false);
-        await (DatabaseBackupQueryReply.RequiredAsync(context, query, result)).ConfigureAwait(false);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dbContext);
+            ArgumentNullException.ThrowIfNull(query);
+            var result = await (dbContext.GetProtectionSetsAsync(new GetDatabaseProtectionSetsQuery
+            {
+                EntityId = query.EntityId,
+                Request = query.Request,
+                Source = query.Source,
+                Subject = query.Subject,
+                PageSize = query.PageSize
+            }, cancellationToken)).ConfigureAwait(false);
+            await (DatabaseBackupQueryReply.RequiredAsync(context, query, result)).ConfigureAwait(false);
+        }
     }
 }

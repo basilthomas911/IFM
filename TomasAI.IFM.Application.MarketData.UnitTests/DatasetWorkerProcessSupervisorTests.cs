@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -7,6 +7,7 @@ using TomasAI.IFM.Application.MarketData.Host.Worker;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
+[Collection(ProcessResourceQualificationCollection.Name)]
 public sealed class DatasetWorkerProcessSupervisorTests
 {
     [CompositionSoakFact]
@@ -279,7 +280,7 @@ public sealed class DatasetWorkerProcessSupervisorTests
             new DatabentoSupervisedWorkerOptions
             {
                 DotNetHostPath = DotNetHost(),
-                WorkerAssemblyPath = OriginalWorkerAssembly(),
+                WorkerAssemblyPath = Harness.WorkerTestProcess.AssemblyPath,
                 Synthetic = new TomasAI.IFM.Framework.MarketData.DataBento.SyntheticFeedOptions
                 {
                     RecordCount = 1_000_000,
@@ -313,7 +314,7 @@ public sealed class DatasetWorkerProcessSupervisorTests
         cleanup.CloseSessionAsync(Arg.Any<CancellationToken>()).Returns(Task.FromException(new InvalidOperationException("Cleanup failed")));
         await using var workers = new DatasetWorkerProcessRecoveryService(Options(), new DatasetWorkerAdmissionRegistry());
         var runtime = new SupervisedDatabentoLifecycleRuntime(Substitute.For<IDatabentoContractAuthority>(),
-            Substitute.For<IDatabentoContractRegistrationRegistry>(), workers, new() { DotNetHostPath = DotNetHost(), WorkerAssemblyPath = OriginalWorkerAssembly() }, TimeProvider.System,
+            Substitute.For<IDatabentoContractRegistrationRegistry>(), workers, new() { DotNetHostPath = DotNetHost(), WorkerAssemblyPath = Harness.WorkerTestProcess.AssemblyPath }, TimeProvider.System,
             Substitute.For<TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>(), cleanup);
         var stop = () => runtime.StopAsync(CancellationToken.None);
         await stop.Should().ThrowAsync<AggregateException>().WithMessage("*cleanup*");
@@ -337,19 +338,8 @@ public sealed class DatasetWorkerProcessSupervisorTests
         }])
     };
 
-    // A referenced executable copied into a web test output loses package assemblies supplied
-    // by the test shared framework. Lifecycle tests must use its complete own build output.
-    static string OriginalWorkerAssembly()
-    {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "TomasAI.IFM.Application.MarketData.Host.Worker"))) root = root.Parent;
-        Assert.NotNull(root);
-        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
-        return Path.Combine(root!.FullName, "TomasAI.IFM.Application.MarketData.Host.Worker", "bin", configuration, "net10.0", "TomasAI.IFM.Application.MarketData.Host.Worker.dll");
-    }
-
     static string[] WorkerArguments() =>
-        ["exec", "--runtimeconfig", Path.ChangeExtension(typeof(DatasetWorkerProcessSupervisorTests).Assembly.Location, "runtimeconfig.json"), typeof(DatasetWorkerAssemblyMarker).Assembly.Location];
+        [Harness.WorkerTestProcess.AssemblyPath];
 
     static string DotNetHost()
     {

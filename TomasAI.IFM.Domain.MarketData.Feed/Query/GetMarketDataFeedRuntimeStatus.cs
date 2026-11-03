@@ -9,13 +9,17 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 /// <summary>Handles <see cref="GetMarketDataFeedRuntimeStatusQuery"/>.</summary>
 public static class GetMarketDataFeedRuntimeStatus
 {
-    /// <summary>Returns the current feed runtime status.</summary>
-    public static ValueTask ExecuteAsync(this GetMarketDataFeedRuntimeStatusQuery query, IMarketDataFeedQueryContext context, MarketDataFeedQueryParameters parameters)
-        
+
+    extension(GetMarketDataFeedRuntimeStatusQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(parameters);
-        ArgumentNullException.ThrowIfNull(query);
-        return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<MarketDataFeedRuntimeStatusReadModel>(parameters.MarketDataApi.GetRuntimeStatus()));
+        /// <summary>Returns the current feed runtime status.</summary>
+        public ValueTask ExecuteAsync(IMarketDataFeedQueryContext context, MarketDataFeedQueryParameters parameters)
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(parameters);
+            ArgumentNullException.ThrowIfNull(query);
+            return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<MarketDataFeedRuntimeStatusReadModel>(parameters.MarketDataApi.GetRuntimeStatus()));
+        }
     }
 }

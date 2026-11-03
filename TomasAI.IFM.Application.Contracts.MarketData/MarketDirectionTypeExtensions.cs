@@ -9,14 +9,18 @@ namespace TomasAI.IFM.Domain.MarketData.Shared
 
     public static class MarketDirectionTypeExtensions
     {
-        public static string ToStringFast(this MarketDirectionType value) => value switch
+
+        extension(MarketDirectionType value)
         {
-            MarketDirectionType.Down => nameof(MarketDirectionType.Down),
-            MarketDirectionType.NeutralDown => nameof(MarketDirectionType.NeutralDown),
-            MarketDirectionType.NeutralUp => nameof(MarketDirectionType.NeutralUp),
-            MarketDirectionType.Up => nameof(MarketDirectionType.Up),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                MarketDirectionType.Down => nameof(MarketDirectionType.Down),
+                MarketDirectionType.NeutralDown => nameof(MarketDirectionType.NeutralDown),
+                MarketDirectionType.NeutralUp => nameof(MarketDirectionType.NeutralUp),
+                MarketDirectionType.Up => nameof(MarketDirectionType.Up),
+                _ => value.ToString()
+            };
+        }
     }
 
 }

@@ -9,53 +9,58 @@ public static class FinancialModelingPrepServiceCollectionExtensions
     private const string TreasuryClientName = "IFM.FMP.Treasury";
     private const string EconomicCalendarClientName = "IFM.FMP.EconomicCalendar";
 
-    /// <summary>
-    /// Registers both provider-neutral FMP market-data contracts. The API key
-    /// is read from FMP_API_KEY (or the configured environment-variable name)
-    /// and is never added to a URI.
-    /// </summary>
-    /// <param name="services">The service collection to register the provider services in.</param>
-    /// <param name="configure">The callback that configures the provider options.</param>
-    /// <returns>The add financial modeling prep market data result.</returns>
-    public static IServiceCollection AddFinancialModelingPrepMarketData(
-        this IServiceCollection services,
-        Action<FinancialModelingPrepOptions>? configure = null)
+    /// <param name="services">
+    /// The service collection to register the provider services in.
+    /// </param>
+    extension(IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(services);
+        /// <summary>
+        /// Registers both provider-neutral FMP market-data contracts. The API key
+        /// is read from FMP_API_KEY (or the configured environment-variable name)
+        /// and is never added to a URI.
+        /// </summary>
+        ///
+        /// <param name="configure">The callback that configures the provider options.</param>
+        /// <returns>The add financial modeling prep market data result.</returns>
+        public IServiceCollection AddFinancialModelingPrepMarketData(
+            Action<FinancialModelingPrepOptions>? configure = null)
+        {
+            ArgumentNullException.ThrowIfNull(services);
 
-        var options = new FinancialModelingPrepOptions();
-        configure?.Invoke(options);
-        options.Validate(requireApiKey: options.Enabled);
+            var options = new FinancialModelingPrepOptions();
+            configure?.Invoke(options);
+            options.Validate(requireApiKey: options.Enabled);
 
-        services.TryAddSingleton(options);
-        services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton<FinancialModelingPrepRequestGate>();
+            services.TryAddSingleton(options);
+            services.TryAddSingleton(TimeProvider.System);
+            services.TryAddSingleton<FinancialModelingPrepRequestGate>();
 
-        services.AddHttpClient(TreasuryClientName, client => ConfigureClient(client, options))
-            .RedactLoggedHeaders(["apikey"]);
-        services.AddHttpClient(EconomicCalendarClientName, client => ConfigureClient(client, options))
-            .RedactLoggedHeaders(["apikey"]);
+            services.AddHttpClient(TreasuryClientName, client => ConfigureClient(client, options))
+                .RedactLoggedHeaders(["apikey"]);
+            services.AddHttpClient(EconomicCalendarClientName, client => ConfigureClient(client, options))
+                .RedactLoggedHeaders(["apikey"]);
 
-        services.TryAddSingleton(serviceProvider =>
-            new FinancialModelingPrepTreasuryCurve(
-                serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(TreasuryClientName),
-                serviceProvider.GetRequiredService<FinancialModelingPrepOptions>(),
-                serviceProvider.GetRequiredService<FinancialModelingPrepRequestGate>(),
-                serviceProvider.GetRequiredService<TimeProvider>()));
+            services.TryAddSingleton(serviceProvider =>
+                new FinancialModelingPrepTreasuryCurve(
+                    serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(TreasuryClientName),
+                    serviceProvider.GetRequiredService<FinancialModelingPrepOptions>(),
+                    serviceProvider.GetRequiredService<FinancialModelingPrepRequestGate>(),
+                    serviceProvider.GetRequiredService<TimeProvider>()));
 
-        services.TryAddSingleton(serviceProvider =>
-            new FinancialModelingPrepEconomicCalendar(
-                serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(EconomicCalendarClientName),
-                serviceProvider.GetRequiredService<FinancialModelingPrepOptions>(),
-                serviceProvider.GetRequiredService<FinancialModelingPrepRequestGate>(),
-                serviceProvider.GetRequiredService<TimeProvider>()));
+            services.TryAddSingleton(serviceProvider =>
+                new FinancialModelingPrepEconomicCalendar(
+                    serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(EconomicCalendarClientName),
+                    serviceProvider.GetRequiredService<FinancialModelingPrepOptions>(),
+                    serviceProvider.GetRequiredService<FinancialModelingPrepRequestGate>(),
+                    serviceProvider.GetRequiredService<TimeProvider>()));
 
-        services.TryAddSingleton<ITreasuryCurve>(serviceProvider =>
-            serviceProvider.GetRequiredService<FinancialModelingPrepTreasuryCurve>());
-        services.TryAddSingleton<IEconomicCalendar>(serviceProvider =>
-            serviceProvider.GetRequiredService<FinancialModelingPrepEconomicCalendar>());
+            services.TryAddSingleton<ITreasuryCurve>(serviceProvider =>
+                serviceProvider.GetRequiredService<FinancialModelingPrepTreasuryCurve>());
+            services.TryAddSingleton<IEconomicCalendar>(serviceProvider =>
+                serviceProvider.GetRequiredService<FinancialModelingPrepEconomicCalendar>());
 
-        return services;
+            return services;
+        }
     }
 
     private static void ConfigureClient(HttpClient client, FinancialModelingPrepOptions options)

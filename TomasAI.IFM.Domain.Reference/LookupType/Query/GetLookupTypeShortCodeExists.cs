@@ -7,19 +7,26 @@ namespace TomasAI.IFM.Domain.Reference.LookupType.Query;
 
 public static class GetLookupTypeShortCodeExists
 {
-    /// <summary>
-    /// Handles the GetLookupTypeShortCodeExistsQuery by checking if a given short code exists for a specified lookup type in the reference database.
-    /// It retrieves the list of short codes for the lookup type and checks for a match, returning a boolean result wrapped in a ScalarReadModel and ServiceResult.
-    /// </summary>
-    /// <param name="q">The query for checking short code existence.</param>
-    /// <param name="context">The query actor context.</param>
-    /// <param name="dbFactory">The database context factory.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask<ScalarReadModel<bool>> ExecuteAsync(
-        this GetLookupTypeShortCodeExistsQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+
+    /// <param name="q">
+    /// The query for checking short code existence.
+    /// </param>
+    extension(GetLookupTypeShortCodeExistsQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        return new ScalarReadModel<bool>(await (dbFactory.ReferenceDb.LookupTypeShortCodeExistsAsync(q.LookupTypeName, q.ShortCode, cancellationToken)).ConfigureAwait(false));
+        /// <summary>
+        /// Handles the GetLookupTypeShortCodeExistsQuery by checking if a given short code exists for a specified lookup type in the reference database.
+        /// It retrieves the list of short codes for the lookup type and checks for a match, returning a boolean result wrapped in a ScalarReadModel and ServiceResult.
+        /// </summary>
+        ///
+        /// <param name="context">The query actor context.</param>
+        /// <param name="dbFactory">The database context factory.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public async ValueTask<ScalarReadModel<bool>> ExecuteAsync(
+        IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            return new ScalarReadModel<bool>(await (dbFactory.ReferenceDb.LookupTypeShortCodeExistsAsync(q.LookupTypeName, q.ShortCode, cancellationToken)).ConfigureAwait(false));
+        }
     }
 }

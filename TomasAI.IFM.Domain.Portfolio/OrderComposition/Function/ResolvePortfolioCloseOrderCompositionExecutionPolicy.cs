@@ -8,16 +8,19 @@ namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Function;
 
 public static class ResolvePortfolioCloseOrderCompositionExecutionPolicy
 {
-    public static FunctionExecutionPolicy ResolveExecutionPolicy(
-        this EvaluatePortfolioCloseOrderCompositionCommand request,
-        FunctionFailureStage stage,
-        IPortfolioCloseOrderCompositionFunctionContext context)
+
+    extension(EvaluatePortfolioCloseOrderCompositionCommand request)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(request);
-        var deadline = stage == FunctionFailureStage.Loading
-            ? context.TimeProvider.GetUtcNow().UtcDateTime.AddSeconds(1)
-            : request.ExpiresAtUtc;
-        return new(context.TimeProvider, deadline, FunctionCompletionMode.AtomicBusinessAndEvent);
+        public FunctionExecutionPolicy ResolveExecutionPolicy(
+            FunctionFailureStage stage,
+            IPortfolioCloseOrderCompositionFunctionContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(request);
+            var deadline = stage == FunctionFailureStage.Loading
+                ? context.TimeProvider.GetUtcNow().UtcDateTime.AddSeconds(1)
+                : request.ExpiresAtUtc;
+            return new(context.TimeProvider, deadline, FunctionCompletionMode.AtomicBusinessAndEvent);
+        }
     }
 }

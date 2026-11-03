@@ -9,15 +9,19 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 /// <summary>Handles <see cref="GetDatabentoReadinessQuery"/>.</summary>
 public static class GetDatabentoReadiness
 {
-    /// <summary>Returns the mapped current Databento readiness snapshot.</summary>
-    public static async ValueTask ExecuteAsync(this GetDatabentoReadinessQuery query, IMarketDataFeedQueryContext context, MarketDataFeedQueryParameters parameters)
-        
+
+    extension(GetDatabentoReadinessQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(parameters);
-        ArgumentNullException.ThrowIfNull(query);
-        var backend = await parameters.MarketDataApi.GetBackendStatusAsync().ConfigureAwait(false);
-        var model = DatabentoQueryModel.MapReadiness(backend);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<DatabentoReadinessReadModel>(model)).ConfigureAwait(false);
+        /// <summary>Returns the mapped current Databento readiness snapshot.</summary>
+        public async ValueTask ExecuteAsync(IMarketDataFeedQueryContext context, MarketDataFeedQueryParameters parameters)
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(parameters);
+            ArgumentNullException.ThrowIfNull(query);
+            var backend = await parameters.MarketDataApi.GetBackendStatusAsync().ConfigureAwait(false);
+            var model = DatabentoQueryModel.MapReadiness(backend);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<DatabentoReadinessReadModel>(model)).ConfigureAwait(false);
+        }
     }
 }

@@ -11,61 +11,66 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 /// <summary>Ordered list validation for Function ingress. No remote reads, calculations or side effects.</summary>
 public static class CompositionValidationExtensions
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    public static List<ValidationError> ValidateCompositionFields(this List<ValidationError> errors, ExecuteOrderCompositionPipelineCommand c)
+
+    extension(List<ValidationError> errors)
     {
-        ArgumentNullException.ThrowIfNull(errors);
-        errors.AddRange(new FieldRules().Execute(c));
-        return errors;
-    }
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    public static List<ValidationError> ValidateCompositionEvidence(this List<ValidationError> errors, ExecuteOrderCompositionPipelineCommand c)
-    {
-        ArgumentNullException.ThrowIfNull(c);
-        ArgumentNullException.ThrowIfNull(errors);
-        if (errors.Count != 0) return errors;
-        void Check(bool pass, string code) { if (!pass) errors.Add(new(code)); }
-        var view = c.WorkflowView;
-        var selected = c.AcceptedSelectionEnvelope.SelectionResult;
-        Check(c.AcceptedSelectionEnvelope.HasValidPayloadSha256() && selected is { Outcome: TradeSelection.SelectionOutcome.Selected, SelectedCandidate: not null }, "OC.CONTRACT.UPSTREAM_INVALID");
-        Check(c.EntityId.InputWorkflowRevision == c.InputWorkflowRevision && c.WorkflowId == view.WorkflowId && c.WorkflowEntityId == view.EntityId
-            && view.Status == WorkflowStrategyMachineStatus.Started && c.InputWorkflowRevision == view.WorkflowRevision && view.CurrentStage == StrategyWorkflowStage.OrderComposition
-            && c.TriggerEvent.Id == view.TriggerEventId && c.TriggerEvent.Id == view.TriggerEvent.Id
-            && c.CorrelationId == view.CorrelationId && string.Equals(c.CompositionBinding.Rules.SupportedHorizon.ToString(),c.TriggerEvent.EntityId.TimePeriod.ToString(),StringComparison.Ordinal), "OC.CONTRACT.IDENTITY");
-        Check(c.Subject == new ActorSubject(ActorType.Function, ExecuteOrderCompositionPipelineCommand.Actor, ExecuteOrderCompositionPipelineCommand.Verb, c.EntityId.Format())
-            && c.RouteTo == BoundedContextName.OrderCompositionPipelineBoundedContext, "OC.CONTRACT.IDENTITY");
-        Check(string.Equals(c.SelectionBinding.PayloadSha256,TradeSelection.TradeSelectionContracts.BindingHash(c.SelectionBinding),StringComparison.Ordinal)
-            && string.Equals(c.CompositionBinding.BindingSha256,CompositionHash.Binding(c.CompositionBinding),StringComparison.Ordinal), "OC.CONTRACT.HASH");
-        Check(string.Equals(c.MarketSnapshot.Digest,CompositionSemanticHash.Compute(c.MarketSnapshot with { Digest = "" }),StringComparison.Ordinal)
-            && c.MarketSnapshot.EvaluatedAtUtc.UtcDateTime == c.EvaluatedAtUtc, "OC.CONTRACT.HASH");
-        if (selected is not null)
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        public List<ValidationError> ValidateCompositionFields(ExecuteOrderCompositionPipelineCommand c)
         {
-            Check(selected.WorkflowId == c.WorkflowId && selected.EntityId == c.WorkflowEntityId
-                && selected.DecisionHorizon == c.CompositionBinding.Rules.SupportedHorizon
-                && string.Equals(selected.DecisionContext.SelectionBinding.PayloadSha256,c.SelectionBinding.PayloadSha256,StringComparison.Ordinal)
-                && selected.DecisionContext.VolatilityInput == c.SelectionBinding.VolatilityInput
-                && string.Equals(CompositionHash.Compute(selected.SelectedCandidate),CompositionHash.Compute(c.CompositionBinding.Selected),StringComparison.Ordinal)
-                && c.AcceptedSelectionEnvelope.HasSameContent(view.TradeSelection.Result), "OC.CONTRACT.UPSTREAM_INVALID");
-            if (c.SelectionBinding.SchemaVersion == 1)
-                Check(c.Reservation?.Order is { OrderId: > 0 } o && o.WorkflowId == c.WorkflowId.Value
-                    && o.PortfolioId == selected.PortfolioId && o.FundId == selected.FundId
-                    && o.TradeSelectionResultId == selected.ResultId && string.Equals(o.TradeSelectionResultHash,c.AcceptedSelectionEnvelope.PayloadSha256,StringComparison.Ordinal)
-                    && c.Reservation.Trades.Length == 1 && c.Reservation.Trades[0].OrderId == o.OrderId && c.Reservation.Trades[0].TradeId > 0,
-                    "OC.CONTRACT.RESERVATION_INVALID");
-            else
-                Check(c.Reservation is null && selected.PortfolioId == 0 && selected.FundId == 0, "OC.CONTRACT.OWNERSHIP_PREMATURE");
+            ArgumentNullException.ThrowIfNull(errors);
+            errors.AddRange(new FieldRules().Execute(c));
+            return errors;
         }
-        Check(c.ExpiresAtUtc > c.RequestedAtUtc && c.EvaluatedAtUtc <= c.RequestedAtUtc && c.ExpiresAtUtc <= view.ExpiresAtUtc
-            && c.ExpiresAtUtc <= c.SelectionBinding.ValidUntilUtc
-            && (c.Reservation is null || c.ExpiresAtUtc <= c.Reservation.Order.ExpiresAtUtc), "OC.CONTRACT.VALUE_RANGE");
-        Check(MessagePackBinarySerializer.MeasureContent(c.MarketSnapshot) <= 524288
-            && MessagePackBinarySerializer.MeasureContent(c.CompositionBinding) <= 262144
-            && MessagePackBinarySerializer.MeasureContent(c) <= 1048576 && MessagePackBinarySerializer.MeasureEncoded(c) <= 1048576,
-            "OC.CONTRACT.PAYLOAD_SIZE");
-        Check(string.Equals(c.InputSha256,c.Fingerprint(),StringComparison.Ordinal), "OC.CONTRACT.HASH");
-        return errors;
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        public List<ValidationError> ValidateCompositionEvidence(ExecuteOrderCompositionPipelineCommand c)
+        {
+            ArgumentNullException.ThrowIfNull(c);
+            ArgumentNullException.ThrowIfNull(errors);
+            if (errors.Count != 0) return errors;
+            void Check(bool pass, string code) { if (!pass) errors.Add(new(code)); }
+            var view = c.WorkflowView;
+            var selected = c.AcceptedSelectionEnvelope.SelectionResult;
+            Check(c.AcceptedSelectionEnvelope.HasValidPayloadSha256() && selected is { Outcome: TradeSelection.SelectionOutcome.Selected, SelectedCandidate: not null }, "OC.CONTRACT.UPSTREAM_INVALID");
+            Check(c.EntityId.InputWorkflowRevision == c.InputWorkflowRevision && c.WorkflowId == view.WorkflowId && c.WorkflowEntityId == view.EntityId
+                && view.Status == WorkflowStrategyMachineStatus.Started && c.InputWorkflowRevision == view.WorkflowRevision && view.CurrentStage == StrategyWorkflowStage.OrderComposition
+                && c.TriggerEvent.Id == view.TriggerEventId && c.TriggerEvent.Id == view.TriggerEvent.Id
+                && c.CorrelationId == view.CorrelationId && string.Equals(c.CompositionBinding.Rules.SupportedHorizon.ToString(), c.TriggerEvent.EntityId.TimePeriod.ToString(), StringComparison.Ordinal), "OC.CONTRACT.IDENTITY");
+            Check(c.Subject == new ActorSubject(ActorType.Function, ExecuteOrderCompositionPipelineCommand.Actor, ExecuteOrderCompositionPipelineCommand.Verb, c.EntityId.Format())
+                && c.RouteTo == BoundedContextName.OrderCompositionPipelineBoundedContext, "OC.CONTRACT.IDENTITY");
+            Check(string.Equals(c.SelectionBinding.PayloadSha256, TradeSelection.TradeSelectionContracts.BindingHash(c.SelectionBinding), StringComparison.Ordinal)
+                && string.Equals(c.CompositionBinding.BindingSha256, CompositionHash.Binding(c.CompositionBinding), StringComparison.Ordinal), "OC.CONTRACT.HASH");
+            Check(string.Equals(c.MarketSnapshot.Digest, CompositionSemanticHash.Compute(c.MarketSnapshot with { Digest = "" }), StringComparison.Ordinal)
+                && c.MarketSnapshot.EvaluatedAtUtc.UtcDateTime == c.EvaluatedAtUtc, "OC.CONTRACT.HASH");
+            if (selected is not null)
+            {
+                Check(selected.WorkflowId == c.WorkflowId && selected.EntityId == c.WorkflowEntityId
+                    && selected.DecisionHorizon == c.CompositionBinding.Rules.SupportedHorizon
+                    && string.Equals(selected.DecisionContext.SelectionBinding.PayloadSha256, c.SelectionBinding.PayloadSha256, StringComparison.Ordinal)
+                    && selected.DecisionContext.VolatilityInput == c.SelectionBinding.VolatilityInput
+                    && string.Equals(CompositionHash.Compute(selected.SelectedCandidate), CompositionHash.Compute(c.CompositionBinding.Selected), StringComparison.Ordinal)
+                    && c.AcceptedSelectionEnvelope.HasSameContent(view.TradeSelection.Result), "OC.CONTRACT.UPSTREAM_INVALID");
+                if (c.SelectionBinding.SchemaVersion == 1)
+                    Check(c.Reservation?.Order is { OrderId: > 0 } o && o.WorkflowId == c.WorkflowId.Value
+                        && o.PortfolioId == selected.PortfolioId && o.FundId == selected.FundId
+                        && o.TradeSelectionResultId == selected.ResultId && string.Equals(o.TradeSelectionResultHash, c.AcceptedSelectionEnvelope.PayloadSha256, StringComparison.Ordinal)
+                        && c.Reservation.Trades.Length == 1 && c.Reservation.Trades[0].OrderId == o.OrderId && c.Reservation.Trades[0].TradeId > 0,
+                        "OC.CONTRACT.RESERVATION_INVALID");
+                else
+                    Check(c.Reservation is null && selected.PortfolioId == 0 && selected.FundId == 0, "OC.CONTRACT.OWNERSHIP_PREMATURE");
+            }
+            Check(c.ExpiresAtUtc > c.RequestedAtUtc && c.EvaluatedAtUtc <= c.RequestedAtUtc && c.ExpiresAtUtc <= view.ExpiresAtUtc
+                && c.ExpiresAtUtc <= c.SelectionBinding.ValidUntilUtc
+                && (c.Reservation is null || c.ExpiresAtUtc <= c.Reservation.Order.ExpiresAtUtc), "OC.CONTRACT.VALUE_RANGE");
+            Check(MessagePackBinarySerializer.MeasureContent(c.MarketSnapshot) <= 524288
+                && MessagePackBinarySerializer.MeasureContent(c.CompositionBinding) <= 262144
+                && MessagePackBinarySerializer.MeasureContent(c) <= 1048576 && MessagePackBinarySerializer.MeasureEncoded(c) <= 1048576,
+                "OC.CONTRACT.PAYLOAD_SIZE");
+            Check(string.Equals(c.InputSha256, c.Fingerprint(), StringComparison.Ordinal), "OC.CONTRACT.HASH");
+            return errors;
+        }
     }
     sealed class FieldRules : BaseValidationRules
     {

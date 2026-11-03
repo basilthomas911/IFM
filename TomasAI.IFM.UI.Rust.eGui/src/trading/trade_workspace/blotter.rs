@@ -5,6 +5,10 @@ use super::*;
 use crate::models::cells::Cells;
 
 
+/// Physical vertical gap shared by Trade Blotter and Broker Trade control rows.
+const CONTROL_ROW_GAP: f32 = 16.;
+
+
 /// Provides cell text for the blotter implementation.
 pub(super) fn cell_text(value: &impl Cells, key: &str) -> String {
     value.cell(key).text()
@@ -190,9 +194,12 @@ impl TradeWorkspace {
         let display = self.prepare_trade_display(s);
         let p = ui.ctx().pixels_per_point();
         let parent_o = ui.cursor().min;
-        let o = parent_o + egui::vec2(0., 62.) / p;
+        let header_height = form_rect(ui, rect(parent_o, p, 0., 0., 100., 27.)).height() * p;
+        // Place the details row one control gap below the first header row.
+        let header_offset = 9. + header_height + CONTROL_ROW_GAP - 10.;
+        let o = parent_o + egui::vec2(0., header_offset) / p;
         let w = ui.available_width() * p;
-        let h = ui.available_height() * p - 62.;
+        let h = ui.available_height() * p - header_offset;
         let mut action = None;
         self.controls.insert(
             "blotter-client".into(),
@@ -665,7 +672,7 @@ impl TradeWorkspace {
             right = xs[i] + widths[i] + 32.;
         }
         let field_height = form_rect(ui, rect(o, p, 0., 0., 100., 27.)).height() * p;
-        let row_step = (field_height + 12.).max(40.);
+        let row_step = field_height + CONTROL_ROW_GAP;
         let information_height = row_step * 3. + 26.;
         let information = rect(o, p, 11., 109., w - 22., information_height);
         at(ui, information, "market-information", |ui| {
@@ -1025,11 +1032,19 @@ impl TradeWorkspace {
             ],
         ];
         let field_region = rect(o, p, 26., 297., w - 52., (h - 365.).max(80.));
+        // Share the grid's side rails and bottom rule without adding a second
+        // horizontal line where the leg grid meets the form.
+        let field_border = egui::Rect::from_min_max(
+            leg_grid_bounds.left_bottom() - egui::vec2(0., 1. / p),
+            field_region.right_bottom(),
+        );
+        self.controls.insert("broker-fields-frame".into(), field_border);
         self.controls
             .insert("broker-fields-viewport".into(), field_region);
-        at(ui, field_region, "broker-fields", |ui| {
+        at(ui, field_region.shrink(1. / p), "broker-fields", |ui| {
             egui::ScrollArea::vertical()
                 .id_salt("broker-field-scroll")
+                .auto_shrink([false, false])
                 .bordered_show(ui, |ui| {
                     let origin = ui.cursor().min;
                     let available = ui.available_width();
@@ -1077,7 +1092,7 @@ impl TradeWorkspace {
                                     ui.trading_caption("Fund Economics and Limits:");
                                 },
                             );
-                            y += height + 16. / p;
+                            y += height + CONTROL_ROW_GAP / p;
                         }
                         for row in section_fields.chunks(columns) {
                             for (column, (caption, key)) in row.iter().enumerate() {
@@ -1208,7 +1223,7 @@ impl TradeWorkspace {
                                     action = Some("preview-draft");
                                 }
                             }
-                            y += height + 16. / p;
+                            y += height + CONTROL_ROW_GAP / p;
                         }
                     }
                     ui.allocate_rect(
@@ -1217,6 +1232,12 @@ impl TradeWorkspace {
                     );
                 });
         });
+        ui.painter().rect_stroke(
+            field_border,
+            0.,
+            egui::Stroke::new(1. / p, Color32::from_rgb(80, 80, 84)),
+            egui::StrokeKind::Inside,
+        );
         at(
             ui,
             rect(o, p, w - 343., h - 52., 180., 29.),

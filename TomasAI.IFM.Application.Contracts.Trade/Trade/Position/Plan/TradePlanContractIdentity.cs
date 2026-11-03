@@ -11,29 +11,39 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 
 public static class TradePlanContractIdentity
 {
-    public static string Fingerprint(this UpdateIronCondorTradePlanCommand command) 
+
+    extension(UpdateIronCondorTradePlanCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        if (command.UseForwardPriceFunction)
-            return Convert.ToHexString(SHA256.HashData(MessagePackSerializer.Serialize(new object[] {
-                command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId,
-                command.IronCondorTradePlanInputs!, command.IronCondorForwardPriceCalculated!, command.ForwardPriceFailure! })));
-        return command.IronCondorTradePlanInputs is null
-            ? Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId)
-            : Convert.ToHexString(SHA256.HashData(MessagePackSerializer.Serialize(command.IronCondorTradePlanInputs)
-                .Concat(Encoding.UTF8.GetBytes(Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId))).ToArray()));
+        public string Fingerprint()
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            if (command.UseForwardPriceFunction)
+                return Convert.ToHexString(SHA256.HashData(MessagePackSerializer.Serialize(new object[] {
+                    command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId,
+                    command.IronCondorTradePlanInputs!, command.IronCondorForwardPriceCalculated!, command.ForwardPriceFailure! })));
+            return command.IronCondorTradePlanInputs is null
+                ? Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId)
+                : Convert.ToHexString(SHA256.HashData(MessagePackSerializer.Serialize(command.IronCondorTradePlanInputs)
+                    .Concat(Encoding.UTF8.GetBytes(Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId))).ToArray()));
+        }
     }
 
-    public static string Fingerprint(this UpdateVerticalSpreadTradePlanCommand command) 
+    extension(UpdateVerticalSpreadTradePlanCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        return Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId);
+        public string Fingerprint()
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            return Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId);
+        }
     }
 
-    public static string Fingerprint(this UpdateFuturesTradePlanCommand command) 
+    extension(UpdateFuturesTradePlanCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        return Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId);
+        public string Fingerprint()
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            return Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId);
+        }
     }
 
     public static Guid DeterministicId(string scope)

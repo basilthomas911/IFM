@@ -8,21 +8,27 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query;
 
 public static class GetRolloverFuturesContracts
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="q"></param>
-    /// <param name="context"></param>
-    /// <param name="dbFactory"></param>
-    /// <returns></returns>
-    public static async ValueTask<FuturesContractV3ReadModel[]> ExecuteAsync(
-        this GetRolloverFuturesContractsQuery q,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-        
+
+    /// <param name="q">
+    ///
+    /// </param>
+    extension(GetRolloverFuturesContractsQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        return [.. await (dbFactory.SecuritiesDb.GetRolloverFuturesContractsAsync(q.Symbol, cancellationToken)).ConfigureAwait(false)];
+        /// <summary>
+        ///
+        /// </summary>
+        ///
+        /// <param name="context"></param>
+        /// <param name="dbFactory"></param>
+        /// <returns></returns>
+        public async ValueTask<FuturesContractV3ReadModel[]> ExecuteAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            return [.. await (dbFactory.SecuritiesDb.GetRolloverFuturesContractsAsync(q.Symbol, cancellationToken)).ConfigureAwait(false)];
+        }
     }
 }

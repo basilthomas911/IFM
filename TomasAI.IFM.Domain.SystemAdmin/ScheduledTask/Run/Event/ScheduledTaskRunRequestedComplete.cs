@@ -8,13 +8,20 @@ namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Event;
 /// <summary>Handles the concrete ScheduledTaskRunRequestedComplete notification.</summary>
 public static class ScheduledTaskRunRequestedComplete
 {
-    /// <summary>Dispatches committed desired work or observes its explicit projection outcome.</summary>
-    /// <param name="source">The concrete source-correlated notification.</param>
-    /// <param name="context">Readonly durable transport and logging services.</param>
-    /// <returns>The bounded notification dispatch operation.</returns>
-    public static ValueTask ExecuteAsync(this ScheduledTaskRunRequestedCompleteEvent source, ScheduledTaskEventContext context)
+
+    /// <param name="source">
+    /// The concrete source-correlated notification.
+    /// </param>
+    extension(ScheduledTaskRunRequestedCompleteEvent source)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        return source.ScheduledTaskRun is { Manual: true } run ? ScheduledTaskRuntimeDispatch.RequestManualRunAsync(source, run, context) : ValueTask.CompletedTask;
+        /// <summary>Dispatches committed desired work or observes its explicit projection outcome.</summary>
+        ///
+        /// <param name="context">Readonly durable transport and logging services.</param>
+        /// <returns>The bounded notification dispatch operation.</returns>
+        public ValueTask ExecuteAsync(ScheduledTaskEventContext context)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            return source.ScheduledTaskRun is { Manual: true } run ? ScheduledTaskRuntimeDispatch.RequestManualRunAsync(source, run, context) : ValueTask.CompletedTask;
+        }
     }
 }

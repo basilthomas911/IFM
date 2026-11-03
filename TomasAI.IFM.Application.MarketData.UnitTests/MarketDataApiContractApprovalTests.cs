@@ -1,5 +1,7 @@
 using FluentAssertions;
+using System.Reflection;
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.UnitTests.Harness;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
@@ -7,12 +9,23 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed class MarketDataApiContractApprovalTests
 {
     [Fact]
-    public void ApplicationInterfaceHasExpectedMethodSurfaceAndNoGuidIdentifiers()
+    public void ApplicationInterfaceHasExpectedMethodSurfaceAndCanonicalLegacyIdentifiers()
     {
         var methods = typeof(IMarketDataApi).GetMethods();
 
-        methods.Should().HaveCount(41);
+        methods.Should().HaveCount(75);
         methods.Select(method => method.Name).Should().BeEquivalentTo(
+            "get_DatasetRecoveryOwnership",
+            "InjectDevelopmentOptionWorkerFaultAsync", "WarmTreasuryPricingAsync", "ReadTreasuryCurveAsync",
+            "ReadTreasuryCurvesAsync", "ReadEconomicCalendarAsync", "RefreshInstrumentDefinitionsAsync",
+            "RefreshOptionCalendarAsync", "EvaluateOptionChainAsync", "ResetMarketDataAsync",
+            "ReconcileCommittedSubscriptionsAsync", "ReleaseCompositionAsync", "AcquireMonitoredOptionAsync",
+            "ReleaseMonitoredOptionAsync", "ReadFiveMinuteSeedBarsAsync", "GetBackendReadSnapshotAsync",
+            "PrepareSessionAsync", "GetBackendStatusAsync", "RecoverMarketDataAsync", "RepairOptionObservationsAsync",
+            "AcquireOptionScopeAsync", "ReleaseOptionScopeAsync", "CaptureCompositionAsync", "CaptureOptionRiskAsync",
+            "PrepareCompositionAsync", "PrepareCachedCompositionAsync", "GetHistoricalAvailableEndAsync",
+            "EstimateHistoricalAsync", "LoadHistoricalAsync", "CloseTradeFeedRecoveryAsync", "ReadTradeFeedRecoveryAsync",
+            "LoadTradeFeedRecoveryAsync", "EnableTradeFeedRecoveryAsync", "DisableTradeFeedRecoveryAsync",
             "get_OptionChainCache",
             "TryGetMarketInstrumentId",
             "GetFuturesMarketHealth",
@@ -55,7 +68,9 @@ public sealed class MarketDataApiContractApprovalTests
             "ReleaseSubscriptionLeaseAsync",
             "AcquireSelectedSubscriptionLeasesAsync",
             "GetSubscriptionLeasesAsync");
-        methods.SelectMany(method => method.GetParameters())
+        // Backend operations carry operation/generation identities; canonical legacy contract IDs remain strings.
+        methods.Where(method => method.GetCustomAttribute<MarketDataHostOperationAttribute>() is null)
+            .SelectMany(method => method.GetParameters())
             .Should().NotContain(parameter => parameter.ParameterType == typeof(Guid));
     }
 
@@ -94,7 +109,7 @@ public sealed class MarketDataApiContractApprovalTests
     }
 
     [Fact]
-    public void LiveApplicationBoundaryExcludesHistoricalAcquisitionOperations()
+    public void HistoricalAcquisitionIsExplicitlyMarkedAsTypedBackendOperations()
     {
         var methods = typeof(IMarketDataApi).GetMethods();
         var historicalTerms = new[]
@@ -105,8 +120,16 @@ public sealed class MarketDataApiContractApprovalTests
             "EstimateCost"
         };
 
-        methods.Should().NotContain(method => historicalTerms.Any(term =>
-            method.Name.Contains(term, StringComparison.OrdinalIgnoreCase)));
+        var historical = methods.Where(method => historicalTerms.Any(term =>
+            method.Name.Contains(term, StringComparison.OrdinalIgnoreCase))).ToArray();
+        historical.Select(method => method.Name).Should().BeEquivalentTo(
+            "GetHistoricalAvailableEndAsync", "EstimateHistoricalAsync", "LoadHistoricalAsync");
+        foreach (var method in historical)
+        {
+            method.GetCustomAttribute<MarketDataHostOperationAttribute>().Should().NotBeNull();
+            method.GetParameters().Select(parameter => parameter.ParameterType).Should()
+                .Equal(typeof(MarketDataHistoricalRequest), typeof(CancellationToken));
+        }
         methods.SelectMany(method => method.GetParameters())
             .Select(parameter => parameter.ParameterType.FullName ?? string.Empty)
             .Should().NotContain(typeName =>

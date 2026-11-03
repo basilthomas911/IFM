@@ -8,41 +8,44 @@ namespace TomasAI.IFM.Domain.MarketData.Query;
 
 public static class GetDatabentoOptionChain
 {
-    public static async ValueTask ExecuteAsync(
-        this GetDatabentoOptionChainQuery query,
-        IMarketDataQueryContext context,
-        CancellationToken cancellationToken)
+
+    extension(GetDatabentoOptionChainQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        cancellationToken.ThrowIfCancellationRequested();
-        ServiceResult<FuturesOptionContractReadModel[]> result;
-        var expiries = await context.DbFactory.SecuritiesDb.GetOptionContractExpiriesAsync(
-            query.UnderlyingSymbol, query.MaturityDate, query.MaturityDate, cancellationToken).ConfigureAwait(false);
-        var underlyingId = expiries.FirstOrDefault(row => row.ExpiryDate == query.MaturityDate
-            && string.Equals(row.ProviderRoot, query.ProviderRoot, StringComparison.OrdinalIgnoreCase))?.ContractId;
-        if (string.IsNullOrWhiteSpace(underlyingId))
-            result = new ServiceFailed<FuturesOptionContractReadModel[]>(404, "The selected expiry is not present in the published option-definition cache.");
-        else
+        public async ValueTask ExecuteAsync(
+            IMarketDataQueryContext context,
+            CancellationToken cancellationToken)
         {
-            var cached = await context.DbFactory.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(
-                query.UnderlyingSymbol, underlyingId, query.MaturityDate, [query.ProviderRoot], cancellationToken)
-                .ConfigureAwait(false);
-            var (currentPrice, deviation, observationDate) = await OptionChainWindowInputs.GetAsync(
-                context, query.UnderlyingSymbol, underlyingId, cancellationToken).ConfigureAwait(false);
-            var window = OptionChainStrikeWindow.Select(cached.Select(row => row.Definition),
-                currentPrice, deviation, 2.5);
-            
-            var diagnosticLogger = context.Logger;
-            if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            cancellationToken.ThrowIfCancellationRequested();
+            ServiceResult<FuturesOptionContractReadModel[]> result;
+            var expiries = await context.DbFactory.SecuritiesDb.GetOptionContractExpiriesAsync(
+                query.UnderlyingSymbol, query.MaturityDate, query.MaturityDate, cancellationToken).ConfigureAwait(false);
+            var underlyingId = expiries.FirstOrDefault(row => row.ExpiryDate == query.MaturityDate
+                && string.Equals(row.ProviderRoot, query.ProviderRoot, StringComparison.OrdinalIgnoreCase))?.ContractId;
+            if (string.IsNullOrWhiteSpace(underlyingId))
+                result = new ServiceFailed<FuturesOptionContractReadModel[]>(404, "The selected expiry is not present in the published option-definition cache.");
+            else
             {
-                global::TomasAI.IFM.Domain.MarketData.StorageMigrationDiagnosticLog.Write7(diagnosticLogger, null, query.ProviderRoot, query.MaturityDate, window.Contracts.Length, cached.Count, window.Method, currentPrice, deviation, observationDate);
+                var cached = await context.DbFactory.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(
+                    query.UnderlyingSymbol, underlyingId, query.MaturityDate, [query.ProviderRoot], cancellationToken)
+                    .ConfigureAwait(false);
+                var (currentPrice, deviation, observationDate) = await OptionChainWindowInputs.GetAsync(
+                    context, query.UnderlyingSymbol, underlyingId, cancellationToken).ConfigureAwait(false);
+                var window = OptionChainStrikeWindow.Select(cached.Select(row => row.Definition),
+                    currentPrice, deviation, 2.5);
+
+                var diagnosticLogger = context.Logger;
+                if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+                {
+                    global::TomasAI.IFM.Domain.MarketData.StorageMigrationDiagnosticLog.Write7(diagnosticLogger, null, query.ProviderRoot, query.MaturityDate, window.Contracts.Length, cached.Count, window.Method, currentPrice, deviation, observationDate);
+                }
+
+                result = string.Equals(window.Method, "WindowInputsUnavailable", StringComparison.Ordinal)
+                    ? new ServiceFailed<FuturesOptionContractReadModel[]>(503, "Current Bollinger window inputs are unavailable.")
+                    : new ServiceOk<FuturesOptionContractReadModel[]>(window.Contracts);
             }
-        
-            result = string.Equals(window.Method,"WindowInputsUnavailable",StringComparison.Ordinal)
-                ? new ServiceFailed<FuturesOptionContractReadModel[]>(503, "Current Bollinger window inputs are unavailable.")
-                : new ServiceOk<FuturesOptionContractReadModel[]>(window.Contracts);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
         }
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
     }
 }

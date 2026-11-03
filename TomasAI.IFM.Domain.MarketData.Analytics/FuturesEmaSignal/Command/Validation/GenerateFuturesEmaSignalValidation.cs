@@ -7,27 +7,30 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.Valid
 /// <summary>Checks the complete source observation for EMA generation.</summary>
 public static class GenerateFuturesEmaSignalValidation
 {
-    /// <summary>Adds all source-bar and routing errors before the command loads state.</summary>
-    public static TErrors ValidateSourceBar<TErrors>(
-        this TErrors errors, GenerateFuturesEmaSignalCommand command)
 
+    extension<TErrors>(TErrors errors)
         where TErrors : class, ICollection<ValidationError>
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(errors);
-        if (command.Observation is not { } bar)
+        /// <summary>Adds all source-bar and routing errors before the command loads state.</summary>
+        public TErrors ValidateSourceBar(
+        GenerateFuturesEmaSignalCommand command)
         {
-            errors.Add(new("EMA.BAR.NULL", "A completed source bar is required."));
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(errors);
+            if (command.Observation is not { } bar)
+            {
+                errors.Add(new("EMA.BAR.NULL", "A completed source bar is required."));
+                return errors;
+            }
+            foreach (var error in new FuturesTradeSessionBarReadModelValidationRules().Execute(bar))
+                errors.Add(new(error.ErrorCode, $"Observation: {error.ErrorMessage}"));
+            if (!bar.IsValid || !bar.IsComplete)
+                errors.Add(new("EMA.BAR.INVALID", "A valid completed source bar is required."));
+            if (bar.MarketSeriesIdentity != command.EntityId.MarketSeriesIdentity
+                || bar.TimeFrame != command.EntityId.TimeFrame
+                || !string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
+                errors.Add(new("EMA.BAR.ROUTE", "The source bar must match the command series and timeframe."));
             return errors;
         }
-        foreach (var error in new FuturesTradeSessionBarReadModelValidationRules().Execute(bar))
-            errors.Add(new(error.ErrorCode, $"Observation: {error.ErrorMessage}"));
-        if (!bar.IsValid || !bar.IsComplete)
-            errors.Add(new("EMA.BAR.INVALID", "A valid completed source bar is required."));
-        if (bar.MarketSeriesIdentity != command.EntityId.MarketSeriesIdentity
-            || bar.TimeFrame != command.EntityId.TimeFrame
-            || !string.Equals(command.Subject.EntityId,command.EntityId.Format(),StringComparison.Ordinal))
-            errors.Add(new("EMA.BAR.ROUTE", "The source bar must match the command series and timeframe."));
-        return errors;
     }
 }

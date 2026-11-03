@@ -9,18 +9,25 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Query;
 
 public static class GetEconomicCalendarCountryCodes
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="q"></param>
-    /// <param name="context"></param>
-    /// <param name="dbFactory"></param>
-    /// <returns></returns>
-    public static async ValueTask<EconomicCalendarCountryCodeReadModel[]> ExecuteAsync(
-        this GetEconomicCalendarCountryCodesQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        
+
+    /// <param name="q">
+    ///
+    /// </param>
+    extension(GetEconomicCalendarCountryCodesQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        return [.. await (dbFactory.MarketDataDb.GetEconomicCalendarCountryCodesAsync(cancellationToken)).ConfigureAwait(false)];
+        /// <summary>
+        ///
+        /// </summary>
+        ///
+        /// <param name="context"></param>
+        /// <param name="dbFactory"></param>
+        /// <returns></returns>
+        public async ValueTask<EconomicCalendarCountryCodeReadModel[]> ExecuteAsync(
+        IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            return [.. await (dbFactory.MarketDataDb.GetEconomicCalendarCountryCodesAsync(cancellationToken)).ConfigureAwait(false)];
+        }
     }
 }

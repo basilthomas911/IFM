@@ -6,12 +6,16 @@ namespace TomasAI.IFM.Domain.MarketData.Shared;
 
 public static class RiskPositionTypeExtensions
 {
-    public static string ToStringFast(this RiskPositionType value) => value switch
+
+    extension(RiskPositionType value)
     {
-        RiskPositionType.Unknown => nameof(RiskPositionType.Unknown),
-        RiskPositionType.Low => nameof(RiskPositionType.Low),
-        RiskPositionType.Medium => nameof(RiskPositionType.Medium),
-        RiskPositionType.High => nameof(RiskPositionType.High),
-        _ => value.ToString()
-    };
+        public string ToStringFast() => value switch
+        {
+            RiskPositionType.Unknown => nameof(RiskPositionType.Unknown),
+            RiskPositionType.Low => nameof(RiskPositionType.Low),
+            RiskPositionType.Medium => nameof(RiskPositionType.Medium),
+            RiskPositionType.High => nameof(RiskPositionType.High),
+            _ => value.ToString()
+        };
+    }
 }

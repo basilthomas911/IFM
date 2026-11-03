@@ -9,16 +9,20 @@ namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function;
 /// <summary>Allows bounded receipt recovery after expiry while new financial work retains the original deadline.</summary>
 public static class ResolveCapacityConsumptionExecutionPolicy
 {
-    public static FunctionExecutionPolicy ResolveExecutionPolicy(this ConsumeCapacityReservationCommand request, FunctionFailureStage stage, ICapacityConsumptionFunctionContext context)
+
+    extension(ConsumeCapacityReservationCommand request)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(request);
-        var budget = request.RequestedAtUtc.AddSeconds(2);
-        var deadline = (stage == FunctionFailureStage.Loading) switch
-{
-    true => context.TimeProvider.GetUtcNow().UtcDateTime.AddSeconds(1),
-    false => request.ExpiresAtUtc < budget ? request.ExpiresAtUtc : budget
-};
-        return new(context.TimeProvider, deadline, FunctionCompletionMode.AtomicBusinessAndEvent);
+        public FunctionExecutionPolicy ResolveExecutionPolicy(FunctionFailureStage stage, ICapacityConsumptionFunctionContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(request);
+            var budget = request.RequestedAtUtc.AddSeconds(2);
+            var deadline = (stage == FunctionFailureStage.Loading) switch
+            {
+                true => context.TimeProvider.GetUtcNow().UtcDateTime.AddSeconds(1),
+                false => request.ExpiresAtUtc < budget ? request.ExpiresAtUtc : budget
+            };
+            return new(context.TimeProvider, deadline, FunctionCompletionMode.AtomicBusinessAndEvent);
+        }
     }
 }

@@ -179,11 +179,11 @@ public static partial class CoreServiceRegistration
     {
         var configured = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
         if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
-        return Path.GetFullPath(configured);
+            return Path.GetFullPath(configured);
         var process = Environment.ProcessPath;
         if (process is not null && string.Equals(Path.GetFileNameWithoutExtension(process),
         "dotnet", StringComparison.OrdinalIgnoreCase))
-        return process;
+            return process;
         var runtimeDirectory = System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory();
         var installedHost = Path.GetFullPath(Path.Combine(runtimeDirectory, "..", "..", "..",
         OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet"));
@@ -196,10 +196,10 @@ public static partial class CoreServiceRegistration
     {
         var value = config.GetValue<string>(configurationKey);
         if (string.IsNullOrWhiteSpace(value))
-        return ImportDuplicatePolicy.Overwrite;
+            return ImportDuplicatePolicy.Overwrite;
         if (Enum.TryParse<ImportDuplicatePolicy>(value, true, out var policy)
         && Enum.IsDefined(policy))
-        return policy;
+            return policy;
         throw new InvalidOperationException(
         $"Configuration '{configurationKey}' must be Overwrite or Reject.");
     }
@@ -218,14 +218,16 @@ public static partial class CoreServiceRegistration
         return commandInstance;
     }
 
-
-    static Container GetSimpleInjectorContainer(this IServiceCollection services)
+    extension(IServiceCollection services)
     {
-        return services
-        .Select(static descriptor => descriptor.ImplementationInstance)
-        .OfType<Container>()
-        .SingleOrDefault()
-        ?? throw new InvalidOperationException("Simple Injector has not been configured for this host.");
+        Container GetSimpleInjectorContainer()
+        {
+            return services
+            .Select(static descriptor => descriptor.ImplementationInstance)
+            .OfType<Container>()
+            .SingleOrDefault()
+            ?? throw new InvalidOperationException("Simple Injector has not been configured for this host.");
+        }
     }
 
 }

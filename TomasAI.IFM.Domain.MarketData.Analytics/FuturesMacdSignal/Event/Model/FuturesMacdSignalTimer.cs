@@ -6,25 +6,35 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event.Model;
 
 public static class FuturesMacdSignalTimer
 {
-    public static bool StartTimer(this FuturesMacdSignalStartedEvent e, Func<FuturesMacdSignalEntityId, ValueTask> callback)
-        
+
+    extension(FuturesMacdSignalStartedEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        return PeriodSignalTimerRegistry<FuturesMacdSignalEntityId>.Start(e.EntityId, callback, PeriodSignalTimerPeriod.Get(e.EntityId.TimePeriod));
+        public bool StartTimer(Func<FuturesMacdSignalEntityId, ValueTask> callback)
+
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return PeriodSignalTimerRegistry<FuturesMacdSignalEntityId>.Start(e.EntityId, callback, PeriodSignalTimerPeriod.Get(e.EntityId.TimePeriod));
+        }
+
+        internal bool StartTimer(Func<FuturesMacdSignalEntityId, ValueTask> callback, TimeSpan period)
+            => PeriodSignalTimerRegistry<FuturesMacdSignalEntityId>.Start(e.EntityId, callback, period);
+
+        public bool TryAcceptSourceSequence(long sourceSequence)
+
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return PeriodSignalTimerRegistry<FuturesMacdSignalEntityId>.TryAcceptSourceSequence(e.EntityId, sourceSequence);
+        }
     }
-    internal static bool StartTimer(this FuturesMacdSignalStartedEvent e, Func<FuturesMacdSignalEntityId, ValueTask> callback, TimeSpan period)
-        => PeriodSignalTimerRegistry<FuturesMacdSignalEntityId>.Start(e.EntityId, callback, period);
-    public static bool TryAcceptSourceSequence(this FuturesMacdSignalStartedEvent e, long sourceSequence)
-        
+
+    extension(FuturesMacdSignalStoppedEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        return PeriodSignalTimerRegistry<FuturesMacdSignalEntityId>.TryAcceptSourceSequence(e.EntityId, sourceSequence);
-    }
-    public static ValueTask<bool> StopTimerAsync(this FuturesMacdSignalStoppedEvent e)
-        
-    {
-        ArgumentNullException.ThrowIfNull(e);
-        return PeriodSignalTimerRegistry<FuturesMacdSignalEntityId>.StopAsync(e.EntityId);
+        public ValueTask<bool> StopTimerAsync()
+
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return PeriodSignalTimerRegistry<FuturesMacdSignalEntityId>.StopAsync(e.EntityId);
+        }
     }
     public static ValueTask StopAllAsync() => PeriodSignalTimerRegistry<FuturesMacdSignalEntityId>.StopAllAsync();
 }

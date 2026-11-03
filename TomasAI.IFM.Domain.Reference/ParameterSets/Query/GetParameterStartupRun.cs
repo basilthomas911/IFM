@@ -9,40 +9,43 @@ namespace TomasAI.IFM.Domain.Reference.ParameterSets.Query;
 /// <summary>Loads one immutable parameter startup generation by its run identifier.</summary>
 public static class GetParameterStartupRun
 {
-    /// <summary>Returns only the requested startup run so the query response remains bounded.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetParameterStartupRunQuery query,
-        IParameterSetQueryContext context,
-        ILogger<ParameterSetQueryActor> logger,
-        CancellationToken token)
+
+    extension(GetParameterStartupRunQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        context.AccessPolicy.Demand(ParameterCapability.Read);
-        token.ThrowIfCancellationRequested();
-        if (query.RunId == Guid.Empty)
+        /// <summary>Returns only the requested startup run so the query response remains bounded.</summary>
+        public async ValueTask ExecuteAsync(
+            IParameterSetQueryContext context,
+            ILogger<ParameterSetQueryActor> logger,
+            CancellationToken token)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            context.AccessPolicy.Demand(ParameterCapability.Read);
+            token.ThrowIfCancellationRequested();
+            if (query.RunId == Guid.Empty)
 #pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
-            throw new ArgumentException("PARAM.STARTUP_RUN_ID_REQUIRED");
+                throw new ArgumentException("PARAM.STARTUP_RUN_ID_REQUIRED");
 #pragma warning restore MA0015
 
-        var id = ParameterStartupEntityId.Registry;
-        var address = new ApplySignalStartupPlanCommand
-        {
-            EntityId = id,
-            Subject = new ActorSubject(
-                ActorType.Command,
-                ApplySignalStartupPlanCommand.Actor,
-                ApplySignalStartupPlanCommand.Verb,
-                id.Format())
-        };
-        var state = await (context.Startups.LoadStateAsync(address, token)).ConfigureAwait(false);
-        token.ThrowIfCancellationRequested();
-        if (!state.ActiveRuns.TryGetValue(query.RunId, out var run))
-            throw new InvalidOperationException("PARAM.STARTUP_NOT_FOUND");
+            var id = ParameterStartupEntityId.Registry;
+            var address = new ApplySignalStartupPlanCommand
+            {
+                EntityId = id,
+                Subject = new ActorSubject(
+                    ActorType.Command,
+                    ApplySignalStartupPlanCommand.Actor,
+                    ApplySignalStartupPlanCommand.Verb,
+                    id.Format())
+            };
+            var state = await (context.Startups.LoadStateAsync(address, token)).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            if (!state.ActiveRuns.TryGetValue(query.RunId, out var run))
+                throw new InvalidOperationException("PARAM.STARTUP_NOT_FOUND");
 
-        await (context.ReplyAsync(
-            query.Subject.ThreadId,
-            query.Subject.Verb,
-            new ServiceOk<ParameterStartupRun>(run))).ConfigureAwait(false);
+            await (context.ReplyAsync(
+                query.Subject.ThreadId,
+                query.Subject.Verb,
+                new ServiceOk<ParameterStartupRun>(run))).ConfigureAwait(false);
+        }
     }
 }

@@ -10,14 +10,18 @@ namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function;
 /// <summary>Authorizes execution and maps a candidate; only the transactional repository can produce the committed receipt.</summary>
 public static class ConsumeCapacityReservation
 {
-    /// <summary>Validates the consumption request and dispatches its candidate completion for transactional commitment.</summary>
-    public static ValueTask<FunctionResult<CapacityConsumptionCompletedEvent, CapacityConsumptionFailedEvent>> ExecuteAsync(this ConsumeCapacityReservationCommand request, ICapacityConsumptionFunctionContext context,
-        Func<FunctionEventContext<ConsumeCapacityReservationCommand>, FunctionResult<CapacityConsumptionCompletedEvent, CapacityConsumptionFailedEvent>> dispatch, CancellationToken token)
+
+    extension(ConsumeCapacityReservationCommand request)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dispatch);
-        token.ThrowIfCancellationRequested();
-        FinancialRequestValidation.Demand(request, "CapacityConsume", context.TimeProvider.GetUtcNow().UtcDateTime);
-        return ValueTask.FromResult(dispatch(new(typeof(CapacityConsumptionCompletedEvent), request, new CapacityLifecycleReceipt())));
+        /// <summary>Validates the consumption request and dispatches its candidate completion for transactional commitment.</summary>
+        public ValueTask<FunctionResult<CapacityConsumptionCompletedEvent, CapacityConsumptionFailedEvent>> ExecuteAsync(ICapacityConsumptionFunctionContext context,
+            Func<FunctionEventContext<ConsumeCapacityReservationCommand>, FunctionResult<CapacityConsumptionCompletedEvent, CapacityConsumptionFailedEvent>> dispatch, CancellationToken token)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dispatch);
+            token.ThrowIfCancellationRequested();
+            FinancialRequestValidation.Demand(request, "CapacityConsume", context.TimeProvider.GetUtcNow().UtcDateTime);
+            return ValueTask.FromResult(dispatch(new(typeof(CapacityConsumptionCompletedEvent), request, new CapacityLifecycleReceipt())));
+        }
     }
 }

@@ -7,13 +7,17 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
     public static class ActionStateExtensions
     {
-        public static string ToStringFast(this ActionState value) => value switch
+
+        extension(ActionState value)
         {
-            ActionState.Normal => nameof(ActionState.Normal),
-            ActionState.Warning => nameof(ActionState.Warning),
-            ActionState.Critical => nameof(ActionState.Critical),
-            ActionState.RedAlert => nameof(ActionState.RedAlert),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                ActionState.Normal => nameof(ActionState.Normal),
+                ActionState.Warning => nameof(ActionState.Warning),
+                ActionState.Critical => nameof(ActionState.Critical),
+                ActionState.RedAlert => nameof(ActionState.RedAlert),
+                _ => value.ToString()
+            };
+        }
     }
 }

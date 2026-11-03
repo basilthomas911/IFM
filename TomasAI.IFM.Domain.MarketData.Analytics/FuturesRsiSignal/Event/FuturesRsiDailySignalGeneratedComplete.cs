@@ -7,13 +7,16 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
 /// <summary>Handles completion of a daily RSI projection.</summary>
 public static class FuturesRsiDailySignalGeneratedComplete
 {
-    /// <summary>Accepts the completed daily RSI notification.</summary>
-    public static ValueTask<bool> ExecuteAsync(this FuturesRsiDailySignalGeneratedCompleteEvent @event,
-        IFuturesRsiSignalEventContext context, ILogger<FuturesRsiSignalEventActor> logger)
+
+    extension(FuturesRsiDailySignalGeneratedCompleteEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        return ValueTask.FromResult(true);
+        /// <summary>Accepts the completed daily RSI notification.</summary>
+        public ValueTask<bool> ExecuteAsync(IFuturesRsiSignalEventContext context, ILogger<FuturesRsiSignalEventActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            return ValueTask.FromResult(true);
+        }
     }
 }

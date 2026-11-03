@@ -8,22 +8,25 @@ namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Function;
 
 public static class EvaluatePortfolioCloseOrderComposition
 {
-    public static ValueTask<FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
-        PortfolioCloseOrderCompositionFailedEvent>> ExecuteAsync(
-        this EvaluatePortfolioCloseOrderCompositionCommand request,
-        IPortfolioCloseOrderCompositionFunctionContext context,
-        Func<FunctionEventContext<EvaluatePortfolioCloseOrderCompositionCommand>,
-            FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
-                PortfolioCloseOrderCompositionFailedEvent>> dispatch,
-        CancellationToken cancellationToken)
+
+    extension(EvaluatePortfolioCloseOrderCompositionCommand request)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dispatch);
-        cancellationToken.ThrowIfCancellationRequested();
-        FinancialRequestValidation.Demand(
-            request, "OrderCompositionClose", context.TimeProvider.GetUtcNow().UtcDateTime);
-        return ValueTask.FromResult(dispatch(new(
-            typeof(PortfolioCloseOrderCompositionCompletedEvent), request,
-            new PortfolioCloseOrderCompositionReceipt())));
+        public ValueTask<FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
+            PortfolioCloseOrderCompositionFailedEvent>> ExecuteAsync(
+            IPortfolioCloseOrderCompositionFunctionContext context,
+            Func<FunctionEventContext<EvaluatePortfolioCloseOrderCompositionCommand>,
+                FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
+                    PortfolioCloseOrderCompositionFailedEvent>> dispatch,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dispatch);
+            cancellationToken.ThrowIfCancellationRequested();
+            FinancialRequestValidation.Demand(
+                request, "OrderCompositionClose", context.TimeProvider.GetUtcNow().UtcDateTime);
+            return ValueTask.FromResult(dispatch(new(
+                typeof(PortfolioCloseOrderCompositionCompletedEvent), request,
+                new PortfolioCloseOrderCompositionReceipt())));
+        }
     }
 }

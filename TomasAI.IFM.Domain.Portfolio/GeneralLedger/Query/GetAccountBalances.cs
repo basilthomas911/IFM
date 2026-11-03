@@ -9,12 +9,16 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query;
 /// <summary>Handles the GetAccountBalances financial query.</summary>
 public static class GetAccountBalances
 {
-    /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
-    public static ValueTask ExecuteAsync<TActor>(this GetAccountBalancesQuery query, IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
-        
+
+    extension(GetAccountBalancesQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        return FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "GetAccountBalances", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+        /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
+        public ValueTask ExecuteAsync<TActor>(IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            return FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "GetAccountBalances", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+        }
     }
 }

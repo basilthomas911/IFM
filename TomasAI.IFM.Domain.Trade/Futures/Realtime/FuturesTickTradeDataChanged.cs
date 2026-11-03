@@ -12,41 +12,45 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Realtime;
 /// <summary>Routes one Futures trade tick to every matching open outright position leg.</summary>
 public static partial class FuturesTickTradeDataChanged
 {
-    /// <summary>Maps the market tick and sends one position update command for every eligible route.</summary>
-    public static async ValueTask ExecuteAsync(this FuturesTickTradeDataChangedEvent changed, IFuturesRealtimeContext context)
-    {
-        ArgumentNullException.ThrowIfNull(changed);
-        ArgumentNullException.ThrowIfNull(context);
-        var receivedAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc);
-        var tick = new PositionMarketTick(changed.TickDataId.ContractId, changed.TradeData.Price, changed.TradeData.SourceSequence, receivedAtUtc);
-        var outcome = context.RouteIndex.TryRoute(in tick, out var routes);
-        if (outcome != MarketRouteLookupOutcome.Routed)
-        {
-            LogIgnoredTick(context, changed.TickDataId.ContractId, outcome);
-            return;
-        }
 
-        foreach (var route in routes)
+    extension(FuturesTickTradeDataChangedEvent changed)
+    {
+        /// <summary>Maps the market tick and sends one position update command for every eligible route.</summary>
+        public async ValueTask ExecuteAsync(IFuturesRealtimeContext context)
         {
-            if (route.TradeType != TradeStrategyKind.FuturesOutright)
-                continue;
-            var positionId = new StrategyPositionId(new TradeEntityId(route.PortfolioId, route.FundId, route.OrderId, route.TradeId), route.StrategyPositionId);
-            var command = new ChangeTradeLegDataCommand
+            ArgumentNullException.ThrowIfNull(changed);
+            ArgumentNullException.ThrowIfNull(context);
+            var receivedAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc);
+            var tick = new PositionMarketTick(changed.TickDataId.ContractId, changed.TradeData.Price, changed.TradeData.SourceSequence, receivedAtUtc);
+            var outcome = context.RouteIndex.TryRoute(in tick, out var routes);
+            if (outcome != MarketRouteLookupOutcome.Routed)
             {
-                CommandId = TickCommandId(changed.Id, route.StrategyPositionId, route.TradeLegId),
-                Subject = new ActorSubject(ActorType.Command, FuturesTradePositionCommandActor.ActorName, ChangeTradeLegDataCommand.Verb, positionId.Format()),
-                EntityId = positionId,
-                TradeLegId = route.TradeLegId,
-                ContractId = tick.ContractId,
-                Price = tick.Price,
-                SourceSequence = tick.SourceSequence,
-                RouteGeneration = route.Generation,
-                EffectiveAtUtc = tick.OccurredAtUtc,
-                TradeType = route.TradeType
-            };
-            var result = await context.ActorService.SendAsync<ChangeTradeLegDataCommand, StrategyPositionId>(command, positionId).ConfigureAwait(false);
-            if (!result.Success)
-                RouteSendFailed(context.Logger, tick.ContractId, positionId.Format(), route.TradeLegId, result.ErrorCode, result.ErrorMessage ?? string.Empty);
+                LogIgnoredTick(context, changed.TickDataId.ContractId, outcome);
+                return;
+            }
+
+            foreach (var route in routes)
+            {
+                if (route.TradeType != TradeStrategyKind.FuturesOutright)
+                    continue;
+                var positionId = new StrategyPositionId(new TradeEntityId(route.PortfolioId, route.FundId, route.OrderId, route.TradeId), route.StrategyPositionId);
+                var command = new ChangeTradeLegDataCommand
+                {
+                    CommandId = TickCommandId(changed.Id, route.StrategyPositionId, route.TradeLegId),
+                    Subject = new ActorSubject(ActorType.Command, FuturesTradePositionCommandActor.ActorName, ChangeTradeLegDataCommand.Verb, positionId.Format()),
+                    EntityId = positionId,
+                    TradeLegId = route.TradeLegId,
+                    ContractId = tick.ContractId,
+                    Price = tick.Price,
+                    SourceSequence = tick.SourceSequence,
+                    RouteGeneration = route.Generation,
+                    EffectiveAtUtc = tick.OccurredAtUtc,
+                    TradeType = route.TradeType
+                };
+                var result = await context.ActorService.SendAsync<ChangeTradeLegDataCommand, StrategyPositionId>(command, positionId).ConfigureAwait(false);
+                if (!result.Success)
+                    RouteSendFailed(context.Logger, tick.ContractId, positionId.Format(), route.TradeLegId, result.ErrorCode, result.ErrorMessage ?? string.Empty);
+            }
         }
     }
 

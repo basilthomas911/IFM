@@ -7,14 +7,17 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime;
 /// <summary>Handles one failed TDI realtime projection.</summary>
 public static class FuturesTdiSignalGeneratedFail
 {
-    /// <summary>Logs the typed failure while preserving its terminal no-retry behavior.</summary>
-    public static ValueTask<bool> ExecuteAsync(
-        this FuturesTdiSignalGeneratedFailEvent failed,
-        IFuturesTdiSignalRealtimeContext context)
+
+    extension(FuturesTdiSignalGeneratedFailEvent failed)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(failed);
-        global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write41(context.Logger, null, failed.EventName, failed.EntityId, failed.ErrorMessage);
-        return ValueTask.FromResult(true);
+        /// <summary>Logs the typed failure while preserving its terminal no-retry behavior.</summary>
+        public ValueTask<bool> ExecuteAsync(
+            IFuturesTdiSignalRealtimeContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(failed);
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write41(context.Logger, null, failed.EventName, failed.EntityId, failed.ErrorMessage);
+            return ValueTask.FromResult(true);
+        }
     }
 }

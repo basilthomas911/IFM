@@ -9,19 +9,23 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions
 {
     public static class TradeTypeLimitReadModelExtension
     {
-        public static TradeTypeLimitReadModel? Get(this TradeTypeLimitReadModel[] tradeTypeLimits, TradeType tradeType)
-           => tradeTypeLimits
-               .SingleOrDefault(e => e.TradeType == tradeType);
 
-        public static void Set(this TradeTypeLimitReadModel[] tradeTypeLimits, TradeType tradeType, TradeTypeLimitReadModel tradeTypeLimit)
+        extension(TradeTypeLimitReadModel[] tradeTypeLimits)
         {
-            ArgumentNullException.ThrowIfNull(tradeTypeLimits);
-            for (var index = 0; index < tradeTypeLimits.Length; index++)
+            public TradeTypeLimitReadModel? Get(TradeType tradeType)
+               => tradeTypeLimits
+                   .SingleOrDefault(e => e.TradeType == tradeType);
+
+            public void Set(TradeType tradeType, TradeTypeLimitReadModel tradeTypeLimit)
             {
-                if (tradeTypeLimits[index].TradeType == tradeType)
+                ArgumentNullException.ThrowIfNull(tradeTypeLimits);
+                for (var index = 0; index < tradeTypeLimits.Length; index++)
                 {
-                    tradeTypeLimits[index] = tradeTypeLimit;
-                    break;
+                    if (tradeTypeLimits[index].TradeType == tradeType)
+                    {
+                        tradeTypeLimits[index] = tradeTypeLimit;
+                        break;
+                    }
                 }
             }
         }

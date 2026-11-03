@@ -10,37 +10,40 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Query;
 /// <summary>Handles one historical data-load diagnostics query.</summary>
 public static class GetFuturesAnalyticsHistoricalDataLoader
 {
-    /// <summary>Reads durable attempt diagnostics and sends the typed reply.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesAnalyticsHistoricalDataLoaderQuery query,
-        IQueryActorContext<FuturesAnalyticsHistoricalDataLoaderQueryActor> context,
-        CancellationToken cancellationToken)
+
+    extension(GetFuturesAnalyticsHistoricalDataLoaderQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        var state = await context.DataLoaderStore.GetAsync(
-            query.DataLoadAttemptId, cancellationToken).ConfigureAwait(false);
-        var result = (state is null) switch
-{
-    true => null,
-    false => new FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel
-    {
-        DataLoadAttemptId = state.DataLoadAttemptId,
-        RequestSha256 = state.RequestSha256,
-        Status = state.Status.ToString(),
-        ManifestId = state.Manifest?.ManifestId,
-        LastCompletedBatchOrdinal = checked((int)state.Checkpoint.BatchOrdinal),
-        LastCompletedRecordOrdinal = long.TryParse(state.Checkpoint.SourcePosition, System.Globalization.CultureInfo.InvariantCulture, out var ordinal) ? ordinal : -1,
-        ValidSessionCount = state.Audit?.ValidSessionCount ?? 0,
-        GapCount = state.Audit?.Gaps.Count ?? 0,
-        RollCount = state.Audit?.Rolls.Count ?? 0,
-        ErrorMessage = state.ErrorMessage,
-        UpdatedAtUtc = state.UpdatedAtUtc
-    }
-};
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId,
-            GetFuturesAnalyticsHistoricalDataLoaderQuery.Verb,
-            new ServiceResult<FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel?>(result)).ConfigureAwait(false);
+        /// <summary>Reads durable attempt diagnostics and sends the typed reply.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesAnalyticsHistoricalDataLoaderQueryActor> context,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            var state = await context.DataLoaderStore.GetAsync(
+                query.DataLoadAttemptId, cancellationToken).ConfigureAwait(false);
+            var result = (state is null) switch
+            {
+                true => null,
+                false => new FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel
+                {
+                    DataLoadAttemptId = state.DataLoadAttemptId,
+                    RequestSha256 = state.RequestSha256,
+                    Status = state.Status.ToString(),
+                    ManifestId = state.Manifest?.ManifestId,
+                    LastCompletedBatchOrdinal = checked((int)state.Checkpoint.BatchOrdinal),
+                    LastCompletedRecordOrdinal = long.TryParse(state.Checkpoint.SourcePosition, System.Globalization.CultureInfo.InvariantCulture, out var ordinal) ? ordinal : -1,
+                    ValidSessionCount = state.Audit?.ValidSessionCount ?? 0,
+                    GapCount = state.Audit?.Gaps.Count ?? 0,
+                    RollCount = state.Audit?.Rolls.Count ?? 0,
+                    ErrorMessage = state.ErrorMessage,
+                    UpdatedAtUtc = state.UpdatedAtUtc
+                }
+            };
+            cancellationToken.ThrowIfCancellationRequested();
+            await context.ReplyAsync(query.Subject.ThreadId,
+                GetFuturesAnalyticsHistoricalDataLoaderQuery.Verb,
+                new ServiceResult<FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel?>(result)).ConfigureAwait(false);
+        }
     }
 }

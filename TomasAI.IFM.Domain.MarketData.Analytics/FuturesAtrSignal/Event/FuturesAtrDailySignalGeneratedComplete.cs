@@ -7,13 +7,16 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event;
 /// <summary>Handles completion of a daily ATR projection.</summary>
 public static class FuturesAtrDailySignalGeneratedComplete
 {
-    /// <summary>Accepts the completed daily ATR notification.</summary>
-    public static ValueTask<bool> ExecuteAsync(this FuturesAtrDailySignalGeneratedCompleteEvent @event,
-        IFuturesAtrSignalEventContext context, ILogger<FuturesAtrSignalEventActor> logger)
+
+    extension(FuturesAtrDailySignalGeneratedCompleteEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        return ValueTask.FromResult(true);
+        /// <summary>Accepts the completed daily ATR notification.</summary>
+        public ValueTask<bool> ExecuteAsync(IFuturesAtrSignalEventContext context, ILogger<FuturesAtrSignalEventActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            return ValueTask.FromResult(true);
+        }
     }
 }

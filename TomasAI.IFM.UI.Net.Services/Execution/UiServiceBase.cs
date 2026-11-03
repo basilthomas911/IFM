@@ -115,75 +115,85 @@ public class UiServiceBase<TService>
 /// <summary>Provides the UiServiceExecution UI service boundary.</summary>
 public static class UiServiceExecution
 {
-    /// <summary>
-    /// Executes an asynchronous operation on the concrete model instance.
-    /// </summary>
-    /// <remarks>Completion, cancellation, and failures are returned to the caller. This prevents an asynchronous
-    /// lambda from being converted to <see cref="Action{T}"/> and losing observable completion.</remarks>
-    /// <typeparam name="TModel">The type of the model, which must be a reference type.</typeparam>
-    /// <param name="model">The model instance on which the action will be performed. Cannot be <see langword="null"/>.</param>
-    /// <param name="operation">The asynchronous operation to execute. Cannot be <see langword="null"/>.</param>
-    /// <param name="cancellationToken">A token that cancels execution before the operation starts.</param>
-    /// <returns>A task representing the complete operation.</returns>
-    public static Task ExecuteAsync<TModel>(
-        this IUiService<TModel> model,
-        Func<TModel, CancellationToken, Task> operation,
-        CancellationToken cancellationToken = default)
+
+    /// <typeparam name="TModel">
+    /// The type of the model, which must be a reference type.
+    /// The type of the model on which the query is executed. Must be a reference type.
+    /// </typeparam>
+    /// <param name="model">
+    /// The model instance on which the action will be performed. Cannot be <see langword="null"/>.
+    /// The model instance on which the operation will be performed.
+    /// The model instance on which the query action is performed. Cannot be null.
+    /// </param>
+    extension<TModel>(IUiService<TModel> model)
         where TModel : class
     {
-        ArgumentNullException.ThrowIfNull(model);
-        ArgumentNullException.ThrowIfNull(operation);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (model is not TModel concreteModel)
+        /// <summary>
+        /// Executes an asynchronous operation on the concrete model instance.
+        /// </summary>
+        /// <remarks>Completion, cancellation, and failures are returned to the caller. This prevents an asynchronous
+        /// lambda from being converted to <see cref="Action{T}"/> and losing observable completion.</remarks>
+        ///
+        ///
+        /// <param name="operation">The asynchronous operation to execute. Cannot be <see langword="null"/>.</param>
+        /// <param name="cancellationToken">A token that cancels execution before the operation starts.</param>
+        /// <returns>A task representing the complete operation.</returns>
+        public Task ExecuteAsync(
+            Func<TModel, CancellationToken, Task> operation,
+            CancellationToken cancellationToken = default)
         {
-            throw new InvalidOperationException(
-                $"Model instance '{model.GetType().FullName}' does not implement its declared concrete type '{typeof(TModel).FullName}'.");
+            ArgumentNullException.ThrowIfNull(model);
+            ArgumentNullException.ThrowIfNull(operation);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (model is not TModel concreteModel)
+            {
+                throw new InvalidOperationException(
+                    $"Model instance '{model.GetType().FullName}' does not implement its declared concrete type '{typeof(TModel).FullName}'.");
+            }
+
+            return operation(concreteModel, cancellationToken);
         }
 
-        return operation(concreteModel, cancellationToken);
-    }
-
-    /// <summary>
-    /// Executes an asynchronous operation on the concrete model instance when the operation does not consume a
-    /// cancellation token directly.
-    /// </summary>
-    /// <typeparam name="TModel">The type of the model, which must be a reference type.</typeparam>
-    /// <param name="model">The model instance on which the operation will be performed.</param>
-    /// <param name="operation">The asynchronous operation to execute.</param>
-    /// <param name="cancellationToken">A token that cancels execution before the operation starts.</param>
-    /// <returns>A task representing the complete operation.</returns>
-    public static Task ExecuteAsync<TModel>(
-        this IUiService<TModel> model,
-        Func<TModel, Task> operation,
-        CancellationToken cancellationToken = default)
-        where TModel : class
-    {
-        ArgumentNullException.ThrowIfNull(operation);
-        return model.ExecuteAsync((concreteModel, _) => operation(concreteModel), cancellationToken);
-    }
-
-    /// <summary>
-    /// Executes a query action on the specified model and returns the result.
-    /// </summary>
-    /// <remarks>Invalid model casts and operation failures are propagated to the caller.</remarks>
-    /// <typeparam name="TModel">The type of the model on which the query is executed. Must be a reference type.</typeparam>
-    /// <typeparam name="TData">The type of the data returned by the query action.</typeparam>
-    /// <param name="model">The model instance on which the query action is performed. Cannot be null.</param>
-    /// <param name="viewAction">A function that defines the query action to execute on the model. Cannot be null.</param>
-    /// <returns>The result of the query action.</returns>
-    public static TData ExecuteQuery<TModel, TData>(this IUiService<TModel> model, Func<TModel, TData> viewAction) where TModel : class
-    {
-        ArgumentNullException.ThrowIfNull(model);
-        ArgumentNullException.ThrowIfNull(viewAction);
-
-        if (model is not TModel concreteModel)
+        /// <summary>
+        /// Executes an asynchronous operation on the concrete model instance when the operation does not consume a
+        /// cancellation token directly.
+        /// </summary>
+        ///
+        ///
+        /// <param name="operation">The asynchronous operation to execute.</param>
+        /// <param name="cancellationToken">A token that cancels execution before the operation starts.</param>
+        /// <returns>A task representing the complete operation.</returns>
+        public Task ExecuteAsync(
+            Func<TModel, Task> operation,
+            CancellationToken cancellationToken = default)
         {
-            throw new InvalidOperationException(
-                $"Model instance '{model.GetType().FullName}' does not implement its declared concrete type '{typeof(TModel).FullName}'.");
+            ArgumentNullException.ThrowIfNull(operation);
+            return model.ExecuteAsync((concreteModel, _) => operation(concreteModel), cancellationToken);
         }
 
-        return viewAction(concreteModel);
+        /// <summary>
+        /// Executes a query action on the specified model and returns the result.
+        /// </summary>
+        /// <remarks>Invalid model casts and operation failures are propagated to the caller.</remarks>
+        ///
+        /// <typeparam name="TData">The type of the data returned by the query action.</typeparam>
+        ///
+        /// <param name="viewAction">A function that defines the query action to execute on the model. Cannot be null.</param>
+        /// <returns>The result of the query action.</returns>
+        public TData ExecuteQuery<TData>(Func<TModel, TData> viewAction)
+        {
+            ArgumentNullException.ThrowIfNull(model);
+            ArgumentNullException.ThrowIfNull(viewAction);
+
+            if (model is not TModel concreteModel)
+            {
+                throw new InvalidOperationException(
+                    $"Model instance '{model.GetType().FullName}' does not implement its declared concrete type '{typeof(TModel).FullName}'.");
+            }
+
+            return viewAction(concreteModel);
+        }
     }
 
 }

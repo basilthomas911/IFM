@@ -7,15 +7,22 @@ namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Event;
 /// <summary>Handles the concrete ScheduledTaskRunStageRecordedFail notification.</summary>
 public static class ScheduledTaskRunStageRecordedFail
 {
-    /// <summary>Dispatches committed desired work or observes its explicit projection outcome.</summary>
-    /// <param name="source">The concrete source-correlated notification.</param>
-    /// <param name="context">Readonly durable transport and logging services.</param>
-    /// <returns>The bounded notification dispatch operation.</returns>
-    public static ValueTask ExecuteAsync(this ScheduledTaskRunStageRecordedFailEvent source, ScheduledTaskEventContext context)
+
+    /// <param name="source">
+    /// The concrete source-correlated notification.
+    /// </param>
+    extension(ScheduledTaskRunStageRecordedFailEvent source)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(source);
-        global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write4(context.Logger, null, nameof(ScheduledTaskRunStageRecordedFail), nameof(ExecuteAsync), source.EventName, source.EntityId.Format(), source.CommandId, source.ErrorMessage);
-        return ValueTask.CompletedTask;
+        /// <summary>Dispatches committed desired work or observes its explicit projection outcome.</summary>
+        ///
+        /// <param name="context">Readonly durable transport and logging services.</param>
+        /// <returns>The bounded notification dispatch operation.</returns>
+        public ValueTask ExecuteAsync(ScheduledTaskEventContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(source);
+            global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write4(context.Logger, null, nameof(ScheduledTaskRunStageRecordedFail), nameof(ExecuteAsync), source.EventName, source.EntityId.Format(), source.CommandId, source.ErrorMessage);
+            return ValueTask.CompletedTask;
+        }
     }
 }

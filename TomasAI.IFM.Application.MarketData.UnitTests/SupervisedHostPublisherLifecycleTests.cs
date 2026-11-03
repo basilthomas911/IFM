@@ -15,6 +15,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
+[Collection(ProcessResourceQualificationCollection.Name)]
 public sealed class SupervisedHostPublisherLifecycleTests
 {
     // The native synthetic producer uses the live clock; its epoch must use that clock's session date.
@@ -228,7 +229,7 @@ public sealed class SupervisedHostPublisherLifecycleTests
             WorkerOptions = new DatabentoSupervisedWorkerOptions
             {
                 DotNetHostPath = DotNetHost(),
-                WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location,
+                WorkerAssemblyPath = Harness.WorkerTestProcess.AssemblyPath,
                 HostPublisherStopTimeout = TimeSpan.FromMilliseconds(300),
                 Synthetic = new SyntheticFeedOptions { RecordCount = 1_000_000, RecordsPerSecond = 50 }
             };

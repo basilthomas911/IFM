@@ -16,40 +16,43 @@ public static class MarketDataFeedResetComplete
         ServiceId = $"{LogSourceType.MarketDataFeedEvent}";
     }
 
-    static string ServiceId { get; } 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
-    /// Announces a completed hard recovery. The recovery pipeline has already restored and
-    /// qualified worker subscriptions, actors, and durable publication; this handler must not
-    /// start another legacy in-process stream or lifecycle operation.
-    /// </summary>
-    /// <param name="e">The correlated event emitted only after hard recovery succeeds.</param>
-    /// <param name="context">The receiving actor context.</param>
-    /// <param name="eventApi">The context used to publish the final reset notification.</param>
-    /// <param name="p">The actor's operational notification dependencies.</param>
-    /// <param name="logger">The actor logger used for notification failures.</param>
-    /// <returns>Whether the final reset notification was published.</returns>
-    public static async ValueTask<bool> ExecuteAsync(
-        this MarketDataFeedResetCompleteEvent e,
-        IEventActorContext context,
-        IEventActorContext eventApi,
-        MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
+    static string ServiceId { get; }
+
+    extension(MarketDataFeedResetCompleteEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(eventApi);
-        ArgumentNullException.ThrowIfNull(p);
-        var source = $"MarketDataFeedResetCompleteEvent for EntityId: {e.EntityId}";
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
+                                                                                                                                                                                                                                         /// Announces a completed hard recovery. The recovery pipeline has already restored and
+                                                                                                                                                                                                                                         /// qualified worker subscriptions, actors, and durable publication; this handler must not
+                                                                                                                                                                                                                                         /// start another legacy in-process stream or lifecycle operation.
+                                                                                                                                                                                                                                         /// </summary>
+                                                                                                                                                                                                                                         /// <param name="e">The correlated event emitted only after hard recovery succeeds.</param>
+                                                                                                                                                                                                                                         /// <param name="context">The receiving actor context.</param>
+                                                                                                                                                                                                                                         /// <param name="eventApi">The context used to publish the final reset notification.</param>
+                                                                                                                                                                                                                                         /// <param name="p">The actor's operational notification dependencies.</param>
+                                                                                                                                                                                                                                         /// <param name="logger">The actor logger used for notification failures.</param>
+                                                                                                                                                                                                                                         /// <returns>Whether the final reset notification was published.</returns>
+        public async ValueTask<bool> ExecuteAsync(
+                IEventActorContext context,
+                IEventActorContext eventApi,
+                MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
         {
-            // Recovery owns restoration; completion only notifies its consumers.
-            await (eventApi.SendResetStreamingEventAsync(e)).ConfigureAwait(false);
-            return true;
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(eventApi);
+            ArgumentNullException.ThrowIfNull(p);
+            var source = $"MarketDataFeedResetCompleteEvent for EntityId: {e.EntityId}";
+            try
+            {
+                // Recovery owns restoration; completion only notifies its consumers.
+                await (eventApi.SendResetStreamingEventAsync(e)).ConfigureAwait(false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.LogErrorEvent(ServiceId, ex, "{Source}: data feed reset notification failed", source);
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, -1, ex.GetErrorMessage())).ConfigureAwait(false);
+            }
+            return false;
         }
-        catch (Exception ex)
-        {
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: data feed reset notification failed", source);
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, -1, ex.GetErrorMessage())).ConfigureAwait(false);
-        }
-        return false;
     }
 
 }

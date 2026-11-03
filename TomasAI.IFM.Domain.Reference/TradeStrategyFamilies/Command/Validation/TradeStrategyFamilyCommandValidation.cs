@@ -10,83 +10,83 @@ namespace TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.Command.Validation;
 /// <summary>Checks catalog and legacy Family command payloads before dispatch.</summary>
 public static class TradeStrategyFamilyCommandValidation
 {
-    /// <summary>Validates the bounded JSON contract, operation identity and catalog operation.</summary>
-    public static TErrors ValidateStrategyCatalogCommand<TErrors>(this TErrors errors, StrategyCatalogCommand command)
 
+    extension<TErrors>(TErrors errors)
         where TErrors : class, ICollection<ValidationError>
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(errors);
-        CatalogCommandRequest? request = null;
-        if (string.IsNullOrWhiteSpace(command.RequestJson) || System.Text.Encoding.UTF8.GetByteCount(command.RequestJson) > 524288)
-            errors.Add(new("RequestJson must contain a catalog command within 524288 bytes."));
-        else
+        /// <summary>Validates the bounded JSON contract, operation identity and catalog operation.</summary>
+        public TErrors ValidateStrategyCatalogCommand(StrategyCatalogCommand command)
         {
-            try { request = StrategyCatalogJson.Read<CatalogCommandRequest>(command.RequestJson); }
-            catch (JsonException exception) { errors.Add(new($"RequestJson is invalid: {exception.Message}")); }
-            catch (ArgumentException exception) { errors.Add(new($"RequestJson is invalid: {exception.Message}")); }
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(errors);
+            CatalogCommandRequest? request = null;
+            if (string.IsNullOrWhiteSpace(command.RequestJson) || System.Text.Encoding.UTF8.GetByteCount(command.RequestJson) > 524288)
+                errors.Add(new("RequestJson must contain a catalog command within 524288 bytes."));
+            else
+            {
+                try { request = StrategyCatalogJson.Read<CatalogCommandRequest>(command.RequestJson); }
+                catch (JsonException exception) { errors.Add(new($"RequestJson is invalid: {exception.Message}")); }
+                catch (ArgumentException exception) { errors.Add(new($"RequestJson is invalid: {exception.Message}")); }
+            }
+            if (request is not null)
+            {
+                if (request.OperationId != command.CommandId) errors.Add(new("Catalog OperationId must match CommandId."));
+                if (!Enum.IsDefined(request.Operation)) errors.Add(new("Catalog Operation is invalid."));
+                if (request.ExpectedPreviousVersion < 0) errors.Add(new("ExpectedPreviousVersion cannot be negative."));
+                if (request.EffectiveUtc is { Kind: not DateTimeKind.Utc }) errors.Add(new("EffectiveUtc must be UTC."));
+                if (request.Operation == CatalogCommandOperation.SaveDraft && request.Definition is null) errors.Add(new("Definition is required for SaveDraft."));
+                if (request.Operation is CatalogCommandOperation.Publish or CatalogCommandOperation.Retire && request.Key is null)
+                    errors.Add(new("An exact catalog Key is required."));
+            }
+            errors.ValidateCatalogIdentity(command);
+            return errors;
         }
-        if (request is not null)
+
+        /// <summary>Validates all legacy create request fields.</summary>
+        public TErrors ValidateStrategyCatalogCommand(CreateTradeStrategyFamilyCommand command)
         {
-            if (request.OperationId != command.CommandId) errors.Add(new("Catalog OperationId must match CommandId."));
-            if (!Enum.IsDefined(request.Operation)) errors.Add(new("Catalog Operation is invalid."));
-            if (request.ExpectedPreviousVersion < 0) errors.Add(new("ExpectedPreviousVersion cannot be negative."));
-            if (request.EffectiveUtc is { Kind: not DateTimeKind.Utc }) errors.Add(new("EffectiveUtc must be UTC."));
-            if (request.Operation == CatalogCommandOperation.SaveDraft && request.Definition is null) errors.Add(new("Definition is required for SaveDraft."));
-            if (request.Operation is CatalogCommandOperation.Publish or CatalogCommandOperation.Retire && request.Key is null)
-                errors.Add(new("An exact catalog Key is required."));
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(errors);
+            Append(errors, command.Request?.Validate(), command.CommandName);
+            if (command.Request is not null && command.Request.OperationId != command.CommandId) errors.Add(new("Request.OperationId must match CommandId."));
+            errors.ValidateCatalogIdentity(command);
+            return errors;
         }
-        errors.ValidateCatalogIdentity(command);
-        return errors;
+
+        /// <summary>Validates all legacy change request fields and exact version references.</summary>
+        public TErrors ValidateStrategyCatalogCommand(ChangeTradeStrategyFamilyCommand command)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(errors);
+            Append(errors, command.Request?.Validate(), command.CommandName);
+            if (command.Request is not null && command.Request.OperationId != command.CommandId) errors.Add(new("Request.OperationId must match CommandId."));
+            errors.ValidateCatalogIdentity(command);
+            return errors;
+        }
+
+        /// <summary>Validates the legacy remove operation and exact Family reference.</summary>
+        public TErrors ValidateStrategyCatalogCommand(RemoveTradeStrategyFamilyCommand command)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(errors);
+            Append(errors, command.Request?.Validate(), command.CommandName);
+            if (command.Request is not null && command.Request.OperationId != command.CommandId) errors.Add(new("Request.OperationId must match CommandId."));
+            errors.ValidateCatalogIdentity(command);
+            return errors;
+        }
     }
 
-    /// <summary>Validates all legacy create request fields.</summary>
-    public static TErrors ValidateStrategyCatalogCommand<TErrors>(this TErrors errors, CreateTradeStrategyFamilyCommand command)
-
-        where TErrors : class, ICollection<ValidationError>
+    extension(ICollection<ValidationError> errors)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(errors);
-        Append(errors, command.Request?.Validate(), command.CommandName);
-        if (command.Request is not null && command.Request.OperationId != command.CommandId) errors.Add(new("Request.OperationId must match CommandId."));
-        errors.ValidateCatalogIdentity(command);
-        return errors;
-    }
-
-    /// <summary>Validates all legacy change request fields and exact version references.</summary>
-    public static TErrors ValidateStrategyCatalogCommand<TErrors>(this TErrors errors, ChangeTradeStrategyFamilyCommand command)
-
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(errors);
-        Append(errors, command.Request?.Validate(), command.CommandName);
-        if (command.Request is not null && command.Request.OperationId != command.CommandId) errors.Add(new("Request.OperationId must match CommandId."));
-        errors.ValidateCatalogIdentity(command);
-        return errors;
-    }
-
-    /// <summary>Validates the legacy remove operation and exact Family reference.</summary>
-    public static TErrors ValidateStrategyCatalogCommand<TErrors>(this TErrors errors, RemoveTradeStrategyFamilyCommand command)
-
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(errors);
-        Append(errors, command.Request?.Validate(), command.CommandName);
-        if (command.Request is not null && command.Request.OperationId != command.CommandId) errors.Add(new("Request.OperationId must match CommandId."));
-        errors.ValidateCatalogIdentity(command);
-        return errors;
-    }
-
-    /// <summary>Checks that the subject retains the same catalog actor entity.</summary>
-    private static void ValidateCatalogIdentity(this ICollection<ValidationError> errors,ICommand<ActorEntityId> command)
-    {
-        if (!string.Equals(command.Subject.EntityId,command.EntityId.Format(),StringComparison.Ordinal)) errors.Add(new("Subject.EntityId must match EntityId."));
+        /// <summary>Checks that the subject retains the same catalog actor entity.</summary>
+        private void ValidateCatalogIdentity(ICommand<ActorEntityId> command)
+        {
+            if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal)) errors.Add(new("Subject.EntityId must match EntityId."));
+        }
     }
 
     /// <summary>Appends every request failure, including a missing request.</summary>
-    private static void Append(ICollection<ValidationError> errors,IReadOnlyList<string>? failures,string name)
+    private static void Append(ICollection<ValidationError> errors, IReadOnlyList<string>? failures, string name)
     {
         if (failures is null) errors.Add(new($"{name}.Request is required."));
         else

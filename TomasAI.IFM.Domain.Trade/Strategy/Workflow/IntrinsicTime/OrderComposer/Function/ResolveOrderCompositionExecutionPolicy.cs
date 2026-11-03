@@ -9,15 +9,18 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer
 /// <summary>Resolves OrderComposition lifecycle policy without owning timeout mechanics or transport.</summary>
 public static class ResolveOrderCompositionExecutionPolicy
 {
-    /// <summary>Returns the domain clock and the stage's existing absolute deadline policy.</summary>
-    public static FunctionExecutionPolicy ResolveExecutionPolicy(this ExecuteOrderCompositionPipelineCommand command,
-        FunctionFailureStage stage, IOrderCompositionFunctionContext context)
+
+    extension(ExecuteOrderCompositionPipelineCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(context);
-        var deadline = stage == FunctionFailureStage.Loading
-            ? context.TimeProvider.GetUtcNow().UtcDateTime.AddMilliseconds(command.CompositionBinding.Rules.VariantRules.Single(x => x.VariantKey == command.CompositionBinding.Selected.VariantKey).BaseParameters.LoadingMilliseconds)
-            : command.ExpiresAtUtc;
-        return new(context.TimeProvider, deadline);
+        /// <summary>Returns the domain clock and the stage's existing absolute deadline policy.</summary>
+        public FunctionExecutionPolicy ResolveExecutionPolicy(FunctionFailureStage stage, IOrderCompositionFunctionContext context)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(context);
+            var deadline = stage == FunctionFailureStage.Loading
+                ? context.TimeProvider.GetUtcNow().UtcDateTime.AddMilliseconds(command.CompositionBinding.Rules.VariantRules.Single(x => x.VariantKey == command.CompositionBinding.Selected.VariantKey).BaseParameters.LoadingMilliseconds)
+                : command.ExpiresAtUtc;
+            return new(context.TimeProvider, deadline);
+        }
     }
 }

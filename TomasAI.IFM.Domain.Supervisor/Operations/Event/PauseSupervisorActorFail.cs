@@ -8,16 +8,19 @@ namespace TomasAI.IFM.Domain.Supervisor.Operations.Event;
 /// <summary>Projects the Pause Supervisor fail event.</summary>
 public static class PauseSupervisorActorFail
 {
-    /// <summary>Records the Pause fail outcome in Supervisor operation history.</summary>
-    public static ValueTask ExecuteAsync(this PauseSupervisorActorFailEvent value,
-        ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
-        
+
+    extension(PauseSupervisorActorFailEvent value)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        ArgumentNullException.ThrowIfNull(value);
-        return SupervisorTerminalProjection.Fail(context, logger, value.CommandId, value.Target,
-            value.ExpectedGeneration, SupervisorActorOperationKind.Pause, value.Requester,
-            value.Reason, value.TimeoutTicks, value.Outcome, value.Stage, value.ErrorMessage);
+        /// <summary>Records the Pause fail outcome in Supervisor operation history.</summary>
+        public ValueTask ExecuteAsync(ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            ArgumentNullException.ThrowIfNull(value);
+            return SupervisorTerminalProjection.Fail(context, logger, value.CommandId, value.Target,
+                value.ExpectedGeneration, SupervisorActorOperationKind.Pause, value.Requester,
+                value.Reason, value.TimeoutTicks, value.Outcome, value.Stage, value.ErrorMessage);
+        }
     }
 }

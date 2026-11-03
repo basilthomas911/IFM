@@ -8,19 +8,26 @@ namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Event;
 /// <summary>Handles the concrete ScheduledTaskRunStageRecordedComplete notification.</summary>
 public static class ScheduledTaskRunStageRecordedComplete
 {
-    /// <summary>Dispatches committed desired work or observes its explicit projection outcome.</summary>
-    /// <param name="source">The concrete source-correlated notification.</param>
-    /// <param name="context">Readonly durable transport and logging services.</param>
-    /// <returns>The bounded notification dispatch operation.</returns>
-    public static ValueTask ExecuteAsync(this ScheduledTaskRunStageRecordedCompleteEvent source, ScheduledTaskEventContext context)
+
+    /// <param name="source">
+    /// The concrete source-correlated notification.
+    /// </param>
+    extension(ScheduledTaskRunStageRecordedCompleteEvent source)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(source);
-        if (source.ScheduledTaskRun?.CompletedEndOfDayValueDate is { } completedDate &&
-            context.OperationalDate?.ApplyCompletedEndOfDay(completedDate) == true)
+        /// <summary>Dispatches committed desired work or observes its explicit projection outcome.</summary>
+        ///
+        /// <param name="context">Readonly durable transport and logging services.</param>
+        /// <returns>The bounded notification dispatch operation.</returns>
+        public ValueTask ExecuteAsync(ScheduledTaskEventContext context)
         {
-            global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write6(context.Logger, null, nameof(ScheduledTaskRunStageRecordedComplete), nameof(ExecuteAsync), completedDate, source.EntityId.Format(), source.CommandId);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(source);
+            if (source.ScheduledTaskRun?.CompletedEndOfDayValueDate is { } completedDate &&
+                context.OperationalDate?.ApplyCompletedEndOfDay(completedDate) == true)
+            {
+                global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write6(context.Logger, null, nameof(ScheduledTaskRunStageRecordedComplete), nameof(ExecuteAsync), completedDate, source.EntityId.Format(), source.CommandId);
+            }
+            return ValueTask.CompletedTask;
         }
-        return ValueTask.CompletedTask;
     }
 }

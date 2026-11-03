@@ -5,19 +5,21 @@ namespace TomasAI.IFM.Domain.Reference.LookupType.Command.Validation;
 
 public static class LookupTypeCommandValidationExtensions
 {
-    public static TErrors ValidateLookupTypeIdentityMatches<TErrors>(
-        this TErrors validationErrors,
-        LookupTypeId? entityId,
-        LookupTypeId? payloadId,
-        string payloadName,
-        string commandName)
 
+    extension<TErrors>(TErrors validationErrors)
         where TErrors : class, ICollection<ValidationError>
     {
-        ArgumentNullException.ThrowIfNull(validationErrors);
-        if (IsValid(entityId) && IsValid(payloadId) && entityId != payloadId)
-            validationErrors.Add(new($"{commandName}.EntityId must match {payloadName}"));
-        return validationErrors;
+        public TErrors ValidateLookupTypeIdentityMatches(
+            LookupTypeId? entityId,
+            LookupTypeId? payloadId,
+            string payloadName,
+            string commandName)
+        {
+            ArgumentNullException.ThrowIfNull(validationErrors);
+            if (IsValid(entityId) && IsValid(payloadId) && entityId != payloadId)
+                validationErrors.Add(new($"{commandName}.EntityId must match {payloadName}"));
+            return validationErrors;
+        }
     }
 
     static bool IsValid(LookupTypeId? id)

@@ -9,38 +9,42 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketConditi
 /// <summary>Owns configuration initialization for one admitted Market Condition stage.</summary>
 public static class StartMarketConditionPipeline
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Initialization failures become the explicit failed pipeline result with structured diagnostics rather than escaping the workflow actor.")]
-    public static async ValueTask<PipelineStartResult<WorkflowStrategyStateUpdatedEvent>> StartPipelineAsync(this WorkflowStrategyStateUpdatedEvent snapshot, IIntrinsicTimeStrategyWorkflowRealtimeContext context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(snapshot);
-        var view = snapshot.State;
-        try
-        {
-            if (view.AssessmentBinding is { } existing)
-            {
-                existing.Validate();
-                return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Started(snapshot);
-            }
 
-            if (context.TimeProvider.GetUtcNow().UtcDateTime >= view.ExpiresAtUtc)
-                return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Failed("MC.INIT.DEADLINE", "InitializationTimeout", "Market Condition initialization reached the workflow deadline.");
-            var resolved = await context.ConfigurationDb.GetEffectiveMarketConditionAssessmentAsync(view.StartedAtUtc, context.Options.MarketConditionAssessmentProfileId, "ES", view.TriggerEvent.EntityId.TimePeriod).ConfigureAwait(false);
-            if (resolved is null)
-                return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Failed("MC.INIT.CONFIGURATION_MISSING", "ConfigurationUnavailable", "No published Market Condition assessment profile is effective for the workflow.");
-            var binding = new MarketConditionAssessmentBinding
-            {
-                Parameters = resolved.ParameterSet,
-                PayloadSha256 = resolved.PayloadSha256
-            };
-            binding.Validate();
-            return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Started(snapshot with { State = view with { AssessmentBinding = binding, MarketCondition = view.MarketCondition with { ParameterSetId = resolved.ParameterSet.ParameterSetId, ParameterSetVersion = resolved.ParameterSet.Version, ParameterPayloadSha256 = resolved.PayloadSha256 } } });
-        }
-        catch (Exception exception)
+    extension(WorkflowStrategyStateUpdatedEvent snapshot)
+    {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Initialization failures become the explicit failed pipeline result with structured diagnostics rather than escaping the workflow actor.")]
+        public async ValueTask<PipelineStartResult<WorkflowStrategyStateUpdatedEvent>> StartPipelineAsync(IIntrinsicTimeStrategyWorkflowRealtimeContext context)
         {
-            if (context.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
-                global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write6(context.Logger, exception, nameof(StartMarketConditionPipeline), nameof(StartPipelineAsync), view.WorkflowId);
-            return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Failed("MC.INIT.EXCEPTION", "InitializationFailed", PipelineExceptionDiagnostics.Summary("Market Condition initialization failed", exception), PipelineExceptionDiagnostics.Create(exception, new Dictionary<string, string> (StringComparer.Ordinal){ ["WorkflowId"] = view.WorkflowId.ToString(), ["TargetHorizon"] = view.TriggerEvent.EntityId.TimePeriod.ToString(), ["StartedAtUtc"] = view.StartedAtUtc.ToString("O", CultureInfo.InvariantCulture), ["ExpiresAtUtc"] = view.ExpiresAtUtc.ToString("O", CultureInfo.InvariantCulture) }));
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(snapshot);
+            var view = snapshot.State;
+            try
+            {
+                if (view.AssessmentBinding is { } existing)
+                {
+                    existing.Validate();
+                    return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Started(snapshot);
+                }
+
+                if (context.TimeProvider.GetUtcNow().UtcDateTime >= view.ExpiresAtUtc)
+                    return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Failed("MC.INIT.DEADLINE", "InitializationTimeout", "Market Condition initialization reached the workflow deadline.");
+                var resolved = await context.ConfigurationDb.GetEffectiveMarketConditionAssessmentAsync(view.StartedAtUtc, context.Options.MarketConditionAssessmentProfileId, "ES", view.TriggerEvent.EntityId.TimePeriod).ConfigureAwait(false);
+                if (resolved is null)
+                    return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Failed("MC.INIT.CONFIGURATION_MISSING", "ConfigurationUnavailable", "No published Market Condition assessment profile is effective for the workflow.");
+                var binding = new MarketConditionAssessmentBinding
+                {
+                    Parameters = resolved.ParameterSet,
+                    PayloadSha256 = resolved.PayloadSha256
+                };
+                binding.Validate();
+                return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Started(snapshot with { State = view with { AssessmentBinding = binding, MarketCondition = view.MarketCondition with { ParameterSetId = resolved.ParameterSet.ParameterSetId, ParameterSetVersion = resolved.ParameterSet.Version, ParameterPayloadSha256 = resolved.PayloadSha256 } } });
+            }
+            catch (Exception exception)
+            {
+                if (context.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
+                    global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write6(context.Logger, exception, nameof(StartMarketConditionPipeline), nameof(StartPipelineAsync), view.WorkflowId);
+                return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Failed("MC.INIT.EXCEPTION", "InitializationFailed", PipelineExceptionDiagnostics.Summary("Market Condition initialization failed", exception), PipelineExceptionDiagnostics.Create(exception, new Dictionary<string, string>(StringComparer.Ordinal) { ["WorkflowId"] = view.WorkflowId.ToString(), ["TargetHorizon"] = view.TriggerEvent.EntityId.TimePeriod.ToString(), ["StartedAtUtc"] = view.StartedAtUtc.ToString("O", CultureInfo.InvariantCulture), ["ExpiresAtUtc"] = view.ExpiresAtUtc.ToString("O", CultureInfo.InvariantCulture) }));
+            }
         }
     }
 }

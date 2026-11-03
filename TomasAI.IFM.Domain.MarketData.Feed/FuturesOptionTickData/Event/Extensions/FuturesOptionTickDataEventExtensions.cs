@@ -32,31 +32,38 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Extensi
 /// </remarks>
 internal static class FuturesOptionTickDataEventExtensions
 {
-    /// <summary>
-    /// Queries the market-data-feed actor for the streaming request identifier associated
-    /// with the specified request key.
-    /// </summary>
-    /// <remarks>This method performs an asynchronous request via the actor messaging
-    /// infrastructure. If the query fails or returns no data, the method returns
-    /// <c>0</c>.</remarks>
-    /// <param name="context">The event actor context used to issue the query.</param>
-    /// <param name="requestKey">The key that uniquely identifies the streaming request
-    /// (typically a contract identifier).</param>
-    /// <returns>A value task whose result is the streaming request identifier, or <c>0</c>
-    /// if the query was unsuccessful.</returns>
-    internal static async ValueTask<int> GetStreamingRequestIdQueryAsync(this IEventActorContext context, string requestKey)
+
+    /// <param name="context">
+    /// The event actor context used to issue the query.
+    /// </param>
+    extension(IEventActorContext context)
     {
-        var streamingRequestId = 0;
-        var entityId = new GetStreamingRequestIdParameter();
-        GetStreamingRequestIdQuery query = new(requestKey)
+        /// <summary>
+        /// Queries the market-data-feed actor for the streaming request identifier associated
+        /// with the specified request key.
+        /// </summary>
+        /// <remarks>This method performs an asynchronous request via the actor messaging
+        /// infrastructure. If the query fails or returns no data, the method returns
+        /// <c>0</c>.</remarks>
+        ///
+        /// <param name="requestKey">The key that uniquely identifies the streaming request
+        /// (typically a contract identifier).</param>
+        /// <returns>A value task whose result is the streaming request identifier, or <c>0</c>
+        /// if the query was unsuccessful.</returns>
+        internal async ValueTask<int> GetStreamingRequestIdQueryAsync(string requestKey)
         {
-            Subject = new ActorSubject(ActorType.Query, GetStreamingRequestIdQuery.Actor, GetStreamingRequestIdQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetStreamingRequestIdQuery.ErrorId
-        };
-        var serviceResult = await (context.RequestAsync<ScalarValue<int>, GetStreamingRequestIdQuery>(query)).ConfigureAwait(false);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            streamingRequestId = serviceResult.Value.Value;
-        return streamingRequestId;
+            var streamingRequestId = 0;
+            var entityId = new GetStreamingRequestIdParameter();
+            GetStreamingRequestIdQuery query = new(requestKey)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetStreamingRequestIdQuery.Actor, GetStreamingRequestIdQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = GetStreamingRequestIdQuery.ErrorId
+            };
+            var serviceResult = await (context.RequestAsync<ScalarValue<int>, GetStreamingRequestIdQuery>(query)).ConfigureAwait(false);
+            if (serviceResult.Success && serviceResult.Value is not null)
+                streamingRequestId = serviceResult.Value.Value;
+            return streamingRequestId;
+        }
     }
 }

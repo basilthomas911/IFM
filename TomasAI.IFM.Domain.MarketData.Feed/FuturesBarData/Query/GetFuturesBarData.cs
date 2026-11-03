@@ -8,23 +8,30 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Query;
 
 public static class GetFuturesBarData
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="q"></param>
-    /// <param name="context"></param>
-    /// <param name="dbFactory"></param>
-    /// <returns></returns>
-    internal static async ValueTask<FuturesBarDataReadModel[]> ExecuteAsync(
-       this GetFuturesBarDataQuery q, IDbContextFactory dbFactory)
+
+    /// <param name="q">
+    ///
+    /// </param>
+    extension(GetFuturesBarDataQuery q)
     {
-        if (!q.AcrossValueDates)
-            return [.. await dbFactory.MarketDataDb.GetFuturesBarDataAsync(q.ContractId, q.Symbol, q.ValueDate, q.StartDate, q.EndDate).ConfigureAwait(false)];
-        var dates = FuturesBarWindowPartitions.Get(q.ValueDate, q.StartDate, q.EndDate);
-        var bars = new List<FuturesBarDataReadModel>();
-        foreach (var date in dates)
-            bars.AddRange(await dbFactory.MarketDataDb.GetFuturesBarDataAsync(q.ContractId, q.Symbol, date, q.StartDate, q.EndDate).ConfigureAwait(false));
-        return [.. bars.Where(bar => bar.BarDate >= q.StartDate && bar.BarDate <= q.EndDate)
-            .DistinctBy(bar => (bar.ContractId, bar.Symbol, bar.BarDate, bar.BarRateType)).OrderBy(bar => bar.BarDate)];
+        /// <summary>
+        ///
+        /// </summary>
+        ///
+        /// <param name="context"></param>
+        /// <param name="dbFactory"></param>
+        /// <returns></returns>
+        internal async ValueTask<FuturesBarDataReadModel[]> ExecuteAsync(
+        IDbContextFactory dbFactory)
+        {
+            if (!q.AcrossValueDates)
+                return [.. await dbFactory.MarketDataDb.GetFuturesBarDataAsync(q.ContractId, q.Symbol, q.ValueDate, q.StartDate, q.EndDate).ConfigureAwait(false)];
+            var dates = FuturesBarWindowPartitions.Get(q.ValueDate, q.StartDate, q.EndDate);
+            var bars = new List<FuturesBarDataReadModel>();
+            foreach (var date in dates)
+                bars.AddRange(await dbFactory.MarketDataDb.GetFuturesBarDataAsync(q.ContractId, q.Symbol, date, q.StartDate, q.EndDate).ConfigureAwait(false));
+            return [.. bars.Where(bar => bar.BarDate >= q.StartDate && bar.BarDate <= q.EndDate)
+                .DistinctBy(bar => (bar.ContractId, bar.Symbol, bar.BarDate, bar.BarRateType)).OrderBy(bar => bar.BarDate)];
+        }
     }
 }

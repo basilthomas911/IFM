@@ -10,81 +10,83 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 
 public static class MarketDataServiceCollectionExtensions
 {
-    public static IServiceCollection AddApplicationMarketDataApi(
-        this IServiceCollection services,
-        DatabentoMarketDataRuntimeOptions runtimeOptions,
-        DatabentoMarketDataApiOptions? apiOptions = null)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(runtimeOptions);
 
-        services.TryAddSingleton(TimeProvider.System);
-        var registry = new DatabentoContractRegistrationRegistry(
-            runtimeOptions.Contracts,
-            runtimeOptions);
-        var effectiveRuntimeOptions = runtimeOptions with { Contracts = registry };
-        services.TryAddSingleton(registry);
-        services.TryAddSingleton<IDatabentoContractRegistrationRegistry>(provider =>
-            provider.GetRequiredService<DatabentoContractRegistrationRegistry>());
-        services.TryAddSingleton(effectiveRuntimeOptions);
-        services.TryAddSingleton(apiOptions ?? new DatabentoMarketDataApiOptions());
-        services.TryAddSingleton<DatabentoTerminalFaultSignal>();
-        services.TryAddSingleton<IDatabentoMarketDataEpochFactory,
-            DatabentoMarketDataEpochFactory>();
-        services.TryAddSingleton<IDatabentoCurrentFuturesContractResolver,
-            DatabentoCurrentFuturesContractResolver>();
-        services.TryAddSingleton<FuturesContractRolloverStartupCheck>();
-        services.TryAddSingleton<IFuturesContractRolloverStartupCheck>(provider =>
-            provider.GetRequiredService<FuturesContractRolloverStartupCheck>());
-        services.TryAddSingleton<TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache>();
-        services.TryAddSingleton<IOptionChainCache>(provider =>
-            provider.GetRequiredService<TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache>());
-        services.TryAddSingleton<TomasAI.IFM.Application.MarketData.OptionChainCache.IOptionChainSnapshotPublisher>(provider =>
-            provider.GetRequiredService<TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache>());
-        services.TryAddSingleton<DatabentoMarketDataApi>();
-        services.TryAddSingleton<IMarketDataApi>(provider =>
-            provider.GetRequiredService<DatabentoMarketDataApi>());
-        return services;
-    }
-
-    /// <summary>ReferenceDb-backed discovery; the host must register a durable IInstrumentDefinitionStore.</summary>
-    public static IServiceCollection AddTradeStrategySymbolCatalog(this IServiceCollection services)
+    extension(IServiceCollection services)
     {
-        services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton<ITradeStrategySymbolSource, TomasAI.IFM.Application.MarketData.TradeStrategySymbols.StoredInstrumentDefinitionSymbolSource>();
-        services.TryAddSingleton<TomasAI.IFM.Framework.MarketData.DataBento.IInstrumentDefinitionProvider>(_ =>
-            new TomasAI.IFM.Framework.MarketData.DataBento.DatabentoInstrumentDefinitionClient(new HttpClient { Timeout = TimeSpan.FromMinutes(30) }));
-        services.TryAddSingleton<TomasAI.IFM.Application.MarketData.TradeStrategySymbols.InstrumentDefinitionRefresh>();
-        services.TryAddSingleton<ITradeStrategySymbolCatalog, TomasAI.IFM.Application.MarketData.TradeStrategySymbols.StoredInstrumentDefinitionSymbolCatalog>();
-        return services;
-    }
+        public IServiceCollection AddApplicationMarketDataApi(
+            DatabentoMarketDataRuntimeOptions runtimeOptions,
+            DatabentoMarketDataApiOptions? apiOptions = null)
+        {
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(runtimeOptions);
 
-    /// <summary>Registers the provider-neutral historical application API and data load orchestration.</summary>
-    public static IServiceCollection AddApplicationMarketDataHistoricalApi(
-        this IServiceCollection services,
-        DatabentoHistoricalOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(options);
-        services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton(options);
-        services.TryAddSingleton<CmeFuturesMarketSessionCalendar>();
-        services.TryAddSingleton<IMarketSessionCalendar>(provider =>
-            provider.GetRequiredService<CmeFuturesMarketSessionCalendar>());
-        services.TryAddSingleton<IFuturesExchangeBusinessCalendar>(provider =>
-            provider.GetRequiredService<CmeFuturesMarketSessionCalendar>());
-        services.TryAddSingleton<IHistoricalSeriesRequestResolver, ConfiguredHistoricalSeriesRequestResolver>();
-        services.TryAddSingleton<DatabentoHistoricalApi>();
-        services.TryAddSingleton<IMarketDataHistoricalApi>(provider =>
-            provider.GetRequiredService<DatabentoHistoricalApi>());
-        services.TryAddSingleton<IHistoricalReplayPublisher, NullHistoricalReplayPublisher>();
-        services.TryAddSingleton<IHistoricalDailyReplayPublisher, NullHistoricalDailyReplayPublisher>();
-        services.TryAddSingleton<IHistoricalAnalyticsSignalReader, NullHistoricalAnalyticsSignalReader>();
-        services.TryAddSingleton<HistoricalDataLoader>(provider => new(
-            provider.GetRequiredService<IMarketDataHistoricalApi>(), provider.GetRequiredService<IHistoricalDataLoaderStore>(),
-            provider.GetRequiredService<IHistoricalObservationStore>(), provider.GetRequiredService<IHistoricalReplayPublisher>(),
-            provider.GetRequiredService<IMarketSessionCalendar>(), provider.GetRequiredService<TimeProvider>()));
-        services.TryAddSingleton<IFuturesEodAnalyticsAssembler, FuturesEodAnalyticsAssembler>();
-        return services;
+            services.TryAddSingleton(TimeProvider.System);
+            var registry = new DatabentoContractRegistrationRegistry(
+                runtimeOptions.Contracts,
+                runtimeOptions);
+            var effectiveRuntimeOptions = runtimeOptions with { Contracts = registry };
+            services.TryAddSingleton(registry);
+            services.TryAddSingleton<IDatabentoContractRegistrationRegistry>(provider =>
+                provider.GetRequiredService<DatabentoContractRegistrationRegistry>());
+            services.TryAddSingleton(effectiveRuntimeOptions);
+            services.TryAddSingleton(apiOptions ?? new DatabentoMarketDataApiOptions());
+            services.TryAddSingleton<DatabentoTerminalFaultSignal>();
+            services.TryAddSingleton<IDatabentoMarketDataEpochFactory,
+                DatabentoMarketDataEpochFactory>();
+            services.TryAddSingleton<IDatabentoCurrentFuturesContractResolver,
+                DatabentoCurrentFuturesContractResolver>();
+            services.TryAddSingleton<FuturesContractRolloverStartupCheck>();
+            services.TryAddSingleton<IFuturesContractRolloverStartupCheck>(provider =>
+                provider.GetRequiredService<FuturesContractRolloverStartupCheck>());
+            services.TryAddSingleton<TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache>();
+            services.TryAddSingleton<IOptionChainCache>(provider =>
+                provider.GetRequiredService<TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache>());
+            services.TryAddSingleton<TomasAI.IFM.Application.MarketData.OptionChainCache.IOptionChainSnapshotPublisher>(provider =>
+                provider.GetRequiredService<TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache>());
+            services.TryAddSingleton<DatabentoMarketDataApi>();
+            services.TryAddSingleton<IMarketDataApi>(provider =>
+                provider.GetRequiredService<DatabentoMarketDataApi>());
+            return services;
+        }
+
+        /// <summary>ReferenceDb-backed discovery; the host must register a durable IInstrumentDefinitionStore.</summary>
+        public IServiceCollection AddTradeStrategySymbolCatalog()
+        {
+            services.TryAddSingleton(TimeProvider.System);
+            services.TryAddSingleton<ITradeStrategySymbolSource, TomasAI.IFM.Application.MarketData.TradeStrategySymbols.StoredInstrumentDefinitionSymbolSource>();
+            services.TryAddSingleton<TomasAI.IFM.Framework.MarketData.DataBento.IInstrumentDefinitionProvider>(_ =>
+                new TomasAI.IFM.Framework.MarketData.DataBento.DatabentoInstrumentDefinitionClient(new HttpClient { Timeout = TimeSpan.FromMinutes(30) }));
+            services.TryAddSingleton<TomasAI.IFM.Application.MarketData.TradeStrategySymbols.InstrumentDefinitionRefresh>();
+            services.TryAddSingleton<ITradeStrategySymbolCatalog, TomasAI.IFM.Application.MarketData.TradeStrategySymbols.StoredInstrumentDefinitionSymbolCatalog>();
+            return services;
+        }
+
+        /// <summary>Registers the provider-neutral historical application API and data load orchestration.</summary>
+        public IServiceCollection AddApplicationMarketDataHistoricalApi(
+            DatabentoHistoricalOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(services);
+            ArgumentNullException.ThrowIfNull(options);
+            services.TryAddSingleton(TimeProvider.System);
+            services.TryAddSingleton(options);
+            services.TryAddSingleton<CmeFuturesMarketSessionCalendar>();
+            services.TryAddSingleton<IMarketSessionCalendar>(provider =>
+                provider.GetRequiredService<CmeFuturesMarketSessionCalendar>());
+            services.TryAddSingleton<IFuturesExchangeBusinessCalendar>(provider =>
+                provider.GetRequiredService<CmeFuturesMarketSessionCalendar>());
+            services.TryAddSingleton<IHistoricalSeriesRequestResolver, ConfiguredHistoricalSeriesRequestResolver>();
+            services.TryAddSingleton<DatabentoHistoricalApi>();
+            services.TryAddSingleton<IMarketDataHistoricalApi>(provider =>
+                provider.GetRequiredService<DatabentoHistoricalApi>());
+            services.TryAddSingleton<IHistoricalReplayPublisher, NullHistoricalReplayPublisher>();
+            services.TryAddSingleton<IHistoricalDailyReplayPublisher, NullHistoricalDailyReplayPublisher>();
+            services.TryAddSingleton<IHistoricalAnalyticsSignalReader, NullHistoricalAnalyticsSignalReader>();
+            services.TryAddSingleton<HistoricalDataLoader>(provider => new(
+                provider.GetRequiredService<IMarketDataHistoricalApi>(), provider.GetRequiredService<IHistoricalDataLoaderStore>(),
+                provider.GetRequiredService<IHistoricalObservationStore>(), provider.GetRequiredService<IHistoricalReplayPublisher>(),
+                provider.GetRequiredService<IMarketSessionCalendar>(), provider.GetRequiredService<TimeProvider>()));
+            services.TryAddSingleton<IFuturesEodAnalyticsAssembler, FuturesEodAnalyticsAssembler>();
+            return services;
+        }
     }
 }

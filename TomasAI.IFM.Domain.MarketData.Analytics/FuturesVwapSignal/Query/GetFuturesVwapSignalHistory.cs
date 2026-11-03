@@ -10,19 +10,22 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Query;
 /// <summary>Handles one VWAP history query and its typed reply.</summary>
 public static class GetFuturesVwapSignalHistory
 {
-    /// <summary>Reads the requested history window and replies to the caller.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesVwapSignalHistoryQuery query,
-        IQueryActorContext<FuturesVwapSignalQueryActor> context,
-        IFuturesVwapSignalQueryContext typedContext,
-        CancellationToken cancellationToken)
+
+    extension(GetFuturesVwapSignalHistoryQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        ArgumentNullException.ThrowIfNull(typedContext);
-        var values = await FuturesVwapSignalQueryModel.ExecuteAsync(query,
-            typedContext.DbFactory, cancellationToken).ConfigureAwait(false);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            new ServiceResult<FuturesVwapSignalReadModel[]>(values)).ConfigureAwait(false);
+        /// <summary>Reads the requested history window and replies to the caller.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesVwapSignalQueryActor> context,
+            IFuturesVwapSignalQueryContext typedContext,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            ArgumentNullException.ThrowIfNull(typedContext);
+            var values = await FuturesVwapSignalQueryModel.ExecuteAsync(query,
+                typedContext.DbFactory, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+                new ServiceResult<FuturesVwapSignalReadModel[]>(values)).ConfigureAwait(false);
+        }
     }
 }

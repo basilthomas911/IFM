@@ -10,29 +10,32 @@ namespace TomasAI.IFM.Domain.Supervisor.Recovery.Command;
 /// <summary>Validates and publishes one isolated, exact-generation recovery canary.</summary>
 public static class RecoveryCanary
 {
-    /// <summary>Applies one side-effect-free canary source event for durable projection.</summary>
-    public static ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this RecoveryCanaryCommand command,
-        RecoveryCanaryCommandState state, CancellationToken cancellationToken)
+
+    extension(RecoveryCanaryCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(state);
-        cancellationToken.ThrowIfCancellationRequested();
-        var recorded = new RecoveryCanaryRecordedEvent
+        /// <summary>Applies one side-effect-free canary source event for durable projection.</summary>
+        public ValueTask<ServiceResult<GuidResult>> ExecuteAsync(RecoveryCanaryCommandState state, CancellationToken cancellationToken)
         {
-            Subject = new(ActorType.Event, RecoveryCanaryRecordedEvent.Actor,
-                RecoveryCanaryRecordedEvent.Verb, command.Subject.EntityId),
-            Id = Guid.NewGuid(),
-            EntityId = command.EntityId,
-            CommandId = command.CommandId,
-            AggregateId = command.CorrelationId.ToString("N"),
-            ReceivedOn = DateTime.UtcNow,
-            CorrelationId = command.CorrelationId,
-            GenerationId = command.GenerationId,
-            ValueDate = command.ValueDate,
-            Dataset = command.Dataset
-        };
-        state.Update(recorded, command);
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(
-            new ServiceOk<GuidResult>(new GuidResult(command.CommandId)));
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(state);
+            cancellationToken.ThrowIfCancellationRequested();
+            var recorded = new RecoveryCanaryRecordedEvent
+            {
+                Subject = new(ActorType.Event, RecoveryCanaryRecordedEvent.Actor,
+                    RecoveryCanaryRecordedEvent.Verb, command.Subject.EntityId),
+                Id = Guid.NewGuid(),
+                EntityId = command.EntityId,
+                CommandId = command.CommandId,
+                AggregateId = command.CorrelationId.ToString("N"),
+                ReceivedOn = DateTime.UtcNow,
+                CorrelationId = command.CorrelationId,
+                GenerationId = command.GenerationId,
+                ValueDate = command.ValueDate,
+                Dataset = command.Dataset
+            };
+            state.Update(recorded, command);
+            return ValueTask.FromResult<ServiceResult<GuidResult>>(
+                new ServiceOk<GuidResult>(new GuidResult(command.CommandId)));
+        }
     }
 }

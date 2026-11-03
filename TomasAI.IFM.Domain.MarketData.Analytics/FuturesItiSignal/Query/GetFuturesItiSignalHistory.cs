@@ -15,43 +15,48 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query;
 /// <summary>Handles complete historical Futures ITI timeframe reads.</summary>
 public static class GetFuturesItiSignalHistory
 {
-    /// <summary>Returns all durable signals in chronological order for the requested timeframe.</summary>
-    internal static async ValueTask<FuturesItiSignalV2ReadModel[]> GetFuturesItiSignalHistoryAsync(
-        this GetFuturesItiSignalHistoryQuery query,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var window = FuturesItiSignalHistoryWindow.Resolve(query.ValueDate, query.TimePeriod);
-        var startValueDate = query.TimePeriod == TimeFrameType.Daily
-            ? window.StartValueDate.AddDays(-1)
-            : window.StartValueDate;
-        var rows = await dbFactory.MarketDataDb.GetFuturesItiSignalsAsync(
-            query.Symbol,
-            startValueDate,
-            window.EndValueDate).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
 
-        return [.. rows
-            .Where(row => row.TimePeriod == query.TimePeriod)
-            .OrderBy(static row => row.IntrinsicTime)
-            .ThenBy(static row => row.SequenceId)];
+    extension(GetFuturesItiSignalHistoryQuery query)
+    {
+        /// <summary>Returns all durable signals in chronological order for the requested timeframe.</summary>
+        internal async ValueTask<FuturesItiSignalV2ReadModel[]> GetFuturesItiSignalHistoryAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var window = FuturesItiSignalHistoryWindow.Resolve(query.ValueDate, query.TimePeriod);
+            var startValueDate = query.TimePeriod == TimeFrameType.Daily
+                ? window.StartValueDate.AddDays(-1)
+                : window.StartValueDate;
+            var rows = await dbFactory.MarketDataDb.GetFuturesItiSignalsAsync(
+                query.Symbol,
+                startValueDate,
+                window.EndValueDate).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return [.. rows
+                .Where(row => row.TimePeriod == query.TimePeriod)
+                .OrderBy(static row => row.IntrinsicTime)
+                .ThenBy(static row => row.SequenceId)];
+        }
     }
 
-    /// <summary>Reads and replies to the GetFuturesItiSignalHistoryQuery message.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesItiSignalHistoryQuery q,
-        IQueryActorContext<FuturesItiSignalQueryActor> ctx,
-        IDbContextFactory db,
-        CancellationToken cancellationToken)
+    extension(GetFuturesItiSignalHistoryQuery q)
     {
-        ArgumentNullException.ThrowIfNull(ctx);
-        ArgumentNullException.ThrowIfNull(db);
-        ArgumentNullException.ThrowIfNull(q);
-        var query = q;
-        var result = await query.GetFuturesItiSignalHistoryAsync(db, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalHistoryQuery.Verb,
-            new ServiceResult<FuturesItiSignalV2ReadModel[]>(result)).ConfigureAwait(false);
+        /// <summary>Reads and replies to the GetFuturesItiSignalHistoryQuery message.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesItiSignalQueryActor> ctx,
+            IDbContextFactory db,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(ctx);
+            ArgumentNullException.ThrowIfNull(db);
+            ArgumentNullException.ThrowIfNull(q);
+            var query = q;
+            var result = await query.GetFuturesItiSignalHistoryAsync(db, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalHistoryQuery.Verb,
+                new ServiceResult<FuturesItiSignalV2ReadModel[]>(result)).ConfigureAwait(false);
+        }
     }
 }

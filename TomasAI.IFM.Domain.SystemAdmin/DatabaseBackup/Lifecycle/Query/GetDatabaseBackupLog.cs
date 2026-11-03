@@ -8,21 +8,25 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Lifecycle.Query;
 /// <summary>Reads persisted phase history and authorized retained host output.</summary>
 public static class GetDatabaseBackupLog
 {
-    /// <summary>Checks the persisted operation/source before reading its bounded output page.</summary>
-    public static async ValueTask ExecuteAsync(this GetDatabaseBackupLogQuery query, ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupLifecycleQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetDatabaseBackupLogQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dbContext);
-        ArgumentNullException.ThrowIfNull(query);
-        var operation = await (dbContext.GetBackupOperationAsync(new() { OperationId = query.OperationId }, cancellationToken)).ConfigureAwait(false);
-        if (operation is null || operation.Source != query.Source)
+        /// <summary>Checks the persisted operation/source before reading its bounded output page.</summary>
+        public async ValueTask ExecuteAsync(ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupLifecycleQueryActor> context, CancellationToken cancellationToken)
         {
-            await (context.ReplyAsync<DatabaseBackupLogReadModel>(query.Subject.ThreadId, query.Subject.Verb, new ServiceFailed<DatabaseBackupLogReadModel>(404, "DatabaseBackup operation was not found for this source."))).ConfigureAwait(false);
-            return;
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dbContext);
+            ArgumentNullException.ThrowIfNull(query);
+            var operation = await (dbContext.GetBackupOperationAsync(new() { OperationId = query.OperationId }, cancellationToken)).ConfigureAwait(false);
+            if (operation is null || operation.Source != query.Source)
+            {
+                await (context.ReplyAsync<DatabaseBackupLogReadModel>(query.Subject.ThreadId, query.Subject.Verb, new ServiceFailed<DatabaseBackupLogReadModel>(404, "DatabaseBackup operation was not found for this source."))).ConfigureAwait(false);
+                return;
+            }
+            var phases = await (dbContext.GetBackupPhasesAsync(query, cancellationToken)).ConfigureAwait(false);
+            var output = (context as IDatabaseBackupLifecycleQueryContext)?.OutputReader is { } reader
+                ? await (reader.ReadAsync(query.Source, operation.OperationId.Value, query.OutputOffset, cancellationToken)).ConfigureAwait(false) : new DatabaseBackupLogReadModel();
+            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<DatabaseBackupLogReadModel>(output with { Phases = phases }))).ConfigureAwait(false);
         }
-        var phases = await (dbContext.GetBackupPhasesAsync(query, cancellationToken)).ConfigureAwait(false);
-        var output = (context as IDatabaseBackupLifecycleQueryContext)?.OutputReader is { } reader
-            ? await (reader.ReadAsync(query.Source, operation.OperationId.Value, query.OutputOffset, cancellationToken)).ConfigureAwait(false) : new DatabaseBackupLogReadModel();
-        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<DatabaseBackupLogReadModel>(output with { Phases = phases }))).ConfigureAwait(false);
     }
 }

@@ -7,37 +7,45 @@ namespace TomasAI.IFM.Domain.MarketData.Query;
 
 public static class GetTradingDates
 {
-    /// <summary>
-    /// Handles the GetTradingDatesQuery by retrieving trading dates from the database and replying with the result.
-    /// </summary>
-    /// <param name="q">The query for which to retrieve trading dates.</param>
-    /// <param name="dbFactory">The database context factory.</param>
-    /// <param name="context">The query actor context.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
 
-    public static ValueTask<DateOnly[]> ExecuteAsync(
-        this GetTradingDatesQuery q,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-        
+    /// <param name="q">
+    /// The query for which to retrieve trading dates.
+    /// </param>
+    extension(GetTradingDatesQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        return new(dbFactory.MarketDataDb.GetTradingDatesAsync(
-                q.StartDate, q.EndDate, q.MarketType, q.CurrencyType, cancellationToken));
+        /// <summary>
+        /// Handles the GetTradingDatesQuery by retrieving trading dates from the database and replying with the result.
+        /// </summary>
+        ///
+        /// <param name="dbFactory">The database context factory.</param>
+        /// <param name="context">The query actor context.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+
+        public ValueTask<DateOnly[]> ExecuteAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            return new(dbFactory.MarketDataDb.GetTradingDatesAsync(
+                    q.StartDate, q.EndDate, q.MarketType, q.CurrencyType, cancellationToken));
+        }
     }
 
-    /// <summary>Reads and replies with the requested market-data result.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetTradingDatesQuery query,
-        TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
-        CancellationToken cancellationToken)
+    extension(GetTradingDatesQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            new ServiceResult<DateOnly[]>(result)).ConfigureAwait(false);
+        /// <summary>Reads and replies with the requested market-data result.</summary>
+        public async ValueTask ExecuteAsync(
+            TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+                new ServiceResult<DateOnly[]>(result)).ConfigureAwait(false);
+        }
     }
 }

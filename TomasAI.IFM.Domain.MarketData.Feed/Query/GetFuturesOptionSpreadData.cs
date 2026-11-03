@@ -7,12 +7,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
 public static class GetFuturesOptionSpreadData
 {
-    internal static async ValueTask<FuturesOptionSpreadDataReadModel> ExecuteAsync(
-        this GetFuturesOptionSpreadDataQuery q, ApplicationMarketDataApi marketDataApi)
-        => await (GetFuturesOptionSpreadDataAsync(
-            marketDataApi,
-            q.QueryForShortOptionContract.ContractId,
-            q.QueryForLongOptionContract.ContractId)).ConfigureAwait(false);
+
+    extension(GetFuturesOptionSpreadDataQuery q)
+    {
+        internal async ValueTask<FuturesOptionSpreadDataReadModel> ExecuteAsync(
+        ApplicationMarketDataApi marketDataApi)
+            => await (GetFuturesOptionSpreadDataAsync(
+                marketDataApi,
+                q.QueryForShortOptionContract.ContractId,
+                q.QueryForLongOptionContract.ContractId)).ConfigureAwait(false);
+    }
 
     internal static async ValueTask<FuturesOptionSpreadDataReadModel> GetFuturesOptionSpreadDataAsync(
         ApplicationMarketDataApi marketDataApi,
@@ -56,17 +60,19 @@ public static class GetFuturesOptionSpreadData
             gamma: greeks is { IsValid: true, Gamma: { } gamma } ? gamma : 0d,
             theta: greeks is { IsValid: true, Theta: { } theta } ? theta : 0d);
 
-    /// <summary>Reads and replies with the requested market-data feed result.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesOptionSpreadDataQuery query,
-        TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
-        MarketDataFeedQueryParameters parameters)
+    extension(GetFuturesOptionSpreadDataQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(parameters);
-        ArgumentNullException.ThrowIfNull(query);
-        var result = await query.ExecuteAsync(parameters.MarketDataApi).ConfigureAwait(false);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FuturesOptionSpreadDataReadModel>(result)).ConfigureAwait(false);
+        /// <summary>Reads and replies with the requested market-data feed result.</summary>
+        public async ValueTask ExecuteAsync(
+            TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
+            MarketDataFeedQueryParameters parameters)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(parameters);
+            ArgumentNullException.ThrowIfNull(query);
+            var result = await query.ExecuteAsync(parameters.MarketDataApi).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+                new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FuturesOptionSpreadDataReadModel>(result)).ConfigureAwait(false);
+        }
     }
 }

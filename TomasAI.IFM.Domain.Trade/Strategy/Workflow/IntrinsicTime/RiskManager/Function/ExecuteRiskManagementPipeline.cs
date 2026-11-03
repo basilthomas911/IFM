@@ -14,34 +14,38 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.F
 /// <summary>Executes the frozen composition model and dispatches its outcome through the actor event map.</summary>
 public static class ExecuteRiskManagementPipeline
 {
-    /// <summary>Checks the deadline, invokes the injected calculation model, and maps the calculated result.</summary>
-    public static ValueTask<FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>> ExecuteAsync(this ExecuteRiskManagementPipelineCommand c, IRiskManagementFunctionContext context, Func<FunctionEventContext<ExecuteRiskManagementPipelineCommand>, FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>> dispatchEvent, CancellationToken token)
-    {
-        ArgumentNullException.ThrowIfNull(c);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dispatchEvent);
-        token.ThrowIfCancellationRequested();
-        var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-        if (now >= c.ExpiresAtUtc)
-            throw new TimeoutException();
-        var latency = RiskLatency.Measure(c);
-        if (context.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
-        {
-            var traceId = System.Diagnostics.Activity.Current?.TraceId.ToString();
-            global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write26(context.Logger, nameof(ExecuteRiskManagementPipeline), nameof(ExecuteAsync), traceId, c.WorkflowId, c.CommandId, c.SizingAuthority.Environment, latency.CandidateAgeMilliseconds, latency.OldestQuoteAgeMilliseconds, latency.AgeLimitEnforced);
-        }
-        RiskLatency.Record(c, latency);
-        TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskAssessmentResult result;
-        using (var trace = WorkflowTrace.Source.StartActivity("risk.calculate"))
-        {
-            trace?.SetTag("ifm.workflow.id", c.WorkflowId.ToString());
-            trace?.SetTag("ifm.workflow.entity", c.WorkflowEntityId.Format());
-            result = context.CalculationModel.Calculate(c, token);
-        }
 
-        token.ThrowIfCancellationRequested();
-        if (context.TimeProvider.GetUtcNow().UtcDateTime >= c.ExpiresAtUtc)
-            throw new TimeoutException();
-        return ValueTask.FromResult(dispatchEvent(new(typeof(RiskManagementFunctionCompletedEvent), c, result)));
+    extension(ExecuteRiskManagementPipelineCommand c)
+    {
+        /// <summary>Checks the deadline, invokes the injected calculation model, and maps the calculated result.</summary>
+        public ValueTask<FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>> ExecuteAsync(IRiskManagementFunctionContext context, Func<FunctionEventContext<ExecuteRiskManagementPipelineCommand>, FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>> dispatchEvent, CancellationToken token)
+        {
+            ArgumentNullException.ThrowIfNull(c);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dispatchEvent);
+            token.ThrowIfCancellationRequested();
+            var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+            if (now >= c.ExpiresAtUtc)
+                throw new TimeoutException();
+            var latency = RiskLatency.Measure(c);
+            if (context.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+            {
+                var traceId = System.Diagnostics.Activity.Current?.TraceId.ToString();
+                global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write26(context.Logger, nameof(ExecuteRiskManagementPipeline), nameof(ExecuteAsync), traceId, c.WorkflowId, c.CommandId, c.SizingAuthority.Environment, latency.CandidateAgeMilliseconds, latency.OldestQuoteAgeMilliseconds, latency.AgeLimitEnforced);
+            }
+            RiskLatency.Record(c, latency);
+            TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskAssessmentResult result;
+            using (var trace = WorkflowTrace.Source.StartActivity("risk.calculate"))
+            {
+                trace?.SetTag("ifm.workflow.id", c.WorkflowId.ToString());
+                trace?.SetTag("ifm.workflow.entity", c.WorkflowEntityId.Format());
+                result = context.CalculationModel.Calculate(c, token);
+            }
+
+            token.ThrowIfCancellationRequested();
+            if (context.TimeProvider.GetUtcNow().UtcDateTime >= c.ExpiresAtUtc)
+                throw new TimeoutException();
+            return ValueTask.FromResult(dispatchEvent(new(typeof(RiskManagementFunctionCompletedEvent), c, result)));
+        }
     }
 }

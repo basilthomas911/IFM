@@ -4,11 +4,16 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Function;
+
 public static class ResolveVerticalSpreadTradePlanExecutionPolicy
 {
-    public static FunctionExecutionPolicy ResolveExecutionPolicy(this UpdateVerticalSpreadTradePlanCommand command, FunctionFailureStage stage, IVerticalSpreadTradePlanFunctionContext context)
+
+    extension(UpdateVerticalSpreadTradePlanCommand command)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        return new(context.TimeProvider, null, FunctionCompletionMode.EventThenProjection);
+        public FunctionExecutionPolicy ResolveExecutionPolicy(FunctionFailureStage stage, IVerticalSpreadTradePlanFunctionContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            return new(context.TimeProvider, null, FunctionCompletionMode.EventThenProjection);
+        }
     }
 }

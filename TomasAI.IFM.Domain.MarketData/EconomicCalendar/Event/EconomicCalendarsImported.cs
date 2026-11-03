@@ -24,73 +24,76 @@ public static class EconomicCalendarsImported
     static EconomicCalendarsImported() => ServiceId = $"{LogSourceType.EconomicCalendarsImported}";
 
     static string ServiceId { get; }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
-    /// <summary>Acquires, maps, and durably stores the requested economic-calendar entries.</summary>
-    public static async ValueTask<bool> ExecuteAsync(
-        this EconomicCalendarsImportedEvent @event,
-        IEventActorContext context,
-        IMarketDataApi marketDataApi,
-        IDbContextFactory dbFactory,
-        ILogger<EconomicCalendarEventActor> logger)
+
+    extension(EconomicCalendarsImportedEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(marketDataApi);
-        IsArgumentNull.Check(logger);
-
-        var started = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow);
-        var stopwatch = Stopwatch.StartNew();
-        long? downloaded = null;
-        long? persisted = 0;
-        var terminalId = Guid.NewGuid();
-        EconomicCalendarsImportedCompleteEvent? complete = null;
-        EconomicCalendarsImportedFailEvent? failed = null;
-        var acceptedStream = "market-data/economic-calendar/accepted/" + @event.CommandId.ToString("N");
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
+        /// <summary>Acquires, maps, and durably stores the requested economic-calendar entries.</summary>
+        public async ValueTask<bool> ExecuteAsync(
+                IEventActorContext context,
+                IMarketDataApi marketDataApi,
+                IDbContextFactory dbFactory,
+                ILogger<EconomicCalendarEventActor> logger)
         {
-            complete = await AcceptedImportSnapshot.LoadAsync<EconomicCalendarsImportedCompleteEvent>(dbFactory,acceptedStream).ConfigureAwait(false);
-            if (complete is null)
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(marketDataApi);
+            IsArgumentNull.Check(logger);
+
+            var started = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow);
+            var stopwatch = Stopwatch.StartNew();
+            long? downloaded = null;
+            long? persisted = 0;
+            var terminalId = Guid.NewGuid();
+            EconomicCalendarsImportedCompleteEvent? complete = null;
+            EconomicCalendarsImportedFailEvent? failed = null;
+            var acceptedStream = "market-data/economic-calendar/accepted/" + @event.CommandId.ToString("N");
+            try
             {
-            var importDate = DateOnly.FromDateTime(@event.ImportedDate);
-            var countries = NormalizeCountries(@event.CountryCodes);
-            var entries = await marketDataApi.ReadEconomicCalendarAsync(importDate, importDate, countries?.ToArray()).ConfigureAwait(false);
-            downloaded = entries.Length;
-            var records = entries.Select(Map).ToArray();
-            Validate(records);
-                ValidateDatabaseIdentity(dbFactory);
-                persisted = records.LongLength;
-                var accepted = (EconomicCalendarsImportedCompleteEvent)@event.ToCompleteEvent<EconomicCalendarsImportedCompleteEvent, EconomicCalendarId>(records);
-                accepted = accepted with { Id = terminalId, DownloadOutcome = CreateOutcome(@event, started, terminalId, stopwatch, downloaded, persisted, MarketDataDownloadStatus.Completed, null) };
-                var transactions = context.Container.Resolve<IPostgresEventTransaction>();
-                try
+                complete = await AcceptedImportSnapshot.LoadAsync<EconomicCalendarsImportedCompleteEvent>(dbFactory, acceptedStream).ConfigureAwait(false);
+                if (complete is null)
                 {
-                    await PersistAcceptedAsync(@event, transactions, acceptedStream, accepted, records).ConfigureAwait(false);
-                }
-                catch
-                {
-                    persisted = null; // A commit-transport failure can leave the atomic commit outcome uncertain.
-                    throw;
-                }
-                complete = accepted;
-                stopwatch.Stop();
+                    var importDate = DateOnly.FromDateTime(@event.ImportedDate);
+                    var countries = NormalizeCountries(@event.CountryCodes);
+                    var entries = await marketDataApi.ReadEconomicCalendarAsync(importDate, importDate, countries?.ToArray()).ConfigureAwait(false);
+                    downloaded = entries.Length;
+                    var records = entries.Select(Map).ToArray();
+                    Validate(records);
+                    ValidateDatabaseIdentity(dbFactory);
+                    persisted = records.LongLength;
+                    var accepted = (EconomicCalendarsImportedCompleteEvent)@event.ToCompleteEvent<EconomicCalendarsImportedCompleteEvent, EconomicCalendarId>(records);
+                    accepted = accepted with { Id = terminalId, DownloadOutcome = CreateOutcome(@event, started, terminalId, stopwatch, downloaded, persisted, MarketDataDownloadStatus.Completed, null) };
+                    var transactions = context.Container.Resolve<IPostgresEventTransaction>();
+                    try
+                    {
+                        await PersistAcceptedAsync(@event, transactions, acceptedStream, accepted, records).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        persisted = null; // A commit-transport failure can leave the atomic commit outcome uncertain.
+                        throw;
+                    }
+                    complete = accepted;
+                    stopwatch.Stop();
 
+                }
             }
+            catch (Exception exception)
+            {
+                stopwatch.Stop();
+                logger.LogErrorEvent(ServiceId, exception, "Import processing failed for command {CommandId}", @event.CommandId);
+                failed = (EconomicCalendarsImportedFailEvent)@event.ToFailEvent<EconomicCalendarsImportedFailEvent, EconomicCalendarId>(exception);
+                failed = failed with { Id = terminalId, DownloadOutcome = CreateOutcome(@event, started, terminalId, stopwatch, downloaded, persisted, MarketDataDownloadStatus.Failed, exception) };
+            }
+
+            await PublishTerminalAsync(context, logger, complete, failed).ConfigureAwait(false);
+            // A published failure event is terminal for this acquisition attempt. Acknowledging the
+            // source event prevents provider or storage failures from creating a second terminal identity.
+            return true;
+
+
         }
-        catch (Exception exception)
-        {
-            stopwatch.Stop();
-            logger.LogErrorEvent(ServiceId, exception, "Import processing failed for command {CommandId}", @event.CommandId);
-            failed = (EconomicCalendarsImportedFailEvent)@event.ToFailEvent<EconomicCalendarsImportedFailEvent, EconomicCalendarId>(exception);
-            failed = failed with { Id = terminalId, DownloadOutcome = CreateOutcome(@event, started, terminalId, stopwatch, downloaded, persisted, MarketDataDownloadStatus.Failed, exception) };
-        }
-
-        await PublishTerminalAsync(context, logger, complete, failed).ConfigureAwait(false);
-        // A published failure event is terminal for this acquisition attempt. Acknowledging the
-        // source event prevents provider or storage failures from creating a second terminal identity.
-        return true;
-
-
     }
 
     /// <summary>Captures the terminal import counts, timing and source identity without changing the acquisition outcome on publication failure.</summary>
@@ -120,8 +123,8 @@ public static class EconomicCalendarsImported
         await transactions.ExecuteAsync(async (transaction, token) =>
                     {
                         await transaction.AppendAsync(acceptedStream,
-                            @event.CommandId,accepted,0,token).ConfigureAwait(false);
-                        await MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,records,@event.DuplicatePolicy,@event.CommandId,token).ConfigureAwait(false);
+                            @event.CommandId, accepted, 0, token).ConfigureAwait(false);
+                        await MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction, records, @event.DuplicatePolicy, @event.CommandId, token).ConfigureAwait(false);
                         return true;
                     }).ConfigureAwait(false);
     }
@@ -129,8 +132,8 @@ public static class EconomicCalendarsImported
     /// <summary>Checks that the accepted facts and their projection use the same PostgreSQL security and database identity before counting any persisted rows.</summary>
     static void ValidateDatabaseIdentity(IDbContextFactory dbFactory)
     {
-        if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ||
-            !string.Equals(dbFactory.ActorEventSourceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ||
+        if (!string.Equals(dbFactory.MarketDataDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ||
+            !string.Equals(dbFactory.ActorEventSourceDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ||
             PostgresDatabaseIdentity.Parse(dbFactory.MarketDataDb.ConnectionString) != PostgresDatabaseIdentity.Parse(dbFactory.ActorEventSourceDb.ConnectionString))
             throw new InvalidOperationException("Economic-calendar accepted facts and EventSourceDb must share one PostgreSQL database/security identity.");
     }

@@ -7,12 +7,16 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query;
 /// <summary>Handles paged workflow history queries.</summary>
 public static class GetIntrinsicTimeStrategyWorkflowHistoryPage
 {
-    /// <summary>Executes the mapped history query and replies with its typed page.</summary>
-    public static ValueTask ExecuteAsync(this GetIntrinsicTimeStrategyWorkflowHistoryPageQuery query, IIntrinsicTimeStrategyWorkflowQueryContext services, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        ArgumentNullException.ThrowIfNull(services);
-        return IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(services, context, query, cancellationToken);
+        /// <summary>Executes the mapped history query and replies with its typed page.</summary>
+        public ValueTask ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            ArgumentNullException.ThrowIfNull(services);
+            return IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(services, context, query, cancellationToken);
+        }
     }
 }

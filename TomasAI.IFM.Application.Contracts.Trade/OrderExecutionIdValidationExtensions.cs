@@ -7,14 +7,18 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 /// <summary>Intrinsic OrderExecutionId validation used by command actors.</summary>
 public static class OrderExecutionIdValidationExtensions
 {
-    /// <summary>Checks the intrinsic business identity without accessing state.</summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    public static List<TomasAI.IFM.Shared.Validation.ValidationError> ValidateOrderExecutionId(this List<TomasAI.IFM.Shared.Validation.ValidationError> errors, OrderExecutionId entityId, string commandName)
+
+    extension(List<TomasAI.IFM.Shared.Validation.ValidationError> errors)
     {
-        ArgumentNullException.ThrowIfNull(errors);
-        if (!entityId.IsValid) errors.Add(new($"{commandName}.EntityId is invalid."));
-        return errors;
+        /// <summary>Checks the intrinsic business identity without accessing state.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        public List<TomasAI.IFM.Shared.Validation.ValidationError> ValidateOrderExecutionId(OrderExecutionId entityId, string commandName)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            if (!entityId.IsValid) errors.Add(new($"{commandName}.EntityId is invalid."));
+            return errors;
+        }
     }
 
 }

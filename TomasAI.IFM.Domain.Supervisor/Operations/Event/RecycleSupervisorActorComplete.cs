@@ -8,15 +8,18 @@ namespace TomasAI.IFM.Domain.Supervisor.Operations.Event;
 /// <summary>Projects the Recycle Supervisor complete event.</summary>
 public static class RecycleSupervisorActorComplete
 {
-    /// <summary>Records the Recycle complete outcome in Supervisor operation history.</summary>
-    public static ValueTask ExecuteAsync(this RecycleSupervisorActorCompleteEvent value,
-        ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
-        
+
+    extension(RecycleSupervisorActorCompleteEvent value)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(value);
-        return SupervisorTerminalProjection.Complete(context, value.CommandId, value.Target,
-            value.ExpectedGeneration, SupervisorActorOperationKind.Recycle, value.Requester,
-            value.Reason, value.TimeoutTicks, value.Stage);
+        /// <summary>Records the Recycle complete outcome in Supervisor operation history.</summary>
+        public ValueTask ExecuteAsync(ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(value);
+            return SupervisorTerminalProjection.Complete(context, value.CommandId, value.Target,
+                value.ExpectedGeneration, SupervisorActorOperationKind.Recycle, value.Requester,
+                value.Reason, value.TimeoutTicks, value.Stage);
+        }
     }
 }

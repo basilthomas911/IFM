@@ -8,10 +8,13 @@ internal static class EasternTimeDisplayPolicy
 {
     static readonly ConditionalWeakTable<Control, object> ConfiguredControls = new();
 
-    public static void ApplyEasternTimeDisplayPolicy(this Control root)
+    extension(Control root)
     {
-        ArgumentNullException.ThrowIfNull(root);
-        Attach(root);
+        public void ApplyEasternTimeDisplayPolicy()
+        {
+            ArgumentNullException.ThrowIfNull(root);
+            Attach(root);
+        }
     }
 
     static void Attach(Control control)

@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
     public static class OptionLegActionExtensions
     {
-        public static string ToStringFast(this OptionLegAction value) => value switch
+
+        extension(OptionLegAction value)
         {
-            OptionLegAction.Short => nameof(OptionLegAction.Short),
-            OptionLegAction.Long => nameof(OptionLegAction.Long),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                OptionLegAction.Short => nameof(OptionLegAction.Short),
+                OptionLegAction.Long => nameof(OptionLegAction.Long),
+                _ => value.ToString()
+            };
+        }
     }
 }

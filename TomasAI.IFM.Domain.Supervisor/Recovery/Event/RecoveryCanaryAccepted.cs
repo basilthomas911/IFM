@@ -7,12 +7,15 @@ namespace TomasAI.IFM.Domain.Supervisor.Recovery.Event;
 /// <summary>Projects one exact-generation recovery canary observation.</summary>
 public static class RecoveryCanaryAccepted
 {
-    /// <summary>Records the canary without changing trading state.</summary>
-    public static ValueTask ExecuteAsync(this RecoveryCanaryAcceptedEvent value,
-        IRecoveryCanaryEventContext context, ILogger<RecoveryCanaryProjectorActor> logger)
+
+    extension(RecoveryCanaryAcceptedEvent value)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        context.Projection.Project(value);
-        return ValueTask.CompletedTask;
+        /// <summary>Records the canary without changing trading state.</summary>
+        public ValueTask ExecuteAsync(IRecoveryCanaryEventContext context, ILogger<RecoveryCanaryProjectorActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            context.Projection.Project(value);
+            return ValueTask.CompletedTask;
+        }
     }
 }

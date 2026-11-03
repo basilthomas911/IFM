@@ -8,10 +8,14 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event;
 /// <summary>Handles <see cref="FuturesBarDataDeletedEvent"/> as a terminal bar-data notification.</summary>
 public static class FuturesBarDataDeleted
 {
-    /// <summary>Acknowledges the event without producing another side effect.</summary>
-    public static ValueTask<bool> ExecuteAsync(this FuturesBarDataDeletedEvent eventValue, IFuturesBarDataEventContext context, IEventActorContext commandApi, IEventActorContext eventApi, FuturesBarDataEventParameters parameters, ILogger<FuturesBarDataEventActor> logger)
+
+    extension(FuturesBarDataDeletedEvent eventValue)
     {
-        ArgumentNullException.ThrowIfNull(eventValue); ArgumentNullException.ThrowIfNull(context);
-        return ValueTask.FromResult(true);
+        /// <summary>Acknowledges the event without producing another side effect.</summary>
+        public ValueTask<bool> ExecuteAsync(IFuturesBarDataEventContext context, IEventActorContext commandApi, IEventActorContext eventApi, FuturesBarDataEventParameters parameters, ILogger<FuturesBarDataEventActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(eventValue); ArgumentNullException.ThrowIfNull(context);
+            return ValueTask.FromResult(true);
+        }
     }
 }

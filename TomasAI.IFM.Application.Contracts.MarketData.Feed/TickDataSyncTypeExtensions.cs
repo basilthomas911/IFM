@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 
     public static class TickDataSyncTypeExtensions
     {
-        public static string ToStringFast(this TickDataSyncType value) => value switch
+
+        extension(TickDataSyncType value)
         {
-            TickDataSyncType.FunctionCall => nameof(TickDataSyncType.FunctionCall),
-            TickDataSyncType.EventProducer => nameof(TickDataSyncType.EventProducer),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                TickDataSyncType.FunctionCall => nameof(TickDataSyncType.FunctionCall),
+                TickDataSyncType.EventProducer => nameof(TickDataSyncType.EventProducer),
+                _ => value.ToString()
+            };
+        }
     }
 }

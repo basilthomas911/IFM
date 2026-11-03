@@ -18,33 +18,36 @@ public static class FuturesEodDataInserted
     {
         ServiceId = $"{LogSourceType.FuturesEodDataEvent}";
     }
-    static string ServiceId { get; } 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Projects the futures EOD event and returns whether the projection succeeded.</summary>
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesEodDataInsertedEvent e,
-        IEventActorContext context,
-        IEventActorContext eventApi,
-        FuturesEodDataEventParameters p, ILogger<FuturesEodDataEventActor> logger)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(eventApi);
-        ArgumentNullException.ThrowIfNull(p);
-        var source = $"FuturesEodDataInsertedEvent for EntityId: {e.EntityId}";
-        try
-        {
-            p.BlackboardService.MarketDataFeed.FuturesEodData.Set(e.FuturesEodData.ContractId, e.FuturesEodData.ValueDate, e.FuturesEodData);
-            await (eventApi.SendFuturesEodDataUpdatedEventAsync(e)).ConfigureAwait(false);
-            logger.LogInformationEvent(ServiceId, "{Source}: futures eod data {ContractId} {ClosePrice}",
-                source, e.FuturesEodData.ContractId, Convert.ToDecimal(e.FuturesEodData.ClosePrice));
-            return true;
-        }
-        catch (Exception ex)
-        {
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures eod data {ContractId} insert failed", source, e.FuturesEodData.ContractId);
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesEodDataEvent, FuturesEodDataInsertedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
-        }
-        return false;
+    static string ServiceId { get; }
 
+    extension(FuturesEodDataInsertedEvent e)
+    {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Projects the futures EOD event and returns whether the projection succeeded.</summary>
+        public async ValueTask<bool> ExecuteAsync(
+                IEventActorContext context,
+                IEventActorContext eventApi,
+                FuturesEodDataEventParameters p, ILogger<FuturesEodDataEventActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(eventApi);
+            ArgumentNullException.ThrowIfNull(p);
+            var source = $"FuturesEodDataInsertedEvent for EntityId: {e.EntityId}";
+            try
+            {
+                p.BlackboardService.MarketDataFeed.FuturesEodData.Set(e.FuturesEodData.ContractId, e.FuturesEodData.ValueDate, e.FuturesEodData);
+                await (eventApi.SendFuturesEodDataUpdatedEventAsync(e)).ConfigureAwait(false);
+                logger.LogInformationEvent(ServiceId, "{Source}: futures eod data {ContractId} {ClosePrice}",
+                    source, e.FuturesEodData.ContractId, Convert.ToDecimal(e.FuturesEodData.ClosePrice));
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.LogErrorEvent(ServiceId, ex, "{Source}: futures eod data {ContractId} insert failed", source, e.FuturesEodData.ContractId);
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesEodDataEvent, FuturesEodDataInsertedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
+            }
+            return false;
+
+        }
     }
 
 

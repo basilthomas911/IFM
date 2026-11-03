@@ -8,11 +8,15 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 public static class FuturesAtrSignalSourceTypeExtensions
 {
-    public static string ToStringFast(this FuturesAtrSignalSourceType value) => value switch
+
+    extension(FuturesAtrSignalSourceType value)
     {
-        FuturesAtrSignalSourceType.None => nameof(FuturesAtrSignalSourceType.None),
-        FuturesAtrSignalSourceType.FuturesItiSignal => nameof(FuturesAtrSignalSourceType.FuturesItiSignal),
-        FuturesAtrSignalSourceType.FuturesIntraDayData => nameof(FuturesAtrSignalSourceType.FuturesIntraDayData),
-        _ => value.ToString()
-    };
+        public string ToStringFast() => value switch
+        {
+            FuturesAtrSignalSourceType.None => nameof(FuturesAtrSignalSourceType.None),
+            FuturesAtrSignalSourceType.FuturesItiSignal => nameof(FuturesAtrSignalSourceType.FuturesItiSignal),
+            FuturesAtrSignalSourceType.FuturesIntraDayData => nameof(FuturesAtrSignalSourceType.FuturesIntraDayData),
+            _ => value.ToString()
+        };
+    }
 }

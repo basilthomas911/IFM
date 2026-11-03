@@ -4,13 +4,18 @@ using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Execution.Query;
+
 public static class GetOrderExecution
 {
-    public static async ValueTask ExecuteAsync(this GetOrderExecutionQuery query, IOrderExecutionQueryContext context, CancellationToken cancellationToken)
+
+    extension(GetOrderExecutionQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        var value = await context.DbFactory.TradeDb.GetOrderExecutionAsync(query.TradeOrderId, query.ExecutionAttemptId, cancellationToken).ConfigureAwait(false);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<OrderExecutionDefinition?>(value)).ConfigureAwait(false);
+        public async ValueTask ExecuteAsync(IOrderExecutionQueryContext context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            var value = await context.DbFactory.TradeDb.GetOrderExecutionAsync(query.TradeOrderId, query.ExecutionAttemptId, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<OrderExecutionDefinition?>(value)).ConfigureAwait(false);
+        }
     }
 }

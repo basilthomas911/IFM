@@ -248,7 +248,11 @@ public sealed class DevelopmentTradingPortfolioTests
 
 static class DevelopmentPolicyTestExtensions
 {
-    public static TimeFrameType TargetHorizon(this TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.SelectionConstructionPolicy policy) =>
-        policy.ParameterSetId == DevelopmentTradingPortfolioDefaults.ConstructionId(TimeFrameType.Daily) ? TimeFrameType.Daily :
-        policy.ParameterSetId == DevelopmentTradingPortfolioDefaults.ConstructionId(TimeFrameType.Weekly) ? TimeFrameType.Weekly : TimeFrameType.Monthly;
+
+    extension(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.SelectionConstructionPolicy policy)
+    {
+        public TimeFrameType TargetHorizon() =>
+            policy.ParameterSetId == DevelopmentTradingPortfolioDefaults.ConstructionId(TimeFrameType.Daily) ? TimeFrameType.Daily :
+            policy.ParameterSetId == DevelopmentTradingPortfolioDefaults.ConstructionId(TimeFrameType.Weekly) ? TimeFrameType.Weekly : TimeFrameType.Monthly;
+    }
 }

@@ -6,9 +6,12 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Position.Workflow.OrderComposer.Funct
 
 public static class ResolveExitOrderCompositionExecutionPolicy
 {
-    public static FunctionExecutionPolicy ResolveExecutionPolicy(
-        this ComposeExitOrderCommand command,
-        FunctionFailureStage stage,
-        TimeProvider clock) =>
-        new(clock, null);
+
+    extension(ComposeExitOrderCommand command)
+    {
+        public FunctionExecutionPolicy ResolveExecutionPolicy(
+            FunctionFailureStage stage,
+            TimeProvider clock) =>
+            new(clock, null);
+    }
 }

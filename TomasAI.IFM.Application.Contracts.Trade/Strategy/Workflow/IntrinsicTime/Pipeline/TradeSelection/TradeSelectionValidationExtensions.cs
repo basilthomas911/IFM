@@ -9,57 +9,60 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 /// <summary>Ordered command-list validation for selector ingress and exact catalog capability evidence.</summary>
 public static class TradeSelectionValidationExtensions
 {
-    /// <summary>Aggregates independent required-field errors before inspecting nested frozen evidence.</summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    public static List<ValidationError> ValidateSelectionFields(this List<ValidationError> errors, ExecuteTradeSelectionPipelineCommand request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(errors);
-        errors.AddRange(new IntrinsicTimeStrategyWorkflowEntityIdValidationRules().Execute(request.WorkflowEntityId));
-        errors.AddRange(new CommandRules().Execute(request));
-        return errors;
-    }
 
-    /// <summary>Validates relationships and deterministic evidence after required fields have passed.</summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    public static List<ValidationError> ValidateSelectionConsistency(this List<ValidationError> errors, ExecuteTradeSelectionPipelineCommand request)
+    extension(List<ValidationError> errors)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(errors);
-        if (errors.Count != 0) return errors;
-        try { TradeSelectionContracts.ValidateRequestEvidence(request, errors); }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException or MessagePack.MessagePackSerializationException)
-        { errors.Add(new(ex is TradeSelectionValidationException ? ex.Message : "TS.CONTRACT.INVALID: " + ex.Message)); }
-        return errors;
-    }
-
-    /// <summary>Validates registered implementations for every pinned capability and parameter validator.</summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Preserve the established ordered catalog provenance validation loop without restructuring trading validation behavior.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
-    public static List<ValidationError> ValidateSelectionCapabilities(this List<ValidationError> errors,
-        ExecuteTradeSelectionPipelineCommand request, IStrategyCatalogCapabilities capabilities)
-    {
-        ArgumentNullException.ThrowIfNull(capabilities);
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(errors);
-        if (errors.Count != 0) return errors;
-        var graph = request.SelectionBinding.CatalogDefinitions.ToDictionary(x => x.Key, SelectionCatalogTransport.ToSource);
-        try
+        /// <summary>Aggregates independent required-field errors before inspecting nested frozen evidence.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        public List<ValidationError> ValidateSelectionFields(ExecuteTradeSelectionPipelineCommand request)
         {
-            foreach (var node in graph.Values)
-            {
-                foreach (var capability in node.Definition.Capabilities) capabilities.Validate(capability, node.Definition, graph);
-                if (node.Definition.Key.Kind == StrategyCatalogKind.ParameterSet)
-                    foreach (var validator in graph[node.Definition.Parent!].Definition.Capabilities.Where(x => string.Equals(x.Role,"validator",StringComparison.Ordinal)))
-                        capabilities.Validate(validator, node.Definition, graph);
-            }
+            ArgumentNullException.ThrowIfNull(request);
+            ArgumentNullException.ThrowIfNull(errors);
+            errors.AddRange(new IntrinsicTimeStrategyWorkflowEntityIdValidationRules().Execute(request.WorkflowEntityId));
+            errors.AddRange(new CommandRules().Execute(request));
+            return errors;
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException)
-        { errors.Add(new(ex is TradeSelectionValidationException ? ex.Message : "TS.CONFIG.CAPABILITY_UNSUPPORTED: " + ex.Message)); }
-        return errors;
+
+        /// <summary>Validates relationships and deterministic evidence after required fields have passed.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        public List<ValidationError> ValidateSelectionConsistency(ExecuteTradeSelectionPipelineCommand request)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            ArgumentNullException.ThrowIfNull(errors);
+            if (errors.Count != 0) return errors;
+            try { TradeSelectionContracts.ValidateRequestEvidence(request, errors); }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException or MessagePack.MessagePackSerializationException)
+            { errors.Add(new(ex is TradeSelectionValidationException ? ex.Message : "TS.CONTRACT.INVALID: " + ex.Message)); }
+            return errors;
+        }
+
+        /// <summary>Validates registered implementations for every pinned capability and parameter validator.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Preserve the established ordered catalog provenance validation loop without restructuring trading validation behavior.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
+        public List<ValidationError> ValidateSelectionCapabilities(ExecuteTradeSelectionPipelineCommand request, IStrategyCatalogCapabilities capabilities)
+        {
+            ArgumentNullException.ThrowIfNull(capabilities);
+            ArgumentNullException.ThrowIfNull(request);
+            ArgumentNullException.ThrowIfNull(errors);
+            if (errors.Count != 0) return errors;
+            var graph = request.SelectionBinding.CatalogDefinitions.ToDictionary(x => x.Key, SelectionCatalogTransport.ToSource);
+            try
+            {
+                foreach (var node in graph.Values)
+                {
+                    foreach (var capability in node.Definition.Capabilities) capabilities.Validate(capability, node.Definition, graph);
+                    if (node.Definition.Key.Kind == StrategyCatalogKind.ParameterSet)
+                        foreach (var validator in graph[node.Definition.Parent!].Definition.Capabilities.Where(x => string.Equals(x.Role, "validator", StringComparison.Ordinal)))
+                            capabilities.Validate(validator, node.Definition, graph);
+                }
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException)
+            { errors.Add(new(ex is TradeSelectionValidationException ? ex.Message : "TS.CONFIG.CAPABILITY_UNSUPPORTED: " + ex.Message)); }
+            return errors;
+        }
     }
 
     // Local adapters do not register duplicate validators for shared workflow/trigger contracts.

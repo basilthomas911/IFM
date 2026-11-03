@@ -7,15 +7,20 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.RiskManager.Function;
+
 public static class EvaluatePositionExitRisk
 {
-    public static async ValueTask<FunctionResult<PositionExitRiskCompletedEvent, ExitPositionWorkflowFailedEvent>> ExecuteAsync(this EvaluatePositionExitRiskCommand command, PositionExitRiskFunctionState state, IPortfolioOrderCompositionApi portfolio, TimeProvider timeProvider, Func<FunctionEventContext<EvaluatePositionExitRiskCommand>, FunctionResult<PositionExitRiskCompletedEvent, ExitPositionWorkflowFailedEvent>> dispatch, CancellationToken cancellationToken)
+
+    extension(EvaluatePositionExitRiskCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(dispatch);
-        if (command.StrategyKind != TradeStrategyKind.IronCondor)
-            throw new InvalidOperationException("EXIT.RISK.IRON_CONDOR_STRATEGY_REQUIRED");
-        var decision = await PositionExitRiskModel.EvaluateAsync(command, portfolio, timeProvider, cancellationToken).ConfigureAwait(false);
-        return dispatch(new FunctionEventContext<EvaluatePositionExitRiskCommand>(typeof(PositionExitRiskCompletedEvent), command, decision));
+        public async ValueTask<FunctionResult<PositionExitRiskCompletedEvent, ExitPositionWorkflowFailedEvent>> ExecuteAsync(PositionExitRiskFunctionState state, IPortfolioOrderCompositionApi portfolio, TimeProvider timeProvider, Func<FunctionEventContext<EvaluatePositionExitRiskCommand>, FunctionResult<PositionExitRiskCompletedEvent, ExitPositionWorkflowFailedEvent>> dispatch, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(dispatch);
+            if (command.StrategyKind != TradeStrategyKind.IronCondor)
+                throw new InvalidOperationException("EXIT.RISK.IRON_CONDOR_STRATEGY_REQUIRED");
+            var decision = await PositionExitRiskModel.EvaluateAsync(command, portfolio, timeProvider, cancellationToken).ConfigureAwait(false);
+            return dispatch(new FunctionEventContext<EvaluatePositionExitRiskCommand>(typeof(PositionExitRiskCompletedEvent), command, decision));
+        }
     }
 }

@@ -8,18 +8,22 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.F
 /// <summary>Resolves RiskManagement lifecycle policy without owning timeout mechanics or transport.</summary>
 public static class ResolveRiskManagementExecutionPolicy
 {
-    /// <summary>Returns the domain clock and the stage's existing absolute deadline policy.</summary>
-    public static FunctionExecutionPolicy ResolveExecutionPolicy(this ExecuteRiskManagementPipelineCommand command, FunctionFailureStage stage, IRiskManagementFunctionContext context)
+
+    extension(ExecuteRiskManagementPipelineCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(context);
-        var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-        var budget = ((stage == FunctionFailureStage.Loading) switch
+        /// <summary>Returns the domain clock and the stage's existing absolute deadline policy.</summary>
+        public FunctionExecutionPolicy ResolveExecutionPolicy(FunctionFailureStage stage, IRiskManagementFunctionContext context)
         {
-            true => 1000,
-            _ => stage == FunctionFailureStage.Execution ? 250 : 1000
-        });
-        var deadline = stage == FunctionFailureStage.Loading ? now.AddMilliseconds(budget) : new DateTime(Math.Min(command.ExpiresAtUtc.Ticks, now.AddMilliseconds(budget).Ticks), DateTimeKind.Utc);
-        return new(context.TimeProvider, deadline);
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(context);
+            var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+            var budget = ((stage == FunctionFailureStage.Loading) switch
+            {
+                true => 1000,
+                _ => stage == FunctionFailureStage.Execution ? 250 : 1000
+            });
+            var deadline = stage == FunctionFailureStage.Loading ? now.AddMilliseconds(budget) : new DateTime(Math.Min(command.ExpiresAtUtc.Ticks, now.AddMilliseconds(budget).Ticks), DateTimeKind.Utc);
+            return new(context.TimeProvider, deadline);
+        }
     }
 }

@@ -9,14 +9,18 @@ namespace TomasAI.IFM.Domain.MarketData.Shared
 
     public static class EconomicCalendarViewTypeExtensions
     {
-        public static string ToStringFast(this EconomicCalendarViewType value) => value switch
+
+        extension(EconomicCalendarViewType value)
         {
-            EconomicCalendarViewType.Today => nameof(EconomicCalendarViewType.Today),
-            EconomicCalendarViewType.Yesterday => nameof(EconomicCalendarViewType.Yesterday),
-            EconomicCalendarViewType.Tomorrow => nameof(EconomicCalendarViewType.Tomorrow),
-            EconomicCalendarViewType.ThisWeek => nameof(EconomicCalendarViewType.ThisWeek),
-            EconomicCalendarViewType.NextWeek => nameof(EconomicCalendarViewType.NextWeek),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                EconomicCalendarViewType.Today => nameof(EconomicCalendarViewType.Today),
+                EconomicCalendarViewType.Yesterday => nameof(EconomicCalendarViewType.Yesterday),
+                EconomicCalendarViewType.Tomorrow => nameof(EconomicCalendarViewType.Tomorrow),
+                EconomicCalendarViewType.ThisWeek => nameof(EconomicCalendarViewType.ThisWeek),
+                EconomicCalendarViewType.NextWeek => nameof(EconomicCalendarViewType.NextWeek),
+                _ => value.ToString()
+            };
+        }
     }
 }

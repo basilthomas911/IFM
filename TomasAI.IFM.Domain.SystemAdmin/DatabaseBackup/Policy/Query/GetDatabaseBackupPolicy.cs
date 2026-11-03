@@ -10,13 +10,17 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Policy.Query;
 /// <summary>Handles <see cref="GetDatabaseBackupPolicyQuery"/>.</summary>
 public static class GetDatabaseBackupPolicy
 {
-    /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
-    public static async ValueTask ExecuteAsync(this GetDatabaseBackupPolicyQuery query, ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupPolicyQueryActor> context, CancellationToken cancellationToken)
+
+    extension(GetDatabaseBackupPolicyQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dbContext);
-        ArgumentNullException.ThrowIfNull(query);
-        var result = await (dbContext.GetPolicyAsync(query, cancellationToken)).ConfigureAwait(false);
-        await (DatabaseBackupQueryReply.OptionalAsync(context, query, result)).ConfigureAwait(false);
+        /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
+        public async ValueTask ExecuteAsync(ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupPolicyQueryActor> context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dbContext);
+            ArgumentNullException.ThrowIfNull(query);
+            var result = await (dbContext.GetPolicyAsync(query, cancellationToken)).ConfigureAwait(false);
+            await (DatabaseBackupQueryReply.OptionalAsync(context, query, result)).ConfigureAwait(false);
+        }
     }
 }

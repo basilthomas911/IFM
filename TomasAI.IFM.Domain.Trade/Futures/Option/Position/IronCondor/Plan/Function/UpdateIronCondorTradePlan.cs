@@ -6,46 +6,54 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function;
+
 public static class UpdateIronCondorTradePlan
 {
-    /// <summary>Calculates a full current-position snapshot; the last source snapshot supplies only the revision.</summary>
-    /// <param name = "command">The current coherent position and captured monitoring inputs.</param>
-    /// <param name = "state">The single latest source snapshot loaded for this request.</param>
-    /// <param name = "context">The pure valuation capability.</param>
-    /// <param name = "dispatch">Creates the result event with the originating command identity.</param>
-    /// <param name = "cancellationToken">Cancels before calculation begins.</param>
-    /// <returns>The calculated snapshot event. The repository commits it before attempting Scylla projection.</returns>
-    public static ValueTask<FunctionResult<IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>>> ExecuteAsync(this UpdateIronCondorTradePlanCommand command, IronCondorTradePlanFunctionState state, IIronCondorTradePlanFunctionContext context, Func<FunctionEventContext<UpdateIronCondorTradePlanCommand>, FunctionResult<IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>>> dispatch, CancellationToken cancellationToken)
+
+    /// <param name="command">
+    /// The current coherent position and captured monitoring inputs.
+    /// </param>
+    extension(UpdateIronCondorTradePlanCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dispatch);
-        ArgumentNullException.ThrowIfNull(state);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (state.LatestSourceTradePlan is { } latest && (command.RequestedAtUtc < latest.CalculatedAtUtc || command.Position.RouteGeneration < latest.Position.RouteGeneration || command.Position.RouteGeneration == latest.Position.RouteGeneration && command.Position.PositionSequence < latest.Position.PositionSequence))
-            throw new InvalidOperationException("IronCondorTradePlan.OBSERVATION.SUPERSEDED: a newer source snapshot is already persisted.");
-        // Valuation uses current inputs; only the revision comes from the single latest source snapshot.
-        var calculated = context.Algorithm.Calculate(command.Position, command.Parameters, null, command.EntityId.ValueDate, command.RequestedAtUtc).Snapshot with
+        /// <summary>Calculates a full current-position snapshot; the last source snapshot supplies only the revision.</summary>
+        ///
+        /// <param name = "state">The single latest source snapshot loaded for this request.</param>
+        /// <param name = "context">The pure valuation capability.</param>
+        /// <param name = "dispatch">Creates the result event with the originating command identity.</param>
+        /// <param name = "cancellationToken">Cancels before calculation begins.</param>
+        /// <returns>The calculated snapshot event. The repository commits it before attempting Scylla projection.</returns>
+        public ValueTask<FunctionResult<IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>>> ExecuteAsync(IronCondorTradePlanFunctionState state, IIronCondorTradePlanFunctionContext context, Func<FunctionEventContext<UpdateIronCondorTradePlanCommand>, FunctionResult<IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>>> dispatch, CancellationToken cancellationToken)
         {
-            PlanRevision = checked(state.LatestPlanRevision + 1),
-            MaterialChange = true
-        };
-        var inputs = command.IronCondorTradePlanInputs;
-        var monitoring = command.UseForwardPriceFunction
-            ? new TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator().CreateFromForwardPrice(calculated, command)
-            : new TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator().Create(calculated, command.SourceEventId, inputs?.TradeDate, inputs?.MaturityDate, inputs?.DailyRiskInputs ?? TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator.CaptureUnavailableInputs(command.Position, inputs));
-        monitoring = monitoring with
-        {
-            VolatilityPrice = inputs?.VolatilityPrice,
-            TradeType = inputs?.TradeType.ToString()
-        };
-        calculated = ApplyMonitoringRecommendation(calculated, monitoring);
-        calculated = calculated with
-        {
-            MaterialChange = TradePlanPublication.ShouldPublish(state.LatestSourceTradePlan, calculated),
-            ContentHash = TradePlanContractIdentity.PlanHash(calculated)
-        };
-        return ValueTask.FromResult(dispatch(new(typeof(IronCondorTradePlanUpdatedEvent), command, calculated)));
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dispatch);
+            ArgumentNullException.ThrowIfNull(state);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (state.LatestSourceTradePlan is { } latest && (command.RequestedAtUtc < latest.CalculatedAtUtc || command.Position.RouteGeneration < latest.Position.RouteGeneration || command.Position.RouteGeneration == latest.Position.RouteGeneration && command.Position.PositionSequence < latest.Position.PositionSequence))
+                throw new InvalidOperationException("IronCondorTradePlan.OBSERVATION.SUPERSEDED: a newer source snapshot is already persisted.");
+            // Valuation uses current inputs; only the revision comes from the single latest source snapshot.
+            var calculated = context.Algorithm.Calculate(command.Position, command.Parameters, null, command.EntityId.ValueDate, command.RequestedAtUtc).Snapshot with
+            {
+                PlanRevision = checked(state.LatestPlanRevision + 1),
+                MaterialChange = true
+            };
+            var inputs = command.IronCondorTradePlanInputs;
+            var monitoring = command.UseForwardPriceFunction
+                ? new TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator().CreateFromForwardPrice(calculated, command)
+                : new TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator().Create(calculated, command.SourceEventId, inputs?.TradeDate, inputs?.MaturityDate, inputs?.DailyRiskInputs ?? TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator.CaptureUnavailableInputs(command.Position, inputs));
+            monitoring = monitoring with
+            {
+                VolatilityPrice = inputs?.VolatilityPrice,
+                TradeType = inputs?.TradeType.ToString()
+            };
+            calculated = ApplyMonitoringRecommendation(calculated, monitoring);
+            calculated = calculated with
+            {
+                MaterialChange = TradePlanPublication.ShouldPublish(state.LatestSourceTradePlan, calculated),
+                ContentHash = TradePlanContractIdentity.PlanHash(calculated)
+            };
+            return ValueTask.FromResult(dispatch(new(typeof(IronCondorTradePlanUpdatedEvent), command, calculated)));
+        }
     }
 
     /// <summary>Uses current position PnL in currency and the accepted stop in the single loaded source snapshot.</summary>
@@ -57,7 +65,7 @@ public static class UpdateIronCondorTradePlan
     {
         if (inputs is null)
             return null;
-        var currentPnl = inputs.ContractCashMultiplier is> 0 && inputs.OpeningCommission is >= 0 ? (position.UnrealizedPnl + position.RealizedPnl) * inputs.ContractCashMultiplier.Value - inputs.OpeningCommission.Value - position.ClosingFills.Sum(fill => fill.Commission) : (decimal? )null;
+        var currentPnl = inputs.ContractCashMultiplier is > 0 && inputs.OpeningCommission is >= 0 ? (position.UnrealizedPnl + position.RealizedPnl) * inputs.ContractCashMultiplier.Value - inputs.OpeningCommission.Value - position.ClosingFills.Sum(fill => fill.Commission) : (decimal?)null;
         return inputs with
         {
             AverageTradePnl = currentPnl,
@@ -78,7 +86,9 @@ public static class UpdateIronCondorTradePlan
                 Position = monitoring.Position,
                 IronCondorTradePlanSnapshot = monitoring,
                 State = TradePlanState.CalculationFailed,
-                ForwardTradePrice = 0, ForwardPnl = 0, ForwardLoss = 0,
+                ForwardTradePrice = 0,
+                ForwardPnl = 0,
+                ForwardLoss = 0,
                 Action = TradePlanAction.Hold,
                 RequiresExit = false,
                 ReasonCode = monitoring.ForwardPriceCalculationError is not null
@@ -86,14 +96,20 @@ public static class UpdateIronCondorTradePlan
                 Explanation = monitoring.ForwardPriceCalculationError ?? string.Join("; ", monitoring.UnavailableReasons)
             };
         if (monitoring.IronCondorForwardRisk is { } forwardRisk)
-            return plan with { IronCondorTradePlanSnapshot = monitoring, Position = monitoring.Position,
+            return plan with
+            {
+                IronCondorTradePlanSnapshot = monitoring,
+                Position = monitoring.Position,
                 State = forwardRisk.ExitRecommended ? TradePlanState.ExitRequired : TradePlanState.Normal,
                 Action = forwardRisk.ExitRecommended ? TradePlanAction.ExitAtMarket : TradePlanAction.Monitor,
-                RequiresExit = forwardRisk.ExitRecommended, ForwardTradePrice = forwardRisk.IronCondorForwardPrice.ForwardPrice,
+                RequiresExit = forwardRisk.ExitRecommended,
+                ForwardTradePrice = forwardRisk.IronCondorForwardPrice.ForwardPrice,
                 // The envelope retains its nonnegative loss-magnitude convention; typed risk retains signed loss.
-                ForwardPnl = forwardRisk.ForwardPnl ?? 0, ForwardLoss = -forwardRisk.ForwardLoss,
+                ForwardPnl = forwardRisk.ForwardPnl ?? 0,
+                ForwardLoss = -forwardRisk.ForwardLoss,
                 ReasonCode = forwardRisk.ExitRecommended ? "IronCondorTradePlan.FORWARD_MAX_LOSS_REACHED" : "IronCondorTradePlan.FORWARD_MAX_LOSS_CLEAR",
-                Explanation = monitoring.ExitReason ?? string.Empty };
+                Explanation = monitoring.ExitReason ?? string.Empty
+            };
         var exit = monitoring.ExitRecommended == true;
         var warning = monitoring.DailyPnl < 0 && monitoring.ForwardLossRatio >= monitoring.StrategyRiskParameterSet?.IronCondor?.WarningForwardLossRatio;
         return plan with

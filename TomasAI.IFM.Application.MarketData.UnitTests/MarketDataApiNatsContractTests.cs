@@ -95,6 +95,34 @@ public sealed class MarketDataApiNatsContractTests
     public async Task Dispatcher_rejects_undeclared_operations()
     {
         var dispatcher = new MarketDataApiDispatcher(Substitute.For<IMarketDataApi>());
-        await Assert.ThrowsAsync<InvalidDataException>(() => dispatcher.InvokeAsync(new("System.Environment.Exit", []), CancellationToken.None));
+        await Assert.ThrowsAsync<MarketDataApiRequestRejectedException>(() => dispatcher.InvokeAsync(new("System.Environment.Exit", []), CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData("lifecycle")]
+    [InlineData("host")]
+    [InlineData("count")]
+    [InlineData("payload")]
+    public async Task Dispatcher_classifies_request_rejections_before_invoking_backend(string failure)
+    {
+        var backend = Substitute.For<IMarketDataApi>();
+        var name = failure switch { "lifecycle" => nameof(IMarketDataApi.StopAsync), "host" => nameof(IMarketDataApi.ResetMarketDataAsync), _ => nameof(IMarketDataApi.GetFuturesContractAsync) };
+        var method = typeof(IMarketDataApi).GetMethod(name)!;
+        var call = new MarketDataApiCall(MarketDataApiClient.Signature(method), failure == "payload" ? [[0xc1]] : []);
+        await Assert.ThrowsAsync<MarketDataApiRequestRejectedException>(() =>
+            new MarketDataApiDispatcher(backend, allowLifecycle: false).InvokeAsync(call, default));
+        Assert.Empty(backend.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task Backend_failure_is_preserved_as_processing_failure_instead_of_request_rejection()
+    {
+        var backend = Substitute.For<IMarketDataApi>();
+        var failure = new InvalidDataException("Injected backend processing failure.");
+        backend.GetFuturesContractAsync("ES").Returns(Task.FromException<FuturesContractV3ReadModel>(failure));
+        var method = typeof(IMarketDataApi).GetMethod(nameof(IMarketDataApi.GetFuturesContractAsync))!;
+        var actual = await Assert.ThrowsAsync<InvalidDataException>(() => new MarketDataApiDispatcher(backend, allowLifecycle: false)
+            .InvokeAsync(new(MarketDataApiClient.Signature(method), [MarketDataHostConnection.Encode("ES")]), default));
+        Assert.Same(failure, actual);
     }
 }

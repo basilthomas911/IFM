@@ -3,11 +3,15 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared
 
     public static class IntrinsicTimeTrendTypeExtensions
     {
-        public static string ToStringFast(this IntrinsicTimeTrendType value) => value switch
+
+        extension(IntrinsicTimeTrendType value)
         {
-            IntrinsicTimeTrendType.UpTrend => nameof(IntrinsicTimeTrendType.UpTrend),
-            IntrinsicTimeTrendType.DownTrend => nameof(IntrinsicTimeTrendType.DownTrend),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                IntrinsicTimeTrendType.UpTrend => nameof(IntrinsicTimeTrendType.UpTrend),
+                IntrinsicTimeTrendType.DownTrend => nameof(IntrinsicTimeTrendType.DownTrend),
+                _ => value.ToString()
+            };
+        }
     }
 }

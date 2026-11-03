@@ -7,12 +7,16 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
     public static class OrderTypeExtensions
     {
-        public static string ToStringFast(this OrderType value) => value switch
+
+        extension(OrderType value)
         {
-            OrderType.Limit => nameof(OrderType.Limit),
-            OrderType.Market => nameof(OrderType.Market),
-            OrderType.CloseAlgo => nameof(OrderType.CloseAlgo),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                OrderType.Limit => nameof(OrderType.Limit),
+                OrderType.Market => nameof(OrderType.Market),
+                OrderType.CloseAlgo => nameof(OrderType.CloseAlgo),
+                _ => value.ToString()
+            };
+        }
     }
 }

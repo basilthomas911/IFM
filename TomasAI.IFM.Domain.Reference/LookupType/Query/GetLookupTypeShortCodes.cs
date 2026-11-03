@@ -9,19 +9,26 @@ namespace TomasAI.IFM.Domain.Reference.LookupType.Query;
 
 public static class GetLookupTypeShortCodes
 {
-    /// <summary>
-    /// Handles the GetLookupTypeShortCodesQuery by retrieving the lookup type short codes from the database and replying with the result.
-    /// </summary>
-    /// <param name="q">The query for retrieving lookup type short codes.</param>
-    /// <param name="context">The query actor context.</param>
-    /// <param name="dbFactory">The database context factory.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask<LookupTypeShortCodeReadModel[]> ExecuteAsync(
-        this GetLookupTypeShortCodesQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        
+
+    /// <param name="q">
+    /// The query for retrieving lookup type short codes.
+    /// </param>
+    extension(GetLookupTypeShortCodesQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        return [.. await (dbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(q.LookupTypeName, cancellationToken)).ConfigureAwait(false)];
+        /// <summary>
+        /// Handles the GetLookupTypeShortCodesQuery by retrieving the lookup type short codes from the database and replying with the result.
+        /// </summary>
+        ///
+        /// <param name="context">The query actor context.</param>
+        /// <param name="dbFactory">The database context factory.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public async ValueTask<LookupTypeShortCodeReadModel[]> ExecuteAsync(
+        IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            return [.. await (dbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(q.LookupTypeName, cancellationToken)).ConfigureAwait(false)];
+        }
     }
 }

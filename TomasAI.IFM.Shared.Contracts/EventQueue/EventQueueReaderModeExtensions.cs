@@ -7,13 +7,17 @@ namespace TomasAI.IFM.Shared.EventQueue
 
     public static class EventQueueReaderModeExtensions
     {
-        public static string ToStringFast(this EventQueueReaderMode value) => value switch
+
+        extension(EventQueueReaderMode value)
         {
-            EventQueueReaderMode.AllItems => nameof(EventQueueReaderMode.AllItems),
-            EventQueueReaderMode.LastItem => nameof(EventQueueReaderMode.LastItem),
-            EventQueueReaderMode.Sync => nameof(EventQueueReaderMode.Sync),
-            EventQueueReaderMode.Async => nameof(EventQueueReaderMode.Async),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                EventQueueReaderMode.AllItems => nameof(EventQueueReaderMode.AllItems),
+                EventQueueReaderMode.LastItem => nameof(EventQueueReaderMode.LastItem),
+                EventQueueReaderMode.Sync => nameof(EventQueueReaderMode.Sync),
+                EventQueueReaderMode.Async => nameof(EventQueueReaderMode.Async),
+                _ => value.ToString()
+            };
+        }
     }
 }

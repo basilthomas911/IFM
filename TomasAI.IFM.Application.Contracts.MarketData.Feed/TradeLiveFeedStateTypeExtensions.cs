@@ -13,12 +13,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared;
 /// allowing for easier string representation of its values.</remarks>
 public static class TradeLiveFeedStateTypeExtensions
 {
-    public static string ToStringFast(this TradeLiveFeedStateType value) => value switch
+
+    extension(TradeLiveFeedStateType value)
     {
-        TradeLiveFeedStateType.Unknown => nameof(TradeLiveFeedStateType.Unknown),
-        TradeLiveFeedStateType.Off => nameof(TradeLiveFeedStateType.Off),
-        TradeLiveFeedStateType.Halted => nameof(TradeLiveFeedStateType.Halted),
-        TradeLiveFeedStateType.On => nameof(TradeLiveFeedStateType.On),
-        _ => value.ToString()
-    };
+        public string ToStringFast() => value switch
+        {
+            TradeLiveFeedStateType.Unknown => nameof(TradeLiveFeedStateType.Unknown),
+            TradeLiveFeedStateType.Off => nameof(TradeLiveFeedStateType.Off),
+            TradeLiveFeedStateType.Halted => nameof(TradeLiveFeedStateType.Halted),
+            TradeLiveFeedStateType.On => nameof(TradeLiveFeedStateType.On),
+            _ => value.ToString()
+        };
+    }
 }

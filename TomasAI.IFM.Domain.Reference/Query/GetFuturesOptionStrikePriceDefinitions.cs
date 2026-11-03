@@ -10,29 +10,39 @@ namespace TomasAI.IFM.Domain.Reference.Query;
 
 public static class GetFuturesOptionStrikePriceDefinitions
 {
-    /// <summary>
-    /// Handles the GetFuturesOptionStrikePriceDefinitionsQuery by retrieving the minimum, maximum, and increment values for futures option strike prices from the reference database and replying with the results.
-    /// </summary>
-    /// <param name="q">The query to handle.</param>
-    /// <param name="context">The query actor context.</param>
-    /// <param name="dbFactory">The database context factory.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public static ValueTask<FuturesOptionStrikePriceReadModel> ExecuteAsync(
-        this GetFuturesOptionStrikePriceDefinitionsQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        
+
+    /// <param name="q">
+    /// The query to handle.
+    /// </param>
+    extension(GetFuturesOptionStrikePriceDefinitionsQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        return GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory.ReferenceDb, cancellationToken);
+        /// <summary>
+        /// Handles the GetFuturesOptionStrikePriceDefinitionsQuery by retrieving the minimum, maximum, and increment values for futures option strike prices from the reference database and replying with the results.
+        /// </summary>
+        ///
+        /// <param name="context">The query actor context.</param>
+        /// <param name="dbFactory">The database context factory.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public ValueTask<FuturesOptionStrikePriceReadModel> ExecuteAsync(
+        IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            return GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory.ReferenceDb, cancellationToken);
+        }
     }
 
-    /// <summary>Reads and replies with the requested Reference result.</summary>
-    public static async ValueTask ExecuteAsync(this GetFuturesOptionStrikePriceDefinitionsQuery query, Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
+    extension(GetFuturesOptionStrikePriceDefinitionsQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<FuturesOptionStrikePriceReadModel>(result)).ConfigureAwait(false);
+        /// <summary>Reads and replies with the requested Reference result.</summary>
+        public async ValueTask ExecuteAsync(Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<FuturesOptionStrikePriceReadModel>(result)).ConfigureAwait(false);
+        }
     }
 
     internal static async ValueTask<FuturesOptionStrikePriceReadModel> GetFuturesOptionStrikePriceDefinitionsAsync(

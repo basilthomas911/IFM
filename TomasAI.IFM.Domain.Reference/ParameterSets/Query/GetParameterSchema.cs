@@ -6,13 +6,17 @@ namespace TomasAI.IFM.Domain.Reference.ParameterSets.Query;
 
 public static class GetParameterSchema
 {
-    public static async ValueTask ExecuteAsync(this GetParameterSchemaQuery query, IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
+
+    extension(GetParameterSchemaQuery query)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
-        context.AccessPolicy.Demand(ParameterCapability.Read);
-        var result = await (context.ConfigurationDb.GetParameterSchemaAsync(query.ComponentCode, query.SchemaVersion, token)).ConfigureAwait(false)
-         ?? throw new KeyNotFoundException("PARAM.SCHEMA_UNSUPPORTED");
-        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSchemaDefinition>(result))).ConfigureAwait(false);
+        public async ValueTask ExecuteAsync(IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
+        {
+            ArgumentNullException.ThrowIfNull(query);
+            ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
+            context.AccessPolicy.Demand(ParameterCapability.Read);
+            var result = await (context.ConfigurationDb.GetParameterSchemaAsync(query.ComponentCode, query.SchemaVersion, token)).ConfigureAwait(false)
+             ?? throw new KeyNotFoundException("PARAM.SCHEMA_UNSUPPORTED");
+            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSchemaDefinition>(result))).ConfigureAwait(false);
+        }
     }
 }

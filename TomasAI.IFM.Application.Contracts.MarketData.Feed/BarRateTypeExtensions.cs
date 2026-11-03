@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 
     public static class BarRateTypeExtensions
     {
-        public static string ToStringFast(this BarRateType value) => value switch
+
+        extension(BarRateType value)
         {
-            BarRateType.Minute => nameof(BarRateType.Minute),
-            BarRateType.FifteenSeconds => nameof(BarRateType.FifteenSeconds),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                BarRateType.Minute => nameof(BarRateType.Minute),
+                BarRateType.FifteenSeconds => nameof(BarRateType.FifteenSeconds),
+                _ => value.ToString()
+            };
+        }
     }
 }

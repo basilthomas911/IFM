@@ -18,17 +18,20 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Realtime
 /// <summary>Handles one MarketOutlookComponentChangedRealtimeEvent message.</summary>
 public static class MarketOutlookComponentChanged
 {
-    /// <summary>Submits this realtime observation through the existing Market Outlook writer.</summary>
-    public static ValueTask ExecuteAsync(
-        this MarketOutlookComponentChangedRealtimeEvent source,
-        IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
-        ILogger<MarketOutlookSnapshotRealtimeActor> logger)
+
+    extension(MarketOutlookComponentChangedRealtimeEvent source)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        SubmitComponent(source, context);
-        return ValueTask.CompletedTask;
+        /// <summary>Submits this realtime observation through the existing Market Outlook writer.</summary>
+        public ValueTask ExecuteAsync(
+            IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
+            ILogger<MarketOutlookSnapshotRealtimeActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            SubmitComponent(source, context);
+            return ValueTask.CompletedTask;
+        }
     }
 
     static void SubmitComponent(

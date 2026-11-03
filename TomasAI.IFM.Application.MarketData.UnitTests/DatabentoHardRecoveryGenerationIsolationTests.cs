@@ -7,6 +7,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
+[Collection(ProcessResourceQualificationCollection.Name)]
 public sealed class DatabentoHardRecoveryGenerationIsolationTests
 {
     static readonly DateOnly ValueDate = new(2026, 9, 30);
@@ -58,7 +59,7 @@ public sealed class DatabentoHardRecoveryGenerationIsolationTests
             var request = new DatasetWorkerStartRequest
             {
                 ExecutablePath = DotNetHost(),
-                PrefixArguments = [typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
+                PrefixArguments = [Harness.WorkerTestProcess.AssemblyPath],
                 Dataset = manifest.Dataset,
                 ValueDate = manifest.ValueDate,
                 WorkerInstanceId = Guid.NewGuid(),

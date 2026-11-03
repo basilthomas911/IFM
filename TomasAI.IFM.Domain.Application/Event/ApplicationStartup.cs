@@ -18,58 +18,60 @@ public static class ApplicationStartup
     static readonly Guid ProcessBootId = Guid.NewGuid();
     static readonly TimeSpan StatusConsoleWriteTimeout = TimeSpan.FromMilliseconds(250);
 
-    /// <summary>Processes startup activity and publishes the corresponding lifecycle result.</summary>
-    public static async ValueTask ExecuteAsync(
-        this ApplicationStartupEvent @event,
-        IApplicationEventContext context,
-        ILogger<ApplicationEventActor> logger, CancellationToken cancellationToken)
+    extension(ApplicationStartupEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-
-        var existing = context.StartupStatusStore.Current;
-        if (existing.ValueDate == @event.EntityId.ValueDate
-            && existing.State is ApplicationLifecycleState.Running
-                or ApplicationLifecycleState.Degraded
-                or ApplicationLifecycleState.ScheduledStopped)
+        /// <summary>Processes startup activity and publishes the corresponding lifecycle result.</summary>
+        public async ValueTask ExecuteAsync(
+            IApplicationEventContext context,
+            ILogger<ApplicationEventActor> logger, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+
+            var existing = context.StartupStatusStore.Current;
+            if (existing.ValueDate == @event.EntityId.ValueDate
+                && existing.State is ApplicationLifecycleState.Running
+                    or ApplicationLifecycleState.Degraded
+                    or ApplicationLifecycleState.ScheduledStopped)
+            {
+                await ReportAsync(
+                    context.StatusConsoleWriter,
+                    logger,
+                    $"Application startup already reconciled for {@event.EntityId.ValueDate:yyyy-MM-dd}; no duplicate side effects were executed.")
+                    .ConfigureAwait(false);
+                await SendTerminalAsync(@event, context, existing.State, existing.Summary)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            var correlationId = @event.Id == Guid.Empty ? Guid.NewGuid() : @event.Id;
+            var workflow = new ApplicationStartupContext(
+                @event.EntityId.ValueDate,
+                ProcessBootId,
+                @event.CommandId,
+                correlationId);
+            var workflowStarted = context.TimeProvider.GetUtcNow().UtcDateTime;
+            var results = new List<ApplicationStartupActivityResult>(ApplicationStartupPlan.Activities.Count);
+            context.StartupStatusStore.Set(new()
+            {
+                State = ApplicationLifecycleState.Starting,
+                ValueDate = workflow.ValueDate,
+                ProcessBootId = workflow.ProcessBootId,
+                CommandId = workflow.CommandId,
+                CorrelationId = workflow.CorrelationId,
+                StartedAtUtc = workflowStarted,
+                Summary = "Application startup activities are executing by dependency layer."
+            });
             await ReportAsync(
                 context.StatusConsoleWriter,
                 logger,
-                $"Application startup already reconciled for {@event.EntityId.ValueDate:yyyy-MM-dd}; no duplicate side effects were executed.")
+                $"Application startup began. ValueDate={workflow.ValueDate:yyyy-MM-dd}; CommandId={workflow.CommandId}; CorrelationId={workflow.CorrelationId}.")
                 .ConfigureAwait(false);
-            await SendTerminalAsync(@event, context, existing.State, existing.Summary)
-                .ConfigureAwait(false);
-            return;
+
+            results.AddRange(await ExecutePlanAsync(workflow, context, cancellationToken).ConfigureAwait(false));
+
+            await CompleteStartupAsync(@event, workflow, workflowStarted, results, context, logger).ConfigureAwait(false);
         }
-
-        var correlationId = @event.Id == Guid.Empty ? Guid.NewGuid() : @event.Id;
-        var workflow = new ApplicationStartupContext(
-            @event.EntityId.ValueDate,
-            ProcessBootId,
-            @event.CommandId,
-            correlationId);
-        var workflowStarted = context.TimeProvider.GetUtcNow().UtcDateTime;
-        var results = new List<ApplicationStartupActivityResult>(ApplicationStartupPlan.Activities.Count);
-        context.StartupStatusStore.Set(new()
-        {
-            State = ApplicationLifecycleState.Starting,
-            ValueDate = workflow.ValueDate,
-            ProcessBootId = workflow.ProcessBootId,
-            CommandId = workflow.CommandId,
-            CorrelationId = workflow.CorrelationId,
-            StartedAtUtc = workflowStarted,
-            Summary = "Application startup activities are executing by dependency layer."
-        });
-        await ReportAsync(
-            context.StatusConsoleWriter,
-            logger,
-            $"Application startup began. ValueDate={workflow.ValueDate:yyyy-MM-dd}; CommandId={workflow.CommandId}; CorrelationId={workflow.CorrelationId}.")
-            .ConfigureAwait(false);
-
-        results.AddRange(await ExecutePlanAsync(workflow, context, cancellationToken).ConfigureAwait(false));
-
-        await CompleteStartupAsync(@event, workflow, workflowStarted, results, context, logger).ConfigureAwait(false);
     }
 
     /// <summary>Records the final startup snapshot and publishes its terminal result after every activity completes.</summary>
@@ -137,17 +139,17 @@ public static class ApplicationStartup
 
     }
 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
     /// <summary>Runs one startup activity after dependencies pass and records a classified result.</summary>
     static async ValueTask<ApplicationStartupActivityResult> ExecuteActivityAsync(
-        ApplicationStartupActivity activity,
-        bool required,
-        IReadOnlyCollection<ApplicationStartupActivity> dependencies,
-        ApplicationStartupContext workflow,
-        IApplicationEventContext context,
-        Func<ApplicationStartupContext, CancellationToken, ValueTask<ApplicationStartupActivityOutcome>> execute,
-        IReadOnlyCollection<ApplicationStartupActivityResult> previous,
-        CancellationToken cancellationToken)
+            ApplicationStartupActivity activity,
+            bool required,
+            IReadOnlyCollection<ApplicationStartupActivity> dependencies,
+            ApplicationStartupContext workflow,
+            IApplicationEventContext context,
+            Func<ApplicationStartupContext, CancellationToken, ValueTask<ApplicationStartupActivityOutcome>> execute,
+            IReadOnlyCollection<ApplicationStartupActivityResult> previous,
+            CancellationToken cancellationToken)
     {
         var started = context.TimeProvider.GetUtcNow().UtcDateTime;
         var blockedBy = dependencies.FirstOrDefault(dependency => previous.Any(result =>
@@ -251,25 +253,25 @@ public static class ApplicationStartup
         ApplicationStartupContext workflow,
         ApplicationStartupActivityResult result)
     {
-        
-            var diagnosticLogger = context.Logger;
-            if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
-            {
-                global::TomasAI.IFM.Domain.Application.StorageMigrationDiagnosticLog.Write3(diagnosticLogger, null, result.Activity, result.Outcome, result.Required, workflow.ValueDate, workflow.CommandId, workflow.CorrelationId, result.Reason);
-            }
-        
+
+        var diagnosticLogger = context.Logger;
+        if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+        {
+            global::TomasAI.IFM.Domain.Application.StorageMigrationDiagnosticLog.Write3(diagnosticLogger, null, result.Activity, result.Outcome, result.Required, workflow.ValueDate, workflow.CommandId, workflow.CorrelationId, result.Reason);
+        }
+
         await ReportAsync(
             context.StatusConsoleWriter,
             context.Logger,
             $"Application startup: {result.Activity} => {result.Outcome}. {result.Reason}")
             .ConfigureAwait(false);
     }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
     /// <summary>Writes a bounded best-effort informational status-console message.</summary>
     static async ValueTask ReportAsync(
-        IStatusConsoleWriter writer,
-        ILogger logger,
-        string message)
+            IStatusConsoleWriter writer,
+            ILogger logger,
+            string message)
     {
         Task? write = null;
         try
@@ -287,12 +289,12 @@ public static class ApplicationStartup
             global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write4(logger, exception);
         }
     }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
     /// <summary>Writes bounded best-effort failure detail to the status console.</summary>
     static async ValueTask ReportErrorAsync(
-        IStatusConsoleWriter writer,
-        ILogger logger,
-        ApplicationStartupActivityResult result)
+            IStatusConsoleWriter writer,
+            ILogger logger,
+            ApplicationStartupActivityResult result)
     {
         Task? write = null;
         try
@@ -315,7 +317,7 @@ public static class ApplicationStartup
             global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write6(logger, exception);
         }
     }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
     /// <summary>Observes and logs a status-console write that outlived its wait timeout.</summary>
     static async Task ObserveLateConsoleWriteAsync(Task write, ILogger logger)
     {

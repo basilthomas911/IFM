@@ -15,14 +15,21 @@ public sealed class MarketDataApiDispatcher(IMarketDataApi backend, bool allowLi
         .ToDictionary(MarketDataApiClient.Signature, StringComparer.Ordinal);
     public async Task<byte[]> InvokeAsync(MarketDataApiCall call, CancellationToken token)
     {
-        if (!methods.TryGetValue(call.Signature, out var method)
+        if (string.IsNullOrEmpty(call.Signature) || !methods.TryGetValue(call.Signature, out var method)
             || !allowLifecycle && (method.Name is nameof(IMarketDataApi.StartAsync) or nameof(IMarketDataApi.StopAsync)
-                || method.GetCustomAttribute<MarketDataHostOperationAttribute>() is not null)) throw new InvalidDataException("Unknown market-data API operation.");
+                || method.GetCustomAttribute<MarketDataHostOperationAttribute>() is not null)) throw new MarketDataApiRequestRejectedException("Unknown market-data API operation.");
         var parameters = method.GetParameters();
-        if (parameters.Length != call.Arguments.Length) throw new InvalidDataException("Market-data argument count differs.");
-        var arguments = parameters.Select((parameter, index) => parameter.ParameterType == typeof(CancellationToken)
-            ? (object)token : call.Arguments[index].Length == 0 ? null
-            : MessagePackSerializer.Deserialize(parameter.ParameterType, call.Arguments[index], MarketDataHostConnection.Serialization)).ToArray();
+        if (call.Arguments is null || parameters.Length != call.Arguments.Length || call.Arguments.Any(argument => argument is null))
+            throw new MarketDataApiRequestRejectedException("Market-data argument count or payload differs.");
+        object?[] arguments;
+        try
+        {
+            arguments = parameters.Select((parameter, index) => parameter.ParameterType == typeof(CancellationToken)
+                ? (object)token : call.Arguments[index].Length == 0 ? null
+                : MessagePackSerializer.Deserialize(parameter.ParameterType, call.Arguments[index], MarketDataHostConnection.Serialization)).ToArray();
+        }
+        catch (MessagePackSerializationException error)
+        { throw new MarketDataApiRequestRejectedException("Market-data argument payload is invalid.", error); }
         Task pending;
         try { pending = (Task)method.Invoke(backend, arguments)!; }
         catch (TargetInvocationException error) when (error.InnerException is not null)

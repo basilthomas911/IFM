@@ -12,72 +12,77 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
 public static class GetFuturesRiskPositionType
 {
-    internal static async ValueTask<RiskPositionTypeReadModel> ExecuteAsync(
-        this GetFuturesRiskPositionTypeQuery q,
-        IDbContextFactory dbFactory)
+
+    extension(GetFuturesRiskPositionTypeQuery q)
     {
-        var riskPositionType = RiskPositionType.Unknown;
-
-        var futuresEodData = await (dbFactory.MarketDataDb.GetCurrentFuturesEodDataAsync(q.ValueDate)).ConfigureAwait(false);
-        if (futuresEodData is not null)
+        internal async ValueTask<RiskPositionTypeReadModel> ExecuteAsync(
+            IDbContextFactory dbFactory)
         {
-            var riskPositionValue = q.TradeType switch
+            var riskPositionType = RiskPositionType.Unknown;
+
+            var futuresEodData = await (dbFactory.MarketDataDb.GetCurrentFuturesEodDataAsync(q.ValueDate)).ConfigureAwait(false);
+            if (futuresEodData is not null)
             {
-                TradeType.ShortIronCondor => GetShortIronCondorRiskPosition(futuresEodData),
-                TradeType.LongIronCondor => GetLongIronCondorRiskPosition(futuresEodData),
-                _ => throw new NotSupportedException($"Risk Position Type not implemented for: {q.TradeType}")
-            };
-            riskPositionType = riskPositionValue switch
+                var riskPositionValue = q.TradeType switch
+                {
+                    TradeType.ShortIronCondor => GetShortIronCondorRiskPosition(futuresEodData),
+                    TradeType.LongIronCondor => GetLongIronCondorRiskPosition(futuresEodData),
+                    _ => throw new NotSupportedException($"Risk Position Type not implemented for: {q.TradeType}")
+                };
+                riskPositionType = riskPositionValue switch
+                {
+                    _ when riskPositionValue < 3 => RiskPositionType.Low,
+                    _ when riskPositionValue == 3 => RiskPositionType.Medium,
+                    _ when riskPositionValue > 3 => RiskPositionType.High,
+                    _ => RiskPositionType.Unknown
+                };
+            }
+
+            return new RiskPositionTypeReadModel(riskPositionType);
+
+            static int GetShortIronCondorRiskPosition(FuturesEodDataV2ReadModel futuresEodData)
             {
-                _ when riskPositionValue < 3 => RiskPositionType.Low,
-                _ when riskPositionValue == 3 => RiskPositionType.Medium,
-                _ when riskPositionValue > 3 => RiskPositionType.High,
-                _ => RiskPositionType.Unknown
-            };
-        }
+                var riskPositionValue = 0;
+                if (futuresEodData.MarketDirection == MarketDirectionType.NeutralUp || futuresEodData.MarketDirection == MarketDirectionType.Up)
+                    riskPositionValue++;
+                if (futuresEodData.MarketVolatility == MarketVolatilityType.Normal || futuresEodData.MarketVolatility == MarketVolatilityType.Falling)
+                    riskPositionValue++;
+                if (futuresEodData.PriceDirection == PriceDirectionType.Rising)
+                    riskPositionValue++;
+                if (futuresEodData.PriceVolatility == PriceVolatilityType.Falling)
+                    riskPositionValue++;
+                return riskPositionValue;
+            }
 
-        return new RiskPositionTypeReadModel(riskPositionType);
-
-        static int GetShortIronCondorRiskPosition(FuturesEodDataV2ReadModel futuresEodData)
-        {
-            var riskPositionValue = 0;
-            if (futuresEodData.MarketDirection == MarketDirectionType.NeutralUp || futuresEodData.MarketDirection == MarketDirectionType.Up)
-                riskPositionValue++;
-            if (futuresEodData.MarketVolatility == MarketVolatilityType.Normal || futuresEodData.MarketVolatility == MarketVolatilityType.Falling)
-                riskPositionValue++;
-            if (futuresEodData.PriceDirection == PriceDirectionType.Rising)
-                riskPositionValue++;
-            if (futuresEodData.PriceVolatility == PriceVolatilityType.Falling)
-                riskPositionValue++;
-            return riskPositionValue;
-        }
-
-        static int GetLongIronCondorRiskPosition(FuturesEodDataV2ReadModel futuresEodData)
-        {
-            var riskPositionValue = 0;
-            if (futuresEodData.MarketDirection == MarketDirectionType.NeutralDown || futuresEodData.MarketDirection == MarketDirectionType.Down)
-                riskPositionValue++;
-            if (futuresEodData.MarketVolatility == MarketVolatilityType.Rising || futuresEodData.MarketVolatility == MarketVolatilityType.High)
-                riskPositionValue++;
-            if (futuresEodData.PriceDirection == PriceDirectionType.Falling)
-                riskPositionValue++;
-            if (futuresEodData.PriceVolatility == PriceVolatilityType.Rising)
-                riskPositionValue++;
-            return riskPositionValue;
+            static int GetLongIronCondorRiskPosition(FuturesEodDataV2ReadModel futuresEodData)
+            {
+                var riskPositionValue = 0;
+                if (futuresEodData.MarketDirection == MarketDirectionType.NeutralDown || futuresEodData.MarketDirection == MarketDirectionType.Down)
+                    riskPositionValue++;
+                if (futuresEodData.MarketVolatility == MarketVolatilityType.Rising || futuresEodData.MarketVolatility == MarketVolatilityType.High)
+                    riskPositionValue++;
+                if (futuresEodData.PriceDirection == PriceDirectionType.Falling)
+                    riskPositionValue++;
+                if (futuresEodData.PriceVolatility == PriceVolatilityType.Rising)
+                    riskPositionValue++;
+                return riskPositionValue;
+            }
         }
     }
 
-    /// <summary>Reads and replies with the requested market-data feed result.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetFuturesRiskPositionTypeQuery query,
-        TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
-        MarketDataFeedQueryParameters parameters)
+    extension(GetFuturesRiskPositionTypeQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(parameters);
-        ArgumentNullException.ThrowIfNull(query);
-        var result = await query.ExecuteAsync(parameters.DbFactory).ConfigureAwait(false);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            new TomasAI.IFM.Shared.EventSourcing.ServiceResult<RiskPositionTypeReadModel>(result)).ConfigureAwait(false);
+        /// <summary>Reads and replies with the requested market-data feed result.</summary>
+        public async ValueTask ExecuteAsync(
+            TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
+            MarketDataFeedQueryParameters parameters)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(parameters);
+            ArgumentNullException.ThrowIfNull(query);
+            var result = await query.ExecuteAsync(parameters.DbFactory).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+                new TomasAI.IFM.Shared.EventSourcing.ServiceResult<RiskPositionTypeReadModel>(result)).ConfigureAwait(false);
+        }
     }
 }

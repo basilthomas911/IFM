@@ -11,57 +11,60 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Realtime;
 /// <summary>Handles shared closed observations routed to the stateless ADX realtime actor.</summary>
 public static class FuturesTradeSessionBarClosed
 {
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Sends one event-sourced ADX Generate command for every matching active ADX identity.</summary>
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesTradeSessionBarClosedRealtimeEvent @event,
-        IFuturesAdxSignalRealtimeContext context,
-        ILogger logger)
-    {
-        ArgumentNullException.ThrowIfNull(@event);
-        IsArgumentNull.Check(@event);
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(logger);
-        var observation = IsArgumentNull.Set(@event.Observation);
-        if (!observation.IsValid)
-            return true;
 
-        try
+    extension(FuturesTradeSessionBarClosedRealtimeEvent @event)
+    {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Sends one event-sourced ADX Generate command for every matching active ADX identity.</summary>
+        public async ValueTask<bool> ExecuteAsync(
+                IFuturesAdxSignalRealtimeContext context,
+                ILogger logger)
         {
-            var succeeded = true;
-            foreach (var entityId in FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>
-                         .Snapshot()
-                         .Where(entityId => Matches(entityId, observation)))
+            ArgumentNullException.ThrowIfNull(@event);
+            IsArgumentNull.Check(@event);
+            IsArgumentNull.Check(context);
+            IsArgumentNull.Check(logger);
+            var observation = IsArgumentNull.Set(@event.Observation);
+            if (!observation.IsValid)
+                return true;
+
+            try
             {
-                var signalId = new FuturesAdxSignalId(
-                    entityId.ContractId,
-                    entityId.ValueDate,
-                    entityId.TimePeriod,
-                    entityId.PeriodLength,
-                    TimeOnly.FromDateTime(observation.LastMarketEventUtc.UtcDateTime));
-                var result = await context.GenerateFuturesAdxSignalAsync(
-                        signalId,
-                        observation.Close,
-                        observation)
-                    .ConfigureAwait(false);
-                FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Observe(entityId, observation.LastMarketEventUtc, result is not ServiceFailed<GuidResult>);
-                if (result is ServiceFailed<GuidResult> failed)
+                var succeeded = true;
+                foreach (var entityId in FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>
+                             .Snapshot()
+                             .Where(entityId => Matches(entityId, observation)))
                 {
-                    succeeded = false;
-                    global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write1(logger, null, observation.ObservationId, entityId, failed.ErrorMessage);
+                    var signalId = new FuturesAdxSignalId(
+                        entityId.ContractId,
+                        entityId.ValueDate,
+                        entityId.TimePeriod,
+                        entityId.PeriodLength,
+                        TimeOnly.FromDateTime(observation.LastMarketEventUtc.UtcDateTime));
+                    var result = await context.GenerateFuturesAdxSignalAsync(
+                            signalId,
+                            observation.Close,
+                            observation)
+                        .ConfigureAwait(false);
+                    FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Observe(entityId, observation.LastMarketEventUtc, result is not ServiceFailed<GuidResult>);
+                    if (result is ServiceFailed<GuidResult> failed)
+                    {
+                        succeeded = false;
+                        global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write1(logger, null, observation.ObservationId, entityId, failed.ErrorMessage);
+                    }
+                    else
+                        global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write2(logger, null, observation.ObservationId, entityId);
                 }
-                else
-                    global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write2(logger, null, observation.ObservationId, entityId);
+                return succeeded;
             }
-            return succeeded;
-        }
-        catch (Exception exception)
-        {
-            logger.LogErrorEvent(
-                nameof(FuturesTradeSessionBarClosedRealtimeEvent),
-                exception,
-                "Unable to forward observation {ObservationId} to the ADX command actor",
-                observation.ObservationId);
-            return false;
+            catch (Exception exception)
+            {
+                logger.LogErrorEvent(
+                    nameof(FuturesTradeSessionBarClosedRealtimeEvent),
+                    exception,
+                    "Unable to forward observation {ObservationId} to the ADX command actor",
+                    observation.ObservationId);
+                return false;
+            }
         }
     }
 

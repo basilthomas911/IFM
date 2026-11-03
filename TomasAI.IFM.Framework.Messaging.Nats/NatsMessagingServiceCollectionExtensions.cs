@@ -12,21 +12,25 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// </summary>
 public static class NatsMessagingServiceCollectionExtensions
 {
-    public static IServiceCollection AddNatsActorEventListeners(this IServiceCollection services)
+
+    extension(IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        services.TryAddSingleton<INatsEventListenerOptions, NatsEventListenerOptions>();
-        services.TryAddSingleton<INatsJetStreamEventListenerOptions, NatsJetStreamEventListenerOptions>();
-        services.TryAddSingleton<NatsConnectionManager>();
-        services.TryAddSingleton<IActorEventListener>(provider => new NatsActorEventListener(
-            provider.GetRequiredService<INatsEventListenerOptions>(),
-            CreateLogger<NatsActorEventListener>(provider),
-            provider.GetRequiredService<NatsConnectionManager>()));
-        services.TryAddSingleton<IJSActorEventListener>(provider => new NatsJetStreamEventListener(
-            provider.GetRequiredService<INatsJetStreamEventListenerOptions>(),
-            CreateLogger<NatsJetStreamEventListener>(provider),
-            provider.GetRequiredService<NatsConnectionManager>()));
-        return services;
+        public IServiceCollection AddNatsActorEventListeners()
+        {
+            ArgumentNullException.ThrowIfNull(services);
+            services.TryAddSingleton<INatsEventListenerOptions, NatsEventListenerOptions>();
+            services.TryAddSingleton<INatsJetStreamEventListenerOptions, NatsJetStreamEventListenerOptions>();
+            services.TryAddSingleton<NatsConnectionManager>();
+            services.TryAddSingleton<IActorEventListener>(provider => new NatsActorEventListener(
+                provider.GetRequiredService<INatsEventListenerOptions>(),
+                CreateLogger<NatsActorEventListener>(provider),
+                provider.GetRequiredService<NatsConnectionManager>()));
+            services.TryAddSingleton<IJSActorEventListener>(provider => new NatsJetStreamEventListener(
+                provider.GetRequiredService<INatsJetStreamEventListenerOptions>(),
+                CreateLogger<NatsJetStreamEventListener>(provider),
+                provider.GetRequiredService<NatsConnectionManager>()));
+            return services;
+        }
     }
 
     static ILogger CreateLogger<T>(IServiceProvider provider) =>

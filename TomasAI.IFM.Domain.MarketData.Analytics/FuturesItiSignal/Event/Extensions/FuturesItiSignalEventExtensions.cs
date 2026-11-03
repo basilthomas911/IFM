@@ -23,401 +23,427 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensi
 /// <summary>Provides the FuturesItiSignalEventExtensions implementation.</summary>
 public static class FuturesItiSignalEventExtensions
 {
-    /// <summary>
-    /// Retrieves the most recent end-of-day (EOD) futures data for a specified contract and value date.
-    /// </summary>
-    /// <remarks>This method performs an asynchronous request and may return null if the operation is
-    /// unsuccessful or if no data is available for the specified parameters.</remarks>
-    /// <param name="contractId">The unique identifier of the futures contract for which EOD data is requested.</param>
-    /// <param name="valueDate">The date for which the most recent end-of-day data is retrieved.</param>
-    /// <returns>A task representing the asynchronous operation. The result contains the EOD data view model,
-    /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesEodDataV2ReadModel?> GetFuturesEodDataAsync<TActor>(this IEventActorContext<TActor> context, string contractId, DateOnly valueDate)
-        where TActor : IActor
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        var futuresEodData = default(FuturesEodDataV2ReadModel);
-        if (TomasAI.IFM.Domain.MarketData.Feed.Shared.CurrentFuturesEodCache.Shared.TryGet(contractId, valueDate, out var current)) return current;
-        var entityId = new GetLastFuturesEodDataParameter(contractId, valueDate);
-        GetLastFuturesEodDataQuery query = new(contractId, valueDate)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetLastFuturesEodDataQuery.Actor, GetLastFuturesEodDataQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetLastFuturesEodDataQuery.ErrorId
-        };
-        var serviceResult = await (context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(query)).ConfigureAwait(false);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            futuresEodData = serviceResult.Value;
-        return futuresEodData;
-    }
 
-    /// <summary>
+    /// <param name="context">
     ///
-    /// </summary>
-    /// <param name="context"></param>
-    /// <param name="contractId"></param>
-    /// <param name="valueDate"></param>
-    /// <param name="timePeriod"></param>
-    /// <param name="periodLength"></param>
-    /// <returns></returns>
-    public static async ValueTask<FuturesRsiSignalReadModel?> GetFuturesRsiSignalAsync<TActor>(this IEventActorContext<TActor> context, string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
+    /// </param>
+    extension<TActor>(IEventActorContext<TActor> context)
         where TActor : IActor
     {
-        ArgumentNullException.ThrowIfNull(context);
-        var rsiSignal = default(FuturesRsiSignalReadModel);
-        var entityId = new FuturesRsiSignalEntityId(contractId, valueDate, timePeriod, periodLength);
-        GetFuturesRsiSignalQuery query = new(contractId, valueDate, timePeriod, periodLength)
+        /// <summary>
+        /// Retrieves the most recent end-of-day (EOD) futures data for a specified contract and value date.
+        /// </summary>
+        /// <remarks>This method performs an asynchronous request and may return null if the operation is
+        /// unsuccessful or if no data is available for the specified parameters.</remarks>
+        /// <param name="contractId">The unique identifier of the futures contract for which EOD data is requested.</param>
+        /// <param name="valueDate">The date for which the most recent end-of-day data is retrieved.</param>
+        /// <returns>A task representing the asynchronous operation. The result contains the EOD data view model,
+        /// or null if no data is found.</returns>
+        public async ValueTask<FuturesEodDataV2ReadModel?> GetFuturesEodDataAsync(string contractId, DateOnly valueDate)
         {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesRsiSignalQuery.Actor, GetFuturesRsiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetFuturesRsiSignalQuery.ErrorId
-        };
-        var serviceResult = await (context.RequestAsync<FuturesRsiSignalReadModel, GetFuturesRsiSignalQuery>(query)).ConfigureAwait(false);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            rsiSignal = serviceResult.Value;
-        return rsiSignal;
-    }
-
-    /// <summary>
-    /// Retrieves the Traders Dynamic Index (TDI) signal for a specified futures contract and value date.
-    /// </summary>
-    /// <remarks>This method performs an asynchronous request and may return null if the operation is
-    /// unsuccessful or if no data is available for the specified parameters.</remarks>
-    /// <param name="contractId">The unique identifier of the futures contract for which the TDI signal is requested.</param>
-    /// <param name="valueDate">The date for which the TDI signal is retrieved.</param>
-    /// <param name="timePeriod">The intraday TDI sampling period.</param>
-    /// <returns>A task representing the asynchronous operation. The result contains the TDI signal view model,
-    /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesTdiSignalReadModel?> GetFuturesTdiSignalAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        string contractId,
-        DateOnly valueDate,
-        TimeFrameType timePeriod)
-        where TActor : IActor
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        var tdiSignal = default(FuturesTdiSignalReadModel);
-        var entityId = new FuturesTdiSignalEntityId(
-            contractId,
-            valueDate,
-            timePeriod,
-            FuturesTdiConfiguration.StandardConfigurationId);
-        GetFuturesTdiSignalQuery query = new(
-            contractId,
-            valueDate,
-            timePeriod,
-            FuturesTdiConfiguration.StandardConfigurationId)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetFuturesTdiSignalQuery.ErrorId
-        };
-        var serviceResult = await (context.RequestAsync<FuturesTdiSignalReadModel, GetFuturesTdiSignalQuery>(query)).ConfigureAwait(false);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            tdiSignal = serviceResult.Value;
-        return tdiSignal;
-    }
-
-    /// <summary>
-    /// Retrieves ITI (Intrinsic Time Indicator) signal data for a specified futures contract and value date.
-    /// </summary>
-    /// <remarks>This method performs an asynchronous request and may return null if the operation is
-    /// unsuccessful or if no data is available for the specified parameters.</remarks>
-    /// <param name="contractId">The unique identifier of the futures contract for which ITI signal data is requested.</param>
-    /// <param name="valueDate">The date for which the ITI signal data is retrieved.</param>
-    /// <param name="timePeriod">The time period classification for the ITI signal data, such as daily or weekly.</param>
-    /// <returns>A task representing the asynchronous operation. The result contains the ITI signal data view model,
-    /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesItiSignalDataReadModel?> GetFuturesItiSignalDataAsync<TActor>(this IEventActorContext<TActor> context, string contractId, DateOnly valueDate, TimeFrameType timePeriod)
-        where TActor : IActor
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        var itiSignalData = default(FuturesItiSignalDataReadModel);
-        var entityId = new GetFuturesItiSignalDataParameter(contractId, valueDate, timePeriod);
-        GetFuturesItiSignalDataQuery query = new(contractId, valueDate, timePeriod)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalDataQuery.Actor, GetFuturesItiSignalDataQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetFuturesItiSignalDataQuery.ErrorId
-        };
-        var serviceResult = await (context.RequestAsync<FuturesItiSignalDataReadModel, GetFuturesItiSignalDataQuery>(query)).ConfigureAwait(false);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            itiSignalData = serviceResult.Value;
-        return itiSignalData;
-    }
-
-    /// <summary>
-    /// Retrieves the ITI (Intrinsic Time Indicator) signal for a specified futures contract and value date.
-    /// </summary>
-    /// <remarks>This method performs an asynchronous request and may return null if the operation is
-    /// unsuccessful or if no data is available for the specified parameters.</remarks>
-    /// <param name="context">The event actor context used to perform the request and access actor capabilities.</param>
-    /// <param name="contractId">The unique identifier of the futures contract for which ITI signal is requested.</param>
-    /// <param name="valueDate">The date for which the ITI signal is retrieved.</param>
-    /// <returns>A task representing the asynchronous operation. The result contains the ITI signal view model,
-    /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesItiSignalV2ReadModel?> GetFuturesItiSignalAsync(this IEventActorContext context, string contractId, DateOnly valueDate, TimeFrameType timePeriod)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        var itiSignal = default(FuturesItiSignalV2ReadModel);
-        var entityId = new GetFuturesItiSignalParameter(contractId, valueDate, timePeriod);
-        GetFuturesItiSignalQuery query = new(contractId, valueDate, timePeriod)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalQuery.Actor, GetFuturesItiSignalQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetFuturesItiSignalQuery.ErrorId
-        };
-        var serviceResult = await (context.RequestAsync<FuturesItiSignalV2ReadModel, GetFuturesItiSignalQuery>(query)).ConfigureAwait(false);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            itiSignal = serviceResult.Value;
-        return itiSignal;
-    }
-
-    /// <summary>
-    /// Retrieves the ITI (Intrinsic Time Indicator) MDI signal data by trend for a specified futures contract, value date, and group.
-    /// </summary>
-    /// <remarks>This method performs an asynchronous request and may return null if the operation is
-    /// unsuccessful or if no data is available for the specified parameters.</remarks>
-    /// <param name="context">The event actor context used to perform the request and access actor capabilities.</param>
-    /// <param name="contractId">The unique identifier of the futures contract for which ITI MDI by trend data is requested.</param>
-    /// <param name="valueDate">The date for which the ITI MDI by trend data is retrieved.</param>
-    /// <param name="groupId">The intrinsic time group identifier used to filter the MDI data by trend.</param>
-    /// <returns>A task representing the asynchronous operation. The result contains the ITI MDI by trend view model array,
-    /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesItiSignalMDIV2ReadModel[]?> GetFuturesItiSignalMDIByTrendAsync(this IEventActorContext context, string contractId, DateOnly valueDate, int groupId)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        var mdiByTrend = default(FuturesItiSignalMDIV2ReadModel[]);
-        var entityId = new GetFuturesItiSignalMDIByTrendParameter(contractId, valueDate, groupId);
-        GetFuturesItiSignalMDIByTrendQuery query = new(contractId, valueDate, groupId)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalMDIByTrendQuery.Actor, GetFuturesItiSignalMDIByTrendQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetFuturesItiSignalMDIByTrendQuery.ErrorId
-        };
-        var serviceResult = await (context.RequestAsync<FuturesItiSignalMDIV2ReadModel[], GetFuturesItiSignalMDIByTrendQuery>(query)).ConfigureAwait(false);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            mdiByTrend = serviceResult.Value;
-        return mdiByTrend;
-    }
-
-    /// <summary>
-    /// Retrieves the symbol for a specified futures contract.
-    /// </summary>
-    /// <remarks>This method performs an asynchronous request and may return null if the operation is
-    /// unsuccessful or if no data is available for the specified parameters.</remarks>
-    /// <param name="context">The event actor context used to perform the request and access actor capabilities.</param>
-    /// <param name="contractId">The unique identifier of the futures contract for which the symbol is requested.</param>
-    /// <returns>A task representing the asynchronous operation. The result contains the futures contract symbol,
-    /// or null if no data is found.</returns>
-    public static async ValueTask<string?> GetFuturesContractSymbolAsync(this IEventActorContext context, string contractId)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        var symbol = default(string);
-        var entityId = new GetFuturesContractSymbolParameter(contractId);
-        GetFuturesContractSymbolQuery query = new(contractId)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetFuturesContractSymbolQuery.Actor, GetFuturesContractSymbolQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetFuturesContractSymbolQuery.ErrorId
-        };
-        var serviceResult = await (context.RequestAsync<string, GetFuturesContractSymbolQuery>(query)).ConfigureAwait(false);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            symbol = serviceResult.Value;
-        return symbol;
-    }
-
-
-
-    /// <summary>
-    /// Updates the futures trade signal for a specified contract and value date using end-of-day data and associated
-    /// technical signals.
-    /// </summary>
-    /// <remarks>This method sends an update command to the actor system, incorporating multiple technical
-    /// signals and price data. All optional signal parameters may be null if not applicable. The operation is
-    /// asynchronous and will throw an exception if the update is unsuccessful.</remarks>
-    /// <param name="context">The event actor context used to process the update request and access actor capabilities.</param>
-    /// <param name="futuresEodData">The end-of-day data for the futures contract, including contract identifier and value date.</param>
-    /// <param name="futuresRsiSignal">An optional relative strength index signal that may influence the trade signal update. May be null if not
-    /// available.</param>
-    /// <param name="futuresTdiSignal">An optional TDI signal that may influence the trade signal update. May be null if not available.</param>
-    /// <param name="futuresItiSignalData">An optional ITI signal data that may influence the trade signal update. May be null if not available.</param>
-    /// <param name="vixFuturesPrice">The current price of the VIX futures, used as an input for updating the trade signal.</param>
-    /// <returns>A ValueTask representing the asynchronous operation of updating the futures trade signal.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the update operation fails or returns an unsuccessful result.</exception>
-    public static async ValueTask UpdateFuturesTradeSignalAsync<TActor>(
-        this IEventActorContext<TActor> commandApi,
-        FuturesEodDataV2ReadModel futuresEodData,
-        FuturesRsiSignalReadModel? futuresRsiSignal,
-        FuturesTdiSignalReadModel? futuresTdiSignal,
-        FuturesItiSignalDataReadModel? futuresItiSignalData,
-        decimal vixFuturesPrice,
-        TimeFrameType timePeriod)
-        where TActor : IActor
-    {
-        _ = await (MarketDataAnalyticsCommandApiExtensions.UpdateFuturesTradeSignalAsync(commandApi,
-            futuresEodData,
-            futuresRsiSignal,
-            futuresTdiSignal,
-            futuresItiSignalData,
-            vixFuturesPrice,
-            timePeriod)).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Asynchronously generates a futures ITI signal for the specified contract, date, and time period using the
-    /// provided futures price and timestamp.
-    /// </summary>
-    /// <param name="context">The event actor context used to process the command and interact with the event system. Cannot be null.</param>
-    /// <param name="contractId">The unique identifier of the futures contract for which the ITI signal is generated. Cannot be null or empty.</param>
-    /// <param name="valueDate">The value date for which the ITI signal is generated.</param>
-    /// <param name="timePeriod">The time period type that specifies the duration or granularity of the ITI signal.</param>
-    /// <param name="timestamp">The timestamp indicating when the futures price was recorded.</param>
-    /// <param name="futuresPrice">The price of the futures contract at the specified timestamp.</param>
-    /// <returns>A ValueTask that represents the asynchronous operation of generating the futures ITI signal.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the operation fails to generate the futures ITI signal, such as when the underlying service returns an
-    /// error.</exception>
-    public static async ValueTask GenerateFuturesItiSignalAsync(
-        this IEventActorContext commandApi,
-        string contractId,
-        DateOnly valueDate,
-        TimeFrameType timePeriod,
-        DateTime timestamp,
-        double futuresPrice,
-        double vixFuturesPrice)
-    {
-        _ = await (MarketDataAnalyticsCommandApiExtensions.GenerateFuturesItiSignalAsync(commandApi,
-            contractId,
-            valueDate,
-            timePeriod,
-            timestamp,
-            futuresPrice,
-            vixFuturesPrice)).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Asynchronously retrieves the end-of-day closing price for VIX futures on the specified date.
-    /// </summary>
-    /// <remarks>If there are no currently traded VIX futures contracts, the method will return 0. Ensure that
-    /// the provided date is valid to retrieve accurate data.</remarks>
-    /// <param name="context">The context in which the method is executed, providing access to event actor functionalities.</param>
-    /// <param name="valueDate">The date for which the end-of-day closing price is requested. Must be a valid date.</param>
-    /// <returns>The closing price of the VIX futures for the specified date. Returns 0 if no data is available.</returns>
-    public static async ValueTask<decimal> GetVixFuturesEodDataClosePriceAsync<TActor>(this IEventActorContext<TActor> context, DateOnly valueDate)
-        where TActor : IActor
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        var vixFuturesEodData = default(VixFuturesEodDataReadModel);
-        var futuresContracts = await (context.GetRolloverFuturesContractsAsync("VX")).ConfigureAwait(false);
-        if (futuresContracts is not null)
-        {
-            var vixContractId = futuresContracts.FirstOrDefault(x => string.Equals(x.Symbol,"VX",StringComparison.Ordinal) && x.OnTheRun)?.ContractId;
-            if (vixContractId is not null)
-                vixFuturesEodData = await (context.GetLastVixFuturesEodDataAsync(vixContractId, valueDate)).ConfigureAwait(false);
+            ArgumentNullException.ThrowIfNull(context);
+            var futuresEodData = default(FuturesEodDataV2ReadModel);
+            if (TomasAI.IFM.Domain.MarketData.Feed.Shared.CurrentFuturesEodCache.Shared.TryGet(contractId, valueDate, out var current)) return current;
+            var entityId = new GetLastFuturesEodDataParameter(contractId, valueDate);
+            GetLastFuturesEodDataQuery query = new(contractId, valueDate)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetLastFuturesEodDataQuery.Actor, GetLastFuturesEodDataQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = GetLastFuturesEodDataQuery.ErrorId
+            };
+            var serviceResult = await (context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(query)).ConfigureAwait(false);
+            if (serviceResult.Success && serviceResult.Value is not null)
+                futuresEodData = serviceResult.Value;
+            return futuresEodData;
         }
-        return vixFuturesEodData?.ClosePrice ?? 0m;
-    }
 
-    /// <summary>
-    /// Asynchronously retrieves the end-of-day data for VIX futures for a specified date.
-    /// </summary>
-    /// <remarks>This method obtains the currently traded VIX futures contracts and retrieves the end-of-day
-    /// data for the contract with the symbol 'VX' on the specified date. If no suitable contract or data is found, the
-    /// method returns null.</remarks>
-    /// <param name="context">The event actor context used to access market data and event-related operations. Cannot be null.</param>
-    /// <param name="valueDate">The date for which to retrieve the VIX futures end-of-day data.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains a VixFuturesEodDataReadModel with
-    /// the end-of-day data for the specified date, or null if no data is available.</returns>
-    public static async ValueTask<VixFuturesEodDataReadModel> GetVixFuturesEodDataAsync(this IEventActorContext context, DateOnly valueDate)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        var vixFuturesEodData = default(VixFuturesEodDataReadModel);
-        var futuresContracts = await (context.GetRolloverFuturesContractsAsync("VX")).ConfigureAwait(false);
-        if (futuresContracts is not null)
+        /// <summary>
+        ///
+        /// </summary>
+        ///
+        /// <param name="contractId"></param>
+        /// <param name="valueDate"></param>
+        /// <param name="timePeriod"></param>
+        /// <param name="periodLength"></param>
+        /// <returns></returns>
+        public async ValueTask<FuturesRsiSignalReadModel?> GetFuturesRsiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
         {
-            var vixContractId = futuresContracts.FirstOrDefault(x => string.Equals(x.Symbol,"VX",StringComparison.Ordinal) && x.OnTheRun)?.ContractId;
-            if (vixContractId is not null)
-                vixFuturesEodData = await (context.GetLastVixFuturesEodDataAsync(vixContractId, valueDate)).ConfigureAwait(false);
+            ArgumentNullException.ThrowIfNull(context);
+            var rsiSignal = default(FuturesRsiSignalReadModel);
+            var entityId = new FuturesRsiSignalEntityId(contractId, valueDate, timePeriod, periodLength);
+            GetFuturesRsiSignalQuery query = new(contractId, valueDate, timePeriod, periodLength)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetFuturesRsiSignalQuery.Actor, GetFuturesRsiSignalQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = GetFuturesRsiSignalQuery.ErrorId
+            };
+            var serviceResult = await (context.RequestAsync<FuturesRsiSignalReadModel, GetFuturesRsiSignalQuery>(query)).ConfigureAwait(false);
+            if (serviceResult.Success && serviceResult.Value is not null)
+                rsiSignal = serviceResult.Value;
+            return rsiSignal;
         }
-        return vixFuturesEodData!;
-    }
 
-    /// <summary>
-    /// Retrieves the Futures ITI MDI distribution for a specified contract and value date.
-    /// </summary>
-    /// <remarks>This method first retrieves the ITI signal for the specified contract and date, and then uses
-    /// it to fetch the MDI distribution. If the ITI signal is not found, the intrinsic time group ID defaults to
-    /// zero.</remarks>
-    /// <param name="context">The context in which the event is being processed, providing access to necessary services and data.</param>
-    /// <param name="contractId">The unique identifier for the futures contract whose MDI distribution is being retrieved.</param>
-    /// <param name="valueDate">The date for which the MDI distribution is requested, represented as a DateOnly value.</param>
-    /// <returns>A FuturesItiMDIDistributionReadModel containing the MDI distribution data, or null if no data is found.</returns>
-    public static async Task<FuturesItiMDIDistributionReadModel?> GetFuturesItiMDIDistributionAsync(this IEventActorContext context, string contractId, DateOnly valueDate, TimeFrameType timePeriod)
-    {
-        var intrinsicTimeGroupId = 0;
-        var itiSignal = await (context.GetFuturesItiSignalAsync(contractId, valueDate, timePeriod)).ConfigureAwait(false);
-        if (itiSignal is not null)
-            intrinsicTimeGroupId = itiSignal.IntrinsicTimeGroupId;
-
-        FuturesItiMDIDistributionReadModel mdiDistribution = default!;
-        var mdiByTrend = await (context.GetFuturesItiSignalMDIByTrendAsync(contractId, valueDate, intrinsicTimeGroupId)).ConfigureAwait(false);
-        if (mdiByTrend is not null)
-            mdiDistribution = new FuturesItiMDIDistributionReadModel(mdiByTrend);
-        return mdiDistribution;
-    }
-
-    /// <summary>
-    /// Asynchronously retrieves an array of currently traded futures contracts for the specified symbol.
-    /// </summary>
-    /// <remarks>This method performs an asynchronous request to obtain futures contracts. The result may be
-    /// null if the request is unsuccessful or if no contracts are available for the given symbol.</remarks>
-    /// <param name="context">The event actor context used to perform the request and access actor capabilities.</param>
-    /// <param name="symbol">The symbol representing the futures contract for which currently traded contracts are requested. Cannot be null
-    /// or empty.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains an array of
-    /// FuturesContractV3ReadModel objects representing the currently traded futures contracts for the specified symbol,
-    /// or null if no contracts are found.</returns>
-    static async ValueTask<FuturesContractV3ReadModel[]?> GetRolloverFuturesContractsAsync(this IEventActorContext context, string symbol)
-    {
-        var futuresContracts = default(FuturesContractV3ReadModel[]);
-        var entityId = new GetRolloverFuturesContractsParameter(symbol);
-        GetRolloverFuturesContractsQuery query = new(symbol)
+        /// <summary>
+        /// Retrieves the Traders Dynamic Index (TDI) signal for a specified futures contract and value date.
+        /// </summary>
+        /// <remarks>This method performs an asynchronous request and may return null if the operation is
+        /// unsuccessful or if no data is available for the specified parameters.</remarks>
+        /// <param name="contractId">The unique identifier of the futures contract for which the TDI signal is requested.</param>
+        /// <param name="valueDate">The date for which the TDI signal is retrieved.</param>
+        /// <param name="timePeriod">The intraday TDI sampling period.</param>
+        /// <returns>A task representing the asynchronous operation. The result contains the TDI signal view model,
+        /// or null if no data is found.</returns>
+        public async ValueTask<FuturesTdiSignalReadModel?> GetFuturesTdiSignalAsync(
+            string contractId,
+            DateOnly valueDate,
+            TimeFrameType timePeriod)
         {
-            Subject = new ActorSubject(ActorType.Query, GetRolloverFuturesContractsQuery.Actor, GetRolloverFuturesContractsQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetRolloverFuturesContractsQuery.ErrorId
-        };
-        var serviceResult = await (context.RequestAsync<FuturesContractV3ReadModel[], GetRolloverFuturesContractsQuery>(query)).ConfigureAwait(false);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            futuresContracts = serviceResult.Value;
-        return futuresContracts;
+            ArgumentNullException.ThrowIfNull(context);
+            var tdiSignal = default(FuturesTdiSignalReadModel);
+            var entityId = new FuturesTdiSignalEntityId(
+                contractId,
+                valueDate,
+                timePeriod,
+                FuturesTdiConfiguration.StandardConfigurationId);
+            GetFuturesTdiSignalQuery query = new(
+                contractId,
+                valueDate,
+                timePeriod,
+                FuturesTdiConfiguration.StandardConfigurationId)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = GetFuturesTdiSignalQuery.ErrorId
+            };
+            var serviceResult = await (context.RequestAsync<FuturesTdiSignalReadModel, GetFuturesTdiSignalQuery>(query)).ConfigureAwait(false);
+            if (serviceResult.Success && serviceResult.Value is not null)
+                tdiSignal = serviceResult.Value;
+            return tdiSignal;
+        }
+
+        /// <summary>
+        /// Retrieves ITI (Intrinsic Time Indicator) signal data for a specified futures contract and value date.
+        /// </summary>
+        /// <remarks>This method performs an asynchronous request and may return null if the operation is
+        /// unsuccessful or if no data is available for the specified parameters.</remarks>
+        /// <param name="contractId">The unique identifier of the futures contract for which ITI signal data is requested.</param>
+        /// <param name="valueDate">The date for which the ITI signal data is retrieved.</param>
+        /// <param name="timePeriod">The time period classification for the ITI signal data, such as daily or weekly.</param>
+        /// <returns>A task representing the asynchronous operation. The result contains the ITI signal data view model,
+        /// or null if no data is found.</returns>
+        public async ValueTask<FuturesItiSignalDataReadModel?> GetFuturesItiSignalDataAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            var itiSignalData = default(FuturesItiSignalDataReadModel);
+            var entityId = new GetFuturesItiSignalDataParameter(contractId, valueDate, timePeriod);
+            GetFuturesItiSignalDataQuery query = new(contractId, valueDate, timePeriod)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalDataQuery.Actor, GetFuturesItiSignalDataQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = GetFuturesItiSignalDataQuery.ErrorId
+            };
+            var serviceResult = await (context.RequestAsync<FuturesItiSignalDataReadModel, GetFuturesItiSignalDataQuery>(query)).ConfigureAwait(false);
+            if (serviceResult.Success && serviceResult.Value is not null)
+                itiSignalData = serviceResult.Value;
+            return itiSignalData;
+        }
     }
 
-    /// <summary>
-    /// Asynchronously retrieves the most recent end-of-day data for VIX futures based on the specified contract ID and
-    /// value date.
-    /// </summary>
-    /// <remarks>This method may return null if the data for the specified contract ID and value date does not
-    /// exist. Ensure that the contractId and valueDate parameters are valid to avoid unexpected results.</remarks>
-    /// <param name="context">The context in which the event is being processed, providing access to the event actor's capabilities.</param>
-    /// <param name="contractId">The unique identifier for the VIX futures contract whose end-of-day data is being requested.</param>
-    /// <param name="valueDate">The date for which the end-of-day data is being retrieved, specified as a DateOnly value.</param>
-    /// <returns>A ValueTask containing a VixFuturesEodDataReadModel representing the end-of-day data for the specified contract
-    /// and date, or null if no data is found.</returns>
-    static async ValueTask<VixFuturesEodDataReadModel?> GetLastVixFuturesEodDataAsync(this IEventActorContext context, string contractId, DateOnly valueDate)
+    /// <param name="context">
+    /// The event actor context used to perform the request and access actor capabilities.
+    /// </param>
+    extension(IEventActorContext context)
     {
-        var vixFuturesEodData = default(VixFuturesEodDataReadModel);
-        var entityId = new GetLastVixFuturesEodDataParameter(contractId, valueDate);
-        GetLastVixFuturesEodDataQuery query = new(contractId, valueDate)
+        /// <summary>
+        /// Retrieves the ITI (Intrinsic Time Indicator) signal for a specified futures contract and value date.
+        /// </summary>
+        /// <remarks>This method performs an asynchronous request and may return null if the operation is
+        /// unsuccessful or if no data is available for the specified parameters.</remarks>
+        ///
+        /// <param name="contractId">The unique identifier of the futures contract for which ITI signal is requested.</param>
+        /// <param name="valueDate">The date for which the ITI signal is retrieved.</param>
+        /// <returns>A task representing the asynchronous operation. The result contains the ITI signal view model,
+        /// or null if no data is found.</returns>
+        public async ValueTask<FuturesItiSignalV2ReadModel?> GetFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
         {
-            Subject = new ActorSubject(ActorType.Query, GetLastVixFuturesEodDataQuery.Actor, GetLastVixFuturesEodDataQuery.Verb, entityId.Format()),
-            EntityId = entityId,
-            ErrorCode = GetLastVixFuturesEodDataQuery.ErrorId
-        };
-        var serviceResult = await (context.RequestAsync<VixFuturesEodDataReadModel, GetLastVixFuturesEodDataQuery>(query)).ConfigureAwait(false);
-        if (serviceResult.Success && serviceResult.Value is not null)
-            vixFuturesEodData = serviceResult.Value;
-        return vixFuturesEodData;
+            ArgumentNullException.ThrowIfNull(context);
+            var itiSignal = default(FuturesItiSignalV2ReadModel);
+            var entityId = new GetFuturesItiSignalParameter(contractId, valueDate, timePeriod);
+            GetFuturesItiSignalQuery query = new(contractId, valueDate, timePeriod)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalQuery.Actor, GetFuturesItiSignalQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = GetFuturesItiSignalQuery.ErrorId
+            };
+            var serviceResult = await (context.RequestAsync<FuturesItiSignalV2ReadModel, GetFuturesItiSignalQuery>(query)).ConfigureAwait(false);
+            if (serviceResult.Success && serviceResult.Value is not null)
+                itiSignal = serviceResult.Value;
+            return itiSignal;
+        }
+
+        /// <summary>
+        /// Retrieves the ITI (Intrinsic Time Indicator) MDI signal data by trend for a specified futures contract, value date, and group.
+        /// </summary>
+        /// <remarks>This method performs an asynchronous request and may return null if the operation is
+        /// unsuccessful or if no data is available for the specified parameters.</remarks>
+        ///
+        /// <param name="contractId">The unique identifier of the futures contract for which ITI MDI by trend data is requested.</param>
+        /// <param name="valueDate">The date for which the ITI MDI by trend data is retrieved.</param>
+        /// <param name="groupId">The intrinsic time group identifier used to filter the MDI data by trend.</param>
+        /// <returns>A task representing the asynchronous operation. The result contains the ITI MDI by trend view model array,
+        /// or null if no data is found.</returns>
+        public async ValueTask<FuturesItiSignalMDIV2ReadModel[]?> GetFuturesItiSignalMDIByTrendAsync(string contractId, DateOnly valueDate, int groupId)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            var mdiByTrend = default(FuturesItiSignalMDIV2ReadModel[]);
+            var entityId = new GetFuturesItiSignalMDIByTrendParameter(contractId, valueDate, groupId);
+            GetFuturesItiSignalMDIByTrendQuery query = new(contractId, valueDate, groupId)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalMDIByTrendQuery.Actor, GetFuturesItiSignalMDIByTrendQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = GetFuturesItiSignalMDIByTrendQuery.ErrorId
+            };
+            var serviceResult = await (context.RequestAsync<FuturesItiSignalMDIV2ReadModel[], GetFuturesItiSignalMDIByTrendQuery>(query)).ConfigureAwait(false);
+            if (serviceResult.Success && serviceResult.Value is not null)
+                mdiByTrend = serviceResult.Value;
+            return mdiByTrend;
+        }
+
+        /// <summary>
+        /// Retrieves the symbol for a specified futures contract.
+        /// </summary>
+        /// <remarks>This method performs an asynchronous request and may return null if the operation is
+        /// unsuccessful or if no data is available for the specified parameters.</remarks>
+        ///
+        /// <param name="contractId">The unique identifier of the futures contract for which the symbol is requested.</param>
+        /// <returns>A task representing the asynchronous operation. The result contains the futures contract symbol,
+        /// or null if no data is found.</returns>
+        public async ValueTask<string?> GetFuturesContractSymbolAsync(string contractId)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            var symbol = default(string);
+            var entityId = new GetFuturesContractSymbolParameter(contractId);
+            GetFuturesContractSymbolQuery query = new(contractId)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetFuturesContractSymbolQuery.Actor, GetFuturesContractSymbolQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = GetFuturesContractSymbolQuery.ErrorId
+            };
+            var serviceResult = await (context.RequestAsync<string, GetFuturesContractSymbolQuery>(query)).ConfigureAwait(false);
+            if (serviceResult.Success && serviceResult.Value is not null)
+                symbol = serviceResult.Value;
+            return symbol;
+        }
+    }
+
+    extension<TActor>(IEventActorContext<TActor> commandApi)
+        where TActor : IActor
+    {
+        /// <summary>
+        /// Updates the futures trade signal for a specified contract and value date using end-of-day data and associated
+        /// technical signals.
+        /// </summary>
+        /// <remarks>This method sends an update command to the actor system, incorporating multiple technical
+        /// signals and price data. All optional signal parameters may be null if not applicable. The operation is
+        /// asynchronous and will throw an exception if the update is unsuccessful.</remarks>
+        /// <param name="context">The event actor context used to process the update request and access actor capabilities.</param>
+        /// <param name="futuresEodData">The end-of-day data for the futures contract, including contract identifier and value date.</param>
+        /// <param name="futuresRsiSignal">An optional relative strength index signal that may influence the trade signal update. May be null if not
+        /// available.</param>
+        /// <param name="futuresTdiSignal">An optional TDI signal that may influence the trade signal update. May be null if not available.</param>
+        /// <param name="futuresItiSignalData">An optional ITI signal data that may influence the trade signal update. May be null if not available.</param>
+        /// <param name="vixFuturesPrice">The current price of the VIX futures, used as an input for updating the trade signal.</param>
+        /// <returns>A ValueTask representing the asynchronous operation of updating the futures trade signal.</returns>
+        /// <exception cref="InvalidOperationException">Thrown if the update operation fails or returns an unsuccessful result.</exception>
+        public async ValueTask UpdateFuturesTradeSignalAsync(
+            FuturesEodDataV2ReadModel futuresEodData,
+            FuturesRsiSignalReadModel? futuresRsiSignal,
+            FuturesTdiSignalReadModel? futuresTdiSignal,
+            FuturesItiSignalDataReadModel? futuresItiSignalData,
+            decimal vixFuturesPrice,
+            TimeFrameType timePeriod)
+        {
+            _ = await (MarketDataAnalyticsCommandApiExtensions.UpdateFuturesTradeSignalAsync(commandApi,
+                futuresEodData,
+                futuresRsiSignal,
+                futuresTdiSignal,
+                futuresItiSignalData,
+                vixFuturesPrice,
+                timePeriod)).ConfigureAwait(false);
+        }
+    }
+
+    extension(IEventActorContext commandApi)
+    {
+        /// <summary>
+        /// Asynchronously generates a futures ITI signal for the specified contract, date, and time period using the
+        /// provided futures price and timestamp.
+        /// </summary>
+        /// <param name="context">The event actor context used to process the command and interact with the event system. Cannot be null.</param>
+        /// <param name="contractId">The unique identifier of the futures contract for which the ITI signal is generated. Cannot be null or empty.</param>
+        /// <param name="valueDate">The value date for which the ITI signal is generated.</param>
+        /// <param name="timePeriod">The time period type that specifies the duration or granularity of the ITI signal.</param>
+        /// <param name="timestamp">The timestamp indicating when the futures price was recorded.</param>
+        /// <param name="futuresPrice">The price of the futures contract at the specified timestamp.</param>
+        /// <returns>A ValueTask that represents the asynchronous operation of generating the futures ITI signal.</returns>
+        /// <exception cref="InvalidOperationException">Thrown if the operation fails to generate the futures ITI signal, such as when the underlying service returns an
+        /// error.</exception>
+        public async ValueTask GenerateFuturesItiSignalAsync(
+            string contractId,
+            DateOnly valueDate,
+            TimeFrameType timePeriod,
+            DateTime timestamp,
+            double futuresPrice,
+            double vixFuturesPrice)
+        {
+            _ = await (MarketDataAnalyticsCommandApiExtensions.GenerateFuturesItiSignalAsync(commandApi,
+                contractId,
+                valueDate,
+                timePeriod,
+                timestamp,
+                futuresPrice,
+                vixFuturesPrice)).ConfigureAwait(false);
+        }
+    }
+
+    /// <param name="context">
+    /// The context in which the method is executed, providing access to event actor functionalities.
+    /// </param>
+    extension<TActor>(IEventActorContext<TActor> context)
+        where TActor : IActor
+    {
+        /// <summary>
+        /// Asynchronously retrieves the end-of-day closing price for VIX futures on the specified date.
+        /// </summary>
+        /// <remarks>If there are no currently traded VIX futures contracts, the method will return 0. Ensure that
+        /// the provided date is valid to retrieve accurate data.</remarks>
+        ///
+        /// <param name="valueDate">The date for which the end-of-day closing price is requested. Must be a valid date.</param>
+        /// <returns>The closing price of the VIX futures for the specified date. Returns 0 if no data is available.</returns>
+        public async ValueTask<decimal> GetVixFuturesEodDataClosePriceAsync(DateOnly valueDate)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            var vixFuturesEodData = default(VixFuturesEodDataReadModel);
+            var futuresContracts = await (context.GetRolloverFuturesContractsAsync("VX")).ConfigureAwait(false);
+            if (futuresContracts is not null)
+            {
+                var vixContractId = futuresContracts.FirstOrDefault(x => string.Equals(x.Symbol, "VX", StringComparison.Ordinal) && x.OnTheRun)?.ContractId;
+                if (vixContractId is not null)
+                    vixFuturesEodData = await (context.GetLastVixFuturesEodDataAsync(vixContractId, valueDate)).ConfigureAwait(false);
+            }
+            return vixFuturesEodData?.ClosePrice ?? 0m;
+        }
+    }
+
+    /// <param name="context">
+    /// The event actor context used to access market data and event-related operations. Cannot be null.
+    /// The context in which the event is being processed, providing access to necessary services and data.
+    /// The event actor context used to perform the request and access actor capabilities.
+    /// The context in which the event is being processed, providing access to the event actor's capabilities.
+    /// </param>
+    extension(IEventActorContext context)
+    {
+        /// <summary>
+        /// Asynchronously retrieves the end-of-day data for VIX futures for a specified date.
+        /// </summary>
+        /// <remarks>This method obtains the currently traded VIX futures contracts and retrieves the end-of-day
+        /// data for the contract with the symbol 'VX' on the specified date. If no suitable contract or data is found, the
+        /// method returns null.</remarks>
+        ///
+        /// <param name="valueDate">The date for which to retrieve the VIX futures end-of-day data.</param>
+        /// <returns>A task that represents the asynchronous operation. The task result contains a VixFuturesEodDataReadModel with
+        /// the end-of-day data for the specified date, or null if no data is available.</returns>
+        public async ValueTask<VixFuturesEodDataReadModel> GetVixFuturesEodDataAsync(DateOnly valueDate)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            var vixFuturesEodData = default(VixFuturesEodDataReadModel);
+            var futuresContracts = await (context.GetRolloverFuturesContractsAsync("VX")).ConfigureAwait(false);
+            if (futuresContracts is not null)
+            {
+                var vixContractId = futuresContracts.FirstOrDefault(x => string.Equals(x.Symbol, "VX", StringComparison.Ordinal) && x.OnTheRun)?.ContractId;
+                if (vixContractId is not null)
+                    vixFuturesEodData = await (context.GetLastVixFuturesEodDataAsync(vixContractId, valueDate)).ConfigureAwait(false);
+            }
+            return vixFuturesEodData!;
+        }
+
+        /// <summary>
+        /// Retrieves the Futures ITI MDI distribution for a specified contract and value date.
+        /// </summary>
+        /// <remarks>This method first retrieves the ITI signal for the specified contract and date, and then uses
+        /// it to fetch the MDI distribution. If the ITI signal is not found, the intrinsic time group ID defaults to
+        /// zero.</remarks>
+        ///
+        /// <param name="contractId">The unique identifier for the futures contract whose MDI distribution is being retrieved.</param>
+        /// <param name="valueDate">The date for which the MDI distribution is requested, represented as a DateOnly value.</param>
+        /// <returns>A FuturesItiMDIDistributionReadModel containing the MDI distribution data, or null if no data is found.</returns>
+        public async Task<FuturesItiMDIDistributionReadModel?> GetFuturesItiMDIDistributionAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
+        {
+            var intrinsicTimeGroupId = 0;
+            var itiSignal = await (context.GetFuturesItiSignalAsync(contractId, valueDate, timePeriod)).ConfigureAwait(false);
+            if (itiSignal is not null)
+                intrinsicTimeGroupId = itiSignal.IntrinsicTimeGroupId;
+
+            FuturesItiMDIDistributionReadModel mdiDistribution = default!;
+            var mdiByTrend = await (context.GetFuturesItiSignalMDIByTrendAsync(contractId, valueDate, intrinsicTimeGroupId)).ConfigureAwait(false);
+            if (mdiByTrend is not null)
+                mdiDistribution = new FuturesItiMDIDistributionReadModel(mdiByTrend);
+            return mdiDistribution;
+        }
+
+        /// <summary>
+        /// Asynchronously retrieves an array of currently traded futures contracts for the specified symbol.
+        /// </summary>
+        /// <remarks>This method performs an asynchronous request to obtain futures contracts. The result may be
+        /// null if the request is unsuccessful or if no contracts are available for the given symbol.</remarks>
+        ///
+        /// <param name="symbol">The symbol representing the futures contract for which currently traded contracts are requested. Cannot be null
+        /// or empty.</param>
+        /// <returns>A task that represents the asynchronous operation. The task result contains an array of
+        /// FuturesContractV3ReadModel objects representing the currently traded futures contracts for the specified symbol,
+        /// or null if no contracts are found.</returns>
+        async ValueTask<FuturesContractV3ReadModel[]?> GetRolloverFuturesContractsAsync(string symbol)
+        {
+            var futuresContracts = default(FuturesContractV3ReadModel[]);
+            var entityId = new GetRolloverFuturesContractsParameter(symbol);
+            GetRolloverFuturesContractsQuery query = new(symbol)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetRolloverFuturesContractsQuery.Actor, GetRolloverFuturesContractsQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = GetRolloverFuturesContractsQuery.ErrorId
+            };
+            var serviceResult = await (context.RequestAsync<FuturesContractV3ReadModel[], GetRolloverFuturesContractsQuery>(query)).ConfigureAwait(false);
+            if (serviceResult.Success && serviceResult.Value is not null)
+                futuresContracts = serviceResult.Value;
+            return futuresContracts;
+        }
+
+        /// <summary>
+        /// Asynchronously retrieves the most recent end-of-day data for VIX futures based on the specified contract ID and
+        /// value date.
+        /// </summary>
+        /// <remarks>This method may return null if the data for the specified contract ID and value date does not
+        /// exist. Ensure that the contractId and valueDate parameters are valid to avoid unexpected results.</remarks>
+        ///
+        /// <param name="contractId">The unique identifier for the VIX futures contract whose end-of-day data is being requested.</param>
+        /// <param name="valueDate">The date for which the end-of-day data is being retrieved, specified as a DateOnly value.</param>
+        /// <returns>A ValueTask containing a VixFuturesEodDataReadModel representing the end-of-day data for the specified contract
+        /// and date, or null if no data is found.</returns>
+        async ValueTask<VixFuturesEodDataReadModel?> GetLastVixFuturesEodDataAsync(string contractId, DateOnly valueDate)
+        {
+            var vixFuturesEodData = default(VixFuturesEodDataReadModel);
+            var entityId = new GetLastVixFuturesEodDataParameter(contractId, valueDate);
+            GetLastVixFuturesEodDataQuery query = new(contractId, valueDate)
+            {
+                Subject = new ActorSubject(ActorType.Query, GetLastVixFuturesEodDataQuery.Actor, GetLastVixFuturesEodDataQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ErrorCode = GetLastVixFuturesEodDataQuery.ErrorId
+            };
+            var serviceResult = await (context.RequestAsync<VixFuturesEodDataReadModel, GetLastVixFuturesEodDataQuery>(query)).ConfigureAwait(false);
+            if (serviceResult.Success && serviceResult.Value is not null)
+                vixFuturesEodData = serviceResult.Value;
+            return vixFuturesEodData;
+        }
     }
 
 

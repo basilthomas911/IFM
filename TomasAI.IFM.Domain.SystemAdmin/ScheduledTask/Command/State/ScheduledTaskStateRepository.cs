@@ -17,9 +17,13 @@ public sealed class ScheduledTaskStateRepository(IEventSourceActorStateFactory s
     : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<ScheduledTaskCommandState>
 {
     /// <inheritdoc />
-    public ValueTask<ScheduledTaskCommandState> LoadStateAsync(ICommand command) => LoadStateAsync(command, CancellationToken.None);
-    /// <summary>Restores the creation snapshot and replays every subsequent source event.</summary>
-    public async ValueTask<ScheduledTaskCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) => await LoadStateFromSnapshotAsync<ScheduledTaskCommandState, ScheduledTaskCreatedEvent>(command, cancellationToken).ConfigureAwait(false);
+    public ValueTask<ScheduledTaskCommandState> LoadStateAsync(ICommand command)
+        => LoadStateAsync(command, CancellationToken.None);
+
+    /// <summary>Restores the creation snapshot and replays subsequent source events.</summary>
+    public async ValueTask<ScheduledTaskCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+        => await LoadStateFromSnapshotAsync<ScheduledTaskCommandState, ScheduledTaskCreatedEvent>(command, cancellationToken).ConfigureAwait(false);
+
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context, ScheduledTaskCommandState state, ICommand command) => SaveStateAsync(context, state, command, CancellationToken.None);
     /// <inheritdoc />

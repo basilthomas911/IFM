@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using FluentAssertions;
 using NSubstitute;
@@ -17,6 +17,7 @@ using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 /// <summary>Uses real NATS and actual named child processes on isolated subjects; never touches live feed subjects.</summary>
+[Collection(ProcessResourceQualificationCollection.Name)]
 public sealed class MarketDataHostNatsRecoveryIntegrationTests
 {
     [Fact(Timeout = 60000)]
@@ -118,10 +119,8 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
     [InlineData(true)]
     public async Task Real_options_children_retry_context_restoration_beyond_three_failures_until_success_or_full_deadline(bool permanent)
     {
-        var output = Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_HOST_DIRECTORY")
-            ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../.artifacts/market-data-host"));
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
-            ["MarketDataHost:WorkerDirectory"] = Path.Combine(output, "Workers"),
+            ["MarketDataHost:WorkerDirectory"] = Harness.WorkerTestProcess.WorkerDirectory,
             ["MarketDataHost:DeploymentProfile"] = "SyntheticCi", ["MarketDataHost:DataSource"] = "Synthetic" }).Build();
         await using var manager = new NatsConnectionManager();
         var connection = new MarketDataHostConnection(manager, Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_NATS_URL") ?? "nats://127.0.0.1:4222", "retrytest" + Guid.NewGuid().ToString("N"));
@@ -631,11 +630,9 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
     [InlineData(true)]
     public async Task Committed_ownership_survives_recovery_after_the_temporary_lease_is_released(bool forceProcessReplacement)
     {
-        var output = Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_HOST_DIRECTORY")
-            ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../.artifacts/market-data-host"));
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["MarketDataHost:WorkerDirectory"] = Path.Combine(output, "Workers"),
+            ["MarketDataHost:WorkerDirectory"] = Harness.WorkerTestProcess.WorkerDirectory,
             ["MarketDataHost:DeploymentProfile"] = "SyntheticCi", ["MarketDataHost:DataSource"] = "Synthetic"
         }).Build();
         await using var manager = new NatsConnectionManager();
@@ -731,8 +728,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
             var value = new Fixture { fullBackend = fullBackend };
             var root = new DirectoryInfo(AppContext.BaseDirectory);
             while (root is not null && !File.Exists(Path.Combine(root.FullName, "TomasAI.IFM.sln"))) root = root.Parent;
-            var output = Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_HOST_DIRECTORY")
-                ?? Path.Combine(root!.FullName, ".artifacts", "market-data-host");
+            var output = Harness.WorkerTestProcess.HostDirectory;
             var scope = "recoverytest" + Guid.NewGuid().ToString("N");
             var natsUrl = Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_NATS_URL") ?? "nats://127.0.0.1:4222";
             value.Connection = new(value.connections, natsUrl, scope);
@@ -742,6 +738,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
                 RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true
             };
             start.Environment["MarketDataHost__Scope"] = scope;
+            start.Environment["MarketDataHost__WorkerDirectory"] = Harness.WorkerTestProcess.WorkerDirectory;
             start.Environment["MarketDataHost__NatsUrl"] = natsUrl;
             start.Environment["MarketDataHost__DeploymentProfile"] = "SyntheticCi";
             start.Environment["MarketDataHost__DataSource"] = "Synthetic";
@@ -765,32 +762,50 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
             value.host.ErrorDataReceived += (_, line) => { lock (value.diagnostics) { if (value.diagnostics.Length < 12000) value.diagnostics.AppendLine(line.Data); } };
             value.host.BeginOutputReadLine();
             value.host.BeginErrorReadLine();
-            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            while (true)
+            try
             {
-                try
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                while (true)
                 {
-                    using var probe = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
-                    probe.CancelAfter(TimeSpan.FromMilliseconds(300));
-                    if (await value.Connection.PostAsync<bool>("ready", new { }, probe.Token)) return value;
+                    try
+                    {
+                        using var probe = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
+                        probe.CancelAfter(TimeSpan.FromMilliseconds(300));
+                        if (await value.Connection.PostAsync<bool>("ready", new { }, probe.Token)) return value;
+                    }
+                    catch (Exception) when (!deadline.IsCancellationRequested) { }
+                    if (value.host.HasExited) throw new InvalidOperationException("Qualification Host exited: " + value.diagnostics);
+                    await Task.Delay(50, deadline.Token);
                 }
-                catch (Exception) when (!deadline.IsCancellationRequested) { }
-                if (value.host.HasExited) throw new InvalidOperationException("Qualification Host exited: " + value.diagnostics);
-                await Task.Delay(50, deadline.Token);
+            }
+            catch
+            {
+                await value.DisposeAsync();
+                throw;
             }
         }
         public RemoteDatasetWorkerProcess Worker(string role) => new(Connection, role, (_, _) => ValueTask.CompletedTask);
         public async ValueTask DisposeAsync()
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            if (!host.HasExited)
+            try
             {
-                if (fullBackend) { await host.StandardInput.WriteLineAsync("shutdown"); await host.StandardInput.FlushAsync(); }
-                else await Connection.PostAsync<bool>("qualification/shutdown", new { }, timeout.Token);
+                if (!host.HasExited)
+                {
+                    if (fullBackend) { await host.StandardInput.WriteLineAsync("shutdown"); await host.StandardInput.FlushAsync(); }
+                    else await Connection.PostAsync<bool>("qualification/shutdown", new { }, timeout.Token);
+                }
+                await host.WaitForExitAsync(timeout.Token);
             }
-            await host.WaitForExitAsync(timeout.Token);
-            host.Dispose();
-            await connections.DisposeAsync();
+            finally
+            {
+                // A failed shutdown must not strand this fixture's child or named workers.
+                try
+                {
+                    if (!host.HasExited) { host.Kill(entireProcessTree: true); await host.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); }
+                }
+                finally { host.Dispose(); await connections.DisposeAsync(); }
+            }
         }
     }
 }

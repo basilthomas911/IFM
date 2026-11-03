@@ -11,20 +11,27 @@ namespace TomasAI.IFM.Domain.Portfolio.Fund.Query;
 /// <summary>Handles <see cref="GetFundCompositionByWorkflowQuery"/>.</summary>
 public static class GetFundCompositionByWorkflow
 {
-    /// <summary>Executes the mapped Portfolio query and replies with its typed result.</summary>
-    /// <typeparam name="TActor">The owning Query actor type.</typeparam>
-    /// <param name="query">The concrete query message.</param>
-    /// <param name="context">The owning actor reply context.</param>
-    /// <param name="parameters">The Portfolio projection query dependencies.</param>
-    /// <param name="cancellationToken">Cancellation for the projection read.</param>
-    /// <returns>The asynchronous reply operation.</returns>
-    public static ValueTask ExecuteAsync<TActor>(this GetFundCompositionByWorkflowQuery query, IQueryActorContext<TActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
-        where TActor : IActor
-        
+
+    /// <param name="query">
+    /// The concrete query message.
+    /// </param>
+    extension(GetFundCompositionByWorkflowQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(parameters);
-        ArgumentNullException.ThrowIfNull(query);
-        return PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetCompositionByWorkflowAsync(query.WorkflowId, cancellationToken));
+        /// <summary>Executes the mapped Portfolio query and replies with its typed result.</summary>
+        /// <typeparam name="TActor">The owning Query actor type.</typeparam>
+        ///
+        /// <param name="context">The owning actor reply context.</param>
+        /// <param name="parameters">The Portfolio projection query dependencies.</param>
+        /// <param name="cancellationToken">Cancellation for the projection read.</param>
+        /// <returns>The asynchronous reply operation.</returns>
+        public ValueTask ExecuteAsync<TActor>(IQueryActorContext<TActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
+            where TActor : IActor
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(parameters);
+            ArgumentNullException.ThrowIfNull(query);
+            return PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetCompositionByWorkflowAsync(query.WorkflowId, cancellationToken));
+        }
     }
 }

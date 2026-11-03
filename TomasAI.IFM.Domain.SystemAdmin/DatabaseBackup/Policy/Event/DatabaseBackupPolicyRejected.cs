@@ -9,11 +9,15 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Policy.Event;
 /// <summary>Handles <see cref="DatabaseBackupPolicyRejectedEvent"/>.</summary>
 public static class DatabaseBackupPolicyRejected
 {
-    /// <summary>Translates and records this Database Backup service event through the command actor.</summary>
-    public static ValueTask ExecuteAsync(this DatabaseBackupPolicyRejectedEvent eventValue, IEventActorContext<DatabaseBackupPolicyEventActor> context, ILogger<DatabaseBackupPolicyEventActor> logger)
-        
+
+    extension(DatabaseBackupPolicyRejectedEvent eventValue)
     {
-        ArgumentNullException.ThrowIfNull(eventValue);
-        return DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+        /// <summary>Translates and records this Database Backup service event through the command actor.</summary>
+        public ValueTask ExecuteAsync(IEventActorContext<DatabaseBackupPolicyEventActor> context, ILogger<DatabaseBackupPolicyEventActor> logger)
+
+        {
+            ArgumentNullException.ThrowIfNull(eventValue);
+            return DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+        }
     }
 }

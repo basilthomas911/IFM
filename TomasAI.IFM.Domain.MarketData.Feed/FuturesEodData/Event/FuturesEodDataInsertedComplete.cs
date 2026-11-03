@@ -18,21 +18,23 @@ public static class FuturesEodDataInsertedComplete
 {
     static readonly string ServiceId = $"{LogSourceType.FuturesEodDataEvent}";
 
-    /// <summary>Sends the best-effort external notification for a completed futures EOD insert.</summary>
-    public static ValueTask<bool> ExecuteAsync(
-        this FuturesEodDataInsertedCompleteEvent @event,
-        IEventActorContext context,
-        IEventActorContext eventApi,
-        FuturesEodDataEventParameters parameters, ILogger<FuturesEodDataEventActor> logger)
-        => ExecuteCoreAsync(@event, context, eventApi, parameters, logger);
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
+    extension(FuturesEodDataInsertedCompleteEvent @event)
+    {
+        /// <summary>Sends the best-effort external notification for a completed futures EOD insert.</summary>
+        public ValueTask<bool> ExecuteAsync(
+            IEventActorContext context,
+            IEventActorContext eventApi,
+            FuturesEodDataEventParameters parameters, ILogger<FuturesEodDataEventActor> logger)
+            => ExecuteCoreAsync(@event, context, eventApi, parameters, logger);
+    }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
     /// <summary>Runs the shared notification behavior for Event and Realtime ownership.</summary>
     internal static async ValueTask<bool> ExecuteCoreAsync(
-        FuturesEodDataInsertedCompleteEvent @event,
-        IEventActorContext context,
-        IEventActorContext eventApi,
-        FuturesEodDataEventParameters parameters,
-        ILogger logger)
+            FuturesEodDataInsertedCompleteEvent @event,
+            IEventActorContext context,
+            IEventActorContext eventApi,
+            FuturesEodDataEventParameters parameters,
+            ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);

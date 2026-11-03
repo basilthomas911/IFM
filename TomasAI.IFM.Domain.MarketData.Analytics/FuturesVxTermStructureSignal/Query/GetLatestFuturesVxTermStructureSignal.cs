@@ -11,18 +11,21 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Q
 /// <summary>Handles latest projected VX term-structure queries.</summary>
 public static class GetLatestFuturesVxTermStructureSignal
 {
-    /// <summary>Loads the latest projected curve and sends its typed Query reply.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetLatestFuturesVxTermStructureSignalQuery query,
-        IQueryActorContext<FuturesVxTermStructureSignalQueryActor> context,
-        CancellationToken cancellationToken)
+
+    extension(GetLatestFuturesVxTermStructureSignalQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        var result = await context.DbFactory.MarketDataDb.GetLatestFuturesVxTermStructureSignalAsync(
-            query.ValueDate, query.ConfigurationId, cancellationToken).ConfigureAwait(false);
-        await context.ReplyAsync(query.Subject.ThreadId,
-            GetLatestFuturesVxTermStructureSignalQuery.Verb,
-            new ServiceResult<FuturesVxTermStructureSignalReadModel?>(result)).ConfigureAwait(false);
+        /// <summary>Loads the latest projected curve and sends its typed Query reply.</summary>
+        public async ValueTask ExecuteAsync(
+            IQueryActorContext<FuturesVxTermStructureSignalQueryActor> context,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            var result = await context.DbFactory.MarketDataDb.GetLatestFuturesVxTermStructureSignalAsync(
+                query.ValueDate, query.ConfigurationId, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId,
+                GetLatestFuturesVxTermStructureSignalQuery.Verb,
+                new ServiceResult<FuturesVxTermStructureSignalReadModel?>(result)).ConfigureAwait(false);
+        }
     }
 }

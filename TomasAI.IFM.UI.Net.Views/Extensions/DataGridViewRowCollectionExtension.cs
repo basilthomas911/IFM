@@ -7,15 +7,18 @@ namespace TomasAI.IFM.UI.Net.Extensions
     public static class DataGridViewRowCollectionExtension
     {
 
-        public static DataGridViewRow? GetSpreadTypeRow(this DataGridViewRowCollection rows, string spreadTypeName)
+        extension(DataGridViewRowCollection rows)
         {
-            for (var index = 0; index < rows.Count; index++)
+            public DataGridViewRow? GetSpreadTypeRow(string spreadTypeName)
             {
-                var row = rows[index];
-                if ($"{row.Cells[0].Value}".ToLower() == spreadTypeName.ToLower())
-                    return row;
+                for (var index = 0; index < rows.Count; index++)
+                {
+                    var row = rows[index];
+                    if ($"{row.Cells[0].Value}".ToLower() == spreadTypeName.ToLower())
+                        return row;
+                }
+                return default;
             }
-            return default;
         }
     }
 }

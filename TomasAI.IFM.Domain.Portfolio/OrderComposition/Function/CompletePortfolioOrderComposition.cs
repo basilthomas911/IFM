@@ -7,30 +7,34 @@ namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Function;
 
 public static class CompletePortfolioOrderComposition
 {
-    public static FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent> Complete(
-        this FunctionEventContext<EvaluatePortfolioOrderCompositionCommand> input, TimeProvider clock)
+
+    extension(FunctionEventContext<EvaluatePortfolioOrderCompositionCommand> input)
     {
-        ArgumentNullException.ThrowIfNull(clock);
-        ArgumentNullException.ThrowIfNull(input);
-        if (input.Outcome is PortfolioOrderCompositionCompletedEvent committed)
-            return FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>.Complete(committed);
-        var request = input.Request ?? throw new InvalidOperationException("Completion requires a request.");
-        var now = clock.GetUtcNow().UtcDateTime;
-        return FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>.Complete(new()
+        public FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent> Complete(
+        TimeProvider clock)
         {
-            Id = Guid.NewGuid(),
-            Subject = request.Subject,
-            EntityId = request.EntityId,
-            CommandId = request.CommandId,
-            OperationId = request.OperationId,
-            PortfolioId = request.PortfolioId,
-            CorrelationId = request.CorrelationId,
-            CausationId = request.CausationId,
-            CommittedAtUtc = now,
-            ReceivedOn = now,
-            InputHash = request.InputSha256,
-            Receipt = input.Outcome as PortfolioOrderCompositionReceipt ?? new(),
-            AggregateId = request.EntityId.Format()
-        });
+            ArgumentNullException.ThrowIfNull(clock);
+            ArgumentNullException.ThrowIfNull(input);
+            if (input.Outcome is PortfolioOrderCompositionCompletedEvent committed)
+                return FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>.Complete(committed);
+            var request = input.Request ?? throw new InvalidOperationException("Completion requires a request.");
+            var now = clock.GetUtcNow().UtcDateTime;
+            return FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>.Complete(new()
+            {
+                Id = Guid.NewGuid(),
+                Subject = request.Subject,
+                EntityId = request.EntityId,
+                CommandId = request.CommandId,
+                OperationId = request.OperationId,
+                PortfolioId = request.PortfolioId,
+                CorrelationId = request.CorrelationId,
+                CausationId = request.CausationId,
+                CommittedAtUtc = now,
+                ReceivedOn = now,
+                InputHash = request.InputSha256,
+                Receipt = input.Outcome as PortfolioOrderCompositionReceipt ?? new(),
+                AggregateId = request.EntityId.Format()
+            });
+        }
     }
 }

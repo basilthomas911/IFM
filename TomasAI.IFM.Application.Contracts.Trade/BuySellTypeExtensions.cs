@@ -7,14 +7,18 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
     public static class BuySellTypeExtensions
     {
-        public static string ToStringFast(this BuySellType value) => value switch
+
+        extension(BuySellType value)
         {
-            BuySellType.Undefined => nameof(BuySellType.Undefined),
-            BuySellType.Buy => nameof(BuySellType.Buy),
-            BuySellType.Sell => nameof(BuySellType.Sell),
-            BuySellType.Short => nameof(BuySellType.Short),
-            BuySellType.Long => nameof(BuySellType.Long),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                BuySellType.Undefined => nameof(BuySellType.Undefined),
+                BuySellType.Buy => nameof(BuySellType.Buy),
+                BuySellType.Sell => nameof(BuySellType.Sell),
+                BuySellType.Short => nameof(BuySellType.Short),
+                BuySellType.Long => nameof(BuySellType.Long),
+                _ => value.ToString()
+            };
+        }
     }
 }

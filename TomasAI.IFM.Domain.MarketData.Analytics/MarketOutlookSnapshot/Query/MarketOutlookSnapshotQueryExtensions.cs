@@ -7,22 +7,25 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Query;
 
 public static class MarketOutlookSnapshotQueryExtensions
 {
-    public static Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(
-        this IMarketOutlookSnapshotQueryContext context,
-        string contractId,
-        DateOnly valueDate,
-        CancellationToken cancellationToken = default)
-        
+
+    extension(IMarketOutlookSnapshotQueryContext context)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        return GetLatestAsync(context, contractId, valueDate, cancellationToken);
+        public Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(
+            string contractId,
+            DateOnly valueDate,
+            CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            return GetLatestAsync(context, contractId, valueDate, cancellationToken);
+        }
     }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")]
     internal static async Task<ServiceResult<MarketOutlookReadModel>> GetLatestAsync(
-        IMarketOutlookSnapshotQueryContext context,
-        string contractId,
-        DateOnly valueDate,
-        CancellationToken cancellationToken)
+            IMarketOutlookSnapshotQueryContext context,
+            string contractId,
+            DateOnly valueDate,
+            CancellationToken cancellationToken)
     {
         try
         {

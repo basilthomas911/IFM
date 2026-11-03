@@ -10,13 +10,17 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Recovery.Query;
 /// <summary>Handles <see cref="ListDatabaseRestorePointsQuery"/>.</summary>
 public static class ListDatabaseRestorePoints
 {
-    /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
-    public static async ValueTask ExecuteAsync(this ListDatabaseRestorePointsQuery query, ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseRecoveryQueryActor> context, CancellationToken cancellationToken)
+
+    extension(ListDatabaseRestorePointsQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(dbContext);
-        ArgumentNullException.ThrowIfNull(query);
-        var result = await (dbContext.ListRestorePointsAsync(query, cancellationToken)).ConfigureAwait(false);
-        await (DatabaseBackupQueryReply.RequiredAsync(context, query, result)).ConfigureAwait(false);
+        /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
+        public async ValueTask ExecuteAsync(ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseRecoveryQueryActor> context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(dbContext);
+            ArgumentNullException.ThrowIfNull(query);
+            var result = await (dbContext.ListRestorePointsAsync(query, cancellationToken)).ConfigureAwait(false);
+            await (DatabaseBackupQueryReply.RequiredAsync(context, query, result)).ConfigureAwait(false);
+        }
     }
 }

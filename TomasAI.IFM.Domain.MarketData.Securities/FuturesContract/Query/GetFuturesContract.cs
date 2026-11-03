@@ -10,21 +10,27 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query;
 
 public static class GetFuturesContract
 {
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="q"></param>
-    /// <param name="context"></param>
-    /// <param name="dbFactory"></param>
-    /// <returns></returns>
-    public static ValueTask<FuturesContractV3ReadModel?> ExecuteAsync(
-        this GetFuturesContractQuery q,
-        IDbContextFactory dbFactory,
-        CancellationToken cancellationToken = default)
-        
+
+    /// <param name="q">
+    ///
+    /// </param>
+    extension(GetFuturesContractQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        return new(dbFactory.SecuritiesDb.GetFuturesContractAsync(q.ContractId, cancellationToken));
+        /// <summary>
+        ///
+        /// </summary>
+        ///
+        /// <param name="context"></param>
+        /// <param name="dbFactory"></param>
+        /// <returns></returns>
+        public ValueTask<FuturesContractV3ReadModel?> ExecuteAsync(
+            IDbContextFactory dbFactory,
+            CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            return new(dbFactory.SecuritiesDb.GetFuturesContractAsync(q.ContractId, cancellationToken));
+        }
     }
 }

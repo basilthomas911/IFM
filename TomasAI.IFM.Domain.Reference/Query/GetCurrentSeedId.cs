@@ -7,29 +7,39 @@ namespace TomasAI.IFM.Domain.Reference.Query;
 
 public static class GetCurrentSeedId
 {
-    /// <summary>
-    /// Retrieves the highest ID range currently reserved in PostgreSQL for the specified seed type.
-    /// </summary>
-    /// <param name="q">The query for retrieving the current seed ID.</param>
-    /// <param name="context">The query actor context.</param>
-    /// <param name="dbFactory">The database context factory.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask<ScalarReadModel<int>> ExecuteAsync(
-        this GetCurrentSeedIdQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        
+
+    /// <param name="q">
+    /// The query for retrieving the current seed ID.
+    /// </param>
+    extension(GetCurrentSeedIdQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        return new(await (dbFactory.ReferenceDb.GetCurrentSeedIdAsync(q.SeedType, cancellationToken)).ConfigureAwait(false));
+        /// <summary>
+        /// Retrieves the highest ID range currently reserved in PostgreSQL for the specified seed type.
+        /// </summary>
+        ///
+        /// <param name="context">The query actor context.</param>
+        /// <param name="dbFactory">The database context factory.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public async ValueTask<ScalarReadModel<int>> ExecuteAsync(
+        IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            return new(await (dbFactory.ReferenceDb.GetCurrentSeedIdAsync(q.SeedType, cancellationToken)).ConfigureAwait(false));
+        }
     }
 
-    /// <summary>Reads and replies with the requested Reference result.</summary>
-    public static async ValueTask ExecuteAsync(this GetCurrentSeedIdQuery query, Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
+    extension(GetCurrentSeedIdQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<ScalarReadModel<int>>(result)).ConfigureAwait(false);
+        /// <summary>Reads and replies with the requested Reference result.</summary>
+        public async ValueTask ExecuteAsync(Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<ScalarReadModel<int>>(result)).ConfigureAwait(false);
+        }
     }
 }

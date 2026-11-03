@@ -131,539 +131,552 @@ public static class TestFactory
 
 public static class Startup
 {
-    /// <summary>
-    /// Configures the specified <see cref="WebApplicationBuilder"/> with essential services, logging, and application
-    /// settings.
-    /// </summary>
-    /// <remarks>This method performs the following configurations: <list type="bullet">
-    /// <item><description>Sets up application configuration using JSON files, including environment-specific
-    /// settings.</description></item> <item><description>Configures Serilog as the logging provider with console and
-    /// HTTP sinks.</description></item> <item><description>Registers essential services, including controllers, JSON
-    /// serialization options, Swagger, and Simple Injector.</description></item> </list> The method also initializes
-    /// the <paramref name="logger"/> parameter with the application's logger instance and registers it as a singleton
-    /// service.</remarks>
-    /// <param name="builder">The <see cref="WebApplicationBuilder"/> to configure.</param>
-    /// <param name="logger">When this method returns, contains the configured <see cref="Microsoft.Extensions.Logging.ILogger"/> instance
-    /// for the application. This parameter is passed uninitialized.</param>
-    /// <returns>The configured <see cref="WebApplicationBuilder"/> instance.</returns>
-    public static WebApplicationBuilder ConfigureApiServer(this WebApplicationBuilder builder, out Microsoft.Extensions.Logging.ILogger logger)
+
+    /// <param name="builder">
+    /// The <see cref="WebApplicationBuilder"/> to configure.
+    /// </param>
+    extension(WebApplicationBuilder builder)
     {
-        _ = builder.WebHost
-                       .ConfigureAppConfiguration((ctx, configBuilder) =>
-                       {
-                           configBuilder.SetBasePath(Directory.GetCurrentDirectory())
-                               .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                               .AddJsonFile($"appsettings.{ctx.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true);
+        /// <summary>
+        /// Configures the specified <see cref="WebApplicationBuilder"/> with essential services, logging, and application
+        /// settings.
+        /// </summary>
+        /// <remarks>This method performs the following configurations: <list type="bullet">
+        /// <item><description>Sets up application configuration using JSON files, including environment-specific
+        /// settings.</description></item> <item><description>Configures Serilog as the logging provider with console and
+        /// HTTP sinks.</description></item> <item><description>Registers essential services, including controllers, JSON
+        /// serialization options, Swagger, and Simple Injector.</description></item> </list> The method also initializes
+        /// the <paramref name="logger"/> parameter with the application's logger instance and registers it as a singleton
+        /// service.</remarks>
+        ///
+        /// <param name="logger">When this method returns, contains the configured <see cref="Microsoft.Extensions.Logging.ILogger"/> instance
+        /// for the application. This parameter is passed uninitialized.</param>
+        /// <returns>The configured <see cref="WebApplicationBuilder"/> instance.</returns>
+        public WebApplicationBuilder ConfigureApiServer(out Microsoft.Extensions.Logging.ILogger logger)
+        {
+            _ = builder.WebHost
+                           .ConfigureAppConfiguration((ctx, configBuilder) =>
+                           {
+                               configBuilder.SetBasePath(Directory.GetCurrentDirectory())
+                                   .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                                   .AddJsonFile($"appsettings.{ctx.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true);
 
-                           var config = configBuilder.Build();
-                           //var telemetryServerBaseUri = config.GetValue<string>("AppSettings:TelemetryServerBaseUri")!;
+                               var config = configBuilder.Build();
+                               //var telemetryServerBaseUri = config.GetValue<string>("AppSettings:TelemetryServerBaseUri")!;
 
-                           Log.Logger = new LoggerConfiguration()
-                               .MinimumLevel.Information()
-                               .MinimumLevel.Override("Microsoft", LogEventLevel.Error)
-                               .MinimumLevel.Override("System", LogEventLevel.Error)
-                               .Enrich.FromLogContext()
-                               .WriteTo.Console()
-                               .WriteTo.File("Logs/ifm-apiserver-.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7)
-                               //.WriteTo.Http(requestUri: telemetryServerBaseUri, httpClient: new SerilogHttpClient(), queueLimitBytes: 10000)
-                               .CreateLogger();
-                       });
-        _ = builder.Host.UseSerilog();
+                               Log.Logger = new LoggerConfiguration()
+                                   .MinimumLevel.Information()
+                                   .MinimumLevel.Override("Microsoft", LogEventLevel.Error)
+                                   .MinimumLevel.Override("System", LogEventLevel.Error)
+                                   .Enrich.FromLogContext()
+                                   .WriteTo.Console()
+                                   .WriteTo.File("Logs/ifm-apiserver-.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7)
+                                   //.WriteTo.Http(requestUri: telemetryServerBaseUri, httpClient: new SerilogHttpClient(), queueLimitBytes: 10000)
+                                   .CreateLogger();
+                           });
+            _ = builder.Host.UseSerilog();
 
-        // configure api server...
-        var serviceProvider = builder.Services.BuildServiceProvider();
-        logger = serviceProvider.GetRequiredService<ILogger<Program>>() as Microsoft.Extensions.Logging.ILogger;
-        builder.Services.AddSingleton(logger);
-        builder.Services.AddControllers()
-         .AddNewtonsoftJson()
-         .AddJsonOptions(options =>
-         {
-             options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-         });
+            // configure api server...
+            var serviceProvider = builder.Services.BuildServiceProvider();
+            logger = serviceProvider.GetRequiredService<ILogger<Program>>() as Microsoft.Extensions.Logging.ILogger;
+            builder.Services.AddSingleton(logger);
+            builder.Services.AddControllers()
+             .AddNewtonsoftJson()
+             .AddJsonOptions(options =>
+             {
+                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+             });
 
-        logger.LogInformationEvent("ApiServer", "configure web api server...");
-        builder.Services.AddEndpointsApiExplorer();
-        return builder;
+            logger.LogInformationEvent("ApiServer", "configure web api server...");
+            builder.Services.AddEndpointsApiExplorer();
+            return builder;
+        }
     }
 
-    /// <summary>
-    /// Registers application services, including base services, query APIs, storage services, service handlers, event
-    /// producers, and hosted services, into the specified <see cref="IServiceCollection"/>.
-    /// </summary>
-    /// <remarks>This method organizes service registration into distinct categories, such as base services,
-    /// query APIs, storage services, service handlers, event producers, and hosted services. Each category is
-    /// registered through dedicated internal methods to ensure modularity and maintainability. <para> The method relies
-    /// on configuration values provided by <paramref name="config"/> to initialize certain services, such as database
-    /// connections and external API options. </para> <para> Logging is performed at various stages of the registration
-    /// process to provide visibility into the services being registered. </para></remarks>
-    /// <param name="services">The <see cref="IServiceCollection"/> to which the services will be added.</param>
-    /// <param name="config">The <see cref="ConfigurationManager"/> used to retrieve configuration settings for service registration.</param>
-    /// <param name="logger">The <see cref="Microsoft.Extensions.Logging.ILogger"/> used to log information during the registration process.</param>
-    /// <returns>The updated <see cref="IServiceCollection"/> with the registered services.</returns>
-    public static IServiceCollection RegisterServices(this IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger)
+    /// <param name="services">
+    /// The <see cref="IServiceCollection"/> to which the services will be added.
+    /// </param>
+    extension(IServiceCollection services)
     {
-        var siContainer = new SimpleInjector.Container();
-        siContainer.Options.DefaultScopedLifestyle = new AsyncScopedLifestyle();
-        logger.LogInformationEvent("ApiServer", "add web app services...");
-        RegisterBaseServices();
-        RegisterCommandApiServices();
-        RegisterEventApiServices();
-        RegisterQueryApiServices();
-        RegisterStorageServices();
-        RegisterEventProducers();
-        RegisterHostedServices();
-        RegisterGenericTypes(siContainer, config, logger);
-        return services;
-
-        object? GetContainerInstance(Type serviceType)
+        /// <summary>
+        /// Registers application services, including base services, query APIs, storage services, service handlers, event
+        /// producers, and hosted services, into the specified <see cref="IServiceCollection"/>.
+        /// </summary>
+        /// <remarks>This method organizes service registration into distinct categories, such as base services,
+        /// query APIs, storage services, service handlers, event producers, and hosted services. Each category is
+        /// registered through dedicated internal methods to ensure modularity and maintainability. <para> The method relies
+        /// on configuration values provided by <paramref name="config"/> to initialize certain services, such as database
+        /// connections and external API options. </para> <para> Logging is performed at various stages of the registration
+        /// process to provide visibility into the services being registered. </para></remarks>
+        ///
+        /// <param name="config">The <see cref="ConfigurationManager"/> used to retrieve configuration settings for service registration.</param>
+        /// <param name="logger">The <see cref="Microsoft.Extensions.Logging.ILogger"/> used to log information during the registration process.</param>
+        /// <returns>The updated <see cref="IServiceCollection"/> with the registered services.</returns>
+        public IServiceCollection RegisterServices(ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger)
         {
-            try
-            {
-                return siContainer.GetInstance(serviceType);
-            }
-            catch
-            {
-                return null;
-            }
-        }
+            var siContainer = new SimpleInjector.Container();
+            siContainer.Options.DefaultScopedLifestyle = new AsyncScopedLifestyle();
+            logger.LogInformationEvent("ApiServer", "add web app services...");
+            RegisterBaseServices();
+            RegisterCommandApiServices();
+            RegisterEventApiServices();
+            RegisterQueryApiServices();
+            RegisterStorageServices();
+            RegisterEventProducers();
+            RegisterHostedServices();
+            RegisterGenericTypes(siContainer, config, logger);
+            return services;
 
-        void RegisterBaseServices()
-        {
-            // add web app services...
-            logger.LogInformationEvent("ApiServer", "register base services...");
-            // add web app services...
-            logger.LogInformationEvent("ApiServer", "register base services...");
-
-            // Register HazelcastCache as the IDistributedCache implementation
-            var hazelcastOptions = new HazelcastOptionsBuilder()
-            .With(options =>
+            object? GetContainerInstance(Type serviceType)
             {
-                options.ClusterName = "ifm-cluster";
-                options.Networking.Addresses.Add("localhost:5701");
-            })
-           .Build();
-
-            // Configure the Hazelcast cache options, specifying a unique identifier for the cache map
-            var cacheOptions = new HazelcastCacheOptions
-            {
-                CacheUniqueIdentifier = "api-server-cache",
-            };
-            services.AddSingleton<IDistributedCache>(new HazelcastCache(hazelcastOptions, cacheOptions));
-
-            services.AddSingleton(siContainer);
-            services.AddSimpleInjector(siContainer);
-            services.AddSingleton(TimeProvider.System);
-            services.AddSingleton<IApplicationStartupStatusStore, ApplicationStartupStatusStore>();
-            services.AddSingleton<IApplicationStartupActivities, IntegrationApplicationStartupActivities>();
-            services.AddSingleton<FuturesMarketSessionAuthority>();
-            services.AddSingleton<IFuturesMarketSessionAuthority>(provider =>
-                provider.GetRequiredService<FuturesMarketSessionAuthority>());
-            services.AddHttpClient();
-            services.AddFinancialModelingPrepMarketData(options => options.Enabled = false);
-            services.AddFinancialModelingPrepReferenceDataApi();
-            services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
-            var redisUri = config["IFM_TEST_REDIS_URL"] ?? config.GetValue<string>("AppSettings:RedisUri")!;
-            services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisUri));
-            services.AddSingleton<IRedisCache, RedisCache>();
-            services.AddSingleton<IBlackboardService, BlackboardService>();
-            services.AddSingleton<IDataCacheService, DataCacheService>();
-            services.AddSingleton<IReferenceLookupService, ReferenceLookupActorService>();
-
-            services.AddSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
-            services.AddSingleton(provider => new IntrinsicTimeStrategyWorkflowOptions
-            {
-                Enabled = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false),
-                MarketConditionAssessmentProfileId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:MarketConditionAssessmentProfileId", "ES.Standard")!,
-                FundId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:FundId", 1),
-                PortfolioId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:PortfolioId", 1),
-                RequireWarmRegimeDiscoverySignals = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:RequireWarmRegimeDiscoverySignals", true)
-            });
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.IIntrinsicTimeWorkflowStartPolicy>(
-                provider => provider.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>());
-            var regimeDiscoveryExecutionOptions = new RegimeDiscoveryExecutionOptions
-            {
-                MaximumExecutionDuration = config.GetValue(
-                    $"{RegimeDiscoveryExecutionOptions.SectionName}:MaximumExecutionDuration",
-                    RegimeDiscoveryExecutionOptions.DefaultMaximumExecutionDuration)
-            };
-            regimeDiscoveryExecutionOptions.Validate();
-            services.AddSingleton(regimeDiscoveryExecutionOptions);
-            //services.AddSingleton<IAlgorithmBuilder, AlgorithmBuilder>();
-            //services.AddSingleton<IExceptionDecoratorFactory>(_ => new ExceptionDecoratorFactory(e => GetContainerInstance(e)!));
-            //services.AddSingleton<IValidationDecoratorFactory>(_ => new ValidationDecoratorFactory(e => GetContainerInstance(e)!));
-            //services.AddSingleton<IAlgorithmBuilder, AlgorithmBuilder>();
-            services.AddSingleton<IOptionTradeLiveFeedMap, OptionTradeLiveFeedMap>();
-
-            // register Event Model Actor instances...
-            services.AddSingleton(new ActorRuntimeStartupOptions());
-            var actorInformationLoggingPolicy = (config
-                .GetSection(ActorInformationLoggingOptions.SectionName)
-                .Get<ActorInformationLoggingOptions>() ?? new ActorInformationLoggingOptions())
-                .Compile();
-            services.AddSingleton(actorInformationLoggingPolicy);
-            services.AddSingleton<IActorSupervisor, ActorSupervisor>();
-            services.AddSingleton<IActorService, ActorService>();
-            services.AddSingleton<ISupervisorActorMetricsState, SupervisorActorMetricsState>();
-            services.AddSingleton<TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Evaluation.SupervisorActorThreadHealthEvaluator>();
-            services.AddSingleton<ISupervisorManagedActorMetricsSource>(provider =>
-                new SupervisorManagedActorMetricsSource(
-                    provider.GetRequiredService<IActorSupervisor>().RuntimeContext,
-                    provider.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Evaluation.SupervisorActorThreadHealthEvaluator>(),
-                    provider.GetRequiredService<ILogger<SupervisorManagedActorMetricsSource>>()));
-            services.AddSingleton<ISupervisorExceptionLog, SupervisorExceptionLog>();
-            services.AddSingleton<ISupervisorHealthLlmAdvisorySink, NoOpSupervisorHealthLlmAdvisorySink>();
-            services.AddSingleton<ISupervisorActorMetricsPollingService, SupervisorActorMetricsPollingService>();
-            services.AddSingleton<ISupervisorBootstrap,
-                TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorBootstrap>();
-            services.AddSingleton<ISupervisorManagedActorLifecycle,
-                TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorManagedActorLifecycle>();
-            services.AddSingleton<ISupervisorOperatorAuthorizer>(_ =>
-                new TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorOperatorAuthorizer(["integration-test"]));
-            services.AddSingleton<SupervisorOperationStore>();
-            services.AddSingleton<ISupervisorOperationStore>(provider => provider.GetRequiredService<SupervisorOperationStore>());
-            services.AddSingleton<ISupervisorHealthManager, SupervisorHealthManager>();
-            services.AddSingleton<IActorRuntimeMetricsSourceProvider>(provider =>
-                provider.GetRequiredService<IActorSupervisor>().RuntimeContext);
-            services.AddSingleton<ISupervisorHistoryPersistence, NoOpSupervisorHistoryPersistence>();
-            services.AddSingleton(new SupervisorHealthActionOptions { AutomaticMutationEnabled = false });
-            services.AddSingleton<SupervisorIncidentStore>();
-            services.AddSingleton<ISupervisorIncidentStore>(provider => provider.GetRequiredService<SupervisorIncidentStore>());
-            services.AddSingleton<SupervisorHistoryStore>();
-            services.AddSingleton<ISupervisorHistoryStore>(provider => provider.GetRequiredService<SupervisorHistoryStore>());
-            services.AddSingleton<ISupervisorHealthActionCoordinator, SupervisorHealthActionCoordinator>();
-            services.AddSingleton<IActorRegistry>(_ =>
-            {
-                var actorTypes = (
-                    from reg in siContainer.GetCurrentRegistrations()
-                    where reg.ServiceType.IsClosedTypeOf(typeof(IActor<>))
-                    select reg.ServiceType)
-                    .Distinct()
-                    .ToArray();
-                if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") == "true")
+                try
                 {
-                    actorTypes = actorTypes
-                        .Where(type => type.GenericTypeArguments[0] == typeof(TickAggregationRealtimeActor)
-                            || type.GenericTypeArguments[0].Assembly == TomasAI.IFM.Domain.Supervisor.SupervisorActorAssembly.Current)
-                        .ToArray();
-                    if (actorTypes.Count(type => type.GenericTypeArguments[0] == typeof(TickAggregationRealtimeActor)) != 1)
-                        throw new InvalidOperationException("Isolated quote soak requires exactly one TickAggregation realtime actor and the Supervisor actor.");
+                    return siContainer.GetInstance(serviceType);
                 }
-                return new ActorRegistry(actorTypes);
-            });
-            services.AddSingleton<IActorStateFactoryResolver, ActorStateFactoryResolver>(_ => new ActorStateFactoryResolver(e => GetContainerInstance(e)!));
-            services.AddSingleton<IEventSourceActorStateFactory, EventSourceActorStateFactory>();
-            services.AddSingleton<IActorStateFactory, ActorStateFactory>();
-            services.AddSingleton<IActorFactory>(_ => new ActorFactory(actorType => GetContainerInstance(actorType)!));
-            var testBrokerUrl = config["IFM_TEST_NATS_URL"] ?? "nats://localhost:4222";
-            services.AddSingleton<INatsProducerOptions>(new NatsProducerOptions { Url = testBrokerUrl });
-            services.AddSingleton<INatsConsumerOptions>(new NatsConsumerOptions { Url = testBrokerUrl });
-            services.AddSingleton<INatsEventListenerOptions>(new NatsEventListenerOptions { Url = testBrokerUrl });
-            services.AddSingleton<NatsConnectionManager>();
-            services.AddTransient<IActorProducer, NatsActorProducer>();
-            services.AddTransient<IActorConsumer, NatsActorConsumer>();
-            services.AddSingleton<INatsJetStreamProducerOptions>(new NatsJetStreamProducerOptions { Url = testBrokerUrl });
-            services.AddSingleton<INatsJetStreamConsumerOptions>(new NatsJetStreamConsumerOptions { Url = testBrokerUrl });
-            services.AddSingleton<IDurableReplayQueue, NatsJSDurableReplayQueue>();
-            services.AddTransient<IJSActorProducer, NatsJetStreamActorProducer>();
-            services.AddTransient<IJSActorConsumer, NatsJetStreamActorConsumer>();
-            services.AddTransient<IActorThreadQueue>(_ => new ActorThreadQueueV2(8192, 32, 32));
-
-            services.AddSingleton<IContainerInstance>(provider => new ContainerInstance(type =>
-            {
-                var instance = provider.GetService(type)!;
-                instance ??= GetContainerInstance(type)!;
-                return instance;
-            }));
-        }
-
-        void RegisterCommandApiServices()
-        {
-            logger.LogInformationEvent("ApiServer", "registering command api services...");
-            services.AddSingleton<IApplicationCommandApi, ApplicationCommandApi>();
-            services.AddSingleton<IMarketDataCommandApi, MarketDataCommandApi>();
-            services.AddSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
-            services.AddSingleton<IMarketDataAnalyticsCommandApi, MarketDataAnalyticsCommandApi>();
-            services.AddSingleton<IReferenceCommandApi, ReferenceCommandApi>();
-            services.AddSingleton<ITradePlanCommandApi, TradePlanCommandApi>();
-            services.AddSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
-        }
-
-        void RegisterEventApiServices()
-        {
-            logger.LogInformationEvent("ApiServer", "registering actor event api services...");
-        }
-
-        void RegisterQueryApiServices()
-        {
-            logger.LogInformationEvent("ApiServer", "register query API services...");
-            services.AddSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
-            services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
-            services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
-            services.AddSingleton<IDownloadLogQueryApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogQueryApi>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.ISelectionConstructionProfileResolver, TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.SelectionConstructionProfileResolver>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.ITradeSelectionQueryApi, TomasAI.IFM.Application.Api.Nats.Client.TradeSelectionQueryApi>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.IMarketConditionAssessmentQueryApi, TomasAI.IFM.Application.Api.Nats.Client.MarketConditionAssessmentQueryApi>();
-            services.AddSingleton<IDownloadLogCommandApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogCommandApi>();
-            services.AddSingleton<ITradePlanQueryApi, TradePlanQueryApi>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IStrategyTradePlanQueryApi,
-                TomasAI.IFM.Application.Api.Nats.Client.StrategyTradePlanQueryApi>();
-            services.AddSingleton<ITradeQueryApi, OptionTradeQueryApi>();
-            services.AddSingleton<IReferenceQueryApi, ReferenceQueryApi>();
-        }
-
-        void RegisterStorageServices()
-        {
-            services.AddSingleton<TomasAI.IFM.Domain.Reference.Repository.ITradeStrategyFamilyCatalogStore, TomasAI.IFM.Domain.Reference.Repository.TradeStrategyFamilyCatalogStore>();
-            services.AddSingleton<TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.TradeStrategyFamilyCreationService>();
-            services.AddSingleton<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService>();
-            // Match production's implemented selector capabilities; unsupported downstream capabilities remain denied.
-            services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogCapabilities>(
-                _ => new TomasAI.IFM.Application.Strategy.StrategyCatalog.StrategyCatalogCapabilityRegistry(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionCatalogCapabilities.Create()));
-            services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogReferences,
-                TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogReferenceAdapter>();
-            logger.LogInformationEvent("ApiServer", "register storage services...");
-            services.AddSingleton(_ =>
-            new DbConnectionSettings()
-                .Add("EventSourceActorDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-                .Add("MarketDataServiceDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"]
-                    ?? config.GetConnectionString("MarketDataServiceDbConnection")
-                    ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-                .Add("ConfigurationDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("ConfigurationDbConnection")
-                    ?? config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-                .Add("SequenceIdDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("SequenceIdDbConnection")!, "System.Data.Postgres")
-                .Add("MarketDataDbConnection", config["IFM_TEST_MARKET_DATA_CONNECTION"]
-                    ?? config.GetConnectionString("MarketDataDbConnection")!, "System.Data.ScyllaDb")
-                .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
-                .Add("SecuritiesDbConnection", config.GetConnectionString("SecuritiesDbConnection")!, "System.Data.ScyllaDb")
-                .Add("TradeDbConnection", config["IFM_TEST_TRADE_CONNECTION"]
-                    ?? config.GetConnectionString("TradeDbConnection")
-                    ?? throw new InvalidOperationException("TradeDbConnection must target ScyllaDB for the integration host."), "System.Data.ScyllaDb")
-                .Add("TradePlanDbConnection", config["IFM_TEST_TRADE_PLAN_CONNECTION"]
-                    ?? config.GetConnectionString("TradePlanDbConnection")
-                    ?? throw new InvalidOperationException("TradePlanDbConnection must target ScyllaDB for the integration host."), "System.Data.ScyllaDb")
-                .Add("PortfolioDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("PortfolioDbConnection")
-                    ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-            );
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioFinancialSchema>();
-            services.AddSingleton(provider => new TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialDevelopmentPolicy(
-                provider.GetRequiredService<IHostEnvironment>().IsDevelopment()));
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IGeneralLedgerStore,
-                TomasAI.IFM.Domain.Portfolio.Financial.Repository.GeneralLedgerStore>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.ICapacityReservationStore,
-                TomasAI.IFM.Domain.Portfolio.Financial.Repository.CapacityReservationStore>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model.FinancialIdentityAllocator>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialAuthorityPreparationStore>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IFinancialHistoryProjection,
-                TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialHistoryProjection>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IFinancialQueryStore,
-                TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialQueryStore>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi,
-                TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.IPortfolioOrderCompositionApi>(provider =>
-                (TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi)provider.GetRequiredService<
-                    TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>());
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.AccountingExportStore>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.EmulatorExecutionStore>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IPortfolioAuthorityFence,
-                TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioAuthorityFence>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialHistoryJournal>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.ILedgerConfigurationStore,
-                TomasAI.IFM.Domain.Portfolio.Financial.Repository.LedgerConfigurationStore>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Identity.IPortfolioBusinessIdAllocator, TomasAI.IFM.Domain.Portfolio.Identity.PortfolioBusinessIdAllocator>();
-            services.AddSingleton(new TomasAI.IFM.Domain.Portfolio.Operations.PortfolioOperationalOptions());
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Operations.IPortfolioOperationalGuard, TomasAI.IFM.Domain.Portfolio.Operations.PortfolioOperationalGuard>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Persistence.IPortfolioEventStore, TomasAI.IFM.Domain.Portfolio.Persistence.PortfolioEventStore>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi, TomasAI.IFM.Application.Api.Nats.Client.PortfolioQueryApi>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioFundCommandApi, TomasAI.IFM.Application.Api.Nats.Client.PortfolioFundCommandApi>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb>();
-            services.AddSingleton(_ => (TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext)new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext>());
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.IPortfolioDbReadContext>(provider => provider.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext>());
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.IPortfolioDbWriteContext>(provider => provider.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext>());
-            services.AddSingleton<IDbCache, DbCache>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction,
-                TomasAI.IFM.Application.Storage.EventSourceDb.PostgresEventTransaction>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository.PortfolioOrderCompositionStore>();
-            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository.PortfolioCloseOrderCompositionStore>();
-            services.AddSingleton<IDbContextResolver>(_ => new DbContextResolver(e => GetContainerInstance(e)!));
-            services.AddSingleton<IDbContextFactory, DbContextFactory>();
-            services.AddSingleton<ISequenceIdDbContext, SequenceIdDbContext>();
-            services.AddSingleton<ISequenceIdGenerator, PostgresSequenceIdGenerator>();
-            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!);
-            services.AddSingleton<ICommandAuditLogger>(provider =>
-                new TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator(provider.GetRequiredService<IEventSourceActorDbContext>(),
-                logger: provider.GetRequiredService<ILogger<TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator>>(),
-                options: siContainer.GetInstance<TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions>()));
-            services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.RiskHistoryJournal>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection>(provider =>
-                provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>());
-            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
-            //services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(MarketDataDbContext))!)?.Resolve<MarketDataDbContext>() as IMarketDataDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ReferenceDbContext>() as IReferenceDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SecuritiesDbContext>() as ISecuritiesDbContext)!);
-            services.AddSingleton<IFuturesContractRolloverStore>(provider =>
-                provider.GetRequiredService<ISecuritiesDbContext>());
-            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ConfigurationDbContext>() as IConfigurationDbContext)!);
-            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<MarketDataServiceDbContext>() as MarketDataServiceDbContext)!);
-            services.AddSingleton<IMarketDataServiceStore>(provider => provider.GetRequiredService<MarketDataServiceDbContext>());
-            services.AddSingleton<IMarketDataDbContext, MarketDataDbContext>();
-            services.AddSingleton<IHistoricalDataLoaderStore, HistoricalDataLoaderStore>();
-            services.AddSingleton<IHistoricalObservationStore>(provider =>
-                provider.GetRequiredService<IMarketDataDbContext>());
-            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.IDurableSubscriptionIntentStore>(provider =>
-                provider.GetRequiredService<MarketDataServiceDbContext>());
-            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.ICommittedBusinessEventJournal,
-                TomasAI.IFM.Application.Storage.EventSourceDb.PostgresCommittedBusinessEventJournal>();
-            services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.ICommittedBusinessSubscriptionSource,
-                TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CommittedCompositionSubscriptionSource>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>();
-            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.ICommittedCompositionSubscriptionProjector>(provider =>
-                provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>());
-            services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionRoutePlanStore>(provider =>
-                provider.GetRequiredService<MarketDataServiceDbContext>());
-            services.AddSingleton<EventSourceSchemaDb>();
-            services.AddSingleton<SequenceIdSchemaDb>();
-            services.AddSingleton<MarketDataSchemaDb>();
-            services.AddSingleton<ReferenceSchemaDb>();
-            services.AddSingleton<SecuritiesSchemaDb>();
-            services.AddSingleton<TradeSchemaDb>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.TradePlanDb.Schema.TradePlanSchemaDb>();
-            services.AddSingleton<ConfigurationSchemaDb>();
-            services.AddSingleton<RegimeDiscoveryMarketSignalSnapshotProvider>();
-            services.AddSingleton<IRegimeDiscoveryMarketSignalSnapshotProvider>(provider =>
-                provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
-            services.AddSingleton<IRegimeDiscoveryMarketSignalCache>(provider =>
-                provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
-
-
-
-            services.AddSingleton<IMarketConditionEventRiskAdapter, MarketConditionEventRiskAdapter>();
-            services.AddSingleton<IMarketConditionAssessmentSnapshotProvider, MarketConditionAssessmentSnapshotProvider>();
-
-
-            services.AddSingleton(_ =>
-                   new StorageUrlSettings()
-                        .Add("DomainData", config.GetValue<string>("AppSettings:DomainDataStorageBaseUri")!)
-                        .Add("QueryData", config.GetValue<string>("AppSettings:QueryDataStorageBaseUri")!)
-                   );
-        }
-
-        void RegisterEventProducers()
-        {
-            logger.LogInformationEvent("ApiServer", "register event producers...");
-            services.AddSingleton<ITradeEventProducer, TradeEventProducer>();
-            services.AddSingleton<ITradePlacementEventProducer, TradePlacementEventProducer>();
-            services.AddSingleton<IStatusConsoleEventProducer, StatusConsoleEventProducer>();
-        }
-
-        void RegisterHostedServices()
-        {
-
-            logger.LogInformationEvent("ApiServer", "register hosted services...");
-            services.AddSingleton<IStatusConsoleWriter, StatusConsoleWriter>();
-            services.AddSingleton<IAzureStorageOptions>(sp => config.GetSection("AzureStorage").Get<AzureStorageOptions>()!);
-            services.AddSingleton<IAzureStorage, AzureStorage>();
-            // algo trader hosted service...
-
-            var dataset = config.GetValue<string>("AppSettings:Databento:Dataset")
-                ?? "GLBX.MDP3";
-            var profileName = config.GetValue<string>(
-                "AppSettings:Databento:DeploymentProfile");
-            var deploymentProfile = Enum.TryParse<FeedDeploymentProfile>(
-                profileName, true, out var configuredProfile)
-                    ? configuredProfile
-                    : FeedDeploymentProfile.Development;
-            var contracts = config
-                .GetSection("AppSettings:Databento:Contracts")
-                .Get<DatabentoContractRegistration[]>() ?? [];
-            var feedOptions = DatabentoFeedOptions.ForProfile(
-                deploymentProfile, dataset);
-            var runtimeOptions = new DatabentoMarketDataRuntimeOptions
-            {
-                FeedOptions = feedOptions,
-                Contracts = contracts
-            };
-            services.AddSingleton(new MarketOutlookSnapshotPersistencePolicy(
-                MarketOutlookSnapshotSource.Synthetic));
-            services.AddSingleton(MarketOutlookSnapshotQueryPolicy.AllowAll);
-            services.AddDatabentoMarketDataServices();
-            services.AddSingleton<IDatabentoFeedFactory,
-                IntegrationDatabentoFeedFactory>();
-            services.AddSingleton<ITickAggregationEventPublisher,
-                TickAggregationEventPublisher>();
-            services.AddApplicationMarketDataApi(runtimeOptions);
-            services.AddSingleton<IMarketDataLifecycleRequests, IntegrationMarketDataLifecycleRequests>();
-            services.AddDatabentoHistoricalMarketDataServices(
-                new DatabentoHistoricalProviderOptions
+                catch
                 {
-                    UseSyntheticProvider = true
-                });
-            services.AddApplicationMarketDataHistoricalApi(
-                new DatabentoHistoricalOptions
-                {
-                    StagingRoot = Path.Combine(
-                        AppContext.BaseDirectory,
-                        "market-data-history"),
-                    SeriesProfiles = []
-                });
-            services.AddSingleton<IHistoricalReplayPublisher, FuturesVwapHistoricalReplayPublisher>();
-            services.AddSingleton<IHistoricalDailyReplayPublisher, FuturesEmaBbHistoricalDailyReplayPublisher>();
-            services.AddSingleton(new HistoricalAnalyticsWarmupOptions
+                    return null;
+                }
+            }
+
+            void RegisterBaseServices()
             {
-                Enabled = false
-            });
-            services.AddSingleton<HistoricalAnalyticsWarmupService>();
-            services.AddSingleton<IFuturesTradeSessionBarSeriesResolver>(_ =>
-                new PrefixFuturesTradeSessionBarSeriesResolver(
-                    new Dictionary<string, MarketSeriesIdentity>(StringComparer.OrdinalIgnoreCase)
+                // add web app services...
+                logger.LogInformationEvent("ApiServer", "register base services...");
+                // add web app services...
+                logger.LogInformationEvent("ApiServer", "register base services...");
+
+                // Register HazelcastCache as the IDistributedCache implementation
+                var hazelcastOptions = new HazelcastOptionsBuilder()
+                .With(options =>
+                {
+                    options.ClusterName = "ifm-cluster";
+                    options.Networking.Addresses.Add("localhost:5701");
+                })
+               .Build();
+
+                // Configure the Hazelcast cache options, specifying a unique identifier for the cache map
+                var cacheOptions = new HazelcastCacheOptions
+                {
+                    CacheUniqueIdentifier = "api-server-cache",
+                };
+                services.AddSingleton<IDistributedCache>(new HazelcastCache(hazelcastOptions, cacheOptions));
+
+                services.AddSingleton(siContainer);
+                services.AddSimpleInjector(siContainer);
+                services.AddSingleton(TimeProvider.System);
+                services.AddSingleton<IApplicationStartupStatusStore, ApplicationStartupStatusStore>();
+                services.AddSingleton<IApplicationStartupActivities, IntegrationApplicationStartupActivities>();
+                services.AddSingleton<FuturesMarketSessionAuthority>();
+                services.AddSingleton<IFuturesMarketSessionAuthority>(provider =>
+                    provider.GetRequiredService<FuturesMarketSessionAuthority>());
+                services.AddHttpClient();
+                services.AddFinancialModelingPrepMarketData(options => options.Enabled = false);
+                services.AddFinancialModelingPrepReferenceDataApi();
+                services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+                var redisUri = config["IFM_TEST_REDIS_URL"] ?? config.GetValue<string>("AppSettings:RedisUri")!;
+                services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisUri));
+                services.AddSingleton<IRedisCache, RedisCache>();
+                services.AddSingleton<IBlackboardService, BlackboardService>();
+                services.AddSingleton<IDataCacheService, DataCacheService>();
+                services.AddSingleton<IReferenceLookupService, ReferenceLookupActorService>();
+
+                services.AddSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
+                services.AddSingleton(provider => new IntrinsicTimeStrategyWorkflowOptions
+                {
+                    Enabled = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false),
+                    MarketConditionAssessmentProfileId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:MarketConditionAssessmentProfileId", "ES.Standard")!,
+                    FundId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:FundId", 1),
+                    PortfolioId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:PortfolioId", 1),
+                    RequireWarmRegimeDiscoverySignals = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:RequireWarmRegimeDiscoverySignals", true)
+                });
+                services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.IIntrinsicTimeWorkflowStartPolicy>(
+                    provider => provider.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>());
+                var regimeDiscoveryExecutionOptions = new RegimeDiscoveryExecutionOptions
+                {
+                    MaximumExecutionDuration = config.GetValue(
+                        $"{RegimeDiscoveryExecutionOptions.SectionName}:MaximumExecutionDuration",
+                        RegimeDiscoveryExecutionOptions.DefaultMaximumExecutionDuration)
+                };
+                regimeDiscoveryExecutionOptions.Validate();
+                services.AddSingleton(regimeDiscoveryExecutionOptions);
+                //services.AddSingleton<IAlgorithmBuilder, AlgorithmBuilder>();
+                //services.AddSingleton<IExceptionDecoratorFactory>(_ => new ExceptionDecoratorFactory(e => GetContainerInstance(e)!));
+                //services.AddSingleton<IValidationDecoratorFactory>(_ => new ValidationDecoratorFactory(e => GetContainerInstance(e)!));
+                //services.AddSingleton<IAlgorithmBuilder, AlgorithmBuilder>();
+                services.AddSingleton<IOptionTradeLiveFeedMap, OptionTradeLiveFeedMap>();
+
+                // register Event Model Actor instances...
+                services.AddSingleton(new ActorRuntimeStartupOptions());
+                var actorInformationLoggingPolicy = (config
+                    .GetSection(ActorInformationLoggingOptions.SectionName)
+                    .Get<ActorInformationLoggingOptions>() ?? new ActorInformationLoggingOptions())
+                    .Compile();
+                services.AddSingleton(actorInformationLoggingPolicy);
+                services.AddSingleton<IActorSupervisor, ActorSupervisor>();
+                services.AddSingleton<IActorService, ActorService>();
+                services.AddSingleton<ISupervisorActorMetricsState, SupervisorActorMetricsState>();
+                services.AddSingleton<TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Evaluation.SupervisorActorThreadHealthEvaluator>();
+                services.AddSingleton<ISupervisorManagedActorMetricsSource>(provider =>
+                    new SupervisorManagedActorMetricsSource(
+                        provider.GetRequiredService<IActorSupervisor>().RuntimeContext,
+                        provider.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Evaluation.SupervisorActorThreadHealthEvaluator>(),
+                        provider.GetRequiredService<ILogger<SupervisorManagedActorMetricsSource>>()));
+                services.AddSingleton<ISupervisorExceptionLog, SupervisorExceptionLog>();
+                services.AddSingleton<ISupervisorHealthLlmAdvisorySink, NoOpSupervisorHealthLlmAdvisorySink>();
+                services.AddSingleton<ISupervisorActorMetricsPollingService, SupervisorActorMetricsPollingService>();
+                services.AddSingleton<ISupervisorBootstrap,
+                    TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorBootstrap>();
+                services.AddSingleton<ISupervisorManagedActorLifecycle,
+                    TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorManagedActorLifecycle>();
+                services.AddSingleton<ISupervisorOperatorAuthorizer>(_ =>
+                    new TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle.SupervisorOperatorAuthorizer(["integration-test"]));
+                services.AddSingleton<SupervisorOperationStore>();
+                services.AddSingleton<ISupervisorOperationStore>(provider => provider.GetRequiredService<SupervisorOperationStore>());
+                services.AddSingleton<ISupervisorHealthManager, SupervisorHealthManager>();
+                services.AddSingleton<IActorRuntimeMetricsSourceProvider>(provider =>
+                    provider.GetRequiredService<IActorSupervisor>().RuntimeContext);
+                services.AddSingleton<ISupervisorHistoryPersistence, NoOpSupervisorHistoryPersistence>();
+                services.AddSingleton(new SupervisorHealthActionOptions { AutomaticMutationEnabled = false });
+                services.AddSingleton<SupervisorIncidentStore>();
+                services.AddSingleton<ISupervisorIncidentStore>(provider => provider.GetRequiredService<SupervisorIncidentStore>());
+                services.AddSingleton<SupervisorHistoryStore>();
+                services.AddSingleton<ISupervisorHistoryStore>(provider => provider.GetRequiredService<SupervisorHistoryStore>());
+                services.AddSingleton<ISupervisorHealthActionCoordinator, SupervisorHealthActionCoordinator>();
+                services.AddSingleton<IActorRegistry>(_ =>
+                {
+                    var actorTypes = (
+                        from reg in siContainer.GetCurrentRegistrations()
+                        where reg.ServiceType.IsClosedTypeOf(typeof(IActor<>))
+                        select reg.ServiceType)
+                        .Distinct()
+                        .ToArray();
+                    if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") == "true")
                     {
-                        ["ES"] = MarketSeriesIdentity.ForFuturesSeries(
-                            new FuturesSeriesId(
-                                "ES",
-                                "calendar-front",
-                                "unadjusted",
-                                1))
-                    }));
-            services.AddSingleton<FuturesTradeSessionBarAccumulatorRegistry>();
-            services.AddSingleton(MarketOutlookHotCache.Shared);
-            services.AddSingleton<IMarketOutlookHotCache>(provider =>
-                provider.GetRequiredService<MarketOutlookHotCache>());
-            services.AddSingleton<IMarketOutlookHotCacheWriter>(provider =>
-                provider.GetRequiredService<MarketOutlookHotCache>());
-            services.AddSingleton(_ => new TomasAI.IFM.Application.MarketData.OperationsHealth.LivePipelineEvidence(TimeProvider.System));
-            services.AddSingleton<TomasAI.IFM.Application.MarketData.OperationsHealth.FuturesItiSignalRuntimeTelemetry>();
-            services.AddSingleton<MarketOutlookProcessorMetrics>();
-            services.AddSingleton<IMarketDataOperationsRecorder>(provider =>
-                provider.GetRequiredService<MarketOutlookProcessorMetrics>());
-            services.AddSingleton<MarketOutlookUpdateChannel>();
-            services.AddSingleton<IMarketOutlookUpdateWriter>(provider =>
-                provider.GetRequiredService<MarketOutlookUpdateChannel>());
-            services.AddSingleton<IMarketOutlookUpdateReader>(provider =>
-                provider.GetRequiredService<MarketOutlookUpdateChannel>());
-            services.AddSingleton<IMarketOutlookSnapshotCommandWriter, ActorMarketOutlookSnapshotCommandWriter>();
-            services.AddSingleton<LatestMarketOutlookSnapshotPublisher>();
-            services.AddSingleton<IMarketOutlookSnapshotPublisher>(provider =>
-                provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
-            if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") != "true")
-                services.AddHostedService(provider => provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
-            services.AddSingleton<MarketOutlookUpdateProcessor>();
-            services.AddSingleton<IMarketOutlookOperations>(provider =>
-                provider.GetRequiredService<MarketOutlookUpdateProcessor>());
-            if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") != "true")
-                services.AddHostedService(provider =>
+                        actorTypes = actorTypes
+                            .Where(type => type.GenericTypeArguments[0] == typeof(TickAggregationRealtimeActor)
+                                || type.GenericTypeArguments[0].Assembly == TomasAI.IFM.Domain.Supervisor.SupervisorActorAssembly.Current)
+                            .ToArray();
+                        if (actorTypes.Count(type => type.GenericTypeArguments[0] == typeof(TickAggregationRealtimeActor)) != 1)
+                            throw new InvalidOperationException("Isolated quote soak requires exactly one TickAggregation realtime actor and the Supervisor actor.");
+                    }
+                    return new ActorRegistry(actorTypes);
+                });
+                services.AddSingleton<IActorStateFactoryResolver, ActorStateFactoryResolver>(_ => new ActorStateFactoryResolver(e => GetContainerInstance(e)!));
+                services.AddSingleton<IEventSourceActorStateFactory, EventSourceActorStateFactory>();
+                services.AddSingleton<IActorStateFactory, ActorStateFactory>();
+                services.AddSingleton<IActorFactory>(_ => new ActorFactory(actorType => GetContainerInstance(actorType)!));
+                var testBrokerUrl = config["IFM_TEST_NATS_URL"] ?? "nats://localhost:4222";
+                services.AddSingleton<INatsProducerOptions>(new NatsProducerOptions { Url = testBrokerUrl });
+                services.AddSingleton<INatsConsumerOptions>(new NatsConsumerOptions { Url = testBrokerUrl });
+                services.AddSingleton<INatsEventListenerOptions>(new NatsEventListenerOptions { Url = testBrokerUrl });
+                services.AddSingleton<NatsConnectionManager>();
+                services.AddTransient<IActorProducer, NatsActorProducer>();
+                services.AddTransient<IActorConsumer, NatsActorConsumer>();
+                services.AddSingleton<INatsJetStreamProducerOptions>(new NatsJetStreamProducerOptions { Url = testBrokerUrl });
+                services.AddSingleton<INatsJetStreamConsumerOptions>(new NatsJetStreamConsumerOptions { Url = testBrokerUrl });
+                services.AddSingleton<IDurableReplayQueue, NatsJSDurableReplayQueue>();
+                services.AddTransient<IJSActorProducer, NatsJetStreamActorProducer>();
+                services.AddTransient<IJSActorConsumer, NatsJetStreamActorConsumer>();
+                services.AddTransient<IActorThreadQueue>(_ => new ActorThreadQueueV2(8192, 32, 32));
+
+                services.AddSingleton<IContainerInstance>(provider => new ContainerInstance(type =>
+                {
+                    var instance = provider.GetService(type)!;
+                    instance ??= GetContainerInstance(type)!;
+                    return instance;
+                }));
+            }
+
+            void RegisterCommandApiServices()
+            {
+                logger.LogInformationEvent("ApiServer", "registering command api services...");
+                services.AddSingleton<IApplicationCommandApi, ApplicationCommandApi>();
+                services.AddSingleton<IMarketDataCommandApi, MarketDataCommandApi>();
+                services.AddSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
+                services.AddSingleton<IMarketDataAnalyticsCommandApi, MarketDataAnalyticsCommandApi>();
+                services.AddSingleton<IReferenceCommandApi, ReferenceCommandApi>();
+                services.AddSingleton<ITradePlanCommandApi, TradePlanCommandApi>();
+                services.AddSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
+            }
+
+            void RegisterEventApiServices()
+            {
+                logger.LogInformationEvent("ApiServer", "registering actor event api services...");
+            }
+
+            void RegisterQueryApiServices()
+            {
+                logger.LogInformationEvent("ApiServer", "register query API services...");
+                services.AddSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
+                services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
+                services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
+                services.AddSingleton<IDownloadLogQueryApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogQueryApi>();
+                services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.ISelectionConstructionProfileResolver, TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.SelectionConstructionProfileResolver>();
+                services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.ITradeSelectionQueryApi, TomasAI.IFM.Application.Api.Nats.Client.TradeSelectionQueryApi>();
+                services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.IMarketConditionAssessmentQueryApi, TomasAI.IFM.Application.Api.Nats.Client.MarketConditionAssessmentQueryApi>();
+                services.AddSingleton<IDownloadLogCommandApi, TomasAI.IFM.Application.Api.Nats.Client.DownloadLogCommandApi>();
+                services.AddSingleton<ITradePlanQueryApi, TradePlanQueryApi>();
+                services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IStrategyTradePlanQueryApi,
+                    TomasAI.IFM.Application.Api.Nats.Client.StrategyTradePlanQueryApi>();
+                services.AddSingleton<ITradeQueryApi, OptionTradeQueryApi>();
+                services.AddSingleton<IReferenceQueryApi, ReferenceQueryApi>();
+            }
+
+            void RegisterStorageServices()
+            {
+                services.AddSingleton<TomasAI.IFM.Domain.Reference.Repository.ITradeStrategyFamilyCatalogStore, TomasAI.IFM.Domain.Reference.Repository.TradeStrategyFamilyCatalogStore>();
+                services.AddSingleton<TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.TradeStrategyFamilyCreationService>();
+                services.AddSingleton<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService>();
+                // Match production's implemented selector capabilities; unsupported downstream capabilities remain denied.
+                services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogCapabilities>(
+                    _ => new TomasAI.IFM.Application.Strategy.StrategyCatalog.StrategyCatalogCapabilityRegistry(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionCatalogCapabilities.Create()));
+                services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogReferences,
+                    TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogReferenceAdapter>();
+                logger.LogInformationEvent("ApiServer", "register storage services...");
+                services.AddSingleton(_ =>
+                new DbConnectionSettings()
+                    .Add("EventSourceActorDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
+                    .Add("MarketDataServiceDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"]
+                        ?? config.GetConnectionString("MarketDataServiceDbConnection")
+                        ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
+                    .Add("ConfigurationDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("ConfigurationDbConnection")
+                        ?? config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
+                    .Add("SequenceIdDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("SequenceIdDbConnection")!, "System.Data.Postgres")
+                    .Add("MarketDataDbConnection", config["IFM_TEST_MARKET_DATA_CONNECTION"]
+                        ?? config.GetConnectionString("MarketDataDbConnection")!, "System.Data.ScyllaDb")
+                    .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
+                    .Add("SecuritiesDbConnection", config.GetConnectionString("SecuritiesDbConnection")!, "System.Data.ScyllaDb")
+                    .Add("TradeDbConnection", config["IFM_TEST_TRADE_CONNECTION"]
+                        ?? config.GetConnectionString("TradeDbConnection")
+                        ?? throw new InvalidOperationException("TradeDbConnection must target ScyllaDB for the integration host."), "System.Data.ScyllaDb")
+                    .Add("TradePlanDbConnection", config["IFM_TEST_TRADE_PLAN_CONNECTION"]
+                        ?? config.GetConnectionString("TradePlanDbConnection")
+                        ?? throw new InvalidOperationException("TradePlanDbConnection must target ScyllaDB for the integration host."), "System.Data.ScyllaDb")
+                    .Add("PortfolioDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("PortfolioDbConnection")
+                        ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
+                );
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioFinancialSchema>();
+                services.AddSingleton(provider => new TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialDevelopmentPolicy(
+                    provider.GetRequiredService<IHostEnvironment>().IsDevelopment()));
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IGeneralLedgerStore,
+                    TomasAI.IFM.Domain.Portfolio.Financial.Repository.GeneralLedgerStore>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.ICapacityReservationStore,
+                    TomasAI.IFM.Domain.Portfolio.Financial.Repository.CapacityReservationStore>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model.FinancialIdentityAllocator>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialAuthorityPreparationStore>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IFinancialHistoryProjection,
+                    TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialHistoryProjection>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IFinancialQueryStore,
+                    TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialQueryStore>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi,
+                    TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.IPortfolioOrderCompositionApi>(provider =>
+                    (TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi)provider.GetRequiredService<
+                        TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>());
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.AccountingExportStore>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.EmulatorExecutionStore>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IPortfolioAuthorityFence,
+                    TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioAuthorityFence>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialHistoryJournal>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.ILedgerConfigurationStore,
+                    TomasAI.IFM.Domain.Portfolio.Financial.Repository.LedgerConfigurationStore>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Identity.IPortfolioBusinessIdAllocator, TomasAI.IFM.Domain.Portfolio.Identity.PortfolioBusinessIdAllocator>();
+                services.AddSingleton(new TomasAI.IFM.Domain.Portfolio.Operations.PortfolioOperationalOptions());
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Operations.IPortfolioOperationalGuard, TomasAI.IFM.Domain.Portfolio.Operations.PortfolioOperationalGuard>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Persistence.IPortfolioEventStore, TomasAI.IFM.Domain.Portfolio.Persistence.PortfolioEventStore>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi, TomasAI.IFM.Application.Api.Nats.Client.PortfolioQueryApi>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioFundCommandApi, TomasAI.IFM.Application.Api.Nats.Client.PortfolioFundCommandApi>();
+                services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb>();
+                services.AddSingleton(_ => (TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext)new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext>());
+                services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.IPortfolioDbReadContext>(provider => provider.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext>());
+                services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.IPortfolioDbWriteContext>(provider => provider.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext>());
+                services.AddSingleton<IDbCache, DbCache>();
+                services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction,
+                    TomasAI.IFM.Application.Storage.EventSourceDb.PostgresEventTransaction>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository.PortfolioOrderCompositionStore>();
+                services.AddSingleton<TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository.PortfolioCloseOrderCompositionStore>();
+                services.AddSingleton<IDbContextResolver>(_ => new DbContextResolver(e => GetContainerInstance(e)!));
+                services.AddSingleton<IDbContextFactory, DbContextFactory>();
+                services.AddSingleton<ISequenceIdDbContext, SequenceIdDbContext>();
+                services.AddSingleton<ISequenceIdGenerator, PostgresSequenceIdGenerator>();
+                services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!);
+                services.AddSingleton<ICommandAuditLogger>(provider =>
+                    new TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator(provider.GetRequiredService<IEventSourceActorDbContext>(),
+                    logger: provider.GetRequiredService<ILogger<TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator>>(),
+                    options: siContainer.GetInstance<TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions>()));
+                services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.RiskHistoryJournal>();
+                services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
+                services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection>(provider =>
+                    provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>());
+                services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
+                //services.AddSingleton(_ => (new DbContextResolver(_ => GetContainerInstance(typeof(MarketDataDbContext))!)?.Resolve<MarketDataDbContext>() as IMarketDataDbContext)!);
+                services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ReferenceDbContext>() as IReferenceDbContext)!);
+                services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SecuritiesDbContext>() as ISecuritiesDbContext)!);
+                services.AddSingleton<IFuturesContractRolloverStore>(provider =>
+                    provider.GetRequiredService<ISecuritiesDbContext>());
+                services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
+                services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ConfigurationDbContext>() as IConfigurationDbContext)!);
+                services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<MarketDataServiceDbContext>() as MarketDataServiceDbContext)!);
+                services.AddSingleton<IMarketDataServiceStore>(provider => provider.GetRequiredService<MarketDataServiceDbContext>());
+                services.AddSingleton<IMarketDataDbContext, MarketDataDbContext>();
+                services.AddSingleton<IHistoricalDataLoaderStore, HistoricalDataLoaderStore>();
+                services.AddSingleton<IHistoricalObservationStore>(provider =>
+                    provider.GetRequiredService<IMarketDataDbContext>());
+                services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.IDurableSubscriptionIntentStore>(provider =>
+                    provider.GetRequiredService<MarketDataServiceDbContext>());
+                services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.ICommittedBusinessEventJournal,
+                    TomasAI.IFM.Application.Storage.EventSourceDb.PostgresCommittedBusinessEventJournal>();
+                services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.ICommittedBusinessSubscriptionSource,
+                    TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CommittedCompositionSubscriptionSource>();
+                services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>();
+                services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.ICommittedCompositionSubscriptionProjector>(provider =>
+                    provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime.CommittedCompositionSubscriptionProjector>());
+                services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionRoutePlanStore>(provider =>
+                    provider.GetRequiredService<MarketDataServiceDbContext>());
+                services.AddSingleton<EventSourceSchemaDb>();
+                services.AddSingleton<SequenceIdSchemaDb>();
+                services.AddSingleton<MarketDataSchemaDb>();
+                services.AddSingleton<ReferenceSchemaDb>();
+                services.AddSingleton<SecuritiesSchemaDb>();
+                services.AddSingleton<TradeSchemaDb>();
+                services.AddSingleton<TomasAI.IFM.Application.Storage.TradePlanDb.Schema.TradePlanSchemaDb>();
+                services.AddSingleton<ConfigurationSchemaDb>();
+                services.AddSingleton<RegimeDiscoveryMarketSignalSnapshotProvider>();
+                services.AddSingleton<IRegimeDiscoveryMarketSignalSnapshotProvider>(provider =>
+                    provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
+                services.AddSingleton<IRegimeDiscoveryMarketSignalCache>(provider =>
+                    provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
+
+
+
+                services.AddSingleton<IMarketConditionEventRiskAdapter, MarketConditionEventRiskAdapter>();
+                services.AddSingleton<IMarketConditionAssessmentSnapshotProvider, MarketConditionAssessmentSnapshotProvider>();
+
+
+                services.AddSingleton(_ =>
+                       new StorageUrlSettings()
+                            .Add("DomainData", config.GetValue<string>("AppSettings:DomainDataStorageBaseUri")!)
+                            .Add("QueryData", config.GetValue<string>("AppSettings:QueryDataStorageBaseUri")!)
+                       );
+            }
+
+            void RegisterEventProducers()
+            {
+                logger.LogInformationEvent("ApiServer", "register event producers...");
+                services.AddSingleton<ITradeEventProducer, TradeEventProducer>();
+                services.AddSingleton<ITradePlacementEventProducer, TradePlacementEventProducer>();
+                services.AddSingleton<IStatusConsoleEventProducer, StatusConsoleEventProducer>();
+            }
+
+            void RegisterHostedServices()
+            {
+
+                logger.LogInformationEvent("ApiServer", "register hosted services...");
+                services.AddSingleton<IStatusConsoleWriter, StatusConsoleWriter>();
+                services.AddSingleton<IAzureStorageOptions>(sp => config.GetSection("AzureStorage").Get<AzureStorageOptions>()!);
+                services.AddSingleton<IAzureStorage, AzureStorage>();
+                // algo trader hosted service...
+
+                var dataset = config.GetValue<string>("AppSettings:Databento:Dataset")
+                    ?? "GLBX.MDP3";
+                var profileName = config.GetValue<string>(
+                    "AppSettings:Databento:DeploymentProfile");
+                var deploymentProfile = Enum.TryParse<FeedDeploymentProfile>(
+                    profileName, true, out var configuredProfile)
+                        ? configuredProfile
+                        : FeedDeploymentProfile.Development;
+                var contracts = config
+                    .GetSection("AppSettings:Databento:Contracts")
+                    .Get<DatabentoContractRegistration[]>() ?? [];
+                var feedOptions = DatabentoFeedOptions.ForProfile(
+                    deploymentProfile, dataset);
+                var runtimeOptions = new DatabentoMarketDataRuntimeOptions
+                {
+                    FeedOptions = feedOptions,
+                    Contracts = contracts
+                };
+                services.AddSingleton(new MarketOutlookSnapshotPersistencePolicy(
+                    MarketOutlookSnapshotSource.Synthetic));
+                services.AddSingleton(MarketOutlookSnapshotQueryPolicy.AllowAll);
+                services.AddDatabentoMarketDataServices();
+                services.AddSingleton<IDatabentoFeedFactory,
+                    IntegrationDatabentoFeedFactory>();
+                services.AddSingleton<ITickAggregationEventPublisher,
+                    TickAggregationEventPublisher>();
+                services.AddApplicationMarketDataApi(runtimeOptions);
+                services.AddSingleton<IMarketDataLifecycleRequests, IntegrationMarketDataLifecycleRequests>();
+                services.AddDatabentoHistoricalMarketDataServices(
+                    new DatabentoHistoricalProviderOptions
+                    {
+                        UseSyntheticProvider = true
+                    });
+                services.AddApplicationMarketDataHistoricalApi(
+                    new DatabentoHistoricalOptions
+                    {
+                        StagingRoot = Path.Combine(
+                            AppContext.BaseDirectory,
+                            "market-data-history"),
+                        SeriesProfiles = []
+                    });
+                services.AddSingleton<IHistoricalReplayPublisher, FuturesVwapHistoricalReplayPublisher>();
+                services.AddSingleton<IHistoricalDailyReplayPublisher, FuturesEmaBbHistoricalDailyReplayPublisher>();
+                services.AddSingleton(new HistoricalAnalyticsWarmupOptions
+                {
+                    Enabled = false
+                });
+                services.AddSingleton<HistoricalAnalyticsWarmupService>();
+                services.AddSingleton<IFuturesTradeSessionBarSeriesResolver>(_ =>
+                    new PrefixFuturesTradeSessionBarSeriesResolver(
+                        new Dictionary<string, MarketSeriesIdentity>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["ES"] = MarketSeriesIdentity.ForFuturesSeries(
+                                new FuturesSeriesId(
+                                    "ES",
+                                    "calendar-front",
+                                    "unadjusted",
+                                    1))
+                        }));
+                services.AddSingleton<FuturesTradeSessionBarAccumulatorRegistry>();
+                services.AddSingleton(MarketOutlookHotCache.Shared);
+                services.AddSingleton<IMarketOutlookHotCache>(provider =>
+                    provider.GetRequiredService<MarketOutlookHotCache>());
+                services.AddSingleton<IMarketOutlookHotCacheWriter>(provider =>
+                    provider.GetRequiredService<MarketOutlookHotCache>());
+                services.AddSingleton(_ => new TomasAI.IFM.Application.MarketData.OperationsHealth.LivePipelineEvidence(TimeProvider.System));
+                services.AddSingleton<TomasAI.IFM.Application.MarketData.OperationsHealth.FuturesItiSignalRuntimeTelemetry>();
+                services.AddSingleton<MarketOutlookProcessorMetrics>();
+                services.AddSingleton<IMarketDataOperationsRecorder>(provider =>
+                    provider.GetRequiredService<MarketOutlookProcessorMetrics>());
+                services.AddSingleton<MarketOutlookUpdateChannel>();
+                services.AddSingleton<IMarketOutlookUpdateWriter>(provider =>
+                    provider.GetRequiredService<MarketOutlookUpdateChannel>());
+                services.AddSingleton<IMarketOutlookUpdateReader>(provider =>
+                    provider.GetRequiredService<MarketOutlookUpdateChannel>());
+                services.AddSingleton<IMarketOutlookSnapshotCommandWriter, ActorMarketOutlookSnapshotCommandWriter>();
+                services.AddSingleton<LatestMarketOutlookSnapshotPublisher>();
+                services.AddSingleton<IMarketOutlookSnapshotPublisher>(provider =>
+                    provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
+                if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") != "true")
+                    services.AddHostedService(provider => provider.GetRequiredService<LatestMarketOutlookSnapshotPublisher>());
+                services.AddSingleton<MarketOutlookUpdateProcessor>();
+                services.AddSingleton<IMarketOutlookOperations>(provider =>
                     provider.GetRequiredService<MarketOutlookUpdateProcessor>());
+                if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") != "true")
+                    services.AddHostedService(provider =>
+                        provider.GetRequiredService<MarketOutlookUpdateProcessor>());
 
 
-            //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();
-            services.AddSingleton<IFuturesBarDataTimer, FuturesBarDataTimer>();
-            //services.AddHostedService<MarketDataFeedHostedService>();
+                //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();
+                services.AddSingleton<IFuturesBarDataTimer, FuturesBarDataTimer>();
+                //services.AddHostedService<MarketDataFeedHostedService>();
 
-            // trade placement hosted service...
-            //services.AddSingleton<ITradePlacementEventService, TradePlacementEventService>();
-            //services.AddSingleton<ITradePlacementEventConsumer, TradePlacementEventConsumer>();
-            //services.AddSingleton<ITradePlacementTimer, TradePlacementTimer>();
-            //services.AddHostedService<TradePlacementHostedService>();
+                // trade placement hosted service...
+                //services.AddSingleton<ITradePlacementEventService, TradePlacementEventService>();
+                //services.AddSingleton<ITradePlacementEventConsumer, TradePlacementEventConsumer>();
+                //services.AddSingleton<ITradePlacementTimer, TradePlacementTimer>();
+                //services.AddHostedService<TradePlacementHostedService>();
+            }
         }
     }
 
@@ -873,34 +886,37 @@ public static class Startup
         container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Realtime.BrokerAccountObservationBridge>();
     }
 
-    /// <summary>Configures middleware and verifies the completed dependency-injection container.</summary>
-    public static WebApplication ConfigureRequestPipeline(this WebApplication app, Microsoft.Extensions.Logging.ILogger logger)
+    extension(WebApplication app)
     {
-        var siContainer = app.Services.GetRequiredService<SimpleInjector.Container>();
-        // configure the HTTP request pipeline...
-        siContainer.RegisterInstance(
-            app.Services.GetRequiredService<IFuturesMarketSessionAuthority>());
-        app.Services.UseSimpleInjector(siContainer);
-        siContainer.Verify();
-        logger.LogInformationEvent("ApiServer", "configure HTTP request pipeline...");
-        if (app.Environment.IsDevelopment())
+        /// <summary>Configures middleware and verifies the completed dependency-injection container.</summary>
+        public WebApplication ConfigureRequestPipeline(Microsoft.Extensions.Logging.ILogger logger)
         {
-            /*
-            app.UseSwagger();
-            app.UseSwaggerUI(options =>
+            var siContainer = app.Services.GetRequiredService<SimpleInjector.Container>();
+            // configure the HTTP request pipeline...
+            siContainer.RegisterInstance(
+                app.Services.GetRequiredService<IFuturesMarketSessionAuthority>());
+            app.Services.UseSimpleInjector(siContainer);
+            siContainer.Verify();
+            logger.LogInformationEvent("ApiServer", "configure HTTP request pipeline...");
+            if (app.Environment.IsDevelopment())
             {
-                options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
-                options.RoutePrefix = string.Empty;
-            });
-            */
+                /*
+                app.UseSwagger();
+                app.UseSwaggerUI(options =>
+                {
+                    options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
+                    options.RoutePrefix = string.Empty;
+                });
+                */
+            }
+            else
+            {
+                app.UseHttpsRedirection();
+            }
+            TestFactory.ServiceProvider = app.Services;
+            logger.LogInformationEvent("ApiServer", "web app configuration completed");
+            return app;
         }
-        else
-        {
-            app.UseHttpsRedirection();
-        }
-        TestFactory.ServiceProvider = app.Services;
-        logger.LogInformationEvent("ApiServer", "web app configuration completed");
-        return app;
     }
 
     public static bool VerifContainer(IServiceProvider services)

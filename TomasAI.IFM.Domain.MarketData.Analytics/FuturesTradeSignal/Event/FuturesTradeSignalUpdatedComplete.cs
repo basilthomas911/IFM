@@ -18,54 +18,58 @@ public static class FuturesTradeSignalUpdatedComplete
     {
         ServiceId = $"{LogSourceType.FuturesTradeSignalEvent}";
     }
-    static string ServiceId { get; } 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
-    /// Handles the completion of a trade signal updated event.
-    /// </summary>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesTradeSignalUpdatedCompleteEvent e, IEventActorContext<FuturesTradeSignalEventActor> context, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesTradeSignalEventActor> logger)
+    static string ServiceId { get; }
+
+    extension(FuturesTradeSignalUpdatedCompleteEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(statusConsoleWriter);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        await context.PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
-
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
+                                                                                                                                                                                                                                         /// Handles the completion of a trade signal updated event.
+                                                                                                                                                                                                                                         /// </summary>
+        public async ValueTask<bool> ExecuteAsync(IEventActorContext<FuturesTradeSignalEventActor> context, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesTradeSignalEventActor> logger)
         {
-            var tradeSignal = e.FuturesTradeSignal
-                ?? throw new InvalidOperationException("FuturesTradeSignal payload is required.");
-            var notification = new FuturesTradeSignalUpdatedNotifyEvent
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(statusConsoleWriter);
+            ArgumentNullException.ThrowIfNull(logger);
+
+            await context.PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
+
+            try
             {
-                Subject = new ActorSubject(
-                    ActorType.Notify,
-                    FuturesTradeSignalUpdatedNotifyEvent.Actor,
-                    FuturesTradeSignalUpdatedNotifyEvent.Verb,
-                    e.EntityId.Format()),
-                Id = Guid.NewGuid(),
-                EntityId = e.EntityId,
-                EventId = e.EventId,
-                CommandId = e.CommandId,
-                AggregateId = e.AggregateId ?? string.Empty,
-                EventSource = nameof(FuturesTradeSignalUpdatedCompleteEvent),
-                ReceivedOn = DateTime.UtcNow,
-                FuturesTradeSignal = tradeSignal
-            };
-            await context.SendAsync<FuturesTradeSignalUpdatedNotifyEvent, FuturesTradeSignalEntityId>(
-                notification).ConfigureAwait(false);
-            return true;
+                var tradeSignal = e.FuturesTradeSignal
+                    ?? throw new InvalidOperationException("FuturesTradeSignal payload is required.");
+                var notification = new FuturesTradeSignalUpdatedNotifyEvent
+                {
+                    Subject = new ActorSubject(
+                        ActorType.Notify,
+                        FuturesTradeSignalUpdatedNotifyEvent.Actor,
+                        FuturesTradeSignalUpdatedNotifyEvent.Verb,
+                        e.EntityId.Format()),
+                    Id = Guid.NewGuid(),
+                    EntityId = e.EntityId,
+                    EventId = e.EventId,
+                    CommandId = e.CommandId,
+                    AggregateId = e.AggregateId ?? string.Empty,
+                    EventSource = nameof(FuturesTradeSignalUpdatedCompleteEvent),
+                    ReceivedOn = DateTime.UtcNow,
+                    FuturesTradeSignal = tradeSignal
+                };
+                await context.SendAsync<FuturesTradeSignalUpdatedNotifyEvent, FuturesTradeSignalEntityId>(
+                    notification).ConfigureAwait(false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // The durable projection has already completed. Notify publication is observational
+                // and must never reverse, fail, or retry the persisted update.
+                logger.LogErrorEvent(
+                    ServiceId,
+                    ex,
+                    "Unable to publish futures trade-signal notification for {EntityId}",
+                    e.EntityId);
+            }
+            return false;
         }
-        catch (Exception ex)
-        {
-            // The durable projection has already completed. Notify publication is observational
-            // and must never reverse, fail, or retry the persisted update.
-            logger.LogErrorEvent(
-                ServiceId,
-                ex,
-                "Unable to publish futures trade-signal notification for {EntityId}",
-                e.EntityId);
-        }
-        return false;
     }
 
 }

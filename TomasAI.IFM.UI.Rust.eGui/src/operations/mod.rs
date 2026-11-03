@@ -1,6 +1,5 @@
 //! Operational diagnostics and scheduled-task administration. Actions are sent through existing managed services and require the published eligibility/confirmation state.
 
-use crate::control_parity::BorderedScrollArea as _;
 /// Actor hierarchy, resource health, and operator actions. A confirmation captures generation and target identity so a changed selection cannot silently redirect an operation.
 pub mod actor_health;
 /// Operational health and dataset projections. Visible rows are rendered from the published query result; severity colors communicate backend state without recalculating it.
@@ -25,7 +24,7 @@ pub(super) fn split_health_body(ui: &mut eframe::egui::Ui) -> [eframe::egui::Rec
 }
 
 
-/// Keep content inside a complete pane border; optional scrollbar edges are separate decoration.
+/// Keep the complete pane border and optional vertical scrollbar edge, without a duplicate bottom rule.
 pub(super) fn health_scroll<R>(
     ui: &mut eframe::egui::Ui,
     bounds: eframe::egui::Rect,
@@ -44,12 +43,15 @@ pub(super) fn health_scroll<R>(
         .auto_shrink([false, false])
         .max_width(inner.width())
         .max_height(inner.height());
-    let output = if scrollbar_border {
-        scroll.bordered_show(&mut child, contents)
-    } else {
-        // The Operations panes already have an enclosing border; avoid an extra bottom rule.
-        scroll.show(&mut child, contents)
-    };
+    let output = scroll.show(&mut child, contents);
+    if scrollbar_border {
+        let viewport = output.inner_rect.intersect(child.clip_rect());
+        child.painter().vline(
+            viewport.right() - pixel / 2.,
+            viewport.top()..=viewport.bottom(),
+            egui::Stroke::new(pixel, crate::presentation::BORDER),
+        );
+    }
     ui.painter().rect_stroke(
         bounds,
         0.,

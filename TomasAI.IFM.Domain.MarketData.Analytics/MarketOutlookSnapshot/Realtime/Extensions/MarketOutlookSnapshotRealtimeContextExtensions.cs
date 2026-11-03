@@ -29,102 +29,94 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
         public ILogger<MarketOutlookSnapshotRealtimeActor> Logger => context.DomainContext.Logger;
     }
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesRsiSignalGeneratedCompleteEvent source)
-        where TActor : IActor => Publish(
-            context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
-            source.AggregateId, source.EventName, rsi: source.FuturesRsiSignal);
+    extension<TActor>(IEventActorContext<TActor> context)
+        where TActor : IActor
+    {
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesRsiSignalGeneratedCompleteEvent source)
+        => Publish(
+                context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                source.AggregateId, source.EventName, rsi: source.FuturesRsiSignal);
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesTdiSignalGeneratedCompleteEvent source)
-        where TActor : IActor => Publish(
-            context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
-            source.AggregateId, source.EventName, tdi: source.FuturesTdiSignal);
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesTdiSignalGeneratedCompleteEvent source)
+        => Publish(
+                context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                source.AggregateId, source.EventName, tdi: source.FuturesTdiSignal);
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesItiSignalGeneratedCompleteEvent source)
-        where TActor : IActor => Publish(
-            context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
-            source.AggregateId, source.EventName, iti: source.FuturesItiSignal,
-            vixFuturesPrice: Convert.ToDecimal(source.VixFuturesPrice));
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesItiSignalGeneratedCompleteEvent source)
+        => Publish(
+                context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                source.AggregateId, source.EventName, iti: source.FuturesItiSignal,
+                vixFuturesPrice: Convert.ToDecimal(source.VixFuturesPrice));
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesEmaSignalGeneratedCompleteEvent source)
-        where TActor : IActor => IsEsSeries(source.FuturesEmaSignal.Metadata.SignalKey.MarketSeriesIdentity)
-            ? Publish(context, source.FuturesEmaSignal.Metadata.ContractId, source.FuturesEmaSignal.Metadata.ValueDate,
-                source.CommandId, source.AggregateId, source.EventName, ema: source.FuturesEmaSignal)
-            : ValueTask.CompletedTask;
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesEmaSignalGeneratedCompleteEvent source)
+        => IsEsSeries(source.FuturesEmaSignal.Metadata.SignalKey.MarketSeriesIdentity)
+                ? Publish(context, source.FuturesEmaSignal.Metadata.ContractId, source.FuturesEmaSignal.Metadata.ValueDate,
+                    source.CommandId, source.AggregateId, source.EventName, ema: source.FuturesEmaSignal)
+                : ValueTask.CompletedTask;
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesBbSignalGeneratedCompleteEvent source)
-        where TActor : IActor => IsEsSeries(source.FuturesBbSignal.Metadata.SignalKey.MarketSeriesIdentity)
-            ? Publish(context, source.FuturesBbSignal.Metadata.ContractId, source.FuturesBbSignal.Metadata.ValueDate,
-                source.CommandId, source.AggregateId, source.EventName, bb: source.FuturesBbSignal)
-            : ValueTask.CompletedTask;
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesBbSignalGeneratedCompleteEvent source)
+        => IsEsSeries(source.FuturesBbSignal.Metadata.SignalKey.MarketSeriesIdentity)
+                ? Publish(context, source.FuturesBbSignal.Metadata.ContractId, source.FuturesBbSignal.Metadata.ValueDate,
+                    source.CommandId, source.AggregateId, source.EventName, bb: source.FuturesBbSignal)
+                : ValueTask.CompletedTask;
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesTradeSignalUpdatedCompleteEvent source)
-        where TActor : IActor => source.FuturesTradeSignal is { } signal
-            ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate,
-                source.CommandId, source.AggregateId, source.EventName, tradeSignal: signal)
-            : ValueTask.CompletedTask;
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesVwapSignalUpdatedCompleteEvent source)
-        where TActor : IActor => Publish(
-            context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
-            source.AggregateId, source.EventName, vwap: source.FuturesVwapSignal);
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesTradeSignalUpdatedCompleteEvent source)
+        => source.FuturesTradeSignal is { } signal
+                ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate,
+                    source.CommandId, source.AggregateId, source.EventName, tradeSignal: signal)
+                : ValueTask.CompletedTask;
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesAdxSignalGeneratedCompleteEvent source)
-        where TActor : IActor => Publish(
-            context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
-            source.AggregateId, source.EventName, adx: source.FuturesAdxSignal);
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesVwapSignalUpdatedCompleteEvent source)
+        => Publish(
+                context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                source.AggregateId, source.EventName, vwap: source.FuturesVwapSignal);
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesAtrSignalGeneratedCompleteEvent source)
-        where TActor : IActor => Publish(
-            context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
-            source.AggregateId, source.EventName, atr: source.FuturesAtrSignal);
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesAdxSignalGeneratedCompleteEvent source)
+        => Publish(
+                context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                source.AggregateId, source.EventName, adx: source.FuturesAdxSignal);
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesMacdSignalGeneratedCompleteEvent source)
-        where TActor : IActor => Publish(
-            context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
-            source.AggregateId, source.EventName, macd: source.FuturesMacdSignal);
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesAtrSignalGeneratedCompleteEvent source)
+        => Publish(
+                context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                source.AggregateId, source.EventName, atr: source.FuturesAtrSignal);
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesAdxSignalStartedEvent source)
-        where TActor : IActor => source.RestoredSignal is { } signal
-            ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
-                source.AggregateId, source.EventName, adx: signal)
-            : ValueTask.CompletedTask;
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesMacdSignalGeneratedCompleteEvent source)
+        => Publish(
+                context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                source.AggregateId, source.EventName, macd: source.FuturesMacdSignal);
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesAtrSignalStartedEvent source)
-        where TActor : IActor => source.RestoredSignal is { } signal
-            ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
-                source.AggregateId, source.EventName, atr: signal)
-            : ValueTask.CompletedTask;
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesAdxSignalStartedEvent source)
+        => source.RestoredSignal is { } signal
+                ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                    source.AggregateId, source.EventName, adx: signal)
+                : ValueTask.CompletedTask;
 
-    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
-        this IEventActorContext<TActor> context,
-        FuturesMacdSignalStartedEvent source)
-        where TActor : IActor => source.RestoredSignal is { } signal
-            ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
-                source.AggregateId, source.EventName, macd: signal)
-            : ValueTask.CompletedTask;
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesAtrSignalStartedEvent source)
+        => source.RestoredSignal is { } signal
+                ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                    source.AggregateId, source.EventName, atr: signal)
+                : ValueTask.CompletedTask;
+
+        internal ValueTask PublishMarketOutlookComponentAsync(
+            FuturesMacdSignalStartedEvent source)
+        => source.RestoredSignal is { } signal
+                ? Publish(context, source.EntityId.ContractId, source.EntityId.ValueDate, source.CommandId,
+                    source.AggregateId, source.EventName, macd: signal)
+                : ValueTask.CompletedTask;
+    }
 
     static ValueTask Publish<TActor>(
         IEventActorContext<TActor> context,

@@ -7,11 +7,15 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
     public static class TradeFillTypeExtensions
     {
-        public static string ToStringFast(this TradeFillType value) => value switch
+
+        extension(TradeFillType value)
         {
-            TradeFillType.Manual => nameof(TradeFillType.Manual),
-            TradeFillType.Broker => nameof(TradeFillType.Broker),
-            _ => value.ToString()
-        };
+            public string ToStringFast() => value switch
+            {
+                TradeFillType.Manual => nameof(TradeFillType.Manual),
+                TradeFillType.Broker => nameof(TradeFillType.Broker),
+                _ => value.ToString()
+            };
+        }
     }
 }

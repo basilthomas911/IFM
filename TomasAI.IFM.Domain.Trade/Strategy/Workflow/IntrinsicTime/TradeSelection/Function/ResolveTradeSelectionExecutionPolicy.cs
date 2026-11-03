@@ -9,15 +9,18 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelectio
 /// <summary>Resolves TradeSelection lifecycle policy without owning timeout mechanics or transport.</summary>
 public static class ResolveTradeSelectionExecutionPolicy
 {
-    /// <summary>Returns the domain clock and the stage's existing absolute deadline policy.</summary>
-    public static FunctionExecutionPolicy ResolveExecutionPolicy(this ExecuteTradeSelectionPipelineCommand command,
-        FunctionFailureStage stage, ITradeSelectionFunctionContext context)
+
+    extension(ExecuteTradeSelectionPipelineCommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(context);
-        var deadline = stage == FunctionFailureStage.Loading
-            ? context.TimeProvider.GetUtcNow().UtcDateTime.AddMilliseconds(TradeSelectionContracts.CommonPolicy(command.SelectionBinding).MaximumExecutionMilliseconds)
-            : command.ExpiresAtUtc;
-        return new(context.TimeProvider, deadline);
+        /// <summary>Returns the domain clock and the stage's existing absolute deadline policy.</summary>
+        public FunctionExecutionPolicy ResolveExecutionPolicy(FunctionFailureStage stage, ITradeSelectionFunctionContext context)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(context);
+            var deadline = stage == FunctionFailureStage.Loading
+                ? context.TimeProvider.GetUtcNow().UtcDateTime.AddMilliseconds(TradeSelectionContracts.CommonPolicy(command.SelectionBinding).MaximumExecutionMilliseconds)
+                : command.ExpiresAtUtc;
+            return new(context.TimeProvider, deadline);
+        }
     }
 }

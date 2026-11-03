@@ -2,34 +2,38 @@ namespace TomasAI.IFM.Framework.SequenceId;
 
 public static class SequenceNameExtensions
 {
-    public static string ToStringFast(this SequenceName value) => value switch
+
+    extension(SequenceName value)
     {
-        SequenceName.FuturesTickData_TickId => nameof(SequenceName.FuturesTickData_TickId),
-        SequenceName.FuturesOptionTickData_TickId => nameof(SequenceName.FuturesOptionTickData_TickId),
-        SequenceName.FuturesItiSignal_SequenceId => nameof(SequenceName.FuturesItiSignal_SequenceId),
-        SequenceName.ReservedPredictiveClassData_SequenceId => nameof(SequenceName.ReservedPredictiveClassData_SequenceId),
-        SequenceName.ReservedPredictiveDeltaData_SequenceId => nameof(SequenceName.ReservedPredictiveDeltaData_SequenceId),
-        SequenceName.FuturesTradeSignal_SequenceId => nameof(SequenceName.FuturesTradeSignal_SequenceId),
-        SequenceName.SpreadDistribution_Id => nameof(SequenceName.SpreadDistribution_Id),
-        SequenceName.TradePlan_SequenceId => nameof(SequenceName.TradePlan_SequenceId),
-        SequenceName.OptionTradeSpreadData_SequenceId => nameof(SequenceName.OptionTradeSpreadData_SequenceId),
-        SequenceName.StreamingRequest_RequestId => nameof(SequenceName.StreamingRequest_RequestId),
-        SequenceName.MarketDataFeed_RequestId => nameof(SequenceName.MarketDataFeed_RequestId),
-        SequenceName.TradePlacementSignal_SequenceId => nameof(SequenceName.TradePlacementSignal_SequenceId),
-        SequenceName.FundTransaction_TransactionId => nameof(SequenceName.FundTransaction_TransactionId),
-        SequenceName.FuturesIntraDay_SequenceId => nameof(SequenceName.FuturesIntraDay_SequenceId),
-        SequenceName.FuturesOptionTickPriceData_TickId => nameof(SequenceName.FuturesOptionTickPriceData_TickId),
-        SequenceName.Fund_FundId => nameof(SequenceName.Fund_FundId),
-        SequenceName.Trade_OrderId => nameof(SequenceName.Trade_OrderId),
-        SequenceName.Trade_TradeId => nameof(SequenceName.Trade_TradeId),
-        SequenceName.ScheduledJob_JobId => nameof(SequenceName.ScheduledJob_JobId),
-        SequenceName.Portfolio_PortfolioId => nameof(SequenceName.Portfolio_PortfolioId),
-        SequenceName.PortfolioPolicy_PolicyId => nameof(SequenceName.PortfolioPolicy_PolicyId),
-        SequenceName.Reference_TradeStrategyFamilyId => nameof(SequenceName.Reference_TradeStrategyFamilyId),
-        SequenceName.MarketDataService_WatchdogStatusLogId => nameof(SequenceName.MarketDataService_WatchdogStatusLogId),
-        SequenceName.Reference_TradeStrategySymbolId => nameof(SequenceName.Reference_TradeStrategySymbolId),
-        _ => value.ToString()
-    };
+        public string ToStringFast() => value switch
+        {
+            SequenceName.FuturesTickData_TickId => nameof(SequenceName.FuturesTickData_TickId),
+            SequenceName.FuturesOptionTickData_TickId => nameof(SequenceName.FuturesOptionTickData_TickId),
+            SequenceName.FuturesItiSignal_SequenceId => nameof(SequenceName.FuturesItiSignal_SequenceId),
+            SequenceName.ReservedPredictiveClassData_SequenceId => nameof(SequenceName.ReservedPredictiveClassData_SequenceId),
+            SequenceName.ReservedPredictiveDeltaData_SequenceId => nameof(SequenceName.ReservedPredictiveDeltaData_SequenceId),
+            SequenceName.FuturesTradeSignal_SequenceId => nameof(SequenceName.FuturesTradeSignal_SequenceId),
+            SequenceName.SpreadDistribution_Id => nameof(SequenceName.SpreadDistribution_Id),
+            SequenceName.TradePlan_SequenceId => nameof(SequenceName.TradePlan_SequenceId),
+            SequenceName.OptionTradeSpreadData_SequenceId => nameof(SequenceName.OptionTradeSpreadData_SequenceId),
+            SequenceName.StreamingRequest_RequestId => nameof(SequenceName.StreamingRequest_RequestId),
+            SequenceName.MarketDataFeed_RequestId => nameof(SequenceName.MarketDataFeed_RequestId),
+            SequenceName.TradePlacementSignal_SequenceId => nameof(SequenceName.TradePlacementSignal_SequenceId),
+            SequenceName.FundTransaction_TransactionId => nameof(SequenceName.FundTransaction_TransactionId),
+            SequenceName.FuturesIntraDay_SequenceId => nameof(SequenceName.FuturesIntraDay_SequenceId),
+            SequenceName.FuturesOptionTickPriceData_TickId => nameof(SequenceName.FuturesOptionTickPriceData_TickId),
+            SequenceName.Fund_FundId => nameof(SequenceName.Fund_FundId),
+            SequenceName.Trade_OrderId => nameof(SequenceName.Trade_OrderId),
+            SequenceName.Trade_TradeId => nameof(SequenceName.Trade_TradeId),
+            SequenceName.ScheduledJob_JobId => nameof(SequenceName.ScheduledJob_JobId),
+            SequenceName.Portfolio_PortfolioId => nameof(SequenceName.Portfolio_PortfolioId),
+            SequenceName.PortfolioPolicy_PolicyId => nameof(SequenceName.PortfolioPolicy_PolicyId),
+            SequenceName.Reference_TradeStrategyFamilyId => nameof(SequenceName.Reference_TradeStrategyFamilyId),
+            SequenceName.MarketDataService_WatchdogStatusLogId => nameof(SequenceName.MarketDataService_WatchdogStatusLogId),
+            SequenceName.Reference_TradeStrategySymbolId => nameof(SequenceName.Reference_TradeStrategySymbolId),
+            _ => value.ToString()
+        };
+    }
 
     /// <summary>
     /// Maps the legacy Reference API seed names to their strongly typed PostgreSQL sequences.

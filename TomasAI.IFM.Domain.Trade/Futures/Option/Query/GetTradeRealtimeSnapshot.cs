@@ -6,12 +6,16 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Query;
 
 public static class GetTradeRealtimeSnapshot
 {
-    public static async ValueTask ExecuteAsync(this GetTradeRealtimeSnapshotQuery query, IFuturesOptionTradeQueryContext context, CancellationToken token)
+
+    extension(GetTradeRealtimeSnapshotQuery query)
     {
-        token.ThrowIfCancellationRequested();
-        var cache = context.RealtimeCache?.Find(query.TradeId);
-        var snapshot = cache?.Read();
-        if (snapshot?.ValueDate != query.ValueDate) snapshot = null;
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<TradeRealtimeSnapshot?>(snapshot)).ConfigureAwait(false);
+        public async ValueTask ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            var cache = context.RealtimeCache?.Find(query.TradeId);
+            var snapshot = cache?.Read();
+            if (snapshot?.ValueDate != query.ValueDate) snapshot = null;
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<TradeRealtimeSnapshot?>(snapshot)).ConfigureAwait(false);
+        }
     }
 }

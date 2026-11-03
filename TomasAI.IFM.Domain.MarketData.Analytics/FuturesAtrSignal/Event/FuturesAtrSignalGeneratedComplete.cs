@@ -17,38 +17,41 @@ public static class FuturesAtrSignalGeneratedComplete
         ServiceId = $"{LogSourceType.FuturesAtrSignalEvent}";
     }
 
-    static string ServiceId { get; } 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
-    /// Handles the completion of the Futures ATR signal generation process.
-    /// This method is invoked when a FuturesAtrSignalGeneratedCompleteEvent is received,
-    /// indicating that the ATR signal has been successfully generated for a specific entity.
-    /// The handler can perform any necessary post-processing, such as updating the status console or logging the completion of the signal generation.
-    /// </summary>
-    /// <param name="e">The FuturesAtrSignalGeneratedCompleteEvent to handle.</param>
-    /// <param name="context">The event actor context.</param>
-    /// <param name="statusConsoleWriter">The status console writer.</param>
-    /// <param name="logger">The logger.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesAtrSignalGeneratedCompleteEvent e,
-        IFuturesAtrSignalEventContext context, ILogger<FuturesAtrSignalEventActor> logger)
+    static string ServiceId { get; }
+
+    extension(FuturesAtrSignalGeneratedCompleteEvent e)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(e);
-        var source = $"FuturesAtrSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
+                                                                                                                                                                                                                                         /// Handles the completion of the Futures ATR signal generation process.
+                                                                                                                                                                                                                                         /// This method is invoked when a FuturesAtrSignalGeneratedCompleteEvent is received,
+                                                                                                                                                                                                                                         /// indicating that the ATR signal has been successfully generated for a specific entity.
+                                                                                                                                                                                                                                         /// The handler can perform any necessary post-processing, such as updating the status console or logging the completion of the signal generation.
+                                                                                                                                                                                                                                         /// </summary>
+                                                                                                                                                                                                                                         /// <param name="e">The FuturesAtrSignalGeneratedCompleteEvent to handle.</param>
+                                                                                                                                                                                                                                         /// <param name="context">The event actor context.</param>
+                                                                                                                                                                                                                                         /// <param name="statusConsoleWriter">The status console writer.</param>
+                                                                                                                                                                                                                                         /// <param name="logger">The logger.</param>
+                                                                                                                                                                                                                                         /// <returns>A task representing the asynchronous operation.</returns>
+        public async ValueTask<bool> ExecuteAsync(IFuturesAtrSignalEventContext context, ILogger<FuturesAtrSignalEventActor> logger)
         {
-            if (e.FuturesAtrSignal is { IsWarm: true, AtrValue: > 0d, AtrRatio: not null } && e.FuturesAtrSignal.Metadata is { IsValid: true })
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(e);
+            var source = $"FuturesAtrSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
+            try
             {
-                await ((IEventActorContext<FuturesAtrSignalEventActor>)context)
-                    .PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
+                if (e.FuturesAtrSignal is { IsWarm: true, AtrValue: > 0d, AtrRatio: not null } && e.FuturesAtrSignal.Metadata is { IsValid: true })
+                {
+                    await ((IEventActorContext<FuturesAtrSignalEventActor>)context)
+                        .PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
+                }
+                return true;
             }
-            return true;
+            catch (Exception ex)
+            {
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write10(logger, ex, source, e.EntityId.ContractId);
+                await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent, FuturesAtrSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
+            }
+            return false;
         }
-        catch (Exception ex)
-        {
-            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write10(logger, ex, source, e.EntityId.ContractId);
-            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent, FuturesAtrSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
-        }
-        return false;
     }
 }

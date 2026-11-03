@@ -11,21 +11,28 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Query;
 
 public static class GetEconomicCalendar
 {
-    /// <summary>
-    /// Gets the economic calendar based on the provided query parameters and sends a reply with the result.
-    /// </summary>
-    /// <param name="q">The economic calendar query.</param>
-    /// <param name="context">The query actor context.</param>
-    /// <param name="dbFactory">The database context factory.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public static async ValueTask<EconomicCalendarReadModel[]> ExecuteAsync(
-        this GetEconomicCalendarQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        
+
+    /// <param name="q">
+    /// The economic calendar query.
+    /// </param>
+    extension(GetEconomicCalendarQuery q)
     {
-        ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(q);
-        return [.. await (GetEconomicCalendarAsync(
-            dbFactory.MarketDataDb, q.TodaysDate, q.CalendarViewType, q.CountryCode, cancellationToken)).ConfigureAwait(false)];
+        /// <summary>
+        /// Gets the economic calendar based on the provided query parameters and sends a reply with the result.
+        /// </summary>
+        ///
+        /// <param name="context">The query actor context.</param>
+        /// <param name="dbFactory">The database context factory.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public async ValueTask<EconomicCalendarReadModel[]> ExecuteAsync(
+        IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
+
+        {
+            ArgumentNullException.ThrowIfNull(dbFactory);
+            ArgumentNullException.ThrowIfNull(q);
+            return [.. await (GetEconomicCalendarAsync(
+                dbFactory.MarketDataDb, q.TodaysDate, q.CalendarViewType, q.CountryCode, cancellationToken)).ConfigureAwait(false)];
+        }
     }
 
     /// <summary>
@@ -70,14 +77,17 @@ public static class GetEconomicCalendar
         }
     }
 
-    internal static DateTime GetThisWeekStartingDate(this DateTime todaysDate)
+    extension(DateTime todaysDate)
     {
-        var daysSinceMonday = ((int)todaysDate.DayOfWeek + 6) % 7;
-        return todaysDate.Date.AddDays(-daysSinceMonday);
-    }
+        internal DateTime GetThisWeekStartingDate()
+        {
+            var daysSinceMonday = ((int)todaysDate.DayOfWeek + 6) % 7;
+            return todaysDate.Date.AddDays(-daysSinceMonday);
+        }
 
-    internal static DateTime GetNextWeekStartingDate(this DateTime todaysDate)
-    {
-        return GetThisWeekStartingDate(todaysDate).AddDays(7);
+        internal DateTime GetNextWeekStartingDate()
+        {
+            return GetThisWeekStartingDate(todaysDate).AddDays(7);
+        }
     }
 }

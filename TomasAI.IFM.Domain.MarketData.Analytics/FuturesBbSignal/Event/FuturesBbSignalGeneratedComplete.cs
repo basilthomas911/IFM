@@ -9,15 +9,18 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Event;
 /// <summary>Handles one completed Bollinger signal event.</summary>
 public static class FuturesBbSignalGeneratedComplete
 {
-    /// <summary>Publishes the successfully projected signal to Market Outlook.</summary>
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesBbSignalGeneratedCompleteEvent @event,
-        IEventActorContext<FuturesBbSignalEventActor> context,
-        ILogger<FuturesBbSignalEventActor> logger)
+
+    extension(FuturesBbSignalGeneratedCompleteEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(logger);
-        await context.PublishMarketOutlookComponentAsync(@event).ConfigureAwait(false);
-        return true;
+        /// <summary>Publishes the successfully projected signal to Market Outlook.</summary>
+        public async ValueTask<bool> ExecuteAsync(
+            IEventActorContext<FuturesBbSignalEventActor> context,
+            ILogger<FuturesBbSignalEventActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(logger);
+            await context.PublishMarketOutlookComponentAsync(@event).ConfigureAwait(false);
+            return true;
+        }
     }
 }

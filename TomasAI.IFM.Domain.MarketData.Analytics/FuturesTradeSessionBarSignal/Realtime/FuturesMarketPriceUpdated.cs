@@ -9,30 +9,33 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.R
 /// <summary>Handles normalized futures trades routed to the trade-session bar signal.</summary>
 public static class FuturesMarketPriceUpdated
 {
-    /// <summary>Accumulates one trade and forwards every newly completed bar to the Command actor.</summary>
-    public static async ValueTask<bool> ExecuteAsync(
-        this FuturesMarketPriceUpdatedRealtimeEvent @event,
-        IFuturesTradeSessionBarSignalRealtimeContext context,
-        ILogger logger)
+
+    extension(FuturesMarketPriceUpdatedRealtimeEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(@event);
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(logger);
-        var accumulatorId = new FuturesTradeSessionBarAccumulatorEntityId(@event.EntityId.ValueDate);
-        foreach (var bar in context.Accumulators.Get(accumulatorId).Accept(@event))
+        /// <summary>Accumulates one trade and forwards every newly completed bar to the Command actor.</summary>
+        public async ValueTask<bool> ExecuteAsync(
+            IFuturesTradeSessionBarSignalRealtimeContext context,
+            ILogger logger)
         {
-            var result = await context.PublishFuturesTradeSessionBarAsync(bar).ConfigureAwait(false);
-            if (!result.Success && result.ErrorMessage?.StartsWith("BAR.EXCEPTION;", StringComparison.Ordinal) != true)
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(logger);
+            var accumulatorId = new FuturesTradeSessionBarAccumulatorEntityId(@event.EntityId.ValueDate);
+            foreach (var bar in context.Accumulators.Get(accumulatorId).Accept(@event))
+            {
+                var result = await context.PublishFuturesTradeSessionBarAsync(bar).ConfigureAwait(false);
+                if (!result.Success && result.ErrorMessage?.StartsWith("BAR.EXCEPTION;", StringComparison.Ordinal) != true)
                 {
 
-            var diagnosticLogger = logger;
-            if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
-            {
-                global::TomasAI.IFM.Domain.MarketData.Analytics.StorageMigrationDiagnosticLog.Write10(diagnosticLogger, null, bar.ContractId, bar.TimeFrame, bar.ObservationId.Value, bar.IntervalEndUtc, bar.FirstSourceSequence, bar.LastSourceSequence, bar.LastMarketEventUtc, bar.CalculatedAtUtc, bar.StreamEpochId, result.ErrorCode, result.ErrorMessage);
+                    var diagnosticLogger = logger;
+                    if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
+                    {
+                        global::TomasAI.IFM.Domain.MarketData.Analytics.StorageMigrationDiagnosticLog.Write10(diagnosticLogger, null, bar.ContractId, bar.TimeFrame, bar.ObservationId.Value, bar.IntervalEndUtc, bar.FirstSourceSequence, bar.LastSourceSequence, bar.LastMarketEventUtc, bar.CalculatedAtUtc, bar.StreamEpochId, result.ErrorCode, result.ErrorMessage);
+                    }
+
+                }
             }
-        
-}
+            return true;
         }
-        return true;
     }
 }

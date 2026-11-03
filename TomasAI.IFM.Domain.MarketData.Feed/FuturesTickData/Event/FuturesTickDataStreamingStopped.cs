@@ -20,45 +20,48 @@ public static class FuturesTickDataStreamingStopped
     }
 
     static string ServiceId { get; }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
-    /// <summary>Detaches the futures stream and publishes its completion or failure event.</summary>
-    public static async ValueTask<bool> ExecuteAsync(
-    this FuturesTickDataStreamingStoppedEvent e,
-    IEventActorContext context,
-    IEventActorContext eventApi,
-    FuturesTickDataEventParameters p, ILogger<FuturesTickDataEventActor> logger)
+
+    extension(FuturesTickDataStreamingStoppedEvent e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        ArgumentNullException.ThrowIfNull(eventApi);
-        ArgumentNullException.ThrowIfNull(p);
-        var source = $"FuturesTickDataStreamingStoppedEvent for EntityId: {e.EntityId}";
-        try
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
+        /// <summary>Detaches the futures stream and publishes its completion or failure event.</summary>
+        public async ValueTask<bool> ExecuteAsync(
+            IEventActorContext context,
+            IEventActorContext eventApi,
+            FuturesTickDataEventParameters p, ILogger<FuturesTickDataEventActor> logger)
         {
-            if (p.MarketDataApi.CoreFuturesRoutesAreRuntimeOwned)
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(eventApi);
+            ArgumentNullException.ThrowIfNull(p);
+            var source = $"FuturesTickDataStreamingStoppedEvent for EntityId: {e.EntityId}";
+            try
             {
+                if (p.MarketDataApi.CoreFuturesRoutesAreRuntimeOwned)
+                {
+                    await (eventApi.FuturesTickDataStreamingStoppedCompleteAsync(e)).ConfigureAwait(false);
+                    logger.LogInformationEvent(ServiceId,
+                        "{Source}: futures tick route {ContractId} remains owned by the supervised dataset worker",
+                        source, e.ContractId);
+                    return true;
+                }
+                var owner = FuturesTickDataStreamingStarted.CreateOwner(e.EntityId, e.ContractId);
+                _ = await p.MarketDataApi.StopStreamingFuturesTickDataAsync(
+                    e.ContractId,
+                    owner).ConfigureAwait(false);
+                p.Streams.Untrack(e.ContractId, owner);
                 await (eventApi.FuturesTickDataStreamingStoppedCompleteAsync(e)).ConfigureAwait(false);
-                logger.LogInformationEvent(ServiceId,
-                    "{Source}: futures tick route {ContractId} remains owned by the supervised dataset worker",
-                    source, e.ContractId);
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"futures tick data {e.ContractId} streaming stopped")).ConfigureAwait(false);
+                logger.LogInformationEvent(ServiceId, "{Source}: futures tick data {e.ContractId} streaming stopped", source, e.ContractId);
                 return true;
             }
-            var owner = FuturesTickDataStreamingStarted.CreateOwner(e.EntityId, e.ContractId);
-            _ = await p.MarketDataApi.StopStreamingFuturesTickDataAsync(
-                e.ContractId,
-                owner).ConfigureAwait(false);
-            p.Streams.Untrack(e.ContractId, owner);
-            await (eventApi.FuturesTickDataStreamingStoppedCompleteAsync(e)).ConfigureAwait(false);
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"futures tick data {e.ContractId} streaming stopped")).ConfigureAwait(false);
-            logger.LogInformationEvent(ServiceId, "{Source}: futures tick data {e.ContractId} streaming stopped", source, e.ContractId);
-            return true;
+            catch (Exception ex)
+            {
+                logger.LogErrorEvent(ServiceId, ex, "{Source}: futures tick data {e.ContractId} streaming stop failed", source, e.ContractId);
+                await (eventApi.FuturesTickDataStreamingStoppedFailAsync(e, ex)).ConfigureAwait(false);
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, 6005, ex.GetErrorMessage())).ConfigureAwait(false);
+            }
+            return false;
         }
-        catch (Exception ex)
-        {
-            logger.LogErrorEvent(ServiceId, ex, "{Source}: futures tick data {e.ContractId} streaming stop failed", source, e.ContractId);
-            await (eventApi.FuturesTickDataStreamingStoppedFailAsync(e, ex)).ConfigureAwait(false);
-            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, 6005, ex.GetErrorMessage())).ConfigureAwait(false);
-        }
-        return false;
     }
 
 }

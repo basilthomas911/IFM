@@ -22,105 +22,101 @@ namespace TomasAI.IFM.Domain.Portfolio.Command.Validation;
 /// <summary>Pure ordered aggregate validation for portfolio mutation commands.</summary>
 public static class PortfolioCommandValidation
 {
-    /// <summary>Validates the CreatePortfolioCommand payload and owning identity.</summary>
-    public static TErrors ValidatePortfolioCommand<TErrors>(this TErrors errors, CreatePortfolioCommand typed)
 
+    extension<TErrors>(TErrors errors)
         where TErrors : class, ICollection<ValidationError>
     {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        
-        ValidateIdentity(errors, typed);
-        ValidateCreate(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the AddPortfolioVersionCommand payload and owning identity.</summary>
-    public static TErrors ValidatePortfolioCommand<TErrors>(this TErrors errors, AddPortfolioVersionCommand typed)
+        /// <summary>Validates the CreatePortfolioCommand payload and owning identity.</summary>
+        public TErrors ValidatePortfolioCommand(CreatePortfolioCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        
-        ValidateIdentity(errors, typed);
-        ValidateVersion(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the ChangePortfolioOperatingStateCommand payload and owning identity.</summary>
-    public static TErrors ValidatePortfolioCommand<TErrors>(this TErrors errors, ChangePortfolioOperatingStateCommand typed)
+            ValidateIdentity(errors, typed);
+            ValidateCreate(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        
-        ValidateIdentity(errors, typed);
-        ValidateStateChange(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the AddFundToPortfolioCommand payload and owning identity.</summary>
-    public static TErrors ValidatePortfolioCommand<TErrors>(this TErrors errors, AddFundToPortfolioCommand typed)
+        /// <summary>Validates the AddPortfolioVersionCommand payload and owning identity.</summary>
+        public TErrors ValidatePortfolioCommand(AddPortfolioVersionCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        
-        ValidateIdentity(errors, typed);
-        ValidateFund(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the DelegateFundAllocationCommand payload and owning identity.</summary>
-    public static TErrors ValidatePortfolioCommand<TErrors>(this TErrors errors, DelegateFundAllocationCommand typed)
+            ValidateIdentity(errors, typed);
+            ValidateVersion(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        
-        ValidateIdentity(errors, typed);
-        ValidateAllocation(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the DelegateFundRiskEnvelopeCommand payload and owning identity.</summary>
-    public static TErrors ValidatePortfolioCommand<TErrors>(this TErrors errors, DelegateFundRiskEnvelopeCommand typed)
+        /// <summary>Validates the ChangePortfolioOperatingStateCommand payload and owning identity.</summary>
+        public TErrors ValidatePortfolioCommand(ChangePortfolioOperatingStateCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        
-        ValidateIdentity(errors, typed);
-        ValidateRiskEnvelope(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the RetirePortfolioCommand payload and owning identity.</summary>
-    public static TErrors ValidatePortfolioCommand<TErrors>(this TErrors errors, RetirePortfolioCommand typed)
+            ValidateIdentity(errors, typed);
+            ValidateStateChange(errors, typed);
+            return errors;
+        }
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        
-        ValidateIdentity(errors, typed);
-        ValidateRetire(errors, typed);
-        return errors;
-    }
-    /// <summary>Validates the DeleteDraftPortfolioCommand payload and owning identity.</summary>
-    public static TErrors ValidatePortfolioCommand<TErrors>(this TErrors errors, DeleteDraftPortfolioCommand typed)
+        /// <summary>Validates the AddFundToPortfolioCommand payload and owning identity.</summary>
+        public TErrors ValidatePortfolioCommand(AddFundToPortfolioCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
 
-        where TErrors : class, ICollection<ValidationError>
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        ArgumentNullException.ThrowIfNull(typed);
-        
-        ValidateIdentity(errors, typed);
-        ValidateDelete(errors, typed);
-        return errors;
+            ValidateIdentity(errors, typed);
+            ValidateFund(errors, typed);
+            return errors;
+        }
+
+        /// <summary>Validates the DelegateFundAllocationCommand payload and owning identity.</summary>
+        public TErrors ValidatePortfolioCommand(DelegateFundAllocationCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+
+            ValidateIdentity(errors, typed);
+            ValidateAllocation(errors, typed);
+            return errors;
+        }
+
+        /// <summary>Validates the DelegateFundRiskEnvelopeCommand payload and owning identity.</summary>
+        public TErrors ValidatePortfolioCommand(DelegateFundRiskEnvelopeCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+
+            ValidateIdentity(errors, typed);
+            ValidateRiskEnvelope(errors, typed);
+            return errors;
+        }
+
+        /// <summary>Validates the RetirePortfolioCommand payload and owning identity.</summary>
+        public TErrors ValidatePortfolioCommand(RetirePortfolioCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+
+            ValidateIdentity(errors, typed);
+            ValidateRetire(errors, typed);
+            return errors;
+        }
+
+        /// <summary>Validates the DeleteDraftPortfolioCommand payload and owning identity.</summary>
+        public TErrors ValidatePortfolioCommand(DeleteDraftPortfolioCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+
+            ValidateIdentity(errors, typed);
+            ValidateDelete(errors, typed);
+            return errors;
+        }
     }
     /// <summary>Checks ValidateIdentity without changing state.</summary>
     static void ValidateIdentity(
-        ICollection<ValidationError> errors,        ICommand<PortfolioId> command)
+        ICollection<ValidationError> errors, ICommand<PortfolioId> command)
     {
         if (command.EntityId is null)
         {
@@ -132,7 +128,7 @@ public static class PortfolioCommandValidation
     }
 
     /// <summary>Checks ValidateCreate without changing state.</summary>
-    static void ValidateCreate(ICollection<ValidationError> errors,CreatePortfolioCommand command)
+    static void ValidateCreate(ICollection<ValidationError> errors, CreatePortfolioCommand command)
     {
         if (command.IdempotencyKey == Guid.Empty)
             errors.Add(new($"{command.CommandName}.IdempotencyKey is empty"));
@@ -150,7 +146,7 @@ public static class PortfolioCommandValidation
     }
 
     /// <summary>Checks ValidateVersion without changing state.</summary>
-    static void ValidateVersion(ICollection<ValidationError> errors,AddPortfolioVersionCommand command)
+    static void ValidateVersion(ICollection<ValidationError> errors, AddPortfolioVersionCommand command)
     {
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
         if (command.Portfolio is null)
@@ -167,7 +163,7 @@ public static class PortfolioCommandValidation
     }
 
     /// <summary>Checks ValidateStateChange without changing state.</summary>
-    static void ValidateStateChange(ICollection<ValidationError> errors,ChangePortfolioOperatingStateCommand command)
+    static void ValidateStateChange(ICollection<ValidationError> errors, ChangePortfolioOperatingStateCommand command)
     {
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
         if (command.State == PortfolioOperatingState.Unknown)
@@ -176,7 +172,7 @@ public static class PortfolioCommandValidation
     }
 
     /// <summary>Checks ValidateFund without changing state.</summary>
-    static void ValidateFund(ICollection<ValidationError> errors,AddFundToPortfolioCommand command)
+    static void ValidateFund(ICollection<ValidationError> errors, AddFundToPortfolioCommand command)
     {
         ValidateExpectedVersion(errors, command.ExpectedPortfolioVersion, command.CommandName);
         if (command.FundId is null)
@@ -190,7 +186,7 @@ public static class PortfolioCommandValidation
     }
 
     /// <summary>Checks ValidateAllocation without changing state.</summary>
-    static void ValidateAllocation(ICollection<ValidationError> errors,DelegateFundAllocationCommand command)
+    static void ValidateAllocation(ICollection<ValidationError> errors, DelegateFundAllocationCommand command)
     {
         ValidateExpectedVersion(errors, command.ExpectedPortfolioVersion, command.CommandName);
         if (command.Allocation is null)
@@ -204,7 +200,7 @@ public static class PortfolioCommandValidation
     }
 
     /// <summary>Checks ValidateRiskEnvelope without changing state.</summary>
-    static void ValidateRiskEnvelope(ICollection<ValidationError> errors,DelegateFundRiskEnvelopeCommand command)
+    static void ValidateRiskEnvelope(ICollection<ValidationError> errors, DelegateFundRiskEnvelopeCommand command)
     {
         ValidateExpectedVersion(errors, command.ExpectedPortfolioVersion, command.CommandName);
         if (command.Envelope is null)
@@ -218,35 +214,35 @@ public static class PortfolioCommandValidation
     }
 
     /// <summary>Checks ValidateRetire without changing state.</summary>
-    static void ValidateRetire(ICollection<ValidationError> errors,RetirePortfolioCommand command)
+    static void ValidateRetire(ICollection<ValidationError> errors, RetirePortfolioCommand command)
     {
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
         ValidateReason(errors, command.Reason, command.CommandName);
     }
 
     /// <summary>Checks ValidateDelete without changing state.</summary>
-    static void ValidateDelete(ICollection<ValidationError> errors,DeleteDraftPortfolioCommand command)
+    static void ValidateDelete(ICollection<ValidationError> errors, DeleteDraftPortfolioCommand command)
     {
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
         ValidateReason(errors, command.Reason, command.CommandName);
     }
 
     /// <summary>Checks ValidateExpectedVersion without changing state.</summary>
-    static void ValidateExpectedVersion(ICollection<ValidationError> errors,long expectedVersion,string commandName)
+    static void ValidateExpectedVersion(ICollection<ValidationError> errors, long expectedVersion, string commandName)
     {
         if (expectedVersion < 0)
             errors.Add(new($"{commandName}.ExpectedVersion cannot be negative"));
     }
 
     /// <summary>Checks ValidateReason without changing state.</summary>
-    static void ValidateReason(ICollection<ValidationError> errors,string? reason,string commandName)
+    static void ValidateReason(ICollection<ValidationError> errors, string? reason, string commandName)
     {
         if (string.IsNullOrWhiteSpace(reason))
             errors.Add(new($"{commandName}.Reason is required"));
     }
 
     /// <summary>Checks AddErrors without changing state.</summary>
-    static void AddErrors(ICollection<ValidationError> errors,IEnumerable<string> messages,string commandName)
+    static void AddErrors(ICollection<ValidationError> errors, IEnumerable<string> messages, string commandName)
     {
         foreach (var message in messages)
             errors.Add(new($"{commandName}.{message}"));

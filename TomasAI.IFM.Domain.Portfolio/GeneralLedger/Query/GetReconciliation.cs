@@ -9,12 +9,16 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query;
 /// <summary>Handles the GetReconciliation financial query.</summary>
 public static class GetReconciliation
 {
-    /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
-    public static ValueTask ExecuteAsync<TActor>(this GetReconciliationQuery query, IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
-        
+
+    extension(GetReconciliationQuery query)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(query);
-        return FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "GetReconciliation", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+        /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
+        public ValueTask ExecuteAsync<TActor>(IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
+
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(query);
+            return FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "GetReconciliation", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+        }
     }
 }

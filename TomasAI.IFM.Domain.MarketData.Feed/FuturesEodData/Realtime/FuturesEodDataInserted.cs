@@ -10,39 +10,50 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime;
 /// <summary>Handles one realtime EOD insertion notification.</summary>
 public static class FuturesEodDataInserted
 {
-    /// <summary>Publishes the inserted EOD value to the actor-owned blackboard.</summary>
-    public static async ValueTask ExecuteAsync(this FuturesEodDataInsertedEvent domainEvent, IFuturesEodDataRealtimeContext context)
+
+    extension(FuturesEodDataInsertedEvent domainEvent)
     {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(domainEvent);
-        if (CurrentFuturesEodCache.Shared.TryGet(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate, out var latest)
-            && latest != domainEvent.FuturesEodData)
-            return;
-        context.BlackboardService.MarketDataFeed.FuturesEodData.Set(
-            domainEvent.FuturesEodData.ContractId,
-            domainEvent.FuturesEodData.ValueDate,
-            domainEvent.FuturesEodData);
-        // Live notification is explicitly distinct from persistence completion.
-        if (CurrentFuturesEodCache.Shared.TryGet(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate, out var current)
-            && current == domainEvent.FuturesEodData)
+        /// <summary>Publishes the inserted EOD value to the actor-owned blackboard.</summary>
+        public async ValueTask ExecuteAsync(IFuturesEodDataRealtimeContext context)
         {
-            await (context.SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(new()
+            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(domainEvent);
+            if (CurrentFuturesEodCache.Shared.TryGet(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate, out var latest)
+                && latest != domainEvent.FuturesEodData)
+                return;
+            context.BlackboardService.MarketDataFeed.FuturesEodData.Set(
+                domainEvent.FuturesEodData.ContractId,
+                domainEvent.FuturesEodData.ValueDate,
+                domainEvent.FuturesEodData);
+            // Live notification is explicitly distinct from persistence completion.
+            if (CurrentFuturesEodCache.Shared.TryGet(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate, out var current)
+                && current == domainEvent.FuturesEodData)
             {
-                Subject = new(ActorType.Notify, FuturesEodDataUpdatedNotifyEvent.Actor, FuturesEodDataUpdatedNotifyEvent.Verb, domainEvent.EntityId.Format()),
-                Id = domainEvent.Id, EntityId = domainEvent.EntityId, CommandId = domainEvent.CommandId,
-                EventSource = nameof(FuturesEodDataInsertedEvent), ReceivedOn = DateTime.UtcNow,
-                FuturesEodData = domainEvent.FuturesEodData, IsPersisted = false
-            })).ConfigureAwait(false);
-            if (string.Equals(domainEvent.FuturesEodData.Symbol,"ES",StringComparison.Ordinal))
-            {
-                var id = new MarketOutlookEntityId(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate);
-                await (context.SendAsync<MarketOutlookEodUpdatedRealtimeEvent, MarketOutlookEntityId>(new()
+                await (context.SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(new()
                 {
-                    Subject = new(ActorType.Realtime, MarketOutlookEodUpdatedRealtimeEvent.Actor, MarketOutlookEodUpdatedRealtimeEvent.Verb, id.Format()),
-                    Id = domainEvent.Id, EntityId = id, CommandId = domainEvent.CommandId,
-                    EventSource = nameof(FuturesEodDataInsertedEvent), ReceivedOn = DateTime.UtcNow,
-                    FuturesEodData = domainEvent.FuturesEodData
+                    Subject = new(ActorType.Notify, FuturesEodDataUpdatedNotifyEvent.Actor, FuturesEodDataUpdatedNotifyEvent.Verb, domainEvent.EntityId.Format()),
+                    Id = domainEvent.Id,
+                    EntityId = domainEvent.EntityId,
+                    CommandId = domainEvent.CommandId,
+                    EventSource = nameof(FuturesEodDataInsertedEvent),
+                    ReceivedOn = DateTime.UtcNow,
+                    FuturesEodData = domainEvent.FuturesEodData,
+                    IsPersisted = false
                 })).ConfigureAwait(false);
+                if (string.Equals(domainEvent.FuturesEodData.Symbol, "ES", StringComparison.Ordinal))
+                {
+                    var id = new MarketOutlookEntityId(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate);
+                    await (context.SendAsync<MarketOutlookEodUpdatedRealtimeEvent, MarketOutlookEntityId>(new()
+                    {
+                        Subject = new(ActorType.Realtime, MarketOutlookEodUpdatedRealtimeEvent.Actor, MarketOutlookEodUpdatedRealtimeEvent.Verb, id.Format()),
+                        Id = domainEvent.Id,
+                        EntityId = id,
+                        CommandId = domainEvent.CommandId,
+                        EventSource = nameof(FuturesEodDataInsertedEvent),
+                        ReceivedOn = DateTime.UtcNow,
+                        FuturesEodData = domainEvent.FuturesEodData
+                    })).ConfigureAwait(false);
+                }
             }
         }
     }

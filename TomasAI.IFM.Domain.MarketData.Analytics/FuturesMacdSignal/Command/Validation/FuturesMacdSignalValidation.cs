@@ -18,35 +18,41 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Vali
 /// </remarks>
 internal static class FuturesMacdSignalValidation
 {
-    /// <summary>
-    /// Validates the specified <see cref="FuturesMacdSignalId"/> and adds any validation errors to the provided
-    /// collection with command-specific error message prefixes.
-    /// </summary>
-    /// <remarks>
-    /// This method extends a list of validation errors by validating a futures MACD signal identifier. The validator
-    /// checks that the contract identifier is not empty, the value date is within valid range, and the timestamp is
-    /// within valid range. Error messages are prefixed with the <paramref name="commandName"/> to provide context
-    /// within command validation pipelines. Any validation errors discovered are appended to the <paramref
-    /// name="validationErrors"/> list. The original list is modified in place and also returned for fluent chaining.
-    /// </remarks>
-    /// <param name="validationErrors">The list to which any validation errors found during validation will be added. Cannot be null.</param>
-    /// <param name="futuresMacdSignalId">The <see cref="FuturesMacdSignalId"/> instance to validate. This parameter must not be null.</param>
-    /// <returns>The updated list of <see cref="ValidationError"/> objects, including any errors found during validation
-    /// of the specified MACD signal identifier.</returns>
-    public static List<ValidationError> ValidateFuturesMacdSignalId(
-        this List<ValidationError> validationErrors, FuturesMacdSignalId futuresMacdSignalId)
-    {
-        var validationRules = new FuturesMacdSignalIdValidationRules();
-        validationErrors.AddRange(validationRules.Execute(futuresMacdSignalId));
-        return validationErrors;
-    }
 
-    public static List<ValidationError> ValidateFuturesMacdConfiguration(
-        this List<ValidationError> validationErrors,
-        FuturesMacdConfiguration configuration)
+    /// <param name="validationErrors">
+    /// The list to which any validation errors found during validation will be added. Cannot be null.
+    /// </param>
+    extension(List<ValidationError> validationErrors)
     {
-        var validationRules = new FuturesMacdConfigurationValidationRules();
-        validationErrors.AddRange(validationRules.Execute(configuration));
-        return validationErrors;
+        /// <summary>
+        /// Validates the specified <see cref="FuturesMacdSignalId"/> and adds any validation errors to the provided
+        /// collection with command-specific error message prefixes.
+        /// </summary>
+        /// <remarks>
+        /// This method extends a list of validation errors by validating a futures MACD signal identifier. The validator
+        /// checks that the contract identifier is not empty, the value date is within valid range, and the timestamp is
+        /// within valid range. Error messages are prefixed with the <paramref name="commandName"/> to provide context
+        /// within command validation pipelines. Any validation errors discovered are appended to the <paramref
+        /// name="validationErrors"/> list. The original list is modified in place and also returned for fluent chaining.
+        /// </remarks>
+        ///
+        /// <param name="futuresMacdSignalId">The <see cref="FuturesMacdSignalId"/> instance to validate. This parameter must not be null.</param>
+        /// <returns>The updated list of <see cref="ValidationError"/> objects, including any errors found during validation
+        /// of the specified MACD signal identifier.</returns>
+        public List<ValidationError> ValidateFuturesMacdSignalId(
+        FuturesMacdSignalId futuresMacdSignalId)
+        {
+            var validationRules = new FuturesMacdSignalIdValidationRules();
+            validationErrors.AddRange(validationRules.Execute(futuresMacdSignalId));
+            return validationErrors;
+        }
+
+        public List<ValidationError> ValidateFuturesMacdConfiguration(
+            FuturesMacdConfiguration configuration)
+        {
+            var validationRules = new FuturesMacdConfigurationValidationRules();
+            validationErrors.AddRange(validationRules.Execute(configuration));
+            return validationErrors;
+        }
     }
 }

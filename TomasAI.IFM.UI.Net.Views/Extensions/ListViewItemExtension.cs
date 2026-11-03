@@ -10,11 +10,15 @@ namespace TomasAI.IFM.UI.Net.Extensions
 {
     public static class ListViewExtension
     {
-        public static void SetDoubleBuffered(this ListView listView, bool value)
+
+        extension(ListView listView)
         {
-            listView.GetType()
-                .GetProperty("DoubleBuffered", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .SetValue(listView, value);
+            public void SetDoubleBuffered(bool value)
+            {
+                listView.GetType()
+                    .GetProperty("DoubleBuffered", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .SetValue(listView, value);
+            }
         }
     }
 }

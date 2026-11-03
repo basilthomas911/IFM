@@ -13,13 +13,17 @@ namespace TomasAI.IFM.Domain.Trade.Order.Query;
 
 public static class PrepareTradeOrder
 {
-    public static async ValueTask ExecuteAsync(this PrepareTradeOrderQuery query, ITradeOrderQueryContext context, CancellationToken token)
+
+    extension(PrepareTradeOrderQuery query)
     {
-        ServiceResult<TradeOrderPreparation> response;
-        try { response = new ServiceOk<TradeOrderPreparation>(await PrepareAsync(query.Request, context, token).ConfigureAwait(false)); }
-        catch (Exception error) when (error is ArgumentException or InvalidOperationException or OverflowException)
-        { response = new ServiceFailed<TradeOrderPreparation>(400, $"TradeOrder.Preparation: {error.Message}"); }
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, response).ConfigureAwait(false);
+        public async ValueTask ExecuteAsync(ITradeOrderQueryContext context, CancellationToken token)
+        {
+            ServiceResult<TradeOrderPreparation> response;
+            try { response = new ServiceOk<TradeOrderPreparation>(await PrepareAsync(query.Request, context, token).ConfigureAwait(false)); }
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException or OverflowException)
+            { response = new ServiceFailed<TradeOrderPreparation>(400, $"TradeOrder.Preparation: {error.Message}"); }
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, response).ConfigureAwait(false);
+        }
     }
 
     static async Task<TradeOrderPreparation> PrepareAsync(TradeOrderPreparationRequest request, ITradeOrderQueryContext context, CancellationToken token)
@@ -55,8 +59,13 @@ public static class PrepareTradeOrder
                     throw new InvalidOperationException("Option multiplier is unavailable.");
                 var right = option.OptionRight.ToString();
                 if (right is not ("Call" or "Put")) throw new InvalidOperationException("Option right is unavailable.");
-                resolved.Add(leg with { CashMultiplier = multiplier, Strike = (decimal)option.StrikePrice,
-                    PutCall = right == "Call" ? (byte)1 : (byte)2, Expiry = DateOnly.FromDateTime(option.ExpirationUtc.Value.UtcDateTime) });
+                resolved.Add(leg with
+                {
+                    CashMultiplier = multiplier,
+                    Strike = (decimal)option.StrikePrice,
+                    PutCall = right == "Call" ? (byte)1 : (byte)2,
+                    Expiry = DateOnly.FromDateTime(option.ExpirationUtc.Value.UtcDateTime)
+                });
 
             }
         }
