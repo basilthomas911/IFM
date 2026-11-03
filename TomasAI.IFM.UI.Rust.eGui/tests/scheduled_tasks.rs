@@ -5,6 +5,35 @@ use ifm_ui_egui::{
 use serde_json::json;
 use std::path::Path;
 
+/// Catalog evidence uses appended command keys without moving existing fields.
+#[test]
+fn catalog_evidence_uses_the_compiled_command_wire_slots() {
+    use rmpv::Value;
+    use std::collections::BTreeMap;
+    let registry = Registry::compiled().unwrap();
+    let dashboard = codec::decode(&read("scheduled-dashboard.wire.msgpack")).unwrap();
+    let evidence = registry.wire_field(
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTasksDashboard",
+        "Catalog",
+        &dashboard,
+    ).unwrap().clone();
+    let fields = BTreeMap::from([
+        ("ExpectedRevision".into(), Value::from(42)),
+        ("CatalogEvidence".into(), evidence.clone()),
+    ]);
+    for (name, slot) in [("EnableScheduledTaskCommand", 7), ("AdmitScheduledTaskRunCommand", 13)] {
+        let command = registry.encode(
+            &format!("TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.{name}"),
+            &fields,
+        ).unwrap();
+        let roundtrip = codec::decode(&codec::encode(&command).unwrap()).unwrap();
+        let array = roundtrip.as_array().unwrap();
+        assert_eq!(array.len(), slot + 1);
+        assert_eq!(array[3], Value::from(42));
+        assert_eq!(array[slot], evidence);
+    }
+}
+
 
 /// Reads scheduled tasks for scheduled tasks.
 fn read(name: &str) -> Vec<u8> {

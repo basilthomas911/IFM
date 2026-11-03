@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using TomasAI.IFM.Application.Api.Server.Core.MarketData.Sessions;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;

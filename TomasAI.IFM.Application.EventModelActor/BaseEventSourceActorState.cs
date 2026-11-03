@@ -22,6 +22,8 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
 
     public abstract ActorThreadId Id { get; set; }
     protected abstract bool Apply(IEvent domainEvent);
+    /// <summary>Applies a persisted event without adding pending changes; snapshot-owning states may restore an initial snapshot here.</summary>
+    protected virtual bool ApplyReplayEvent(IEvent domainEvent) => Apply(domainEvent, false);
     public bool Updated { get; private set; }
     public long CommittedStreamVersion { get; private set; }
 
@@ -62,7 +64,7 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
     {
         if (domainEvents is null || domainEvents.Count == 0)
             return;
-        domainEvents.ForEach(e => Apply(e, false));
+        domainEvents.ForEach(e => ApplyReplayEvent(e));
         domainEvents.Clear();
         _domainEvents = [];
         Updated = false;
@@ -83,7 +85,7 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
         foreach (var e in domainEvents)
         {
             if (e is not null && e.ToDomainEvent() is IEvent @event)
-                Apply(@event, false);
+                ApplyReplayEvent(@event);
         }
         CommittedStreamVersion = Math.Max(CommittedStreamVersion,
             domainEvents.Count == 0 ? 0 : domainEvents.Max(static e => e.StreamVersion));
@@ -107,7 +109,7 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
         {
             if (e is not null && e.ToDomainEvent() is IEvent @event)
             {
-                Apply(@event, false);
+                ApplyReplayEvent(@event);
                 CommittedStreamVersion = Math.Max(CommittedStreamVersion, e.StreamVersion);
             }
         }
@@ -128,7 +130,7 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
         if (eventStream is null)
             return;
         foreach (var @event in eventStream.Where(@event => @event is not null))
-            Apply(@event, false);
+            ApplyReplayEvent(@event);
         Updated = false;
     }
 

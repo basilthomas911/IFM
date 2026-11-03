@@ -19,24 +19,50 @@ use serde_json::{Value as Json, json};
 use std::collections::BTreeMap;
 const ROOT: &str = "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.";
 
+/// Resolves the aggregate owner for a compiled scheduled-task contract.
+fn owner(name: &str) -> &'static str {
+    match name {
+        "CompleteScheduledTaskRunCommand"
+        | "FailScheduledTaskRunCommand"
+        | "GetScheduledTaskOutputQuery"
+        | "GetScheduledTaskRunHistoryQuery"
+        | "GetScheduledTaskRunQuery"
+        | "IScheduledTaskOutputReader"
+        | "ListScheduledTaskRunsQuery"
+        | "RecordScheduledTaskRunAdmissionCommand"
+        | "RecordScheduledTaskRunStageCommand"
+        | "RecordScheduledTaskRunStartedCommand"
+        | "RecordScheduledTaskRunUncertainCommand"
+        | "RequestScheduledTaskRunCommand"
+        | "ScheduledTaskOutputPage"
+        | "ScheduledTaskRun"
+        | "ScheduledTaskRunPage"
+        | "ScheduledTaskRunStatus" => "Run.",
+        "GetScheduledTaskCatalogQuery"
+        | "GetScheduledTaskHostHealthQuery"
+        | "RecordScheduledTaskHostCapabilityCommand"
+        | "RegisterScheduledTaskProjectCommand"
+        | "ScheduledTaskCatalog"
+        | "ScheduledTaskHostCapability"
+        | "ScheduledTaskProject" => "Catalog.",
+        _ => "",
+    }
+}
 
 /// Provides model for the scheduled tasks implementation.
 fn model(name: &str) -> String {
-    format!("{ROOT}Contracts.{name}")
+    format!("{ROOT}{}Contracts.{name}", owner(name))
 }
-
 
 /// Resolves the requested field in the supplied record.
 fn field<'a>(intent: &'a Json, name: &str) -> &'a str {
     intent["fields"][name].as_str().unwrap_or_default().trim()
 }
 
-
 /// Returns the display text for the requested value or field.
 fn text(row: &impl Cells, name: &str) -> String {
     row.cell(name).text()
 }
-
 
 /// Provides display for the scheduled tasks implementation.
 fn display(v: Cell<'_>) -> String {
@@ -46,13 +72,11 @@ fn display(v: Cell<'_>) -> String {
     }
 }
 
-
 /// Provides id wire for the scheduled tasks implementation.
 fn id_wire(id: &str) -> Result<Value, String> {
     let id = uuid::Uuid::parse_str(id).map_err(|_| "Invalid scheduled task identity")?;
     Ok(Value::Array(vec![id.to_string().into()]))
 }
-
 
 /// Provides id for the scheduled tasks implementation.
 fn id(identity: &Option<ScheduledTaskId>) -> Result<String, String> {
@@ -64,14 +88,12 @@ fn id(identity: &Option<ScheduledTaskId>) -> Result<String, String> {
         .ok_or("Missing scheduled task identity".into())
 }
 
-
 /// Looks up the requested member in the supplied record.
 fn member<'a>(wire: &'a Value, index: usize) -> Result<&'a Value, String> {
     wire.as_array()
         .and_then(|v| v.get(index))
         .ok_or("Incomplete scheduled-task payload".into())
 }
-
 
 /// Provides offset for the scheduled tasks implementation.
 fn offset(wire: &Value, index: usize) -> Result<Option<String>, String> {
@@ -83,12 +105,10 @@ fn offset(wire: &Value, index: usize) -> Result<Option<String>, String> {
     })
 }
 
-
 /// Provides document for the scheduled tasks implementation.
 fn document<T: serde::Serialize>(value: &T) -> Result<serde_bytes::ByteBuf, String> {
     crate::wire::encode(value).map(Into::into)
 }
-
 
 /// Map one persisted run exactly as the hybrid service; no business outcomes or
 /// EOD receipts are recomputed on the client. Raw timestamps retain their zones.
@@ -112,7 +132,6 @@ pub fn run_document(_registry: &Registry, wire: &Value) -> Result<Run, String> {
         finished_at_utc: offset(wire, 11)?,
     })
 }
-
 
 /// Schedules input for scheduled tasks.
 pub fn schedule_input(registry: &Registry, intent: &Json) -> Result<Value, String> {
@@ -220,7 +239,6 @@ impl ScheduledController {
         self.subscription.take()
     }
 
-
     /// Sets observer for scheduled controller.
     pub fn set_observer(&mut self, task: tokio::task::JoinHandle<()>) {
         if let Some(previous) = self.observer.replace(task) {
@@ -228,12 +246,10 @@ impl ScheduledController {
         }
     }
 
-
     /// Provides observer unavailable for the scheduled controller implementation.
     pub fn observer_unavailable(&mut self) {
         self.subscribed = false;
     }
-
 
     /// Provides query for the scheduled controller implementation.
     async fn query(
@@ -261,13 +277,12 @@ impl ScheduledController {
         actor_requests::query(
             backend,
             registry,
-            &format!("{ROOT}Queries.{name}"),
+            &format!("{ROOT}{}Queries.{name}", owner(name)),
             &identity.simple().to_string(),
             fields,
         )
         .await
     }
-
 
     /// Provides preview for the scheduled controller implementation.
     async fn preview(
@@ -298,7 +313,6 @@ impl ScheduledController {
             next_fire_times_utc: times,
         })
     }
-
 
     /// Builds the current history page using its accepted backend paging state.
     async fn history_page(
@@ -384,7 +398,6 @@ impl ScheduledController {
 
         Ok(())
     }
-
 
     /// Loads dashboard for scheduled controller.
     async fn load_dashboard(
@@ -538,7 +551,6 @@ impl ScheduledController {
         Ok(())
     }
 
-
     /// Provides enrich for the scheduled controller implementation.
     async fn enrich(&mut self, backend: &Backend, registry: &Registry) -> Result<(), String> {
         let definitions = self
@@ -568,7 +580,6 @@ impl ScheduledController {
         }
         Ok(())
     }
-
 
     /// Provides publication result for the scheduled controller implementation.
     fn publication_result(&self, registry: &Registry) -> Result<ContractResult, String> {
@@ -634,7 +645,6 @@ impl ScheduledController {
         Ok(result)
     }
 
-
     /// Provides selected for the scheduled controller implementation.
     fn selected(&self, intent: &Json) -> Result<(String, Value), String> {
         let id = intent["originalId"]
@@ -645,7 +655,6 @@ impl ScheduledController {
             .map(|v| (id.into(), v.clone()))
             .ok_or("Select a current schedule".into())
     }
-
 
     /// Reads output for scheduled controller.
     async fn read_output(
@@ -723,7 +732,6 @@ impl ScheduledController {
         Ok(())
     }
 
-
     /// Provides mutate for the scheduled controller implementation.
     async fn mutate(
         &mut self,
@@ -772,6 +780,10 @@ impl ScheduledController {
             ),
         ]);
         match action {
+            "enable" => {
+                let evidence = self.query(backend, registry, "GetScheduledTaskCatalogQuery", BTreeMap::new()).await?;
+                fields.insert("CatalogEvidence".into(), evidence);
+            }
             "add" | "change" => {
                 fields.insert("Schedule".into(), schedule_input(registry, intent)?);
             }
@@ -847,7 +859,7 @@ impl ScheduledController {
             }
             _ => {}
         }
-        let kind = format!("{ROOT}Commands.{command}");
+        let kind = format!("{ROOT}{}Commands.{command}", owner(command));
         let (actor, verb) = registry.route(&kind)?;
         let subject = ActorSubject {
             kind: ActorKind::Command,
@@ -915,7 +927,6 @@ impl ScheduledController {
             )),
         }
     }
-
 
     /// Applies scheduled tasks for scheduled controller.
     async fn apply(
@@ -993,7 +1004,6 @@ impl ScheduledController {
         Ok("Completed".into())
     }
 
-
     /// Refreshes if loaded for scheduled controller.
     pub async fn refresh_if_loaded(
         &mut self,
@@ -1036,7 +1046,6 @@ impl ScheduledController {
             ..Default::default()
         })
     }
-
 
     /// Handles a scheduled tasks intent and returns the resulting publication or error.
     pub async fn execute(

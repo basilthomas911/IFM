@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Quartz;

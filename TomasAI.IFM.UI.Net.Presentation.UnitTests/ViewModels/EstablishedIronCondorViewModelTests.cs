@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using FluentAssertions;
 using NSubstitute;
@@ -127,7 +129,7 @@ public sealed class EstablishedIronCondorViewModelTests
         vm.IsLiveFeedEnabled.Should().BeFalse();
         await status.DidNotReceive().StopMonitoringAsync(Arg.Any<Guid>());
         await positions.Received(1).GetHistoryAsync(id, TradeStrategyKind.IronCondor, Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
-        var committed = new TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStageRecordedCompleteEvent
+        var committed = new TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStageRecordedCompleteEvent
         {
             ScheduledTaskRun = new()
             {
@@ -140,7 +142,7 @@ public sealed class EstablishedIronCondorViewModelTests
         persisted = [intraday, eod];
         committed = committed with { ScheduledTaskRun = committed.ScheduledTaskRun with { Stage = "PositionsFinalized", CompletedEndOfDayValueDate = date } };
         var bytes = MessagePack.MessagePackSerializer.Serialize(committed);
-        await onStatus(MessagePack.MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStageRecordedCompleteEvent>(bytes));
+        await onStatus(MessagePack.MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStageRecordedCompleteEvent>(bytes));
         vm.TradeHistory.Last().ValueDate.Should().Be(date);
         vm.TradeHistory.Last().TradeStatus.Should().Be(TradeStatus.EndOfDay, "sealed EOD wins even over a higher transient generation/sequence");
         vm.TradeHistory.Should().HaveCount(2);

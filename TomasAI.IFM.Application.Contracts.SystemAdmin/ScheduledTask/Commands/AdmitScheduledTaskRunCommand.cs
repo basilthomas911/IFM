@@ -1,4 +1,5 @@
 using MessagePack;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -25,6 +26,8 @@ public sealed record AdmitScheduledTaskRunCommand : ICommand<ScheduledTaskId>
     [Key(10)] public bool Manual { get; init; } = false;
     [Key(11)] public string HostId { get; init; } = "";
     [Key(12)] public string Environment { get; init; } = "";
+    /// <summary>Gets the catalog snapshot queried by the producer; the handler validates its scope and freshness.</summary>
+    [Key(13)] public ScheduledTaskCatalog? CatalogEvidence { get; init; }
     [IgnoreMember] public string CommandName => nameof(AdmitScheduledTaskRunCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor;

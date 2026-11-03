@@ -168,9 +168,7 @@ public sealed class NatsJetStreamEventListener(
             _options.DurableConsumerNamePrefix,
             _eventListenerId,
             mailboxId);
-        var consumer = await jetStream.CreateOrUpdateConsumerAsync(
-            stream.Info.Config.Name,
-            new ConsumerConfig(durableName)
+        var consumerConfig = new ConsumerConfig(durableName)
             {
                 FilterSubject = filterSubject,
                 AckPolicy = ConsumerConfigAckPolicy.Explicit,
@@ -180,8 +178,11 @@ public sealed class NatsJetStreamEventListener(
                 AckWait = _options.AckWait,
                 MaxDeliver = _options.MaxDeliver,
                 MaxAckPending = GetOutstandingLimit()
-            },
-            cancellationToken).ConfigureAwait(false);
+            };
+        var consumer = await jetStream.CreateOrUpdateConsumerAsync(
+            stream.Info.Config.Name, consumerConfig, cancellationToken).ConfigureAwait(false);
+        consumer = await RecoverInvalidCursorAsync(jetStream, stream.Info.Config.Name,
+            consumerConfig, consumer, cancellationToken).ConfigureAwait(false);
 
         var channels = new Channel<PendingDelivery>[_options.DispatcherCount];
         var dispatcherTasks = new Task[_options.DispatcherCount];
@@ -211,6 +212,36 @@ public sealed class NatsJetStreamEventListener(
             consumeOptions,
             cancellationToken);
         _mailboxes.Add(new MailboxRuntime(channels, dispatcherTasks, consumerTask));
+    }
+
+    /// <summary>Recreates only cursors beyond the current stream; valid purge cursors retain their delivery history.</summary>
+    internal async ValueTask<INatsJSConsumer> RecoverInvalidCursorAsync(
+        INatsJSContext jetStream, string streamName, ConsumerConfig consumerConfig,
+        INatsJSConsumer consumer, CancellationToken cancellationToken)
+    {
+        var durableName = consumerConfig.DurableName!;
+        // A rebuilt/restored stream can retain consumers whose cursors point
+        // beyond its new end. Such a consumer silently skips all new events.
+        // Normal purges preserve sequence numbers and must not reset cursors.
+        var currentStream = await jetStream.GetStreamAsync(streamName,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        if (NatsJetStreamActorConsumer.RequiresCursorRecovery(
+            Convert.ToUInt64(currentStream.Info.State.LastSeq),
+            Convert.ToUInt64(consumer.Info.AckFloor.StreamSeq)))
+        {
+            NatsJetStreamActorConsumerLogging.RecoveringInvalidDurableCursor(
+                _logger, streamName, durableName,
+                Convert.ToUInt64(currentStream.Info.State.Messages),
+                Convert.ToUInt64(currentStream.Info.State.FirstSeq),
+                Convert.ToUInt64(currentStream.Info.State.LastSeq),
+                Convert.ToUInt64(consumer.Info.AckFloor.StreamSeq));
+            await jetStream.DeleteConsumerAsync(streamName, durableName, cancellationToken)
+                .ConfigureAwait(false);
+            consumer = await jetStream.CreateOrUpdateConsumerAsync(
+                streamName, consumerConfig, cancellationToken).ConfigureAwait(false);
+        }
+
+        return consumer;
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "This transport boundary keeps ownership transfer, cancellation, and cleanup in one lexical scope so admission cannot outlive its cleanup contract.")]

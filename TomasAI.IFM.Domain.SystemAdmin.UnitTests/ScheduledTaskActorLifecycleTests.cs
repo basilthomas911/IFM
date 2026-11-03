@@ -1,3 +1,9 @@
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Command.Model;
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Event;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events;
 using MessagePack;
 using NSubstitute;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command;
@@ -14,7 +20,7 @@ public sealed class ScheduledTaskActorLifecycleTests
     private static readonly DateTimeOffset Now = new(2026, 10, 7, 21, 1, 0, TimeSpan.Zero);
     private static readonly ScheduledTaskId Id = new(Guid.NewGuid());
     private static readonly ScheduledTaskSchedule Schedule = new() { TaskKey = "qualification-task", Name = "Market close", Expression = "0 1 17 ? * MON-FRI", MaximumRuntimeSeconds = 120 };
-    private static ScheduledTaskCatalog Catalog => new() { Id = new(Guid.NewGuid()), HostId = "development", Environment = "Development", Projects = [new() { TaskKey = Schedule.TaskKey, ProjectName = "FuturesMarketClose", ManifestVersion = "1", ArtifactDigest = "sha256:abc", Platform = "Windows", Available = true, MaximumRuntimeSeconds = 300 }], HostCapability = new() { HostId = "development", Environment = "Development", Platform = "Windows", Ready = true, ObservedAtUtc = Now, Generation = 1 } };
+    private static ScheduledTaskCatalog Catalog => new() { Id = ScheduledTaskIdentities.Catalog("Development", "development"), Revision = 1, HostId = "development", Environment = "Development", Projects = [new() { TaskKey = Schedule.TaskKey, ProjectName = "FuturesMarketClose", ManifestVersion = "1", ArtifactDigest = "sha256:abc", Platform = "Windows", Available = true, MaximumRuntimeSeconds = 300 }], HostCapability = new() { HostId = "development", Environment = "Development", Platform = "Windows", Ready = true, ObservedAtUtc = Now, Generation = 1 } };
     private static ScheduledTaskDefinition Installed => new() { Id = Id, Revision = 3, DesiredRevision = 2, AppliedRevision = 2, Schedule = Schedule, Enabled = true, AppliedEnabled = true, InstallationStatus = ScheduledTaskInstallationStatus.Applied, ManifestVersion = "1", ReviewedArtifactDigest = "sha256:abc" };
     [Theory]
     [InlineData(ScheduledTaskKeys.FuturesMarketOpen)]
@@ -28,7 +34,7 @@ public sealed class ScheduledTaskActorLifecycleTests
             ActiveRunId = Guid.NewGuid(), LastAdmittedFireUtc = Now.AddDays(1)
         };
         var command = Admission() with { IntendedFireTimeUtc = Now.AddMinutes(-30), DefinitionRevision = 0 };
-        var result = ScheduledTaskComputation.Compute(command, definition, Now, null);
+        var result = ScheduledTaskComputation.Compute(command, definition, Now);
         Assert.True(result.Accepted, result.RejectionReason);
         Assert.Equal(command.RunId, result.ScheduledTaskDefinition!.ActiveRunId);
     }
@@ -46,7 +52,7 @@ public sealed class ScheduledTaskActorLifecycleTests
     {
         var changedCatalog = Catalog with { Projects = [Catalog.Projects[0] with { ArtifactDigest = "sha256:changed" }] };
         var model = ScheduledTaskComputation.Compute(new AdmitScheduledTaskRunCommand { CommandId = Guid.NewGuid(), EntityId = Id,
-            RunId = Guid.NewGuid(), DefinitionRevision = Installed.DesiredRevision, IntendedFireTimeUtc = Now, HostId = "development", Environment = "Development" }, Installed, Now, changedCatalog);
+            RunId = Guid.NewGuid(), CatalogEvidence = changedCatalog, DefinitionRevision = Installed.DesiredRevision, IntendedFireTimeUtc = Now, HostId = "development", Environment = "Development" }, Installed, Now);
         Assert.False(model.Accepted); Assert.Contains("ARTIFACT_CHANGED", model.RejectionReason);
     }
     [Theory]
@@ -63,39 +69,39 @@ public sealed class ScheduledTaskActorLifecycleTests
     {
         var command = new CreateScheduledTaskCommand { CommandId = Guid.NewGuid(), EntityId = Id, Schedule = Schedule, Subject = new(ActorType.Command, CreateScheduledTaskCommand.Actor, CreateScheduledTaskCommand.Verb, Id.Format()) };
         var state = new ScheduledTaskCommandState();
-        Assert.IsType<ServiceOk<GuidResult>>(command.Execute(state, Now.AddMinutes(-1), Catalog));
+        Assert.IsType<ServiceOk<GuidResult>>(command.Execute(ScheduledTaskConventionTests.Context(Now.AddMinutes(-1)), state));
         Assert.False(state.ScheduledTaskDefinition!.Enabled);
-        var model = ScheduledTaskComputation.Compute(command, null, Now.AddMinutes(-1), Catalog);
+        var model = ScheduledTaskComputation.Compute(command, null, Now.AddMinutes(-1));
         var source = new ScheduledTaskCreatedEvent { CommandId = command.CommandId, EntityId = Id, ScheduledTaskDefinition = model.ScheduledTaskDefinition, Subject = new(ActorType.Event, ScheduledTaskCreatedEvent.Actor, ScheduledTaskCreatedEvent.Verb, Id.Format()) };
         var copy = MessagePackSerializer.Deserialize<ScheduledTaskCreatedEvent>(MessagePackSerializer.Serialize(source));
         Assert.Equal(command.CommandId, copy.CommandId); Assert.Equal(Schedule.Expression, copy.ScheduledTaskDefinition!.Schedule.Expression);
     }
     [Fact] public void StaleOperatorEditDoesNotProduceModel()
     {
-        var change = ScheduledTaskComputation.Compute(new DisableScheduledTaskCommand { CommandId = Guid.NewGuid(), EntityId = Id, ExpectedRevision = 1 }, Installed, Now, Catalog);
+        var change = ScheduledTaskComputation.Compute(new DisableScheduledTaskCommand { CommandId = Guid.NewGuid(), EntityId = Id, ExpectedRevision = 1 }, Installed, Now);
         Assert.False(change.Accepted); Assert.Contains("REVISION.CONFLICT", change.RejectionReason);
     }
     [Fact] public void InstallationReceiptCannotConfirmAnotherRevision()
     {
-        var change = ScheduledTaskComputation.Compute(new RecordScheduledTaskInstallationCommand { CommandId = Guid.NewGuid(), EntityId = Id, DesiredRevision = 1, AppliedEnabled = true, Fingerprint = "f" }, Installed, Now, Catalog);
+        var change = ScheduledTaskComputation.Compute(new RecordScheduledTaskInstallationCommand { CommandId = Guid.NewGuid(), EntityId = Id, DesiredRevision = 1, AppliedEnabled = true, Fingerprint = "f" }, Installed, Now);
         Assert.False(change.Accepted); Assert.Contains("INSTALLATION.STALE", change.RejectionReason);
     }
     [Fact] public void ReadyHostAndAppliedDefinitionAdmitExactlyOneOccurrence()
     {
         var command = Admission();
-        var first = ScheduledTaskComputation.Compute(command, Installed, Now, Catalog);
+        var first = ScheduledTaskComputation.Compute(command, Installed, Now);
         Assert.True(first.Accepted);
-        var duplicate = ScheduledTaskComputation.Compute(command, first.ScheduledTaskDefinition, Now, Catalog);
+        var duplicate = ScheduledTaskComputation.Compute(command, first.ScheduledTaskDefinition, Now);
         Assert.False(duplicate.Accepted); Assert.Contains("OVERLAP", duplicate.RejectionReason);
-        var released = ScheduledTaskComputation.Compute(new RecordScheduledTaskRunCompletionCommand { CommandId = Guid.NewGuid(), EntityId = Id, RunId = command.RunId }, first.ScheduledTaskDefinition, Now, Catalog);
+        var released = ScheduledTaskComputation.Compute(new RecordScheduledTaskRunCompletionCommand { CommandId = Guid.NewGuid(), EntityId = Id, RunId = command.RunId }, first.ScheduledTaskDefinition, Now);
         Assert.True(released.Accepted); Assert.Null(released.ScheduledTaskDefinition!.ActiveRunId);
-        var redelivery = ScheduledTaskComputation.Compute(command, released.ScheduledTaskDefinition, Now, Catalog);
+        var redelivery = ScheduledTaskComputation.Compute(command, released.ScheduledTaskDefinition, Now);
         Assert.False(redelivery.Accepted); Assert.Contains("DUPLICATE", redelivery.RejectionReason);
     }
-    [Fact] public void UninstalledRevisionCannotLaunch() => Assert.Contains("NOT_INSTALLED", ScheduledTaskComputation.Compute(Admission(), Installed with { AppliedRevision = 1 }, Now, Catalog).RejectionReason);
-    [Fact] public void LateOccurrenceCannotLaunch() => Assert.Contains("LATE", ScheduledTaskComputation.Compute(Admission(), Installed, Now.AddMinutes(2), Catalog).RejectionReason);
-    [Fact] public void StaleHostCannotLaunch() => Assert.Contains("HOST.UNAVAILABLE", ScheduledTaskComputation.Compute(Admission(), Installed, Now, Catalog with { HostCapability = Catalog.HostCapability! with { ObservedAtUtc = Now.AddMinutes(-3) } }).RejectionReason);
-    [Fact] public void WrongCronInstantCannotLaunch() => Assert.Contains("NOT_SCHEDULED", ScheduledTaskComputation.Compute(Admission() with { IntendedFireTimeUtc = Now.AddSeconds(-1) }, Installed, Now, Catalog).RejectionReason);
+    [Fact] public void UninstalledRevisionCannotLaunch() => Assert.Contains("NOT_INSTALLED", ScheduledTaskComputation.Compute(Admission(), Installed with { AppliedRevision = 1 }, Now).RejectionReason);
+    [Fact] public void LateOccurrenceCannotLaunch() => Assert.Contains("LATE", ScheduledTaskComputation.Compute(Admission(), Installed, Now.AddMinutes(2)).RejectionReason);
+    [Fact] public void StaleHostCannotLaunch() => Assert.Contains("HOST.UNAVAILABLE", ScheduledTaskComputation.Compute(Admission() with { CatalogEvidence = Catalog with { HostCapability = Catalog.HostCapability! with { ObservedAtUtc = Now.AddMinutes(-3) } } }, Installed, Now).RejectionReason);
+    [Fact] public void WrongCronInstantCannotLaunch() => Assert.Contains("NOT_SCHEDULED", ScheduledTaskComputation.Compute(Admission() with { IntendedFireTimeUtc = Now.AddSeconds(-1) }, Installed, Now).RejectionReason);
     [Fact] public void OccurrenceIdentityIgnoresOffsetRepresentation() => Assert.Equal(ScheduledTaskRunComputation.OccurrenceId(Id, Now), ScheduledTaskRunComputation.OccurrenceId(Id, Now.ToOffset(TimeSpan.FromHours(-4))));
     [Fact] public void UncertainRunIsTerminalAndCannotRelaunch()
     {
@@ -145,18 +151,18 @@ public sealed class ScheduledTaskActorLifecycleTests
             NSubstitute.Substitute.For<TomasAI.IFM.Shared.EventModelActor.Contracts.IActorSupervisor>(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Event.Actor.ScheduledTaskEventActor>.Instance,
             authority);
-        var receipt = new TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStageRecordedCompleteEvent
+        var receipt = new TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStageRecordedCompleteEvent
         {
             CommandId = Guid.NewGuid(), EntityId = new(Guid.NewGuid()),
             ScheduledTaskRun = new() { TaskKey = ScheduledTaskKeys.FuturesMarketClose, Stage = "FeedsStopped" }
         };
-        await TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Event.ScheduledTaskRunStageRecordedComplete.ExecuteAsync(receipt, context);
+        await TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Event.ScheduledTaskRunStageRecordedComplete.ExecuteAsync(receipt, context);
         Assert.Equal(new DateOnly(2026,10,7), authority.ValueDate);
         var finalized = receipt with { ScheduledTaskRun = receipt.ScheduledTaskRun with { Stage = "PositionsFinalized", CompletedEndOfDayValueDate = new DateOnly(2026,10,7) } };
-        await TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Event.ScheduledTaskRunStageRecordedComplete.ExecuteAsync(finalized, context);
+        await TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Event.ScheduledTaskRunStageRecordedComplete.ExecuteAsync(finalized, context);
         Assert.Equal(new DateOnly(2026,10,8), authority.ValueDate);
         var valueDate = authority.ValueDate;
-        await TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Event.ScheduledTaskRunStageRecordedComplete.ExecuteAsync(finalized, context);
+        await TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Event.ScheduledTaskRunStageRecordedComplete.ExecuteAsync(finalized, context);
         Assert.Equal(valueDate, authority.ValueDate);
     }
     [Fact]
@@ -188,7 +194,7 @@ public sealed class ScheduledTaskActorLifecycleTests
     public void Expired_one_time_definition_cannot_be_enabled()
     {
         var definition = Installed with { Schedule = Schedule with { Timing = ScheduledTaskTiming.OneTime, StartsAtUtc = Now.AddMinutes(-1) } };
-        Assert.False(ScheduledTaskComputation.Compute(new EnableScheduledTaskCommand { CommandId = Guid.NewGuid(), EntityId = Id, ExpectedRevision = definition.Revision }, definition, Now, Catalog).Accepted);
+        Assert.False(ScheduledTaskComputation.Compute(new EnableScheduledTaskCommand { CommandId = Guid.NewGuid(), EntityId = Id, ExpectedRevision = definition.Revision }, definition, Now).Accepted);
     }
-    private static AdmitScheduledTaskRunCommand Admission() => new() { CommandId = Guid.NewGuid(), EntityId = Id, RunId = Guid.NewGuid(), DefinitionRevision = 2, HostId = "development", Environment = "Development", IntendedFireTimeUtc = Now };
+    private static AdmitScheduledTaskRunCommand Admission() => new() { CatalogEvidence = Catalog, CommandId = Guid.NewGuid(), EntityId = Id, RunId = Guid.NewGuid(), DefinitionRevision = 2, HostId = "development", Environment = "Development", IntendedFireTimeUtc = Now };
 }

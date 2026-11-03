@@ -9,7 +9,7 @@ public sealed class CommandActorValidationTests
 {
     public static IEnumerable<object[]> MalformedCommands()
     {
-        var names = new HashSet<string>(["DatabaseBackupCommandActor"]);
+        var names = new HashSet<string>(["DatabaseBackupCommandActor", "ScheduledTaskCommandActor", "ScheduledTaskRunCommandActor", "ScheduledTaskCatalogCommandActor"]);
         foreach (var actor in typeof(TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Actor.DatabaseBackupCommandActor).Assembly.GetTypes().Where(type => names.Contains(type.Name)))
         {
             var map = Map(actor);

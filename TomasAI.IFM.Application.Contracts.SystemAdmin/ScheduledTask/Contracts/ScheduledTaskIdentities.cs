@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using System.Security.Cryptography;
 using System.Text;
 namespace TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;

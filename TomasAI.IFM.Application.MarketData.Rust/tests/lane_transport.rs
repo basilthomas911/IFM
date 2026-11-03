@@ -872,7 +872,16 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
                 trade.ts_recv = timestamp + 17;
                 trade.sequence = 9;
                 trade.size = 1;
-                records.encode(&trade).await.unwrap();
+                if let Err(error) = records.encode(&trade).await {
+                    // Source retirement may close a fixture peer mid-publication.
+                    if matches!(&error, databento::dbn::Error::Io { source, .. }
+                        if matches!(source.kind(), std::io::ErrorKind::BrokenPipe
+                            | std::io::ErrorKind::ConnectionAborted
+                            | std::io::ErrorKind::ConnectionReset)) {
+                        return;
+                    }
+                    panic!("Fixture trade publication failed: {error}");
+                }
                 trade.hd.instrument_id = 42;
             }
             if additional_statistics {
@@ -6045,6 +6054,12 @@ async fn native_browser_views_capture_release_and_rebuild_without_managed_leases
     native_options_group_case(false, true, true, true, false, false, false, 8).await;
 }
 
+/// Browser and policy coverage of the same option must share one physical source.
+#[tokio::test]
+async fn native_browser_and_background_share_option_without_recovery_loop() {
+    native_options_group_case(false, true, true, true, true, false, false, 13).await;
+}
+
 #[tokio::test]
 async fn native_browser_metadata_maintenance_preserves_unchanged_provider_connection() {
     native_options_group_case(false, true, true, true, false, false, false, 10).await;
@@ -6602,7 +6617,9 @@ async fn native_options_group_case(
             } else {
                 configuration
             };
-            let configuration = if matches!(discovery_mode, 8 | 10) {
+            let configuration = if discovery_mode == 13 {
+                configuration
+            } else if matches!(discovery_mode, 8 | 10) {
                 configuration.monitored_only()
             } else if discovery_mode == 7 {
                 configuration.monitored_only().with_committed().unwrap()
@@ -6652,7 +6669,7 @@ async fn native_options_group_case(
                 vec![("ES20261110C6000".into(), [42; 32])],
             )
             .unwrap();
-        if matches!(discovery_mode, 8 | 10) {
+        if matches!(discovery_mode, 8 | 10 | 13) {
             use ifm_market_data_native::option_chain::browser::Command;
             let mut command=Command::parse(&serde_json::json!({"contract":raw_model[33],"root":"ES","expiry":date.to_julian_day()-1721426+14,"providers":[],"owner":"view-one","required":[raw_model[0]],"multiplier":2.5,"wing":"25","release":false})).unwrap();
             market.begin_browser(command.clone()).unwrap();
@@ -6673,6 +6690,17 @@ async fn native_options_group_case(
             let model = fields[0].as_array().unwrap();
             let rows = model[7].as_array().unwrap();
             assert_eq!(rows.len(), 1);
+            let cancelled = CancellationToken::new();
+            cancelled.cancel();
+            assert!(market.browser_result(&command, &cancelled, Deadline::recovery()).await
+                .unwrap_err().contains("DeadlineExpired"));
+            assert!(market.browser_result(&command, &CancellationToken::new(), Deadline::after(Duration::ZERO)).await
+                .unwrap_err().contains("DeadlineExpired"));
+            if discovery_mode == 13 {
+                let stable = market.publication_identity(Lane::OptionsGlbx).unwrap();
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                assert_eq!(market.publication_identity(Lane::OptionsGlbx).unwrap().generation, stable.generation);
+            }
             assert_eq!(
                 rows[0].as_array().unwrap()[0].as_str(),
                 Some("ES20261110C6000")
@@ -6689,6 +6717,7 @@ async fn native_options_group_case(
                 .unwrap();
             assert!(statistics.observed > 0);
             let old = market.publication_identity(Lane::OptionsGlbx).unwrap();
+            let stable_connections = fixture.accepted.load(Ordering::SeqCst);
             command.owner = "view-two".into();
             market.begin_browser(command.clone()).unwrap();
             assert_eq!(
@@ -6711,7 +6740,7 @@ async fn native_options_group_case(
                 .expect("Native browser did not refresh copied metadata on its existing cadence");
                 assert_eq!(
                     fixture.accepted.load(Ordering::SeqCst),
-                    1,
+                    stable_connections,
                     "Unchanged metadata reset a healthy provider source"
                 );
                 assert_eq!(
@@ -6728,6 +6757,7 @@ async fn native_options_group_case(
                         .is_ok()
                 );
             }
+            let connections_before_recovery = fixture.accepted.load(Ordering::SeqCst);
             let request = RecoveryRequest {
                 lane: Lane::OptionsGlbx,
                 operation: [98; 16],
@@ -6752,7 +6782,7 @@ async fn native_options_group_case(
             .await
             .unwrap()
             .unwrap();
-            assert_eq!(fixture.accepted.load(Ordering::SeqCst), 2);
+            assert_eq!(fixture.accepted.load(Ordering::SeqCst), connections_before_recovery + 1);
             let restored = market
                 .options_current()
                 .unwrap()
@@ -6791,7 +6821,11 @@ async fn native_options_group_case(
                 .await
                 .unwrap();
             market.wait_ready(Lane::OptionsGlbx, false).await.unwrap();
-            assert!(!market.has_desired(Lane::OptionsGlbx));
+            assert_eq!(
+                market.has_desired(Lane::OptionsGlbx),
+                discovery_mode == 13,
+                "Releasing browser views must preserve background policy coverage"
+            );
             market.stop_feeds().unwrap();
             market.wait_feeds_stopped().await.unwrap();
             market.shutdown(Deadline::recovery()).await.unwrap();
@@ -7794,13 +7828,18 @@ async fn native_options_group_case(
         .await
         .unwrap()
         .unwrap();
-        let receipt = market
-            .scope_receipt(
-                "trade",
-                111u128.to_le_bytes(),
-                date + time::Duration::days(14),
-            )
-            .unwrap();
+        // Feed readiness intentionally does not wait for financial evidence.
+        let receipt = tokio::time::timeout(Duration::from_secs(6), async {
+            loop {
+                let receipt = market.scope_receipt(
+                    "trade", 111u128.to_le_bytes(), date + time::Duration::days(14),
+                ).unwrap();
+                if !receipt.is_nil() {
+                    break receipt;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }).await.expect("Ready feed did not publish its trade pricing receipt");
         let fields = receipt.as_array().unwrap();
         assert_eq!(fields.len(), 12);
         assert_eq!(fields[0].as_str(), Some("trade"));
@@ -7962,7 +8001,7 @@ async fn native_options_group_case(
             risk: Default::default(),
         };
         let captured = market
-            .capture_options(
+            .capture_options_ready(
                 request(),
                 &CancellationToken::new(),
                 Deadline::after(Duration::from_secs(3)),
@@ -8069,8 +8108,17 @@ async fn native_options_group_case(
         .await
         .unwrap()
         .unwrap();
+        tokio::time::timeout(Duration::from_secs(6), async {
+            loop {
+                if market.scope_receipt("trade", 111u128.to_le_bytes(), date + time::Duration::days(14))
+                    .unwrap().as_array().is_some() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }).await.expect("Recovered feed did not publish its trade pricing receipt");
         let next = market
-            .capture_options(request(), &CancellationToken::new(), Deadline::recovery())
+            .capture_options_ready(request(), &CancellationToken::new(), Deadline::after(Duration::from_secs(6)))
             .await
             .unwrap();
         assert_ne!(captured.generation, next.generation);

@@ -77,7 +77,7 @@ else if (action == "qualify-open")
         await Task.Delay(250, token);
     }
     if (definition is null) throw new InvalidOperationException("Qualification definition projection timed out; inspect before enabling.");
-    Require(await commands.EnableScheduledTaskAsync(new() { CommandId = Guid.NewGuid(), EntityId = selected, ExpectedRevision = definition.Revision,
+    Require(await commands.EnableScheduledTaskAsync(new() { CommandId = Guid.NewGuid(), EntityId = selected, ExpectedRevision = definition.Revision, CatalogEvidence = Require(await queries.GetScheduledTaskCatalogAsync(new() { Environment = options.Environment, HostId = options.HostId }, token)),
         Operator = "DevelopmentQualification", Reason = "Verify actual automatic Quartz occurrence after cron guard correction" }, token));
     Console.WriteLine($"Qualification schedule {selected.Value:D} fires at {fire:O}.");
 }
@@ -92,7 +92,7 @@ else if (action is "enable" or "disable")
 {
     if (args.Length < 3 || !Guid.TryParse(args[2], out var id)) throw new ArgumentException("A stable schedule UUID is required.");
     var definition = dashboard.Schedules.Single(x => x.Id.Value == id);
-    if (action == "enable") Require(await commands.EnableScheduledTaskAsync(new() { CommandId = Guid.NewGuid(), EntityId = definition.Id, ExpectedRevision = definition.Revision, Operator = "DevelopmentOperator", Reason = "Reviewed deployed task" }, token));
+    if (action == "enable") Require(await commands.EnableScheduledTaskAsync(new() { CommandId = Guid.NewGuid(), EntityId = definition.Id, ExpectedRevision = definition.Revision, CatalogEvidence = Require(await queries.GetScheduledTaskCatalogAsync(new() { Environment = options.Environment, HostId = options.HostId }, token)), Operator = "DevelopmentOperator", Reason = "Reviewed deployed task" }, token));
     else Require(await commands.DisableScheduledTaskAsync(new() { CommandId = Guid.NewGuid(), EntityId = definition.Id, ExpectedRevision = definition.Revision, Operator = "DevelopmentOperator" }, token));
 }
 else if (action == "run")

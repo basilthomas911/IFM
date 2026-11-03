@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema;
 using System;
 using System.Collections.Generic;
@@ -95,7 +97,7 @@ public sealed class PostgresScheduledTaskTests(TomasAI.IFM.Application.Storage.I
         var store = await Store();
         var run = Run("enlisted-" + Guid.NewGuid(), new(Guid.NewGuid()), DateTimeOffset.UtcNow);
         var stream = "scheduled-atomic-" + Guid.NewGuid().ToString("N");
-        var source = new TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunCompletedCompleteEvent
+        var source = new TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunCompletedCompleteEvent
         {
             CommandId = Guid.NewGuid(), EntityId = run.Id, ScheduledTaskRun = run,
             AggregateId = run.Id.Value.ToString()

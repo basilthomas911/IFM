@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 namespace TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 /// <summary>Reads only persisted PostgreSQL scheduled-task projections.</summary>
 public interface IScheduledTaskReadStore

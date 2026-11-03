@@ -826,6 +826,7 @@ pub unsafe extern "C" fn ifm_market_data_owner_command_v1(
                 .refresh_committed()
                 .map_err(|_| Status::InvalidInput),
             "stop" => native.stop_feeds().map_err(|_| Status::InternalFailure),
+            "unmonitor" => release_monitored(&native, &value),
             "stop-futures" => native
                 .stop_futures(super::live::lane(number(&value, "lane")?)?)
                 .map(|_| ())
@@ -935,9 +936,6 @@ pub unsafe extern "C" fn ifm_market_data_owner_command_v1(
                             .map(|_| ())
                             .map_err(|_| Status::InvalidInput)
                     }
-                    "unmonitor" => claims
-                        .disable(monitored_identity(&value)?.0)
-                        .map_err(|_| Status::InternalFailure),
                     "disable" => claims
                         .disable(business(&value)?)
                         .map_err(|_| Status::InternalFailure),
@@ -2159,9 +2157,32 @@ fn owner_instance_route(
         .map_err(|_| Status::InvalidInput)
 }
 
+/// Withdraws logical monitoring even when whole-dataset stop already removed it.
+fn release_monitored(native: &MarketData, value: &Value) -> Result<(), Status> {
+    let (identity, _) = monitored_identity(value)?;
+    native.option_claims().map_or(Ok(()), |claims| {
+        claims.disable(identity).map_err(|_| Status::InternalFailure)
+    })
+}
+
 #[cfg(test)]
 mod monitored_identity_tests {
     use super::*;
+    /// Releasing an already stopped dataset cannot block market close or revive it.
+    #[tokio::test]
+    async fn repeated_release_after_dataset_stop_is_safe_and_still_validates_identity() {
+        use crate::runtime::{clock::Clock, owner::Owner};
+        let root = Arc::new(Owner::default());
+        let market = MarketData::new(root.clone(), Arc::new(Clock::new(0, false).unwrap()), None).unwrap();
+        let input = serde_json::json!({"workflow_type":"Trade","workflow_id":"one","leg_id":"call","contract":"ES-C"});
+        assert!(release_monitored(&market, &input).is_ok());
+        market.stop_feeds().unwrap();
+        assert!(release_monitored(&market, &input).is_ok());
+        assert!(release_monitored(&market, &input).is_ok());
+        assert!(release_monitored(&market, &serde_json::json!({"contract":"ES-C"})).is_err());
+        assert!(!market.has_desired(crate::dataset::transport::Lane::OptionsGlbx));
+        market.shutdown(Deadline::recovery()).await.unwrap();
+    }
     #[test]
     fn business_identity_is_stable_unambiguous_and_contract_scoped() {
         let input = serde_json::json!({"workflow_type":"a","workflow_id":"bc","leg_id":"leg","contract":"ES-C"});

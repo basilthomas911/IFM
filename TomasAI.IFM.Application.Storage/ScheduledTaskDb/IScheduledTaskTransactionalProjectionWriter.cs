@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 

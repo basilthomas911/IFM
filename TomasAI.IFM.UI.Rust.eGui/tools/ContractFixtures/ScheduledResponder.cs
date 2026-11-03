@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries;
 using MessagePack;
 using NATS.Client.Core;
 using TomasAI.IFM.Framework.Serialization;

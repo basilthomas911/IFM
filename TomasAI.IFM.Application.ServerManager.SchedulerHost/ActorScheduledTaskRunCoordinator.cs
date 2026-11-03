@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Application.ServerManager.SchedulerHost;
 /// <summary>Launches actor-managed occurrences only after durable run and schedule admission.</summary>
 public sealed class ActorScheduledTaskRunCoordinator(SchedulerHostOptions options, SchedulerOwnershipLease ownership,
     TaskCatalogProvider catalog, ScheduledProcessRunner runner, DependencyProbeService dependencies,
-    ActiveRunRegistry activeRuns, IHostApplicationLifetime lifetime, IScheduledTaskCommandApi commands,
+    ActiveRunRegistry activeRuns, IHostApplicationLifetime lifetime, IScheduledTaskCommandApi commands, IScheduledTaskQueryApi queries,
     ILogger<ActorScheduledTaskRunCoordinator> logger)
 {
     /// <summary>Executes one stable occurrence and records process and business outcome receipts.</summary>
@@ -37,8 +37,12 @@ public sealed class ActorScheduledTaskRunCoordinator(SchedulerHostOptions option
                 return;
             }
         }
+        var evidence = ScheduledTaskExecutionPolicy.RequiresAdmission(task.TaskKey, options.Environment)
+            ? await queries.GetScheduledTaskCatalogAsync(new() { Environment = options.Environment, HostId = options.HostId }, admissionDeadline.Token)
+            : null;
         var admission = await commands.AdmitScheduledTaskRunAsync(new() { CommandId = Guid.NewGuid(), EntityId = scheduleId,
             RunId = runId.Value, DefinitionRevision = revision, IntendedFireTimeUtc = fire, Manual = manual,
+            CatalogEvidence = evidence is { Success: true } ? evidence.Value : null,
             HostId = options.HostId, Environment = options.Environment, OperationCommandId = operationCommandId, Operator = "QuartzHost" }, admissionDeadline.Token);
         ActorScheduleRuntime.Require(await commands.RecordScheduledTaskRunAdmissionAsync(new() { CommandId = Guid.NewGuid(), OperationCommandId = operationCommandId, EntityId = runId,
             Accepted = admission.Success, Detail = admission.Success ? "Owning schedule admitted this occurrence." : admission.ErrorMessage, Operator = "QuartzHost" }, admissionDeadline.Token));

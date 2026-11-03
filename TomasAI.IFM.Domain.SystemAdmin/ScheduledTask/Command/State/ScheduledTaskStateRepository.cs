@@ -1,4 +1,6 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Persistence;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
@@ -16,8 +18,8 @@ public sealed class ScheduledTaskStateRepository(IEventSourceActorStateFactory s
 {
     /// <inheritdoc />
     public ValueTask<ScheduledTaskCommandState> LoadStateAsync(ICommand command) => LoadStateAsync(command, CancellationToken.None);
-    /// <inheritdoc />
-    public async ValueTask<ScheduledTaskCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) => await base.LoadStateAsync<ScheduledTaskCommandState>(command, cancellationToken).ConfigureAwait(false);
+    /// <summary>Restores the creation snapshot and replays every subsequent source event.</summary>
+    public async ValueTask<ScheduledTaskCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) => await LoadStateFromSnapshotAsync<ScheduledTaskCommandState, ScheduledTaskCreatedEvent>(command, cancellationToken).ConfigureAwait(false);
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context, ScheduledTaskCommandState state, ICommand command) => SaveStateAsync(context, state, command, CancellationToken.None);
     /// <inheritdoc />

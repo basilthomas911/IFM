@@ -28,6 +28,7 @@ public sealed class ScheduledTaskCommandState : BaseEventSourceActorState<Schedu
     private bool ApplyScheduledTask(ScheduledTaskId identity, ScheduledTaskDefinition? change)
     {
         if (!identity.IsValid || change is null || change.Id != identity ||
+            ScheduledTaskDefinition is { } current && current.Id != identity ||
             change.Revision != (ScheduledTaskDefinition?.Revision ?? 0) + 1) return false;
         ScheduledTaskDefinition = change;
         return true;

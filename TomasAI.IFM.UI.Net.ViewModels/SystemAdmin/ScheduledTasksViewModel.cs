@@ -78,7 +78,7 @@ public sealed class ScheduledTasksViewModel : IAsyncDisposable
     /// <summary>Submits create/change and refreshes the projected definition after acceptance.</summary>
     public Task SaveAsync(Guid? id, long revision, ScheduledTaskScheduleUiModel schedule) => ExecuteAsync(token => _service.SaveAsync(id, revision, schedule, token));
     /// <summary>Requests enable/disable with optimistic source revision.</summary>
-    public Task SetEnabledAsync(Guid id, long revision, bool enabled) => ExecuteAsync(token => _service.SetEnabledAsync(id, revision, enabled, token));
+    public Task SetEnabledAsync(Guid id, long revision, bool enabled) => ExecuteAsync(token => _service.SetEnabledAsync(id, revision, enabled, Environment, HostId, token));
     /// <summary>Removes a disabled schedule and refreshes persisted state.</summary>
     public Task RemoveAsync(Guid id, long revision) => ExecuteAsync(token => _service.RemoveAsync(id, revision, token));
     /// <summary>Requests an occurrence without bypassing runtime installation and overlap guards.</summary>

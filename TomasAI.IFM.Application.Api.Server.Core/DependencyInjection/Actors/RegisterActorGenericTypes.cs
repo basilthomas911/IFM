@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using TomasAI.IFM.Application.Api.Server.Core.Hosting.Modes;
 using TomasAI.IFM.Application.Api.Server.Core.Messaging.JetStream;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
@@ -150,7 +151,7 @@ public static partial class CoreServiceRegistration
         logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register open generic handlers...",nameof(CoreServiceRegistration),nameof(RegisterGenericTypes));
         siContainer.RegisterSingleton<IDataCacheService, DataCacheService>();
         siContainer.RegisterInstance<TimeProvider>(TimeProvider.System);
-        siContainer.RegisterInstance<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.IScheduledTaskOutputReader>(
+        siContainer.RegisterInstance<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.IScheduledTaskOutputReader>(
         new TomasAI.IFM.Application.Storage.FileSystem.ScheduledTaskOutputReader(
         config["ScheduledTasks:OutputRoot"] ?? Path.Combine(Environment.GetEnvironmentVariable("IFM_REPOSITORY_ROOT") ?? Directory.GetCurrentDirectory(), ".artifacts", "scheduled-tasks", "development", "TaskRuns")));
         siContainer.RegisterInstance<TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels.IDatabaseBackupOutputReader>(

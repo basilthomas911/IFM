@@ -2700,7 +2700,7 @@
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskEnabledEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskHostCapabilityRecordedEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain.ScheduledTaskCatalogHostCapabilityRecordedEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskHostCapabilityRecordedEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskHostCapabilityRecordedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
@@ -2718,7 +2718,7 @@
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskInstallationRecordedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskProjectRegisteredEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain.ScheduledTaskCatalogProjectRegisteredEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskProjectRegisteredEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskProjectRegisteredEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
@@ -2730,7 +2730,7 @@
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRemovedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunAdmissionRecordedEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunAdmissionRecordedEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunAdmissionRecordedEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunAdmissionRecordedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
@@ -2742,13 +2742,13 @@
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunAdmittedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunCompletedEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunCompletedEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunCompletedEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunCompletedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunFailedEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunFailedEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunFailedEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunFailedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
@@ -2760,25 +2760,25 @@
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunReleasedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunRequestedEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunRequestedEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunRequestedEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunRequestedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunStageRecordedEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunStageRecordedEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunStageRecordedEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunStageRecordedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunStartedEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunStartedEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunStartedEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunStartedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunUncertainRecordedEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunUncertainRecordedEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunUncertainRecordedEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunUncertainRecordedEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
@@ -2832,13 +2832,13 @@
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskEnabledFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskHostCapabilityRecordedCompleteEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskHostCapabilityRecordedCompleteEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskHostCapabilityRecordedCompleteEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskHostCapabilityRecordedFailEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogHostCapabilityRecordedFailEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskHostCapabilityRecordedFailEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskHostCapabilityRecordedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
@@ -2868,13 +2868,13 @@
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskInstallationRecordedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskProjectRegisteredCompleteEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogProjectRegisteredCompleteEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskProjectRegisteredCompleteEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskProjectRegisteredCompleteEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskProjectRegisteredFailEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogProjectRegisteredFailEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskProjectRegisteredFailEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskProjectRegisteredFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
@@ -2892,13 +2892,13 @@
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRemovedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmissionRecordedCompleteEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunAdmissionRecordedCompleteEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunAdmissionRecordedCompleteEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmissionRecordedCompleteEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmissionRecordedFailEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunAdmissionRecordedFailEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunAdmissionRecordedFailEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmissionRecordedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
@@ -2916,25 +2916,25 @@
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmittedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunCompletedCompleteEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunCompletedCompleteEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunCompletedCompleteEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunCompletedCompleteEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunCompletedFailEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunCompletedFailEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunCompletedFailEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunCompletedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunFailedCompleteEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunFailedCompleteEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunFailedCompleteEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunFailedCompleteEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunFailedFailEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunFailedFailEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunFailedFailEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunFailedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
@@ -2952,49 +2952,49 @@
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunReleasedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunRequestedCompleteEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunRequestedCompleteEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunRequestedCompleteEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunRequestedCompleteEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunRequestedFailEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunRequestedFailEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunRequestedFailEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunRequestedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStageRecordedCompleteEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStageRecordedCompleteEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunStageRecordedCompleteEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStageRecordedCompleteEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStageRecordedFailEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStageRecordedFailEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunStageRecordedFailEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStageRecordedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStartedCompleteEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStartedCompleteEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunStartedCompleteEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStartedCompleteEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStartedFailEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStartedFailEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunStartedFailEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStartedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunUncertainRecordedCompleteEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunUncertainRecordedCompleteEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunUncertainRecordedCompleteEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunUncertainRecordedCompleteEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
   },
   {
-    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunUncertainRecordedFailEvent",
+    "currentType": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunUncertainRecordedFailEvent",
     "sourceAssembly": "TomasAI.IFM.Domain.SystemAdmin.Shared",
     "EventName": "ScheduledTaskRunUncertainRecordedFailEvent",
     "EventTypeName": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunUncertainRecordedFailEvent, TomasAI.IFM.Domain.SystemAdmin.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"

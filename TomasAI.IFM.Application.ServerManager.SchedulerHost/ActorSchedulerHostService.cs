@@ -1,4 +1,6 @@
-﻿using TomasAI.IFM.Framework.Messaging.Nats;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
+using TomasAI.IFM.Framework.Messaging.Nats;
 using System.Security.Cryptography;
 using NATS.Client.Core;
 using Quartz;

@@ -28886,8 +28886,8 @@ impl Cells for TradeStrategyFamilyReference {
 }
 
 /// Typed backend contract for
-/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog`; preserves
-/// its pinned wire layout.
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog`;
+/// preserves its pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct ScheduledTaskCatalog {
     /// C# Id, wire slot 0.
@@ -28910,8 +28910,7 @@ pub struct ScheduledTaskCatalog {
     pub host_capability: Option<ScheduledTaskHostCapability>,
 }
 impl FromBackend for ScheduledTaskCatalog {
-    const KIND: &'static str =
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog";
+    const KIND: &'static str = "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog";
 
 
     /// Reads the pinned backend representation and validates its scalar values.
@@ -29037,6 +29036,408 @@ impl Cells for ScheduledTaskCatalog {
             "revision" | "Revision" => self.revision.scalar_cell(),
             "hostId" | "HostId" => self.host_id.scalar_cell(),
             "environment" | "Environment" => self.environment.scalar_cell(),
+            _ => Cell::Missing,
+        }
+    }
+}
+
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability`;
+/// preserves its pinned wire layout.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct ScheduledTaskHostCapability {
+    /// C# HostId, wire slot 0.
+    #[serde(default, rename = "hostId", alias = "HostId")]
+    pub host_id: Option<String>,
+    /// C# Environment, wire slot 1.
+    #[serde(default, rename = "environment", alias = "Environment")]
+    pub environment: Option<String>,
+    /// C# Platform, wire slot 2.
+    #[serde(default, rename = "platform", alias = "Platform")]
+    pub platform: Option<String>,
+    /// C# Ready, wire slot 3.
+    #[serde(default, rename = "ready", alias = "Ready")]
+    pub ready: Option<bool>,
+    /// C# ObservedAtUtc, wire slot 4.
+    #[serde(default, rename = "observedAtUtc", alias = "ObservedAtUtc")]
+    pub observed_at_utc: Option<OffsetText>,
+    /// C# Detail, wire slot 5.
+    #[serde(default, rename = "detail", alias = "Detail")]
+    pub detail: Option<String>,
+    /// C# Generation, wire slot 6.
+    #[serde(default, rename = "generation", alias = "Generation")]
+    pub generation: Option<i64>,
+}
+impl FromBackend for ScheduledTaskHostCapability {
+    const KIND: &'static str = "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
+    fn from_backend(value: &Value) -> Result<Self, String> {
+        let fields = value
+            .as_array()
+            .ok_or("Expected positional contract record")?;
+        Ok(Self {
+            host_id: FromBackend::from_backend(fields.get(0).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskHostCapability.HostId: {error}"))?,
+            environment: FromBackend::from_backend(fields.get(1).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskHostCapability.Environment: {error}"))?,
+            platform: FromBackend::from_backend(fields.get(2).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskHostCapability.Platform: {error}"))?,
+            ready: FromBackend::from_backend(fields.get(3).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskHostCapability.Ready: {error}"))?,
+            observed_at_utc: FromBackend::from_backend(fields.get(4).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskHostCapability.ObservedAtUtc: {error}"))?,
+            detail: FromBackend::from_backend(fields.get(5).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskHostCapability.Detail: {error}"))?,
+            generation: FromBackend::from_backend(fields.get(6).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskHostCapability.Generation: {error}"))?,
+        })
+    }
+}
+impl PresentationRecord for ScheduledTaskHostCapability {
+    /// Writes the presentation fields, applying the requested history omission policy.
+    fn serialize_presentation<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        mode: PresentationMode,
+    ) -> Result<S::Ok, S::Error> {
+        let child_mode = if mode == PresentationMode::History {
+            PresentationMode::Monitor
+        } else {
+            mode
+        };
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry(
+            "hostId",
+            &FieldValue {
+                value: &self.host_id,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "environment",
+            &FieldValue {
+                value: &self.environment,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "platform",
+            &FieldValue {
+                value: &self.platform,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "ready",
+            &FieldValue {
+                value: &self.ready,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "observedAtUtc",
+            &FieldValue {
+                value: &self.observed_at_utc,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "detail",
+            &FieldValue {
+                value: &self.detail,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "generation",
+            &FieldValue {
+                value: &self.generation,
+                mode: child_mode,
+            },
+        )?;
+        self.serialize_extras(&mut map)?;
+        map.end()
+    }
+}
+impl Serialize for ScheduledTaskHostCapability {
+    /// Serializes this value through the supplied serializer.
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.serialize_presentation(serializer, PresentationMode::Native)
+    }
+}
+impl PresentationValue for ScheduledTaskHostCapability {
+    /// Serializes this value using the requested presentation mode.
+    fn serialize_value<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        mode: PresentationMode,
+    ) -> Result<S::Ok, S::Error> {
+        self.serialize_presentation(serializer, mode)
+    }
+}
+impl PresentationExtras for ScheduledTaskHostCapability {
+    /// Appends the computed presentation fields without changing backend values.
+    fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
+        let _ = map;
+        Ok(())
+    }
+}
+impl BackendRecord for ScheduledTaskHostCapability {
+    /// Writes the backend representation using the declared wire layout.
+    fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("HostId", &BackendDocument(&self.host_id))?;
+        map.serialize_entry("Environment", &BackendDocument(&self.environment))?;
+        map.serialize_entry("Platform", &BackendDocument(&self.platform))?;
+        map.serialize_entry("Ready", &BackendDocument(&self.ready))?;
+        map.serialize_entry("ObservedAtUtc", &BackendDocument(&self.observed_at_utc))?;
+        map.serialize_entry("Detail", &BackendDocument(&self.detail))?;
+        map.serialize_entry("Generation", &BackendDocument(&self.generation))?;
+        map.end()
+    }
+}
+impl Cells for ScheduledTaskHostCapability {
+    /// Resolves a named display cell; unsupported columns remain missing.
+    fn cell(&self, column: &str) -> Cell<'_> {
+        match column {
+            "hostId" | "HostId" => self.host_id.scalar_cell(),
+            "environment" | "Environment" => self.environment.scalar_cell(),
+            "platform" | "Platform" => self.platform.scalar_cell(),
+            "ready" | "Ready" => self.ready.scalar_cell(),
+            "observedAtUtc" | "ObservedAtUtc" => self.observed_at_utc.scalar_cell(),
+            "detail" | "Detail" => self.detail.scalar_cell(),
+            "generation" | "Generation" => self.generation.scalar_cell(),
+            _ => Cell::Missing,
+        }
+    }
+}
+
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject`;
+/// preserves its pinned wire layout.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct ScheduledTaskProject {
+    /// C# TaskKey, wire slot 0.
+    #[serde(default, rename = "taskKey", alias = "TaskKey")]
+    pub task_key: Option<String>,
+    /// C# DisplayName, wire slot 1.
+    #[serde(default, rename = "displayName", alias = "DisplayName")]
+    pub display_name: Option<String>,
+    /// C# ProjectName, wire slot 2.
+    #[serde(default, rename = "projectName", alias = "ProjectName")]
+    pub project_name: Option<String>,
+    /// C# ManifestVersion, wire slot 3.
+    #[serde(default, rename = "manifestVersion", alias = "ManifestVersion")]
+    pub manifest_version: Option<String>,
+    /// C# Platform, wire slot 4.
+    #[serde(default, rename = "platform", alias = "Platform")]
+    pub platform: Option<String>,
+    /// C# ArtifactDigest, wire slot 5.
+    #[serde(default, rename = "artifactDigest", alias = "ArtifactDigest")]
+    pub artifact_digest: Option<String>,
+    /// C# Available, wire slot 6.
+    #[serde(default, rename = "available", alias = "Available")]
+    pub available: Option<bool>,
+    /// C# MaximumRuntimeSeconds, wire slot 7.
+    #[serde(
+        default,
+        rename = "maximumRuntimeSeconds",
+        alias = "MaximumRuntimeSeconds"
+    )]
+    pub maximum_runtime_seconds: Option<i32>,
+    /// C# MarketSensitive, wire slot 8.
+    #[serde(default, rename = "marketSensitive", alias = "MarketSensitive")]
+    pub market_sensitive: Option<bool>,
+    /// C# CompletionProtocol, wire slot 9.
+    #[serde(default, rename = "completionProtocol", alias = "CompletionProtocol")]
+    pub completion_protocol: Option<String>,
+}
+impl FromBackend for ScheduledTaskProject {
+    const KIND: &'static str = "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
+    fn from_backend(value: &Value) -> Result<Self, String> {
+        let fields = value
+            .as_array()
+            .ok_or("Expected positional contract record")?;
+        Ok(Self {
+            task_key: FromBackend::from_backend(fields.get(0).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskProject.TaskKey: {error}"))?,
+            display_name: FromBackend::from_backend(fields.get(1).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskProject.DisplayName: {error}"))?,
+            project_name: FromBackend::from_backend(fields.get(2).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskProject.ProjectName: {error}"))?,
+            manifest_version: FromBackend::from_backend(fields.get(3).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskProject.ManifestVersion: {error}"))?,
+            platform: FromBackend::from_backend(fields.get(4).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskProject.Platform: {error}"))?,
+            artifact_digest: FromBackend::from_backend(fields.get(5).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskProject.ArtifactDigest: {error}"))?,
+            available: FromBackend::from_backend(fields.get(6).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskProject.Available: {error}"))?,
+            maximum_runtime_seconds: FromBackend::from_backend(
+                fields.get(7).unwrap_or(&Value::Nil),
+            )
+            .map_err(|error| format!("ScheduledTaskProject.MaximumRuntimeSeconds: {error}"))?,
+            market_sensitive: FromBackend::from_backend(fields.get(8).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskProject.MarketSensitive: {error}"))?,
+            completion_protocol: FromBackend::from_backend(fields.get(9).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskProject.CompletionProtocol: {error}"))?,
+        })
+    }
+}
+impl PresentationRecord for ScheduledTaskProject {
+    /// Writes the presentation fields, applying the requested history omission policy.
+    fn serialize_presentation<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        mode: PresentationMode,
+    ) -> Result<S::Ok, S::Error> {
+        let child_mode = if mode == PresentationMode::History {
+            PresentationMode::Monitor
+        } else {
+            mode
+        };
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry(
+            "taskKey",
+            &FieldValue {
+                value: &self.task_key,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "displayName",
+            &FieldValue {
+                value: &self.display_name,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "projectName",
+            &FieldValue {
+                value: &self.project_name,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "manifestVersion",
+            &FieldValue {
+                value: &self.manifest_version,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "platform",
+            &FieldValue {
+                value: &self.platform,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "artifactDigest",
+            &FieldValue {
+                value: &self.artifact_digest,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "available",
+            &FieldValue {
+                value: &self.available,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "maximumRuntimeSeconds",
+            &FieldValue {
+                value: &self.maximum_runtime_seconds,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "marketSensitive",
+            &FieldValue {
+                value: &self.market_sensitive,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "completionProtocol",
+            &FieldValue {
+                value: &self.completion_protocol,
+                mode: child_mode,
+            },
+        )?;
+        self.serialize_extras(&mut map)?;
+        map.end()
+    }
+}
+impl Serialize for ScheduledTaskProject {
+    /// Serializes this value through the supplied serializer.
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.serialize_presentation(serializer, PresentationMode::Native)
+    }
+}
+impl PresentationValue for ScheduledTaskProject {
+    /// Serializes this value using the requested presentation mode.
+    fn serialize_value<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        mode: PresentationMode,
+    ) -> Result<S::Ok, S::Error> {
+        self.serialize_presentation(serializer, mode)
+    }
+}
+impl PresentationExtras for ScheduledTaskProject {
+    /// Appends the computed presentation fields without changing backend values.
+    fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
+        let _ = map;
+        Ok(())
+    }
+}
+impl BackendRecord for ScheduledTaskProject {
+    /// Writes the backend representation using the declared wire layout.
+    fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("TaskKey", &BackendDocument(&self.task_key))?;
+        map.serialize_entry("DisplayName", &BackendDocument(&self.display_name))?;
+        map.serialize_entry("ProjectName", &BackendDocument(&self.project_name))?;
+        map.serialize_entry("ManifestVersion", &BackendDocument(&self.manifest_version))?;
+        map.serialize_entry("Platform", &BackendDocument(&self.platform))?;
+        map.serialize_entry("ArtifactDigest", &BackendDocument(&self.artifact_digest))?;
+        map.serialize_entry("Available", &BackendDocument(&self.available))?;
+        map.serialize_entry(
+            "MaximumRuntimeSeconds",
+            &BackendDocument(&self.maximum_runtime_seconds),
+        )?;
+        map.serialize_entry("MarketSensitive", &BackendDocument(&self.market_sensitive))?;
+        map.serialize_entry(
+            "CompletionProtocol",
+            &BackendDocument(&self.completion_protocol),
+        )?;
+        map.end()
+    }
+}
+impl Cells for ScheduledTaskProject {
+    /// Resolves a named display cell; unsupported columns remain missing.
+    fn cell(&self, column: &str) -> Cell<'_> {
+        match column {
+            "taskKey" | "TaskKey" => self.task_key.scalar_cell(),
+            "displayName" | "DisplayName" => self.display_name.scalar_cell(),
+            "projectName" | "ProjectName" => self.project_name.scalar_cell(),
+            "manifestVersion" | "ManifestVersion" => self.manifest_version.scalar_cell(),
+            "platform" | "Platform" => self.platform.scalar_cell(),
+            "artifactDigest" | "ArtifactDigest" => self.artifact_digest.scalar_cell(),
+            "available" | "Available" => self.available.scalar_cell(),
+            "maximumRuntimeSeconds" | "MaximumRuntimeSeconds" => {
+                self.maximum_runtime_seconds.scalar_cell()
+            }
+            "marketSensitive" | "MarketSensitive" => self.market_sensitive.scalar_cell(),
+            "completionProtocol" | "CompletionProtocol" => self.completion_protocol.scalar_cell(),
             _ => Cell::Missing,
         }
     }
@@ -29407,180 +29808,6 @@ impl Cells for ScheduledTaskDefinition {
 }
 
 /// Typed backend contract for
-/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability`;
-/// preserves its pinned wire layout.
-#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
-pub struct ScheduledTaskHostCapability {
-    /// C# HostId, wire slot 0.
-    #[serde(default, rename = "hostId", alias = "HostId")]
-    pub host_id: Option<String>,
-    /// C# Environment, wire slot 1.
-    #[serde(default, rename = "environment", alias = "Environment")]
-    pub environment: Option<String>,
-    /// C# Platform, wire slot 2.
-    #[serde(default, rename = "platform", alias = "Platform")]
-    pub platform: Option<String>,
-    /// C# Ready, wire slot 3.
-    #[serde(default, rename = "ready", alias = "Ready")]
-    pub ready: Option<bool>,
-    /// C# ObservedAtUtc, wire slot 4.
-    #[serde(default, rename = "observedAtUtc", alias = "ObservedAtUtc")]
-    pub observed_at_utc: Option<OffsetText>,
-    /// C# Detail, wire slot 5.
-    #[serde(default, rename = "detail", alias = "Detail")]
-    pub detail: Option<String>,
-    /// C# Generation, wire slot 6.
-    #[serde(default, rename = "generation", alias = "Generation")]
-    pub generation: Option<i64>,
-}
-impl FromBackend for ScheduledTaskHostCapability {
-    const KIND: &'static str =
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability";
-
-
-    /// Reads the pinned backend representation and validates its scalar values.
-    fn from_backend(value: &Value) -> Result<Self, String> {
-        let fields = value
-            .as_array()
-            .ok_or("Expected positional contract record")?;
-        Ok(Self {
-            host_id: FromBackend::from_backend(fields.get(0).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskHostCapability.HostId: {error}"))?,
-            environment: FromBackend::from_backend(fields.get(1).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskHostCapability.Environment: {error}"))?,
-            platform: FromBackend::from_backend(fields.get(2).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskHostCapability.Platform: {error}"))?,
-            ready: FromBackend::from_backend(fields.get(3).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskHostCapability.Ready: {error}"))?,
-            observed_at_utc: FromBackend::from_backend(fields.get(4).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskHostCapability.ObservedAtUtc: {error}"))?,
-            detail: FromBackend::from_backend(fields.get(5).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskHostCapability.Detail: {error}"))?,
-            generation: FromBackend::from_backend(fields.get(6).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskHostCapability.Generation: {error}"))?,
-        })
-    }
-}
-impl PresentationRecord for ScheduledTaskHostCapability {
-    /// Writes the presentation fields, applying the requested history omission policy.
-    fn serialize_presentation<S: serde::Serializer>(
-        &self,
-        serializer: S,
-        mode: PresentationMode,
-    ) -> Result<S::Ok, S::Error> {
-        let child_mode = if mode == PresentationMode::History {
-            PresentationMode::Monitor
-        } else {
-            mode
-        };
-        let mut map = serializer.serialize_map(None)?;
-        map.serialize_entry(
-            "hostId",
-            &FieldValue {
-                value: &self.host_id,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "environment",
-            &FieldValue {
-                value: &self.environment,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "platform",
-            &FieldValue {
-                value: &self.platform,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "ready",
-            &FieldValue {
-                value: &self.ready,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "observedAtUtc",
-            &FieldValue {
-                value: &self.observed_at_utc,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "detail",
-            &FieldValue {
-                value: &self.detail,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "generation",
-            &FieldValue {
-                value: &self.generation,
-                mode: child_mode,
-            },
-        )?;
-        self.serialize_extras(&mut map)?;
-        map.end()
-    }
-}
-impl Serialize for ScheduledTaskHostCapability {
-    /// Serializes this value through the supplied serializer.
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.serialize_presentation(serializer, PresentationMode::Native)
-    }
-}
-impl PresentationValue for ScheduledTaskHostCapability {
-    /// Serializes this value using the requested presentation mode.
-    fn serialize_value<S: serde::Serializer>(
-        &self,
-        serializer: S,
-        mode: PresentationMode,
-    ) -> Result<S::Ok, S::Error> {
-        self.serialize_presentation(serializer, mode)
-    }
-}
-impl PresentationExtras for ScheduledTaskHostCapability {
-    /// Appends the computed presentation fields without changing backend values.
-    fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
-        let _ = map;
-        Ok(())
-    }
-}
-impl BackendRecord for ScheduledTaskHostCapability {
-    /// Writes the backend representation using the declared wire layout.
-    fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut map = serializer.serialize_map(None)?;
-        map.serialize_entry("HostId", &BackendDocument(&self.host_id))?;
-        map.serialize_entry("Environment", &BackendDocument(&self.environment))?;
-        map.serialize_entry("Platform", &BackendDocument(&self.platform))?;
-        map.serialize_entry("Ready", &BackendDocument(&self.ready))?;
-        map.serialize_entry("ObservedAtUtc", &BackendDocument(&self.observed_at_utc))?;
-        map.serialize_entry("Detail", &BackendDocument(&self.detail))?;
-        map.serialize_entry("Generation", &BackendDocument(&self.generation))?;
-        map.end()
-    }
-}
-impl Cells for ScheduledTaskHostCapability {
-    /// Resolves a named display cell; unsupported columns remain missing.
-    fn cell(&self, column: &str) -> Cell<'_> {
-        match column {
-            "hostId" | "HostId" => self.host_id.scalar_cell(),
-            "environment" | "Environment" => self.environment.scalar_cell(),
-            "platform" | "Platform" => self.platform.scalar_cell(),
-            "ready" | "Ready" => self.ready.scalar_cell(),
-            "observedAtUtc" | "ObservedAtUtc" => self.observed_at_utc.scalar_cell(),
-            "detail" | "Detail" => self.detail.scalar_cell(),
-            "generation" | "Generation" => self.generation.scalar_cell(),
-            _ => Cell::Missing,
-        }
-    }
-}
-
-/// Typed backend contract for
 /// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId`; preserves its
 /// pinned wire layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
@@ -29801,950 +30028,6 @@ impl BackendRecord for ScheduledTaskInstallationStatus {
     }
 }
 impl PublishedEnum for ScheduledTaskInstallationStatus {
-    /// Returns the published label while preserving unrecognized backend values.
-    fn published_label(&self) -> Label {
-        match self {
-            Self::Unrecognized(value) => Label::Number(*value),
-            _ => Label::Text(self.label().into_owned()),
-        }
-    }
-}
-
-/// Typed backend contract for
-/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskOutputPage`;
-/// preserves its pinned wire layout.
-#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
-pub struct ScheduledTaskOutputPage {
-    /// C# Text, wire slot 0.
-    #[serde(default, rename = "text", alias = "Text")]
-    pub text: Option<String>,
-    /// C# NextOffset, wire slot 1.
-    #[serde(default, rename = "nextOffset", alias = "NextOffset")]
-    pub next_offset: Option<i64>,
-    /// C# EndOfOutput, wire slot 2.
-    #[serde(default, rename = "endOfOutput", alias = "EndOfOutput")]
-    pub end_of_output: Option<bool>,
-    /// C# Available, wire slot 3.
-    #[serde(default, rename = "available", alias = "Available")]
-    pub available: Option<bool>,
-}
-impl FromBackend for ScheduledTaskOutputPage {
-    const KIND: &'static str =
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskOutputPage";
-
-
-    /// Reads the pinned backend representation and validates its scalar values.
-    fn from_backend(value: &Value) -> Result<Self, String> {
-        let fields = value
-            .as_array()
-            .ok_or("Expected positional contract record")?;
-        Ok(Self {
-            text: FromBackend::from_backend(fields.get(0).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskOutputPage.Text: {error}"))?,
-            next_offset: FromBackend::from_backend(fields.get(1).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskOutputPage.NextOffset: {error}"))?,
-            end_of_output: FromBackend::from_backend(fields.get(2).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskOutputPage.EndOfOutput: {error}"))?,
-            available: FromBackend::from_backend(fields.get(3).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskOutputPage.Available: {error}"))?,
-        })
-    }
-}
-impl PresentationRecord for ScheduledTaskOutputPage {
-    /// Writes the presentation fields, applying the requested history omission policy.
-    fn serialize_presentation<S: serde::Serializer>(
-        &self,
-        serializer: S,
-        mode: PresentationMode,
-    ) -> Result<S::Ok, S::Error> {
-        let child_mode = if mode == PresentationMode::History {
-            PresentationMode::Monitor
-        } else {
-            mode
-        };
-        let mut map = serializer.serialize_map(None)?;
-        map.serialize_entry(
-            "text",
-            &FieldValue {
-                value: &self.text,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "nextOffset",
-            &FieldValue {
-                value: &self.next_offset,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "endOfOutput",
-            &FieldValue {
-                value: &self.end_of_output,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "available",
-            &FieldValue {
-                value: &self.available,
-                mode: child_mode,
-            },
-        )?;
-        self.serialize_extras(&mut map)?;
-        map.end()
-    }
-}
-impl Serialize for ScheduledTaskOutputPage {
-    /// Serializes this value through the supplied serializer.
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.serialize_presentation(serializer, PresentationMode::Native)
-    }
-}
-impl PresentationValue for ScheduledTaskOutputPage {
-    /// Serializes this value using the requested presentation mode.
-    fn serialize_value<S: serde::Serializer>(
-        &self,
-        serializer: S,
-        mode: PresentationMode,
-    ) -> Result<S::Ok, S::Error> {
-        self.serialize_presentation(serializer, mode)
-    }
-}
-impl PresentationExtras for ScheduledTaskOutputPage {
-    /// Appends the computed presentation fields without changing backend values.
-    fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
-        let _ = map;
-        Ok(())
-    }
-}
-impl BackendRecord for ScheduledTaskOutputPage {
-    /// Writes the backend representation using the declared wire layout.
-    fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut map = serializer.serialize_map(None)?;
-        map.serialize_entry("Text", &BackendDocument(&self.text))?;
-        map.serialize_entry("NextOffset", &BackendDocument(&self.next_offset))?;
-        map.serialize_entry("EndOfOutput", &BackendDocument(&self.end_of_output))?;
-        map.serialize_entry("Available", &BackendDocument(&self.available))?;
-        map.end()
-    }
-}
-impl Cells for ScheduledTaskOutputPage {
-    /// Resolves a named display cell; unsupported columns remain missing.
-    fn cell(&self, column: &str) -> Cell<'_> {
-        match column {
-            "text" | "Text" => self.text.scalar_cell(),
-            "nextOffset" | "NextOffset" => self.next_offset.scalar_cell(),
-            "endOfOutput" | "EndOfOutput" => self.end_of_output.scalar_cell(),
-            "available" | "Available" => self.available.scalar_cell(),
-            _ => Cell::Missing,
-        }
-    }
-}
-
-/// Typed backend contract for
-/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject`; preserves
-/// its pinned wire layout.
-#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
-pub struct ScheduledTaskProject {
-    /// C# TaskKey, wire slot 0.
-    #[serde(default, rename = "taskKey", alias = "TaskKey")]
-    pub task_key: Option<String>,
-    /// C# DisplayName, wire slot 1.
-    #[serde(default, rename = "displayName", alias = "DisplayName")]
-    pub display_name: Option<String>,
-    /// C# ProjectName, wire slot 2.
-    #[serde(default, rename = "projectName", alias = "ProjectName")]
-    pub project_name: Option<String>,
-    /// C# ManifestVersion, wire slot 3.
-    #[serde(default, rename = "manifestVersion", alias = "ManifestVersion")]
-    pub manifest_version: Option<String>,
-    /// C# Platform, wire slot 4.
-    #[serde(default, rename = "platform", alias = "Platform")]
-    pub platform: Option<String>,
-    /// C# ArtifactDigest, wire slot 5.
-    #[serde(default, rename = "artifactDigest", alias = "ArtifactDigest")]
-    pub artifact_digest: Option<String>,
-    /// C# Available, wire slot 6.
-    #[serde(default, rename = "available", alias = "Available")]
-    pub available: Option<bool>,
-    /// C# MaximumRuntimeSeconds, wire slot 7.
-    #[serde(
-        default,
-        rename = "maximumRuntimeSeconds",
-        alias = "MaximumRuntimeSeconds"
-    )]
-    pub maximum_runtime_seconds: Option<i32>,
-    /// C# MarketSensitive, wire slot 8.
-    #[serde(default, rename = "marketSensitive", alias = "MarketSensitive")]
-    pub market_sensitive: Option<bool>,
-    /// C# CompletionProtocol, wire slot 9.
-    #[serde(default, rename = "completionProtocol", alias = "CompletionProtocol")]
-    pub completion_protocol: Option<String>,
-}
-impl FromBackend for ScheduledTaskProject {
-    const KIND: &'static str =
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject";
-
-
-    /// Reads the pinned backend representation and validates its scalar values.
-    fn from_backend(value: &Value) -> Result<Self, String> {
-        let fields = value
-            .as_array()
-            .ok_or("Expected positional contract record")?;
-        Ok(Self {
-            task_key: FromBackend::from_backend(fields.get(0).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskProject.TaskKey: {error}"))?,
-            display_name: FromBackend::from_backend(fields.get(1).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskProject.DisplayName: {error}"))?,
-            project_name: FromBackend::from_backend(fields.get(2).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskProject.ProjectName: {error}"))?,
-            manifest_version: FromBackend::from_backend(fields.get(3).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskProject.ManifestVersion: {error}"))?,
-            platform: FromBackend::from_backend(fields.get(4).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskProject.Platform: {error}"))?,
-            artifact_digest: FromBackend::from_backend(fields.get(5).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskProject.ArtifactDigest: {error}"))?,
-            available: FromBackend::from_backend(fields.get(6).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskProject.Available: {error}"))?,
-            maximum_runtime_seconds: FromBackend::from_backend(
-                fields.get(7).unwrap_or(&Value::Nil),
-            )
-            .map_err(|error| format!("ScheduledTaskProject.MaximumRuntimeSeconds: {error}"))?,
-            market_sensitive: FromBackend::from_backend(fields.get(8).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskProject.MarketSensitive: {error}"))?,
-            completion_protocol: FromBackend::from_backend(fields.get(9).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskProject.CompletionProtocol: {error}"))?,
-        })
-    }
-}
-impl PresentationRecord for ScheduledTaskProject {
-    /// Writes the presentation fields, applying the requested history omission policy.
-    fn serialize_presentation<S: serde::Serializer>(
-        &self,
-        serializer: S,
-        mode: PresentationMode,
-    ) -> Result<S::Ok, S::Error> {
-        let child_mode = if mode == PresentationMode::History {
-            PresentationMode::Monitor
-        } else {
-            mode
-        };
-        let mut map = serializer.serialize_map(None)?;
-        map.serialize_entry(
-            "taskKey",
-            &FieldValue {
-                value: &self.task_key,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "displayName",
-            &FieldValue {
-                value: &self.display_name,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "projectName",
-            &FieldValue {
-                value: &self.project_name,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "manifestVersion",
-            &FieldValue {
-                value: &self.manifest_version,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "platform",
-            &FieldValue {
-                value: &self.platform,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "artifactDigest",
-            &FieldValue {
-                value: &self.artifact_digest,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "available",
-            &FieldValue {
-                value: &self.available,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "maximumRuntimeSeconds",
-            &FieldValue {
-                value: &self.maximum_runtime_seconds,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "marketSensitive",
-            &FieldValue {
-                value: &self.market_sensitive,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "completionProtocol",
-            &FieldValue {
-                value: &self.completion_protocol,
-                mode: child_mode,
-            },
-        )?;
-        self.serialize_extras(&mut map)?;
-        map.end()
-    }
-}
-impl Serialize for ScheduledTaskProject {
-    /// Serializes this value through the supplied serializer.
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.serialize_presentation(serializer, PresentationMode::Native)
-    }
-}
-impl PresentationValue for ScheduledTaskProject {
-    /// Serializes this value using the requested presentation mode.
-    fn serialize_value<S: serde::Serializer>(
-        &self,
-        serializer: S,
-        mode: PresentationMode,
-    ) -> Result<S::Ok, S::Error> {
-        self.serialize_presentation(serializer, mode)
-    }
-}
-impl PresentationExtras for ScheduledTaskProject {
-    /// Appends the computed presentation fields without changing backend values.
-    fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
-        let _ = map;
-        Ok(())
-    }
-}
-impl BackendRecord for ScheduledTaskProject {
-    /// Writes the backend representation using the declared wire layout.
-    fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut map = serializer.serialize_map(None)?;
-        map.serialize_entry("TaskKey", &BackendDocument(&self.task_key))?;
-        map.serialize_entry("DisplayName", &BackendDocument(&self.display_name))?;
-        map.serialize_entry("ProjectName", &BackendDocument(&self.project_name))?;
-        map.serialize_entry("ManifestVersion", &BackendDocument(&self.manifest_version))?;
-        map.serialize_entry("Platform", &BackendDocument(&self.platform))?;
-        map.serialize_entry("ArtifactDigest", &BackendDocument(&self.artifact_digest))?;
-        map.serialize_entry("Available", &BackendDocument(&self.available))?;
-        map.serialize_entry(
-            "MaximumRuntimeSeconds",
-            &BackendDocument(&self.maximum_runtime_seconds),
-        )?;
-        map.serialize_entry("MarketSensitive", &BackendDocument(&self.market_sensitive))?;
-        map.serialize_entry(
-            "CompletionProtocol",
-            &BackendDocument(&self.completion_protocol),
-        )?;
-        map.end()
-    }
-}
-impl Cells for ScheduledTaskProject {
-    /// Resolves a named display cell; unsupported columns remain missing.
-    fn cell(&self, column: &str) -> Cell<'_> {
-        match column {
-            "taskKey" | "TaskKey" => self.task_key.scalar_cell(),
-            "displayName" | "DisplayName" => self.display_name.scalar_cell(),
-            "projectName" | "ProjectName" => self.project_name.scalar_cell(),
-            "manifestVersion" | "ManifestVersion" => self.manifest_version.scalar_cell(),
-            "platform" | "Platform" => self.platform.scalar_cell(),
-            "artifactDigest" | "ArtifactDigest" => self.artifact_digest.scalar_cell(),
-            "available" | "Available" => self.available.scalar_cell(),
-            "maximumRuntimeSeconds" | "MaximumRuntimeSeconds" => {
-                self.maximum_runtime_seconds.scalar_cell()
-            }
-            "marketSensitive" | "MarketSensitive" => self.market_sensitive.scalar_cell(),
-            "completionProtocol" | "CompletionProtocol" => self.completion_protocol.scalar_cell(),
-            _ => Cell::Missing,
-        }
-    }
-}
-
-/// Typed backend contract for
-/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun`; preserves its
-/// pinned wire layout.
-#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
-pub struct ScheduledTaskRun {
-    /// C# Id, wire slot 0.
-    #[serde(default, rename = "id", alias = "Id")]
-    pub id: Option<ScheduledTaskId>,
-    /// C# ScheduleId, wire slot 1.
-    #[serde(default, rename = "scheduleId", alias = "ScheduleId")]
-    pub schedule_id: Option<ScheduledTaskId>,
-    /// C# Revision, wire slot 2.
-    #[serde(default, rename = "revision", alias = "Revision")]
-    pub revision: Option<i64>,
-    /// C# DefinitionRevision, wire slot 3.
-    #[serde(default, rename = "definitionRevision", alias = "DefinitionRevision")]
-    pub definition_revision: Option<i64>,
-    /// C# TaskKey, wire slot 4.
-    #[serde(default, rename = "taskKey", alias = "TaskKey")]
-    pub task_key: Option<String>,
-    /// C# Environment, wire slot 5.
-    #[serde(default, rename = "environment", alias = "Environment")]
-    pub environment: Option<String>,
-    /// C# HostId, wire slot 6.
-    #[serde(default, rename = "hostId", alias = "HostId")]
-    pub host_id: Option<String>,
-    /// C# IntendedFireTimeUtc, wire slot 7.
-    #[serde(default, rename = "intendedFireTimeUtc", alias = "IntendedFireTimeUtc")]
-    pub intended_fire_time_utc: Option<OffsetText>,
-    /// C# Manual, wire slot 8.
-    #[serde(default, rename = "manual", alias = "Manual")]
-    pub manual: Option<bool>,
-    /// C# Status, wire slot 9.
-    #[serde(default, rename = "status", alias = "Status")]
-    pub status: Option<ScheduledTaskRunStatus>,
-    /// C# StartedAtUtc, wire slot 10.
-    #[serde(default, rename = "startedAtUtc", alias = "StartedAtUtc")]
-    pub started_at_utc: Option<OffsetText>,
-    /// C# FinishedAtUtc, wire slot 11.
-    #[serde(default, rename = "finishedAtUtc", alias = "FinishedAtUtc")]
-    pub finished_at_utc: Option<OffsetText>,
-    /// C# ValueDate, wire slot 12.
-    #[serde(default, rename = "valueDate", alias = "ValueDate")]
-    pub value_date: Option<DateText>,
-    /// C# Stage, wire slot 13.
-    #[serde(default, rename = "stage", alias = "Stage")]
-    pub stage: Option<String>,
-    /// C# Detail, wire slot 14.
-    #[serde(default, rename = "detail", alias = "Detail")]
-    pub detail: Option<String>,
-    /// C# ExitCode, wire slot 15.
-    #[serde(default, rename = "exitCode", alias = "ExitCode")]
-    pub exit_code: Option<i32>,
-    /// C# OperationCommandId, wire slot 16.
-    #[serde(default, rename = "operationCommandId", alias = "OperationCommandId")]
-    pub operation_command_id: Option<String>,
-    /// C# ProcessId, wire slot 17.
-    #[serde(default, rename = "processId", alias = "ProcessId")]
-    pub process_id: Option<i32>,
-    /// C# Reason, wire slot 18.
-    #[serde(default, rename = "reason", alias = "Reason")]
-    pub reason: Option<String>,
-    /// C# CompletedEndOfDayValueDate, wire slot 19.
-    #[serde(
-        default,
-        rename = "completedEndOfDayValueDate",
-        alias = "CompletedEndOfDayValueDate"
-    )]
-    pub completed_end_of_day_value_date: Option<DateText>,
-    /// C# StandardOutputTail, wire slot 20.
-    #[serde(default, rename = "standardOutputTail", alias = "StandardOutputTail")]
-    pub standard_output_tail: Option<String>,
-    /// C# StandardErrorTail, wire slot 21.
-    #[serde(default, rename = "standardErrorTail", alias = "StandardErrorTail")]
-    pub standard_error_tail: Option<String>,
-    /// C# OutputDirectory, wire slot 22.
-    #[serde(default, rename = "outputDirectory", alias = "OutputDirectory")]
-    pub output_directory: Option<String>,
-}
-impl FromBackend for ScheduledTaskRun {
-    const KIND: &'static str =
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun";
-
-
-    /// Reads the pinned backend representation and validates its scalar values.
-    fn from_backend(value: &Value) -> Result<Self, String> {
-        let fields = value
-            .as_array()
-            .ok_or("Expected positional contract record")?;
-        Ok(Self {
-            id: FromBackend::from_backend(fields.get(0).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.Id: {error}"))?,
-            schedule_id: FromBackend::from_backend(fields.get(1).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.ScheduleId: {error}"))?,
-            revision: FromBackend::from_backend(fields.get(2).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.Revision: {error}"))?,
-            definition_revision: FromBackend::from_backend(fields.get(3).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.DefinitionRevision: {error}"))?,
-            task_key: FromBackend::from_backend(fields.get(4).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.TaskKey: {error}"))?,
-            environment: FromBackend::from_backend(fields.get(5).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.Environment: {error}"))?,
-            host_id: FromBackend::from_backend(fields.get(6).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.HostId: {error}"))?,
-            intended_fire_time_utc: FromBackend::from_backend(fields.get(7).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.IntendedFireTimeUtc: {error}"))?,
-            manual: FromBackend::from_backend(fields.get(8).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.Manual: {error}"))?,
-            status: FromBackend::from_backend(fields.get(9).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.Status: {error}"))?,
-            started_at_utc: FromBackend::from_backend(fields.get(10).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.StartedAtUtc: {error}"))?,
-            finished_at_utc: FromBackend::from_backend(fields.get(11).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.FinishedAtUtc: {error}"))?,
-            value_date: FromBackend::from_backend(fields.get(12).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.ValueDate: {error}"))?,
-            stage: FromBackend::from_backend(fields.get(13).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.Stage: {error}"))?,
-            detail: FromBackend::from_backend(fields.get(14).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.Detail: {error}"))?,
-            exit_code: FromBackend::from_backend(fields.get(15).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.ExitCode: {error}"))?,
-            operation_command_id: FromBackend::from_backend(fields.get(16).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.OperationCommandId: {error}"))?,
-            process_id: FromBackend::from_backend(fields.get(17).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.ProcessId: {error}"))?,
-            reason: FromBackend::from_backend(fields.get(18).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.Reason: {error}"))?,
-            completed_end_of_day_value_date: FromBackend::from_backend(
-                fields.get(19).unwrap_or(&Value::Nil),
-            )
-            .map_err(|error| format!("ScheduledTaskRun.CompletedEndOfDayValueDate: {error}"))?,
-            standard_output_tail: FromBackend::from_backend(fields.get(20).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.StandardOutputTail: {error}"))?,
-            standard_error_tail: FromBackend::from_backend(fields.get(21).unwrap_or(&Value::Nil))
-                .map_err(|error| {
-                format!("ScheduledTaskRun.StandardErrorTail: {error}")
-            })?,
-            output_directory: FromBackend::from_backend(fields.get(22).unwrap_or(&Value::Nil))
-                .map_err(|error| format!("ScheduledTaskRun.OutputDirectory: {error}"))?,
-        })
-    }
-}
-impl PresentationRecord for ScheduledTaskRun {
-    /// Writes the presentation fields, applying the requested history omission policy.
-    fn serialize_presentation<S: serde::Serializer>(
-        &self,
-        serializer: S,
-        mode: PresentationMode,
-    ) -> Result<S::Ok, S::Error> {
-        let child_mode = if mode == PresentationMode::History {
-            PresentationMode::Monitor
-        } else {
-            mode
-        };
-        let mut map = serializer.serialize_map(None)?;
-        map.serialize_entry(
-            "id",
-            &FieldValue {
-                value: &self.id,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "scheduleId",
-            &FieldValue {
-                value: &self.schedule_id,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "revision",
-            &FieldValue {
-                value: &self.revision,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "definitionRevision",
-            &FieldValue {
-                value: &self.definition_revision,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "taskKey",
-            &FieldValue {
-                value: &self.task_key,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "environment",
-            &FieldValue {
-                value: &self.environment,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "hostId",
-            &FieldValue {
-                value: &self.host_id,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "intendedFireTimeUtc",
-            &FieldValue {
-                value: &self.intended_fire_time_utc,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "manual",
-            &FieldValue {
-                value: &self.manual,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "status",
-            &FieldValue {
-                value: &self.status,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "startedAtUtc",
-            &FieldValue {
-                value: &self.started_at_utc,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "finishedAtUtc",
-            &FieldValue {
-                value: &self.finished_at_utc,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "valueDate",
-            &FieldValue {
-                value: &self.value_date,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "stage",
-            &FieldValue {
-                value: &self.stage,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "detail",
-            &FieldValue {
-                value: &self.detail,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "exitCode",
-            &FieldValue {
-                value: &self.exit_code,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "operationCommandId",
-            &FieldValue {
-                value: &self.operation_command_id,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "processId",
-            &FieldValue {
-                value: &self.process_id,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "reason",
-            &FieldValue {
-                value: &self.reason,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "completedEndOfDayValueDate",
-            &FieldValue {
-                value: &self.completed_end_of_day_value_date,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "standardOutputTail",
-            &FieldValue {
-                value: &self.standard_output_tail,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "standardErrorTail",
-            &FieldValue {
-                value: &self.standard_error_tail,
-                mode: child_mode,
-            },
-        )?;
-        map.serialize_entry(
-            "outputDirectory",
-            &FieldValue {
-                value: &self.output_directory,
-                mode: child_mode,
-            },
-        )?;
-        self.serialize_extras(&mut map)?;
-        map.end()
-    }
-}
-impl Serialize for ScheduledTaskRun {
-    /// Serializes this value through the supplied serializer.
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.serialize_presentation(serializer, PresentationMode::Native)
-    }
-}
-impl PresentationValue for ScheduledTaskRun {
-    /// Serializes this value using the requested presentation mode.
-    fn serialize_value<S: serde::Serializer>(
-        &self,
-        serializer: S,
-        mode: PresentationMode,
-    ) -> Result<S::Ok, S::Error> {
-        self.serialize_presentation(serializer, mode)
-    }
-}
-impl PresentationExtras for ScheduledTaskRun {
-    /// Appends the computed presentation fields without changing backend values.
-    fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
-        let _ = map;
-        Ok(())
-    }
-}
-impl BackendRecord for ScheduledTaskRun {
-    /// Writes the backend representation using the declared wire layout.
-    fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut map = serializer.serialize_map(None)?;
-        map.serialize_entry("Id", &BackendDocument(&self.id))?;
-        map.serialize_entry("ScheduleId", &BackendDocument(&self.schedule_id))?;
-        map.serialize_entry("Revision", &BackendDocument(&self.revision))?;
-        map.serialize_entry(
-            "DefinitionRevision",
-            &BackendDocument(&self.definition_revision),
-        )?;
-        map.serialize_entry("TaskKey", &BackendDocument(&self.task_key))?;
-        map.serialize_entry("Environment", &BackendDocument(&self.environment))?;
-        map.serialize_entry("HostId", &BackendDocument(&self.host_id))?;
-        map.serialize_entry(
-            "IntendedFireTimeUtc",
-            &BackendDocument(&self.intended_fire_time_utc),
-        )?;
-        map.serialize_entry("Manual", &BackendDocument(&self.manual))?;
-        map.serialize_entry("Status", &BackendDocument(&self.status))?;
-        map.serialize_entry("StartedAtUtc", &BackendDocument(&self.started_at_utc))?;
-        map.serialize_entry("FinishedAtUtc", &BackendDocument(&self.finished_at_utc))?;
-        map.serialize_entry("ValueDate", &BackendDocument(&self.value_date))?;
-        map.serialize_entry("Stage", &BackendDocument(&self.stage))?;
-        map.serialize_entry("Detail", &BackendDocument(&self.detail))?;
-        map.serialize_entry("ExitCode", &BackendDocument(&self.exit_code))?;
-        map.serialize_entry(
-            "OperationCommandId",
-            &BackendDocument(&self.operation_command_id),
-        )?;
-        map.serialize_entry("ProcessId", &BackendDocument(&self.process_id))?;
-        map.serialize_entry("Reason", &BackendDocument(&self.reason))?;
-        map.serialize_entry(
-            "CompletedEndOfDayValueDate",
-            &BackendDocument(&self.completed_end_of_day_value_date),
-        )?;
-        map.serialize_entry(
-            "StandardOutputTail",
-            &BackendDocument(&self.standard_output_tail),
-        )?;
-        map.serialize_entry(
-            "StandardErrorTail",
-            &BackendDocument(&self.standard_error_tail),
-        )?;
-        map.serialize_entry("OutputDirectory", &BackendDocument(&self.output_directory))?;
-        map.end()
-    }
-}
-impl Cells for ScheduledTaskRun {
-    /// Resolves a named display cell; unsupported columns remain missing.
-    fn cell(&self, column: &str) -> Cell<'_> {
-        match column {
-            "revision" | "Revision" => self.revision.scalar_cell(),
-            "definitionRevision" | "DefinitionRevision" => self.definition_revision.scalar_cell(),
-            "taskKey" | "TaskKey" => self.task_key.scalar_cell(),
-            "environment" | "Environment" => self.environment.scalar_cell(),
-            "hostId" | "HostId" => self.host_id.scalar_cell(),
-            "intendedFireTimeUtc" | "IntendedFireTimeUtc" => {
-                self.intended_fire_time_utc.scalar_cell()
-            }
-            "manual" | "Manual" => self.manual.scalar_cell(),
-            "status" | "Status" => self.status.scalar_cell(),
-            "startedAtUtc" | "StartedAtUtc" => self.started_at_utc.scalar_cell(),
-            "finishedAtUtc" | "FinishedAtUtc" => self.finished_at_utc.scalar_cell(),
-            "valueDate" | "ValueDate" => self.value_date.scalar_cell(),
-            "stage" | "Stage" => self.stage.scalar_cell(),
-            "detail" | "Detail" => self.detail.scalar_cell(),
-            "exitCode" | "ExitCode" => self.exit_code.scalar_cell(),
-            "operationCommandId" | "OperationCommandId" => self.operation_command_id.scalar_cell(),
-            "processId" | "ProcessId" => self.process_id.scalar_cell(),
-            "reason" | "Reason" => self.reason.scalar_cell(),
-            "completedEndOfDayValueDate" | "CompletedEndOfDayValueDate" => {
-                self.completed_end_of_day_value_date.scalar_cell()
-            }
-            "standardOutputTail" | "StandardOutputTail" => self.standard_output_tail.scalar_cell(),
-            "standardErrorTail" | "StandardErrorTail" => self.standard_error_tail.scalar_cell(),
-            "outputDirectory" | "OutputDirectory" => self.output_directory.scalar_cell(),
-            _ => Cell::Missing,
-        }
-    }
-}
-
-/// Typed backend contract for
-/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRunStatus`;
-/// preserves its pinned wire layout.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ScheduledTaskRunStatus {
-    Requested,
-    Admitted,
-    Running,
-    Succeeded,
-    Failed,
-    Uncertain,
-    Rejected,
-    Unrecognized(i64),
-}
-impl ScheduledTaskRunStatus {
-    /// Returns the user-facing label for this value.
-    pub fn label(&self) -> std::borrow::Cow<'static, str> {
-        match self {
-            Self::Requested => "Requested".into(),
-            Self::Admitted => "Admitted".into(),
-            Self::Running => "Running".into(),
-            Self::Succeeded => "Succeeded".into(),
-            Self::Failed => "Failed".into(),
-            Self::Uncertain => "Uncertain".into(),
-            Self::Rejected => "Rejected".into(),
-            Self::Unrecognized(value) => value.to_string().into(),
-        }
-    }
-}
-impl FromBackend for ScheduledTaskRunStatus {
-    const KIND: &'static str =
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRunStatus";
-
-
-    /// Reads the pinned backend representation and validates its scalar values.
-    fn from_backend(value: &Value) -> Result<Self, String> {
-        Ok(
-            match value.as_i64().ok_or("Expected contract enum integer")? {
-                0 => Self::Requested,
-                1 => Self::Admitted,
-                2 => Self::Running,
-                3 => Self::Succeeded,
-                4 => Self::Failed,
-                5 => Self::Uncertain,
-                6 => Self::Rejected,
-                value => Self::Unrecognized(value),
-            },
-        )
-    }
-}
-impl Serialize for ScheduledTaskRunStatus {
-    /// Serializes this value through the supplied serializer.
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            Self::Unrecognized(value) => serializer.serialize_i64(*value),
-            _ => serializer.serialize_str(&self.label()),
-        }
-    }
-}
-impl<'de> Deserialize<'de> for ScheduledTaskRunStatus {
-    /// Deserializes this value while preserving the declared field and scalar rules.
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        /// Visitor used by the trade contracts component.
-        struct Visitor;
-        impl<'de> serde::de::Visitor<'de> for Visitor {
-            type Value = ScheduledTaskRunStatus;
-
-
-            /// Describes the accepted input shape in deserialization errors.
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a declared enum name or integer")
-            }
-
-
-            /// Accepts a signed integer through this value's deserialization rules.
-            fn visit_i64<E: serde::de::Error>(
-                self,
-                value: i64,
-            ) -> Result<ScheduledTaskRunStatus, E> {
-                ScheduledTaskRunStatus::from_backend(&Value::from(value)).map_err(E::custom)
-            }
-
-
-            /// Accepts an unsigned integer through this value's deserialization rules.
-            fn visit_u64<E: serde::de::Error>(
-                self,
-                value: u64,
-            ) -> Result<ScheduledTaskRunStatus, E> {
-                self.visit_i64(i64::try_from(value).map_err(E::custom)?)
-            }
-
-
-            /// Accepts text through this value's deserialization rules.
-            fn visit_str<E: serde::de::Error>(
-                self,
-                value: &str,
-            ) -> Result<ScheduledTaskRunStatus, E> {
-                Ok(match value {
-                    "Requested" => ScheduledTaskRunStatus::Requested,
-                    "Admitted" => ScheduledTaskRunStatus::Admitted,
-                    "Running" => ScheduledTaskRunStatus::Running,
-                    "Succeeded" => ScheduledTaskRunStatus::Succeeded,
-                    "Failed" => ScheduledTaskRunStatus::Failed,
-                    "Uncertain" => ScheduledTaskRunStatus::Uncertain,
-                    "Rejected" => ScheduledTaskRunStatus::Rejected,
-                    value => {
-                        ScheduledTaskRunStatus::Unrecognized(value.parse().map_err(E::custom)?)
-                    }
-                })
-            }
-        }
-        deserializer.deserialize_any(Visitor)
-    }
-}
-impl ScalarCell for ScheduledTaskRunStatus {
-    /// Exposes this scalar as a typed display cell without a generic value tree.
-    fn scalar_cell(&self) -> Cell<'_> {
-        match self {
-            Self::Unrecognized(value) => Cell::Signed(*value),
-            _ => Cell::Text(self.label()),
-        }
-    }
-}
-impl PresentationValue for ScheduledTaskRunStatus {
-    /// Serializes this value using the requested presentation mode.
-    fn serialize_value<S: serde::Serializer>(
-        &self,
-        serializer: S,
-        mode: PresentationMode,
-    ) -> Result<S::Ok, S::Error> {
-        if mode == PresentationMode::Native {
-            self.serialize(serializer)
-        } else {
-            serializer.serialize_str(&self.label())
-        }
-    }
-}
-impl BackendRecord for ScheduledTaskRunStatus {
-    /// Writes the backend representation using the declared wire layout.
-    fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            Self::Unrecognized(value) => serializer.serialize_i64(*value),
-            _ => serializer.serialize_str(&self.label()),
-        }
-    }
-}
-impl PublishedEnum for ScheduledTaskRunStatus {
     /// Returns the published label while preserving unrecognized backend values.
     fn published_label(&self) -> Label {
         match self {
@@ -31404,6 +30687,720 @@ impl Cells for ScheduledTasksDashboard {
         match column {
             "readAtUtc" | "ReadAtUtc" => self.read_at_utc.scalar_cell(),
             _ => Cell::Missing,
+        }
+    }
+}
+
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskOutputPage`;
+/// preserves its pinned wire layout.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct ScheduledTaskOutputPage {
+    /// C# Text, wire slot 0.
+    #[serde(default, rename = "text", alias = "Text")]
+    pub text: Option<String>,
+    /// C# NextOffset, wire slot 1.
+    #[serde(default, rename = "nextOffset", alias = "NextOffset")]
+    pub next_offset: Option<i64>,
+    /// C# EndOfOutput, wire slot 2.
+    #[serde(default, rename = "endOfOutput", alias = "EndOfOutput")]
+    pub end_of_output: Option<bool>,
+    /// C# Available, wire slot 3.
+    #[serde(default, rename = "available", alias = "Available")]
+    pub available: Option<bool>,
+}
+impl FromBackend for ScheduledTaskOutputPage {
+    const KIND: &'static str =
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskOutputPage";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
+    fn from_backend(value: &Value) -> Result<Self, String> {
+        let fields = value
+            .as_array()
+            .ok_or("Expected positional contract record")?;
+        Ok(Self {
+            text: FromBackend::from_backend(fields.get(0).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskOutputPage.Text: {error}"))?,
+            next_offset: FromBackend::from_backend(fields.get(1).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskOutputPage.NextOffset: {error}"))?,
+            end_of_output: FromBackend::from_backend(fields.get(2).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskOutputPage.EndOfOutput: {error}"))?,
+            available: FromBackend::from_backend(fields.get(3).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskOutputPage.Available: {error}"))?,
+        })
+    }
+}
+impl PresentationRecord for ScheduledTaskOutputPage {
+    /// Writes the presentation fields, applying the requested history omission policy.
+    fn serialize_presentation<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        mode: PresentationMode,
+    ) -> Result<S::Ok, S::Error> {
+        let child_mode = if mode == PresentationMode::History {
+            PresentationMode::Monitor
+        } else {
+            mode
+        };
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry(
+            "text",
+            &FieldValue {
+                value: &self.text,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "nextOffset",
+            &FieldValue {
+                value: &self.next_offset,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "endOfOutput",
+            &FieldValue {
+                value: &self.end_of_output,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "available",
+            &FieldValue {
+                value: &self.available,
+                mode: child_mode,
+            },
+        )?;
+        self.serialize_extras(&mut map)?;
+        map.end()
+    }
+}
+impl Serialize for ScheduledTaskOutputPage {
+    /// Serializes this value through the supplied serializer.
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.serialize_presentation(serializer, PresentationMode::Native)
+    }
+}
+impl PresentationValue for ScheduledTaskOutputPage {
+    /// Serializes this value using the requested presentation mode.
+    fn serialize_value<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        mode: PresentationMode,
+    ) -> Result<S::Ok, S::Error> {
+        self.serialize_presentation(serializer, mode)
+    }
+}
+impl PresentationExtras for ScheduledTaskOutputPage {
+    /// Appends the computed presentation fields without changing backend values.
+    fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
+        let _ = map;
+        Ok(())
+    }
+}
+impl BackendRecord for ScheduledTaskOutputPage {
+    /// Writes the backend representation using the declared wire layout.
+    fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("Text", &BackendDocument(&self.text))?;
+        map.serialize_entry("NextOffset", &BackendDocument(&self.next_offset))?;
+        map.serialize_entry("EndOfOutput", &BackendDocument(&self.end_of_output))?;
+        map.serialize_entry("Available", &BackendDocument(&self.available))?;
+        map.end()
+    }
+}
+impl Cells for ScheduledTaskOutputPage {
+    /// Resolves a named display cell; unsupported columns remain missing.
+    fn cell(&self, column: &str) -> Cell<'_> {
+        match column {
+            "text" | "Text" => self.text.scalar_cell(),
+            "nextOffset" | "NextOffset" => self.next_offset.scalar_cell(),
+            "endOfOutput" | "EndOfOutput" => self.end_of_output.scalar_cell(),
+            "available" | "Available" => self.available.scalar_cell(),
+            _ => Cell::Missing,
+        }
+    }
+}
+
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun`; preserves
+/// its pinned wire layout.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct ScheduledTaskRun {
+    /// C# Id, wire slot 0.
+    #[serde(default, rename = "id", alias = "Id")]
+    pub id: Option<ScheduledTaskId>,
+    /// C# ScheduleId, wire slot 1.
+    #[serde(default, rename = "scheduleId", alias = "ScheduleId")]
+    pub schedule_id: Option<ScheduledTaskId>,
+    /// C# Revision, wire slot 2.
+    #[serde(default, rename = "revision", alias = "Revision")]
+    pub revision: Option<i64>,
+    /// C# DefinitionRevision, wire slot 3.
+    #[serde(default, rename = "definitionRevision", alias = "DefinitionRevision")]
+    pub definition_revision: Option<i64>,
+    /// C# TaskKey, wire slot 4.
+    #[serde(default, rename = "taskKey", alias = "TaskKey")]
+    pub task_key: Option<String>,
+    /// C# Environment, wire slot 5.
+    #[serde(default, rename = "environment", alias = "Environment")]
+    pub environment: Option<String>,
+    /// C# HostId, wire slot 6.
+    #[serde(default, rename = "hostId", alias = "HostId")]
+    pub host_id: Option<String>,
+    /// C# IntendedFireTimeUtc, wire slot 7.
+    #[serde(default, rename = "intendedFireTimeUtc", alias = "IntendedFireTimeUtc")]
+    pub intended_fire_time_utc: Option<OffsetText>,
+    /// C# Manual, wire slot 8.
+    #[serde(default, rename = "manual", alias = "Manual")]
+    pub manual: Option<bool>,
+    /// C# Status, wire slot 9.
+    #[serde(default, rename = "status", alias = "Status")]
+    pub status: Option<ScheduledTaskRunStatus>,
+    /// C# StartedAtUtc, wire slot 10.
+    #[serde(default, rename = "startedAtUtc", alias = "StartedAtUtc")]
+    pub started_at_utc: Option<OffsetText>,
+    /// C# FinishedAtUtc, wire slot 11.
+    #[serde(default, rename = "finishedAtUtc", alias = "FinishedAtUtc")]
+    pub finished_at_utc: Option<OffsetText>,
+    /// C# ValueDate, wire slot 12.
+    #[serde(default, rename = "valueDate", alias = "ValueDate")]
+    pub value_date: Option<DateText>,
+    /// C# Stage, wire slot 13.
+    #[serde(default, rename = "stage", alias = "Stage")]
+    pub stage: Option<String>,
+    /// C# Detail, wire slot 14.
+    #[serde(default, rename = "detail", alias = "Detail")]
+    pub detail: Option<String>,
+    /// C# ExitCode, wire slot 15.
+    #[serde(default, rename = "exitCode", alias = "ExitCode")]
+    pub exit_code: Option<i32>,
+    /// C# OperationCommandId, wire slot 16.
+    #[serde(default, rename = "operationCommandId", alias = "OperationCommandId")]
+    pub operation_command_id: Option<String>,
+    /// C# ProcessId, wire slot 17.
+    #[serde(default, rename = "processId", alias = "ProcessId")]
+    pub process_id: Option<i32>,
+    /// C# Reason, wire slot 18.
+    #[serde(default, rename = "reason", alias = "Reason")]
+    pub reason: Option<String>,
+    /// C# CompletedEndOfDayValueDate, wire slot 19.
+    #[serde(
+        default,
+        rename = "completedEndOfDayValueDate",
+        alias = "CompletedEndOfDayValueDate"
+    )]
+    pub completed_end_of_day_value_date: Option<DateText>,
+    /// C# StandardOutputTail, wire slot 20.
+    #[serde(default, rename = "standardOutputTail", alias = "StandardOutputTail")]
+    pub standard_output_tail: Option<String>,
+    /// C# StandardErrorTail, wire slot 21.
+    #[serde(default, rename = "standardErrorTail", alias = "StandardErrorTail")]
+    pub standard_error_tail: Option<String>,
+    /// C# OutputDirectory, wire slot 22.
+    #[serde(default, rename = "outputDirectory", alias = "OutputDirectory")]
+    pub output_directory: Option<String>,
+}
+impl FromBackend for ScheduledTaskRun {
+    const KIND: &'static str =
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
+    fn from_backend(value: &Value) -> Result<Self, String> {
+        let fields = value
+            .as_array()
+            .ok_or("Expected positional contract record")?;
+        Ok(Self {
+            id: FromBackend::from_backend(fields.get(0).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.Id: {error}"))?,
+            schedule_id: FromBackend::from_backend(fields.get(1).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.ScheduleId: {error}"))?,
+            revision: FromBackend::from_backend(fields.get(2).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.Revision: {error}"))?,
+            definition_revision: FromBackend::from_backend(fields.get(3).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.DefinitionRevision: {error}"))?,
+            task_key: FromBackend::from_backend(fields.get(4).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.TaskKey: {error}"))?,
+            environment: FromBackend::from_backend(fields.get(5).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.Environment: {error}"))?,
+            host_id: FromBackend::from_backend(fields.get(6).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.HostId: {error}"))?,
+            intended_fire_time_utc: FromBackend::from_backend(fields.get(7).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.IntendedFireTimeUtc: {error}"))?,
+            manual: FromBackend::from_backend(fields.get(8).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.Manual: {error}"))?,
+            status: FromBackend::from_backend(fields.get(9).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.Status: {error}"))?,
+            started_at_utc: FromBackend::from_backend(fields.get(10).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.StartedAtUtc: {error}"))?,
+            finished_at_utc: FromBackend::from_backend(fields.get(11).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.FinishedAtUtc: {error}"))?,
+            value_date: FromBackend::from_backend(fields.get(12).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.ValueDate: {error}"))?,
+            stage: FromBackend::from_backend(fields.get(13).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.Stage: {error}"))?,
+            detail: FromBackend::from_backend(fields.get(14).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.Detail: {error}"))?,
+            exit_code: FromBackend::from_backend(fields.get(15).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.ExitCode: {error}"))?,
+            operation_command_id: FromBackend::from_backend(fields.get(16).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.OperationCommandId: {error}"))?,
+            process_id: FromBackend::from_backend(fields.get(17).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.ProcessId: {error}"))?,
+            reason: FromBackend::from_backend(fields.get(18).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.Reason: {error}"))?,
+            completed_end_of_day_value_date: FromBackend::from_backend(
+                fields.get(19).unwrap_or(&Value::Nil),
+            )
+            .map_err(|error| format!("ScheduledTaskRun.CompletedEndOfDayValueDate: {error}"))?,
+            standard_output_tail: FromBackend::from_backend(fields.get(20).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.StandardOutputTail: {error}"))?,
+            standard_error_tail: FromBackend::from_backend(fields.get(21).unwrap_or(&Value::Nil))
+                .map_err(|error| {
+                format!("ScheduledTaskRun.StandardErrorTail: {error}")
+            })?,
+            output_directory: FromBackend::from_backend(fields.get(22).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("ScheduledTaskRun.OutputDirectory: {error}"))?,
+        })
+    }
+}
+impl PresentationRecord for ScheduledTaskRun {
+    /// Writes the presentation fields, applying the requested history omission policy.
+    fn serialize_presentation<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        mode: PresentationMode,
+    ) -> Result<S::Ok, S::Error> {
+        let child_mode = if mode == PresentationMode::History {
+            PresentationMode::Monitor
+        } else {
+            mode
+        };
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry(
+            "id",
+            &FieldValue {
+                value: &self.id,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "scheduleId",
+            &FieldValue {
+                value: &self.schedule_id,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "revision",
+            &FieldValue {
+                value: &self.revision,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "definitionRevision",
+            &FieldValue {
+                value: &self.definition_revision,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "taskKey",
+            &FieldValue {
+                value: &self.task_key,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "environment",
+            &FieldValue {
+                value: &self.environment,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "hostId",
+            &FieldValue {
+                value: &self.host_id,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "intendedFireTimeUtc",
+            &FieldValue {
+                value: &self.intended_fire_time_utc,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "manual",
+            &FieldValue {
+                value: &self.manual,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "status",
+            &FieldValue {
+                value: &self.status,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "startedAtUtc",
+            &FieldValue {
+                value: &self.started_at_utc,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "finishedAtUtc",
+            &FieldValue {
+                value: &self.finished_at_utc,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "valueDate",
+            &FieldValue {
+                value: &self.value_date,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "stage",
+            &FieldValue {
+                value: &self.stage,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "detail",
+            &FieldValue {
+                value: &self.detail,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "exitCode",
+            &FieldValue {
+                value: &self.exit_code,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "operationCommandId",
+            &FieldValue {
+                value: &self.operation_command_id,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "processId",
+            &FieldValue {
+                value: &self.process_id,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "reason",
+            &FieldValue {
+                value: &self.reason,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "completedEndOfDayValueDate",
+            &FieldValue {
+                value: &self.completed_end_of_day_value_date,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "standardOutputTail",
+            &FieldValue {
+                value: &self.standard_output_tail,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "standardErrorTail",
+            &FieldValue {
+                value: &self.standard_error_tail,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "outputDirectory",
+            &FieldValue {
+                value: &self.output_directory,
+                mode: child_mode,
+            },
+        )?;
+        self.serialize_extras(&mut map)?;
+        map.end()
+    }
+}
+impl Serialize for ScheduledTaskRun {
+    /// Serializes this value through the supplied serializer.
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.serialize_presentation(serializer, PresentationMode::Native)
+    }
+}
+impl PresentationValue for ScheduledTaskRun {
+    /// Serializes this value using the requested presentation mode.
+    fn serialize_value<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        mode: PresentationMode,
+    ) -> Result<S::Ok, S::Error> {
+        self.serialize_presentation(serializer, mode)
+    }
+}
+impl PresentationExtras for ScheduledTaskRun {
+    /// Appends the computed presentation fields without changing backend values.
+    fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
+        let _ = map;
+        Ok(())
+    }
+}
+impl BackendRecord for ScheduledTaskRun {
+    /// Writes the backend representation using the declared wire layout.
+    fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("Id", &BackendDocument(&self.id))?;
+        map.serialize_entry("ScheduleId", &BackendDocument(&self.schedule_id))?;
+        map.serialize_entry("Revision", &BackendDocument(&self.revision))?;
+        map.serialize_entry(
+            "DefinitionRevision",
+            &BackendDocument(&self.definition_revision),
+        )?;
+        map.serialize_entry("TaskKey", &BackendDocument(&self.task_key))?;
+        map.serialize_entry("Environment", &BackendDocument(&self.environment))?;
+        map.serialize_entry("HostId", &BackendDocument(&self.host_id))?;
+        map.serialize_entry(
+            "IntendedFireTimeUtc",
+            &BackendDocument(&self.intended_fire_time_utc),
+        )?;
+        map.serialize_entry("Manual", &BackendDocument(&self.manual))?;
+        map.serialize_entry("Status", &BackendDocument(&self.status))?;
+        map.serialize_entry("StartedAtUtc", &BackendDocument(&self.started_at_utc))?;
+        map.serialize_entry("FinishedAtUtc", &BackendDocument(&self.finished_at_utc))?;
+        map.serialize_entry("ValueDate", &BackendDocument(&self.value_date))?;
+        map.serialize_entry("Stage", &BackendDocument(&self.stage))?;
+        map.serialize_entry("Detail", &BackendDocument(&self.detail))?;
+        map.serialize_entry("ExitCode", &BackendDocument(&self.exit_code))?;
+        map.serialize_entry(
+            "OperationCommandId",
+            &BackendDocument(&self.operation_command_id),
+        )?;
+        map.serialize_entry("ProcessId", &BackendDocument(&self.process_id))?;
+        map.serialize_entry("Reason", &BackendDocument(&self.reason))?;
+        map.serialize_entry(
+            "CompletedEndOfDayValueDate",
+            &BackendDocument(&self.completed_end_of_day_value_date),
+        )?;
+        map.serialize_entry(
+            "StandardOutputTail",
+            &BackendDocument(&self.standard_output_tail),
+        )?;
+        map.serialize_entry(
+            "StandardErrorTail",
+            &BackendDocument(&self.standard_error_tail),
+        )?;
+        map.serialize_entry("OutputDirectory", &BackendDocument(&self.output_directory))?;
+        map.end()
+    }
+}
+impl Cells for ScheduledTaskRun {
+    /// Resolves a named display cell; unsupported columns remain missing.
+    fn cell(&self, column: &str) -> Cell<'_> {
+        match column {
+            "revision" | "Revision" => self.revision.scalar_cell(),
+            "definitionRevision" | "DefinitionRevision" => self.definition_revision.scalar_cell(),
+            "taskKey" | "TaskKey" => self.task_key.scalar_cell(),
+            "environment" | "Environment" => self.environment.scalar_cell(),
+            "hostId" | "HostId" => self.host_id.scalar_cell(),
+            "intendedFireTimeUtc" | "IntendedFireTimeUtc" => {
+                self.intended_fire_time_utc.scalar_cell()
+            }
+            "manual" | "Manual" => self.manual.scalar_cell(),
+            "status" | "Status" => self.status.scalar_cell(),
+            "startedAtUtc" | "StartedAtUtc" => self.started_at_utc.scalar_cell(),
+            "finishedAtUtc" | "FinishedAtUtc" => self.finished_at_utc.scalar_cell(),
+            "valueDate" | "ValueDate" => self.value_date.scalar_cell(),
+            "stage" | "Stage" => self.stage.scalar_cell(),
+            "detail" | "Detail" => self.detail.scalar_cell(),
+            "exitCode" | "ExitCode" => self.exit_code.scalar_cell(),
+            "operationCommandId" | "OperationCommandId" => self.operation_command_id.scalar_cell(),
+            "processId" | "ProcessId" => self.process_id.scalar_cell(),
+            "reason" | "Reason" => self.reason.scalar_cell(),
+            "completedEndOfDayValueDate" | "CompletedEndOfDayValueDate" => {
+                self.completed_end_of_day_value_date.scalar_cell()
+            }
+            "standardOutputTail" | "StandardOutputTail" => self.standard_output_tail.scalar_cell(),
+            "standardErrorTail" | "StandardErrorTail" => self.standard_error_tail.scalar_cell(),
+            "outputDirectory" | "OutputDirectory" => self.output_directory.scalar_cell(),
+            _ => Cell::Missing,
+        }
+    }
+}
+
+/// Typed backend contract for
+/// `TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunStatus`;
+/// preserves its pinned wire layout.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ScheduledTaskRunStatus {
+    Requested,
+    Admitted,
+    Running,
+    Succeeded,
+    Failed,
+    Uncertain,
+    Rejected,
+    Unrecognized(i64),
+}
+impl ScheduledTaskRunStatus {
+    /// Returns the user-facing label for this value.
+    pub fn label(&self) -> std::borrow::Cow<'static, str> {
+        match self {
+            Self::Requested => "Requested".into(),
+            Self::Admitted => "Admitted".into(),
+            Self::Running => "Running".into(),
+            Self::Succeeded => "Succeeded".into(),
+            Self::Failed => "Failed".into(),
+            Self::Uncertain => "Uncertain".into(),
+            Self::Rejected => "Rejected".into(),
+            Self::Unrecognized(value) => value.to_string().into(),
+        }
+    }
+}
+impl FromBackend for ScheduledTaskRunStatus {
+    const KIND: &'static str =
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunStatus";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
+    fn from_backend(value: &Value) -> Result<Self, String> {
+        Ok(
+            match value.as_i64().ok_or("Expected contract enum integer")? {
+                0 => Self::Requested,
+                1 => Self::Admitted,
+                2 => Self::Running,
+                3 => Self::Succeeded,
+                4 => Self::Failed,
+                5 => Self::Uncertain,
+                6 => Self::Rejected,
+                value => Self::Unrecognized(value),
+            },
+        )
+    }
+}
+impl Serialize for ScheduledTaskRunStatus {
+    /// Serializes this value through the supplied serializer.
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Unrecognized(value) => serializer.serialize_i64(*value),
+            _ => serializer.serialize_str(&self.label()),
+        }
+    }
+}
+impl<'de> Deserialize<'de> for ScheduledTaskRunStatus {
+    /// Deserializes this value while preserving the declared field and scalar rules.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Visitor used by the trade contracts component.
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = ScheduledTaskRunStatus;
+
+
+            /// Describes the accepted input shape in deserialization errors.
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a declared enum name or integer")
+            }
+
+
+            /// Accepts a signed integer through this value's deserialization rules.
+            fn visit_i64<E: serde::de::Error>(
+                self,
+                value: i64,
+            ) -> Result<ScheduledTaskRunStatus, E> {
+                ScheduledTaskRunStatus::from_backend(&Value::from(value)).map_err(E::custom)
+            }
+
+
+            /// Accepts an unsigned integer through this value's deserialization rules.
+            fn visit_u64<E: serde::de::Error>(
+                self,
+                value: u64,
+            ) -> Result<ScheduledTaskRunStatus, E> {
+                self.visit_i64(i64::try_from(value).map_err(E::custom)?)
+            }
+
+
+            /// Accepts text through this value's deserialization rules.
+            fn visit_str<E: serde::de::Error>(
+                self,
+                value: &str,
+            ) -> Result<ScheduledTaskRunStatus, E> {
+                Ok(match value {
+                    "Requested" => ScheduledTaskRunStatus::Requested,
+                    "Admitted" => ScheduledTaskRunStatus::Admitted,
+                    "Running" => ScheduledTaskRunStatus::Running,
+                    "Succeeded" => ScheduledTaskRunStatus::Succeeded,
+                    "Failed" => ScheduledTaskRunStatus::Failed,
+                    "Uncertain" => ScheduledTaskRunStatus::Uncertain,
+                    "Rejected" => ScheduledTaskRunStatus::Rejected,
+                    value => {
+                        ScheduledTaskRunStatus::Unrecognized(value.parse().map_err(E::custom)?)
+                    }
+                })
+            }
+        }
+        deserializer.deserialize_any(Visitor)
+    }
+}
+impl ScalarCell for ScheduledTaskRunStatus {
+    /// Exposes this scalar as a typed display cell without a generic value tree.
+    fn scalar_cell(&self) -> Cell<'_> {
+        match self {
+            Self::Unrecognized(value) => Cell::Signed(*value),
+            _ => Cell::Text(self.label()),
+        }
+    }
+}
+impl PresentationValue for ScheduledTaskRunStatus {
+    /// Serializes this value using the requested presentation mode.
+    fn serialize_value<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        mode: PresentationMode,
+    ) -> Result<S::Ok, S::Error> {
+        if mode == PresentationMode::Native {
+            self.serialize(serializer)
+        } else {
+            serializer.serialize_str(&self.label())
+        }
+    }
+}
+impl BackendRecord for ScheduledTaskRunStatus {
+    /// Writes the backend representation using the declared wire layout.
+    fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Unrecognized(value) => serializer.serialize_i64(*value),
+            _ => serializer.serialize_str(&self.label()),
+        }
+    }
+}
+impl PublishedEnum for ScheduledTaskRunStatus {
+    /// Returns the published label while preserving unrecognized backend values.
+    fn published_label(&self) -> Label {
+        match self {
+            Self::Unrecognized(value) => Label::Number(*value),
+            _ => Label::Text(self.label().into_owned()),
         }
     }
 }
@@ -53802,40 +53799,142 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey",
     ),
     (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog",
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog",
         "Id",
         0,
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId",
     ),
     (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog",
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog",
         "Revision",
         1,
         "System.Int64",
     ),
     (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog",
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog",
         "HostId",
         2,
         "System.String",
     ),
     (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog",
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog",
         "Environment",
         3,
         "System.String",
     ),
     (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog",
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog",
         "Projects",
         4,
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject[]",
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject[]",
     ),
     (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog",
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog",
         "HostCapability",
         5,
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability",
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability",
+        "HostId",
+        0,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability",
+        "Environment",
+        1,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability",
+        "Platform",
+        2,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability",
+        "Ready",
+        3,
+        "System.Boolean",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability",
+        "ObservedAtUtc",
+        4,
+        "System.DateTimeOffset",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability",
+        "Detail",
+        5,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability",
+        "Generation",
+        6,
+        "System.Int64",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
+        "TaskKey",
+        0,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
+        "DisplayName",
+        1,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
+        "ProjectName",
+        2,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
+        "ManifestVersion",
+        3,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
+        "Platform",
+        4,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
+        "ArtifactDigest",
+        5,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
+        "Available",
+        6,
+        "System.Boolean",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
+        "MaximumRuntimeSeconds",
+        7,
+        "System.Int32",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
+        "MarketSensitive",
+        8,
+        "System.Boolean",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
+        "CompletionProtocol",
+        9,
+        "System.String",
     ),
     (
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskDefinition",
@@ -53946,274 +54045,10 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "System.String",
     ),
     (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability",
-        "HostId",
-        0,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability",
-        "Environment",
-        1,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability",
-        "Platform",
-        2,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability",
-        "Ready",
-        3,
-        "System.Boolean",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability",
-        "ObservedAtUtc",
-        4,
-        "System.DateTimeOffset",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability",
-        "Detail",
-        5,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability",
-        "Generation",
-        6,
-        "System.Int64",
-    ),
-    (
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId",
         "Value",
         0,
         "System.Guid",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskOutputPage",
-        "Text",
-        0,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskOutputPage",
-        "NextOffset",
-        1,
-        "System.Int64",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskOutputPage",
-        "EndOfOutput",
-        2,
-        "System.Boolean",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskOutputPage",
-        "Available",
-        3,
-        "System.Boolean",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject",
-        "TaskKey",
-        0,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject",
-        "DisplayName",
-        1,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject",
-        "ProjectName",
-        2,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject",
-        "ManifestVersion",
-        3,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject",
-        "Platform",
-        4,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject",
-        "ArtifactDigest",
-        5,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject",
-        "Available",
-        6,
-        "System.Boolean",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject",
-        "MaximumRuntimeSeconds",
-        7,
-        "System.Int32",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject",
-        "MarketSensitive",
-        8,
-        "System.Boolean",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject",
-        "CompletionProtocol",
-        9,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "Id",
-        0,
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "ScheduleId",
-        1,
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "Revision",
-        2,
-        "System.Int64",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "DefinitionRevision",
-        3,
-        "System.Int64",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "TaskKey",
-        4,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "Environment",
-        5,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "HostId",
-        6,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "IntendedFireTimeUtc",
-        7,
-        "System.DateTimeOffset",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "Manual",
-        8,
-        "System.Boolean",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "Status",
-        9,
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRunStatus",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "StartedAtUtc",
-        10,
-        "System.Nullable`1[System.DateTimeOffset]",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "FinishedAtUtc",
-        11,
-        "System.Nullable`1[System.DateTimeOffset]",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "ValueDate",
-        12,
-        "System.Nullable`1[System.DateOnly]",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "Stage",
-        13,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "Detail",
-        14,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "ExitCode",
-        15,
-        "System.Nullable`1[System.Int32]",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "OperationCommandId",
-        16,
-        "System.Guid",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "ProcessId",
-        17,
-        "System.Nullable`1[System.Int32]",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "Reason",
-        18,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "CompletedEndOfDayValueDate",
-        19,
-        "System.Nullable`1[System.DateOnly]",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "StandardOutputTail",
-        20,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "StandardErrorTail",
-        21,
-        "System.String",
-    ),
-    (
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
-        "OutputDirectory",
-        22,
-        "System.String",
     ),
     (
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskSchedule",
@@ -54315,7 +54150,7 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTasksDashboard",
         "Catalog",
         0,
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog",
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog",
     ),
     (
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTasksDashboard",
@@ -54327,13 +54162,175 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTasksDashboard",
         "RecentRuns",
         2,
-        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun[]",
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun[]",
     ),
     (
         "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTasksDashboard",
         "ReadAtUtc",
         3,
         "System.DateTimeOffset",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskOutputPage",
+        "Text",
+        0,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskOutputPage",
+        "NextOffset",
+        1,
+        "System.Int64",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskOutputPage",
+        "EndOfOutput",
+        2,
+        "System.Boolean",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskOutputPage",
+        "Available",
+        3,
+        "System.Boolean",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "Id",
+        0,
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "ScheduleId",
+        1,
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "Revision",
+        2,
+        "System.Int64",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "DefinitionRevision",
+        3,
+        "System.Int64",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "TaskKey",
+        4,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "Environment",
+        5,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "HostId",
+        6,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "IntendedFireTimeUtc",
+        7,
+        "System.DateTimeOffset",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "Manual",
+        8,
+        "System.Boolean",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "Status",
+        9,
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunStatus",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "StartedAtUtc",
+        10,
+        "System.Nullable`1[System.DateTimeOffset]",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "FinishedAtUtc",
+        11,
+        "System.Nullable`1[System.DateTimeOffset]",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "ValueDate",
+        12,
+        "System.Nullable`1[System.DateOnly]",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "Stage",
+        13,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "Detail",
+        14,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "ExitCode",
+        15,
+        "System.Nullable`1[System.Int32]",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "OperationCommandId",
+        16,
+        "System.Guid",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "ProcessId",
+        17,
+        "System.Nullable`1[System.Int32]",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "Reason",
+        18,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "CompletedEndOfDayValueDate",
+        19,
+        "System.Nullable`1[System.DateOnly]",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "StandardOutputTail",
+        20,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "StandardErrorTail",
+        21,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+        "OutputDirectory",
+        22,
+        "System.String",
     ),
     (
         "TomasAI.IFM.Domain.Trade.Shared.BrokerOrderId",

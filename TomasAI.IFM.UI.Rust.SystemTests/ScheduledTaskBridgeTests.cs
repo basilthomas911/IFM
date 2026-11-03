@@ -17,7 +17,7 @@ public class ScheduledTaskBridgeTests
   service.LoadRunHistoryAsync(Arg.Any<string>(),Arg.Any<string>(),Id,Arg.Any<byte[]?>(),Arg.Any<CancellationToken>()).Returns(UiOperationResult<ScheduledTaskRunPageUiModel>.Success(new([Run],null)));
   service.LoadOutputAsync(Arg.Any<string>(),Arg.Any<string>(),Id,Run,Arg.Any<long>(),Arg.Any<CancellationToken>()).Returns(call=>UiOperationResult<ScheduledTaskOutputPageUiModel>.Success(call.ArgAt<long>(4)==0?new("first line\n",11,false,true):new("last line",20,true,true)));
   service.PreviewAsync(Arg.Any<ScheduledTaskScheduleUiModel>(),Arg.Any<CancellationToken>()).Returns(UiOperationResult<ScheduledTaskPreviewUiModel>.Success(new(true,[],[DateTimeOffset.Parse("2026-10-14T21:01:00Z")])));
-  service.SetEnabledAsync(Id,7,true,Arg.Any<CancellationToken>()).Returns(UiOperationResult.Success());return service;
+  service.SetEnabledAsync(Id,7,true,"Development","development",Arg.Any<CancellationToken>()).Returns(UiOperationResult.Success());return service;
  }
  static ContractEditorIntent Intent(string action)=>new(1,Guid.NewGuid(),"scheduled-tasks",action,1,Id.ToString("D"),new(){["environment"]="Development",["hostId"]="development",["runId"]=RunId.ToString("D")});
  [Fact] public async Task Shared_model_preserves_task_revision_and_full_output_paging()
@@ -26,7 +26,7 @@ public class ScheduledTaskBridgeTests
   await session.ExecuteAsync(Intent("load"));var history=await session.ExecuteAsync(Intent("history"));Assert.Contains("Succeeded",MessagePack.MessagePackSerializer.ConvertToJson(history.Documents["runs"]));
   var first=await session.ExecuteAsync(Intent("output"));Assert.Equal("first line\n",first.Context!["output"]);Assert.Equal("False",first.Context["outputEnd"]);
   var final=await session.ExecuteAsync(Intent("more-output"));Assert.Equal("first line\nlast line",final.Context!["output"]);Assert.Equal("True",final.Context["outputEnd"]);
-  await session.ExecuteAsync(Intent("enable"));await service.Received(1).SetEnabledAsync(Id,7,true,Arg.Any<CancellationToken>());
+  await session.ExecuteAsync(Intent("enable"));await service.Received(1).SetEnabledAsync(Id,7,true,"Development","development",Arg.Any<CancellationToken>());
   Assert.DoesNotContain(service.ReceivedCalls(),x=>x.GetMethodInfo().Name==nameof(IScheduledTaskService.RunNowAsync));
  }
  [Fact] public async Task Selection_host_and_output_continuations_are_fenced()

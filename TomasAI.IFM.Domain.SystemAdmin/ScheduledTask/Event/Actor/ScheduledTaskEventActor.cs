@@ -1,3 +1,7 @@
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Event;
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Event;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events;
 using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
@@ -34,10 +38,10 @@ public sealed class ScheduledTaskEventActor(IEventActorContext<ScheduledTaskEven
         [ScheduledTaskRunAdmittedFailEvent.Verb] = message => message.AsEvent<ScheduledTaskRunAdmittedFailEvent>()!,
         [ScheduledTaskRunReleasedCompleteEvent.Verb] = message => message.AsEvent<ScheduledTaskRunReleasedCompleteEvent>()!,
         [ScheduledTaskRunReleasedFailEvent.Verb] = message => message.AsEvent<ScheduledTaskRunReleasedFailEvent>()!,
-        [ScheduledTaskProjectRegisteredCompleteEvent.Verb] = message => message.AsEvent<ScheduledTaskProjectRegisteredCompleteEvent>()!,
-        [ScheduledTaskProjectRegisteredFailEvent.Verb] = message => message.AsEvent<ScheduledTaskProjectRegisteredFailEvent>()!,
-        [ScheduledTaskHostCapabilityRecordedCompleteEvent.Verb] = message => message.AsEvent<ScheduledTaskHostCapabilityRecordedCompleteEvent>()!,
-        [ScheduledTaskHostCapabilityRecordedFailEvent.Verb] = message => message.AsEvent<ScheduledTaskHostCapabilityRecordedFailEvent>()!,
+        [ScheduledTaskCatalogProjectRegisteredCompleteEvent.Verb] = message => message.AsEvent<ScheduledTaskCatalogProjectRegisteredCompleteEvent>()!,
+        [ScheduledTaskCatalogProjectRegisteredFailEvent.Verb] = message => message.AsEvent<ScheduledTaskCatalogProjectRegisteredFailEvent>()!,
+        [ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent.Verb] = message => message.AsEvent<ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent>()!,
+        [ScheduledTaskCatalogHostCapabilityRecordedFailEvent.Verb] = message => message.AsEvent<ScheduledTaskCatalogHostCapabilityRecordedFailEvent>()!,
         [ScheduledTaskRunRequestedCompleteEvent.Verb] = message => message.AsEvent<ScheduledTaskRunRequestedCompleteEvent>()!,
         [ScheduledTaskRunRequestedFailEvent.Verb] = message => message.AsEvent<ScheduledTaskRunRequestedFailEvent>()!,
         [ScheduledTaskRunAdmissionRecordedCompleteEvent.Verb] = message => message.AsEvent<ScheduledTaskRunAdmissionRecordedCompleteEvent>()!,
@@ -73,10 +77,10 @@ public sealed class ScheduledTaskEventActor(IEventActorContext<ScheduledTaskEven
         [typeof(ScheduledTaskRunAdmittedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunAdmittedFailEvent)domainEvent).ExecuteAsync(owner),
         [typeof(ScheduledTaskRunReleasedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunReleasedCompleteEvent)domainEvent).ExecuteAsync(owner),
         [typeof(ScheduledTaskRunReleasedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunReleasedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskProjectRegisteredCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskProjectRegisteredCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskProjectRegisteredFailEvent)] = (domainEvent, owner) => ((ScheduledTaskProjectRegisteredFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskHostCapabilityRecordedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskHostCapabilityRecordedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskHostCapabilityRecordedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskHostCapabilityRecordedFailEvent)domainEvent).ExecuteAsync(owner),
+        [typeof(ScheduledTaskCatalogProjectRegisteredCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskCatalogProjectRegisteredCompleteEvent)domainEvent).ExecuteAsync(owner),
+        [typeof(ScheduledTaskCatalogProjectRegisteredFailEvent)] = (domainEvent, owner) => ((ScheduledTaskCatalogProjectRegisteredFailEvent)domainEvent).ExecuteAsync(owner),
+        [typeof(ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent)domainEvent).ExecuteAsync(owner),
+        [typeof(ScheduledTaskCatalogHostCapabilityRecordedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskCatalogHostCapabilityRecordedFailEvent)domainEvent).ExecuteAsync(owner),
         [typeof(ScheduledTaskRunRequestedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunRequestedCompleteEvent)domainEvent).ExecuteAsync(owner),
         [typeof(ScheduledTaskRunRequestedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunRequestedFailEvent)domainEvent).ExecuteAsync(owner),
         [typeof(ScheduledTaskRunAdmissionRecordedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunAdmissionRecordedCompleteEvent)domainEvent).ExecuteAsync(owner),

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.ServiceApi;
@@ -49,9 +50,13 @@ public sealed class ScheduledTaskService(IScheduledTaskCommandApi commands, ISch
         return Map(result);
     }
     /// <inheritdoc />
-    public async ValueTask<UiOperationResult> SetEnabledAsync(Guid id, long expectedRevision, bool enabled, CancellationToken cancellationToken = default) => Map(enabled
-        ? await commands.EnableScheduledTaskAsync(new() { CommandId = Guid.NewGuid(), EntityId = new(id), ExpectedRevision = expectedRevision, Operator = Environment.UserName }, cancellationToken).ConfigureAwait(false)
-        : await commands.DisableScheduledTaskAsync(new() { CommandId = Guid.NewGuid(), EntityId = new(id), ExpectedRevision = expectedRevision, Operator = Environment.UserName }, cancellationToken).ConfigureAwait(false));
+    public async ValueTask<UiOperationResult> SetEnabledAsync(Guid id, long expectedRevision, bool enabled, string environment, string hostId, CancellationToken cancellationToken = default)
+    {
+        if (!enabled) return Map(await commands.DisableScheduledTaskAsync(new() { CommandId = Guid.NewGuid(), EntityId = new(id), ExpectedRevision = expectedRevision, Operator = Environment.UserName }, cancellationToken).ConfigureAwait(false));
+        var evidence = await queries.GetScheduledTaskCatalogAsync(new() { Environment = environment, HostId = hostId }, cancellationToken).ConfigureAwait(false);
+        if (!evidence.Success || evidence.Value is null) return UiOperationResult.Failure(evidence.ErrorCode, evidence.ErrorMessage);
+        return Map(await commands.EnableScheduledTaskAsync(new() { CommandId = Guid.NewGuid(), EntityId = new(id), ExpectedRevision = expectedRevision, Operator = Environment.UserName, CatalogEvidence = evidence.Value }, cancellationToken).ConfigureAwait(false));
+    }
     /// <inheritdoc />
     public async ValueTask<UiOperationResult> RemoveAsync(Guid id, long expectedRevision, CancellationToken cancellationToken = default) => Map(await commands.RemoveScheduledTaskAsync(new() { CommandId = Guid.NewGuid(), EntityId = new(id), ExpectedRevision = expectedRevision, Operator = Environment.UserName }, cancellationToken).ConfigureAwait(false));
     /// <inheritdoc />

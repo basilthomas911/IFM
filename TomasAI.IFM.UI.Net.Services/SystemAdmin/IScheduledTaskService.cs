@@ -14,7 +14,7 @@ public interface IScheduledTaskService
     /// <summary>Creates or changes a disabled/desired schedule using optimistic source revision.</summary>
     ValueTask<UiOperationResult> SaveAsync(Guid? id, long expectedRevision, ScheduledTaskScheduleUiModel schedule, CancellationToken cancellationToken = default);
     /// <summary>Requests enable or disable without claiming runtime installation.</summary>
-    ValueTask<UiOperationResult> SetEnabledAsync(Guid id, long expectedRevision, bool enabled, CancellationToken cancellationToken = default);
+    ValueTask<UiOperationResult> SetEnabledAsync(Guid id, long expectedRevision, bool enabled, string environment, string hostId, CancellationToken cancellationToken = default);
     /// <summary>Removes a disabled schedule while retaining its source audit history.</summary>
     ValueTask<UiOperationResult> RemoveAsync(Guid id, long expectedRevision, CancellationToken cancellationToken = default);
     /// <summary>Requests a manually identified occurrence through the same actor admission workflow.</summary>

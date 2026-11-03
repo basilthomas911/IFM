@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace TomasAI.IFM.IntegrationTesting;
 
 /// <summary>
-/// Owns an isolated PostgreSQL, Redis, NATS/JetStream, and Cassandra-compatible CQL
+/// Owns an isolated PostgreSQL, Redis, NATS/JetStream, and ScyllaDB CQL
 /// environment whose host ports and data namespaces are unique to one test run.
 /// </summary>
 public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
@@ -14,11 +14,12 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
     const string PostgresImage = "postgres:17.2";
     const string RedisImage = "redis:latest";
     const string NatsImage = "nats:2.12.0-alpine";
-    const string CqlImage = "cassandra:5.0";
+    const string CassandraImage = "cassandra:5.0";
     const string ScyllaImage = "scylladb/scylla:6.2.2";
 
-    readonly bool useScylla = string.Equals(Environment.GetEnvironmentVariable("IFM_TEST_CQL_ENGINE"),
-        "Scylla", StringComparison.OrdinalIgnoreCase);
+    // ScyllaDB is the application target. Cassandra compatibility runs require explicit opt-in.
+    readonly bool useScylla = !string.Equals(Environment.GetEnvironmentVariable("IFM_TEST_CQL_ENGINE"),
+        "Cassandra", StringComparison.OrdinalIgnoreCase);
 
     readonly string scope;
     readonly string runId = Guid.NewGuid().ToString("N")[..12];
@@ -109,7 +110,7 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             else
                 await (DockerAsync(["run", "--detach", "--rm", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::9042", "--memory", "2g", "--env", "MAX_HEAP_SIZE=512M",
-                    "--env", "HEAP_NEWSIZE=100M", CqlImage])).ConfigureAwait(false);
+                    "--env", "HEAP_NEWSIZE=100M", CassandraImage])).ConfigureAwait(false);
 
             PostgresPort = await (MappedPortAsync(PostgresContainer, "5432/tcp")).ConfigureAwait(false);
             var redisPort = await (MappedPortAsync(RedisContainer, "6379/tcp")).ConfigureAwait(false);

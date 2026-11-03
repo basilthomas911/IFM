@@ -37,7 +37,7 @@
   },
   {
     "name": "scheduled-run",
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun, TomasAI.IFM.Application.Contracts.SystemAdmin, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun, TomasAI.IFM.Application.Contracts.SystemAdmin, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
     "rawLength": 229,
     "wireLength": 180
   },

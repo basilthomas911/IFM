@@ -1,3 +1,9 @@
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Query;
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Query;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Queries;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries;

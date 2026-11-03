@@ -41,6 +41,36 @@ impl MarketData {
         stop: &CancellationToken,
         deadline: Deadline,
     ) -> Result<Value, String> {
+        // A browser owns desired coverage, not a physical generation. Coverage
+        // expansion may retire its first snapshot; observe the replacement and
+        // issue a fresh fenced capture without extending the caller's deadline.
+        let mut changes = self.health(Lane::OptionsGlbx).subscribe();
+        loop {
+            changes.borrow_and_update();
+            let result = deadline
+                .run(stop, self.browser_result_once(command, stop, deadline))
+                .await
+                .map_err(|_| "Native browser capture DeadlineExpired: Snapshot".to_owned())?;
+            match result {
+                Err(error) if error == "Native browser capture Recovering: GenerationId" => {
+                    deadline
+                        .run(stop, changes.changed())
+                        .await
+                        .map_err(|_| "Native browser capture DeadlineExpired: Snapshot".to_owned())?
+                        .map_err(|_| "Native browser source ended".to_owned())?;
+                }
+                result => return result,
+            }
+        }
+    }
+
+    /// Captures exactly one generation; retirement remains a fenced failure.
+    async fn browser_result_once(
+        &self,
+        command: &Command,
+        stop: &CancellationToken,
+        deadline: Deadline,
+    ) -> Result<Value, String> {
         self.wait_ready(Lane::OptionsGlbx, false).await?;
         if command.release {
             return Ok(reply(

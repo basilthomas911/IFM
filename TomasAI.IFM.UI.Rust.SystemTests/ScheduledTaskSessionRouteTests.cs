@@ -17,7 +17,7 @@ public sealed class ScheduledTaskSessionRouteTests
         service.LoadRunHistoryAsync(Arg.Any<string>(),Arg.Any<string>(),Arg.Any<Guid>(),Arg.Any<byte[]?>(),Arg.Any<CancellationToken>()).Returns(UiOperationResult<ScheduledTaskRunPageUiModel>.Success(new([run],[1])));
         service.PreviewAsync(Arg.Any<ScheduledTaskScheduleUiModel>(),Arg.Any<CancellationToken>()).Returns(UiOperationResult<ScheduledTaskPreviewUiModel>.Success(new(true,[],[DateTimeOffset.UtcNow.AddDays(1)])));
         service.SaveAsync(Arg.Any<Guid?>(),Arg.Any<long>(),Arg.Any<ScheduledTaskScheduleUiModel>(),Arg.Any<CancellationToken>()).Returns(UiOperationResult.Success());
-        service.SetEnabledAsync(Arg.Any<Guid>(),Arg.Any<long>(),Arg.Any<bool>(),Arg.Any<CancellationToken>()).Returns(UiOperationResult.Success());
+        service.SetEnabledAsync(Arg.Any<Guid>(),Arg.Any<long>(),Arg.Any<bool>(),Arg.Any<string>(),Arg.Any<string>(),Arg.Any<CancellationToken>()).Returns(UiOperationResult.Success());
         service.RemoveAsync(Arg.Any<Guid>(),Arg.Any<long>(),Arg.Any<CancellationToken>()).Returns(UiOperationResult.Success());
         service.RunNowAsync(Arg.Any<ScheduledTaskDefinitionUiModel>(),Arg.Any<CancellationToken>()).Returns(UiOperationResult.Success());
         service.ResolveUncertainAsync(Arg.Any<ScheduledTaskRunUiModel>(),Arg.Any<string>(),Arg.Any<CancellationToken>()).Returns(UiOperationResult.Success());
@@ -28,8 +28,8 @@ public sealed class ScheduledTaskSessionRouteTests
         foreach(var action in new[]{"preview","add","change","enable","disable","run","history","next","output","more-output","resolve","remove"})await session.ExecuteAsync(new(1,Guid.NewGuid(),"scheduled-tasks",action,0,id.ToString("D"),new(fields)));
         await service.Received(1).SaveAsync(null,0,Arg.Any<ScheduledTaskScheduleUiModel>(),Arg.Any<CancellationToken>());
         await service.Received(1).SaveAsync(id,7,Arg.Any<ScheduledTaskScheduleUiModel>(),Arg.Any<CancellationToken>());
-        await service.Received(1).SetEnabledAsync(id,7,true,Arg.Any<CancellationToken>());
-        await service.Received(1).SetEnabledAsync(id,7,false,Arg.Any<CancellationToken>());
+        await service.Received(1).SetEnabledAsync(id,7,true,"Development","development",Arg.Any<CancellationToken>());
+        await service.Received(1).SetEnabledAsync(id,7,false,"Development","development",Arg.Any<CancellationToken>());
         await service.Received(1).RunNowAsync(definition,Arg.Any<CancellationToken>());
         await service.Received(1).LoadOutputAsync("Development","development",id,run,15,Arg.Any<CancellationToken>());
         await service.Received(1).ResolveUncertainAsync(run,"Reviewed interrupted fixture",Arg.Any<CancellationToken>());

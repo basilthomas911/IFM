@@ -62,7 +62,11 @@ impl TradeData {
             let month =
                 NaiveDate::from_ymd_opt(context.value_date.year(), context.value_date.month(), 1)
                     .ok_or("Invalid API month")?;
-            next.from = Some(month);
+            next.from = Some(
+                month
+                    .checked_sub_months(Months::new(1))
+                    .ok_or("Trade range exceeds the backend calendar")?,
+            );
             next.through = Some(
                 month
                     .checked_add_months(Months::new(1))

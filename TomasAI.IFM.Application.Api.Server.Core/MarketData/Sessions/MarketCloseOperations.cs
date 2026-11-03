@@ -80,11 +80,14 @@ public sealed class MarketCloseOperations : IMarketCloseOperations
 
     public async Task StopFeedsAsync(DateOnly valueDate, CancellationToken token)
     {
+        // Withdraw durable trade demand while its native owner still exists.
+        // Stopping the owner first makes subsequent leg releases target a
+        // retired controller and can abort the rest of market close.
+        if (market is not null) await market.CloseTradeFeedRecoveryAsync(valueDate, token).ConfigureAwait(false);
         var stopped = await completion.ExecuteAsync<MarketDataFeedStoppedCompleteEvent, MarketDataFeedStoppedFailEvent>(
             MarketDataFeedStoppedCompleteEvent.Actor, MarketDataFeedStoppedCompleteEvent.Verb, MarketDataFeedStoppedFailEvent.Verb,
             () => feeds.StopMarketDataFeedAsync(valueDate), token).ConfigureAwait(false);
         if (stopped.ValueDate != valueDate) throw new InvalidOperationException("Feed stop completed for another value date.");
-        if (market is not null) await market.CloseTradeFeedRecoveryAsync(valueDate, token).ConfigureAwait(false);
     }
 
     public async Task RecordStageAsync(Guid runId, DateOnly valueDate, string stage, string detail, CancellationToken token)

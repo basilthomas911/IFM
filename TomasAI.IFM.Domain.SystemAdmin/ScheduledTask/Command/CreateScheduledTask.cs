@@ -1,45 +1,59 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.Model;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.Actor;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command;
-/// <summary>Computes and applies the CreateScheduledTask operation through its source event.</summary>
+/// <summary>Handles the CreateScheduledTask command through one explicit decision and event application.</summary>
 public static class CreateScheduledTask
 {
-    /// <summary>Checks failure guards before applying the single computed business event.</summary>
-    /// <param name="command">The requested operation and originating command identity.</param>
-    /// <param name="state">The owning command state reconstructed from persisted events.</param>
-    /// <param name="now">The current UTC instant supplied by the actor clock.</param>
-    /// <param name="catalog">Persisted host deployment facts used for admission.</param>
-    /// <returns>The command identity, or the rejected calculation/application reason.</returns>
+    /// <summary>Computes the business change, rejects failed guards and applies one source event to the owning state.</summary>
+    /// <param name="command">The concrete operation and originating command identity.</param>
+    /// <param name="context">The owning actor's explicit services and clock.</param>
+    /// <param name="state">The aggregate reconstructed from committed source events.</param>
+    /// <returns>The command acknowledgement; the repository owns subsequent persistence.</returns>
     public static ServiceResult<GuidResult> Execute(this CreateScheduledTaskCommand command,
-        ScheduledTaskCommandState state, DateTimeOffset now, ScheduledTaskCatalog? catalog)
+        ICommandActorContext<ScheduledTaskCommandActor> context, ScheduledTaskCommandState state)
     {
         ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(state);
+        var owner = context as ScheduledTaskCommandContext ?? throw new ArgumentException("Typed scheduled-task context required.", nameof(context));
+        var now = owner.Clock.GetUtcNow();
         var errorMsg = "ScheduledTask.STATE.APPLY_FAILED;unable to apply CreateScheduledTask event";
-        var updated = command.Compute(state.ScheduledTaskDefinition, now, catalog, out var model) switch
+        var updated = command.Compute(state.ScheduledTaskDefinition, now, out var scheduledTaskChange) switch
         {
-            _ when !model.Accepted => command.UpdateFailed(ref errorMsg, model.RejectionReason),
-            _ when !model.IsValidFor(command.EntityId) => command.UpdateFailed(ref errorMsg, "ScheduledTask.IDENTITY.INVALID;computed aggregate identity is invalid"),
-            _ => state.Update(command.CreateScheduledTaskCreatedEvent(model), command)
+            _ when !scheduledTaskChange.Accepted => command.UpdateFailed(ref errorMsg, scheduledTaskChange.RejectionReason),
+            _ when !scheduledTaskChange.IsValidFor(command.EntityId) => command.UpdateFailed(ref errorMsg, "ScheduledTask.IDENTITY.INVALID;computed aggregate identity is invalid"),
+            _ => state.Update(command.CreateScheduledTaskCreatedEvent(scheduledTaskChange), command)
         };
         return updated
             ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
             : command.UpdateFailed($"{command.CommandName}: {errorMsg}");
     }
-    /// <summary>Produces a business model without mutating state or performing I/O.</summary>
+
+    /// <summary>Computes the proposed scheduled-task definition without mutating state or performing I/O.</summary>
+    /// <param name="command">The concrete operation and originating identity.</param>
+    /// <param name="current">The accepted business snapshot; computation never mutates it.</param>
+    /// <param name="now">The explicit UTC instant from the owning actor clock.</param>
+    /// <param name="scheduledTaskChange">The proposed business change or classified rejection.</param>
+    /// <returns>Whether a proposed change was accepted.</returns>
     internal static bool Compute(this CreateScheduledTaskCommand command, ScheduledTaskDefinition? current,
-        DateTimeOffset now, ScheduledTaskCatalog? catalog, out ScheduledTaskChange model)
+        DateTimeOffset now, out ScheduledTaskChange scheduledTaskChange)
     {
-        model = ScheduledTaskComputation.Compute(command, current, now, catalog);
-        return model.Accepted;
+        scheduledTaskChange = ScheduledTaskComputation.Compute(command, current, now);
+        return scheduledTaskChange.Accepted;
     }
     /// <summary>Creates the source event with the originating command identity and calculated payload.</summary>
-    internal static ScheduledTaskCreatedEvent CreateScheduledTaskCreatedEvent(this CreateScheduledTaskCommand command, ScheduledTaskChange model) => new()
+    /// <param name="command">The concrete operation and originating identity.</param>
+    /// <param name="scheduledTaskChange">The proposed definition or classified rejection.</param>
+    /// <returns>The source event carrying the command identity and accepted business payload.</returns>
+    internal static ScheduledTaskCreatedEvent CreateScheduledTaskCreatedEvent(this CreateScheduledTaskCommand command, ScheduledTaskChange scheduledTaskChange) => new()
     {
         CommandId = command.CommandId,
         OperationCommandId = command.OperationCommandId == Guid.Empty ? command.CommandId : command.OperationCommandId,
@@ -47,6 +61,6 @@ public static class CreateScheduledTask
         EntityId = command.EntityId,
         AggregateId = command.EntityId.Format(),
         EventSource = command.EventSource,
-        ScheduledTaskDefinition = model.ScheduledTaskDefinition
+        ScheduledTaskDefinition = scheduledTaskChange.ScheduledTaskDefinition
     };
 }

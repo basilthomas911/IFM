@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using System.Reflection;
 using System.Text.Json;
 using MessagePack;
@@ -32,7 +33,7 @@ internal static class ScheduledFixtures {
   public ValueTask<UiOperationResult<ScheduledTaskRunPageUiModel>> LoadRunHistoryAsync(string environment,string hostId,Guid scheduleId,byte[]? pagingState,CancellationToken cancellationToken=default)=>ValueTask.FromResult(UiOperationResult<ScheduledTaskRunPageUiModel>.Success(new([MapRun(Run)],[1])));
   public ValueTask<UiOperationResult<ScheduledTaskOutputPageUiModel>> LoadOutputAsync(string environment,string hostId,Guid scheduleId,ScheduledTaskRunUiModel run,long offset,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
   public ValueTask<UiOperationResult> SaveAsync(Guid? id,long revision,ScheduledTaskScheduleUiModel schedule,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
-  public ValueTask<UiOperationResult> SetEnabledAsync(Guid id,long revision,bool enabled,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
+  public ValueTask<UiOperationResult> SetEnabledAsync(Guid id,long revision,bool enabled,string environment,string hostId,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
   public ValueTask<UiOperationResult> RemoveAsync(Guid id,long revision,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
   public ValueTask<UiOperationResult> RunNowAsync(ScheduledTaskDefinitionUiModel definition,CancellationToken cancellationToken=default)=>throw new NotSupportedException();
   public ValueTask<UiOperationResult> ResolveUncertainAsync(ScheduledTaskRunUiModel run,string reason,CancellationToken cancellationToken=default)=>throw new NotSupportedException();

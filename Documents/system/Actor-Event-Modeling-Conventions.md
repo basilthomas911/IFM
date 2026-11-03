@@ -1,4 +1,4 @@
-﻿# Actor Event Modeling Conventions
+# Actor Event Modeling Conventions
 
 **Status:** Initial high-level convention  
 **Applies to:** Command, query, and event extension handlers; domain command actors, their event-sourced states, event projectors, and public lifecycle events
@@ -12,6 +12,19 @@ An externally meaningful operation has one named command contract, one stable ac
 The command contract carries the identity, expected generation, operator, reason, and bounded deadline needed to validate and audit its own intent. A caller may expose a convenience method that selects a concrete command, but no generic operation-envelope command crosses the actor boundary. Unsupported intent is not advertised as a successful operation.
 
 ## 2. One event family per operation
+
+Domain event type names must start with the owning CommandActor's business name, removing only
+the `CommandActor` suffix. Use the most specific aggregate owner: `ScheduledTask...Event`,
+`ScheduledTaskRun...Event`, and `ScheduledTaskCatalog...Event` belong to their respective owners.
+For example, the catalog owner emits `ScheduledTaskCatalogProjectRegisteredEvent` and
+`ScheduledTaskCatalogHostCapabilityRecordedEvent`. Matching Complete/Fail event types keep that
+owner prefix. The EventActor that delivers notifications does not determine source-event ownership.
+
+When renaming existing event types, preserve persisted EventName/EventTypeName write identities,
+register every historical type spelling as a read alias, and retain MessagePack keys and published
+actor/verb routes. Update snapshot selection, projectors, consumers, and contract metadata together.
+Verify historical payload decoding, snapshot lookup aliases and replay before completing the rename.
+Renaming a CLR type alone must not require rewriting stored events or break older consumers.
 
 Each operation records its accepted intent or completed domain decision in a private source event and has separate public Complete and Fail event contracts. A cohesive operation family may share one private source-event schema when that event carries an explicit operation kind and all operation-specific outcome fields; the shared source schema is not a generic public command or public terminal event. A Complete event means the operation reached its defined success condition; a Fail event contains a stable failure classification and reason. A command reply reports only command acceptance or failure and its command ID. It is not a substitute for the operation's projected lifecycle outcome.
 
@@ -30,6 +43,45 @@ Only a CommandActor owns and changes authoritative actor state. Its state belong
 An EventActor that receives an event requiring an authoritative state change sends a concrete command to the owning CommandActor. It must not update that state or its store directly, or invoke the state model on the CommandActor's behalf. The command then follows normal mailbox ordering, validation, event application, and persistence. Its resulting events must be distinct from the triggering event, with correlation and idempotency rules that prevent a command/event feedback loop.
 
 QueryActors do not mutate authoritative state. An EventProjector may write a rebuildable read model after a source event is committed; that projection is not the CommandActor's authoritative state. Likewise, an independent operational service may retain observations for monitoring, but a resulting change to actor-owned state still requires a concrete command. Do not create `Event/State` or `Query/State` as an alternative authority. The detailed actor layout is defined in [Actor Implementation Conventions](Actor-Implementation-Conventions.md).
+
+A CommandActor owns a single concrete authoritative state type unless an overriding domain reason
+for multiple state types is explicitly documented and tested. Separate independent aggregate owners
+into separate actors and give each its own subdomain `Command/State` hierarchy. This restriction
+concerns state ownership, not the number of business fields or child records inside one aggregate.
+See [the single-state command actor rule](Actor-Implementation-Conventions.md#13111-one-command-actor-one-authoritative-state)
+for exception requirements and the ScheduledTask/Run/Catalog layout.
+
+### 4.1 Command decisions use owned state and explicit command parameters
+
+Command handler extension processing must depend only on the owning actor's current state and the
+parameters carried by the concrete command for its business-state inputs. A handler must not depend
+directly or indirectly on another CommandActor's state or command context.
+
+`ICommandActorContext` may expose global services. Their availability does not permit a handler to
+fetch another owner's business state through a repository, read store, query API, cache, singleton or
+another actor's context. Moving that lookup into `Compute`, a model, an extension helper, a context
+accessor or the receiving actor's dispatch code does not remove the dependency and does not satisfy
+this rule. The normal framework load of the receiving actor's own event-sourced state remains part
+of the command pipeline.
+
+When a decision needs state owned by another command context, the source producing the command
+must query the appropriate owner's read state before sending the command. It must include the
+required business snapshot or evidence as explicit, serialized command parameters. Pass data, not
+another actor's mutable state object, a context/service reference or a deferred lookup. The producer
+supplies facts; the receiving CommandActor retains the business decision and event application.
+
+The handler validates the supplied evidence, including required identity, revision/generation and
+observation time or freshness where applicable, against its own current state and command intent.
+Missing, mismatched or unacceptable evidence produces the defined business rejection without
+modifying state or adding pending events. Do not silently query another owner to fill missing inputs
+or refresh supplied evidence. Committed source events record the accepted business outcome; replay
+reconstructs owned state from those events without querying other owners again.
+
+For example, the producer of `AdmitScheduledTaskRunCommand` must obtain the Catalog owner's
+appropriate read state and include the host/deployment evidence required for admission in the
+command. The ScheduledTask handler then evaluates that evidence with its current schedule state;
+it must not call `ReadStore.GetCatalogAsync` to supply a missing command input. The same rule
+applies to `EnableScheduledTaskCommand` and every other command requiring another owner's state.
 
 ## 5. External side effects and uncertainty
 
@@ -58,7 +110,7 @@ For every operation family, test contract serialization, exact route mapping, va
 
 Use `AddFuturesContract` for command/event application ownership and `GenerateFuturesAdxDailySignal` for the clean compute/switch/updated-result structure. The Trade Order handlers demonstrate both conventions together.
 
-1. A command extension receives its concrete command and the owning `Command/State` object.
+1. A command extension exposes one `Execute` or `ExecuteAsync` handler receiving its concrete command and the owning `Command/State` object. Keep the decision and single state update visible there. Keep `Compute`, guards and source-event factories in that same command handler extension class. Reserve an `Extensions` folder for extensions on other objects, creating it only when needed; do not chain multiple handler overloads.
 2. `Compute` is a command extension accepting business data from state and returning a computation through a business-named `out` parameter. A stateless implementation may live in `Command/Model`. Computation must not mutate its inputs, actor state, pending events, storage, or external services.
 3. Check the computation result and, where required, a guard such as `tradeOrderChange.IsValidFor(command.EntityId)` before event creation or state application. Guards check acceptance, required domain data, ownership, and business validity. A rejected computation or guard must not create pending events or modify current state. Preserve the business rejection reason.
 4. Prefer a switch expression in `Execute`. Put all failure checks in `_ when` arms first; the final default `_` arm is the single event/state update expression. Capture its boolean result in `updated`.

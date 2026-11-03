@@ -1,3 +1,7 @@
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Command.EventProjector;
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Command.EventProjector;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;

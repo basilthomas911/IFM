@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 namespace TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 /// <summary>Writes read models only from committed scheduled-task source events.</summary>
 public interface IScheduledTaskProjectionWriter

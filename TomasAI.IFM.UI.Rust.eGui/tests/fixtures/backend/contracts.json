@@ -114546,6 +114546,12 @@
         "index": 12,
         "mapKey": null,
         "type": "System.String"
+      },
+      {
+        "name": "CatalogEvidence",
+        "index": 13,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
       }
     ],
     "actor": "ScheduledTaskCommand",
@@ -114613,7 +114619,7 @@
     "verb": "ChangeScheduledTaskSchedule"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.CompleteScheduledTaskRunCommand",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.CompleteScheduledTaskRunCommand",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -114881,13 +114887,19 @@
         "index": 6,
         "mapKey": null,
         "type": "System.Guid"
+      },
+      {
+        "name": "CatalogEvidence",
+        "index": 7,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
       }
     ],
     "actor": "ScheduledTaskCommand",
     "verb": "EnableScheduledTask"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.FailScheduledTaskRunCommand",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.FailScheduledTaskRunCommand",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -114984,7 +114996,7 @@
     "verb": "FailScheduledTaskRun"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskHostCapabilityCommand",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Commands.RecordScheduledTaskHostCapabilityCommand",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -115038,7 +115050,7 @@
         "name": "HostCapability",
         "index": 7,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability"
       }
     ],
     "actor": "ScheduledTaskCatalogCommand",
@@ -115191,7 +115203,7 @@
     "verb": "RecordScheduledTaskInstallationFailure"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskRunAdmissionCommand",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunAdmissionCommand",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -115319,7 +115331,7 @@
     "verb": "RecordScheduledTaskRunCompletion"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskRunStageCommand",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunStageCommand",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -115392,7 +115404,7 @@
     "verb": "RecordScheduledTaskRunStage"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskRunStartedCommand",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunStartedCommand",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -115459,7 +115471,7 @@
     "verb": "RecordScheduledTaskRunStarted"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskRunUncertainCommand",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunUncertainCommand",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -115544,7 +115556,7 @@
     "verb": "RecordScheduledTaskRunUncertain"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RegisterScheduledTaskProjectCommand",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Commands.RegisterScheduledTaskProjectCommand",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -115610,7 +115622,7 @@
         "name": "Project",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject"
       }
     ],
     "actor": "ScheduledTaskCatalogCommand",
@@ -115672,7 +115684,7 @@
     "verb": "RemoveScheduledTask"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RequestScheduledTaskRunCommand",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RequestScheduledTaskRunCommand",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -115794,7 +115806,7 @@
     "verb": null
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -115830,13 +115842,13 @@
         "name": "Projects",
         "index": 4,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject[]"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject[]"
       },
       {
         "name": "HostCapability",
         "index": 5,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability"
       }
     ],
     "actor": null,
@@ -115964,7 +115976,7 @@
     "verb": null
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskHostCapability",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -116063,7 +116075,7 @@
     "verb": null
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskOutputPage",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskOutputPage",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -116100,7 +116112,7 @@
     "verb": null
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskProject",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -116173,7 +116185,7 @@
     "verb": null
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -116239,7 +116251,7 @@
         "name": "Status",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRunStatus"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunStatus"
       },
       {
         "name": "StartedAtUtc",
@@ -116324,7 +116336,7 @@
     "verb": null
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRunPage",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunPage",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -116336,7 +116348,7 @@
         "name": "Runs",
         "index": 0,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun[]"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun[]"
       },
       {
         "name": "PagingState",
@@ -116349,7 +116361,7 @@
     "verb": null
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRunStatus",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunStatus",
     "isEnum": true,
     "errorId": null,
     "mapByName": false,
@@ -116524,7 +116536,7 @@
         "name": "Catalog",
         "index": 0,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
       },
       {
         "name": "Schedules",
@@ -116536,7 +116548,7 @@
         "name": "RecentRuns",
         "index": 2,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun[]"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun[]"
       },
       {
         "name": "ReadAtUtc",
@@ -116862,7 +116874,7 @@
     "verb": "ScheduledTaskEnabled"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskHostCapabilityRecordedEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain.ScheduledTaskCatalogHostCapabilityRecordedEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -116928,7 +116940,7 @@
         "name": "ScheduledTaskCatalog",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
       }
     ],
     "actor": "ScheduledTaskEvent",
@@ -117081,7 +117093,7 @@
     "verb": "ScheduledTaskInstallationRecorded"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskProjectRegisteredEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain.ScheduledTaskCatalogProjectRegisteredEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -117147,7 +117159,7 @@
         "name": "ScheduledTaskCatalog",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
       }
     ],
     "actor": "ScheduledTaskEvent",
@@ -117227,7 +117239,7 @@
     "verb": "ScheduledTaskRemoved"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunAdmissionRecordedEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunAdmissionRecordedEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -117293,7 +117305,7 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
@@ -117373,7 +117385,7 @@
     "verb": "ScheduledTaskRunAdmitted"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunCompletedEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunCompletedEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -117439,14 +117451,14 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunCompleted"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunFailedEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunFailedEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -117512,7 +117524,7 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
@@ -117592,7 +117604,7 @@
     "verb": "ScheduledTaskRunReleased"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunRequestedEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunRequestedEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -117658,14 +117670,14 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunRequested"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunStageRecordedEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunStageRecordedEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -117731,14 +117743,14 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunStageRecorded"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunStartedEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunStartedEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -117804,14 +117816,14 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunStarted"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunUncertainRecordedEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunUncertainRecordedEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -117877,7 +117889,7 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
@@ -118023,7 +118035,7 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskRuntime",
@@ -118576,7 +118588,7 @@
     "verb": "ScheduledTaskEnabledFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskHostCapabilityRecordedCompleteEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -118642,14 +118654,14 @@
         "name": "ScheduledTaskCatalog",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskHostCapabilityRecordedComplete"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskHostCapabilityRecordedFailEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogHostCapabilityRecordedFailEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -118715,7 +118727,7 @@
         "name": "ScheduledTaskCatalog",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
       },
       {
         "name": "ErrorCode",
@@ -119122,7 +119134,7 @@
     "verb": "ScheduledTaskInstallationRecordedFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskProjectRegisteredCompleteEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogProjectRegisteredCompleteEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -119188,14 +119200,14 @@
         "name": "ScheduledTaskCatalog",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskProjectRegisteredComplete"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskProjectRegisteredFailEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogProjectRegisteredFailEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -119261,7 +119273,7 @@
         "name": "ScheduledTaskCatalog",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskCatalog"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
       },
       {
         "name": "ErrorCode",
@@ -119486,7 +119498,7 @@
     "verb": "ScheduledTaskRemovedFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmissionRecordedCompleteEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunAdmissionRecordedCompleteEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -119552,14 +119564,14 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunAdmissionRecordedComplete"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmissionRecordedFailEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunAdmissionRecordedFailEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -119625,7 +119637,7 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       },
       {
         "name": "ErrorCode",
@@ -119850,7 +119862,7 @@
     "verb": "ScheduledTaskRunAdmittedFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunCompletedCompleteEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunCompletedCompleteEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -119916,14 +119928,14 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunCompletedComplete"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunCompletedFailEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunCompletedFailEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -119989,7 +120001,7 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       },
       {
         "name": "ErrorCode",
@@ -120032,7 +120044,7 @@
     "verb": "ScheduledTaskRunCompletedFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunFailedCompleteEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunFailedCompleteEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -120098,14 +120110,14 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunFailedComplete"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunFailedFailEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunFailedFailEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -120171,7 +120183,7 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       },
       {
         "name": "ErrorCode",
@@ -120396,7 +120408,7 @@
     "verb": "ScheduledTaskRunReleasedFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunRequestedCompleteEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunRequestedCompleteEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -120462,14 +120474,14 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunRequestedComplete"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunRequestedFailEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunRequestedFailEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -120535,7 +120547,7 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       },
       {
         "name": "ErrorCode",
@@ -120578,7 +120590,7 @@
     "verb": "ScheduledTaskRunRequestedFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStageRecordedCompleteEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStageRecordedCompleteEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -120644,14 +120656,14 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunStageRecordedComplete"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStageRecordedFailEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStageRecordedFailEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -120717,7 +120729,7 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       },
       {
         "name": "ErrorCode",
@@ -120760,7 +120772,7 @@
     "verb": "ScheduledTaskRunStageRecordedFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStartedCompleteEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStartedCompleteEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -120826,14 +120838,14 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunStartedComplete"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStartedFailEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStartedFailEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -120899,7 +120911,7 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       },
       {
         "name": "ErrorCode",
@@ -120942,7 +120954,7 @@
     "verb": "ScheduledTaskRunStartedFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunUncertainRecordedCompleteEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunUncertainRecordedCompleteEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -121008,14 +121020,14 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       }
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunUncertainRecordedComplete"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunUncertainRecordedFailEvent",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunUncertainRecordedFailEvent",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -121081,7 +121093,7 @@
         "name": "ScheduledTaskRun",
         "index": 9,
         "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskRun"
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
       },
       {
         "name": "ErrorCode",
@@ -121361,7 +121373,7 @@
     "verb": "GetScheduledMarketPositions"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.GetScheduledTaskCatalogQuery",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Queries.GetScheduledTaskCatalogQuery",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -121404,7 +121416,7 @@
     "verb": "GetScheduledTaskCatalog"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.GetScheduledTaskHostHealthQuery",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Queries.GetScheduledTaskHostHealthQuery",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -121447,7 +121459,7 @@
     "verb": "GetScheduledTaskHostHealth"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.GetScheduledTaskOutputQuery",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries.GetScheduledTaskOutputQuery",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -121551,7 +121563,7 @@
     "verb": "GetScheduledTask"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.GetScheduledTaskRunHistoryQuery",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries.GetScheduledTaskRunHistoryQuery",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -121606,7 +121618,7 @@
     "verb": "GetScheduledTaskRunHistory"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.GetScheduledTaskRunQuery",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries.GetScheduledTaskRunQuery",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,
@@ -121710,7 +121722,7 @@
     "verb": "GetScheduledTasksDashboard"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.ListScheduledTaskRunsQuery",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries.ListScheduledTaskRunsQuery",
     "isEnum": false,
     "errorId": null,
     "mapByName": false,

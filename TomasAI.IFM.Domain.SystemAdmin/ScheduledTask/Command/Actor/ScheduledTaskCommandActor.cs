@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.CommandPipeline;
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.Validation;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
@@ -30,90 +32,91 @@ public sealed class ScheduledTaskCommandActor(ICommandActorContext<ScheduledTask
     }.ToFrozenDictionary();
     private static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-            [typeof(CreateScheduledTaskCommand)] = command => Validate((CreateScheduledTaskCommand)command),
-            [typeof(ChangeScheduledTaskScheduleCommand)] = command => Validate((ChangeScheduledTaskScheduleCommand)command),
-            [typeof(EnableScheduledTaskCommand)] = command => Validate((EnableScheduledTaskCommand)command),
-            [typeof(DisableScheduledTaskCommand)] = command => Validate((DisableScheduledTaskCommand)command),
-            [typeof(RemoveScheduledTaskCommand)] = command => Validate((RemoveScheduledTaskCommand)command),
-            [typeof(RecordScheduledTaskInstallationCommand)] = command => Validate((RecordScheduledTaskInstallationCommand)command),
-            [typeof(RecordScheduledTaskInstallationFailureCommand)] = command => Validate((RecordScheduledTaskInstallationFailureCommand)command),
-            [typeof(AdmitScheduledTaskRunCommand)] = command => Validate((AdmitScheduledTaskRunCommand)command),
-            [typeof(RecordScheduledTaskRunCompletionCommand)] = command => Validate((RecordScheduledTaskRunCompletionCommand)command),
-    }.ToFrozenDictionary();
-    private static readonly IReadOnlyDictionary<Type, Func<ICommand, ScheduledTaskCommandContext, ScheduledTaskCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, ScheduledTaskCommandContext, ScheduledTaskCommandState, ValueTask<ServiceResult<GuidResult>>>>
-    {
-            [typeof(CreateScheduledTaskCommand)] = async (command, owner, state) =>
+            [typeof(CreateScheduledTaskCommand)] = command =>
             {
                 var typed = (CreateScheduledTaskCommand)command;
-                var schedule = typed.Schedule;
-                var catalog = schedule is null ? null : await owner.ReadStore.GetCatalogAsync(schedule.Environment, schedule.HostId).ConfigureAwait(false);
-                return typed.Execute(state, owner.Clock.GetUtcNow(), catalog);
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateScheduledTaskId(typed.EntityId, typed.CommandName)
+                    .ValidateScheduledTaskCommand(typed);
             },
-            [typeof(ChangeScheduledTaskScheduleCommand)] = async (command, owner, state) =>
+            [typeof(ChangeScheduledTaskScheduleCommand)] = command =>
             {
                 var typed = (ChangeScheduledTaskScheduleCommand)command;
-                var schedule = typed.Schedule;
-                var catalog = schedule is null ? null : await owner.ReadStore.GetCatalogAsync(schedule.Environment, schedule.HostId).ConfigureAwait(false);
-                return typed.Execute(state, owner.Clock.GetUtcNow(), catalog);
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateScheduledTaskId(typed.EntityId, typed.CommandName)
+                    .ValidateScheduledTaskCommand(typed);
             },
-            [typeof(EnableScheduledTaskCommand)] = async (command, owner, state) =>
+            [typeof(EnableScheduledTaskCommand)] = command =>
             {
                 var typed = (EnableScheduledTaskCommand)command;
-                var schedule = state.ScheduledTaskDefinition?.Schedule;
-                var catalog = schedule is null ? null : await owner.ReadStore.GetCatalogAsync(schedule.Environment, schedule.HostId).ConfigureAwait(false);
-                return typed.Execute(state, owner.Clock.GetUtcNow(), catalog);
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateScheduledTaskId(typed.EntityId, typed.CommandName)
+                    .ValidateScheduledTaskCommand(typed);
             },
-            [typeof(DisableScheduledTaskCommand)] = async (command, owner, state) =>
+            [typeof(DisableScheduledTaskCommand)] = command =>
             {
                 var typed = (DisableScheduledTaskCommand)command;
-                var schedule = state.ScheduledTaskDefinition?.Schedule;
-                var catalog = schedule is null ? null : await owner.ReadStore.GetCatalogAsync(schedule.Environment, schedule.HostId).ConfigureAwait(false);
-                return typed.Execute(state, owner.Clock.GetUtcNow(), catalog);
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateScheduledTaskId(typed.EntityId, typed.CommandName)
+                    .ValidateScheduledTaskCommand(typed);
             },
-            [typeof(RemoveScheduledTaskCommand)] = async (command, owner, state) =>
+            [typeof(RemoveScheduledTaskCommand)] = command =>
             {
                 var typed = (RemoveScheduledTaskCommand)command;
-                var schedule = state.ScheduledTaskDefinition?.Schedule;
-                var catalog = schedule is null ? null : await owner.ReadStore.GetCatalogAsync(schedule.Environment, schedule.HostId).ConfigureAwait(false);
-                return typed.Execute(state, owner.Clock.GetUtcNow(), catalog);
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateScheduledTaskId(typed.EntityId, typed.CommandName)
+                    .ValidateScheduledTaskCommand(typed);
             },
-            [typeof(RecordScheduledTaskInstallationCommand)] = async (command, owner, state) =>
+            [typeof(RecordScheduledTaskInstallationCommand)] = command =>
             {
                 var typed = (RecordScheduledTaskInstallationCommand)command;
-                var schedule = state.ScheduledTaskDefinition?.Schedule;
-                var catalog = schedule is null ? null : await owner.ReadStore.GetCatalogAsync(schedule.Environment, schedule.HostId).ConfigureAwait(false);
-                return typed.Execute(state, owner.Clock.GetUtcNow(), catalog);
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateScheduledTaskId(typed.EntityId, typed.CommandName)
+                    .ValidateScheduledTaskCommand(typed);
             },
-            [typeof(RecordScheduledTaskInstallationFailureCommand)] = async (command, owner, state) =>
+            [typeof(RecordScheduledTaskInstallationFailureCommand)] = command =>
             {
                 var typed = (RecordScheduledTaskInstallationFailureCommand)command;
-                var schedule = state.ScheduledTaskDefinition?.Schedule;
-                var catalog = schedule is null ? null : await owner.ReadStore.GetCatalogAsync(schedule.Environment, schedule.HostId).ConfigureAwait(false);
-                return typed.Execute(state, owner.Clock.GetUtcNow(), catalog);
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateScheduledTaskId(typed.EntityId, typed.CommandName)
+                    .ValidateScheduledTaskCommand(typed);
             },
-            [typeof(AdmitScheduledTaskRunCommand)] = async (command, owner, state) =>
+            [typeof(AdmitScheduledTaskRunCommand)] = command =>
             {
                 var typed = (AdmitScheduledTaskRunCommand)command;
-                var schedule = state.ScheduledTaskDefinition?.Schedule;
-                var catalog = schedule is null || !ScheduledTaskExecutionPolicy.RequiresAdmission(schedule.TaskKey, schedule.Environment) ? null : await owner.ReadStore.GetCatalogAsync(schedule.Environment, schedule.HostId).ConfigureAwait(false);
-                return typed.Execute(state, owner.Clock.GetUtcNow(), catalog);
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateScheduledTaskId(typed.EntityId, typed.CommandName)
+                    .ValidateScheduledTaskCommand(typed);
             },
-            [typeof(RecordScheduledTaskRunCompletionCommand)] = async (command, owner, state) =>
+            [typeof(RecordScheduledTaskRunCompletionCommand)] = command =>
             {
                 var typed = (RecordScheduledTaskRunCompletionCommand)command;
-                var schedule = state.ScheduledTaskDefinition?.Schedule;
-                var catalog = schedule is null ? null : await owner.ReadStore.GetCatalogAsync(schedule.Environment, schedule.HostId).ConfigureAwait(false);
-                return typed.Execute(state, owner.Clock.GetUtcNow(), catalog);
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateScheduledTaskId(typed.EntityId, typed.CommandName)
+                    .ValidateScheduledTaskCommand(typed);
             },
     }.ToFrozenDictionary();
-    /// <summary>Checks mandatory command and aggregate identities before loading state.</summary>
-    private static List<ValidationError> Validate(ICommand<ScheduledTaskId> command)
+    private static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<ScheduledTaskCommandActor>, ScheduledTaskCommandState, Task<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<ScheduledTaskCommandActor>, ScheduledTaskCommandState, Task<ServiceResult<GuidResult>>>>
     {
-        var errors = new List<ValidationError>();
-        if (command.CommandId == Guid.Empty) errors.Add(new("Command identity is required."));
-        if (!command.EntityId.IsValid) errors.Add(new("Scheduled-task aggregate identity is required."));
-        return errors;
-    }
+            [typeof(CreateScheduledTaskCommand)] = static (command, owner, state) => Task.FromResult(((CreateScheduledTaskCommand)command).Execute(owner, state)),
+            [typeof(ChangeScheduledTaskScheduleCommand)] = static (command, owner, state) => Task.FromResult(((ChangeScheduledTaskScheduleCommand)command).Execute(owner, state)),
+            [typeof(EnableScheduledTaskCommand)] = static (command, owner, state) => Task.FromResult(((EnableScheduledTaskCommand)command).Execute(owner, state)),
+            [typeof(DisableScheduledTaskCommand)] = static (command, owner, state) => Task.FromResult(((DisableScheduledTaskCommand)command).Execute(owner, state)),
+            [typeof(RemoveScheduledTaskCommand)] = static (command, owner, state) => Task.FromResult(((RemoveScheduledTaskCommand)command).Execute(owner, state)),
+            [typeof(RecordScheduledTaskInstallationCommand)] = static (command, owner, state) => Task.FromResult(((RecordScheduledTaskInstallationCommand)command).Execute(owner, state)),
+            [typeof(RecordScheduledTaskInstallationFailureCommand)] = static (command, owner, state) => Task.FromResult(((RecordScheduledTaskInstallationFailureCommand)command).Execute(owner, state)),
+            [typeof(AdmitScheduledTaskRunCommand)] = static (command, owner, state) => Task.FromResult(((AdmitScheduledTaskRunCommand)command).Execute(owner, state)),
+            [typeof(RecordScheduledTaskRunCompletionCommand)] = static (command, owner, state) => Task.FromResult(((RecordScheduledTaskRunCompletionCommand)command).Execute(owner, state)),
+    }.ToFrozenDictionary();
     /// <inheritdoc />
     protected override ValueTask OnStartup(ICommandActorContext<ScheduledTaskCommandActor> context) => _owner.EventProjector.StartAsync(context);
     /// <inheritdoc />
@@ -122,7 +125,13 @@ public sealed class ScheduledTaskCommandActor(ICommandActorContext<ScheduledTask
     protected override ICommand ParseMessage(ICommandActorContext<ScheduledTaskCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(ICommandActorContext<ScheduledTaskCommandActor> context, ActorThreadId threadId, ICommand command)
-    { ValidateMappedCommand(command, _validationMap); return ValueTask.CompletedTask; }
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(threadId);
+        ArgumentNullException.ThrowIfNull(command);
+        ValidateMappedCommand(command, _validationMap);
+        return ValueTask.CompletedTask;
+    }
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<ScheduledTaskCommandActor> context, ActorThreadId threadId, ICommand command) => await _owner.Repository.LoadStateAsync(command).ConfigureAwait(false);
     /// <inheritdoc />
@@ -132,7 +141,13 @@ public sealed class ScheduledTaskCommandActor(ICommandActorContext<ScheduledTask
     /// <inheritdoc />
     protected override ValueTask OnSaveStateAsync(ICommandActorContext<ScheduledTaskCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command, CancellationToken cancellationToken) => _owner.Repository.SaveStateAsync(context, (ScheduledTaskCommandState)state, command, cancellationToken);
     /// <inheritdoc />
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<ScheduledTaskCommandActor> context, IActorState state, ICommand command) => ResolveMappedCommandHandler(command, _receiveMap)(command, _owner, (ScheduledTaskCommandState)state);
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<ScheduledTaskCommandActor> context, IActorState state, ICommand command)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(command);
+        return await ResolveMappedCommandHandler(command, _receiveMap)(command, context, (ScheduledTaskCommandState)state).ConfigureAwait(false);
+    }
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<ScheduledTaskCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) 
     {

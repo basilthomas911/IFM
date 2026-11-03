@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using System.Security.Cryptography;
 using System.Text.Json;
 using MessagePack;
@@ -92,7 +94,8 @@ internal sealed class ScheduledTaskLocalTransaction(NpgsqlConnection connection,
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task<int> ExecuteAsync(string sql, object? [] parameters, CancellationToken token, PostgresQueryTimeout? timeout = null)
     {
-        await timeouts.ApplyAsync(timeout, token).ConfigureAwait(false);
+        await timeouts.ApplyAsync(timeout, token)
+            .ConfigureAwait(false);
         var command = new NpgsqlCommand(sql, connection, transaction) { CommandTimeout = 0 };
         await using var commandDisposal = command.ConfigureAwait(false);
         command.BindScheduledTaskParameters(parameters);
@@ -105,7 +108,8 @@ internal sealed class ScheduledTaskLocalTransaction(NpgsqlConnection connection,
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task<object?> ScalarAsync(string sql, object? [] parameters, CancellationToken token, PostgresQueryTimeout? timeout = null)
     {
-        await timeouts.ApplyAsync(timeout, token).ConfigureAwait(false);
+        await timeouts.ApplyAsync(timeout, token)
+            .ConfigureAwait(false);
         var command = new NpgsqlCommand(sql, connection, transaction) { CommandTimeout = 0 };
         await using var commandDisposal = command.ConfigureAwait(false);
         command.BindScheduledTaskParameters(parameters);
@@ -118,7 +122,8 @@ internal sealed class ScheduledTaskLocalTransaction(NpgsqlConnection connection,
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? [] parameters, Func<System.Data.Common.DbDataReader, T> map, CancellationToken token, PostgresQueryTimeout? timeout = null)
     {
-        await timeouts.ApplyAsync(timeout, token).ConfigureAwait(false);
+        await timeouts.ApplyAsync(timeout, token)
+            .ConfigureAwait(false);
         var command = new NpgsqlCommand(sql, connection, transaction) { CommandTimeout = 0 };
         await using var commandDisposal = command.ConfigureAwait(false);
         command.BindScheduledTaskParameters(parameters);

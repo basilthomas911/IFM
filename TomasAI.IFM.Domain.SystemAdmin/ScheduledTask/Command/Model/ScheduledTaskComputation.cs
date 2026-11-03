@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -5,9 +6,9 @@ namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.Model;
 /// <summary>Calculates desired configuration, installation acknowledgements and exclusive run admission.</summary>
 public static class ScheduledTaskComputation
 {
-    /// <summary>Computes one immutable definition change using explicit clock and persisted catalog inputs.</summary>
+    /// <summary>Computes one immutable definition change from owned state, command parameters and the actor clock.</summary>
     public static ScheduledTaskChange Compute(ICommand<ScheduledTaskId> command, ScheduledTaskDefinition? definition,
-        DateTimeOffset now, ScheduledTaskCatalog? catalog)
+        DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(command);
         if (!command.EntityId.IsValid || command.CommandId == Guid.Empty) return Reject("IDENTITY.INVALID", "command and schedule identities are required");
@@ -35,7 +36,7 @@ public static class ScheduledTaskComputation
         return command switch
         {
             ChangeScheduledTaskScheduleCommand c => Change(c, next, now),
-            EnableScheduledTaskCommand c => Enable(c, next, catalog, now),
+            EnableScheduledTaskCommand c => Enable(c, next, c.CatalogEvidence, now),
             DisableScheduledTaskCommand c => new(Desired(next with { Enabled = false }, c.Operator, Operation(c))),
             RemoveScheduledTaskCommand when definition.Enabled || definition.ActiveRunId is not null => Reject("REMOVE.ACTIVE", "disable schedule and resolve its active run before removal"),
             RemoveScheduledTaskCommand c => new(Desired(next with { Removed = true }, c.Operator, Operation(c))),
@@ -43,7 +44,7 @@ public static class ScheduledTaskComputation
             RecordScheduledTaskInstallationCommand c => new(next with { AppliedRevision = c.DesiredRevision, AppliedEnabled = c.AppliedEnabled, InstallationStatus = ScheduledTaskInstallationStatus.Applied, InstallationDetail = c.Detail, InstallationFingerprint = c.Fingerprint }),
             RecordScheduledTaskInstallationFailureCommand c when c.DesiredRevision != definition.DesiredRevision => Reject("INSTALLATION.STALE", "failure receipt belongs to an older desired revision"),
             RecordScheduledTaskInstallationFailureCommand c => new(next with { InstallationStatus = ScheduledTaskInstallationStatus.Failed, InstallationDetail = c.Detail }),
-            AdmitScheduledTaskRunCommand c => Admit(c, definition, next, catalog, now),
+            AdmitScheduledTaskRunCommand c => Admit(c, definition, next, c.CatalogEvidence, now),
             RecordScheduledTaskRunCompletionCommand c when definition.ActiveRunId != c.RunId => Reject("RUN.OWNER_MISMATCH", "completion does not own the admitted run"),
             RecordScheduledTaskRunCompletionCommand => new(next with { ActiveRunId = null }),
             _ => Reject("COMMAND.UNSUPPORTED", "unsupported schedule operation")
@@ -84,8 +85,11 @@ public static class ScheduledTaskComputation
     /// <summary>Checks persisted host freshness and reviewed artifact availability.</summary>
     private static ScheduledTaskChange? ValidateCatalog(ScheduledTaskDefinition definition, ScheduledTaskCatalog? catalog, DateTimeOffset now, out ScheduledTaskProject? project)
     {
-        project = catalog?.Projects.SingleOrDefault(p => string.Equals(p.TaskKey,definition.Schedule.TaskKey,StringComparison.Ordinal));
-        if (catalog is null || !string.Equals(catalog.HostId,definition.Schedule.HostId,StringComparison.Ordinal) || !string.Equals(catalog.Environment,definition.Schedule.Environment,StringComparison.Ordinal) || catalog.HostCapability is not { Ready: true } capability || !string.Equals(capability.HostId,catalog.HostId,StringComparison.Ordinal) || !string.Equals(capability.Environment,catalog.Environment,StringComparison.Ordinal) || capability.ObservedAtUtc > now || now - capability.ObservedAtUtc > TimeSpan.FromMinutes(2)) return Reject("HOST.UNAVAILABLE", "host capability is missing, stale or not ready");
+        project = null;
+        if (catalog is not null && (catalog.Id != ScheduledTaskIdentities.Catalog(definition.Schedule.Environment, definition.Schedule.HostId) || catalog.Revision <= 0)) return Reject("CATALOG.INVALID", "catalog evidence identity or revision is invalid");
+        if (catalog is null || !string.Equals(catalog.HostId,definition.Schedule.HostId,StringComparison.Ordinal) || !string.Equals(catalog.Environment,definition.Schedule.Environment,StringComparison.Ordinal) || catalog.HostCapability is not { Ready: true } capability || !string.Equals(capability.HostId,catalog.HostId,StringComparison.Ordinal) || !string.Equals(capability.Environment,catalog.Environment,StringComparison.Ordinal) || capability.Generation < 1 || string.IsNullOrWhiteSpace(capability.Platform) || capability.ObservedAtUtc > now || now - capability.ObservedAtUtc > TimeSpan.FromMinutes(2)) return Reject("HOST.UNAVAILABLE", "host capability is missing, stale or not ready");
+        var matches = catalog.Projects?.Where(p => p is not null && string.Equals(p.TaskKey, definition.Schedule.TaskKey, StringComparison.Ordinal)).Take(2).ToArray();
+        project = matches is { Length: 1 } ? matches[0] : null;
         if (project is null || !project.Available || string.IsNullOrWhiteSpace(project.ArtifactDigest) || string.IsNullOrWhiteSpace(project.ManifestVersion) || !string.Equals(project.Platform,catalog.HostCapability.Platform,StringComparison.Ordinal) || definition.Schedule.MaximumRuntimeSeconds > project.MaximumRuntimeSeconds) return Reject("ARTIFACT.UNAVAILABLE", "deployed artifact is unavailable, incompatible or exceeds its runtime bound");
         return null;
     }

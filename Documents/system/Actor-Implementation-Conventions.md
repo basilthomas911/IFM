@@ -1,4 +1,4 @@
-﻿# Actor Implementation Conventions
+# Actor Implementation Conventions
 
 **Document type:** System-wide implementation guide for all actor types  
 **Status:** Evolving design convention; EventActor, RealtimeActor, CommandActor, QueryActor, and FunctionActor conventions documented
@@ -709,6 +709,41 @@ The command extension owns the command-specific behavior. It examines the loaded
 
 The `ServiceResult<GuidResult>` is the command acknowledgement and carries the command ID. It is not a substitute for a workflow result that becomes authoritative only after durable event persistence and successful projection.
 
+#### 13.1.1.1 One command actor, one authoritative state
+
+A CommandActor owns one concrete authoritative event-sourced state type by default. Its context,
+repository, handlers, model and projector must express that same aggregate ownership. Do not switch
+between unrelated state types according to the incoming command or place several independent
+aggregate owners in one actor's `Command/State` folder.
+
+Distinct state owners become separate command actors under their complete subdomain hierarchy.
+For example, `ScheduledTask/Command` owns the schedule definition,
+`ScheduledTask/Run/Command` owns one run, and `ScheduledTask/Catalog/Command` owns the deployment
+catalog. Each has its own `Actor`, `State`, `Model`, `Validation` and `EventProjector` folders;
+contracts mirror the same ownership. Stateless cross-owner infrastructure belongs outside an
+individual owner's `Command/State` folder.
+
+Several business fields or child records within one aggregate do not constitute several authoritative
+state owners. Several actor instances partitioned by aggregate identity still use the same concrete
+state type. A deliberate exception allowing one actor to own multiple state types requires an
+overriding domain reason documented beside the actor and in its design: explain why separate actors
+cannot preserve the required invariant, define stream and transaction ownership, and provide replay,
+concurrency and failure-boundary tests. Convenience, shared dependencies or fewer classes are not
+sufficient reasons. Without that documented exception, implement one command actor with one state.
+
+#### 13.1.1.2 Cross-owner state is supplied by the command producer
+
+A command handler extension uses its owning actor's current state and explicit command parameters
+for business-state inputs. Although `ICommandActorContext` may provide global services, the handler
+must not use them to read another CommandActor's state or command context, including through a
+read store, query API or cache. Hiding the read in a helper, model or dispatch delegate is also invalid.
+
+The source producing the command queries the appropriate owner's read state and supplies the
+required evidence as serialized command parameters. The receiver validates that evidence and makes
+the decision against its own current state. It does not fetch or refresh missing cross-owner state.
+See [command decision inputs](Actor-Event-Modeling-Conventions.md#41-command-decisions-use-owned-state-and-explicit-command-parameters)
+for the full event-sourcing rule and the ScheduledTask admission example.
+
 #### 13.1.2 Explicit command maps
 
 Every derived CommandActor uses `_parseMap`, `_validationMap`, and `_receiveMap` as one
@@ -1021,7 +1056,20 @@ For an ordinary aggregate transition, the command extension exposes the processi
 3. construct the next immutable aggregate state and private domain event; and
 4. call `state.Update(domainEvent, command)` through `UpdatedOk`.
 
-The event-construction method remains in the same dedicated command extension class. A generic transition delegate or a newly allocated state-machine wrapper must not hide a small set of command-specific guards and updates. A state machine is appropriate only when the aggregate has a substantive reusable transition graph and its complete decision state can be reconstructed from durable events. Idempotency or deduplication data held only in a transient handler collection is invalid because it is lost between commands and after recovery.
+Each concrete command extension exposes one handler method: `Execute` for synchronous work or
+`ExecuteAsync` when it awaits real I/O. Keep preparation, failure guards, event application and the
+acknowledgement visible in that method; do not add an `ExecuteAsync -> Execute` wrapper chain.
+Keep the command's `Compute`, guards and source-event factory methods in the same dedicated
+command handler extension class and file. These are supporting methods on that command, not extra
+handler entry points. They must not be moved into a separate `Command/Extensions` class.
+
+Create an `Extensions` folder only when extensions on other objects are actually needed, such as
+actor contexts or supporting domain objects. Do not create one merely to split up methods extending
+the handled command. The actor map calls the single `Execute` or `ExecuteAsync` entry point directly;
+that entry point does not delegate to another handler overload. Pure reusable business algorithms
+remain in `Command/Model`.
+
+ A generic transition delegate or a newly allocated state-machine wrapper must not hide a small set of command-specific guards and updates. A state machine is appropriate only when the aggregate has a substantive reusable transition graph and its complete decision state can be reconstructed from durable events. Idempotency or deduplication data held only in a transient handler collection is invalid because it is lost between commands and after recovery.
 
 A representative synchronous handler has this form:
 
@@ -1080,6 +1128,12 @@ CPU-bound parallel calculation uses bounded .NET thread-pool work that is owned 
 
 #### 13.1.6 State, persistence, and projection
 
+Domain event class names start with their owning CommandActor's business name (the actor class
+name without `CommandActor`). Use the specific owner prefix, including nested owners such as
+`ScheduledTaskRun` and `ScheduledTaskCatalog`. Complete/Fail event families retain that prefix.
+Renames must preserve historical replay aliases, frozen persisted write identities, MessagePack
+keys and published routing contracts, as specified in [Actor Event Modeling Conventions](Actor-Event-Modeling-Conventions.md#2-one-event-family-per-operation).
+
 Only the CommandActor is event sourced and owns authoritative durable state. Its state applies every private domain event required to reconstruct the aggregate. The repository saves pending events through the PostgreSQL event source and passes committed events to the actor's EventProjector.
 
 The EventProjector updates the rebuildable read model before publishing the corresponding public completion or failure notification. Public workflow continuation must consume that projected terminal event rather than treating the command's service result as the business result. A domain event stored in the event log and a projection terminal event are separate contracts, following the established `FundCreatedEvent` to `FundCreatedCompleteEvent`/`FundCreatedFailEvent` pattern.
@@ -1088,6 +1142,8 @@ The base actor saves pending state events after the mapped command extension ret
 
 #### 13.1.7 CommandActor testing checklist
 
+- [ ] Source-event and Complete/Fail type names start with the specific command owner's business name.
+- [ ] Renamed events retain historical decoding, snapshot selection, persisted write identities and routing compatibility.
 - [ ] `_parseMap` lists every supported command verb.
 - [ ] `_parseMap` is read-only and `ParseMessage` delegates only to `ParseMappedCommand`.
 - [ ] Every parse delegate only deserializes the command declared by its `Verb` key.

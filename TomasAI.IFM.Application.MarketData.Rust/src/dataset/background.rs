@@ -774,6 +774,10 @@ impl Configuration {
         caches: BTreeMap<String, CacheScope>,
         monitored: BTreeSet<u32>,
     ) -> Result<Option<Arc<Intent>>, String> {
+        // Browser, monitored and background policy scopes can cover the same
+        // option. Unite identical models before validating physical ownership;
+        // different metadata for the same canonical identity remains an error.
+        let selected = union_option_models(selected)?;
         if selected.is_empty() {
             return Ok((!base.reviewed.definitions.is_empty()).then_some(base));
         }
@@ -887,6 +891,88 @@ impl Configuration {
             scope: base.scope.clone(),
             revision: base.revision,
         })))
+    }
+}
+
+/// Unite overlapping logical scopes without concealing conflicting references.
+fn union_option_models(
+    models: Vec<crate::reference::option_contract::OptionContract>,
+) -> Result<Vec<crate::reference::option_contract::OptionContract>, String> {
+    let mut unique = BTreeMap::new();
+    for model in models {
+        let contract = model.coverage_definition()?.contract.to_owned();
+        if let Some(old) = unique.get(&contract) {
+            let old: &crate::reference::option_contract::OptionContract = old;
+            if old.value() != model.value() {
+                return Err(format!("Conflicting native option references for {contract}"));
+            }
+        } else {
+            unique.insert(contract, model);
+        }
+    }
+    Ok(unique.into_values().collect())
+}
+
+#[cfg(test)]
+mod model_union_tests {
+    use super::*;
+    use crate::reference::option_contract::OptionContract;
+
+    fn model() -> serde_json::Value {
+        let cases: serde_json::Value = serde_json::from_str(include_str!(
+            "../../qualification/ContextWireBridge/reviewed-options.json"
+        ))
+        .unwrap();
+        cases[0]["command"].clone()
+    }
+
+    /// Shared browser/policy/monitor contracts need only one physical registration.
+    #[test]
+    fn overlapping_option_scopes_share_one_physical_model() {
+        let model = OptionContract::from_command(&model()).unwrap();
+        let merged = union_option_models(vec![model.clone(), model.clone(), model]).unwrap();
+        assert_eq!(merged.len(), 1);
+        let plan = super::super::raw_options::Plan::from_models(&merged).unwrap();
+        assert_eq!(plan.registrations.len(), 2);
+        assert_eq!(plan.session.subscriptions.len(), 2);
+        assert!(plan.session.subscriptions.iter().all(|s| s.symbols.len() == 2));
+    }
+
+    /// Matching canonical names cannot hide changed pricing or provider metadata.
+    #[test]
+    fn overlapping_option_scopes_reject_conflicting_metadata() {
+        for index in [11, 16, 43] {
+            let first = model();
+            let mut changed = first.clone();
+            changed[index] = match index {
+                11 => "6001".into(),
+                16 => 44.into(),
+                _ => 45.into(),
+            };
+            if index == 11 {
+                changed[9] = format!("{:016x}", 6001.0_f64.to_bits()).into();
+            }
+            let result = union_option_models(vec![
+                OptionContract::from_command(&first).unwrap(),
+                OptionContract::from_command(&changed).unwrap(),
+            ]);
+            assert!(result.err().unwrap().contains("Conflicting native option references"));
+        }
+    }
+
+    /// Different canonical contracts cannot reuse the same provider instrument.
+    #[test]
+    fn distinct_option_names_still_reject_conflicting_provider_binding() {
+        let first = model();
+        let mut changed = first.clone();
+        changed[0] = "ES20261110C6001".into();
+        let merged = union_option_models(vec![
+            OptionContract::from_command(&first).unwrap(),
+            OptionContract::from_command(&changed).unwrap(),
+        ]).unwrap();
+        assert_eq!(merged.len(), 2);
+        assert!(super::super::raw_options::Plan::from_models(&merged).err().unwrap()
+            .contains("Conflicting native provider binding"));
     }
 }
 
