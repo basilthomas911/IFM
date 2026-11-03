@@ -10,6 +10,7 @@ namespace TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 [MessagePackObject]
 public abstract record DatabaseBackupInternalCommand : ICommand<DatabaseRecoveryOperationId>, IDatabaseBackupValidatable
 {
+    /// <summary>Historical route identity. New receipts use DatabaseBackupCommandRoute.For(command).</summary>
     public const string Actor = "DatabaseBackupCommand";
     [Key(0)] public Guid CommandId { get; init; }
     [Key(1)] public ActorSubject Subject { get; init; }

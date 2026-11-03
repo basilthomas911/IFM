@@ -218,6 +218,10 @@ Generated_Code/
 # because we have git ;-)
 _UpgradeReport_Files/
 Backup*/
+!TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/Backup/
+!TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/Backup/**
+!TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/BackupSet/
+!TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/BackupSet/**
 UpgradeLog*.XML
 UpgradeLog*.htm
 

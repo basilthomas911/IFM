@@ -157,7 +157,7 @@ public static class DatabaseBackupServiceEventFactory
         var template = new TEvent();
         return (TEvent)(template with
         {
-            Subject = new ActorSubject(ActorType.Event, "DatabaseBackupEvent", template.Verb, execution.EntityId.Format()),
+            Subject = new ActorSubject(ActorType.Event, DatabaseBackupServiceEventRoute.For(template.Verb, source.OperationKind), template.Verb, execution.EntityId.Format()),
             Id = id,
             EntityId = execution.EntityId,
             CommandId = execution.CommandId,

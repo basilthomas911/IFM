@@ -1,6 +1,8 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Persistence;
+using DatabaseBackupCommandState = TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Legacy.DatabaseBackupReplayState;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Legacy;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain;
@@ -38,7 +40,7 @@ public sealed class AwsDevelopmentRunningHostTests(ITestOutputHelper output)
             RequiredDestinations = [new DatabaseLogicalDestination("aws-primary", true)], RequestedBackupMode = DatabaseBackupMode.Full
         });
         var domain = Assert.Single(state.Events.OfType<DatabaseBackupExecutionRequestedDomainEvent>());
-        var execution = Assert.IsType<DatabaseBackupExecutionRequestedEvent>(DatabaseBackupStateRepository.ToExecutionEvent(domain));
+        var execution = Assert.IsType<DatabaseBackupExecutionRequestedEvent>(DatabaseBackupExecutionEvents.ToExecutionEvent(domain));
         output.WriteLine("OperationId={0}", operation.Format());
         var completed = new TaskCompletionSource<DatabaseBackupServiceCompletedEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         var observed = new List<string>();

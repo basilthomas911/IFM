@@ -1,11 +1,14 @@
-﻿using FluentAssertions;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Persistence;
+using DatabaseBackupCommandState = TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Legacy.DatabaseBackupReplayState;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Legacy;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Service.Command.State;
+using FluentAssertions;
 using Newtonsoft.Json;
 using NSubstitute;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Actor;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Actor;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Translation;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Query.Actor;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Backup.Command.Actor;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Backup.Event.Actor;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Translation;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Backup.Query.Actor;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
@@ -60,7 +63,7 @@ public sealed class DatabaseBackupActorStateTests
         state.Execute(Internal<RecordDatabaseRetentionResultCommand>(operation, 3, DatabaseRecoveryPhase.Completed,
             kind: DatabaseRecoveryOperationKind.Retention) with { Outcome = DatabaseRecoveryOutcome.Succeeded });
         var result = state.Events.Single().Should().BeOfType<DatabaseRetentionResultRecordedDomainEvent>().Subject;
-        DatabaseBackupStateRepository.ToExecutionEvent(result).Should().BeNull();
+        DatabaseBackupExecutionEvents.ToExecutionEvent(result).Should().BeNull();
     }
     [Fact]
     public async Task State_repository_publishes_using_the_concrete_event_contract()
@@ -68,7 +71,7 @@ public sealed class DatabaseBackupActorStateTests
         var context = Substitute.For<ICommandActorContext>();
         var domainEvent = new DatabaseBackupRequestedDomainEvent();
 
-        await DatabaseBackupStateRepository.SendConcreteEventAsync(context, domainEvent);
+        await DatabaseBackupExecutionEvents.SendConcreteEventAsync(context, domainEvent);
 
         await context.Received(1)
             .SendAsync<DatabaseBackupRequestedDomainEvent, DatabaseRecoveryOperationId>(domainEvent);
@@ -83,19 +86,19 @@ public sealed class DatabaseBackupActorStateTests
         var serviceEventTypes = typeof(DatabaseBackupServiceEventContract).Assembly.GetTypes().Where(type => !type.IsAbstract && typeof(DatabaseBackupServiceEventContract).IsAssignableFrom(type)).ToHashSet();
         var queryTypes = assembly.GetTypes().Where(type => !type.IsAbstract && typeof(IDatabaseBackupQuery).IsAssignableFrom(type)).ToHashSet();
 
-        DatabaseBackupCommandActor.SupportedCommandTypes.Should().BeEquivalentTo(commandTypes);
-        DatabaseBackupCommandActor.SupportedVerbs.Should().OnlyHaveUniqueItems().And.HaveCount(commandTypes.Count);
-        DatabaseBackupEventActor.SupportedServiceEventTypes.Should().BeEquivalentTo(serviceEventTypes);
-        DatabaseBackupEventActor.SupportedVerbs.Should().OnlyHaveUniqueItems().And.HaveCount(serviceEventTypes.Count);
-        DatabaseBackupQueryActor.SupportedQueryTypes.Should().BeEquivalentTo(queryTypes);
-        DatabaseBackupQueryActor.SupportedVerbs.Should().OnlyHaveUniqueItems().And.HaveCount(queryTypes.Count);
+        DatabaseBackupActorInventory.CommandTypes.Should().BeEquivalentTo(commandTypes);
+        DatabaseBackupActorInventory.CommandVerbs.Should().OnlyHaveUniqueItems().And.HaveCount(commandTypes.Count);
+        DatabaseBackupActorInventory.EventTypes.Should().BeEquivalentTo(serviceEventTypes);
+        DatabaseBackupActorInventory.EventVerbs.Should().OnlyHaveUniqueItems().And.HaveCount(serviceEventTypes.Count);
+        DatabaseBackupActorInventory.QueryTypes.Should().BeEquivalentTo(queryTypes);
+        DatabaseBackupActorInventory.QueryVerbs.Should().OnlyHaveUniqueItems().And.HaveCount(queryTypes.Count);
     }
 
     [Fact]
     public void Every_service_event_translates_to_one_internal_command_shape()
     {
         var source = ServiceSource(Guid.NewGuid(), 1, DatabaseRecoveryPhase.Admitted);
-        foreach (var type in DatabaseBackupEventActor.SupportedServiceEventTypes)
+        foreach (var type in DatabaseBackupActorInventory.EventTypes)
         {
             var template = (DatabaseBackupServiceEventContract)Activator.CreateInstance(type)!;
             var serviceEvent = (DatabaseBackupServiceEventContract)(template with
@@ -113,7 +116,7 @@ public sealed class DatabaseBackupActorStateTests
 
             command.Source.Should().Be(source);
             command.EntityId.Should().Be(source.OperationId);
-            command.Subject.Name.Should().Be(DatabaseBackupCommandRoute.Actor);
+            command.Subject.Name.Should().Be(DatabaseBackupCommandRoute.For(command));
         }
     }
 
@@ -436,7 +439,7 @@ public sealed class DatabaseBackupActorStateTests
         var state = new DatabaseBackupCommandState();
         state.Execute(RequestBackup(new DatabaseRecoveryOperationId(Guid.NewGuid())));
         var domainIntent = state.Events.OfType<DatabaseBackupExecutionRequestedDomainEvent>().Single();
-        var workOrder = DatabaseBackupStateRepository.ToExecutionEvent(domainIntent)!;
+        var workOrder = DatabaseBackupExecutionEvents.ToExecutionEvent(domainIntent)!;
         var outbox = new DatabaseBackupExecutionOutbox();
 
         await outbox.EnqueueAsync(workOrder);
@@ -462,7 +465,7 @@ public sealed class DatabaseBackupActorStateTests
         var events = state.Events.OfType<DatabaseBackupEventContract>().ToArray();
         events.Should().HaveCount(3).And.OnlyContain(item => item.CommandId == command.CommandId);
         events.Should().OnlyContain(item => item.FreshTarget != null && item.FreshTarget.Profile == "development-on-demand" && item.FreshTarget.LogicalTarget == "development-restore" && item.RestoreClass == DatabaseRestoreClass.Drill);
-        var execution = DatabaseBackupStateRepository.ToExecutionEvent(events.Last());
+        var execution = DatabaseBackupExecutionEvents.ToExecutionEvent(events.Last());
         execution!.FreshTarget.Should().Be(new DatabaseFreshTargetDescriptor("development-on-demand", "development-restore"));
     }
 

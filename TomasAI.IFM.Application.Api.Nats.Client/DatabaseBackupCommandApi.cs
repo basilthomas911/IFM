@@ -35,7 +35,7 @@ public sealed class DatabaseBackupCommandApi(IActorProducer actorProducer) : IDa
         {
             var entityId = command.EntityId.Value == Guid.Empty
                 ? new DatabaseRecoveryOperationId(command.Request.RequestId) : command.EntityId;
-            var subject = new ActorSubject(ActorType.Command, DatabaseBackupCommandRoute.Actor, command.Verb, entityId.Format());
+            var subject = new ActorSubject(ActorType.Command, DatabaseBackupCommandRoute.For(command), command.Verb, entityId.Format());
             var normalized = (TCommand)Normalize(command, entityId, subject, errorCode);
             normalized.Validate();
             var actorResult = await (_actorProducer.RequestAsync<TCommand, DatabaseRecoveryOperationId, GuidResult>(

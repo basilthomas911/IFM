@@ -83,7 +83,7 @@ public sealed record PlaceBackupLegalHoldCommand : IDatabaseBackupCommand
         RequestedBackupMode = requestedBackupMode;
     }
 
-    public const string Actor = DatabaseBackupCommandRoute.Actor;
+    public const string Actor = DatabaseBackupCommandRoute.BackupSet;
     public const string VerbValue = "PlaceLegalHold";
     public const int ErrorId = 9109;
     [Key(0)] public Guid CommandId { get; init; }

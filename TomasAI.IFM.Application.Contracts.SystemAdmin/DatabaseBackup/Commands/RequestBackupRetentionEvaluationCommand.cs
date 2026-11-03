@@ -83,7 +83,7 @@ public sealed record RequestBackupRetentionEvaluationCommand : IDatabaseBackupCo
         RequestedBackupMode = requestedBackupMode;
     }
 
-    public const string Actor = DatabaseBackupCommandRoute.Actor;
+    public const string Actor = DatabaseBackupCommandRoute.Retention;
     public const string VerbValue = "EvaluateRetention";
     public const int ErrorId = 9111;
     [Key(0)] public Guid CommandId { get; init; }

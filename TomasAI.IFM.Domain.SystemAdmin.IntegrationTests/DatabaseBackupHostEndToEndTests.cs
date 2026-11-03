@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Persistence;
+using DatabaseBackupCommandState = TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Legacy.DatabaseBackupReplayState;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Legacy;
 using TomasAI.IFM.Application.DatabaseBackup.Adapters.LocalWorkstation.Journal;
 using TomasAI.IFM.Application.DatabaseBackup.Adapters.LocalWorkstation.Processing;
 using TomasAI.IFM.Framework.Messaging.Nats;
@@ -12,10 +15,11 @@ using TomasAI.IFM.Api.DatabaseBackup.Host;
 using TomasAI.IFM.Api.DatabaseBackup.Host.Services;
 using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Repository;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Translation;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Projection;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Translation;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
@@ -32,7 +36,6 @@ using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Journal;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Processing;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.IntegrationTests;
 
@@ -94,12 +97,14 @@ public sealed class DatabaseBackupHostEndToEndTests
         var publicEvents = state.Events.OfType<DatabaseBackupEventContract>().ToArray();
         var executionDomainEvent = Assert.IsType<DatabaseBackupExecutionRequestedDomainEvent>(publicEvents.Last());
         var workOrder = Assert.IsType<DatabaseBackupExecutionRequestedEvent>(
-            DatabaseBackupStateRepository.ToExecutionEvent(executionDomainEvent));
+            DatabaseBackupExecutionEvents.ToExecutionEvent(executionDomainEvent));
         state.Events.Clear();
 
         var dbSettings = new DbConnectionSettings()
+            .Add(EventSourceActorDbContext.EventSourceActorDbConnection, postgres, "System.Data.Postgres")
             .Add(SystemAdminDbContext.SystemAdminDbConnection, postgres, "System.Data.Postgres");
         var storageLogger = NullLogger<DbProvider>.Instance;
+        await new EventSourceSchemaDb(dbSettings, storageLogger).CreateAllAsync();
         await new SystemAdminSchemaDb(dbSettings, storageLogger).CreateAllAsync();
         var projection = new SystemAdminDbContext(dbSettings, storageLogger);
         const string projectorName = "Gate5EndToEnd";
@@ -167,7 +172,7 @@ public sealed class DatabaseBackupHostEndToEndTests
                 $"gate5-core-{resourceId}",
                 new Dictionary<ActorMailboxId, List<string>>
                 {
-                    [new ActorMailboxId(ActorType.Event, "DatabaseBackupEvent")] =
+                    [new ActorMailboxId(ActorType.Event, DatabaseBackupServiceEventRoute.Backup)] =
                     ["BackupAccepted", "BackupStarted", "BackupBoundaryEstablished", "BackupVerificationCompleted", "BackupArtifactReplicaUpdated", "RunStatisticsCaptured", "BackupCompleted"]
                 },
                 async (verb, message) =>

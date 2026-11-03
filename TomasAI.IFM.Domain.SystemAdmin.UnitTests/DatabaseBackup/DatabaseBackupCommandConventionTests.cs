@@ -1,7 +1,7 @@
-﻿using FluentAssertions;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Model;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Backup.Command.State;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Model;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Backup.Command;
+using FluentAssertions;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain;
@@ -14,7 +14,7 @@ public sealed class DatabaseBackupCommandConventionTests
     {
         var command = Request();
         var state = new DatabaseBackupCommandState();
-        command.Compute(state, out var transition).Should().BeTrue();
+        command.Compute(state.BackupDecision, out var transition).Should().BeTrue();
         state.Operation.Exists.Should().BeFalse();
         state.Operation.Revision.Should().Be(0);
         var events = command.CreateLifecycleEvents(transition);
@@ -47,11 +47,11 @@ public sealed class DatabaseBackupCommandConventionTests
     public void Service_observation_fingerprints_remain_compatible_with_committed_events()
     {
         var command = Request();
-        command.Compute(new DatabaseBackupCommandState(), out var transition).Should().BeTrue();
+        command.Compute(new DatabaseBackupCommandState().BackupDecision, out var transition).Should().BeTrue();
         var events = command.CreateLifecycleEvents(transition);
         for (var index = 0; index < events.Count; index++)
-            DatabaseBackupCommandState.Fingerprint(transition.LifecycleChanges[index]).Should().Be(
-                DatabaseBackupCommandState.Fingerprint(DatabaseBackupEventFactory.Describe(events[index])));
+            DatabaseOperationChanges.Fingerprint(transition.LifecycleChanges[index]).Should().Be(
+                DatabaseOperationChanges.Fingerprint(DatabaseBackupEventFactory.Describe(events[index])));
     }
     static RequestDatabaseBackupCommand Request() => new()
     {

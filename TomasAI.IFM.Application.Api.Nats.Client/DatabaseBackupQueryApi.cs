@@ -44,7 +44,7 @@ public sealed class DatabaseBackupQueryApi(IActorProducer actorProducer) : IData
         {
             var entityId = query.EntityId.Value == Guid.Empty
                 ? new DatabaseRecoveryOperationId(query.Request.RequestId) : query.EntityId;
-            var subject = new ActorSubject(ActorType.Query, DatabaseBackupQueryRoute.Actor, query.Verb, entityId.Format());
+            var subject = new ActorSubject(ActorType.Query, DatabaseBackupQueryRoute.For(query), query.Verb, entityId.Format());
             var normalized = (TQuery)Normalize(query, entityId, subject);
             normalized.Validate();
             return await (_actorProducer.RequestAsync<TResult, TQuery>(normalized.Subject, normalized, cancellationToken)).ConfigureAwait(false);

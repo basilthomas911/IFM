@@ -83,7 +83,7 @@ public sealed record UpdateDatabaseBackupPolicyCommand : IDatabaseBackupCommand
         RequestedBackupMode = requestedBackupMode;
     }
 
-    public const string Actor = DatabaseBackupCommandRoute.Actor;
+    public const string Actor = DatabaseBackupCommandRoute.Policy;
     public const string VerbValue = "UpdatePolicy";
     public const int ErrorId = 9108;
     [Key(0)] public Guid CommandId { get; init; }

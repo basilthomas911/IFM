@@ -83,7 +83,7 @@ public sealed record ApproveDatabaseCutoverCommand : IDatabaseBackupCommand
         RequestedBackupMode = requestedBackupMode;
     }
 
-    public const string Actor = DatabaseBackupCommandRoute.Actor;
+    public const string Actor = DatabaseBackupCommandRoute.Recovery;
     public const string VerbValue = "ApproveCutover";
     public const int ErrorId = 9106;
     [Key(0)] public Guid CommandId { get; init; }

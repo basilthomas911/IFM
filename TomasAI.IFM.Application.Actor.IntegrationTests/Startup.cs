@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Persistence;
 using TomasAI.IFM.Shared.Identity;
 using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
@@ -98,8 +99,6 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Actor;
-using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
-using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
@@ -117,11 +116,9 @@ using TomasAI.IFM.Domain.MarketData.Feed;
 using TomasAI.IFM.Domain.MarketData.Securities;
 using TomasAI.IFM.Domain.MarketData.Analytics;
 using TomasAI.IFM.Domain.SystemAdmin;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Legacy;
 using TomasAI.IFM.Domain.Trade;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
-using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
-using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 
 namespace TomasAI.IFM.Application.Actor.IntegrationTests;
 

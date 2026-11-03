@@ -83,7 +83,7 @@ public sealed record CancelDatabaseRestoreCommand : IDatabaseBackupCommand
         RequestedBackupMode = requestedBackupMode;
     }
 
-    public const string Actor = DatabaseBackupCommandRoute.Actor;
+    public const string Actor = DatabaseBackupCommandRoute.Recovery;
     public const string VerbValue = "CancelRestore";
     public const int ErrorId = 9105;
     [Key(0)] public Guid CommandId { get; init; }

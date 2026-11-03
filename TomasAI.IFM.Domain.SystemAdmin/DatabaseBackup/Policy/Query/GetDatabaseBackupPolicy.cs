@@ -1,0 +1,22 @@
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Policy.Query.Actor;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Query;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Queries;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+
+namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Policy.Query;
+
+/// <summary>Handles <see cref="GetDatabaseBackupPolicyQuery"/>.</summary>
+public static class GetDatabaseBackupPolicy
+{
+    /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
+    public static async ValueTask ExecuteAsync(this GetDatabaseBackupPolicyQuery query, ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupPolicyQueryActor> context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(query);
+        var result = await (dbContext.GetPolicyAsync(query, cancellationToken)).ConfigureAwait(false);
+        await (DatabaseBackupQueryReply.OptionalAsync(context, query, result)).ConfigureAwait(false);
+    }
+}

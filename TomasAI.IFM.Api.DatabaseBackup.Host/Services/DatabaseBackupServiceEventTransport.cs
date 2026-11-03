@@ -26,6 +26,7 @@ public sealed class JetStreamDatabaseBackupServiceEventTransport(IJSActorProduce
     public ValueTask PublishAsync(DatabaseBackupServiceEventContract @event, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(@event);
+        @event = @event with { Subject = @event.Subject with { Name = DatabaseBackupServiceEventRoute.For(@event.Verb, @event.Source.OperationKind) } };
         output?.Append(@event.Source.Source, @event.EntityId.Value,
             $"{@event.Source.Phase} | {@event.ProgressPercent}% milestone | {@event.Outcome} | {@event.Verb} | {@event.SafeDiagnosticReference}");
         var method = SendTypedMethod.MakeGenericMethod(@event.GetType());

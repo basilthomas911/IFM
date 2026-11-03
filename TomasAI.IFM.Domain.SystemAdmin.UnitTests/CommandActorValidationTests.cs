@@ -9,8 +9,8 @@ public sealed class CommandActorValidationTests
 {
     public static IEnumerable<object[]> MalformedCommands()
     {
-        var names = new HashSet<string>(["DatabaseBackupCommandActor", "ScheduledTaskCommandActor", "ScheduledTaskRunCommandActor", "ScheduledTaskCatalogCommandActor"]);
-        foreach (var actor in typeof(TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Actor.DatabaseBackupCommandActor).Assembly.GetTypes().Where(type => names.Contains(type.Name)))
+        var names = new HashSet<string>(["DatabaseBackupCommandActor", "DatabaseRecoveryCommandActor", "DatabaseBackupPolicyCommandActor", "DatabaseBackupRetentionCommandActor", "DatabaseBackupSetCommandActor", "DatabaseBackupServiceCommandActor", "ScheduledTaskCommandActor", "ScheduledTaskRunCommandActor", "ScheduledTaskCatalogCommandActor"]);
+        foreach (var actor in typeof(TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Backup.Command.Actor.DatabaseBackupCommandActor).Assembly.GetTypes().Where(type => names.Contains(type.Name)))
         {
             var map = Map(actor);
             foreach (var commandType in map.Keys) yield return [actor, commandType];

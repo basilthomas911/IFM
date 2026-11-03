@@ -102,7 +102,7 @@ public sealed class DatabaseBackupApiTests
 
         result.Value.Should().BeEquivalentTo(rows);
         await producer.Received(1).RequestAsync<DatabaseBackupHealthReadModel[], GetDatabaseBackupServiceHealthQuery>(
-            Arg.Is<ActorSubject>(subject => subject.ActorType == ActorType.Query && subject.Name == DatabaseBackupQueryRoute.Actor && subject.Verb == "GetServiceHealth"),
+            Arg.Is<ActorSubject>(subject => subject.ActorType == ActorType.Query && subject.Name == DatabaseBackupQueryRoute.Service && subject.Verb == "GetServiceHealth"),
             Arg.Is<GetDatabaseBackupServiceHealthQuery>(query => query.EntityId.Value == requestId),
             CancellationToken.None);
     }
@@ -124,7 +124,7 @@ public sealed class DatabaseBackupApiTests
 
         result.Success.Should().BeTrue();
         await producer.Received(1).RequestAsync<DatabaseProtectionSetReadModel[], GetDatabaseProtectionSetsQuery>(
-            Arg.Is<ActorSubject>(subject => subject.Name == DatabaseBackupQueryRoute.Actor && subject.Verb == "GetProtectionSets"),
+            Arg.Is<ActorSubject>(subject => subject.Name == DatabaseBackupQueryRoute.Service && subject.Verb == "GetProtectionSets"),
             Arg.Is<GetDatabaseProtectionSetsQuery>(query => query.EntityId.Value == requestId),
             Arg.Any<CancellationToken>());
         var keys = typeof(GetDatabaseProtectionSetsQuery)

@@ -6,7 +6,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Translation;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Translation;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
@@ -43,7 +43,7 @@ public sealed class LiveRestoredRetentionDisplayTests
         await using var connection = new NatsConnectionManager();
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = "nats://localhost:4222" }, NullLogger.Instance, connection);
         await producer.StartAsync(new TomasAI.IFM.Shared.EventModelActor.ActorMailboxId(
-            TomasAI.IFM.Shared.EventModelActor.ActorType.Command, DatabaseBackupInternalCommand.Actor), timeout.Token);
+            TomasAI.IFM.Shared.EventModelActor.ActorType.Command, DatabaseBackupCommandRoute.Retention), timeout.Token);
         for (var repeat = 0; repeat < 2; repeat++)
         {
             var result = await producer.RequestAsync<ReconcileDatabaseBackupServiceStateCommand, DatabaseRecoveryOperationId,

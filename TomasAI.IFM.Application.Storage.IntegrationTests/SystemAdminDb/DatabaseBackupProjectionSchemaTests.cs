@@ -1,4 +1,5 @@
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Repository;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Projection;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Projection;
 using FluentAssertions;
 using System;
 using System.Linq;
@@ -13,11 +14,10 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Queries;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.EventProjector;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Backup.Command.EventProjector;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventProjector;
-using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.SystemAdminDb;
 

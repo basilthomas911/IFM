@@ -14,7 +14,7 @@ public sealed class AwsAutomaticRetentionCommandSender(IActorProducer producer)
         var execution = intent.ExecutionEvent;
         var command = new RequestBackupRetentionEvaluationCommand
         {
-            Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommandRoute.Actor,
+            Subject = new ActorSubject(ActorType.Command, RequestBackupRetentionEvaluationCommand.Actor,
                 RequestBackupRetentionEvaluationCommand.VerbValue, intent.OperationId.Format()),
             CommandId = execution.CommandId, EntityId = intent.OperationId, Request = execution.Request!,
             Source = execution.Source.Source, ProtectionSetId = execution.Source.ProtectionSetId,
@@ -23,7 +23,7 @@ public sealed class AwsAutomaticRetentionCommandSender(IActorProducer producer)
             RequiredDestinations = execution.RequiredDestinations
         };
         command.Validate();
-        await producer.StartAsync(new ActorMailboxId(ActorType.Command, DatabaseBackupCommandRoute.Actor), token).ConfigureAwait(false);
+        await producer.StartAsync(new ActorMailboxId(ActorType.Command, RequestBackupRetentionEvaluationCommand.Actor), token).ConfigureAwait(false);
         var result = await producer.RequestAsync<RequestBackupRetentionEvaluationCommand,
             Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseRecoveryOperationId, GuidResult>(
             command.Subject, command, command.EntityId, token).ConfigureAwait(false);

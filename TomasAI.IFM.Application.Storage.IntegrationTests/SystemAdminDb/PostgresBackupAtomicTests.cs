@@ -1,4 +1,5 @@
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Repository;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Persistence;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Projection;
 using System;
 using System.Threading;
 using System.Threading.Tasks;

@@ -1,4 +1,6 @@
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Persistence;
+using DatabaseBackupCommandState = TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Legacy.DatabaseBackupReplayState;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Legacy;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
@@ -39,7 +41,7 @@ public sealed class DatabaseBackupDomainIntegrationTests
 
         state.Execute(command);
         var committedIntent = Assert.IsType<DatabaseBackupExecutionRequestedDomainEvent>(state.Events.Last());
-        var workOrder = Assert.IsType<DatabaseBackupExecutionRequestedEvent>(DatabaseBackupStateRepository.ToExecutionEvent(committedIntent));
+        var workOrder = Assert.IsType<DatabaseBackupExecutionRequestedEvent>(DatabaseBackupExecutionEvents.ToExecutionEvent(committedIntent));
 
         Assert.Equal(operationId, workOrder.EntityId);
         Assert.Equal(BackupSource.LocalWorkstation, workOrder.Source.Source);

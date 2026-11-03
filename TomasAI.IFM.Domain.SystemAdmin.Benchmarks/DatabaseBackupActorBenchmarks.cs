@@ -1,7 +1,8 @@
+using DatabaseBackupCommandState = TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Legacy.DatabaseBackupReplayState;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Legacy;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Translation;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Translation;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service;

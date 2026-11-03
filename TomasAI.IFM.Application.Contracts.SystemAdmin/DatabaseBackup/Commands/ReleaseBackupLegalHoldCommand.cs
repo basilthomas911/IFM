@@ -83,7 +83,7 @@ public sealed record ReleaseBackupLegalHoldCommand : IDatabaseBackupCommand
         RequestedBackupMode = requestedBackupMode;
     }
 
-    public const string Actor = DatabaseBackupCommandRoute.Actor;
+    public const string Actor = DatabaseBackupCommandRoute.BackupSet;
     public const string VerbValue = "ReleaseLegalHold";
     public const int ErrorId = 9110;
     [Key(0)] public Guid CommandId { get; init; }

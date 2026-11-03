@@ -261,7 +261,7 @@ public sealed class DevelopmentDatabaseReplacementPlatform(
         var command = new ReconcileDatabaseBackupServiceStateCommand
         {
             CommandId = eventId, EntityId = request.OperationId,
-            Subject = new ActorSubject(ActorType.Command, DatabaseBackupInternalCommand.Actor, "ReconcileServiceState", request.OperationId.Format()),
+            Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommandRoute.Recovery, "ReconcileServiceState", request.OperationId.Format()),
             Source = latest.Source with { SourceEventId = eventId, OperationKind = DatabaseRecoveryOperationKind.Cutover,
                 Phase = DatabaseRecoveryPhase.CuttingOver }, ValidationRevision = request.ValidationRevision,
             RestorePointId = request.RestorePointId, FreshTarget = request.FreshTarget,
@@ -269,7 +269,7 @@ public sealed class DevelopmentDatabaseReplacementPlatform(
             SafeDiagnosticReference = "external-journal-validated-cutover-recovery"
         };
         command.Validate();
-        await producer.StartAsync(new ActorMailboxId(ActorType.Command, DatabaseBackupInternalCommand.Actor), token);
+        await producer.StartAsync(command.Subject.ActorId, token);
         var result = await producer.RequestAsync<ReconcileDatabaseBackupServiceStateCommand, DatabaseRecoveryOperationId, GuidResult>(command.Subject, command, command.EntityId, token);
         if (!result.Success) throw new InvalidOperationException("Restored cutover state reconciliation was rejected: " + result.ErrorMessage);
     }
