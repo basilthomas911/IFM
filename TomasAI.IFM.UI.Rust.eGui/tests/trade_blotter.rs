@@ -1935,8 +1935,26 @@ fn spread_chart_paints_daily_lifetime_axis_through_unobserved_maturity() {
     h.set_size(eframe::egui::vec2(1800., 1000.));
     h.run_steps(3);
     let labels = text_baselines(&h.output().shapes, h.ctx.screen_rect());
-    for date in ["10-19", "10-20", "10-21", "10-22", "10-23"] {
+    for date in ["Oct-19", "Oct-20", "Oct-21", "Oct-22", "Oct-23"] {
         assert!(labels.iter().any(|(text, _)| text == date), "Missing daily chart tick {date}");
+    }
+    fn check_dates(shape: &egui::Shape, count: &mut usize) {
+        match shape {
+            egui::Shape::Vec(shapes) => {
+                for shape in shapes { check_dates(shape, count); }
+            }
+            egui::Shape::Text(text) if text.galley.text().starts_with("Oct-") => {
+                assert_eq!(text.angle, -std::f32::consts::FRAC_PI_2);
+                *count += 1;
+            }
+            _ => {}
+        }
+    }
+    let mut vertical_dates = 0;
+    for shape in &h.output().shapes { check_dates(&shape.shape, &mut vertical_dates); }
+    assert!(vertical_dates >= 5);
+    if let Ok(directory) = std::env::var("IFM_ALIGNMENT_SCREENSHOTS") {
+        h.render().unwrap().save(std::path::Path::new(&directory).join("condor-grid-dates.png")).unwrap();
     }
 }
 

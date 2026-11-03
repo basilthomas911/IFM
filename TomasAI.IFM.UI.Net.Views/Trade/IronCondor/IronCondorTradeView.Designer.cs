@@ -558,7 +558,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             series15.YValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Double;
             series16.BorderWidth = 2;
             series16.ChartArea = "ChartArea1";
-            series16.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.StepLine;
+            series16.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
             series16.Color = SystemColors.MenuHighlight;
             series16.Legend = "Legend1";
             series16.Name = "ForwardSpread";
@@ -569,7 +569,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             series16.YValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Double;
             series17.BorderWidth = 2;
             series17.ChartArea = "ChartArea1";
-            series17.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.StepLine;
+            series17.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
             series17.Color = Color.Yellow;
             series17.Legend = "Legend1";
             series17.Name = "NetSpread";

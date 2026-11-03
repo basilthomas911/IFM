@@ -73,7 +73,9 @@ public sealed class IronCondorChartRangeTests
                 : new QueryPage<StrategyPositionSnapshot>([Eod(trade, new(2026,10,21)), Eod(trade, date) with {
                     Phase = StrategyPositionPhase.MarkToMarket }], null));
         planDb.GetChartRangeAsync(position, date, date, sessionStart, end, default)
-            .Returns(new StrategyTradePlanChartSeries(sessionStart, end, [new(end, -12m)]));
+            .Returns(new StrategyTradePlanChartSeries(sessionStart, end, [new(end, -12m) { ForwardSpread = -13m }]));
+        planDb.GetDailyForwardSpreadsAsync(position, Arg.Any<IReadOnlyDictionary<DateOnly, DateTime>>(), default)
+            .Returns(new Dictionary<DateOnly, decimal?> { [new(2026,10,19)] = -15m, [new(2026,10,21)] = -16m });
 
         var series = await GetIronCondorTradePlanChart.LoadSeriesAsync(tradeDb, planDb, position, date,
             new DateTimeOffset(end), default);
@@ -82,6 +84,11 @@ public sealed class IronCondorChartRangeTests
         Assert.Equal(Utc("2026-11-06T22:00:00Z"), series.EndUtc);
         Assert.Equal(new[] { Utc("2026-10-19T21:00:00Z"), Utc("2026-10-21T21:00:00Z"), end }, series.Points.Select(p => p.AtUtc));
         Assert.Equal(new[] { -14m, -14m, -12m }, series.Points.Select(p => p.NetSpread));
+        Assert.Equal(new decimal?[] { -15m, -16m, -13m }, series.Points.Select(p => p.ForwardSpread));
+        await planDb.Received(1).GetDailyForwardSpreadsAsync(position,
+            Arg.Is<IReadOnlyDictionary<DateOnly, DateTime>>(days => days.Count == 2
+                && days[new(2026,10,19)] == Utc("2026-10-19T21:00:00Z")
+                && days[new(2026,10,21)] == Utc("2026-10-21T21:00:00Z")), default);
         await tradeDb.Received(2).GetStrategyPositionHistoryAsync(position.PositionId, series.StartUtc, end, 1000,
             Arg.Any<byte[]?>(), default);
         await planDb.Received(1).GetChartRangeAsync(position, date, date, sessionStart, end, default);
@@ -99,11 +106,15 @@ public sealed class IronCondorChartRangeTests
         tradeDb.GetEstablishedTradeAsync(trade.Id, default).Returns(trade);
         tradeDb.GetStrategyPositionHistoryAsync(position.PositionId, Arg.Any<DateTime>(), Arg.Any<DateTime>(), 1000,
             Arg.Any<byte[]?>(), default).Returns(new QueryPage<StrategyPositionSnapshot>([Eod(trade, new(2026,10,19))], null));
+        planDb.GetDailyForwardSpreadsAsync(position, Arg.Any<IReadOnlyDictionary<DateOnly, DateTime>>(), default)
+            .Returns(new Dictionary<DateOnly, decimal?>());
         var series = await GetIronCondorTradePlanChart.LoadSeriesAsync(tradeDb, planDb, position,
             matured ? new(2026,11,9) : new(2026,10,22), DateTimeOffset.Parse("2026-11-10T16:00:00Z"), default);
         Assert.Single(series.Points);
         Assert.Equal(Utc("2026-11-06T22:00:00Z"), series.EndUtc);
-        Assert.Empty(planDb.ReceivedCalls());
+        Assert.Null(series.Points[0].ForwardSpread);
+        await planDb.DidNotReceive().GetChartRangeAsync(position, Arg.Any<DateOnly>(), Arg.Any<DateOnly>(),
+            Arg.Any<DateTime>(), Arg.Any<DateTime>(), default);
     }
 
     [Fact]

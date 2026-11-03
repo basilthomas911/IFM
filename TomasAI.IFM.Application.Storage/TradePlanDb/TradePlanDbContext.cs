@@ -24,6 +24,11 @@ public sealed class TradePlanDbContext(
       ITradePlanDbContext
 {
     /// <inheritdoc />
+    public Task<IReadOnlyDictionary<DateOnly, decimal?>> GetDailyForwardSpreadsAsync(StrategyPositionId positionId,
+        IReadOnlyDictionary<DateOnly, DateTime> dayEndsUtc, CancellationToken cancellationToken = default)
+        => this.ReadDailyForwardSpreadsAsync(positionId, dayEndsUtc, cancellationToken);
+
+    /// <inheritdoc />
     public Task<StrategyTradePlanHistoryPage> GetOffsetHistoryAsync(StrategyPositionId positionId, TradeStrategyKind strategy,
         DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default)
         => this.ReadOffsetHistoryAsync(positionId, strategy, valueDate, offset, pageSize, maximumRevision, cancellationToken);

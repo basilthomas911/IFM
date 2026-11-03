@@ -12,6 +12,10 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb;
 /// </summary>
 public interface ITradePlanDbReadContext
 {
+    /// <summary>Reads the final forward observation at or before each sealed value date's EOD boundary.</summary>
+    Task<IReadOnlyDictionary<DateOnly, decimal?>> GetDailyForwardSpreadsAsync(StrategyPositionId positionId,
+        IReadOnlyDictionary<DateOnly, DateTime> dayEndsUtc, CancellationToken cancellationToken = default);
+
     Task<StrategyTradePlanChartSeries> GetChartRangeAsync(StrategyPositionId positionId, DateOnly firstValueDate, DateOnly lastValueDate, DateTime startUtc, DateTime endUtc, CancellationToken cancellationToken = default);
 
     /// <summary>Reads only the requested offset window, anchored to a revision for stable scrolling.</summary>

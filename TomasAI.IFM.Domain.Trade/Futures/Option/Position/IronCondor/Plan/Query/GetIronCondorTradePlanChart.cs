@@ -39,7 +39,12 @@ public static class GetIronCondorTradePlanChart
                 cursor = page.PagingState;
             } while (cursor is not null);
         }
-        var points = DailyPoints(history, trade, valueDate, window.ObservationEndUtc).ToList();
+        var daily = DailySnapshots(history, trade, valueDate, window.ObservationEndUtc).ToArray();
+        var dayEnds = daily.ToDictionary(p => p.ValueDate, p => p.CloseBoundaryUtc ?? p.AsOfUtc);
+        var forwards = dayEnds.Count == 0 ? new Dictionary<DateOnly, decimal?>()
+            : await planDb.GetDailyForwardSpreadsAsync(position, dayEnds, token).ConfigureAwait(false);
+        var points = daily.Select(p => DailyPoint(p, trade) with {
+            ForwardSpread = forwards.GetValueOrDefault(p.ValueDate) }).ToList();
         if (window.ObservationEndUtc >= window.SessionStartUtc)
         {
             var intraday = await planDb.GetChartRangeAsync(position,
@@ -51,6 +56,14 @@ public static class GetIronCondorTradePlanChart
 
     internal static StrategyTradePlanChartPoint[] DailyPoints(IEnumerable<StrategyPositionSnapshot> history,
         EstablishedTradeDefinition trade, DateOnly valueDate, DateTime observationEndUtc)
+        => DailySnapshots(history, trade, valueDate, observationEndUtc).Select(p => DailyPoint(p, trade)).OrderBy(p => p.AtUtc).ToArray();
+
+    static StrategyTradePlanChartPoint DailyPoint(StrategyPositionSnapshot position, EstablishedTradeDefinition trade)
+        => new(position.CloseBoundaryUtc ?? position.AsOfUtc,
+            StrategyPositionHistoryProjection.EnrichPosition(position, trade).HistoryValuation!.NetPrice);
+
+    static IEnumerable<StrategyPositionSnapshot> DailySnapshots(IEnumerable<StrategyPositionSnapshot> history,
+        EstablishedTradeDefinition trade, DateOnly valueDate, DateTime observationEndUtc)
         => history.Where(p => p.Phase == StrategyPositionPhase.EndOfDay)
             .Select(p => p.ValueDate == default ? p with { ValueDate = DateOnly.FromDateTime(
                 TimeZoneInfo.ConvertTimeFromUtc(p.AsOfUtc, FuturesTradingValueDate.MarketTimeZone)) } : p)
@@ -59,9 +72,7 @@ public static class GetIronCondorTradePlanChart
             .GroupBy(p => p.ValueDate)
             .Select(group => group.OrderByDescending(p => p.PositionSequence).First())
             .Where(p => p.Legs.Length > 0 && p.Legs.All(l => l.CurrentPrice >= 0 && l.SignedQuantity != 0))
-            .Select(p => new StrategyTradePlanChartPoint(p.CloseBoundaryUtc ?? p.AsOfUtc,
-                StrategyPositionHistoryProjection.EnrichPosition(p, trade).HistoryValuation!.NetPrice))
-            .Where(p => p.AtUtc <= observationEndUtc).OrderBy(p => p.AtUtc).ToArray();
+            .Where(p => (p.CloseBoundaryUtc ?? p.AsOfUtc) <= observationEndUtc);
 
     internal static (DateTime StartUtc, DateTime EndUtc, DateTime SessionStartUtc, DateTime ObservationEndUtc) ResolveWindow(
         DateOnly tradeDate, DateOnly maturity, DateOnly valueDate, DateTimeOffset now, DateTime establishedAtUtc, DateTime? closedAtUtc)

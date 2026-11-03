@@ -680,20 +680,15 @@ fn condor_day_marks(input: egui_plot::GridInput) -> Vec<egui_plot::GridMark> {
     marks
 }
 
-/// Draw only adjacent observed intraday buckets; daily EOD values remain discrete markers.
-fn draw_sample_lines(
-    plot: &mut egui_plot::PlotUi<'_>,
+/// Connect observed prices across the lifetime, including prior value dates' final EOD observations.
+fn draw_sample_lines<'a>(
+    plot: &mut egui_plot::PlotUi<'a>,
     name: &str,
-    points: &[egui_plot::PlotPoint],
+    points: &'a [egui_plot::PlotPoint],
     color: Color32,
 ) {
-    for pair in points.windows(2) {
-        if (pair[1].x / 900.).floor() - (pair[0].x / 900.).floor() == 1. {
-            plot.line(
-                egui_plot::Line::new(name, vec![[pair[0].x, pair[0].y], [pair[1].x, pair[1].y]])
-                    .color(color),
-            );
-        }
+    if points.len() > 1 {
+        plot.line(egui_plot::Line::new(name, points).color(color));
     }
 }
 
@@ -1561,12 +1556,15 @@ impl TradeWorkspace {
                 if let Some(win) = win {
                     chart = chart.include_y(win);
                 }
-                chart
+                let response = chart
                     .width(ui.available_width())
                     .height(ui.available_height())
                     .show_background(false)
-                    .show_grid(false)
+                    .show_grid([true, true])
                     .x_grid_spacer(condor_day_marks)
+                    .custom_x_axes(vec![egui_plot::AxisHints::new_x()
+                        .min_thickness(58.)
+                        .formatter(|_, _| String::new())])
                     .label_formatter(|name, point| {
                         let time = chrono::DateTime::from_timestamp(point.x as i64, 0)
                             .map(|at| {
@@ -1576,17 +1574,6 @@ impl TradeWorkspace {
                             })
                             .unwrap_or_default();
                         format!("{name}: {:.4}\n{time}", point.y)
-                    })
-                    .x_axis_formatter(|mark, _| {
-                        chrono::DateTime::from_timestamp(mark.value as i64, 0)
-                            .map(|d| {
-                                d.with_timezone(&chrono_tz::America::New_York)
-                                    .checked_add_signed(chrono::Duration::hours(6))
-                                    .unwrap_or(d.with_timezone(&chrono_tz::America::New_York))
-                                    .format("%m-%d")
-                                    .to_string()
-                            })
-                            .unwrap_or_default()
                     })
                     .show(ui, |plot| {
                         if let Some(loss) = loss {
@@ -1621,6 +1608,42 @@ impl TradeWorkspace {
                             draw_sample_lines(plot, "NetSpread", points, Color32::YELLOW);
                         }
                     });
+                // egui_plot has no tick rotation setting; paint into the reserved bottom axis.
+                let transform = &response.transform;
+                let bounds = transform.bounds();
+                let marks = condor_day_marks(egui_plot::GridInput {
+                    bounds: (bounds.min()[0], bounds.max()[0]),
+                    base_step_size: 86400.,
+                });
+                let mut last_x = f32::NEG_INFINITY;
+                for mark in marks {
+                    let x = transform.position_from_point_x(mark.value);
+                    if x - last_x < 22. {
+                        continue;
+                    }
+                    let Some(at) = chrono::DateTime::from_timestamp(mark.value as i64, 0) else {
+                        continue;
+                    };
+                    // The 18:00 session boundary belongs to the next futures value date.
+                    let date = at.with_timezone(&chrono_tz::America::New_York).date_naive();
+                    let Some(value_date) = date.succ_opt() else {
+                        continue;
+                    };
+                    let galley = ui.painter().layout_no_wrap(
+                        value_date.format("%b-%d").to_string(),
+                        egui::FontId::proportional(12.),
+                        ui.visuals().text_color(),
+                    );
+                    let pos = egui::pos2(
+                        x - galley.size().y / 2.,
+                        transform.frame().bottom() + 5. + galley.size().x,
+                    );
+                    ui.painter().add(
+                        egui::epaint::TextShape::new(pos, galley, ui.visuals().text_color())
+                            .with_angle(-std::f32::consts::FRAC_PI_2),
+                    );
+                    last_x = x;
+                }
             },
         );
         let colors = [

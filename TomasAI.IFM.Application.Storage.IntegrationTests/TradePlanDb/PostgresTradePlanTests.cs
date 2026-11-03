@@ -56,6 +56,50 @@ public sealed class PostgresTradePlanFixture : IAsyncLifetime
 [Collection("PostgreSQL plan atomicity")]
 public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Daily_forward_chart_uses_final_observation_per_date_at_eod_and_preserves_missing_values(bool rawClosingCost)
+    {
+        var position = Plan().Position.Id;
+        var date = new DateOnly(2026, 10, 30);
+        // EOD crosses the Eastern daylight-saving transition between these two sessions.
+        var firstEnd = new DateTime(2026, 10, 30, 21, 0, 0, DateTimeKind.Utc);
+        var secondEnd = new DateTime(2026, 11, 2, 22, 0, 0, DateTimeKind.Utc);
+        await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(fixture.Connection);
+        await connection.OpenAsync();
+        long revision = 0;
+        async Task Insert(DateOnly day, DateTime at, decimal? forward, Guid? otherPosition = null)
+        {
+            await using var command = new NpgsqlCommand("""
+                INSERT INTO trade_plan.iron_condor_trade_plan
+                (portfolioId,fundId,orderId,tradeId,positionId,valueDate,planRevision,calculatedAtUtc,combinedForwardPrice,calculationVersion)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                """, connection);
+            PostgresValueBinding.AddParameters(command, [position.Trade.PortfolioId, position.Trade.FundId,
+                position.Trade.OrderId, position.Trade.TradeId, otherPosition ?? position.PositionId, day, ++revision, at,
+                TomasAI.IFM.Shared.Storage.BindValues.Numeric(forward),
+                rawClosingCost ? "IronCondor/EntryCreditForwardPnl/v2" : "LegacyScenario/v1"]);
+            await command.ExecuteNonQueryAsync();
+        }
+        decimal Signed(decimal price) => rawClosingCost ? -price : price;
+        await Insert(date, firstEnd.AddMinutes(-1), Signed(-10m));
+        await Insert(date, firstEnd, Signed(-11m));
+        await Insert(date, firstEnd, Signed(-12m)); // Revision resolves timestamp ties.
+        await Insert(date, firstEnd.AddSeconds(1), Signed(-99m));
+        await Insert(date, firstEnd, Signed(-99m), Guid.NewGuid());
+        var secondDate = new DateOnly(2026, 11, 2);
+        await Insert(secondDate, secondEnd.AddMinutes(-1), Signed(-13m));
+        await Insert(secondDate, secondEnd, null); // Do not substitute an earlier valid calculation.
+        var missingDate = secondDate.AddDays(1);
+        var points = await fixture.Plans.GetDailyForwardSpreadsAsync(position, new Dictionary<DateOnly, DateTime> {
+            [date] = firstEnd, [secondDate] = secondEnd, [missingDate] = secondEnd.AddDays(1) });
+        points.Count.Should().Be(2);
+        points[date].Should().Be(-12m);
+        points[secondDate].Should().BeNull();
+        points.ContainsKey(missingDate).Should().BeFalse();
+    }
+
     static StrategyTradePlanSnapshot Plan(long revision = 1) => TradePlanStorageTests.Plan(Random.Shared.Next(6_000_000, 9_000_000), revision, -42m, true);
     static IronCondorTradePlanUpdatedEvent Source(StrategyTradePlanSnapshot plan) => new()
     {

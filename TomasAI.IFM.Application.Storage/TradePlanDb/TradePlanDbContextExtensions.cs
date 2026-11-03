@@ -70,6 +70,44 @@ internal static class TradePlanDbContextExtensions
         return page.Items.FirstOrDefault();
     }
 
+    internal async Task<IReadOnlyDictionary<DateOnly, decimal?>> ReadDailyForwardSpreadsAsync(StrategyPositionId position,
+        IReadOnlyDictionary<DateOnly, DateTime> dayEndsUtc, CancellationToken token)
+    {
+        var result = new Dictionary<DateOnly, decimal?>();
+        if (dayEndsUtc.Count == 0) return result;
+        foreach (var day in dayEndsUtc)
+        {
+            position.RequireTradePlanScope(TradeStrategyKind.IronCondor, day.Key);
+            if (day.Value.Kind != DateTimeKind.Utc)
+                throw new ArgumentException("EOD chart boundaries must be UTC.", nameof(dayEndsUtc));
+        }
+        var days = dayEndsUtc.OrderBy(day => day.Key).ToArray();
+        await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(context.ConnectionString);
+        await connection.OpenAsync(token).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand("""
+            SELECT day.valueDate, observation.forwardSpread
+            FROM unnest($6::date[], $7::timestamptz[]) AS day(valueDate, endUtc)
+            CROSS JOIN LATERAL (
+                SELECT CASE WHEN calculationVersion = 'IronCondor/EntryCreditForwardPnl/v2'
+                    THEN -combinedForwardPrice ELSE combinedForwardPrice END AS forwardSpread
+                FROM trade_plan.iron_condor_trade_plan
+                WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 AND tradeId=$4 AND positionId=$5
+                    AND valueDate=day.valueDate AND calculatedAtUtc <= day.endUtc
+                ORDER BY calculatedAtUtc DESC, planRevision DESC
+                LIMIT 1
+            ) observation
+            """, connection);
+        foreach (var value in new object[] { position.Trade.PortfolioId, position.Trade.FundId, position.Trade.OrderId,
+            position.Trade.TradeId, position.PositionId })
+            PostgresValueBinding.AddParameter(command, value);
+        PostgresValueBinding.AddParameter(command, days.Select(day => day.Key).ToArray());
+        PostgresValueBinding.AddParameter(command, days.Select(day => day.Value).ToArray());
+        await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+        while (await reader.ReadAsync(token).ConfigureAwait(false))
+            result.Add(reader.GetFieldValue<DateOnly>(0), reader.IsDBNull(1) ? null : reader.GetDecimal(1));
+        return result;
+    }
+
     internal async Task<StrategyTradePlanChartSeries> ReadChartRangeAsync(StrategyPositionId position, DateOnly firstValueDate,
         DateOnly lastValueDate, DateTime startUtc, DateTime endUtc, CancellationToken token)
     {
