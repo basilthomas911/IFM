@@ -38,7 +38,7 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 public sealed partial class TradeSelectionRuntimeTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> sourceFactory, TradeDatabaseFixture database, Xunit.Abstractions.ITestOutputHelper output) : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<TradeDatabaseFixture>
 {
     [Fact, Trait("Gate", "TS-05"), Trait("Gate", "TS-07")]
-    public async Task Production_Function_over_NATS_projects_Scylla_and_appends_Postgres_with_idempotent_replay()
+    public async Task Production_Function_over_NATS_projects_and_appends_Postgres_with_idempotent_replay()
     {
         await using var factory = Host(); _ = factory.CreateClient();
         var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
@@ -163,7 +163,7 @@ public sealed partial class TradeSelectionRuntimeTests(TomasAI.IFM.IntegrationTe
         }
     }
     [Fact, Trait("Gate", "TS-05"), Trait("Gate", "TS-08")]
-    public async Task Actual_Scylla_orphan_after_append_failure_is_recovered_by_the_identical_Function_request()
+    public async Task Actual_Postgres_projection_orphan_after_append_failure_is_recovered_by_the_identical_Function_request()
     {
         var recorder = new FailingRepository();
         await using var factory = Host(services =>

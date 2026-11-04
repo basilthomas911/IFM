@@ -34,7 +34,7 @@ internal static class TradeWorkspaceFixtures {
   var formatter=RuntimeHelpers.GetUninitializedObject(type);
   Field(formatter,"model",model);
   Field(formatter,"openTrades",Activator.CreateInstance(type.GetField("openTrades",flags)!.FieldType)!);
-  Field(formatter,"apiValueDate",new DateOnly(2026,10,26));Field(formatter,"fromDate",new DateOnly(2026,10,1));Field(formatter,"toDate",new DateOnly(2026,10,31));
+  Field(formatter,"apiValueDate",new DateOnly(2026,10,26));Field(formatter,"fromDate",new DateOnly(2026,9,1));Field(formatter,"toDate",new DateOnly(2026,10,31));
   var result=(ContractEditorResult)type.GetMethod("Snapshot",flags)!.Invoke(formatter,null)!;
   FixtureFiles.WriteAllBytes(Path.Combine(output,"trade-workspace-session.msgpack"),MessagePackSerializer.Serialize(result,MessagePackBinarySerializer.ContentOptions));
  }

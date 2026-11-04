@@ -8,6 +8,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.T
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.Validation;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 /// <summary>Builds the final immutable Function request before the workflow commits its dispatch intent.</summary>
@@ -45,7 +47,10 @@ public static class CompositionDispatch
         var request = new ExecuteOrderCompositionPipelineCommand
         {
             SchemaVersion = 1,
-            CommandId = start.CommandId,
+            // Preparation acceptance already owns its command-audit identity. The
+            // Function needs a separate stable identity for its different payload.
+            CommandId = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(
+                $"{view.WorkflowId}|{view.WorkflowRevision}|{start.CommandId:N}|{ExecuteOrderCompositionPipelineCommand.Actor}|{ExecuteOrderCompositionPipelineCommand.Verb}")).AsSpan(0, 16)),
             Subject = new(ActorType.Function, ExecuteOrderCompositionPipelineCommand.Actor, ExecuteOrderCompositionPipelineCommand.Verb, id.Format()),
             EntityId = id,
             InputWorkflowRevision = view.WorkflowRevision,

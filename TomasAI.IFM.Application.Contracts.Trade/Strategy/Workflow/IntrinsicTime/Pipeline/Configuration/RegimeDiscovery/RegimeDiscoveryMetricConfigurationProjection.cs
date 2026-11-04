@@ -12,7 +12,7 @@ public static class RegimeDiscoveryMetricConfigurationProjection
     public static RegimeDiscoverySignalMetricConfiguration[] FromLegacySignals(
         Guid parameterSetId, IEnumerable<RegimeDiscoverySignalConfiguration> legacyRows)
     {
-        return legacyRows.Select(row => (Row: row, Definition: Definition(row.Metric)))
+        return RegimeDiscoveryEmaBaseline.Normalize(legacyRows).Select(row => (Row: row, Definition: Definition(row.Metric)))
             .Where(value => value.Definition.HasValue)
             .GroupBy(value => (value.Definition!.Value.Metric, value.Row.TimeFrame,
                 value.Definition.Value.PeriodLength))
@@ -79,7 +79,7 @@ public static class RegimeDiscoveryMetricConfigurationProjection
                 throw new ArgumentException($"{observation.Metric} is not yet consumed by Regime Discovery.",nameof(observations));
         }
 
-        return rows.GroupBy(row => (row.Metric, row.TimeFrame)).Select(group => group.First())
+        return RegimeDiscoveryEmaBaseline.Normalize(rows).GroupBy(row => (row.Metric, row.TimeFrame)).Select(group => group.First())
             .OrderBy(row => row.TimeFrame).ThenBy(row => row.Metric).ToArray();
     }
 

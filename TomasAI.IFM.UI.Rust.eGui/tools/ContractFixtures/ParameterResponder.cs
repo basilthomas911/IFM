@@ -19,7 +19,7 @@ internal sealed class ParameterResponder {
  readonly ParameterAssignmentScope scope=new("Workflow","IntrinsicTimeStrategy","RegimeDiscovery",ParameterSchemaRegistry.RegimeComponent,"{}","fixture"){TargetHorizon=TimeFrameType.Daily};
  readonly Guid assignmentId=Guid.Parse("ac56f7a9-b41c-4fb9-9ec3-eab3497bc86a");
  readonly List<ParameterAuditEntry> assignmentAudit=[];
- ParameterAssignmentRevision? assignment;long assignmentRevision;
+ ParameterAssignmentRevision? assignment;long assignmentRevision;long revisionFence;bool staleInjected;
  public ParameterResponder(){
   var values=ParameterFixtures.Values();Components=values.Select(v=>new ParameterComponentSummary("Fixture","Fixture",v.ComponentCode,v.ComponentCode,[v.SchemaVersion],true)).OrderBy(v=>v.ComponentCode==ParameterSchemaRegistry.FuturesItiSignalComponent?0:1).ToArray();
   foreach(var (value,index) in values.Select((v,i)=>(v,i))){var id=Guid.Parse($"f256f7a9-b41c-4fb9-9ec3-eab3497b{index:0000}");var typed=Preview(id,value.ComponentCode,TimeFrameType.Daily,null);typed=typed.WithIdentity(id,1);versions[id]=[Version(typed,1,"Fixture "+value.ComponentCode,1)];receipts[id]=[];}
@@ -43,6 +43,16 @@ internal sealed class ParameterResponder {
    if(pieces[0]=="Query"){
     if(pieces[3]!="none"||Get<IActorEntityId>("EntityId").Format()!="none")throw new InvalidDataException("Incorrect parameter query entity");
     switch(verb){
+     case "PrepareParameterCommand":
+      var preparation=((PrepareParameterCommandQuery)value).Preparation;
+      ParameterCommandPreparation prepared;
+      if(preparation.Creation is {} createRequest){prepared=preparation with{Creation=createRequest with{Evidence=new(revisionFence,LegacyVersion:new(Legacy,1,"{}","Legacy fixture",1))}};}
+      else if(preparation.Assignment is {} assignRequest){var exact=versions[assignRequest.Reference.SetId].Single(v=>v.Reference==assignRequest.Reference);prepared=preparation with{Assignment=assignRequest with{Evidence=new(revisionFence,ExactVersion:exact)}};}
+      else if(preparation.Retirement is {} retireRequest){var exact=versions[retireRequest.EntityId.SetId].Single(v=>v.Reference.Version==retireRequest.Version);prepared=preparation with{Retirement=retireRequest with{Evidence=new(revisionFence,ExactVersion:exact,HasActiveAssignments:assignment is{Enabled:true}&&assignment.Reference==exact.Reference)}};}
+      else if(preparation.Publication is {} publishRequest){var exact=versions[publishRequest.EntityId.SetId].Single(v=>v.Reference.Version==publishRequest.Version);prepared=preparation with{Publication=publishRequest with{Evidence=new(revisionFence,ExactVersion:exact)}};}
+      else throw new InvalidDataException("Unsupported fixture preparation");
+      if(Mode=="WrongPreparedCommand"&&prepared.Publication is{} altered)prepared=prepared with{Publication=altered with{CommandId=Guid.NewGuid()}};
+      return Result(prepared);
      case "ListParameterComponents":return Result(Components);
      case "ListParameterVersions":
       var q=(ListParameterVersionsQuery)value;if(q.Limit!=100||q.PayloadJson!="{}"||q.SchemaVersion!=2)throw new InvalidDataException("Parameter query default changed");var rows=Versions(q.ComponentCode).Where(v=>q.SetId==Guid.Empty||v.Reference.SetId==q.SetId).ToArray();return Result(Mode=="WrongComponent"?Versions(ParameterSchemaRegistry.RegimeComponent):rows);
@@ -60,6 +70,12 @@ internal sealed class ParameterResponder {
      default:throw new InvalidDataException("Unsupported parameter fixture query");
     }
    }
+   var evidence=value switch{AssignParameterVersionCommand request=>request.Evidence,RetireParameterVersionCommand request=>request.Evidence,PublishParameterVersionCommand request=>request.Evidence,CreateParameterSetCommand{LegacySource:not null} request=>request.Evidence,_=>null};
+   if(value is AssignParameterVersionCommand or RetireParameterVersionCommand or PublishParameterVersionCommand or CreateParameterSetCommand{LegacySource:not null}){
+    if(evidence is null)throw new InvalidDataException("PARAM.EVIDENCE_REQUIRED");
+    if(Mode=="StaleEvidence"&&!staleInjected){staleInjected=true;revisionFence++;}
+    if(evidence.RevisionFence!=revisionFence)throw new InvalidDataException("PARAM.EVIDENCE_STALE");
+   }
    var command=Get<Guid>("CommandId");if(command==Guid.Empty||!commands.Add(command))throw new InvalidDataException("Duplicate parameter submission");
    if(Mode=="Reject")throw new InvalidDataException("Fixture rejected parameter mutation");
    if(value is IParameterSetMutation c){
@@ -75,6 +91,7 @@ internal sealed class ParameterResponder {
    else throw new InvalidDataException("Unsupported parameter fixture mutation");
    if(value is AssignParameterVersionCommand or DisableParameterAssignmentCommand)
     assignmentAudit.Add(new(command,assignmentId,assignmentRevision,verb,"Fixture",Now,"",""));
+   revisionFence++;
    await connection.PublishAsync($"Event.ParameterSetEvent.ChangedComplete.{pieces[3]}",MessagePackSerializer.Serialize(command,options),cancellationToken:token);
    if(Mode=="MalformedAck")return MessagePackSerializer.Serialize("invalid",options);
    return Mode=="DropReply"?null:Result(new GuidResult(command));

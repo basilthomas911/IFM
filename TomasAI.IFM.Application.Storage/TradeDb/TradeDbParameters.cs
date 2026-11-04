@@ -1315,3 +1315,12 @@ internal readonly record struct UpsertRegimeDiscovery(Guid WorkflowId, string Wo
         UpdatedAtUtc
     };
 }
+/// <summary>Updates mutable trade attributes while preserving the original creation metadata.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+internal readonly record struct UpdateOptionTrade(int orderId, int tradeId, DateOnly tradeDate, DateOnly maturityDate,
+    string tradeType, string tradeState, string tradeStrategy, string tradeAction, string underlyingContractId,
+    string underlyingAssetType, bool isPrimaryTrade, bool isHedgeTrade, DateTime updatedOn, string updatedBy) : IBindValue
+{
+    public object Bind() => new object?[] { orderId, tradeId, tradeDate, maturityDate, tradeType, tradeState, tradeStrategy,
+        tradeAction, underlyingContractId, underlyingAssetType, isPrimaryTrade, isHedgeTrade, updatedOn, updatedBy };
+}

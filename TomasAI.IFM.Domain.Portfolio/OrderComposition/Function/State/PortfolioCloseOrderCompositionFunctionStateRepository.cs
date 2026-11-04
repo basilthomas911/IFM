@@ -19,12 +19,8 @@ public sealed class PortfolioCloseOrderCompositionFunctionStateRepository(
         EvaluatePortfolioCloseOrderCompositionCommand request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var state = new PortfolioCloseOrderCompositionFunctionState { Id = request.Subject.ThreadId };
-        var completed = await database.ReadOperationAsync<PortfolioCloseOrderCompositionCompletedEvent>(
-            request.PortfolioId, request.OperationId, null, cancellationToken).ConfigureAwait(false);
-        if (completed is not null)
-            state.ReplayEvents([completed]);
-        return state;
+        return await global::TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioOperationCreationSnapshot.LoadAsync<PortfolioCloseOrderCompositionFunctionState, PortfolioCloseOrderCompositionCompletedEvent>(
+            database, request.PortfolioId, request.OperationId, request.Subject.ThreadId, cancellationToken).ConfigureAwait(false);
     }
 
     public ValueTask SaveCompletedStateAsync(IFunctionActorContext context,

@@ -108,6 +108,9 @@ public sealed class IronCondorOptionCalculatorTests
     {
         var at = atUtc ?? At;
         var expiryAt = at.AddDays(24);
+        // Keep the synthetic expiry inside its trading date even when a wall-clock
+        // test starts after the exchange's 18:00 value-date rollover.
+        if (atUtc.HasValue) expiryAt = new DateTimeOffset(expiryAt.Date.AddHours(16), TimeSpan.Zero);
         while (expiryAt.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) expiryAt = expiryAt.AddDays(1);
         TradeLegDefinition[] legs =
         [

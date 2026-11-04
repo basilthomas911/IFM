@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Model;
 using System.Reflection;
 using FluentAssertions;
 using MessagePack;
@@ -12,6 +13,7 @@ public sealed class ParameterSetQueryWireConventionTests
     {
         typeof(PreviewTypedParameterDraftQuery),
         typeof(ValidateTypedParameterCandidateQuery),
+        typeof(PrepareParameterCommandQuery),
         typeof(ListParameterComponentsQuery),
         typeof(ListParameterVersionsQuery),
         typeof(GetParameterSetStateQuery),
@@ -47,7 +49,7 @@ public sealed class ParameterSetQueryWireConventionTests
     [Fact]
     public void Explicit_assignment_scope_round_trips_and_original_four_field_queries_still_read()
     {
-        var scope = TomasAI.IFM.Domain.Reference.ParameterSets.Model.OptionSpreadStrategyParameterScopeModel.IronCondor();
+        var scope = TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Model.OptionSpreadStrategyParameterScopeModel.IronCondor();
         var query = new GetParameterAssignmentQuery { Scope = scope };
         MessagePackSerializer.Deserialize<GetParameterAssignmentQuery>(MessagePackSerializer.Serialize(query)).Scope.Should().Be(scope);
         var bytes = MessagePackSerializer.Serialize(new GetParameterAssignmentQuery());

@@ -34,10 +34,7 @@ public class FuturesTickDataStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask<FuturesTickDataCommandState> LoadStateAsync(ICommand command)
-        => await (LoadStateFromSnapshotLastNRangeAsync<
-            FuturesTickDataCommandState,
-            FuturesTickDataStreamingStartedEvent,
-            FuturesTickDataInsertedEvent>(command, 0)).ConfigureAwait(false);
+        => await LoadStatelessStateFromCreationSnapshotAsync<FuturesTickDataCommandState>(command).ConfigureAwait(false);
 
     /// <summary>
     /// save futures tick data state changes

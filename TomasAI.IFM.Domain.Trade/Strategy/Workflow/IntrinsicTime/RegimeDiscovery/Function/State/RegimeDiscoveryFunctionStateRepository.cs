@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using Microsoft.Extensions.Logging;
@@ -15,7 +15,7 @@ public sealed class RegimeDiscoveryFunctionStateRepository(IEventSourceActorStat
     public bool UsesAtomicPersistence => string.Equals(databases?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
 
     public ValueTask<RegimeDiscoveryPipelineCompletedEvent> CommitAsync(IFunctionActorContext context, ExecuteRegimeDiscoveryPipelineCommand request, RegimeDiscoveryPipelineCompletedEvent candidate, CancellationToken cancellationToken = default) => TradePipelineAtomicPersistence.CommitAsync(request, candidate, EventSourceDb, databases, transactions, cancellationToken);
-    public async ValueTask<RegimeDiscoveryFunctionState> LoadStateAsync(ExecuteRegimeDiscoveryPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateAsync<RegimeDiscoveryFunctionState>(request, cancellationToken).ConfigureAwait(false);
+    public async ValueTask<RegimeDiscoveryFunctionState> LoadStateAsync(ExecuteRegimeDiscoveryPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateFromCreationSnapshotAsync<RegimeDiscoveryFunctionState>(request, cancellationToken).ConfigureAwait(false);
     public async ValueTask SaveCompletedStateAsync(IFunctionActorContext context, RegimeDiscoveryFunctionState state, ExecuteRegimeDiscoveryPipelineCommand request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);

@@ -156,6 +156,26 @@ public static class RegimeDiscoverySignalCacheAdapter
     }
 
     /// <summary>Publishes rolling range, high/low, breakout distance, and EMA interaction from a closed OHLCV bar.</summary>
+    public static void RestoreBars(IReadOnlyList<FuturesTradeSessionBarReadModel> bars)
+    {
+        if (bars.Count == 0) return;
+        var key = (bars[0].ContractId, bars[0].TimeFrame);
+        if (bars.Any(bar => (bar.ContractId, bar.TimeFrame) != key))
+            throw new ArgumentException("A structure restore must contain one contract and timeframe.", nameof(bars));
+        var queue = Bars.GetOrAdd(key, static _ => new Queue<FuturesTradeSessionBarReadModel>(20));
+        lock (queue)
+        {
+            // Prefer already observed live intervals and retain a newer live bar
+            // if it arrived while the immutable historical inputs were read.
+            var merged = queue.Concat(bars).GroupBy(bar => bar.IntervalEndUtc).Select(group => group.First())
+                .OrderBy(bar => bar.IntervalEndUtc).TakeLast(21).ToArray();
+            queue.Clear();
+            foreach (var prior in merged.SkipLast(1)) queue.Enqueue(prior);
+            Publish(merged[^1]);
+        }
+    }
+
+    /// <summary>Publishes rolling range, high/low, breakout distance, and EMA interaction from a closed OHLCV bar.</summary>
     public static void Publish(FuturesTradeSessionBarReadModel bar)
     {
         ArgumentNullException.ThrowIfNull(bar);
@@ -163,6 +183,7 @@ public static class RegimeDiscoverySignalCacheAdapter
         var queue = Bars.GetOrAdd(key, static _ => new Queue<FuturesTradeSessionBarReadModel>(20));
         lock (queue)
         {
+            if (queue.Count > 0 && bar.IntervalEndUtc <= queue.Last().IntervalEndUtc) return;
             if (queue.Count >= 20 && LatestAtr.TryGetValue(key, out var atr) && atr > 0)
             {
                 var high = queue.Max(value => value.High);
@@ -181,7 +202,7 @@ public static class RegimeDiscoverySignalCacheAdapter
     false => bar.Close < low ? (bar.Close - low) / atr : 0m
 };
                 Publish(metadata, RegimeDiscoverySignalMetric.BreakoutDistanceAtr, breakout, true);
-                if (LatestEma20.TryGetValue(key, out var ema20))
+                if (LatestEma20.TryGetValue((bar.ContractId, TimeFrameType.Daily), out var ema20))
                     Publish(metadata, RegimeDiscoverySignalMetric.Ema20Interaction,
                         (bar.Close - ema20) / atr, true);
             }
@@ -208,7 +229,7 @@ public static class RegimeDiscoverySignalCacheAdapter
     {
         var key = new MarketAnalyticsSignalKey(metadata.SignalKey.MarketSeriesIdentity, Kind(metric),
             metadata.TimeFrame, $"{metric}.v1");
-        Cache.Upsert(new RegimeDiscoverySignalObservation
+        var observation = new RegimeDiscoverySignalObservation
         {
             Metric = metric,
             SignalKey = key,
@@ -222,7 +243,21 @@ public static class RegimeDiscoverySignalCacheAdapter
             IsValid = metadata.IsValid,
             Availability = RegimeDiscoverySignalAvailability.Available,
             SignalIdentity = $"{key.MarketSeriesIdentity.Format()}.{metric}.{key.TimeFrame}"
-        });
+        };
+        Cache.Upsert(observation);
+        // Continuous-series producers retain their roll identity. Strategy
+        // workflows consume the exact active contract carried by that evidence.
+        var contractIdentity = MarketSeriesIdentity.ForContract(metadata.ContractId);
+        if (key.MarketSeriesIdentity != contractIdentity
+            && key.MarketSeriesIdentity.FuturesSeriesId is { AdjustmentRuleId: "unadjusted" })
+        {
+            var alias = key with { MarketSeriesIdentity = contractIdentity };
+            Cache.Upsert(observation with
+            {
+                SignalKey = alias,
+                SignalIdentity = $"{contractIdentity.Format()}.{metric}.{key.TimeFrame}"
+            });
+        }
     }
 
     /// <summary>

@@ -19,7 +19,7 @@ public sealed class MarketDataFeedRecoveryStateRepository(IEventSourceActorState
     public async ValueTask<MarketDataFeedRecoveryState> LoadStateAsync(ICommand command, CancellationToken token)
     {
         using var budget = Budget((AppendMarketDataFeedRecoveryCommand)command,token);
-        return await LoadStateFromSnapshotAsync<MarketDataFeedRecoveryState, MarketDataFeedRecoveryStartedEvent>(command,budget.Token).ConfigureAwait(false);
+        return await LoadStateFromCreationSnapshotAsync<MarketDataFeedRecoveryState>(command,budget.Token).ConfigureAwait(false);
     }
     public ValueTask SaveStateAsync(ICommandActorContext context, MarketDataFeedRecoveryState state, ICommand command) => SaveStateAsync(context,state,command,CancellationToken.None);
     public async ValueTask SaveStateAsync(ICommandActorContext context, MarketDataFeedRecoveryState state, ICommand command, CancellationToken token)

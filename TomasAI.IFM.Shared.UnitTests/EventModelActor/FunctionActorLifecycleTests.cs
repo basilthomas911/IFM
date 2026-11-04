@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -107,12 +108,13 @@ public sealed class FunctionActorLifecycleTests
     public async Task Persistence_exception_becomes_failed_result_after_projection()
     {
         var calls = new List<string>();
+        var logger = new FailureLogger();
         var repository = new TestRepository(
             new TestState(),
             calls,
             new InvalidOperationException("event store unavailable"));
         var actor = new TestFunctionActor(repository, new TestProjector(calls), (_, request) =>
-            FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)));
+            FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)), logger);
         var message = new TestMessage(new TestRequest());
 
         await actor.HandleMessageAsync(message);
@@ -120,6 +122,8 @@ public sealed class FunctionActorLifecycleTests
         calls.Should().Equal("project", "save");
         message.Reply!.Success.Should().BeFalse();
         message.Reply.Value!.Failed!.ErrorMessage.Should().Contain("Persistence");
+        Assert.Single(logger.Failures);
+        Assert.Equal("event store unavailable", logger.Failures[0].Message);
     }
 
     [Fact]
@@ -589,7 +593,8 @@ public sealed class FunctionActorLifecycleTests
     sealed class TestFunctionActor(
         IEventSourceFunctionStateRepository<TestState, TestRequest> repository,
         TestProjector? projector,
-        Func<TestState, TestRequest, FunctionResult<TestCompletedEvent, TestFailedEvent>> execute)
+        Func<TestState, TestRequest, FunctionResult<TestCompletedEvent, TestFailedEvent>> execute,
+        ILogger<TestFunctionActor>? logger = null)
         : BaseEventSourceFunctionActor<
             TestFunctionActor,
             TestRequest,
@@ -601,7 +606,7 @@ public sealed class FunctionActorLifecycleTests
                 new TestContext(),
                 repository,
                 projector,
-                NullLogger<TestFunctionActor>.Instance)
+                logger ?? NullLogger<TestFunctionActor>.Instance)
     {
         public IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> ValidationMap { get; set; } =
             new Dictionary<Type, Func<ICommand, List<ValidationError>>> { [typeof(TestRequest)] = _ => [] };
@@ -668,6 +673,17 @@ public sealed class FunctionActorLifecycleTests
             Exception exception,
             FunctionFailureStage stage)
             => Failed(request, $"{stage}: {exception.Message}");
+    }
+
+    sealed class FailureLogger : ILogger<TestFunctionActor>
+    {
+        public List<Exception> Failures { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (exception is not null) Failures.Add(exception);
+        }
     }
 
     sealed class TestContext : IFunctionActorContext<TestFunctionActor>

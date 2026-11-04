@@ -54,7 +54,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
         var database = "ifm_ledger_rebuild_" + Guid.NewGuid().ToString("N");
         var sourceConnection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")!;
         var builder = new NpgsqlConnectionStringBuilder(sourceConnection);
-        if (builder.Host is not ("localhost" or "127.0.0.1") || builder.Database != "ifm_storage_refactor_test")
+        if (!OwnedPortfolioTestDatabase.IsOwned(builder))
             throw new InvalidOperationException("This test requires the explicitly isolated storage-refactor database.");
         builder.Database = "postgres";
         await using var admin = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(builder.ConnectionString);
@@ -139,7 +139,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
         var before=await LedgerState(id);
         var database="ifm_ledger_rebuild_"+Guid.NewGuid().ToString("N");
         var builder=new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")!);
-        if (builder.Host is not ("localhost" or "127.0.0.1") || builder.Database!="ifm_storage_refactor_test") throw new InvalidOperationException("Isolated database required.");
+        if (!OwnedPortfolioTestDatabase.IsOwned(builder)) throw new InvalidOperationException("Isolated database required.");
         builder.Database="postgres";
         await using var admin=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(builder.ConnectionString);
         await admin.OpenAsync();
@@ -191,7 +191,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
         var before=await CapacityState(Transactions(),book.PortfolioId);
         var database="ifm_ledger_rebuild_"+Guid.NewGuid().ToString("N");
         var builder=new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")!);
-        if(builder.Host is not("localhost" or "127.0.0.1") || builder.Database!="ifm_storage_refactor_test") throw new InvalidOperationException("Isolated database required.");
+        if(!OwnedPortfolioTestDatabase.IsOwned(builder)) throw new InvalidOperationException("Isolated database required.");
         builder.Database="postgres";
         await using var admin=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(builder.ConnectionString); await admin.OpenAsync();
         await using(var create=new NpgsqlCommand($"CREATE DATABASE {database}",admin)) await create.ExecuteNonQueryAsync();
@@ -241,7 +241,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
         source.SourceEventId.Should().Be(original.Id);source.FinancialRevision.Should().Be(1);source.AuthorityEpoch.Should().Be(1);
         var database="ifm_ledger_rebuild_"+Guid.NewGuid().ToString("N");
         var builder=new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")!);
-        if(builder.Host is not("localhost" or "127.0.0.1") || builder.Database!="ifm_storage_refactor_test") throw new InvalidOperationException("Isolated database required.");
+        if(!OwnedPortfolioTestDatabase.IsOwned(builder)) throw new InvalidOperationException("Isolated database required.");
         builder.Database="postgres";await using var admin=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(builder.ConnectionString);await admin.OpenAsync();
         await using(var create=new NpgsqlCommand($"CREATE DATABASE {database}",admin)) await create.ExecuteNonQueryAsync();
         try
@@ -266,7 +266,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
         var database="ifm_ledger_rebuild_"+Guid.NewGuid().ToString("N");
         var sourceDatabase="ifm_ledger_rebuild_"+Guid.NewGuid().ToString("N");
         var builder=new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")!);
-        if(builder.Host is not("localhost" or "127.0.0.1") || builder.Database!="ifm_storage_refactor_test") throw new InvalidOperationException("Isolated database required.");
+        if(!OwnedPortfolioTestDatabase.IsOwned(builder)) throw new InvalidOperationException("Isolated database required.");
         builder.Database="postgres";await using var admin=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(builder.ConnectionString);await admin.OpenAsync();
         await using(var create=new NpgsqlCommand($"CREATE DATABASE {database}",admin)) await create.ExecuteNonQueryAsync();
         await using(var create=new NpgsqlCommand($"CREATE DATABASE {sourceDatabase}",admin)) await create.ExecuteNonQueryAsync();

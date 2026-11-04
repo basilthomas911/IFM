@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -41,7 +41,7 @@ public class FuturesContractStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<FuturesContractCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<FuturesContractCommandState, FuturesContractAddedEvent>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotAsync<FuturesContractCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// save futures contract state changes

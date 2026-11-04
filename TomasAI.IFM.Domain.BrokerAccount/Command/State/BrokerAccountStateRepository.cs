@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -29,7 +29,7 @@ public sealed class BrokerAccountStateRepository(
     public async ValueTask<BrokerAccountCommandState> LoadStateAsync(ICommand command,
         CancellationToken cancellationToken)
     {
-        var state = await LoadStateFromSnapshotAsync<BrokerAccountCommandState, BrokerAccountChangedEvent>(
+        var state = await LoadStateFromCreationSnapshotAsync<BrokerAccountCommandState>(
             command, cancellationToken).ConfigureAwait(false);
         return state;
     }

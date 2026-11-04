@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 public sealed partial class TradeSelectionRuntimeTests
 {
     [Theory, InlineData("LongFuture"), InlineData("BullCallDebit"), InlineData("LongBullishIronCondor"), Trait("Gate", "OC-05"), Trait("Gate", "OC-07"), Trait("Gate", "OC-08")]
-    public async Task OrderComposer_real_NATS_Scylla_Postgres_completion_replay_conflict_and_queries(string variant)
+    public async Task OrderComposer_real_NATS_Postgres_completion_replay_conflict_and_queries(string variant)
     {
         await using var factory = Host(); _ = factory.CreateClient();
         var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
@@ -68,7 +68,7 @@ public sealed partial class TradeSelectionRuntimeTests
         finally { await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); await producer.StopAsync(); }
     }
     [Fact, Trait("Gate", "OC-05"), Trait("Gate", "OC-08")]
-    public async Task OrderComposer_real_Scylla_orphan_after_append_failure_is_recovered_by_the_identical_Function_request()
+    public async Task OrderComposer_real_Postgres_projection_orphan_after_append_failure_is_recovered_by_the_identical_Function_request()
     {
         var recorder = new CompositionFailingRepository();
         await using var factory = Host(services =>

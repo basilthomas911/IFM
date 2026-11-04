@@ -499,16 +499,10 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/DatabaseBackupApiServiceCollectionExtensions.cs",
-    "line": 9,
-    "client": "DatabaseBackupApiServiceCollectionExtensions",
+    "line": 12,
+    "client": "",
     "method": "AddDatabaseBackupNatsClientApis",
-    "parameters": [
-      {
-        "name": "services",
-        "type": "IServiceCollection",
-        "optional": null
-      }
-    ],
+    "parameters": [],
     "result": "IServiceCollection",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
@@ -1462,8 +1456,8 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1708",
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1711"
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1710",
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1713"
     ],
     "nativeOwner": "services/trade_monitor_queries.rs; state/trade_monitors/mod.rs",
     "status": "Implemented; see native contract/controller tests"
@@ -1499,7 +1493,7 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:256",
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:258",
       "TomasAI.IFM.UI.Net.ViewModels/Trade/TradeOrderEditorViewModel.cs:705"
     ],
     "nativeOwner": "services/trade_monitor_queries.rs; state/trade_monitors/mod.rs",
@@ -5396,11 +5390,11 @@
     "result": "Task\u003CServiceResult\u003CMarketDataFeedRuntimeStatusReadModel\u003E\u003E",
     "calls": [
       "entityId.Format",
-      "(RequestAsync\u003CGetMarketDataFeedRuntimeStatusQuery, MarketDataFeedRuntimeStatusReadModel\u003E(\r\n            query.Subject,\r\n            query)).ConfigureAwait",
+      "(RequestAsync\u003CGetMarketDataFeedRuntimeStatusQuery, MarketDataFeedRuntimeStatusReadModel\u003E(\n            query.Subject,\n            query)).ConfigureAwait",
       "RequestAsync\u003CGetMarketDataFeedRuntimeStatusQuery, MarketDataFeedRuntimeStatusReadModel\u003E"
     ],
     "subjects": [
-      "(\r\n                ActorType.Query,\r\n                GetMarketDataFeedRuntimeStatusQuery.Actor,\r\n                GetMarketDataFeedRuntimeStatusQuery.Verb,\r\n                entityId.Format())"
+      "(\n                ActorType.Query,\n                GetMarketDataFeedRuntimeStatusQuery.Actor,\n                GetMarketDataFeedRuntimeStatusQuery.Verb,\n                entityId.Format())"
     ],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs:173",
@@ -5422,7 +5416,7 @@
       "RequestAsync\u003CGetDatabentoReadinessQuery, DatabentoReadinessReadModel\u003E"
     ],
     "subjects": [
-      "(ActorType.Query, GetDatabentoReadinessQuery.Actor,\r\n                GetDatabentoReadinessQuery.Verb, entityId.Format())"
+      "(ActorType.Query, GetDatabentoReadinessQuery.Actor,\n                GetDatabentoReadinessQuery.Verb, entityId.Format())"
     ],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs:179"
@@ -5443,7 +5437,7 @@
       "RequestAsync\u003CGetDatabentoCurrentContractsQuery, DatabentoContractAssignmentReadModel[]\u003E"
     ],
     "subjects": [
-      "(ActorType.Query, GetDatabentoCurrentContractsQuery.Actor,\r\n                GetDatabentoCurrentContractsQuery.Verb, entityId.Format())"
+      "(ActorType.Query, GetDatabentoCurrentContractsQuery.Actor,\n                GetDatabentoCurrentContractsQuery.Verb, entityId.Format())"
     ],
     "resolvedUiCallSites": [],
     "nativeOwner": null,
@@ -5478,7 +5472,7 @@
       "RequestAsync\u003CGetDatabentoWatchdogHistoryQuery, DatabentoWatchdogObservationReadModel[]\u003E"
     ],
     "subjects": [
-      "(ActorType.Query, GetDatabentoWatchdogHistoryQuery.Actor,\r\n                GetDatabentoWatchdogHistoryQuery.Verb, entityId.Format())"
+      "(ActorType.Query, GetDatabentoWatchdogHistoryQuery.Actor,\n                GetDatabentoWatchdogHistoryQuery.Verb, entityId.Format())"
     ],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs:185"
@@ -5715,7 +5709,7 @@
       "RequestAsync\u003CGetInstrumentDefinitionsQuery, InstrumentDefinitionPage\u003E"
     ],
     "subjects": [
-      "(ActorType.Query, GetInstrumentDefinitionsQuery.Actor,\r\n                GetInstrumentDefinitionsQuery.Verb, request.Format())"
+      "(ActorType.Query, GetInstrumentDefinitionsQuery.Actor,\n                GetInstrumentDefinitionsQuery.Verb, request.Format())"
     ],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.Services/MarketData/MarketDataQueryService.cs:35"
@@ -5943,11 +5937,11 @@
       "ArgumentNullException.ThrowIfNull",
       "request.Validate",
       "request.Format",
-      "RequestAsync\u003CGetFuturesOptionContractsPageQuery, FuturesOptionContractPageReadModel\u003E(\r\n            query.Subject, query, cancellationToken).AsTask",
+      "RequestAsync\u003CGetFuturesOptionContractsPageQuery, FuturesOptionContractPageReadModel\u003E(\n            query.Subject, query, cancellationToken).AsTask",
       "RequestAsync\u003CGetFuturesOptionContractsPageQuery, FuturesOptionContractPageReadModel\u003E"
     ],
     "subjects": [
-      "(ActorType.Query, GetFuturesOptionContractsPageQuery.Actor,\r\n                GetFuturesOptionContractsPageQuery.Verb, request.Format())"
+      "(ActorType.Query, GetFuturesOptionContractsPageQuery.Actor,\n                GetFuturesOptionContractsPageQuery.Verb, request.Format())"
     ],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.Services/MarketData/MarketDataQueryService.cs:177"
@@ -6012,11 +6006,11 @@
     "result": "Task\u003CServiceResult\u003COptionContractExpiryReadModel[]\u003E\u003E",
     "calls": [
       "ActorEntityId.Default.Format",
-      "RequestAsync\u003CGetDatabentoOptionChainRangeQuery, OptionContractExpiryReadModel[]\u003E(\r\n            query.Subject, query, cancellationToken).AsTask",
+      "RequestAsync\u003CGetDatabentoOptionChainRangeQuery, OptionContractExpiryReadModel[]\u003E(\n            query.Subject, query, cancellationToken).AsTask",
       "RequestAsync\u003CGetDatabentoOptionChainRangeQuery, OptionContractExpiryReadModel[]\u003E"
     ],
     "subjects": [
-      "(ActorType.Query, GetDatabentoOptionChainRangeQuery.Actor,\r\n                GetDatabentoOptionChainRangeQuery.Verb, ActorEntityId.Default.Format())"
+      "(ActorType.Query, GetDatabentoOptionChainRangeQuery.Actor,\n                GetDatabentoOptionChainRangeQuery.Verb, ActorEntityId.Default.Format())"
     ],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.Services/MarketData/MarketDataQueryService.cs:189",
@@ -6055,11 +6049,11 @@
     "result": "Task\u003CServiceResult\u003CFuturesOptionContractReadModel[]\u003E\u003E",
     "calls": [
       "ActorEntityId.Default.Format",
-      "RequestAsync\u003CGetDatabentoOptionChainQuery, FuturesOptionContractReadModel[]\u003E(\r\n            query.Subject, query, cancellationToken).AsTask",
+      "RequestAsync\u003CGetDatabentoOptionChainQuery, FuturesOptionContractReadModel[]\u003E(\n            query.Subject, query, cancellationToken).AsTask",
       "RequestAsync\u003CGetDatabentoOptionChainQuery, FuturesOptionContractReadModel[]\u003E"
     ],
     "subjects": [
-      "(ActorType.Query, GetDatabentoOptionChainQuery.Actor,\r\n                GetDatabentoOptionChainQuery.Verb, ActorEntityId.Default.Format())"
+      "(ActorType.Query, GetDatabentoOptionChainQuery.Actor,\n                GetDatabentoOptionChainQuery.Verb, ActorEntityId.Default.Format())"
     ],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.Services/MarketData/MarketDataQueryService.cs:220"
@@ -7368,12 +7362,11 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
-      "ParameterStartupEntityId.Registry.Format",
-      "RequestCommandResultAsync\u003CApplySignalStartupPlanCommand, ParameterStartupEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
-      "RequestCommandResultAsync\u003CApplySignalStartupPlanCommand, ParameterStartupEntityId, GuidResult\u003E"
+      "command.RunId.ToString",
+      "SendPreparedAsync"
     ],
     "subjects": [
-      "(ActorType.Command, ApplySignalStartupPlanCommand.Actor, ApplySignalStartupPlanCommand.Verb, ParameterStartupEntityId.Registry.Format())"
+      "(ActorType.Command, ApplySignalStartupPlanCommand.Actor, ApplySignalStartupPlanCommand.Verb, command.RunId.ToString(\u0022N\u0022))"
     ],
     "resolvedUiCallSites": [],
     "nativeOwner": null,
@@ -7399,12 +7392,12 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
-      "ParameterStartupEntityId.Registry.Format",
+      "command.RunId.ToString",
       "RequestCommandResultAsync\u003CReleaseSignalStartupPlanCommand, ParameterStartupEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
       "RequestCommandResultAsync\u003CReleaseSignalStartupPlanCommand, ParameterStartupEntityId, GuidResult\u003E"
     ],
     "subjects": [
-      "(ActorType.Command, ReleaseSignalStartupPlanCommand.Actor, ReleaseSignalStartupPlanCommand.Verb, ParameterStartupEntityId.Registry.Format())"
+      "(ActorType.Command, ReleaseSignalStartupPlanCommand.Actor, ReleaseSignalStartupPlanCommand.Verb, command.RunId.ToString(\u0022N\u0022))"
     ],
     "resolvedUiCallSites": [],
     "nativeOwner": null,
@@ -7430,12 +7423,12 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
-      "ParameterStartupEntityId.Registry.Format",
+      "command.RunId.ToString",
       "RequestCommandResultAsync\u003CRecordSignalStartupReportCommand, ParameterStartupEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
       "RequestCommandResultAsync\u003CRecordSignalStartupReportCommand, ParameterStartupEntityId, GuidResult\u003E"
     ],
     "subjects": [
-      "(ActorType.Command, RecordSignalStartupReportCommand.Actor, RecordSignalStartupReportCommand.Verb, ParameterStartupEntityId.Registry.Format())"
+      "(ActorType.Command, RecordSignalStartupReportCommand.Actor, RecordSignalStartupReportCommand.Verb, command.RunId.ToString(\u0022N\u0022))"
     ],
     "resolvedUiCallSites": [],
     "nativeOwner": null,
@@ -7568,7 +7561,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 61,
+    "line": 67,
     "client": "ParameterSetsApi",
     "method": "ComponentsAsync",
     "parameters": [
@@ -7593,7 +7586,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 62,
+    "line": 68,
     "client": "ParameterSetsApi",
     "method": "VersionsAsync",
     "parameters": [
@@ -7630,7 +7623,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 77,
+    "line": 83,
     "client": "ParameterSetsApi",
     "method": "SchemaAsync",
     "parameters": [
@@ -7663,7 +7656,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 78,
+    "line": 84,
     "client": "ParameterSetsApi",
     "method": "CreateAsync",
     "parameters": [
@@ -7682,6 +7675,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "command.EntityId.Format",
+      "SendPreparedAsync",
       "RequestCommandResultAsync\u003CCreateParameterSetCommand, ParameterSetEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
       "RequestCommandResultAsync\u003CCreateParameterSetCommand, ParameterSetEntityId, GuidResult\u003E"
     ],
@@ -7697,7 +7691,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 84,
+    "line": 91,
     "client": "ParameterSetsApi",
     "method": "SaveAsync",
     "parameters": [
@@ -7730,7 +7724,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 90,
+    "line": 97,
     "client": "ParameterSetsApi",
     "method": "PublishAsync",
     "parameters": [
@@ -7749,8 +7743,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "command.EntityId.Format",
-      "RequestCommandResultAsync\u003CPublishParameterVersionCommand, ParameterSetEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
-      "RequestCommandResultAsync\u003CPublishParameterVersionCommand, ParameterSetEntityId, GuidResult\u003E"
+      "SendPreparedAsync"
     ],
     "subjects": [
       "(ActorType.Command, PublishParameterVersionCommand.Actor, PublishParameterVersionCommand.Verb, command.EntityId.Format())"
@@ -7763,7 +7756,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 96,
+    "line": 103,
     "client": "ParameterSetsApi",
     "method": "StateAsync",
     "parameters": [
@@ -7795,7 +7788,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 98,
+    "line": 105,
     "client": "ParameterSetsApi",
     "method": "RenameAsync",
     "parameters": [
@@ -7828,7 +7821,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 104,
+    "line": 111,
     "client": "ParameterSetsApi",
     "method": "AssignmentAsync",
     "parameters": [
@@ -7864,7 +7857,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 106,
+    "line": 113,
     "client": "ParameterSetsApi",
     "method": "AssignmentAsync",
     "parameters": [
@@ -7893,7 +7886,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 112,
+    "line": 119,
     "client": "ParameterSetsApi",
     "method": "AssignAsync",
     "parameters": [
@@ -7912,8 +7905,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "command.EntityId.Format",
-      "RequestCommandResultAsync\u003CAssignParameterVersionCommand, ParameterAssignmentEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
-      "RequestCommandResultAsync\u003CAssignParameterVersionCommand, ParameterAssignmentEntityId, GuidResult\u003E"
+      "SendPreparedAsync"
     ],
     "subjects": [
       "(ActorType.Command, AssignParameterVersionCommand.Actor, AssignParameterVersionCommand.Verb, command.EntityId.Format())"
@@ -7926,7 +7918,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 115,
+    "line": 122,
     "client": "ParameterSetsApi",
     "method": "DisableAssignmentAsync",
     "parameters": [
@@ -7959,7 +7951,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs",
-    "line": 118,
+    "line": 125,
     "client": "ParameterSetsApi",
     "method": "RetireAsync",
     "parameters": [
@@ -7978,8 +7970,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "command.EntityId.Format",
-      "RequestCommandResultAsync\u003CRetireParameterVersionCommand, ParameterSetEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
-      "RequestCommandResultAsync\u003CRetireParameterVersionCommand, ParameterSetEntityId, GuidResult\u003E"
+      "SendPreparedAsync"
     ],
     "subjects": [
       "(ActorType.Command, RetireParameterVersionCommand.Actor, RetireParameterVersionCommand.Verb, command.EntityId.Format())"
@@ -8639,8 +8630,8 @@
       "TomasAI.IFM.UI.Net.ViewModels/Trade/BrokerTradeInitializationQuery.cs:23",
       "TomasAI.IFM.UI.Net.ViewModels/Trade/EndOfDayProcessViewModel.cs:206",
       "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorTradeOrderViewModel.cs:648",
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1259",
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:328"
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1261",
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:330"
     ],
     "nativeOwner": "services/financial.rs; services/financial_operations.rs; state/portfolio/financial_ui.rs",
     "status": "Implemented; see native contract/controller tests"
@@ -11513,16 +11504,10 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskApiServiceCollectionExtensions.cs",
-    "line": 9,
-    "client": "ScheduledTaskApiServiceCollectionExtensions",
+    "line": 12,
+    "client": "",
     "method": "AddScheduledTaskNatsClientApis",
-    "parameters": [
-      {
-        "name": "services",
-        "type": "IServiceCollection",
-        "optional": null
-      }
-    ],
+    "parameters": [],
     "result": "IServiceCollection",
     "calls": [
       "services.TryAddScoped\u003CIScheduledTaskCommandApi, ScheduledTaskCommandApi\u003E",
@@ -11535,7 +11520,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 13,
+    "line": 15,
     "client": "ScheduledTaskCommandApi",
     "method": "CreateScheduledTaskAsync",
     "parameters": [
@@ -11558,14 +11543,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:48"
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:49"
     ],
     "nativeOwner": "state/scheduled_tasks.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 20,
+    "line": 22,
     "client": "ScheduledTaskCommandApi",
     "method": "ChangeScheduledTaskScheduleAsync",
     "parameters": [
@@ -11588,14 +11573,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:47"
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:48"
     ],
     "nativeOwner": "state/scheduled_tasks.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 27,
+    "line": 29,
     "client": "ScheduledTaskCommandApi",
     "method": "EnableScheduledTaskAsync",
     "parameters": [
@@ -11618,14 +11603,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:53"
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:58"
     ],
     "nativeOwner": "state/scheduled_tasks.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 34,
+    "line": 36,
     "client": "ScheduledTaskCommandApi",
     "method": "DisableScheduledTaskAsync",
     "parameters": [
@@ -11648,14 +11633,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:54"
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:55"
     ],
     "nativeOwner": "state/scheduled_tasks.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 41,
+    "line": 43,
     "client": "ScheduledTaskCommandApi",
     "method": "RemoveScheduledTaskAsync",
     "parameters": [
@@ -11678,14 +11663,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:56"
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:61"
     ],
     "nativeOwner": "state/scheduled_tasks.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 48,
+    "line": 50,
     "client": "ScheduledTaskCommandApi",
     "method": "RecordScheduledTaskInstallationAsync",
     "parameters": [
@@ -11713,7 +11698,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 55,
+    "line": 57,
     "client": "ScheduledTaskCommandApi",
     "method": "RecordScheduledTaskInstallationFailureAsync",
     "parameters": [
@@ -11741,7 +11726,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 62,
+    "line": 64,
     "client": "ScheduledTaskCommandApi",
     "method": "AdmitScheduledTaskRunAsync",
     "parameters": [
@@ -11769,7 +11754,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 69,
+    "line": 71,
     "client": "ScheduledTaskCommandApi",
     "method": "RecordScheduledTaskRunCompletionAsync",
     "parameters": [
@@ -11797,7 +11782,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 76,
+    "line": 78,
     "client": "ScheduledTaskCommandApi",
     "method": "RegisterScheduledTaskProjectAsync",
     "parameters": [
@@ -11825,7 +11810,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 83,
+    "line": 85,
     "client": "ScheduledTaskCommandApi",
     "method": "RecordScheduledTaskHostCapabilityAsync",
     "parameters": [
@@ -11853,7 +11838,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 90,
+    "line": 92,
     "client": "ScheduledTaskCommandApi",
     "method": "RequestScheduledTaskRunAsync",
     "parameters": [
@@ -11876,14 +11861,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:58"
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:63"
     ],
     "nativeOwner": "state/scheduled_tasks.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 97,
+    "line": 99,
     "client": "ScheduledTaskCommandApi",
     "method": "RecordScheduledTaskRunAdmissionAsync",
     "parameters": [
@@ -11911,7 +11896,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 104,
+    "line": 106,
     "client": "ScheduledTaskCommandApi",
     "method": "RecordScheduledTaskRunStartedAsync",
     "parameters": [
@@ -11939,7 +11924,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 111,
+    "line": 113,
     "client": "ScheduledTaskCommandApi",
     "method": "CompleteScheduledTaskRunAsync",
     "parameters": [
@@ -11967,7 +11952,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 118,
+    "line": 120,
     "client": "ScheduledTaskCommandApi",
     "method": "FailScheduledTaskRunAsync",
     "parameters": [
@@ -11990,14 +11975,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:66"
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:71"
     ],
     "nativeOwner": "state/scheduled_tasks.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 125,
+    "line": 127,
     "client": "ScheduledTaskCommandApi",
     "method": "RecordScheduledTaskRunUncertainAsync",
     "parameters": [
@@ -12025,7 +12010,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs",
-    "line": 132,
+    "line": 134,
     "client": "ScheduledTaskCommandApi",
     "method": "RecordScheduledTaskRunStageAsync",
     "parameters": [
@@ -12053,7 +12038,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs",
-    "line": 13,
+    "line": 17,
     "client": "ScheduledTaskQueryApi",
     "method": "GetScheduledTaskOutputAsync",
     "parameters": [
@@ -12077,14 +12062,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:25"
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:26"
     ],
     "nativeOwner": "state/scheduled_tasks.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs",
-    "line": 21,
+    "line": 25,
     "client": "ScheduledTaskQueryApi",
     "method": "GetScheduledTaskRunHistoryAsync",
     "parameters": [
@@ -12108,14 +12093,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:17"
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:18"
     ],
     "nativeOwner": "state/scheduled_tasks.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs",
-    "line": 29,
+    "line": 33,
     "client": "ScheduledTaskQueryApi",
     "method": "GetScheduledTaskCatalogAsync",
     "parameters": [
@@ -12138,13 +12123,15 @@
       "producer.RequestAsync\u003CScheduledTaskCatalog, GetScheduledTaskCatalogQuery\u003E"
     ],
     "subjects": [],
-    "resolvedUiCallSites": [],
+    "resolvedUiCallSites": [
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:56"
+    ],
     "nativeOwner": null,
     "status": "Pending reachability review or native port"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs",
-    "line": 37,
+    "line": 41,
     "client": "ScheduledTaskQueryApi",
     "method": "GetScheduledTasksDashboardAsync",
     "parameters": [
@@ -12168,14 +12155,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:35"
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:36"
     ],
     "nativeOwner": "state/scheduled_tasks.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs",
-    "line": 45,
+    "line": 49,
     "client": "ScheduledTaskQueryApi",
     "method": "GetScheduledTaskAsync",
     "parameters": [
@@ -12204,7 +12191,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs",
-    "line": 53,
+    "line": 57,
     "client": "ScheduledTaskQueryApi",
     "method": "PreviewScheduledTaskScheduleAsync",
     "parameters": [
@@ -12228,14 +12215,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:72"
+      "TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs:77"
     ],
     "nativeOwner": "state/scheduled_tasks.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs",
-    "line": 61,
+    "line": 65,
     "client": "ScheduledTaskQueryApi",
     "method": "GetScheduledTaskRunAsync",
     "parameters": [
@@ -12264,7 +12251,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs",
-    "line": 69,
+    "line": 73,
     "client": "ScheduledTaskQueryApi",
     "method": "ListScheduledTaskRunsAsync",
     "parameters": [
@@ -12293,7 +12280,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs",
-    "line": 77,
+    "line": 81,
     "client": "ScheduledTaskQueryApi",
     "method": "GetScheduledTaskHostHealthAsync",
     "parameters": [
@@ -12322,7 +12309,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs",
-    "line": 85,
+    "line": 89,
     "client": "ScheduledTaskQueryApi",
     "method": "GetScheduledMarketPositionsAsync",
     "parameters": [

@@ -73,6 +73,80 @@ public abstract class BaseEventSourceActorRepository
         }
     }
 
+    /// <summary>Restores independently replacing source snapshots declared by an aggregate with multiple state components.</summary>
+    protected async Task<TState> LoadStateFromLatestSnapshotsAsync<TState, TFirst, TSecond>(
+        ICommand command, CancellationToken cancellationToken = default)
+        where TState : IEventSourceActorState<TState>
+        where TFirst : IEvent
+        where TSecond : IEvent
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        cancellationToken.ThrowIfCancellationRequested();
+        var stream = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
+        var state = (TState)_stateFactory.CreateState<TState>();
+        state.Id = command.Subject.ThreadId;
+        await _dbEventSource.MapReduceActorEventStreamFromLatestSnapshotsAsync<TState, TFirst, TSecond>(
+            stream, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
+        return state;
+    }
+
+    /// <summary>Loads the stream creation event and its complete tail through one committed source head.</summary>
+    /// <typeparam name="TState">The actor or Function state owned by this repository.</typeparam>
+    /// <param name="command">The command selecting the aggregate stream.</param>
+    /// <param name="cancellationToken">Cancels loading without returning partial state.</param>
+    protected async Task<TState> LoadStateFromCreationSnapshotAsync<TState>(
+        ICommand command, CancellationToken cancellationToken = default, Action<TState>? initialize = null)
+        where TState : IEventSourceActorState<TState>
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        cancellationToken.ThrowIfCancellationRequested();
+        var stream = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
+        var state = (TState)_stateFactory.CreateState<TState>();
+        state.Id = command.Subject.ThreadId;
+        initialize?.Invoke(state);
+        await _dbEventSource.MapReduceActorEventStreamFromCreationAsync<TState>(
+            stream, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
+        return state;
+    }
+
+    /// <summary>Restores a stateless source actor from creation and its captured committed head.</summary>
+    protected async Task<TState> LoadStatelessStateFromCreationSnapshotAsync<TState>(
+        ICommand command, CancellationToken cancellationToken = default)
+        where TState : IEventSourceActorState<TState>, IStatelessCreationSnapshotState
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        cancellationToken.ThrowIfCancellationRequested();
+        var stream = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
+        var state = (TState)_stateFactory.CreateState<TState>();
+        state.Id = command.Subject.ThreadId;
+        await _dbEventSource.MapReduceStatelessActorEventStreamFromCreationAsync<TState>(
+            stream, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
+        return state;
+    }
+
+    /// <summary>Loads creation and an explicitly verified complete checkpoint without replaying superseded facts.</summary>
+    protected async Task<TState> LoadStateFromCreationSnapshotWithCheckpointAsync<TState, TCheckpoint>(
+        ICommand command, Func<TCheckpoint, bool> isComplete, CancellationToken cancellationToken = default)
+        where TState : IEventSourceActorState<TState>
+        where TCheckpoint : IEvent
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        cancellationToken.ThrowIfCancellationRequested();
+        var stream = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
+        var state = (TState)_stateFactory.CreateState<TState>();
+        state.Id = command.Subject.ThreadId;
+        var incomplete = false;
+        await _dbEventSource.MapReduceActorEventStreamFromCreationWithCheckpointAsync<TState, TCheckpoint>(
+            stream, rows => state.ReplayEvents(rows.Select(row =>
+            {
+                if (row.ToDomainEvent() is TCheckpoint checkpoint && !isComplete(checkpoint)) incomplete = true;
+                return row;
+            })), cancellationToken).ConfigureAwait(false);
+        if (incomplete)
+            return await LoadStateFromCreationSnapshotAsync<TState>(command, cancellationToken).ConfigureAwait(false);
+        return state;
+    }
+
     /// <summary>
     /// Loads the current actor state by creating an empty state instance. Event replay can be performed by the
     /// caller if needed.

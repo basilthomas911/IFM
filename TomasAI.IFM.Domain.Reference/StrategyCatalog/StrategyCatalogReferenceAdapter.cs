@@ -5,16 +5,17 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Reference.StrategyCatalog;
 
-public sealed class StrategyCatalogReferenceAdapter(IMarketDataApi marketData, IDbContextFactory db) : IStrategyCatalogReferences
+public sealed class StrategyCatalogReferenceAdapter(IDbContextFactory db) : IStrategyCatalogReferences
 {
     public async Task ValidateProductAsync(CatalogProduct product, CancellationToken cancellationToken)
     {
+        var snapshot = await db.ReferenceDb.GetInstrumentDefinitionSnapshotAsync(cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("No published instrument-definition snapshot is available.");
         var matches = 0;
         foreach (var family in new[] { TradeStrategyFamilyType.Futures, TradeStrategyFamilyType.FuturesOption })
         {
-            var rows = await (marketData.GetTradeStrategySymbolsAsync(family, cancellationToken)).ConfigureAwait(false);
-            if (!rows.Success || rows.Value is null) throw new InvalidOperationException(rows.ErrorMessage ?? "Product catalog unavailable.");
-            matches += rows.Value.Count(x => x.Id == product.ProductId && string.Equals(x.Symbol,product.Symbol,StringComparison.Ordinal) && string.Equals(x.Currency,product.Currency,StringComparison.Ordinal) && string.Equals(x.Exchange,product.Exchange,StringComparison.Ordinal));
+            var rows = await db.ReferenceDb.GetInstrumentDefinitionSymbolsAsync(snapshot.Id, family, cancellationToken).ConfigureAwait(false);
+            matches += rows.Count(x => x.Id == product.ProductId && string.Equals(x.Symbol,product.Symbol,StringComparison.Ordinal) && string.Equals(x.Currency,product.Currency,StringComparison.Ordinal) && string.Equals(x.Exchange,product.Exchange,StringComparison.Ordinal));
         }
         if (matches != 1) throw new ArgumentException("Product identity, symbol, exchange and currency do not match the authoritative instrument catalog.", nameof(product));
     }

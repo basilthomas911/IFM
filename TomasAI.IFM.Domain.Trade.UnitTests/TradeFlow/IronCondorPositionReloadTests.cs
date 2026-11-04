@@ -37,10 +37,15 @@ public sealed class IronCondorPositionReloadTests
             TradeLimits = new() { MaxLossLimit = 1000 }, SpreadLimits = [new() { }] };
         var limitRows = new[] { new EventStreamReadModel { StreamVersion = limitsAfterSnapshot ? 11 : 2, EventVersion = limitsAfterSnapshot ? 107 : 98,
             EventTypeName = typeof(IronCondorMonitoringInitializedEvent).AssemblyQualifiedName!, EventData = EventLogMessagePackCodec.Shared.Serialize(limits) } };
-        db.MapReduceActorEventStreamAsync<IronCondorPositionCommandState, IronCondorPositionChangedEvent>(Arg.Any<long>(), Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>())
-            .Returns(call => { call.ArgAt<Action<IEnumerable<EventStreamReadModel>>>(1)(limitsAfterSnapshot ? rows.Concat(limitRows) : rows); return ValueTask.CompletedTask; });
-        db.MapReduceActorEventStreamAsync<IronCondorPositionCommandState, IronCondorMonitoringInitializedEvent>(Arg.Any<long>(), 1, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>())
-            .Returns(call => { call.ArgAt<Action<IEnumerable<EventStreamReadModel>>>(2)(limitRows); return ValueTask.CompletedTask; });
+        var completeHistory = Enumerable.Range(1, 11).Select(version =>
+            version == (limitsAfterSnapshot ? 11 : 2) ? limitRows[0] : new EventStreamReadModel
+            {
+                StreamVersion = version, EventVersion = 100 + version,
+                EventTypeName = typeof(IronCondorPositionChangedEvent).AssemblyQualifiedName!,
+                EventData = EventLogMessagePackCodec.Shared.Serialize(source)
+            });
+        db.MapReduceActorEventStreamFromLatestSnapshotsAsync<IronCondorPositionCommandState, IronCondorPositionChangedEvent, IronCondorMonitoringInitializedEvent>(Arg.Any<long>(), Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>())
+            .Returns(call => { call.ArgAt<Action<IEnumerable<EventStreamReadModel>>>(1)(completeHistory.Where(row => row.StreamVersion == 1 || row.StreamVersion == (limitsAfterSnapshot ? 10 : 11) || row.StreamVersion == (limitsAfterSnapshot ? 11 : 2))); return ValueTask.CompletedTask; });
         var projector = Substitute.For<IEventProjector<FuturesIronCondorTradePositionCommandActor>>();
         var repository = new IronCondorPositionStateRepository(factory, db, Substitute.For<IActorService>(), projector,
             Substitute.For<ILogger<IronCondorPositionStateRepository>>());
@@ -53,8 +58,8 @@ public sealed class IronCondorPositionReloadTests
         Assert.Equal(1000, loaded.TradeLimits!.MaxLossLimit);
         Assert.Single(loaded.SpreadLimits);
         Assert.Empty(loaded.Events);
-        await db.Received(1).MapReduceActorEventStreamAsync<IronCondorPositionCommandState, IronCondorPositionChangedEvent>(Arg.Any<long>(), Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), cancellable ? cancellation.Token : default);
-        await db.Received(limitsAfterSnapshot ? 0 : 1).MapReduceActorEventStreamAsync<IronCondorPositionCommandState, IronCondorMonitoringInitializedEvent>(Arg.Any<long>(), 1, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>());
+        await db.Received(1).MapReduceActorEventStreamFromLatestSnapshotsAsync<IronCondorPositionCommandState, IronCondorPositionChangedEvent, IronCondorMonitoringInitializedEvent>(Arg.Any<long>(), Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), cancellable ? cancellation.Token : default);
+        await db.Received(0).MapReduceActorEventStreamAsync<IronCondorPositionCommandState, IronCondorMonitoringInitializedEvent>(Arg.Any<long>(), 1, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>());
         await db.DidNotReceive().MapReduceActorEventStreamAsync<IronCondorPositionCommandState>(Arg.Any<long>(), Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>());
         loaded.Apply(source with { CommandId = command.CommandId, PositionSnapshot = snapshot with { PositionSequence = 10 } });
         db.SaveCommandEventsAtomicallyAsync(command, Arg.Any<DomainEventCollection>(), 11, Arg.Any<CancellationToken>())

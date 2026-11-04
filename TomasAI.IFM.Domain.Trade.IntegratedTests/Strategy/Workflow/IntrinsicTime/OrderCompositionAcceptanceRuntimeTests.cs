@@ -24,7 +24,7 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 public sealed partial class TradeSelectionRuntimeTests
 {
     [Theory, InlineData(false), InlineData(true), Trait("Gate", "OC-06"), Trait("Gate", "OC-07")]
-    public async Task OrderComposer_workflow_acceptance_is_durable_once_and_queries_do_not_depend_on_Scylla_workflow_projection(bool empty)
+    public async Task OrderComposer_workflow_acceptance_is_durable_once_and_queries_do_not_depend_on_legacy_workflow_projection(bool empty)
     {
         // Withhold the conventional workflow projection/notification, preserving real PostgreSQL authority.
         var projector = Substitute.For<IEventProjector<IntrinsicTimeStrategyWorkflowCommandActor>>();

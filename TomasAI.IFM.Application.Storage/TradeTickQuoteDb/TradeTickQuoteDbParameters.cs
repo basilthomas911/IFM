@@ -75,3 +75,9 @@ internal readonly record struct BootstrapTradeParameters(string ContractId, Date
 {
     public object Bind() => new object[] { (sbyte)TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.AssetTypeId.Futures, ContractId, ThroughDate };
 }
+
+/// <summary>Binds the provider-neutral raw-trade window in declared query order.</summary>
+internal readonly record struct BootstrapTradeWindowParameters(string ContractId, DateOnly ValueDate, TimeOnly FromUtc, TimeOnly ThroughUtc) : IBindValue
+{
+    public object Bind() => new object[] { (sbyte)TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.AssetTypeId.Futures, ContractId, ValueDate, FromUtc, ThroughUtc };
+}

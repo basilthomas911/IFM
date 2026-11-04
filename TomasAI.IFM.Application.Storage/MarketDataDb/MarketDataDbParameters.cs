@@ -2,6 +2,8 @@ using System.Text.Json;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using static TomasAI.IFM.Shared.Storage.BindValues;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -1306,6 +1308,12 @@ internal readonly record struct GetYieldCurveRateYears(int lookupId) : IBindValu
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+internal readonly record struct StoredTradeSessionBarKey(string ContractId, TimeFrameType Frame, DateOnly Date, DateTimeOffset End) : IBindValue
+{
+    public object Bind() => new object?[] { MarketSeriesIdentity.ForContract(ContractId).Format(), Frame.ToString(),
+        checked(Date.Year * 100 + Date.Month), End.UtcDateTime, ContractId, Date };
+}
+
 internal readonly record struct HistoricalObservationParameter(FuturesTradeSessionBarReadModel Value) : IBindValue
 {
     public object Bind() => new object?[]

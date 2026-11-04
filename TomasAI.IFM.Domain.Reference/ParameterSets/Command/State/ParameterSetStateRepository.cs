@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Persistence;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -7,6 +8,7 @@ using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
 namespace TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
 
@@ -20,14 +22,14 @@ public sealed class ParameterSetStateRepository(
     : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger),
       IEventSourceActorStateRepository<ParameterSetCommandState>
 {
-    /// <summary>Loads the complete configuration stream.</summary>
+    /// <summary>Replays the aggregate creation snapshot and all subsequent changes.</summary>
     public async ValueTask<ParameterSetCommandState> LoadStateAsync(ICommand command)
         => await LoadStateAsync(command, CancellationToken.None)
             .ConfigureAwait(false);
 
     /// <summary>Loads configuration source facts with cancellation.</summary>
     public async ValueTask<ParameterSetCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateAsync<ParameterSetCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotAsync<ParameterSetCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Saves pending lifecycle events atomically.</summary>
     public async ValueTask SaveStateAsync(ICommandActorContext context,
@@ -61,6 +63,7 @@ public sealed class ParameterSetStateRepository(
                 await transaction.AppendAsync(command.StreamId, command.CommandId, source, version++, token).ConfigureAwait(false);
                 await ParameterAcceptedProjection.ApplyAsync(databases, transaction, source, token).ConfigureAwait(false);
             }
+            await database.AdvanceParameterRevisionFenceAsync(transaction, token).ConfigureAwait(false);
             return true;
         }, cancellationToken).ConfigureAwait(false);
         state.AcceptChanges();

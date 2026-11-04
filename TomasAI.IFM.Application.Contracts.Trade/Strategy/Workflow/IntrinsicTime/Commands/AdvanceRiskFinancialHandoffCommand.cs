@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Comman
 
 /// <summary>Asks the workflow to verify committed evidence and advance one exact financial checkpoint.</summary>
 [MessagePackObject]
-public sealed record AdvanceRiskFinancialHandoffCommand : ICommand<IntrinsicTimeStrategyWorkflowEntityId>
+public sealed record AdvanceRiskFinancialHandoffCommand : ICommand<IntrinsicTimeStrategyWorkflowEntityId>, IRecoverableCommandAudit
 {
     public AdvanceRiskFinancialHandoffCommand() { }
     [SerializationConstructor]
@@ -35,4 +35,6 @@ public sealed record AdvanceRiskFinancialHandoffCommand : ICommand<IntrinsicTime
     [IgnoreMember] public string CommandName => nameof(AdvanceRiskFinancialHandoffCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    /// <summary>Retains the exact checkpoint request when resuming an uncommitted audit reservation.</summary>
+    public ICommand ForRetryIdentity() => this;
 }

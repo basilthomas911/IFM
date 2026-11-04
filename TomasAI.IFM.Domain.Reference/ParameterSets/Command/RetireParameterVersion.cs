@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Model;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
@@ -25,7 +26,7 @@ public static class RetireParameterVersion
         /// <param name="state">The authoritative actor state.</param>
         /// <param name="logger">The actor logger.</param>
         /// <returns>The command acceptance or business failure.</returns>
-        public async Task<ServiceResult<GuidResult>> ExecuteAsync(IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
+        public Task<ServiceResult<GuidResult>> ExecuteAsync(IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(state);
@@ -35,19 +36,12 @@ public static class RetireParameterVersion
             if (state.Operations.TryGetValue(command.CommandId, out var previous))
             {
                 if (!string.Equals(previous, hash, StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
-                return new ServiceOk<GuidResult>(new(command.CommandId));
+                return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(command.CommandId)));
             }
             if (!state.Versions.TryGetValue(command.Version, out var selected)) throw new InvalidOperationException("PARAM.NOT_FOUND");
-            var assigned = false;
-            // All currently registered assignment scopes are checked under the shared writer lease held by the actor.
-            foreach (var horizon in new[] { TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily, TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Weekly, TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Monthly })
-            {
-                var scope = WorkflowParameterScopeModel.Create(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeStrategyWorkflowDefinition.Id, horizon);
-                var identity = new ParameterAssignmentEntityId(WorkflowParameterScopeModel.AssignmentId(scope));
-                var address = new AssignParameterVersionCommand { EntityId = identity, Scope = scope, Subject = new ActorSubject(ActorType.Command, AssignParameterVersionCommand.Actor, AssignParameterVersionCommand.Verb, identity.Format()) };
-                var usage = await (context.Assignments.LoadStateAsync(address)).ConfigureAwait(false);
-                assigned |= usage.Assignment is { Enabled: true } current && current.Reference == selected.Reference;
-            }
+            var evidence = command.Evidence ?? throw new InvalidOperationException("PARAM.EVIDENCE_REQUIRED");
+            if (evidence.ExactVersion?.Reference != selected.Reference) throw new InvalidOperationException("PARAM.EVIDENCE_IDENTITY_MISMATCH");
+            var assigned = evidence.HasActiveAssignments;
             var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply RetireParameterVersion event";
             var updated = command.Compute(state, hash, assigned, out var parameterChange) switch
             {
@@ -58,7 +52,7 @@ public static class RetireParameterVersion
             var result = updated
                 ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
                 : command.UpdateFailed(errorMsg);
-            return result;
+            return Task.FromResult(result);
         }
 
         /// <summary>Computes the proposed business change without changing actor state.</summary>

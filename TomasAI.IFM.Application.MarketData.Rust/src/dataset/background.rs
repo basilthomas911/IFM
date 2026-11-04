@@ -1103,7 +1103,10 @@ impl Configuration {
                         if !maintenance && !changed && event!=3{return Ok(true);}
                         let facts=config.source_facts(date,task_parent.clone(),&stopping,deadline,maintenance).await?;
                         changed |= facts.fingerprint()?!=initial;
-                        if !config.refresh_browsers(date,task_parent.clone(),&stopping,deadline).await? {changed=true;}
+                        // Browser metadata/selection can change without changing
+                        // provider membership. Resolve it, then compare the actual
+                        // effective subscriptions and cache policies below.
+                        let _ = config.refresh_browsers(date,task_parent.clone(),&stopping,deadline).await?;
                         let next=config.resolve(base.clone(),task_parent.clone(),clock.clone(),&stopping,deadline).await?;
                         let unchanged = !changed && match (&active,&next){
                             (None,None)=>true,

@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.State;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.State;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -18,12 +20,9 @@ public sealed class ParameterSetCommandContext
       IParameterSetCommandContext
 {
     public TomasAI.IFM.Application.MarketData.Contracts.IStrategyOptionChainParameterStore OptionChainParameters => Container.Resolve<IDbContextFactory>().MarketDataDb;
-    readonly Lazy<IEventSourceActorStateRepository<ParameterStartupCommandState>> startups;
-    public IEventSourceActorStateRepository<ParameterStartupCommandState> Startups => startups.Value;
     readonly Lazy<IParameterAccessPolicy> accessPolicy;
     public IParameterAccessPolicy AccessPolicy => accessPolicy.Value;
 
-    readonly Lazy<IEventSourceActorStateRepository<ParameterAssignmentCommandState>> assignments;
     readonly Lazy<IEventSourceActorDbContext> dbEventSource;
     readonly Lazy<IConfigurationDbContext> configurationDb;
     readonly Lazy<IEventProjector<ParameterSetCommandActor>> projector;
@@ -41,9 +40,7 @@ public sealed class ParameterSetCommandContext
     {
         BlackboardService = IsArgumentNull.Set(blackboardService);
         Logger = IsArgumentNull.Set(logger);
-        startups = new(() => IsArgumentNull.Set(Container.Resolve<IEventSourceActorStateRepository<ParameterStartupCommandState>>())!);
         accessPolicy = new(() => IsArgumentNull.Set(Container.Resolve<IParameterAccessPolicy>())!);
-        assignments = ResolveOnce<IEventSourceActorStateRepository<ParameterAssignmentCommandState>>();
         dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
         configurationDb = ResolveOnce<IConfigurationDbContext>();
         projector = ResolveOnce<IEventProjector<ParameterSetCommandActor>>();
@@ -54,7 +51,6 @@ public sealed class ParameterSetCommandContext
     }
 
     /// <inheritdoc />
-    public IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments => assignments.Value;
     public IEventSourceActorDbContext DbEventSource => dbEventSource.Value;
     /// <inheritdoc />
     public IConfigurationDbContext ConfigurationDb => configurationDb.Value;

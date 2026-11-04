@@ -74,6 +74,11 @@ public sealed class FuturesVerticalSpreadTradePositionCommandActor(ICommandActor
         [typeof(CorrectVerticalSpreadPositionBasisCommand)] = static (command, state) => ((CorrectVerticalSpreadPositionBasisCommand)command).Execute(state),
         [typeof(SnapshotVerticalSpreadPositionCommand)] = static (command, state) => ((SnapshotVerticalSpreadPositionCommand)command).Execute(state)
     }.ToFrozenDictionary();
+    protected override bool IsCommittedDuplicateException(ICommand command, Exception exception)
+        => PersistsCommandAuditAtomically(command)
+            && exception is TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditDuplicateException
+                { HasCommittedEvents: true } duplicate && duplicate.CommandId == command.CommandId;
+
     protected override bool PersistsCommandAuditAtomically(ICommand command)
         => string.Equals(services.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
     protected override bool IsResidentCommand(ICommand command) => command is UpdateVerticalSpreadPositionLegMarketPriceCommand or ChangeTradeLegDataCommand;

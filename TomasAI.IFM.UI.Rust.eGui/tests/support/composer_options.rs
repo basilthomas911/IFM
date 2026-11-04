@@ -124,7 +124,7 @@ async fn composer_options_match_hybrid_snapshot_and_keep_manual_clearing_and_own
             .await
             .as_array()
             .unwrap()[0],
-        Value::from(1)
+        Value::from(0)
     );
     let session = current.result.context["composerSessionId"].clone();
     let fields = |width: &str| json!({"tradeId":"456","composerSessionId":session,"expiry":"2026-10-28","putDelta":"16","callDelta":"16","putWidth":width,"callWidth":"50","live":"true"});
@@ -143,6 +143,11 @@ async fn composer_options_match_hybrid_snapshot_and_keep_manual_clearing_and_own
         current.outcomes[0].message
     );
     assert_eq!(current.result.context["live"], "True");
+    assert_eq!(
+        control(&b, "OptionChainCount", Value::Nil).await.as_array().unwrap()[0],
+        Value::from(1),
+        "Selecting live liquidity must acquire exactly one subscription"
+    );
     current = act(&mut state, &b, &r, current.generation, "chain", fields("0")).await;
     assert_eq!(current.outcomes[0].state, "Failed");
     assert_eq!(current.result.context["putWidth"], "50");

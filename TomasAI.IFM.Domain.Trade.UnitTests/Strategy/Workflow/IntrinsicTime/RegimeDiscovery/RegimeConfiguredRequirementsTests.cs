@@ -7,6 +7,30 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Reg
 
 public sealed class RegimeConfiguredRequirementsTests
 {
+    [Fact]
+    public void Every_ema_level_and_slope_uses_the_initialized_daily_baseline()
+    {
+        var value = Explicit();
+        var request = RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract("ES20260918"), value);
+        request.Requirements.Where(row => RegimeDiscoveryEmaBaseline.IsBaseline(row.Metric))
+            .Should().HaveCount(6).And.OnlyContain(row => row.TimeFrame == TimeFrameType.Daily && row.IsRequired);
+        request.Requirements.Should().Contain(row => row.Metric == TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery.RegimeDiscoverySignalMetric.Rsi14 && row.TimeFrame == TimeFrameType.OneHour);
+    }
+
+    [Fact]
+    public void Previously_published_per_interval_ema_configuration_reads_as_daily_without_rewriting_the_payload()
+    {
+        var value = Explicit();
+        var oldRows = value.SignalRequirements!.SelectMany(row => RegimeDiscoveryEmaBaseline.IsBaseline(row.Metric)
+            ? value.Horizon.TimeFrames.Select(frame => row with { RequirementId = Guid.NewGuid(), TimeFrame = frame.TimeFrame, MaximumAgeSeconds = frame.MaximumAgeSeconds })
+            : new[] { row }).ToArray();
+        var published = value with { SignalRequirements = oldRows };
+        var result = RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract("ES20260918"), published);
+        result.Requirements.Where(row => RegimeDiscoveryEmaBaseline.IsBaseline(row.Metric))
+            .Should().HaveCount(6).And.OnlyContain(row => row.TimeFrame == TimeFrameType.Daily && row.MaximumAgeSeconds == RegimeDiscoveryEmaBaseline.MaximumAgeSeconds);
+        published.SignalRequirements.Should().Contain(row => RegimeDiscoveryEmaBaseline.IsBaseline(row.Metric) && row.TimeFrame == TimeFrameType.FourHours);
+    }
+
     static RegimeDiscoveryParameterSet Explicit()
     {
         var legacy = RegimeDiscoveryParameterSet.CreateDefault(Guid.NewGuid(), Guid.NewGuid(), TimeFrameType.Daily);
@@ -19,16 +43,16 @@ public sealed class RegimeConfiguredRequirementsTests
         };
     }
     [Fact]
-    public void Explicit_default_preserves_all_69_requests()
+    public void Explicit_default_uses_daily_ema_baselines_and_preserves_interval_indicators()
     {
-        RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract("ES20260918"), Explicit()).Requirements.Should().HaveCount(69);
+        RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract("ES20260918"), Explicit()).Requirements.Should().HaveCount(51);
     }
     [Fact]
-    public void Disabling_optional_inputs_requests_only_the_35_mandatory_inputs()
+    public void Disabling_optional_inputs_requests_only_the_29_mandatory_inputs()
     {
         var value = Explicit(); value = value with { SignalRequirements = value.SignalRequirements!.Select(x => x with { Enabled = x.IsRequired }).ToArray() };
         var result = RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract("ES20260918"), value);
-        result.Requirements.Should().HaveCount(35).And.OnlyContain(x => x.IsRequired);
+        result.Requirements.Should().HaveCount(29).And.OnlyContain(x => x.IsRequired);
     }
     [Fact]
     public void Direct_runtime_request_cannot_bypass_mandatory_validation()
@@ -83,7 +107,7 @@ public sealed class RegimeConfiguredRequirementsTests
             { RequirementId = Guid.NewGuid(), Metric = x.Metric, TimeFrame = x.TimeFrame, IsRequired = true, Enabled = true, MaximumAgeSeconds = x.MaximumAgeSeconds, CalculationConfigurationId = x.CalculationConfigurationId }).ToArray()
         };
         var result = RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract("ES20260918"), value);
-        result.Requirements.Should().HaveCount(69).And.OnlyContain(x => x.IsRequired);
+        result.Requirements.Should().HaveCount(51).And.OnlyContain(x => x.IsRequired);
         value = value with { SignalRequirements = value.SignalRequirements.Select(x => x.Metric == TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery.RegimeDiscoverySignalMetric.Tdi ? x with { IsRequired = false } : x).ToArray() };
         Action action = () => RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract("ES20260918"), value);
         action.Should().Throw<ArgumentException>().WithMessage("Schemas 3 through 5 require*");

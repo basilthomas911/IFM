@@ -8,6 +8,12 @@ services:
       dockerfile: Dockerfile
     container_name: ifm-scylladb
     command:
+      # Share the Docker VM with PostgreSQL, NATS and the other development stores.
+      # Scylla's automatic memory sizing otherwise claims most of the entire VM.
+      - --memory
+      - ${IFM_SCYLLA_MEMORY:-24G}
+      - --smp
+      - ${IFM_SCYLLA_SMP:-14}
       - --broadcast-rpc-address
       - 172.30.20.10
     ports:

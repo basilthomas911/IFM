@@ -27,14 +27,27 @@ public sealed class TradeTickQuoteDbContext(IDbConnectionSettings settings, ILog
     /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-public Task InsertTickTradeDataAsync(FuturesTickTradeDataInsertedEvent e) => this.InsertTickTradeDataAsyncCore(e);
+public Task InsertTickTradeDataAsync(FuturesTickTradeDataInsertedEvent e) => ScyllaTickWriteRetry.ExecuteAsync(() => this.InsertTickTradeDataAsyncCore(e));
 
     /// <summary>Writes a bounded quote segment as one native CQL nested-UDT-list value.</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "InsertTickQuoteData transfers the encoded value through IScyllaOwnedBindValues.BindLifetime; the Scylla executor disposes it after binding/execution, including failure.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => this.InsertTickQuoteDataAsyncCore(e);
+public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => ScyllaTickWriteRetry.ExecuteAsync(() => this.InsertTickQuoteDataAsyncCore(e));
 
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<BootstrapTradeRow>> GetRawFuturesTradeWindowAsync(string contractId, DateOnly valueDate,
+        TimeOnly fromUtc, TimeOnly throughUtc, CancellationToken token = default)
+    {
+        this.ValidateScope(contractId, valueDate);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(fromUtc, throughUtc);
+        var rows = await this.Use(nameof(TradeTickQuoteDbCql.GetRawFuturesTradeWindow), TradeTickQuoteDbCql.GetRawFuturesTradeWindow)
+            .SetParameters(new BootstrapTradeWindowParameters(contractId, valueDate, fromUtc, throughUtc))
+            .ExecuteQueryAsync(row => new BootstrapTradeRow(row.GetDateOnly(0), row.GetDecimal(1), row.GetLong(2), row.GetLong(3),
+                row.GetLong(4), row.GetLong(5), row.GetShort(6), row.GetShort(7), checked((uint)row.GetLong(8)), checked((ushort)row.GetInt(9))), token).ConfigureAwait(false);
+        return rows.ToArray();
+    }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<BootstrapTradeRow>> GetLatestRawFuturesTradesAsync(string contractId, DateOnly throughDate, CancellationToken token = default)

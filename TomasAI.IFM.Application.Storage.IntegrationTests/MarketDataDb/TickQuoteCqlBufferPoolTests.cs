@@ -9,13 +9,14 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 public sealed class TickQuoteCqlBufferPoolTests
 {
     [Fact]
-    public void Pooled_buffer_is_owned_by_market_data_feed_shared()
+    public void Pooled_buffer_and_encoder_are_owned_by_feed_contracts_with_a_shared_neutral_segment()
     {
         Assert.Equal(
             "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation",
             typeof(PooledTickQuoteBuffer).Namespace);
-        Assert.Same(typeof(FuturesTickQuoteDataSegment).Assembly, typeof(PooledTickQuoteBuffer).Assembly);
-        Assert.Same(typeof(FuturesTickQuoteDataSegment).Assembly, typeof(TickQuoteBufferEncoder).Assembly);
+        Assert.Equal("TomasAI.IFM.Shared", typeof(FuturesTickQuoteDataSegment).Assembly.GetName().Name);
+        Assert.Equal("TomasAI.IFM.Application.Contracts.MarketData.Feed", typeof(PooledTickQuoteBuffer).Assembly.GetName().Name);
+        Assert.Same(typeof(PooledTickQuoteBuffer).Assembly, typeof(TickQuoteBufferEncoder).Assembly);
         var storageAssembly = typeof(TickQuoteScyllaBindValue).Assembly;
         Assert.Null(storageAssembly.GetType(
             "TomasAI.IFM.Application.Storage.MarketDataDb.PooledTickQuoteCqlBuffer"));

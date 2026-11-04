@@ -63,7 +63,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeCollection
 }
 
 /// <summary>
-/// Exercises the strategy workflow skeleton through production actors, NATS, PostgreSQL event sourcing, and ScyllaDB
+/// Exercises the strategy workflow skeleton through production actors, NATS, PostgreSQL event sourcing and projections
 /// while using the real Regime Discovery worker and substituting only the four not-yet-implemented workers.
 /// </summary>
 [Trait("Category", "Integration")]
@@ -584,7 +584,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
         StrategyWorkflowOutcome outcome)
     {
         var deadline = DateTime.UtcNow + ScenarioTimeout;
-        var lastObserved = "no ScyllaDB workflow history row";
+        var lastObserved = "no PostgreSQL workflow history row";
         do
         {
             var rows = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
@@ -647,7 +647,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
         StrategyWorkflowStatus status)
     {
         var deadline = DateTime.UtcNow + ScenarioTimeout;
-        var lastObserved = "no ScyllaDB workflow history row";
+        var lastObserved = "no PostgreSQL workflow history row";
         do
         {
             var rows = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
@@ -709,7 +709,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
         long minimumRevision)
     {
         var deadline = DateTime.UtcNow + ScenarioTimeout;
-        var lastObserved = "no ScyllaDB workflow history row";
+        var lastObserved = "no PostgreSQL workflow history row";
         do
         {
             var rows = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(

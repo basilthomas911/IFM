@@ -47,6 +47,10 @@ public sealed partial class ApiServerLifecycle : IApiServerLifecycle
         }
         catch (Exception ex)
         {
+            // Readiness must report failures before actor startup as well as failures
+            // within it, so callers receive the cause rather than a readiness timeout.
+            app.Services.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.Startup.Actors.ActorRuntimeStartupSignal>()
+                .Fail(ex);
             ApiServerProcess.ReportFailure(ex, args, fatalRecoveryShutdown);
         }
         finally

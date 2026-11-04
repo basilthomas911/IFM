@@ -34,14 +34,12 @@ internal sealed record IsolatedWorkflowCatalogFixture(CatalogKey Deployment, str
     {
         Environment.GetEnvironmentVariable("IFM_NATS_URL").Should().MatchRegex(@"^nats://127\.0\.0\.1:\d+$");
         var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION") ?? "";
-        var match = Regex.Match(connection, @"\AHost=127\.0\.0\.1;Port=\d+;Database=ifm_eventlog_bench_([a-f0-9]{12})_synthetic_host\z");
-        match.Success.Should().BeTrue("fixture publication is restricted to the disposable host");
-        var scyllaPort = int.Parse(Environment.GetEnvironmentVariable("IFM_QUALIFICATION_SCYLLA_PORT")
-            ?? throw new InvalidOperationException("Qualification CQL port is required."));
+        TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.OwnedPortfolioTestDatabase.IsOwned(new Npgsql.NpgsqlConnectionStringBuilder(connection))
+            .Should().BeTrue("fixture publication is restricted to the current disposable host");
         var settings = new DbConnectionSettings()
             .Add(ConfigurationDbContext.ConfigurationDbConnection, connection, "System.Data.Postgres")
             .Add(SequenceIdDbContext.SequenceIdDbConnection, connection, "System.Data.Postgres")
-            .Add(ReferenceDbContext.ReferenceDbConnection, $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{match.Groups[1].Value}_reference", "System.Data.ScyllaDb");
+            .Add(ReferenceDbContext.ReferenceDbConnection, connection, "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
         var repositories = new Dictionary<Type, object>();
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));

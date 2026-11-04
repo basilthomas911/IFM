@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.Extensions;
@@ -33,10 +33,7 @@ public class FuturesBarDataStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask<FuturesBarDataCommandState> LoadStateAsync(ICommand command)
-        => await (LoadStateFromSnapshotLastNRangeAsync<
-            FuturesBarDataCommandState,
-            FuturesBarDataStreamingStartedEvent,
-            FuturesBarDataInsertedEvent>(command, 0)).ConfigureAwait(false);
+        => await LoadStatelessStateFromCreationSnapshotAsync<FuturesBarDataCommandState>(command).ConfigureAwait(false);
 
     /// <summary>
     /// save futures bar data state changes

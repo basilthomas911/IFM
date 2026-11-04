@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -34,9 +34,8 @@ public sealed class FuturesTradeSessionBarSignalStateRepository(
     public async ValueTask<FuturesTradeSessionBarSignalCommandState> LoadStateAsync(
         ICommand command,
         CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<
-                FuturesTradeSessionBarSignalCommandState,
-                FuturesTradeSessionBarPublishedEvent>(command, cancellationToken)
+        => await LoadStateFromCreationSnapshotAsync<
+                FuturesTradeSessionBarSignalCommandState>(command, cancellationToken)
             .ConfigureAwait(false);
 
     /// <summary>Commits pending publisher events and queues their projections.</summary>

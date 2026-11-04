@@ -921,8 +921,11 @@ impl LiveData {
                 if trade_instruments.len() > queue.available() {
                     return Err("Authoritative application output capacity exhausted".into());
                 }
+                // Paired analytics must be able to prove both contracts came
+                // from this same replay boundary. Per-instrument epochs made
+                // every VX front/back pair permanently incompatible.
+                let epoch = rand::random::<u128>().max(1);
                 for instrument in &trade_instruments {
-                    let epoch = rand::random::<u128>().max(1);
                     book.complete_replay(generation, *instrument, epoch)
                         .map_err(|e| format!("{e:?}"))?;
                     let state = book.publication_state(*instrument, super::book::Update::Unchanged);

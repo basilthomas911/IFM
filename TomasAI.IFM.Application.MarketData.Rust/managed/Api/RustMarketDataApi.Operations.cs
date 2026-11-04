@@ -83,6 +83,9 @@ public sealed partial class RustMarketDataApi
     /// <inheritdoc/>
     public global::System.Threading.Tasks.Task<global::TomasAI.IFM.Shared.MarketData.Contracts.EconomicCalendarEntry[]> ReadEconomicCalendarAsync(global::System.DateOnly fromInclusive, global::System.DateOnly toInclusive, global::System.String[]? countryCodes, global::System.Threading.CancellationToken cancellationToken = default) => host.ReadEconomicCalendarAsync(fromInclusive, toInclusive, countryCodes, cancellationToken);
     /// <inheritdoc/>
+    /// <summary>Reads completed indicator seed bars under the native owner.</summary>
+    public global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadIndicatorSeedBarsAsync(global::System.String contractId, global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType timeFrame, global::System.Threading.CancellationToken cancellationToken = default) => host.ReadIndicatorSeedBarsAsync(contractId,timeFrame,cancellationToken);
+    /// <inheritdoc />
     public global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(global::System.String contractId, global::System.Threading.CancellationToken cancellationToken = default) => host.ReadFiveMinuteSeedBarsAsync(contractId, cancellationToken);
     /// <inheritdoc/>
     public global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.Trade.Shared.Recovery.TradeFeedRecoveryRegistration[]> ReadTradeFeedRecoveryAsync(global::System.DateOnly date, global::System.Threading.CancellationToken cancellationToken = default) => host.ReadTradeFeedRecoveryAsync(date, cancellationToken);

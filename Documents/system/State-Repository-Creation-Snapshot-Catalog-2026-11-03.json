@@ -1,0 +1,682 @@
+{
+  "date": "2026-11-03",
+  "concreteRepositories": 72,
+  "creationRule": "First committed domain fact, selected by stream position, never latest occurrence of a recurring event name.",
+  "policyCounts": {
+    "creation_plus_tail": 53,
+    "creation_with_complete_checkpoint": 5,
+    "stateless_creation_and_head": 3,
+    "immutable_operation_creation": 4,
+    "creation_with_legacy_prefix": 6,
+    "authoritative_workflow_creation_and_tail": 1
+  },
+  "repositories": [
+    {
+      "class": "ApplicationStateRepository",
+      "path": "TomasAI.IFM.Domain.Application/Command/State/ApplicationStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "ApplicationCommandState, ApplicationStartupEvent"
+      ]
+    },
+    {
+      "class": "BrokerAccountStateRepository",
+      "path": "TomasAI.IFM.Domain.BrokerAccount/Command/State/BrokerAccountStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "BrokerAccountCommandState, BrokerAccountChangedEvent"
+      ]
+    },
+    {
+      "class": "FuturesAdxSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesAdxSignal/Command/State/FuturesAdxSignalStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "partial_snapshot_daily_path_missing",
+      "previousSnapshotTypes": [
+        "FuturesAdxSignalCommandState, FuturesAdxSignalStartedEvent, FuturesAdxSignalGeneratedEvent"
+      ]
+    },
+    {
+      "class": "FuturesAtrSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesAtrSignal/Command/State/FuturesAtrSignalStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesAtrSignalCommandState, FuturesAtrDailySignalGeneratedEvent",
+        "FuturesAtrSignalCommandState, FuturesAtrSignalGeneratedEvent"
+      ]
+    },
+    {
+      "class": "FuturesBbSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesBbSignal/Command/State/FuturesBbSignalStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesBbSignalCommandState, FuturesBbSignalGeneratedEvent"
+      ]
+    },
+    {
+      "class": "FuturesEmaSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesEmaSignal/Command/State/FuturesEmaSignalStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesEmaSignalCommandState, FuturesEmaSignalGeneratedEvent"
+      ]
+    },
+    {
+      "class": "FuturesItiSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesItiSignal/Command/State/FuturesItiSignalStateRepository.cs",
+      "policy": "creation_with_complete_checkpoint",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesItiSignalCommandState, FuturesItiSignalGeneratedEvent"
+      ]
+    },
+    {
+      "class": "FuturesMacdSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesMacdSignal/Command/State/FuturesMacdSignalStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesMacdSignalCommandState, FuturesMacdDailySignalGeneratedEvent",
+        "FuturesMacdSignalCommandState, FuturesMacdSignalGeneratedEvent"
+      ]
+    },
+    {
+      "class": "FuturesRsiSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesRsiSignal/Command/State/FuturesRsiSignalStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "event_window_without_snapshot",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "FuturesTdiSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesTdiSignal/Command/State/FuturesTdiSignalStateRepository.cs",
+      "policy": "creation_with_complete_checkpoint",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesTdiSignalCommandState, FuturesTdiSignalGeneratedEvent"
+      ]
+    },
+    {
+      "class": "FuturesTradeSessionBarSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesTradeSessionBarSignal/Command/State/FuturesTradeSessionBarSignalStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesTradeSessionBarSignalCommandState, FuturesTradeSessionBarPublishedEvent"
+      ]
+    },
+    {
+      "class": "FuturesTradeSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesTradeSignal/Command/State/FuturesTradeSignalStateRepository.cs",
+      "policy": "creation_with_complete_checkpoint",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesTradeSignalCommandState, FuturesTradeSignalUpdatedEvent"
+      ]
+    },
+    {
+      "class": "FuturesVwapSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesVwapSignal/Command/State/FuturesVwapSignalStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesVwapSignalCommandState, FuturesVwapSignalUpdatedEvent"
+      ]
+    },
+    {
+      "class": "FuturesVxTermStructureSignalStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesVxTermStructureSignal/Command/State/FuturesVxTermStructureSignalStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesVxTermStructureSignalCommandState, FuturesVxTermStructureSignalUpdatedEvent"
+      ]
+    },
+    {
+      "class": "FuturesAnalyticsHistoricalDataLoaderStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/HistoricalDataLoader/Command/State/FuturesAnalyticsHistoricalDataLoaderStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesAnalyticsHistoricalDataLoaderCommandState, FuturesAnalyticsHistoricalDataLoaderRequestedEvent"
+      ]
+    },
+    {
+      "class": "MarketOutlookSnapshotStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Analytics/MarketOutlookSnapshot/Command/State/MarketOutlookSnapshotStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "MarketOutlookSnapshotCommandState, MarketOutlookSnapshotInsertedEvent"
+      ]
+    },
+    {
+      "class": "MarketDataFeedRecoveryRecordRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Feed/Recovery/Function/State/MarketDataFeedRecoveryRecordRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "latest_event_only",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "MarketDataFeedStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Feed/Command/State/MarketDataFeedStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "MarketDataFeedCommandState, TradeLiveFeedAddedEvent",
+        "MarketDataFeedCommandState, TradeLiveFeedAddedEvent",
+        "MarketDataFeedCommandState, TradeLiveFeedAddedEvent",
+        "MarketDataFeedCommandState, TradeLiveFeedAddedEvent",
+        "MarketDataFeedCommandState, TradeLiveFeedAddedEvent",
+        "MarketDataFeedCommandState, MarketDataFeedStartedEvent"
+      ]
+    },
+    {
+      "class": "FuturesBarDataStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Feed/FuturesBarData/Command/State/FuturesBarDataStateRepository.cs",
+      "policy": "stateless_creation_and_head",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesBarDataCommandState, FuturesBarDataStreamingStartedEvent, FuturesBarDataInsertedEvent"
+      ]
+    },
+    {
+      "class": "FuturesClosingPriceStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Feed/FuturesClosingPrice/Command/State/FuturesClosingPriceStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesClosingPriceCommandState, FuturesClosingPriceInsertedEvent"
+      ]
+    },
+    {
+      "class": "FuturesEodDataStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Feed/FuturesEodData/Command/State/FuturesEodDataStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesEodDataCommandState,VixFuturesEodDataInsertedEvent",
+        "FuturesEodDataCommandState,FuturesEodDataInsertedEvent"
+      ]
+    },
+    {
+      "class": "FuturesOptionTickDataStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Feed/FuturesOptionTickData/Command/State/FuturesOptionTickDataStateRepository.cs",
+      "policy": "stateless_creation_and_head",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "empty_state_without_replay",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "FuturesTickDataStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Feed/FuturesTickData/Command/State/FuturesTickDataStateRepository.cs",
+      "policy": "stateless_creation_and_head",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesTickDataCommandState, FuturesTickDataStreamingStartedEvent, FuturesTickDataInsertedEvent"
+      ]
+    },
+    {
+      "class": "MarketDataFeedRecoveryStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Feed/Recovery/Command/State/MarketDataFeedRecoveryStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "MarketDataFeedRecoveryState, MarketDataFeedRecoveryStartedEvent"
+      ]
+    },
+    {
+      "class": "FuturesContractStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Securities/FuturesContract/Command/State/FuturesContractStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesContractCommandState, FuturesContractAddedEvent"
+      ]
+    },
+    {
+      "class": "FuturesOptionContractStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData.Securities/FuturesOptionContract/Command/State/FuturesOptionContractStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesOptionContractCommandState, FuturesOptionContractsAddedEvent",
+        "FuturesOptionContractCommandState, FuturesOptionContractAddedEvent"
+      ]
+    },
+    {
+      "class": "DownloadLogStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData/DownloadLog/Command/State/DownloadLogStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "DownloadLogCommandState, MarketDataDownloadLogInsertedEvent"
+      ]
+    },
+    {
+      "class": "EconomicCalendarStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData/EconomicCalendar/Command/State/EconomicCalendarStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "EconomicCalendarCommandState, EconomicCalendarsImportedEvent",
+        "EconomicCalendarCommandState, EconomicCalendarAddedEvent"
+      ]
+    },
+    {
+      "class": "YieldCurveRateStateRepository",
+      "path": "TomasAI.IFM.Domain.MarketData/YieldCurveRate/Command/State/YieldCurveRateStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "YieldCurveRateCommandState, YieldCurveRatesImportedEvent"
+      ]
+    },
+    {
+      "class": "CapacityConsumptionFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Portfolio/CapacityReservation/Function/State/CapacityConsumptionFunctionStateRepository.cs",
+      "policy": "immutable_operation_creation",
+      "creation": "canonical immutable operation completion",
+      "previousPolicy": "completion_event_lookup",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "CapacityReservationFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Portfolio/CapacityReservation/Function/State/CapacityReservationFunctionStateRepository.cs",
+      "policy": "immutable_operation_creation",
+      "creation": "canonical immutable operation completion",
+      "previousPolicy": "completion_event_lookup",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "PortfolioCloseOrderCompositionFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Portfolio/OrderComposition/Function/State/PortfolioCloseOrderCompositionFunctionStateRepository.cs",
+      "policy": "immutable_operation_creation",
+      "creation": "canonical immutable operation completion",
+      "previousPolicy": "completion_event_lookup",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "PortfolioOrderCompositionFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Portfolio/OrderComposition/Function/State/PortfolioOrderCompositionFunctionStateRepository.cs",
+      "policy": "immutable_operation_creation",
+      "creation": "canonical immutable operation completion",
+      "previousPolicy": "completion_event_lookup",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "RegimeDiscoveryConfigurationStateRepository",
+      "path": "TomasAI.IFM.Domain.Reference/Configuration/Strategy/Command/State/RegimeDiscoveryConfigurationStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "LookupTypeStateRepository",
+      "path": "TomasAI.IFM.Domain.Reference/LookupType/Command/State/LookupTypeStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "LookupTypeCommandState, LookupTypeAddedEvent"
+      ]
+    },
+    {
+      "class": "ParameterAssignmentStateRepository",
+      "path": "TomasAI.IFM.Domain.Reference/ParameterSets/Assignment/Command/State/ParameterAssignmentStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "ParameterAssignmentCommandState, ParameterAssignmentCreatedEvent"
+      ]
+    },
+    {
+      "class": "ParameterSetStateRepository",
+      "path": "TomasAI.IFM.Domain.Reference/ParameterSets/Command/State/ParameterSetStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "ParameterSetCommandState, ParameterSetCreatedEvent"
+      ]
+    },
+    {
+      "class": "ParameterStartupStateRepository",
+      "path": "TomasAI.IFM.Domain.Reference/ParameterSets/Startup/Command/State/ParameterStartupStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "ParameterStartupCommandState, ParameterStartupCreatedEvent",
+        "ParameterStartupRegistryState, ParameterStartupCreatedEvent"
+      ]
+    },
+    {
+      "class": "SupervisorStateRepository",
+      "path": "TomasAI.IFM.Domain.Supervisor/Operations/Command/State/SupervisorStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "SupervisorCommandState, SupervisorActorOperationRecordedEvent"
+      ]
+    },
+    {
+      "class": "RecoveryCanaryStateRepository",
+      "path": "TomasAI.IFM.Domain.Supervisor/Recovery/Command/State/RecoveryCanaryStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "RecoveryCanaryCommandState, RecoveryCanaryRecordedEvent"
+      ]
+    },
+    {
+      "class": "DatabaseBackupSetStateRepository",
+      "path": "TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/BackupSet/Command/State/DatabaseBackupSetStateRepository.cs",
+      "policy": "creation_with_legacy_prefix",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "inherited_full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "DatabaseBackupStateRepository",
+      "path": "TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/Backup/Command/State/DatabaseBackupStateRepository.cs",
+      "policy": "creation_with_legacy_prefix",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "inherited_full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "DatabaseBackupPolicyStateRepository",
+      "path": "TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/Policy/Command/State/DatabaseBackupPolicyStateRepository.cs",
+      "policy": "creation_with_legacy_prefix",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "inherited_full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "DatabaseRecoveryStateRepository",
+      "path": "TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/Recovery/Command/State/DatabaseRecoveryStateRepository.cs",
+      "policy": "creation_with_legacy_prefix",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "inherited_full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "DatabaseBackupRetentionStateRepository",
+      "path": "TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/Retention/Command/State/DatabaseBackupRetentionStateRepository.cs",
+      "policy": "creation_with_legacy_prefix",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "inherited_full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "DatabaseBackupServiceStateRepository",
+      "path": "TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/Service/Command/State/DatabaseBackupServiceStateRepository.cs",
+      "policy": "creation_with_legacy_prefix",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "inherited_full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "ScheduledTaskCatalogStateRepository",
+      "path": "TomasAI.IFM.Domain.SystemAdmin/ScheduledTask/Catalog/Command/State/ScheduledTaskCatalogStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "ScheduledTaskCatalogCommandState, ScheduledTaskCatalogProjectRegisteredEvent"
+      ]
+    },
+    {
+      "class": "ScheduledTaskStateRepository",
+      "path": "TomasAI.IFM.Domain.SystemAdmin/ScheduledTask/Command/State/ScheduledTaskStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "ScheduledTaskCommandState, ScheduledTaskCreatedEvent"
+      ]
+    },
+    {
+      "class": "ScheduledTaskRunStateRepository",
+      "path": "TomasAI.IFM.Domain.SystemAdmin/ScheduledTask/Run/Command/State/ScheduledTaskRunStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "ScheduledTaskRunCommandState, ScheduledTaskRunRequestedEvent"
+      ]
+    },
+    {
+      "class": "FuturesTradeStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Command/State/FuturesTradeStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "FuturesOptionTradeStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Option/Command/State/FuturesOptionTradeStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "IronCondorPositionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Option/Position/IronCondor/Command/State/IronCondorPositionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "IronCondorPositionCommandState, IronCondorPositionChangedEvent"
+      ]
+    },
+    {
+      "class": "IronCondorForwardPriceFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Option/Position/IronCondor/ForwardPrice/Function/State/IronCondorForwardPriceFunctionStateRepository.cs",
+      "policy": "creation_with_complete_checkpoint",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "latest_event_only",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "IronCondorTradePlanFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Option/Position/IronCondor/Plan/Function/State/IronCondorTradePlanFunctionStateRepository.cs",
+      "policy": "creation_with_complete_checkpoint",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "latest_event_only",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "IronCondorExitPositionWorkflowStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Option/Position/IronCondor/Workflow/Command/State/IronCondorExitPositionWorkflowStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "VerticalSpreadPositionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Option/Position/VerticalSpread/Command/State/VerticalSpreadPositionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "VerticalSpreadTradePlanFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Option/Position/VerticalSpread/Plan/Function/State/VerticalSpreadTradePlanFunctionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "VerticalSpreadTradePlanFunctionState, VerticalSpreadTradePlanUpdatedEvent"
+      ]
+    },
+    {
+      "class": "VerticalSpreadExitPositionWorkflowStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Option/Position/VerticalSpread/Workflow/Command/State/VerticalSpreadExitPositionWorkflowStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "FuturesPositionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Position/Command/State/FuturesPositionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "FuturesTradePlanFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Position/Plan/Function/State/FuturesTradePlanFunctionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "FuturesTradePlanFunctionState, FuturesTradePlanUpdatedEvent"
+      ]
+    },
+    {
+      "class": "FuturesExitPositionWorkflowStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Futures/Position/Workflow/Command/State/FuturesExitPositionWorkflowStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "ExitOrderCompositionFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Model/Position/Workflow/Function/State/ExitOrderCompositionFunctionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "ExitOrderCompositionFunctionState, ExitOrderCompositionCompletedEvent"
+      ]
+    },
+    {
+      "class": "PositionExitRiskFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Model/Position/Workflow/Function/State/PositionExitRiskFunctionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "snapshot_loader",
+      "previousSnapshotTypes": [
+        "PositionExitRiskFunctionState, PositionExitRiskCompletedEvent"
+      ]
+    },
+    {
+      "class": "BrokerOrderStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Order/Broker/Command/State/BrokerOrderStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "TradeOrderStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Order/Command/State/TradeOrderStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "OrderExecutionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Order/Execution/Command/State/OrderExecutionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "IntrinsicTimeStrategyWorkflowStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/Command/State/IntrinsicTimeStrategyWorkflowStateRepository.cs",
+      "policy": "authoritative_workflow_creation_and_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "custom_snapshot_loader",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "MarketConditionAssessmentStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/MarketCondition/Function/State/MarketConditionAssessmentStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "OrderCompositionFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Function/State/OrderCompositionFunctionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "RegimeDiscoveryFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/RegimeDiscovery/Function/State/RegimeDiscoveryFunctionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "RiskManagementFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/RiskManager/Function/State/RiskManagementFunctionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    },
+    {
+      "class": "TradeSelectionFunctionStateRepository",
+      "path": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Function/State/TradeSelectionFunctionStateRepository.cs",
+      "policy": "creation_plus_tail",
+      "creation": "first committed source fact at StreamVersion=1",
+      "previousPolicy": "full_history",
+      "previousSnapshotTypes": []
+    }
+  ]
+}

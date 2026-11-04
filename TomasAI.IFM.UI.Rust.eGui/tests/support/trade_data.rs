@@ -51,7 +51,7 @@ async fn trade_workspace_reads_keep_atomic_scope_and_current_fund_mandates() {
         state.context.as_ref().unwrap().value_date.to_string(),
         "2026-10-26"
     );
-    assert_eq!(state.from.unwrap().to_string(), "2026-10-01");
+    assert_eq!(state.from.unwrap().to_string(), "2026-09-01");
     assert_eq!(state.through.unwrap().to_string(), "2026-10-31");
     assert_eq!(state.orders.len(), 1);
     assert_eq!(state.trades.len(), 1);

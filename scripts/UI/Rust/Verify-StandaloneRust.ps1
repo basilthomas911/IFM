@@ -12,7 +12,9 @@ $priorClientSettings=@{};foreach($key in $clientKeys){$priorClientSettings[$key]
 $profileDirectory=Join-Path $repoRoot ('.artifacts/standalone-verification-profiles/'+[Guid]::NewGuid().ToString('N'))
 Push-Location $repoRoot
 try {
-    foreach($key in $clientKeys){[Environment]::SetEnvironmentVariable($key,$null,'Process')}
+    # Native children distinguish an absent variable from an empty value. On
+    # Windows SetEnvironmentVariable(null) leaves an empty native variable.
+    foreach($key in $clientKeys){Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue}
     New-Item -ItemType Directory -Force -Path $profileDirectory | Out-Null
     $env:IFM_UI_CONFIG_PATH=Join-Path $profileDirectory 'ui-client.Development.json'
     '{}' | Set-Content -LiteralPath $env:IFM_UI_CONFIG_PATH -Encoding UTF8
@@ -83,6 +85,9 @@ try {
     if ($containerStarted) { & docker rm -f $containerName | Out-Null }
     $env:IFM_STANDALONE_TEST_NATS_URL = $priorTestUrl
     $env:IFM_STANDALONE_ORDER_JOURNAL = $priorOrderJournal
-    foreach($key in $clientKeys){[Environment]::SetEnvironmentVariable($key,$priorClientSettings[$key],'Process')}
+    foreach($key in $clientKeys){
+        if($null -eq $priorClientSettings[$key]){Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue}
+        else{Set-Item -LiteralPath "Env:$key" -Value $priorClientSettings[$key]}
+    }
     Pop-Location
 }

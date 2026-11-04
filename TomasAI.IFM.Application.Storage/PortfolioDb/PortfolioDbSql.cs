@@ -314,6 +314,23 @@ public static class PortfolioDbSql
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class GeneralLedgerStore
         {
+            /// <summary>Reads cash, withdrawals and funding holds at one statement snapshot and round trip.</summary>
+            public const string AvailableCash = "SELECT (" + Select07 + ") - (" + Select08 + ") - (" + With01 + ");";
+
+            /// <summary>Writes a journal line and its balance delta together on the caller's existing transaction.</summary>
+            public const string InsertLineAndBalance = """
+                WITH entry AS (
+                    INSERT INTO portfolio_financial.ledger_entry(journal_id,ordinal,book_id,account_id,account_version,fund_id,debit,credit,currency,source_line_reference,order_id,trade_id)
+                    VALUES($1,$2,$3,$4,$5,$6,$7,$8,'USD',$9,$10,$11)
+                    RETURNING book_id,account_id,fund_id,currency,debit,credit
+                )
+                INSERT INTO portfolio_financial.ledger_account_balance(book_id,account_id,fund_id,currency,debit_total,credit_total,balance,revision)
+                SELECT book_id,account_id,fund_id,currency,debit,credit,debit-credit,$12 FROM entry
+                ON CONFLICT(book_id,account_id,fund_id,currency) DO UPDATE SET debit_total=portfolio_financial.ledger_account_balance.debit_total+EXCLUDED.debit_total,
+                    credit_total=portfolio_financial.ledger_account_balance.credit_total+EXCLUDED.credit_total,
+                    balance=portfolio_financial.ledger_account_balance.balance+EXCLUDED.balance,revision=EXCLUDED.revision;
+                """;
+
             public const string Select01 = """
                     SELECT source_content_hash,operation_id FROM portfolio_financial.financial_source_receipt
                     WHERE book_id=$1 AND source_system=$2 AND source_event_key=$3 AND posting_purpose=$4;
@@ -359,9 +376,9 @@ public static class PortfolioDbSql
             public const string Select07 = """
             SELECT coalesce(sum(b.balance),0) FROM portfolio_financial.ledger_account_balance b
             WHERE b.book_id=$1 AND b.fund_id=$2 AND EXISTS(SELECT 1 FROM portfolio_financial.ledger_account a
-              WHERE a.book_id=b.book_id AND a.account_id=b.account_id AND a.category='Cash');
+              WHERE a.book_id=b.book_id AND a.account_id=b.account_id AND a.category='Cash')
             """;
-            public const string Select08 = "SELECT coalesce(sum(amount),0) FROM portfolio_financial.financial_encumbrance WHERE book_id=$1 AND fund_id=$2 AND status='Pending';";
+            public const string Select08 = "SELECT coalesce(sum(amount),0) FROM portfolio_financial.financial_encumbrance WHERE book_id=$1 AND fund_id=$2 AND status='Pending'";
             public const string With01 = """
             WITH paid AS (
               SELECT f.reservation_id,f.component,sum(greatest(0,f.cash_paid-coalesce((
@@ -382,7 +399,7 @@ public static class PortfolioDbSql
               greatest(0,h.margin*h.fraction-coalesce(m.amount,0))+greatest(0,h.fee*h.fraction-coalesce(f.amount,0))+h.variation*h.fraction))/100),0)
             FROM holds h LEFT JOIN paid s ON s.reservation_id=h.reservation_id AND s.component=1
               LEFT JOIN paid f ON f.reservation_id=h.reservation_id AND f.component=2
-              LEFT JOIN paid m ON m.reservation_id=h.reservation_id AND m.component=3;
+              LEFT JOIN paid m ON m.reservation_id=h.reservation_id AND m.component=3
             """;
             public const string Select09 = """
             SELECT order_id,execution_id,request::text FROM portfolio_financial.capacity_reservation

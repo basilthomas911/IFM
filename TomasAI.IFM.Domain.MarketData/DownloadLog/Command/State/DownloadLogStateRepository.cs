@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -39,7 +39,7 @@ public sealed class DownloadLogStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<DownloadLogCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<DownloadLogCommandState, MarketDataDownloadLogInsertedEvent>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotAsync<DownloadLogCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// save download state changes

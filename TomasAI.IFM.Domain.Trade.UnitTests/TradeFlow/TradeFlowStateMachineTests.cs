@@ -502,6 +502,7 @@ public sealed class TradeFlowStateMachineTests
         beginClose.Execute(state).Success.Should().BeTrue();
 
         state.Current!.Status.Should().Be(EstablishedTradeStatus.Closing);
+        state.Current.EvidenceRevision.Should().Be(trade.EvidenceRevision + 1);
         state.Events.Should().ContainSingle().Which.Should().BeOfType<OptionTradeChangedEvent>();
         state.AcceptChanges();
 
@@ -585,6 +586,7 @@ public sealed class TradeFlowStateMachineTests
         Fixture.BeginCloseFuturesTradeCommand(trade.Id)
             .Execute(state).Success.Should().BeTrue();
         state.Current!.Status.Should().Be(EstablishedTradeStatus.Closing);
+        state.Current.EvidenceRevision.Should().Be(trade.EvidenceRevision + 2);
         state.AcceptChanges();
 
         Fixture.CloseFuturesTradeCommand(trade).Execute(state).Success.Should().BeTrue();

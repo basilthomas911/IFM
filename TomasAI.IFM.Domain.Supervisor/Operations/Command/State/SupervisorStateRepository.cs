@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -27,8 +27,7 @@ public sealed class SupervisorStateRepository(
     /// <summary>Rehydrates the last operation outcome for this command stream.</summary>
     public async ValueTask<SupervisorCommandState> LoadStateAsync(
         ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<SupervisorCommandState,
-            SupervisorActorOperationRecordedEvent>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotAsync<SupervisorCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Commits pending outcome events and submits them for projection.</summary>
     public ValueTask SaveStateAsync(

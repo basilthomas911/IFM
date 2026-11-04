@@ -73,7 +73,11 @@ public sealed partial class TradeSelectionRuntimeTests
             };
             var reduced = await actors.SendAsync<CloseFuturesPositionCommand, StrategyPositionId>(reduce, position, deadline.Token);
             reduced.Success.Should().BeTrue(reduced.ErrorMessage);
-            (await actors.SendAsync<CloseFuturesPositionCommand, StrategyPositionId>(reduce, position, deadline.Token)).Success.Should().BeTrue();
+            var replay = await actors.SendAsync<CloseFuturesPositionCommand, StrategyPositionId>(reduce, position, deadline.Token);
+            replay.Success.Should().BeTrue(replay.ErrorMessage);
+            var conflicting = await actors.SendAsync<CloseFuturesPositionCommand, StrategyPositionId>(
+                reduce with { EffectiveAtUtc = reduce.EffectiveAtUtc.AddTicks(1) }, position, deadline.Token);
+            conflicting.Success.Should().BeFalse("a committed command identity cannot accept different close evidence");
         }
         async Task<StrategyPositionSnapshot> WaitFor(int remaining, int fillCount)
         {

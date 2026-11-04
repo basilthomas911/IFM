@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -45,13 +45,11 @@ public class FuturesAtrSignalStateRepository(
         => command switch
         {
             ICommand<FuturesAtrDailySignalEntityId>
-                => await (LoadStateFromSnapshotAsync<
-                    FuturesAtrSignalCommandState,
-                    FuturesAtrDailySignalGeneratedEvent>(command, cancellationToken)).ConfigureAwait(false),
+                => await (LoadStateFromCreationSnapshotAsync<
+                    FuturesAtrSignalCommandState>(command, cancellationToken)).ConfigureAwait(false),
             ICommand<FuturesAtrSignalEntityId>
-                => await (LoadStateFromSnapshotAsync<
-                    FuturesAtrSignalCommandState,
-                    FuturesAtrSignalGeneratedEvent>(command, cancellationToken)).ConfigureAwait(false),
+                => await (LoadStateFromCreationSnapshotAsync<
+                    FuturesAtrSignalCommandState>(command, cancellationToken)).ConfigureAwait(false),
             _ => throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command))
         };
 

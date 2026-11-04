@@ -53,7 +53,8 @@ public sealed class SessionAnalyticsInitializationTests
         {
             await initializer.InitializeAsync(first, default);
             await initializer.InitializeAsync(first, default);
-            await commands.Received(6).StartFuturesRsiSignalAsync(Arg.Is<FuturesRsiSignalEntityId>(id => id.ValueDate == first));
+            await commands.Received(12).StartFuturesRsiSignalAsync(Arg.Is<FuturesRsiSignalEntityId>(id => id.ValueDate == first));
+            await commands.Received(6).StartFuturesRsiSignalAsync(Arg.Is<FuturesRsiSignalEntityId>(id => id.ValueDate == first && id.PeriodLength == 14));
             ready = false;
             // The provider/feed-start callback must complete even when no indicator has a value yet.
             await initializer.InitializeAsync(next, default).WaitAsync(TimeSpan.FromSeconds(2));
@@ -64,7 +65,7 @@ public sealed class SessionAnalyticsInitializationTests
             ready = true;
             Assert.Equal(ApplicationStartupActivityOutcome.Started,
                 await initializer.StartRealtimeAnalyticsAsync(startup, default));
-            await commands.Received(12).StartFuturesRsiSignalAsync(Arg.Is<FuturesRsiSignalEntityId>(id => id.ValueDate == next));
+            await commands.Received(24).StartFuturesRsiSignalAsync(Arg.Is<FuturesRsiSignalEntityId>(id => id.ValueDate == next));
             await commands.Received(12).StartFuturesAdxSignalAsync(Arg.Is<FuturesAdxSignalEntityId>(id => id.ValueDate == next));
         }
         finally
@@ -73,6 +74,7 @@ public sealed class SessionAnalyticsInitializationTests
                 foreach (var activation in FuturesIntradaySignalActivationProfile.Create("ES-SESSION-TEST", date))
                 {
                     FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Detach(activation.Rsi);
+                    FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Detach(activation.Rsi with { PeriodLength = 14 });
                     FuturesTradeSessionBarAttachmentRegistry<FuturesAtrSignalEntityId>.Detach(activation.Atr);
                     FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Detach(activation.Adx);
                     FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Detach(activation.Macd);

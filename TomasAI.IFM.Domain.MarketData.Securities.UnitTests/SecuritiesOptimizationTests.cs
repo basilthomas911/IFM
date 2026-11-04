@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using NSubstitute;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
@@ -179,7 +179,7 @@ public class SecuritiesOptimizationTests
     }
 
     [Fact]
-    public async Task LoadBulkOptionState_UsesBulkAddedEventAsSnapshot()
+    public async Task LoadBulkOptionState_ReplaysCreationAndLaterSingleContractMutations()
     {
         var stateFactory = Substitute.For<IEventSourceActorStateFactory>();
         stateFactory.CreateState<FuturesOptionContractCommandState>()
@@ -204,12 +204,30 @@ public class SecuritiesOptimizationTests
                 "2025")
         };
 
-        _ = await repository.LoadStateAsync(command);
+        IEvent[] facts = [
+            new FuturesOptionContractsAddedEvent { Contracts = [SampleData.FuturesOptionContract1] },
+            new FuturesOptionContractAddedEvent { Contract = SampleData.FuturesOptionContract2 },
+            new FuturesOptionContractRemovedEvent { ContractId = SampleData.FuturesOptionContract1.ContractId }
+        ];
+        eventSource.MapReduceActorEventStreamFromCreationAsync<FuturesOptionContractCommandState>(42,
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None).Returns(call =>
+        {
+            call.Arg<Action<IEnumerable<EventStreamReadModel>>>()(facts.Select((fact, index) => new EventStreamReadModel
+            {
+                EventVersion = index + 1, StreamVersion = index + 1,
+                EventTypeName = fact.GetType().AssemblyQualifiedName!,
+                EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(fact)
+            }));
+            return ValueTask.CompletedTask;
+        });
+        var restored = await repository.LoadStateAsync(command);
+        Assert.False(restored.FuturesOptionContractExists(SampleData.FuturesOptionContract1.ContractId, false));
+        Assert.True(restored.FuturesOptionContractExists(SampleData.FuturesOptionContract2.ContractId, false));
+        Assert.Equal(3, restored.CommittedStreamVersion);
+        Assert.Empty(restored.Events);
 
         await eventSource.Received(1)
-            .MapReduceActorEventStreamAsync<
-                FuturesOptionContractCommandState,
-                FuturesOptionContractsAddedEvent>(
+            .MapReduceActorEventStreamFromCreationAsync<FuturesOptionContractCommandState>(
                 42L,
                 Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
         await eventSource.DidNotReceive()

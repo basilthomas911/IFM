@@ -19,10 +19,14 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
         new(() => new KestrelWebApplicationFactory<TEntryPoint>(useOwnHost: true));
 
     static Action<IServiceCollection>? configureSharedServices;
+    static Func<IServiceProvider, Task>? stopHost;
 
     readonly Action<IWebHostBuilder>? configureWebHost;
     readonly bool useOwnHost;
     IServiceProvider? readyServices;
+    IServiceProvider? startedServices;
+    readonly object disposalGate = new();
+    Task? disposal;
 
     /// <summary>Creates a production-shaped integration host on an isolated port.</summary>
     public KestrelWebApplicationFactory()
@@ -55,7 +59,7 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
             if (readyServices is not null)
                 return readyServices;
 
-            var services = base.Services;
+            var services = startedServices = base.Services;
             // The runtime startup signal lives in Api.Server.Core after the host split.
             // Resolve it from loaded service assemblies rather than only the executable.
             var startupSignalType = AppDomain.CurrentDomain.GetAssemblies()
@@ -98,16 +102,54 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
             throw new InvalidOperationException("The shared integration host has already been created.");
         configureSharedServices += configuration;
     }
+
+    /// <summary>Configures the lifecycle handoff to await before disposing host dependencies.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1000", Justification = "Host lifecycle configuration is scoped by its generic entry point type.")]
+    public static void ConfigureHostShutdown(Func<IServiceProvider, Task> shutdown)
+    {
+        ArgumentNullException.ThrowIfNull(shutdown);
+        stopHost = shutdown;
+    }
+
+    /// <summary>Finishes application-owned actor cleanup before Microsoft DI disposes its dependencies.</summary>
+    public override ValueTask DisposeAsync()
+    {
+        lock (disposalGate)
+            return new ValueTask(disposal ??= DisposeHostAsync());
+    }
+
+    async Task DisposeHostAsync()
+    {
+        try
+        {
+            if (useOwnHost && startedServices is not null && stopHost is not null)
+                await stopHost(startedServices).ConfigureAwait(false);
+        }
+        finally
+        {
+            await base.DisposeAsync().ConfigureAwait(false);
+        }
+    }
     /// <summary>Creates an HTTP client for the assembly-shared default host.</summary>
     /// <returns>A client bound to the shared host's isolated Kestrel port.</returns>
     public new HttpClient CreateClient()
-        => useOwnHost ? base.CreateClient() : Shared.Value.CreateClient();
+    {
+        if (!useOwnHost) return Shared.Value.CreateClient();
+        var client = base.CreateClient();
+        startedServices = base.Services;
+        return client;
+    }
 
     /// <summary>Creates a configured HTTP client for the assembly-shared default host.</summary>
     /// <param name="options">Client configuration.</param>
     /// <returns>A client bound to the shared host's isolated Kestrel port.</returns>
     public new HttpClient CreateClient(WebApplicationFactoryClientOptions options)
-        => useOwnHost ? base.CreateClient(options) : Shared.Value.CreateClient(options);
+    {
+        if (!useOwnHost) return Shared.Value.CreateClient(options);
+        var client = base.CreateClient(options);
+        startedServices = base.Services;
+        return client;
+    }
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1000",Justification="The assembly-shared integration host is scoped by its generic entry point type.")]
 
     /// <summary>Stops and disposes the assembly-shared default host when it was created.</summary>
@@ -132,7 +174,8 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
             configuration(builder);
             var configuredBroker = Environment.GetEnvironmentVariable("IFM_CONFIGURED_TEST_NATS_URL");
             if (!string.IsNullOrWhiteSpace(configuredBroker))
-                builder.UseSetting("IFM_TEST_NATS_URL", configuredBroker);
+                builder.UseSetting("IFM_TEST_NATS_URL", configuredBroker)
+                    .UseSetting("MarketDataHost:NatsUrl", configuredBroker);
         });
     }
 
@@ -149,7 +192,7 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
             .UseSetting("ApplicationStartup:AutoStartAfterBootstrap", "false")
             .UseSetting("MarketDataRecovery:Enabled", "false")
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:Enabled", "false");
-        if (useOwnHost && configureWebHost is null && configureSharedServices is not null)
+        if (useOwnHost && configureSharedServices is not null)
             builder.ConfigureServices(configureSharedServices);
         configureWebHost?.Invoke(builder);
     }

@@ -198,7 +198,7 @@ impl Spool {
             if disk.is_file() {
                 bytes = bytes.saturating_add(disk.len());
             }
-            if path.extension().is_some_and(|v| v == "rejected") {
+            if path.extension().is_some_and(|v| v == "rejected" || v == "blocked") {
                 rejected += 1;
             }
             if bytes > self.maximum_bytes {
@@ -341,7 +341,22 @@ impl Spool {
         drop(file);
         tokio::fs::rename(partial, target)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        // A late genuine creation fact makes the preserved successors retryable.
+        // No history is manufactured and no blocked bytes are acknowledged.
+        if record.sequence == 1 {
+            let mut directory = tokio::fs::read_dir(&self.directory).await.map_err(|e| e.to_string())?;
+            while let Some(entry) = directory.next_entry().await.map_err(|e| e.to_string())? {
+                let path = entry.path();
+                if path.extension().is_some_and(|value| value == "blocked") {
+                    let blocked = read_record(&path).await?;
+                    if blocked.operation == record.operation {
+                        tokio::fs::rename(&path, path.with_extension("audit")).await.map_err(|e| e.to_string())?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
     /// Deletes only after content-matched durable Function completion.
     /// # Errors
@@ -361,6 +376,47 @@ impl Spool {
         tokio::fs::remove_file(path)
             .await
             .map_err(|e| e.to_string())
+    }
+
+    /// Retains an entire rejected incident for reconciliation without acknowledging
+    /// or rewriting any source bytes. Other incidents can continue to drain.
+    /// # Errors
+    /// Changed content, conflicting quarantine or unavailable storage.
+    pub async fn block_incident(&self, record: &Record) -> Result<(), String> {
+        let _io = self.io.lock().await;
+        let records = self.read_unlocked().await?;
+        if !records.iter().any(|value| value.id == record.id && value.digest == record.digest) {
+            return Err("Recovery quarantine identity changed".into());
+        }
+        for value in records.iter().filter(|value| value.operation == record.operation) {
+            let path = self.directory.join(format!("{}.audit", value.id));
+            let target = path.with_extension("blocked");
+            if tokio::fs::try_exists(&target).await.map_err(|e| e.to_string())? {
+                return Err("Recovery quarantine already exists".into());
+            }
+            tokio::fs::rename(path, target).await.map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+}
+
+// Missing source history is not an acknowledgement. Bound repeated explicit
+// rejections; transient broker/timeout failures must remain retryable.
+fn should_block(error: &str, attempts: u64) -> bool {
+    attempts >= 3 && error.contains("Recovery sequence predecessor missing or conflicting.")
+}
+
+#[cfg(test)]
+mod rejection_tests {
+    use super::*;
+
+    #[test]
+    fn only_repeated_explicit_sequence_rejections_are_blocked() {
+        let rejection = "Recovery audit storage rejected: Recovery sequence predecessor missing or conflicting.";
+        assert!(!should_block(rejection, 2));
+        assert!(should_block(rejection, 3));
+        assert!(!should_block("Audit delivery attempt expired or canceled; commit outcome unknown", 1000));
+        assert!(!should_block("No responders", 1000));
     }
 }
 /// Starts independent writer and bounded deliveries in the root notification subtree.
@@ -436,7 +492,15 @@ pub fn start(
                     for (record,result) in first.iter().zip(futures::future::join_all(deliveries).await) {
                         match result {
                             Ok(reply)=>match spool.acknowledge(record,&reply).await {Ok(())=>{delivery_health.acknowledged.fetch_add(1,Ordering::Relaxed);notify.notify_one();},Err(e)=>{failed=true;delivery_health.delivery_failures.fetch_add(1,Ordering::Relaxed);delivery_health.failure(&e)}},
-                            Err(e)=>{failed=true;delivery_health.delivery_failures.fetch_add(1,Ordering::Relaxed);delivery_health.failure(&e)},
+                            Err(e)=>{
+                                failed=true;delivery_health.delivery_failures.fetch_add(1,Ordering::Relaxed);delivery_health.failure(&e);
+                                if should_block(&e,attempts.get(&record.id).copied().unwrap_or(0)) {
+                                    match spool.block_incident(record).await {
+                                        Ok(())=>eprintln!("RecoveryAuditBlocked operation={} record={}: exact files retained for predecessor reconciliation",record.operation,record.id),
+                                        Err(error)=>delivery_health.failure(&error),
+                                    }
+                                }
+                            },
                         }
                     }
                     if !failed && spool.rejected_entries.load(Ordering::Relaxed)==0 {*delivery_health.last_error.lock().unwrap_or_else(|e|e.into_inner())=None;}

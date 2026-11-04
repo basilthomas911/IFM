@@ -59,8 +59,8 @@ public static partial class ApiServerModes
         }
         else if (verifyStartupOnly)
         {
-            if (app.Configuration.GetValue<bool>("MarketDataRecovery:HardRecovery:Pipeline:Enabled"))
-            _ = app.Services.GetRequiredService<IDatabentoRecoveryRequester>();
+            // The API owns the remote client; recovery workers are composed by Market Data Host.
+            _ = app.Services.GetRequiredService<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>();
             Console.WriteLine("IFM startup verification completed; no schemas, actors, feeds or HTTP listeners started.");
             // Run the real composition root/container checks, then exit before any schema,
             // seed, HTTP listener, hosted service, actor or feed startup. This takes precedence

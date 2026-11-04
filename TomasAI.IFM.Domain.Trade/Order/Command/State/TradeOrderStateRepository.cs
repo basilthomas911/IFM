@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
 using TomasAI.IFM.Application.Storage.TradeDb;
@@ -13,7 +13,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Order.Command.State;
 public sealed class TradeOrderStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<TradeOrderCommandActor> eventProjector, ILogger<TradeOrderStateRepository> logger, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<TradeOrderCommandState>
 {
-    public ValueTask<TradeOrderCommandState> LoadStateAsync(ICommand command) => new(LoadStateAsync<TradeOrderCommandState>(command));
+    public ValueTask<TradeOrderCommandState> LoadStateAsync(ICommand command) => new(LoadStateFromCreationSnapshotAsync<TradeOrderCommandState>(command));
     public async ValueTask SaveStateAsync(ICommandActorContext context, TradeOrderCommandState state, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(state);

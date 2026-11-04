@@ -147,6 +147,14 @@ async fn trade_manual_commands_use_backend_ids_versions_and_projection_receipts(
     .await;
     assert_eq!(p.outcomes[0].state, "Completed", "{}", p.status);
     assert_eq!(state.data.trade, Some(201));
+    let added = registry.project(
+        "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel",
+        state.data.trades.iter().find(|wire| registry.project(
+            "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel", wire
+        ).is_ok_and(|row| row["TradeId"] == 201)).unwrap()
+    ).unwrap();
+    assert_eq!(added["MaturityDate"], "2026-10-28");
+    assert_eq!(added["TradeType"], "LongIronCondor");
     assert_eq!(count(&backend).await, 2);
     p = act(
         &mut state,

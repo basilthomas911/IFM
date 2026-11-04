@@ -22,7 +22,7 @@ public sealed class ScheduledTaskStateRepository(IEventSourceActorStateFactory s
 
     /// <summary>Restores the creation snapshot and replays subsequent source events.</summary>
     public async ValueTask<ScheduledTaskCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<ScheduledTaskCommandState, ScheduledTaskCreatedEvent>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotAsync<ScheduledTaskCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context, ScheduledTaskCommandState state, ICommand command) => SaveStateAsync(context, state, command, CancellationToken.None);

@@ -8,6 +8,9 @@ namespace TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 /// <summary>Reads persisted futures and option ticks from their raw ScyllaDB owner.</summary>
 public interface ITradeTickQuoteDbReadContext
 {
+    /// <summary>Reads original trades within one bounded UTC time segment of a trading-date partition for historical indicator initialization.</summary>
+    Task<IReadOnlyList<BootstrapTradeRow>> GetRawFuturesTradeWindowAsync(string contractId, DateOnly valueDate,
+        TimeOnly fromUtc, TimeOnly throughUtc, CancellationToken token = default);
     /// <summary>Reads a bounded newest-first raw trade window, preserving source timestamps.</summary>
     Task<IReadOnlyList<BootstrapTradeRow>> GetLatestRawFuturesTradesAsync(string contractId, DateOnly throughDate, CancellationToken token = default);
 

@@ -90,11 +90,9 @@ public sealed class LedgerFinancialProjection(IPostgresEventTransaction transact
     internal static async Task ApplyLineAsync(EnlistedEventTransaction db, int bookId, long journalId, AcceptedLedgerLine line,
         long revision, CancellationToken ct)
     {
-        await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert08,
+        await db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.InsertLineAndBalance,
             [journalId, line.Ordinal, bookId, line.Account.AccountId, line.Account.Version, line.FundId, line.Debit, line.Credit,
-             line.SourceLineReference, line.OrderId, line.TradeId], ct)).ConfigureAwait(false);
-        await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert09,
-            [bookId, line.Account.AccountId, line.FundId, line.Debit, line.Credit, revision], ct)).ConfigureAwait(false);
+             line.SourceLineReference, line.OrderId, line.TradeId, revision], ct).ConfigureAwait(false);
     }
 
     /// <summary>Canonical UTC JSON prevents event-codec timestamp normalization from changing reconstructed payloads.</summary>

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Actor;
@@ -33,8 +33,8 @@ public class EconomicCalendarStateRepository(
 
     public async ValueTask<EconomicCalendarCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
         => command is ImportEconomicCalendarsCommand
-            ? await LoadStateFromSnapshotAsync<EconomicCalendarCommandState, EconomicCalendarsImportedEvent>(command, cancellationToken).ConfigureAwait(false)
-            : await LoadStateFromSnapshotAsync<EconomicCalendarCommandState, EconomicCalendarAddedEvent>(command, cancellationToken).ConfigureAwait(false);
+            ? await LoadStateFromCreationSnapshotAsync<EconomicCalendarCommandState>(command, cancellationToken).ConfigureAwait(false)
+            : await LoadStateFromCreationSnapshotAsync<EconomicCalendarCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously saves the current state of the economic calendar actor by persisting the pending events from the state

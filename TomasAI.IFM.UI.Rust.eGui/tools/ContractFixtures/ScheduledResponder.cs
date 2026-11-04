@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Queries;
 using MessagePack;
 using NATS.Client.Core;
 using TomasAI.IFM.Framework.Serialization;
@@ -19,6 +20,11 @@ internal sealed class ScheduledResponder{
   byte[] Result<T>(T value)=>MessagePackSerializer.Serialize(new ServiceResult<T>{Success=true,ErrorMessage="",Value=value},options);
   try{
    if(pieces[0]=="Query"){
+    if(verb=="GetScheduledTaskCatalog"){
+     var query=MessagePackSerializer.Deserialize<GetScheduledTaskCatalogQuery>(payload,options);Validate(query.Subject,query.EntityId,query.Environment,query.HostId);
+     if(query.PageSize!=50)throw new InvalidDataException("Catalog must preserve the C# query default page size");
+     return Result(ScheduledFixtures.Dashboard.Catalog!);
+    }
     if(verb=="GetScheduledTasksDashboard"){
      var query=MessagePackSerializer.Deserialize<GetScheduledTasksDashboardQuery>(payload,options);Validate(query.Subject,query.EntityId,query.Environment,query.HostId);
      if(Mode=="SlowRefresh")return null;
@@ -45,7 +51,8 @@ internal sealed class ScheduledResponder{
     }
     throw new InvalidDataException("Unknown scheduled query");
    }
-   var type=typeof(GetScheduledTasksDashboardQuery).Assembly.GetType($"TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.{verb}Command")??throw new InvalidDataException("Unknown task command");
+   var commandNamespace=pieces[1]=="ScheduledTaskRunCommand"?"Run.Commands":"Commands";
+   var type=typeof(GetScheduledTasksDashboardQuery).Assembly.GetType($"TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.{commandNamespace}.{verb}Command")??throw new InvalidDataException("Unknown task command");
    var value=MessagePackSerializer.Deserialize(type,payload,options);var command=(ICommand<ScheduledTaskId>)value;
    T Get<T>(string name)=>(T)type.GetProperty(name)!.GetValue(value)!;
    if(command.Subject.ToString()!=subject||pieces[3]!=command.EntityId.Format()||command.CommandId==Guid.Empty||Get<string>("Operator").Length==0||!commands.Add(command.CommandId))throw new InvalidDataException("Invalid or duplicate scheduled submission");
@@ -53,6 +60,11 @@ internal sealed class ScheduledResponder{
    // deserialize alone permits null strings/zero defaults that the hybrid
    // builder never sends, so it is not sufficient compatibility evidence.
    var explicitFields=new HashSet<string>{"CommandId","Subject","EntityId","ExpectedRevision","Operator","Reason","OperationCommandId"};
+   if(verb=="EnableScheduledTask"){
+    var evidence=Get<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog>("CatalogEvidence");
+    if(!MessagePackSerializer.Serialize(evidence,options).AsSpan().SequenceEqual(MessagePackSerializer.Serialize(ScheduledFixtures.Dashboard.Catalog,options)))throw new InvalidDataException("Enable requires the exact queried catalog evidence");
+    explicitFields.Add("CatalogEvidence");
+   }
    foreach(var name in verb switch {
     "CreateScheduledTask" or "ChangeScheduledTaskSchedule"=>new[]{"Schedule"},
     "RequestScheduledTaskRun"=>new[]{"ScheduleId","DefinitionRevision","IntendedFireTimeUtc","Manual","TaskKey","HostId","Environment"},

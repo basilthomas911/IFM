@@ -24,7 +24,9 @@ public sealed class PortfolioDbFixture
         _schema = new PortfolioSchemaDb(settings, logger);
         _schema.CreateAllAsync().GetAwaiter().GetResult();
         _schema.CreateAllAsync().GetAwaiter().GetResult();
-        Db = new PortfolioDbContext(settings, logger);
+        settings.Add(TomasAI.IFM.Application.Storage.EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,
+            Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")!, "System.Data.Postgres");
+        Db = new PortfolioDbContext(settings, logger, new TomasAI.IFM.Application.Storage.EventSourceDb.PostgresEventTransaction(settings));
     }
     public PortfolioDbContext Db { get; }
     public async Task ResetAsync()

@@ -42,6 +42,9 @@ public partial class MarketDataApiClient
     public Task<bool> ReleaseMonitoredOptionAsync(TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner owner,
         string contractId, CancellationToken cancellationToken = default)
         => CallAsync<bool>(nameof(ReleaseMonitoredOptionAsync), [typeof(TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner), typeof(string), typeof(CancellationToken)], [owner, contractId, null], cancellationToken);
+    public Task<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadIndicatorSeedBarsAsync(string contractId, TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType timeFrame, CancellationToken cancellationToken = default)
+        => CallAsync<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]>(nameof(ReadIndicatorSeedBarsAsync), [typeof(string), typeof(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType), typeof(CancellationToken)], [contractId, timeFrame, null], cancellationToken);
+
     public Task<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(string contractId, CancellationToken cancellationToken = default)
         => CallAsync<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]>(nameof(ReadFiveMinuteSeedBarsAsync), [typeof(string), typeof(CancellationToken)], [contractId, null], cancellationToken);
     public Task<MarketDataReadSnapshot> GetBackendReadSnapshotAsync(CancellationToken cancellationToken = default)

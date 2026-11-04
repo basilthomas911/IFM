@@ -628,7 +628,7 @@ fn funds_embed_financial_and_risk_tabs_below_grid_with_equal_width_action_contro
     let caption = controls["risk-history.date.caption"];
     let date = controls["risk-history.date"];
     assert!((caption.left() - controls["dialog-risk-history"].left()).abs() < 1.);
-    assert!(date.left() > caption.right() && date.left() - caption.right() < 10.);
+    assert!((date.left() - caption.right() - 20.).abs() < 1.);
     assert!((date.center().y - caption.center().y).abs() < 6.);
     assert!(h.query_by_label("Evaluation Date:").is_some());
     assert!(!controls.contains_key("grid-balances"));
@@ -726,7 +726,9 @@ fn verify_compact_fund_layout(dialog_key: &str, title: &str) {
     let controls = &h.state().manager.controls;
     let bounds = controls[&format!("dialog-{dialog_key}")];
     let window = controls[&format!("window-{dialog_key}")];
-    assert!(window.height() < 580.);
+    // The 560px content request includes a 180px deployment list; native
+    // title/frame chrome adds 34px with the configured development typography.
+    assert!(window.height() <= 600., "Fund window height: {}", window.height());
     assert!(window.width() < 800.);
     let save = controls[&format!("{dialog_key}.button.Save")];
     let cancel = controls[&format!("{dialog_key}.button.Cancel")];
@@ -1398,7 +1400,15 @@ fn ledger_places_fields_below_full_width_grid_and_preserves_apply() {
     assert!((apply.top() - controls["ledger.account"].top()).abs() < 6.);
     assert!((controls["ledger.control"].top() - controls["ledger.account"].top()).abs() < 6.);
     let group_gap = controls["ledger.account.caption"].left() - controls["ledger.control"].right();
-    assert!(group_gap >= 0. && group_gap < 70.);
+    // The right group follows the 330px left pane and its 16px gutter.
+    // Short text controls need not fill that pane to its right edge.
+    assert!(group_gap >= 16., "Ledger groups overlap: {group_gap}");
+    assert!((controls["ledger.account"].left() - controls["ledger.control"].left() - 346.).abs() < 1.);
+    for key in keys {
+        let caption = controls[&format!("ledger.{key}.caption")];
+        let input = controls[&format!("ledger.{key}")];
+        assert!((input.left() - caption.right() - 20.).abs() < 1., "{key} caption gap");
+    }
     assert!(controls["ledger.reason"].right() < apply.left());
     assert!(bounds.contains_rect(apply));
     assert!(!controls.contains_key("ledger.button.Refresh"));

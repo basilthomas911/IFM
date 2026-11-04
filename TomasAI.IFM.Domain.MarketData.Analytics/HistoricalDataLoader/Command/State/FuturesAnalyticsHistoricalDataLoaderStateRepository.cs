@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -44,9 +44,8 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderStateRepository(
     public async ValueTask<FuturesAnalyticsHistoricalDataLoaderCommandState> LoadStateAsync(
         ICommand command,
         CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<
-                FuturesAnalyticsHistoricalDataLoaderCommandState,
-                FuturesAnalyticsHistoricalDataLoaderRequestedEvent>(command, cancellationToken)
+        => await LoadStateFromCreationSnapshotAsync<
+                FuturesAnalyticsHistoricalDataLoaderCommandState>(command, cancellationToken)
             .ConfigureAwait(false);
 
     /// <summary>Commits pending data load-request events and dispatches them after persistence.</summary>

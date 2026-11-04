@@ -58,6 +58,85 @@ public sealed class CommandAuditPersistenceTests
 
     [Fact]
     [Trait("Category", "PostgresIntegration")]
+    public async Task Appended_evidence_and_per_run_routing_match_historical_binary_audit_without_rewriting_it()
+    {
+        await EnsureSchemaAsync();
+        var id = Guid.NewGuid();
+        var registry = TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterStartupEntityId.Registry;
+        var original = new TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ApplySignalStartupPlanCommand
+        {
+            CommandId = id, RunId = id, EntityId = registry,
+            Subject = new(ActorType.Command, "ParameterStartupCommand", "ApplySignalStartupPlan", registry.Format())
+        };
+        var codec = new CommandAuditMessagePackCodec();
+        var reader = new MessagePack.MessagePackReader(codec.Serialize(original).Bytes);
+        reader.ReadArrayHeader().Should().Be(9);
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        var pack = new MessagePack.MessagePackWriter(buffer);
+        pack.WriteArrayHeader(8);
+        for (var index = 0; index < 8; index++)
+            foreach (var segment in reader.ReadRaw()) pack.WriteRaw(segment.Span);
+        pack.Flush();
+        var bytes = buffer.WrittenSpan.ToArray();
+        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+        var payload = new CommandAuditPayload(CommandAuditPayloadFormat.MessagePack, CommandAuditMessagePackCodec.CurrentVersion, bytes, hash);
+        var options = new CommandAuditPersistenceOptions { WriteMode = CommandAuditWriteMode.WindowedMessagePack };
+        try
+        {
+            await using (var writer = new PostgresCommandAuditWriter(BaseConnectionString(), options))
+                (await writer.ReserveAsync(new(original.CommandId, original.StreamId, original.RouteTo.ToString(), original.CommandName, DateTime.UtcNow, payload))).Accepted.Should().BeTrue();
+            var retry = original with { EntityId = new(id), Subject = original.Subject with { EntityId = id.ToString("N") },
+                Evidence = new(42, Assignments: [], Versions: []) };
+            await using var restarted = new PostgresCommandAuditWriter(BaseConnectionString(), options);
+            var duplicate = await restarted.ReserveAsync(CommandAuditEnvelope.Create(retry, codec));
+            duplicate.Accepted.Should().BeFalse();
+            duplicate.PayloadConflict.Should().BeFalse();
+            duplicate.LegacyConflict.Should().BeFalse();
+            await FluentActions.Awaiting(async () => await restarted.ReserveAsync(CommandAuditEnvelope.Create(retry with { ExpectedFingerprint = "changed" }, codec)))
+                .Should().ThrowAsync<CommandAuditPayloadConflictException>();
+            await using var connection = CreateConnection();
+            await connection.OpenAsync();
+            await using var read = new NpgsqlCommand("SELECT commandpayload,commandpayloadsha256 FROM command_log WHERE commandid=$1", connection);
+            read.Parameters.AddWithValue(id);
+            await using var stored = await read.ExecuteReaderAsync();
+            (await stored.ReadAsync()).Should().BeTrue();
+            stored.GetFieldValue<byte[]>(0).Should().Equal(bytes);
+            stored.GetFieldValue<byte[]>(1).Should().Equal(hash);
+        }
+        finally { await DeleteAsync(id); }
+    }
+
+    [Fact]
+    [Trait("Category", "PostgresIntegration")]
+    public async Task Compatible_retry_retains_legacy_json_for_owner_validation()
+    {
+        await EnsureSchemaAsync();
+        var id = Guid.NewGuid();
+        var command = new TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ApplySignalStartupPlanCommand
+        { CommandId = id, RunId = id, EntityId = new(id), Subject = new(ActorType.Command, "ParameterStartupCommand", "ApplySignalStartupPlan", id.ToString("N")) };
+        try
+        {
+            await using var connection = CreateConnection();
+            await connection.OpenAsync();
+            await using (var insert = new NpgsqlCommand(
+                "INSERT INTO command_log(commandid,streamid,actorname,commandname,commandtimestamp,commandstatus,commanddata) VALUES($1,$2,'StrategyConfiguration','ApplySignalStartupPlanCommand','2026-01-01T00:00:00Z','InProgress',$3)", connection))
+            {
+                insert.Parameters.AddWithValue(id);
+                insert.Parameters.AddWithValue(command.StreamId);
+                insert.Parameters.AddWithValue(System.Text.Json.JsonSerializer.Serialize(command));
+                await insert.ExecuteNonQueryAsync();
+            }
+            await using var writer = new PostgresCommandAuditWriter(BaseConnectionString(), new() { WriteMode = CommandAuditWriteMode.WindowedMessagePack });
+            var result = await writer.ReserveAsync(CommandAuditEnvelope.Create(command, new CommandAuditMessagePackCodec()));
+            result.Accepted.Should().BeFalse();
+            result.PayloadConflict.Should().BeFalse();
+            result.LegacyConflict.Should().BeTrue();
+        }
+        finally { await DeleteAsync(id); }
+    }
+
+    [Fact]
+    [Trait("Category", "PostgresIntegration")]
     public async Task Windowed_writer_reserves_once_and_detects_payload_conflicts()
     {
         await EnsureSchemaAsync();

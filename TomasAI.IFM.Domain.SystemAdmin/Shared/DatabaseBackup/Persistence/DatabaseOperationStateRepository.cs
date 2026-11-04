@@ -38,14 +38,15 @@ public abstract class DatabaseOperationStateRepository<TState, TActor>(
         if (!string.Equals(command.StreamId, legacyId, StringComparison.Ordinal))
         {
             var legacyStream = await GetStreamId(legacyId, cancellationToken).ConfigureAwait(false);
-            await EventSourceDb.MapReduceActorEventStreamAsync<TState>(legacyStream,
+            await EventSourceDb.MapReduceActorEventStreamFromCreationAsync<TState>(legacyStream,
                 rows => state.ReplayEvents(rows.Select(row => row.ToDomainEvent()).OfType<IEvent>()),
                 cancellationToken).ConfigureAwait(false);
         }
         var stream = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
-        var version = string.Equals(EventSourceDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
-            ? await EventSourceDb.GetCommittedStreamVersionAsync(stream, cancellationToken).ConfigureAwait(false) : 0;
-        await EventSourceDb.MapReduceActorEventStreamAsync<TState>(stream, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
+        long version = 0;
+        await EventSourceDb.MapReduceActorEventStreamFromCreationAsync<TState>(stream,
+            rows => state.ReplayEvents(rows.Select(row => { version = row.StreamVersion; return row; })),
+            cancellationToken).ConfigureAwait(false);
         state.RestoreCommittedStreamVersion(version);
         state.Id = command.Subject.ThreadId;
         return state;

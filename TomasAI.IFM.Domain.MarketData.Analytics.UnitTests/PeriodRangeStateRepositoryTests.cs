@@ -22,7 +22,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests;
 public class PeriodRangeStateRepositoryTests
 {
     [Fact]
-    public async Task PeriodBasedRepositoriesUseSnapshotsWhereEventsContainCompleteState()
+    public async Task PeriodBasedRepositoriesRetainCreationForDailyAndIntradayStreams()
     {
         const long streamId = 73;
         var stateFactory = Substitute.For<IEventSourceActorStateFactory>();
@@ -78,18 +78,9 @@ public class PeriodRangeStateRepositoryTests
         await atrRepository.LoadStateAsync(atr);
         await atrRepository.LoadStateAsync(atrDaily);
 
-        await ReceivedSnapshot<FuturesMacdSignalCommandState, FuturesMacdSignalGeneratedEvent>(
-            eventDb, streamId);
-        await ReceivedSnapshot<FuturesMacdSignalCommandState, FuturesMacdDailySignalGeneratedEvent>(
-            eventDb, streamId);
-        await ReceivedSnapshotRange<FuturesAdxSignalCommandState, FuturesAdxSignalStartedEvent, FuturesAdxSignalGeneratedEvent>(
-            eventDb, streamId, adx.EntityId.PeriodLength);
-        await ReceivedRange<FuturesAdxSignalCommandState, FuturesAdxDailySignalGeneratedEvent>(
-            eventDb, streamId, adxDaily.EntityId.PeriodLength);
-        await ReceivedSnapshot<FuturesAtrSignalCommandState, FuturesAtrSignalGeneratedEvent>(
-            eventDb, streamId);
-        await ReceivedSnapshot<FuturesAtrSignalCommandState, FuturesAtrDailySignalGeneratedEvent>(
-            eventDb, streamId);
+        await eventDb.Received(2).MapReduceActorEventStreamFromCreationAsync<FuturesMacdSignalCommandState>(streamId, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
+        await eventDb.Received(2).MapReduceActorEventStreamFromCreationAsync<FuturesAdxSignalCommandState>(streamId, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
+        await eventDb.Received(2).MapReduceActorEventStreamFromCreationAsync<FuturesAtrSignalCommandState>(streamId, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
     }
 
     [Fact]
@@ -160,35 +151,4 @@ public class PeriodRangeStateRepositoryTests
     static ActorSubject Subject(string actor, string verb, string entityId)
         => new(ActorType.Command, actor, verb, entityId);
 
-    static async ValueTask ReceivedRange<TState, TEvent>(
-        IEventSourceActorDbContext eventDb,
-        long streamId,
-        int periodLength)
-        where TState : IActorState<TState>
-        where TEvent : IEvent
-        => await eventDb.Received(1).MapReduceActorEventStreamAsync<TState, TEvent>(
-            streamId,
-            periodLength,
-            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
-
-    static async ValueTask ReceivedSnapshot<TState, TEvent>(
-        IEventSourceActorDbContext eventDb,
-        long streamId)
-        where TState : IActorState<TState>
-        where TEvent : IEvent
-        => await eventDb.Received(1).MapReduceActorEventStreamAsync<TState, TEvent>(
-            streamId,
-            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
-
-    static async ValueTask ReceivedSnapshotRange<TState, TSnapshot, TEvent>(
-        IEventSourceActorDbContext eventDb,
-        long streamId,
-        int periodLength)
-        where TState : IActorState<TState>
-        where TSnapshot : IEvent
-        where TEvent : IEvent
-        => await eventDb.Received(1).MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshot, TEvent>(
-            streamId,
-            periodLength,
-            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
 }

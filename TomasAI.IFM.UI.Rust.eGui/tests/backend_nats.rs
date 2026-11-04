@@ -1065,6 +1065,12 @@ async fn parameter_native_drafts_lifecycle_metrics_and_authoritative_unknown_rec
             current.outcomes[0].message
         );
     }
+    // A rejected stale proof can be prepared again without submitting the write twice.
+    mode(&backend, "StaleEvidence").await;
+    current = state.execute(&backend, &registry,
+        &request("assign-parameter", current.generation, json!({}))).await.unwrap();
+    assert_eq!(current.outcomes[0].state, "Completed", "{}", current.outcomes[0].message);
+    mode(&backend, "Normal").await;
     for scenario in ["DropReply", "MalformedAck"] {
         mode(&backend, scenario).await;
         let assign = request("assign-parameter", current.generation, json!({}));

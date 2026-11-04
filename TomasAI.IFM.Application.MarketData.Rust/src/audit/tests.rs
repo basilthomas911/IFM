@@ -19,6 +19,26 @@ fn directory() -> PathBuf {
         rand::random::<u128>()
     ))
 }
+
+#[tokio::test]
+async fn rejected_orphan_is_retained_without_ack_and_late_creation_restores_delivery() {
+    let path = directory();
+    let spool = Spool::new(path.clone());
+    let successor = Record::new(payload(2, "ConnectionRestored")).unwrap();
+    spool.commit(&successor, false).await.unwrap();
+    let bytes = tokio::fs::read(path.join(format!("{}.audit", successor.id))).await.unwrap();
+    spool.block_incident(&successor).await.unwrap();
+    assert!(spool.read().await.unwrap().is_empty());
+    assert_eq!(tokio::fs::read(path.join(format!("{}.blocked", successor.id))).await.unwrap(), bytes);
+    let mut first: serde_json::Value = serde_json::from_str(&payload(1, "Started")).unwrap();
+    first["RecordId"] = "00000003-0003-4003-8003-000000000003".into();
+    let first = Record::new(first.to_string()).unwrap();
+    spool.commit(&first, false).await.unwrap();
+    let records = spool.read().await.unwrap();
+    assert_eq!(records.iter().map(|record| record.sequence).collect::<Vec<_>>(), [1, 2]);
+    assert_eq!(records[1].payload, successor.payload);
+    tokio::fs::remove_dir_all(path).await.unwrap();
+}
 fn payload(sequence: u64, kind: &str) -> String {
     serde_json::json!({"Version":1,"RecordId":"00000001-0001-4001-8001-000000000001","OperationId":"00000002-0002-4002-8002-000000000002","Sequence":sequence,"Kind":kind}).to_string()
 }

@@ -4,6 +4,43 @@
 
 Parameter Sets management implementation has progressed through authoring/lifecycle/assignment handlers and the initial editor. The complete system-wide release checklist remains open. The current user-directed order is Parameter Sets first; RSI seeding and Regime Discovery runtime changes are deferred. Market Outlook selection/update is explicitly deferred by the user and is not a blocker for this phase.
 
+## Aggregate ownership and creation-based replay (2026-11-03)
+
+Parameter Set, Assignment and Startup have separate Command actors, contexts, reducers, repositories, change models, validation and projectors. Assignment and Startup implementations and contracts have their own owner folders. Shared projection and historical compatibility code live under `Persistence`; cross-owner preparation reads live under `Preparation/Query`.
+
+| Owner | Identity | Default snapshot event | Replay |
+| --- | --- | --- | --- |
+| Parameter Set | SetId | `ParameterSetCreatedEvent` | Creation plus every later version, metadata, audit and operation fact |
+| Parameter Assignment | AssignmentId | `ParameterAssignmentCreatedEvent` | Creation plus subsequent assign/disable facts and duplicate/audit evidence |
+| Parameter Startup | RunId | `ParameterStartupCreatedEvent` | Frozen assignments, exact versions and plan, followed by report/release facts |
+
+The default snapshot is the event that creates the aggregate stream. Later changed events are not substituted for complete state. Repositories use `LoadStateFromSnapshotAsync`; existing assignment streams without the new creation event use its full-history fallback. Replay rejects revision gaps and mismatched owners. No periodic full-state snapshot events were introduced.
+
+Startup ownership is per RunId. The historical registry is read only for compatibility and is never used for new command routing. A historical active run receives a complete per-run creation checkpoint in the same transaction as its first new mutation. The checkpoint preserves its frozen data/report and establishes a fresh per-run revision chain; historical global revisions never become the new stream's committed version. Released runs retain a tombstone and cannot be reactivated by retrying Apply. The historical registry reader has no 100-run eviction. Active-run pagination uses persistent startup identities and then reads the individual run streams.
+
+`ParameterAssignmentQuery` and `ParameterStartupQuery` own their query routes. The old `ParameterSetQuery` routes remain read-only compatibility aliases using the same owner handlers. Public contract CLR namespaces and existing numeric keys remain stable; new command evidence fields are appended. Existing source-only projector behavior remains unchanged.
+
+Command handlers make decisions from their own state and serialized preparation evidence. The .NET facade and native Rust client prepare cross-owner mutations through `ParameterPreparationQuery`. Preparation reads coherent source state under the shared writer lease. Each accepted parameter mutation advances an infrastructure revision fence in its source/projection transaction; strategy-catalog publication and retirement use the same fence. A command checks freshness under the writer lease before applying a source event. Assignment, retirement, startup and catalog eligibility therefore cannot accept evidence invalidated by an intervening write. Historical import evidence is validated against the explicit legacy reference and candidate values.
+
+Retries preserve the original audit bytes and SHA-256. The existing retry-identity convention excludes only per-attempt evidence, and Startup additionally recognizes its exact historical registry address. Appended null evidence slots can be read from older binary layouts; unknown stored fields are rejected. Only an explicit stale-evidence rejection is automatically re-prepared, at most three times. A transport timeout after submission remains an unknown outcome and is not automatically resubmitted.
+
+`RegimeDiscoveryConfiguration` remains a separate, unchanged aggregate. Generic Regime Discovery parameter payloads and explicit legacy import remain supported; this refactor does not connect their runtime ownership.
+
+### Ownership refactor verification
+
+- Reference unit tests: **265 passed**.
+- Reference PostgreSQL/actor integration tests: **27 passed**, including independent run streams, historical registry checkpoints, stale preparation rejection and legacy import isolation.
+- Command audit regression tests: **17 passed**, including older eight-field Startup binary commands and historical JSON audit compatibility.
+- Rust library tests: **58 passed**. Parameter editor, typed field and metric tests: **11 passed**; codec tests: **9 passed**. The isolated ParameterSets NATS scenario passed, covering stale-evidence retry and authoritative reconciliation of unknown outcomes.
+- Contract export produced 50 fixtures and 2,713 compiled schemas; native journals were read back through the managed stores.
+- Follow-up investigation resolved the four portfolio layout failures and all nine compatibility failures. The combined follow-up run passed **14 portfolio layout tests** and **all 56 NATS compatibility scenarios**. Exact 20px caption gaps and the previous-month From-date default are retained. Fund height checks now include native frame/title chrome; Ledger checks enforce pane separation and caption gaps rather than assuming short inputs fill their pane. Composer assertions distinguish initial frozen preview from explicitly selected live liquidity.
+- The verification script now removes native environment variables through the PowerShell environment provider: on this Windows runtime, `.NET SetEnvironmentVariable(null)` left empty native variables, causing empty Market Data endpoints and credentials-file paths. The scheduler responder now validates catalog evidence and resolves per-run command contract namespaces. Manual-trade fixtures provide the opening maturity; Rust manual request references now include the maturity suffix used by the managed DTO. The deletion scenario passed independently and in the combined run after composer fixture cleanup was restored.
+- A later console replay assertion still expected the removed `current-warning` row. It now verifies the existing bounded error-dialog history while retaining the checks for continued intake, no replay, deduplication and bounded retention.
+- The full native run then exposed a real collapsed-grid layout panic in the splitter-hover regression. The shared grid viewport now clamps border insets to available space, preventing negative content dimensions during small-panel/DPI transitions. New zero-size/sub-pixel viewport coverage and the existing splitter/scrollbar-border tests passed.
+- **Final full verification passed (exit 0): 420 executed tests, zero failures** — 363 native tests across 87 groups, 56 isolated NATS compatibility scenarios and one console-delivery stress test. Fourteen existing opt-in tests remain skipped by the standard script (live diagnostics, benchmarks, additional transport/graphics and managed-fixture checks). Both financial journals and 285 native operation journals were verified through the managed stores. The isolated responder/container were cleaned up, and `git diff --check` passed. Final log: `.artifacts/parameter-ownership-refactor-20261103/rust-full-final.log`.
+
+Logs and machine-readable results are under `.artifacts/parameter-ownership-refactor-20261103`. Integration builds used isolated artifacts on E: to avoid replacing assemblies held by the running development API. No development service was redeployed by this verification.
+
 ## Domain gate RD-G1
 
 User decision: preserve current calculation dependencies; allow supported reductions. No new specialist scoring or partial fusion policy is introduced.

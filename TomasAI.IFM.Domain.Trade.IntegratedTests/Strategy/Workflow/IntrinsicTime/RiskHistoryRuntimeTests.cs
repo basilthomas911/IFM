@@ -1,4 +1,6 @@
 using NSubstitute;
+using TomasAI.IFM.Application.Contracts.Portfolio;
+using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
@@ -28,7 +30,7 @@ public sealed partial class TradeSelectionRuntimeTests
     public async Task Risk_history_replays_out_of_order_detects_conflicts_and_queries_bounded_scoped_pages_over_NATS()
     {
         var broker = Environment.GetEnvironmentVariable("IFM_FINANCIAL_TEST_NATS_URL") ?? throw new InvalidOperationException("Isolated broker required.");
-        var funds = Substitute.For<IPortfolioEventStore>();
+        var funds = Substitute.For<IPortfolioFundOrderReader>();
         await using var host = Host(services => { services.AddSingleton<RiskHistoryJournal>(); services.AddSingleton(funds); }, brokerUrl: broker); _ = host.CreateClient();
         var supervisor = host.Services.GetRequiredService<IActorSupervisor>(); var producer = host.Services.GetRequiredService<IActorProducer>();
         await producer.StartAsync(new(ActorType.Realtime, $"RiskHistory{Guid.NewGuid():N}"));
@@ -64,16 +66,17 @@ public sealed partial class TradeSelectionRuntimeTests
             var row = RiskHistoryIdentity.Row(last)!; var api = new RiskQueryApi(producer);
             var aggregate = new PortfolioFundAggregate();
             aggregate.Replay([new FundCompositionReservedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, DateTime.UtcNow, "fixture", new() { Order = new() { PortfolioId = row.PortfolioId, FundId = row.FundId, OrderId = checked((int)row.OrderId), IdempotencyKey = Guid.NewGuid(), Status = "RiskPending" }, Trades = [new() { OrderId = checked((int)row.OrderId) }] })]);
-            funds.LoadFundAsync(new PortfolioFundId(row.PortfolioId, row.FundId), Arg.Any<CancellationToken>()).Returns(aggregate);
+            var fundOrder = aggregate.Orders.Single(x => x.OrderId == row.OrderId);
+            funds.ReadOrderAsync(new PortfolioFundId(row.PortfolioId, row.FundId), checked((int)row.OrderId), Arg.Any<CancellationToken>()).Returns(fundOrder);
             var exact = await api.GetInvocationAsync(input.WorkflowId, input.CommandId);
             exact.Success.Should().BeTrue(exact.ErrorMessage); exact.Value!.Calculation!.ResultId.Should().Be(result.ResultId);
             exact.Value.CurrentAuthority.Should().Be("Not authorized");
             (await api.GetResultAsync(input.WorkflowId, input.CommandId, result.ResultId)).Success.Should().BeTrue();
             (await api.GetResultAsync(input.WorkflowId, input.CommandId, Guid.NewGuid())).Success.Should().BeFalse();
-            funds.LoadFundAsync(new PortfolioFundId(row.PortfolioId, row.FundId), Arg.Any<CancellationToken>()).Returns(Task.FromException<PortfolioFundAggregate>(new IOException("Authoritative Fund unavailable")));
+            funds.ReadOrderAsync(new PortfolioFundId(row.PortfolioId, row.FundId), checked((int)row.OrderId), Arg.Any<CancellationToken>()).Returns(Task.FromException<FundOrderProjectionReadModel>(new IOException("Authoritative Fund unavailable")));
             var unavailable = await api.GetInvocationAsync(input.WorkflowId, input.CommandId);
             unavailable.Success.Should().BeTrue(unavailable.ErrorMessage); unavailable.Value!.CurrentAuthority.Should().Be("Unavailable"); unavailable.Value.Calculation!.ResultId.Should().Be(result.ResultId);
-            funds.LoadFundAsync(new PortfolioFundId(row.PortfolioId, row.FundId), Arg.Any<CancellationToken>()).Returns(aggregate);
+            funds.ReadOrderAsync(new PortfolioFundId(row.PortfolioId, row.FundId), checked((int)row.OrderId), Arg.Any<CancellationToken>()).Returns(fundOrder);
             var page = await api.GetHistoryAsync(row.PortfolioId, row.FundId, row.ValueDate, 1);
             page.Success.Should().BeTrue(page.ErrorMessage); page.Value!.Items.Should().HaveCount(1);
             var found = false; var pages = 0;

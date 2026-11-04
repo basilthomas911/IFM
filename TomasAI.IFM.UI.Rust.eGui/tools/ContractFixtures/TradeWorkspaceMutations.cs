@@ -17,7 +17,7 @@ internal sealed partial class TradeWorkspaceResponder {
  int nextOrder=700,nextTrade=200;
  public int Dispatches{get;private set;}
  bool ManualMode=>Mode is "Commands" or "LostAck" or "NoProjection" or "RejectCommand" or "ReadUnavailable";
- void ResetCommands(){orders.Clear();orders[123]=Order;tradeRows.Clear();tradeRows[456]=Trade;commands.Clear();deferred=null;nextOrder=700;nextTrade=200;Dispatches=0;}
+ void ResetCommands(){orders.Clear();orders[123]=Order;tradeRows.Clear();tradeRows[456]=Trade with{TradeState="Open",MaturityDate=new(2026,10,28),RequestedMaturityDate=new(2026,10,28)};commands.Clear();deferred=null;nextOrder=700;nextTrade=200;Dispatches=0;}
  static void Same<T>(T actual,T expected){if(!MessagePackSerializer.Serialize(actual,MessagePackBinarySerializer.ContentOptions).SequenceEqual(MessagePackSerializer.Serialize(expected,MessagePackBinarySerializer.ContentOptions)))throw new InvalidDataException("Native manual request differs from the managed DTO: "+typeof(T).Name);}
  byte[]? Command(string subject,byte[] bytes){
   var options=MessagePackBinarySerializer.Options;
@@ -38,9 +38,9 @@ internal sealed partial class TradeWorkspaceResponder {
     commandId=c.CommandId;correlation=c.CorrelationId;requested=c.RequestedOnUtc;entity=c.EntityId;access=c.Access;error=c.ErrorCode;
     var current=orders[r.OrderId];
     var closing=tradeRows.Values.Any(row=>row.OrderId==r.OrderId&&row.PrimaryTrade);
-    Same(r,new AddManualFundOrderTradeRequest{PortfolioId=1,FundId=2,OrderId=current.OrderId,ExpectedOrderVersion=current.AggregateVersion,TradeId=nextTrade,TradeType=closing?"LongIronCondor":"ShortIronCondor",TradeState="NewTrade",TradeAction=closing?"Buy":"Sell",Reference=FundOrderTradeReference.Create("ESZ6",new(2026,10,26),null),PrimaryTrade=!tradeRows.Values.Any(row=>row.OrderId==r.OrderId),BaseContractSymbol="ES",BaseContractId="ESZ6",RequestedAtUtc=StrategyFixtures.At,EffectiveDate=new(2026,10,26)});
+    Same(r,new AddManualFundOrderTradeRequest{PortfolioId=1,FundId=2,OrderId=current.OrderId,ExpectedOrderVersion=current.AggregateVersion,TradeId=nextTrade,TradeType=closing?"LongIronCondor":"ShortIronCondor",TradeState="NewTrade",TradeAction=closing?"Buy":"Sell",MaturityDate=closing?new(2026,10,28):null,Reference=FundOrderTradeReference.Create("ESZ6",new(2026,10,26),closing?new(2026,10,28):null),PrimaryTrade=!tradeRows.Values.Any(row=>row.OrderId==r.OrderId),BaseContractSymbol="ES",BaseContractId="ESZ6",RequestedAtUtc=StrategyFixtures.At,EffectiveDate=new(2026,10,26)});
     Console.WriteLine($"Validated AddManualFundOrderTrade: OrderId={r.OrderId}, TradeId={r.TradeId}, ExistingTrades={tradeRows.Values.Count(row=>row.OrderId==r.OrderId)}, PrimaryTrade={r.PrimaryTrade}");
-    apply=()=>{orders[r.OrderId]=current with{AggregateVersion=current.AggregateVersion+1};tradeRows[r.TradeId]=Trade with{OrderId=r.OrderId,TradeId=r.TradeId,TradeType=r.TradeType,TradeAction=r.TradeAction,PrimaryTrade=r.PrimaryTrade,AggregateVersion=current.AggregateVersion+1};};
+    apply=()=>{orders[r.OrderId]=current with{AggregateVersion=current.AggregateVersion+1};tradeRows[r.TradeId]=Trade with{OrderId=r.OrderId,TradeId=r.TradeId,TradeType=r.TradeType,TradeAction=r.TradeAction,PrimaryTrade=r.PrimaryTrade,MaturityDate=r.MaturityDate,RequestedMaturityDate=r.MaturityDate,AggregateVersion=current.AggregateVersion+1};};
    }else if(subject=="Command.PortfolioFundCommand.RemoveManualFundOrderTrade.1.2"){
     var c=MessagePackSerializer.Deserialize<RemoveManualFundOrderTradeCommand>(bytes,options);var r=c.Request;
     commandId=c.CommandId;correlation=c.CorrelationId;requested=c.RequestedOnUtc;entity=c.EntityId;access=c.Access;error=c.ErrorCode;

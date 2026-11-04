@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Domain.Trade.Order.Execution.Command.State;
 /// <summary>Accepts source state only after audit and required read rows commit together.</summary>
 public sealed class OrderExecutionStateRepository(IEventSourceActorStateFactory factory, IEventSourceActorDbContext source, IActorService actors, IEventProjector<OrderExecutionCommandActor> projector, ILogger<OrderExecutionStateRepository> logger, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(factory, source, actors, logger), IEventSourceActorStateRepository<OrderExecutionCommandState>
 {
-    public ValueTask<OrderExecutionCommandState> LoadStateAsync(ICommand command) => new(LoadStateAsync<OrderExecutionCommandState>(command));
+    public ValueTask<OrderExecutionCommandState> LoadStateAsync(ICommand command) => new(LoadStateFromCreationSnapshotAsync<OrderExecutionCommandState>(command));
     public async ValueTask SaveStateAsync(ICommandActorContext context, OrderExecutionCommandState state, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(state);

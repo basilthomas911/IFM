@@ -32,7 +32,7 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepositoryTests
             "ES-202612", new DateOnly(2026, 8, 27), TimeFrameType.Daily));
 
     [Fact]
-    public async Task Load_uses_only_the_latest_authoritative_snapshot_without_projection()
+    public async Task Load_replays_creation_and_authoritative_tail_without_projection()
     {
         var first = StartedSnapshot(revisionSeed: 0) with { EventId = 41 };
         var second = first with
@@ -202,9 +202,9 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepositoryTests
             var eventSource = Substitute.For<IEventSourceActorDbContext>();
             eventSource.GetEventStreamIdFromDbAsync(Arg.Any<string>())
                 .Returns(new EventStreamIdReadModel(91, "workflow-stream"));
-            eventSource.LoadActorEventStreamAsync<IntrinsicTimeStrategyWorkflowCommandState,
-                    WorkflowStrategyStateUpdatedEvent>(91)
-                .Returns(events);
+            eventSource.MapReduceActorEventStreamFromCreationAsync<IntrinsicTimeStrategyWorkflowCommandState>(91,
+                    Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>())
+                .Returns(call => { call.ArgAt<Action<IEnumerable<EventStreamReadModel>>>(1)(events); return ValueTask.CompletedTask; });
             var projector = Substitute.For<IEventProjector<IntrinsicTimeStrategyWorkflowCommandActor>>();
             var repository = new IntrinsicTimeStrategyWorkflowStateRepository(
                 factory,

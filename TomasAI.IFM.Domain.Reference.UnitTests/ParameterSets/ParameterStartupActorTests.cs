@@ -1,3 +1,10 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.State;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Model;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Actor;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.State;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Model;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command;
 using System.Text.Json;
 using FluentAssertions;
 using MessagePack;
@@ -28,7 +35,7 @@ public sealed class ParameterStartupActorTests
     [Fact]
     public void Conflicting_startup_retry_is_rejected_before_reusing_the_audit_reservation()
     {
-        var id = Guid.NewGuid(); var command = new ApplySignalStartupPlanCommand { CommandId = id, RunId = id, EntityId = ParameterStartupEntityId.Registry };
+        var id = Guid.NewGuid(); var command = new ApplySignalStartupPlanCommand { CommandId = id, RunId = id, EntityId = new(id), Evidence = new(0, Assignments: [], Versions: []) };
         var json = JsonSerializer.Serialize(command);
         ParameterStartupOperationModel.ValidateDuplicate(command, command.CommandName, command.StreamId, json);
         Action changed = () => ParameterStartupOperationModel.ValidateDuplicate(command with { ExpectedFingerprint = "changed" }, command.CommandName, command.StreamId, json);
@@ -39,11 +46,9 @@ public sealed class ParameterStartupActorTests
     {
         var data = Assigned(); var sets = new ParameterSetCommandState(); sets.Versions.Add(1, data.Version);
         var context = Substitute.For<IParameterStartupCommandContext>(); var logger = Substitute.For<ILogger<ParameterStartupCommandActor>>();
-        context.Assignments.LoadStateAsync(Arg.Any<ICommand>(), Arg.Any<CancellationToken>()).Returns(call => new ValueTask<ParameterAssignmentCommandState>(
-         ((AssignParameterVersionCommand)call.Arg<ICommand>()).Scope == data.Assignment.Assignment!.Scope ? data.Assignment : new()));
-        context.ParameterSets.LoadStateAsync(Arg.Any<ICommand>(), Arg.Any<CancellationToken>()).Returns(new ValueTask<ParameterSetCommandState>(sets));
         var state = new ParameterStartupCommandState(); var runId = Guid.NewGuid();
-        var command = new ApplySignalStartupPlanCommand { CommandId = runId, RunId = runId, EntityId = ParameterStartupEntityId.Registry };
+        var command = new ApplySignalStartupPlanCommand { CommandId = runId, RunId = runId, EntityId = new(runId),
+            Evidence = new(0, Assignments: [data.Assignment.Assignment!], Versions: [data.Version]) };
         command = MessagePackSerializer.Deserialize<ApplySignalStartupPlanCommand>(MessagePackSerializer.Serialize(command));
         (await command.ExecuteAsync(context, state, logger)).Success.Should().BeTrue(); state.Revision.Should().Be(1);
         var run = state.ActiveRuns[runId];
@@ -52,7 +57,7 @@ public sealed class ParameterStartupActorTests
         sets.Versions[1] = data.Version with { Name = "Changed after startup" };
         (await command.ExecuteAsync(context, state, logger)).Success.Should().BeTrue(); state.Revision.Should().Be(1);
         state.ActiveRuns[runId].Versions.Single().Name.Should().Be("Daily");
-        var release = new ReleaseSignalStartupPlanCommand { CommandId = Guid.NewGuid(), RunId = runId, EntityId = ParameterStartupEntityId.Registry };
+        var release = new ReleaseSignalStartupPlanCommand { CommandId = Guid.NewGuid(), RunId = runId, EntityId = new(runId) };
         (await release.ExecuteAsync(context, state, logger)).Success.Should().BeTrue(); state.ActiveRuns.Should().BeEmpty(); state.Revision.Should().Be(2);
         (await release.ExecuteAsync(context, state, logger)).Success.Should().BeTrue(); state.Revision.Should().Be(2);
     }
@@ -64,33 +69,32 @@ public sealed class ParameterStartupActorTests
         var run = new ParameterStartupRun(runId, [scope], [data.Version], SignalStartupPlanModel.Create(snapshot, SignalStartupPlanModel.ExistingIntradayConsumers()), DateTime.UtcNow, "test");
         var startups = new ParameterStartupCommandState(); startups.ActiveRuns.Add(runId, run);
         var context = Substitute.For<IParameterSetCommandContext>();
-        context.Startups.LoadStateAsync(Arg.Any<ICommand>()).Returns(new ValueTask<ParameterStartupCommandState>(startups));
-        context.Assignments.LoadStateAsync(Arg.Any<ICommand>(), Arg.Any<CancellationToken>()).Returns(new ValueTask<ParameterAssignmentCommandState>(new ParameterAssignmentCommandState()));
-        context.Assignments.LoadStateAsync(Arg.Any<ICommand>()).Returns(call => context.Assignments.LoadStateAsync(call.Arg<ICommand>(), CancellationToken.None));
         var state = new ParameterSetCommandState(); state.Versions.Add(1, data.Version);
-        var retire = new RetireParameterVersionCommand { CommandId = Guid.NewGuid(), EntityId = new(data.Version.Reference.SetId), Version = 1, ExpectedRevision = 0 };
+        var retire = new RetireParameterVersionCommand { CommandId = Guid.NewGuid(), EntityId = new(data.Version.Reference.SetId), Version = 1, ExpectedRevision = 0, Evidence = new(0, ExactVersion: data.Version) };
         var runtime = new ParameterRuntimeSnapshotModel(true); runtime.Apply(run);
         (await retire.ExecuteAsync(context, state, Substitute.For<ILogger<ParameterSetCommandActor>>())).Success.Should().BeTrue();
         state.Versions[1].Status.Should().Be(ParameterVersionStatus.Retired);
         var captured = runtime.Resolve(IntrinsicTimeStrategyWorkflowDefinition.Id, TimeFrameType.Daily).Applied!.Version;
         captured.Should().Be(data.Version);
         captured.Status.Should().Be(ParameterVersionStatus.Published);
-        await context.Startups.DidNotReceive().LoadStateAsync(Arg.Any<ICommand>());
     }
     [Fact]
-    public async Task Repeated_startups_need_no_release_and_keep_a_bounded_recent_history()
+    public async Task Independent_startups_have_independent_revisions_and_no_registry_eviction()
     {
         var context = Substitute.For<IParameterStartupCommandContext>();
-        context.Assignments.LoadStateAsync(Arg.Any<ICommand>(), Arg.Any<CancellationToken>()).Returns(_ => new ValueTask<ParameterAssignmentCommandState>(new ParameterAssignmentCommandState()));
-        var state = new ParameterStartupCommandState(); var first = Guid.Empty; var last = Guid.Empty;
+        var states = new List<ParameterStartupCommandState>();
         for (var index = 0; index < 105; index++)
         {
-            var id = Guid.NewGuid(); if (index == 0) first = id; last = id;
-            var command = new ApplySignalStartupPlanCommand { CommandId = id, RunId = id, EntityId = ParameterStartupEntityId.Registry };
+            var id = Guid.NewGuid();
+            var state = new ParameterStartupCommandState();
+            var command = new ApplySignalStartupPlanCommand { CommandId = id, RunId = id, EntityId = new(id), Evidence = new(0, Assignments: [], Versions: []) };
             (await command.ExecuteAsync(context, state, Substitute.For<ILogger<ParameterStartupCommandActor>>())).Success.Should().BeTrue();
+            state.Revision.Should().Be(1);
+            state.RunId.Should().Be(id);
+            state.Events.Should().ContainSingle().Which.Should().BeOfType<ParameterStartupCreatedEvent>();
+            states.Add(state);
         }
-        state.Revision.Should().Be(105); state.ActiveRuns.Count.Should().Be(100);
-        state.ActiveRuns.Should().NotContainKey(first).And.ContainKey(last);
+        states.Should().HaveCount(105).And.OnlyContain(state => state.ActiveRuns.Count == 1);
     }
 
     [Fact]
@@ -102,7 +106,7 @@ public sealed class ParameterStartupActorTests
         var state = new ParameterStartupCommandState(); state.ActiveRuns.Add(id, run);
         var report = new ParameterSignalStartupReport(id, plan.Fingerprint, new DateOnly(2026, 9, 10), "ES", DateTime.UtcNow,
          plan.Steps.Select(x => new ParameterSignalPreparationOutcome(x.Key, ParameterSignalPreparationStatus.ExistingRoute, "Existing startup route; warmth unknown.")).ToArray());
-        var command = new RecordSignalStartupReportCommand { CommandId = Guid.NewGuid(), RunId = id, Report = report, EntityId = ParameterStartupEntityId.Registry };
+        var command = new RecordSignalStartupReportCommand { CommandId = Guid.NewGuid(), RunId = id, Report = report, EntityId = new(id) };
         command = MessagePackSerializer.Deserialize<RecordSignalStartupReportCommand>(MessagePackSerializer.Serialize(command));
         var context = Substitute.For<IParameterStartupCommandContext>();
         (await command.ExecuteAsync(context, state, Substitute.For<ILogger<ParameterStartupCommandActor>>())).Success.Should().BeTrue();

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -34,20 +34,16 @@ public class FuturesRsiSignalStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<FuturesRsiSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => command switch
+    {
+        var window = command switch
         {
-            ICommand<FuturesRsiDailySignalEntityId> dailyCommand
-                => await (LoadStateAsync<
-                    FuturesRsiSignalCommandState,
-                    FuturesRsiDailySignalGeneratedEvent>(command, dailyCommand.EntityId.PeriodLength, cancellationToken)).ConfigureAwait(false),
-            ICommand<FuturesRsiSignalEntityId> rsiCommand
-                => await (LoadStateAsync<
-                    FuturesRsiSignalCommandState,
-                    FuturesRsiSignalGeneratedEvent>(command, StateWindow(rsiCommand.EntityId), cancellationToken)).ConfigureAwait(false),
-            _ => await (LoadStateAsync<
-                FuturesRsiSignalCommandState,
-                FuturesRsiSignalGeneratedEvent>(command, 0, cancellationToken)).ConfigureAwait(false)
+            ICommand<FuturesRsiDailySignalEntityId> daily => daily.EntityId.PeriodLength,
+            ICommand<FuturesRsiSignalEntityId> rsi => StateWindow(rsi.EntityId),
+            _ => 256
         };
+        return await LoadStateFromCreationSnapshotAsync<FuturesRsiSignalCommandState>(
+            command, cancellationToken, state => state.LimitReplayWindow(window)).ConfigureAwait(false);
+    }
 
     static int StateWindow(FuturesRsiSignalEntityId entityId)
     {

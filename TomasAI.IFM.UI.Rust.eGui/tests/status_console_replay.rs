@@ -116,17 +116,17 @@ async fn core_console_keeps_latest_bounded_rows_when_gui_stalls_without_replay()
     })
     .await
     .unwrap();
-    // The shared responder may have emitted a legitimate error beforehand.
-    // Malformed input must add no fatal error of its own.
+    // Malformed input uses the bounded error-dialog history while intake
+    // continues. Other fixture errors may already be present in that history.
     assert!(
         after_invalid.error_sequence > latest.error_sequence,
         "Malformed console input must open an error dialog while intake continues"
     );
     assert_eq!(
         after_invalid
-            .status_rows
+            .error_history
             .iter()
-            .filter(|r| r.id.starts_with("current-warning|"))
+            .filter(|(_, message)| message.starts_with("Invalid console message:"))
             .count(),
         1
     );

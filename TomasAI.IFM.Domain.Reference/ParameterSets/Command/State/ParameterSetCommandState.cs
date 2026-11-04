@@ -18,10 +18,21 @@ public sealed class ParameterSetCommandState : BaseEventSourceActorState<Paramet
     public Dictionary<Guid, string> Operations { get; } = [];
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Actor reducers and command models share this mutable state dictionary; preserve the published state contract during the persistence refactor.")]
     public Dictionary<Guid, ParameterOperationReceipt> Receipts { get; } = [];
+    /// <summary>Requires every accepted source fact to participate in ordered replay.</summary>
+    protected override bool ApplyReplayEvent(IEvent domainEvent)
+    {
+        var applied = base.ApplyReplayEvent(domainEvent);
+        if (domainEvent is IParameterSetFact && !applied) throw new InvalidDataException("PARAM.SET_REPLAY_GAP");
+        return applied;
+    }
+
     protected override bool Apply(IEvent domainEvent)
     {
         if (domainEvent is not IParameterSetFact fact || fact.Revision != CatalogRevision + 1) return false;
+        if (!string.IsNullOrEmpty(Id.EntityId) && (!Guid.TryParse(Id.EntityId, out var owner) || owner != fact.EntityId.SetId))
+            throw new InvalidDataException("PARAM.SET_OWNER_MISMATCH");
         var version = fact.ReadVersion();
+        if (version.Reference.SetId != fact.EntityId.SetId) throw new InvalidDataException("PARAM.SET_OWNER_MISMATCH");
         Versions[version.Reference.Version] = version;
         // Set metadata is shared across versions; immutable payloads are never rewritten.
         foreach (var key in Versions.Keys.ToArray())

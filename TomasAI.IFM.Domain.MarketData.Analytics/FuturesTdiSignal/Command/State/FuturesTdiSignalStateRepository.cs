@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -43,7 +43,7 @@ public class FuturesTdiSignalStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<FuturesTdiSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<FuturesTdiSignalCommandState, FuturesTdiSignalGeneratedEvent>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotWithCheckpointAsync<FuturesTdiSignalCommandState, FuturesTdiSignalGeneratedEvent>(command, static snapshot => snapshot.FuturesTdiSignal is not null, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Saves futures TDI signal state changes and denormalizes the associated domain events.

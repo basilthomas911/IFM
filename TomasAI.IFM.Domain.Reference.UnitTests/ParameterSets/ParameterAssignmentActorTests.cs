@@ -1,3 +1,7 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.State;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Model;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Actor;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command;
 using System.Text.Json;
 using FluentAssertions;
 using MessagePack;
@@ -22,9 +26,8 @@ public sealed class ParameterAssignmentActorTests
         var version = new ParameterSetVersion(new(id, 1, RegimeDiscoveryParameterModel.ComponentCode, ParameterCanonicalPayloadModel.Hash(payload)), "Daily", "", 2, ParameterVersionStatus.Published, payload, DateTime.UtcNow, "test", DateTime.UtcNow);
         var set = new ParameterSetCommandState(); set.Versions.Add(1, version);
         var context = Substitute.For<IParameterAssignmentCommandContext>(); var logger = Substitute.For<ILogger<ParameterAssignmentCommandActor>>();
-        context.ParameterSets.LoadStateAsync(Arg.Any<ICommand>()).Returns(new ValueTask<ParameterSetCommandState>(set));
         var scope = WorkflowParameterScopeModel.Create(IntrinsicTimeStrategyWorkflowDefinition.Id, TimeFrameType.Daily);
-        var command = new AssignParameterVersionCommand { CommandId = Guid.NewGuid(), EntityId = new(WorkflowParameterScopeModel.AssignmentId(scope)), Scope = scope, Reference = version.Reference };
+        var command = new AssignParameterVersionCommand { CommandId = Guid.NewGuid(), EntityId = new(WorkflowParameterScopeModel.AssignmentId(scope)), Scope = scope, Reference = version.Reference, Evidence = new(0, ExactVersion: version) };
         command = MessagePackSerializer.Deserialize<AssignParameterVersionCommand>(MessagePackSerializer.Serialize(command));
         var state = new ParameterAssignmentCommandState();
         (await command.ExecuteAsync(context, state, logger)).Success.Should().BeTrue(); state.Revision.Should().Be(1); state.Assignment!.Enabled.Should().BeTrue();

@@ -21,12 +21,12 @@ using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests;
 
-/// <summary>Protects analytics states whose latest domain event is a complete replay snapshot.</summary>
+/// <summary>Protects analytics states whose creation event and subsequent domain facts.</summary>
 public sealed class SnapshotStateRepositoryTests
 {
-    /// <summary>Ensures checkpoint-based analytics repositories request only their latest snapshot event.</summary>
+    /// <summary>Ensures checkpoint-based analytics repositories retain creation and replay their accumulator history.</summary>
     [Fact]
-    public async Task CheckpointRepositoriesUseDirectSnapshotLoading()
+    public async Task AccumulatorRepositoriesReplayFromCreation()
     {
         const long streamId = 91;
         var stateFactory = Substitute.For<IEventSourceActorStateFactory>();
@@ -118,7 +118,7 @@ public sealed class SnapshotStateRepositoryTests
         long streamId)
         where TState : IActorState<TState>
         where TEvent : IEvent
-        => await eventSource.Received(1).MapReduceActorEventStreamAsync<TState, TEvent>(
+        => await eventSource.Received(1).MapReduceActorEventStreamFromCreationAsync<TState>(
             streamId,
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
 }

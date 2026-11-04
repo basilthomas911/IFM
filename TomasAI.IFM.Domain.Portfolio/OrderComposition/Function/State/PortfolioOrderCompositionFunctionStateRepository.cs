@@ -16,10 +16,8 @@ public sealed class PortfolioOrderCompositionFunctionStateRepository(
     public async ValueTask<PortfolioOrderCompositionFunctionState> LoadStateAsync(EvaluatePortfolioOrderCompositionCommand request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var state = new PortfolioOrderCompositionFunctionState { Id = request.Subject.ThreadId };
-        var completed = await (database.ReadOperationAsync<PortfolioOrderCompositionCompletedEvent>(request.PortfolioId, request.OperationId, null, cancellationToken)).ConfigureAwait(false);
-        if (completed is not null) state.ReplayEvents([completed]);
-        return state;
+        return await global::TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioOperationCreationSnapshot.LoadAsync<PortfolioOrderCompositionFunctionState, PortfolioOrderCompositionCompletedEvent>(
+            database, request.PortfolioId, request.OperationId, request.Subject.ThreadId, cancellationToken).ConfigureAwait(false);
     }
     public ValueTask SaveCompletedStateAsync(IFunctionActorContext context, PortfolioOrderCompositionFunctionState state, EvaluatePortfolioOrderCompositionCommand request, CancellationToken cancellationToken = default)
         => ValueTask.FromException(new InvalidOperationException("Portfolio order composition requires an enlisted business/event transaction."));

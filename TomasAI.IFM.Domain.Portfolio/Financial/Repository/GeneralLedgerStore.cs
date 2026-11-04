@@ -35,6 +35,11 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
             Require(now < request.ExpiresAtUtc, FinancialReasons.TimeExpired, "Posting expired before acquiring financial authority.");
             var receipts = new List<LedgerPostedTransaction>();
             var facts = new List<AcceptedLedgerPosting>();
+            // Configuration writers take the same financial authority fence. Reuse immutable
+            // account/rule/period evidence only within this locked transaction and exact key.
+            var periods = new Dictionary<(int Book, DateOnly Date), bool>();
+            var rules = new Dictionary<(int Book, Guid Rule, long Version, DateOnly Date), LedgerPostingRule>();
+            var accounts = new Dictionary<(int Book, int Account, long Version, bool Reversal), bool>();
             foreach (var prepared in items)
             {
                 var item = prepared.Request;
@@ -45,12 +50,24 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
                 var previous = await (db.QueryAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select01, [item.BookId, item.Source.System, item.Source.SourceEventId.ToString("N"), item.TransactionKind.ToString()], r => (Hash: r.GetString(0), Operation: r.GetGuid(1)), cancellation)).ConfigureAwait(false);
                 if (previous.Count > 0) throw new FinancialOperationException(string.Equals(previous[0].Hash,item.Source.SourceContentHash,StringComparison.Ordinal) ? FinancialReasons.AlreadyPosted : FinancialReasons.SourceConflict,
                     "Source has already been committed.", FinancialCommitDisposition.NoNewMutation, previous[0].Operation);
-                var period = await (db.ScalarAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select02, [item.BookId, item.AccountingDate], cancellation)).ConfigureAwait(false);
-                Require(period is string state && string.Equals(state,"Open",StringComparison.Ordinal), FinancialReasons.ClosedPeriod, "Accounting date is not in an open period.");
-                var ruleJson = await (db.ScalarAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select03, [item.BookId, item.PostingRule.RuleId, (long)item.PostingRule.Version, item.AccountingDate], cancellation)).ConfigureAwait(false);
-                Require(ruleJson is string, FinancialReasons.InvalidAccount, "Exact posting rule is not active.");
-                var rule = Decode<LedgerPostingRule>((string)ruleJson!);
-                var valuation = await (db.QueryAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select04, [item.BookId, item.FundId, PositionKey(item)], r => (Amount: r.GetDecimal(0), Sequence: r.GetInt64(1)), cancellation)).ConfigureAwait(false);
+                var periodKey = (item.BookId, item.AccountingDate);
+                if (!periods.ContainsKey(periodKey))
+                {
+                    var period = await db.ScalarAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select02, [item.BookId, item.AccountingDate], cancellation).ConfigureAwait(false);
+                    Require(period is string state && string.Equals(state, "Open", StringComparison.Ordinal), FinancialReasons.ClosedPeriod, "Accounting date is not in an open period.");
+                    periods.Add(periodKey, true);
+                }
+                var ruleKey = (item.BookId, item.PostingRule.RuleId, (long)item.PostingRule.Version, item.AccountingDate);
+                if (!rules.TryGetValue(ruleKey, out var rule))
+                {
+                    var ruleJson = await db.ScalarAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select03, [item.BookId, item.PostingRule.RuleId, (long)item.PostingRule.Version, item.AccountingDate], cancellation).ConfigureAwait(false);
+                    Require(ruleJson is string, FinancialReasons.InvalidAccount, "Exact posting rule is not active.");
+                    rule = Decode<LedgerPostingRule>((string)ruleJson!);
+                    rules.Add(ruleKey, rule);
+                }
+                IReadOnlyList<(decimal Amount, long Sequence)> valuation = [];
+                if (item.TransactionKind is LedgerTransactionKind.Valuation or LedgerTransactionKind.RealizedPnl)
+                    valuation = await db.QueryAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select04, [item.BookId, item.FundId, PositionKey(item)], r => (Amount: r.GetDecimal(0), Sequence: r.GetInt64(1)), cancellation).ConfigureAwait(false);
                 if (item.TransactionKind is LedgerTransactionKind.Valuation or LedgerTransactionKind.RealizedPnl)
                     Require(valuation.Count == 0 || item.Source.SourceSequence > valuation[0].Sequence, FinancialReasons.SourceConflict, "Valuation/realization source is stale.");
                 IReadOnlyList<PlannedLedgerLine>? reversal = null; decimal remaining = 0;
@@ -102,7 +119,7 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
                     {
                         if (line.FundId is { } lineFund)
                             await (ValidateFundSourcesAsync(db, authority.Book, lineFund, false, cancellation)).ConfigureAwait(false);
-                        await (InsertLine(db, item.BookId, journalId.Value, line, revision, item.TransactionKind == LedgerTransactionKind.Reversal, cancellation)).ConfigureAwait(false);
+                        await (InsertLine(db, item.BookId, journalId.Value, line, revision, item.TransactionKind == LedgerTransactionKind.Reversal, accounts, cancellation)).ConfigureAwait(false);
                     }
                 }
                 decimal? fundingCashPaid = null;
@@ -152,10 +169,8 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
 
     internal static async Task<decimal> AvailableCash(EnlistedEventTransaction db, int bookId, int fundId, CancellationToken token)
     {
-        var cash = Convert.ToDecimal(await (db.ScalarAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select07, [bookId, fundId], token)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture);
-        var pending = Convert.ToDecimal(await (db.ScalarAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select08, [bookId, fundId], token)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture);
-        var held = Convert.ToDecimal(await (db.ScalarAsync(PortfolioDbSql.Financial.GeneralLedgerStore.With01, [bookId, fundId], token)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture);
-        return cash - pending - held;
+        return Convert.ToDecimal(await db.ScalarAsync(PortfolioDbSql.Financial.GeneralLedgerStore.AvailableCash,
+            [bookId, fundId], token).ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
     }
 
     static async Task<decimal> RecordFundingSettlement(EnlistedEventTransaction db, LedgerPostingRequest item, long transactionId, long? journalId, CancellationToken token)
@@ -192,10 +207,17 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
         return null;
     }
 
-    static async Task InsertLine(EnlistedEventTransaction db, int bookId, long journalId, PlannedLedgerLine line, long revision, bool reversal, CancellationToken token)
+    static async Task InsertLine(EnlistedEventTransaction db, int bookId, long journalId, PlannedLedgerLine line, long revision, bool reversal, Dictionary<(int Book, int Account, long Version, bool Reversal), bool> accounts, CancellationToken token)
     {
-        var valid = await (db.ScalarAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select11, [bookId, line.Account.AccountId, line.Account.Version, reversal], token)).ConfigureAwait(false);
-        Require(valid is bool fundRequired && (!fundRequired || line.FundId is > 0), FinancialReasons.InvalidAccount, "Account version is inactive or missing its required Fund dimension.");
+        var key = (bookId, line.Account.AccountId, line.Account.Version, reversal);
+        if (!accounts.TryGetValue(key, out var fundRequired))
+        {
+            var valid = await (db.ScalarAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select11, [bookId, line.Account.AccountId, line.Account.Version, reversal], token)).ConfigureAwait(false);
+            Require(valid is bool, FinancialReasons.InvalidAccount, "Account version is inactive.");
+            fundRequired = (bool)valid!;
+            accounts.Add(key, fundRequired);
+        }
+        Require(!fundRequired || line.FundId is > 0, FinancialReasons.InvalidAccount, "Account is missing its required Fund dimension.");
         await (LedgerFinancialProjection.ApplyLineAsync(db, bookId, journalId,
             new(line.Ordinal, line.Account, line.FundId, line.Debit, line.Credit, line.OrderId, line.TradeId, line.SourceLineReference), revision, token)).ConfigureAwait(false);
     }

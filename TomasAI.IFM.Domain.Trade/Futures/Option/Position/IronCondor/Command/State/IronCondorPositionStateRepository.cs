@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.Diagnostics;
+using TomasAI.IFM.Shared.Diagnostics;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -29,20 +29,18 @@ public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFact
         using var step = new OptionFeedTrace("option.position.load_state", logger, command.CommandId.ToString());
         try
         {
-            var state = await LoadStateFromSnapshotAsync<IronCondorPositionCommandState, IronCondorPositionChangedEvent>(command, cancellationToken).ConfigureAwait(false);
+            // These are the only two retained state components. Each source fact
+            // replaces its complete component; neither is a delta or a read model.
+            var state = await LoadStateFromLatestSnapshotsAsync<IronCondorPositionCommandState,
+                IronCondorPositionChangedEvent, IronCondorMonitoringInitializedEvent>(
+                command, cancellationToken).ConfigureAwait(false);
             if (databases is not null && state.Current is { OpeningCommission: null } position)
             {
                 var trade = await databases.TradeDb.GetEstablishedTradeAsync(position.Id.Trade, cancellationToken).ConfigureAwait(false);
                 if (trade is not null) state.RestoreCurrencyEvidence(trade);
             }
-            // Position changes replace the complete position, but monitoring limits live in
-            // a separate event which can precede the latest position snapshot.
-            if (state.TradeLimits is null)
-            {
-                var streamId = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
-                await EventSourceDb.MapReduceActorEventStreamAsync<IronCondorPositionCommandState, IronCondorMonitoringInitializedEvent>(
-                    streamId, 1, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
-            }
+            // Source ordering preserves limits whether initialization precedes or
+            // follows the latest position snapshot.
             step.Complete();
             return state;
         }

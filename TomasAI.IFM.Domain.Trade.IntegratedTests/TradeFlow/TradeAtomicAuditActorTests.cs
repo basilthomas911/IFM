@@ -24,9 +24,7 @@ public sealed partial class TradeBrokerEmulatorHostTests
             {
                 // The feed watchdog is outside this broker/persistence test scope.
                 // Its full-host shutdown currently races service-provider disposal.
-                var watchdog = services.Single(descriptor => descriptor.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService)
-                    && descriptor.ImplementationFactory?.Method.ReturnType == typeof(TomasAI.IFM.Application.MarketData.Databento.Resiliency.DatabentoMarketDataWatchdogService));
-                services.Remove(watchdog);
+                TomasAI.IFM.IntegrationTesting.HostedServiceOverrides.Suppress<TomasAI.IFM.Application.MarketData.Databento.Resiliency.DatabentoMarketDataWatchdogService>(services);
             });
     }
 

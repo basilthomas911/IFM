@@ -24,7 +24,7 @@ public sealed class ScheduledTaskRunStateRepository(IEventSourceActorStateFactor
 
     /// <summary>Restores the requested-run snapshot and replays subsequent lifecycle events.</summary>
     public async ValueTask<ScheduledTaskRunCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<ScheduledTaskRunCommandState, ScheduledTaskRunRequestedEvent>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotAsync<ScheduledTaskRunCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context, ScheduledTaskRunCommandState state, ICommand command) => SaveStateAsync(context, state, command, CancellationToken.None);

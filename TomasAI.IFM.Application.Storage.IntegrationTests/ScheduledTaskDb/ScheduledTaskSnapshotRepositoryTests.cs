@@ -90,7 +90,7 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
     }
 
     [Fact]
-    public async Task Catalog_repository_selects_latest_registration_using_its_frozen_historical_identity()
+    public async Task Catalog_repository_restores_first_registration_and_tail_using_frozen_historical_identity()
     {
         var id = new ScheduledTaskId(Guid.NewGuid());
         var command = new RegisterScheduledTaskProjectCommand { CommandId = Guid.NewGuid(), EntityId = id,
@@ -107,10 +107,10 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
         await using var source = Source();
         var streamId = await source.GetEventStreamIdAsync(command.StreamId, CancellationToken.None);
         var rows = new List<EventStreamReadModel>();
-        await source.MapReduceActorEventStreamAsync<ScheduledTaskCatalogCommandState, ScheduledTaskCatalogProjectRegisteredEvent>(streamId,
+        await source.MapReduceActorEventStreamFromCreationAsync<ScheduledTaskCatalogCommandState>(streamId,
             page => rows.AddRange(page.Select(row => new EventStreamReadModel { EventVersion = row.EventVersion,
                 EventTypeName = row.EventTypeName, EventData = row.EventData, StreamVersion = row.StreamVersion })), CancellationToken.None);
-        Assert.Equal(2, rows.Count);
+        Assert.Equal(4, rows.Count);
         Assert.Equal(EventWriteIdentityRegistry.Default.GetIdentity(typeof(ScheduledTaskCatalogProjectRegisteredEvent)).EventTypeName, rows[0].EventTypeName);
         var factory = Substitute.For<IEventSourceActorStateFactory>();
         factory.CreateState<ScheduledTaskCatalogCommandState>().Returns(_ => new ScheduledTaskCatalogCommandState());

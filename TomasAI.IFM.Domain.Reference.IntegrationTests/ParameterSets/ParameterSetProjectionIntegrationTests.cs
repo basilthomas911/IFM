@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Model;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -90,6 +91,29 @@ public sealed class ParameterSetProjectionIntegrationTests(ReferenceIntegrationI
             await db.OpenAsync();await using var check=db.CreateCommand();
             check.CommandText="SELECT active FROM reference_configuration.parameter_catalog_startup_state WHERE run_id=$1";check.Parameters.AddWithValue(runId);
             Assert.Equal(false,await check.ExecuteScalarAsync());
+        }
+        // A per-run creation checkpoint can restore its own projections without a registry projection.
+        foreach (var initiallyReleased in new[] { false, true })
+        {
+            var checkpointId = Guid.NewGuid();
+            var checkpointRun = run with { RunId = checkpointId, Plan = run.Plan with { StartupRunId = checkpointId }, CreatedAtUtc = DateTime.UtcNow };
+            var checkpointReport = report with { RunId = checkpointId };
+            var checkpoint = new ParameterStartupCreatedEvent { CommandId = Guid.NewGuid(), EntityId = new(checkpointId), RunId = checkpointId,
+                Revision = 1, Run = checkpointRun, Report = checkpointReport, ImportedFromRegistry = true, ReleasedAtCreation = initiallyReleased };
+            await store.ProjectParameterStartupAsync(checkpoint);
+            await store.ProjectParameterStartupAsync(checkpoint);
+            await Assert.ThrowsAsync<InvalidDataException>(() => store.ProjectParameterStartupAsync(checkpoint with { ReleasedAtCreation = !initiallyReleased }));
+            await using var checkConnection = store.CreateConnection().As<NpgsqlConnection>(store.ConnectionString);
+            await checkConnection.OpenAsync();
+            await using var checkCheckpoint = checkConnection.CreateCommand();
+            checkCheckpoint.CommandText = "SELECT active,(SELECT count(*) FROM reference_configuration.parameter_catalog_startup_report WHERE run_id=$1) FROM reference_configuration.parameter_catalog_startup_state WHERE run_id=$1";
+            checkCheckpoint.Parameters.AddWithValue(checkpointId);
+            await using var checkpointReader = await checkCheckpoint.ExecuteReaderAsync();
+            Assert.True(await checkpointReader.ReadAsync());
+            Assert.Equal(!initiallyReleased, checkpointReader.GetBoolean(0));
+            Assert.Equal(1L, checkpointReader.GetInt64(1));
+            var activeIds = await store.GetParameterStartupRunIdsAsync(25);
+            Assert.Equal(!initiallyReleased, activeIds.Contains(checkpointId));
         }
         var legacyValue=RegimeDiscoveryParameterModel.CreateSeed(Guid.NewGuid());
         await store.InsertRegimeDiscoveryDraftAsync(legacyValue,"Explicit historical import","test");

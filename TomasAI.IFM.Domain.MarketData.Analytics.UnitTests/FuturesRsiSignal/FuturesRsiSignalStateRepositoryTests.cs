@@ -29,6 +29,18 @@ public class FuturesRsiSignalStateRepositoryTests
         eventDb.ProviderName.Returns("System.Data.Postgres");
         eventDb.GetEventStreamIdAsync(command.StreamId, CancellationToken.None).Returns(42L);
         eventDb.GetCommittedStreamVersionAsync(42L, CancellationToken.None).Returns(3L);
+        eventDb.MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(42L,
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None).Returns(call =>
+        {
+            var rows = Enumerable.Range(1, 3).Select(version => new EventStreamReadModel
+            {
+                EventVersion = version, StreamVersion = version,
+                EventTypeName = typeof(FuturesRsiSignalStoppedEvent).AssemblyQualifiedName!,
+                EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStoppedEvent { EntityId = SampleData.RsiEntityId })
+            });
+            call.Arg<Action<IEnumerable<EventStreamReadModel>>>()(rows);
+            return ValueTask.CompletedTask;
+        });
         var repository = new FuturesRsiSignalStateRepository(factory, eventDb, Substitute.For<IActorService>(),
             Substitute.For<IDbContextFactory>(), Substitute.For<IEventProjector<FuturesRsiSignalCommandActor>>(),
             Substitute.For<ILogger<FuturesRsiSignalStateRepository>>());
@@ -38,7 +50,7 @@ public class FuturesRsiSignalStateRepositoryTests
     }
 
     [Fact]
-    public async Task LoadStateUsesPeriodLengthAndTypedRangeAcrossRestartMarkers()
+    public async Task LoadStateReplaysFromCreationWithPeriodWindow()
     {
         const long streamId = 42;
         var command = SampleData.RsiGenerateCommand with
@@ -55,11 +67,8 @@ public class FuturesRsiSignalStateRepositoryTests
         stateFactory.CreateState<FuturesRsiSignalCommandState>().Returns(state);
         var eventDb = Substitute.For<IEventSourceActorDbContext>();
         eventDb.GetEventStreamIdAsync(command.StreamId, CancellationToken.None).Returns(streamId);
-        eventDb.MapReduceActorEventStreamAsync<
-                FuturesRsiSignalCommandState,
-                FuturesRsiSignalGeneratedEvent>(
+        eventDb.MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(
                 streamId,
-                SampleData.PeriodLength,
                 Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None)
             .Returns(call =>
             {
@@ -73,7 +82,7 @@ public class FuturesRsiSignalStateRepositoryTests
                 call.Arg<Action<IEnumerable<EventStreamReadModel>>>()([
                     new EventStreamReadModel
                     {
-                        EventVersion = 10,
+                        EventVersion = 10, StreamVersion = 1,
                         EventTypeName = typeof(FuturesRsiSignalGeneratedEvent).AssemblyQualifiedName!,
                         EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(generatedEvent)
                     }
@@ -93,11 +102,8 @@ public class FuturesRsiSignalStateRepositoryTests
         Assert.Same(state, loadedState);
         Assert.Equal(command.Subject.ThreadId, loadedState.Id);
         Assert.Single(loadedState.FuturesRsiSignals);
-        await eventDb.Received(1).MapReduceActorEventStreamAsync<
-            FuturesRsiSignalCommandState,
-            FuturesRsiSignalGeneratedEvent>(
+        await eventDb.Received(1).MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(
             streamId,
-            SampleData.PeriodLength,
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
         await eventDb.DidNotReceiveWithAnyArgs().MapReduceActorEventStreamFromSnapshotLastNRangeAsync<
             FuturesRsiSignalCommandState,
@@ -106,7 +112,7 @@ public class FuturesRsiSignalStateRepositoryTests
     }
 
     [Fact]
-    public async Task LoadDailyStateUsesTypedLastNRangeWithoutIntradaySnapshot()
+    public async Task LoadDailyStateReplaysFromCreation()
     {
         const long streamId = 84;
         var entityId = new FuturesRsiDailySignalEntityId(
@@ -140,11 +146,8 @@ public class FuturesRsiSignalStateRepositoryTests
 
         Assert.Same(state, loadedState);
         Assert.Equal(command.Subject.ThreadId, loadedState.Id);
-        await eventDb.Received(1).MapReduceActorEventStreamAsync<
-            FuturesRsiSignalCommandState,
-            FuturesRsiDailySignalGeneratedEvent>(
+        await eventDb.Received(1).MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(
             streamId,
-            entityId.PeriodLength,
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
     }
 
@@ -180,11 +183,8 @@ public class FuturesRsiSignalStateRepositoryTests
         var eventDb = Substitute.For<IEventSourceActorDbContext>();
         eventDb.GetEventStreamIdAsync(command.StreamId, CancellationToken.None).Returns(streamId);
         var requiredHistory = configuration.RsiPeriod + configuration.RequiredRsiSamples;
-        eventDb.MapReduceActorEventStreamAsync<
-                FuturesRsiSignalCommandState,
-                FuturesRsiSignalGeneratedEvent>(
+        eventDb.MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(
                 streamId,
-                requiredHistory,
                 Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None)
             .Returns(call =>
             {
@@ -225,7 +225,7 @@ public class FuturesRsiSignalStateRepositoryTests
                     })
                     .Select((generatedEvent, index) => new EventStreamReadModel
                     {
-                        EventVersion = index + 1,
+                        EventVersion = index + 1, StreamVersion = index + 1,
                         EventTypeName = typeof(FuturesRsiSignalGeneratedEvent).AssemblyQualifiedName!,
                         EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(generatedEvent)
                     })
@@ -248,11 +248,8 @@ public class FuturesRsiSignalStateRepositoryTests
             .Should().Be(configuration.RequiredRsiSamples);
         loadedState.FuturesRsiCheckpoint.Should().NotBeNull();
         loadedState.FuturesRsiCheckpoint!.CurrentRsi.Should().Be(100d);
-        await eventDb.Received(1).MapReduceActorEventStreamAsync<
-            FuturesRsiSignalCommandState,
-            FuturesRsiSignalGeneratedEvent>(
+        await eventDb.Received(1).MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(
             streamId,
-            requiredHistory,
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
     }
 }

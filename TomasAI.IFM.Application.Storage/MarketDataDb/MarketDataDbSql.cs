@@ -3,6 +3,16 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <summary>Native PostgreSQL session snapshot and observation statements.</summary>
 public static class MarketDataDbSql
 {
+    /// <summary>Reads a complete bar under its exact indexed series/frame/month/end identity.</summary>
+    public const string GetStoredTradeSessionBar = """
+        SELECT observationId,intervalStart,intervalEnd,openPrice,highPrice,lowPrice,closePrice,
+               volume,tradeCount,priceVolumeSum,firstSourceSequence,lastSourceSequence,
+               firstMarketEvent,lastMarketEvent,calculatedAt,schemaVersion,calculationVersion
+        FROM market_data.futures_trade_session_bar
+        WHERE seriesKey=$1 AND timePeriod=$2 AND yearMonth=$3 AND marketDataAsOf=$4
+            AND contractId=$5 AND valueDate=$6 AND isComplete AND isValid
+        ORDER BY calculatedAt DESC,observationId LIMIT 1;
+        """;
     public const string InsertFuturesEodData = """
         INSERT INTO market_data.futures_eod_data ( contractId, valueDate, symbol, openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize, fiftyDMA, twoHundredDMA ) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22 ) ON CONFLICT (contractId,valueDate,symbol) DO UPDATE SET openPrice=EXCLUDED.openPrice,highPrice=EXCLUDED.highPrice,lowPrice=EXCLUDED.lowPrice,closePrice=EXCLUDED.closePrice,volume=EXCLUDED.volume,dailyPercentChange=EXCLUDED.dailyPercentChange,dailyStdDev=EXCLUDED.dailyStdDev,dailyStdDevAmount=EXCLUDED.dailyStdDevAmount,upperBand=EXCLUDED.upperBand,mean=EXCLUDED.mean,lowerBand=EXCLUDED.lowerBand,marketDirection=EXCLUDED.marketDirection,marketVolatility=EXCLUDED.marketVolatility,priceDirection=EXCLUDED.priceDirection,priceVolatility=EXCLUDED.priceVolatility,marketDirectionIndicator=EXCLUDED.marketDirectionIndicator,windowSize=EXCLUDED.windowSize,fiftyDMA=EXCLUDED.fiftyDMA,twoHundredDMA=EXCLUDED.twoHundredDMA;
         """;

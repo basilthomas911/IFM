@@ -150,7 +150,7 @@ public static partial class CoreServiceRegistration
     {
         if (config.GetValue("MarketDataHost:Enabled", true))
         {
-            RegisterRemoteMarketDataRuntimeServices(services, config);
+            RegisterRemoteMarketDataRuntimeServices(services, config, focusedActorIntegration);
             return;
         }
         logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register hosted services...",nameof(CoreServiceRegistration),nameof(RegisterHostedServices));

@@ -5,7 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 /// <summary>Only the isolated test broker installs this in-memory responder.</summary>
 internal static class OptionChainResponder {
- public static bool Handles(string subject)=>subject.StartsWith("Query.NativeCompatibility.OptionChain",StringComparison.Ordinal)||subject.StartsWith("Query.MarketDataQuery.GetEvaluatedOptionChain.",StringComparison.Ordinal)||subject.StartsWith("Query.MarketDataQuery.GetDatabentoOptionChainRange.",StringComparison.Ordinal)||subject=="Query.TradeOrderQuery.GetTradeOrderPreview.Preview"||(mode=="ComposeOptions"||mode=="ComposeCloseOptions")&&subject=="Query.ParameterSetQuery.GetParameterStartupRuns.none";
+ public static bool Handles(string subject)=>subject.StartsWith("Query.NativeCompatibility.OptionChain",StringComparison.Ordinal)||subject.StartsWith("Query.MarketDataQuery.GetEvaluatedOptionChain.",StringComparison.Ordinal)||subject.StartsWith("Query.MarketDataQuery.GetDatabentoOptionChainRange.",StringComparison.Ordinal)||subject=="Query.TradeOrderQuery.GetTradeOrderPreview.Preview"||(mode=="ComposeOptions"||mode=="ComposeCloseOptions")&&subject=="Query.ParameterStartupQuery.GetParameterStartupRuns.none";
  static string mode="Normal";
  static bool offline;
  internal static bool LongOffline {get;private set;}
@@ -19,7 +19,7 @@ internal static class OptionChainResponder {
   if(subject=="Query.NativeCompatibility.OptionChainMode.none") {mode=MessagePackSerializer.Deserialize<string>(payload,options);return Result(new ScalarReadModel<bool>(true));}
   if(subject=="Query.NativeCompatibility.OptionChainOffline.none"){var scenario=MessagePackSerializer.Deserialize<string>(payload,options);offline=scenario is "Enabled" or "Long";LongOffline=scenario=="Long";return Result(new ScalarReadModel<bool>(true));}
   if(subject=="Query.NativeCompatibility.OptionChainCount.none")return Result(new ScalarReadModel<int>(leases.Count));
-  if(subject=="Query.ParameterSetQuery.GetParameterStartupRuns.none"){
+  if(subject=="Query.ParameterStartupQuery.GetParameterStartupRuns.none"){
    var q=MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.GetParameterStartupRunsQuery>(payload,options);
    if(q.Subject.ToString()!=subject||q.Limit!=20||q.AfterRunId is not null||q.AfterCreatedAtUtc is not null)throw new InvalidDataException("Incorrect applied-default query");
    return Result(offline?Array.Empty<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterStartupRun>():new[]{ComposerOptionFixtures.Startup});

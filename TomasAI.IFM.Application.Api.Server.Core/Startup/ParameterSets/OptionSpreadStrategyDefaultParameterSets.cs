@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Model;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Model;

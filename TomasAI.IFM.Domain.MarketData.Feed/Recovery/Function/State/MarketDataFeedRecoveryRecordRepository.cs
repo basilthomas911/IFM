@@ -16,7 +16,7 @@ public sealed class MarketDataFeedRecoveryRecordRepository(IEventSourceActorStat
     {
         var state = new MarketDataFeedRecoveryRecordState { Id = request.Subject.ThreadId };
         var stream = await GetStreamId(request.StreamId, token).ConfigureAwait(false);
-        await EventSourceDb.MapReduceActorEventStreamAsync<MarketDataFeedRecoveryRecordState, MarketDataFeedRecoveryRecordStoredEvent>(stream, 1, state.ReplayEvents, token).ConfigureAwait(false);
+        await EventSourceDb.MapReduceActorEventStreamFromCreationAsync<MarketDataFeedRecoveryRecordState>(stream, state.ReplayEvents, token).ConfigureAwait(false);
         return state;
     }
     public async ValueTask SaveCompletedStateAsync(IFunctionActorContext context, MarketDataFeedRecoveryRecordState state, RecordMarketDataFeedRecoveryCommand request, CancellationToken token = default)

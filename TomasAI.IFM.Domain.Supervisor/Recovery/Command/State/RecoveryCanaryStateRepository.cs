@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -27,8 +27,7 @@ public sealed class RecoveryCanaryStateRepository(
     /// <summary>Rehydrates the command stream from its last recorded source event.</summary>
     public async ValueTask<RecoveryCanaryCommandState> LoadStateAsync(
         ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<RecoveryCanaryCommandState,
-            RecoveryCanaryRecordedEvent>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotAsync<RecoveryCanaryCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Commits and projects the pending canary source event.</summary>
     public ValueTask SaveStateAsync(

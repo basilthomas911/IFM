@@ -327,6 +327,13 @@ public sealed class ApiApplicationStartupActivities(
                     ? StartSeededFiveMinuteRsiAsync(activation.Rsi, liveSeedBars, cancellationToken)
                     : analyticsCommandApi.StartFuturesRsiSignalAsync(activation.Rsi),
                 $"RSI {activation.TimeFrame}"),
+            // RSI13 serves TDI. Regime Discovery explicitly requires RSI14;
+            // running the first does not satisfy the second's identity.
+            RequireAcceptedAsync(
+                activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
+                    ? StartSeededFiveMinuteRsiAsync(activation.Rsi with { PeriodLength = 14 }, liveSeedBars, cancellationToken)
+                    : analyticsCommandApi.StartFuturesRsiSignalAsync(activation.Rsi with { PeriodLength = 14 }),
+                $"RSI14 {activation.TimeFrame}"),
             RequireAcceptedAsync(
                 activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
                     ? StartSeededFiveMinuteAtrAsync(activation.Atr, liveSeedBars, cancellationToken)
@@ -798,7 +805,7 @@ public sealed class ApiApplicationStartupActivities(
         IReadOnlyCollection<FuturesIntradaySignalActivation> activations,
         CancellationToken cancellationToken)
     {
-        var expectedRsi = activations.Select(value => value.Rsi).ToHashSet();
+        var expectedRsi = activations.SelectMany(value => new[] { value.Rsi, value.Rsi with { PeriodLength = 14 } }).ToHashSet();
         var expectedAtr = activations.Select(value => value.Atr).ToHashSet();
         var expectedAdx = activations.Select(value => value.Adx).ToHashSet();
         var expectedMacd = activations.Select(value => value.Macd).ToHashSet();

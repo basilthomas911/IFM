@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using Microsoft.Extensions.Logging;
@@ -27,9 +27,8 @@ public sealed class MarketOutlookSnapshotStateRepository(
     public async ValueTask<MarketOutlookSnapshotCommandState> LoadStateAsync(
         ICommand command,
         CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<
-                MarketOutlookSnapshotCommandState,
-                MarketOutlookSnapshotInsertedEvent>(command, cancellationToken)
+        => await LoadStateFromCreationSnapshotAsync<
+                MarketOutlookSnapshotCommandState>(command, cancellationToken)
             .ConfigureAwait(false);
 
     public ValueTask SaveStateAsync(

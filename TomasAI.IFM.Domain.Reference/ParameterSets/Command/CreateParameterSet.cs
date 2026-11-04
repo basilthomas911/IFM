@@ -25,7 +25,7 @@ public static class CreateParameterSet
         /// <param name="state">The authoritative actor state.</param>
         /// <param name="logger">The actor logger.</param>
         /// <returns>The command acceptance or business failure.</returns>
-        public async Task<ServiceResult<GuidResult>> ExecuteAsync(IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
+        public Task<ServiceResult<GuidResult>> ExecuteAsync(IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(state);
@@ -35,14 +35,14 @@ public static class CreateParameterSet
             if (state.Operations.TryGetValue(command.CommandId, out var previous))
             {
                 if (!string.Equals(previous, hash, StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
-                return new ServiceOk<GuidResult>(new(command.CommandId));
+                return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(command.CommandId)));
             }
             if (command.LegacySource is { } source)
             {
 #pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
                 if (!string.Equals(source.Kind, ParameterLegacyMigrationModel.RegimeKind, StringComparison.Ordinal) || command.EntityId.SetId != ParameterLegacyMigrationModel.TargetId(source)) throw new ArgumentException("PARAM.LEGACY_IDENTITY_MISMATCH");
 #pragma warning restore MA0015
-                var stored = (await (context.ConfigurationDb.GetLegacyParameterVersionsAsync(source.SetId, source.Version)).ConfigureAwait(false)).SingleOrDefault() ?? throw new InvalidOperationException("PARAM.LEGACY_NOT_FOUND");
+                var stored = command.Evidence?.LegacyVersion ?? throw new InvalidOperationException("PARAM.EVIDENCE_REQUIRED");
                 if (stored.Reference != source || ParameterValueCodec.Hash(ParameterHistoryReader.ReadValues(command.ComponentCode, ParameterLegacyMigrationModel.Expand(stored))) != ParameterValueCodec.Hash(command.Parameters ?? throw new ArgumentException("PARAM.TYPED_VALUES_REQUIRED", nameof(command)))) throw new InvalidOperationException("PARAM.LEGACY_SOURCE_CHANGED");
             }
             var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply CreateParameterSet event";
@@ -55,7 +55,7 @@ public static class CreateParameterSet
             var result = updated
                 ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
                 : command.UpdateFailed(errorMsg);
-            return result;
+            return Task.FromResult(result);
         }
 
         /// <summary>Computes the proposed business change without changing actor state.</summary>

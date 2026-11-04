@@ -24,7 +24,9 @@ public static class RegimeDiscoverySnapshotRequestFactory
         var targetEvidenceMaximumAge = parameterSet.Horizon.TimeFrames.Single(frame => frame.TimeFrame == targetEvidenceTimeFrame).MaximumAgeSeconds;
         var requirements = new List<RegimeDiscoverySignalRequirement>();
         foreach (var frame in parameterSet.Horizon.TimeFrames)
-            requirements.AddRange(TrendMetrics.Select(metric => Requirement(metric, frame.TimeFrame, frame.IsRequired, frame.MaximumAgeSeconds, frame.Weight)));
+            requirements.AddRange(TrendMetrics.Where(metric => !RegimeDiscoveryEmaBaseline.IsBaseline(metric)).Select(metric => Requirement(metric, frame.TimeFrame, frame.IsRequired, frame.MaximumAgeSeconds, frame.Weight)));
+        requirements.AddRange(TrendMetrics.Where(RegimeDiscoveryEmaBaseline.IsBaseline)
+            .Select(metric => Requirement(metric, TimeFrameType.Daily, true, RegimeDiscoveryEmaBaseline.MaximumAgeSeconds, 1m)));
         requirements.AddRange(TargetEvidenceRequiredMetrics.Select(metric => Requirement(metric, targetEvidenceTimeFrame, true, targetEvidenceMaximumAge, 1m)));
         requirements.Add(Requirement(RegimeDiscoverySignalMetric.VxFrontSecondRatio, TimeFrameType.Daily, true, TargetMaximumAge(TimeFrameType.Daily), parameterSet.Volatility.TermStructureWeight));
         requirements.Add(Requirement(RegimeDiscoverySignalMetric.VixLevel, TimeFrameType.Daily, false, TargetMaximumAge(TimeFrameType.Daily), parameterSet.Volatility.VixWeight));
@@ -38,6 +40,7 @@ public static class RegimeDiscoverySnapshotRequestFactory
             var configured = parameterSet.SignalRequirements ?? throw new ArgumentException("Explicit signal requirements are required for schemas 2 through 5.",nameof(parameterSet));
             if (configured.Length is 0 or > 512 || configured.Any(row => row is null) || configured.Select(row => row.RequirementId).Distinct().Count() != configured.Length || configured.Any(row => row.RequirementId == Guid.Empty) || configured.Select(row => (row.Metric, row.TimeFrame)).Distinct().Count() != configured.Length)
                 throw new ArgumentException("Signal rows must have unique nonempty identities and metric/timeframe pairs.",nameof(parameterSet));
+            configured = RegimeDiscoveryEmaBaseline.Normalize(configured);
             var missingRequired = requirements.FirstOrDefault(mandatory => mandatory.IsRequired && !configured.Any(row => row.Enabled && row.IsRequired && row.Metric == mandatory.Metric && row.TimeFrame == mandatory.TimeFrame));
             if (missingRequired is not null)
                 throw new ArgumentException($"Required calculation dependency {missingRequired.Metric}/{missingRequired.TimeFrame} cannot be removed.", nameof(parameterSet));
@@ -53,6 +56,7 @@ public static class RegimeDiscoverySnapshotRequestFactory
 
             requirements = selected;
         }
+
 
         return new RegimeDiscoveryMarketSignalSnapshotRequest
         {

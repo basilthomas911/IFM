@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.Trade.Persistence;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -12,7 +12,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Function.State;
 public sealed class VerticalSpreadTradePlanFunctionStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<FuturesVerticalSpreadTradePositionCommandActor> projector, ILogger<VerticalSpreadTradePlanFunctionStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState, UpdateVerticalSpreadTradePlanCommand>
 {
-    public async ValueTask<VerticalSpreadTradePlanFunctionState> LoadStateAsync(UpdateVerticalSpreadTradePlanCommand request, CancellationToken cancellationToken = default) => (await LoadStateFromSnapshotAsync<VerticalSpreadTradePlanFunctionState, VerticalSpreadTradePlanUpdatedEvent>(request, cancellationToken).ConfigureAwait(false)).Prepare(request);
+    public async ValueTask<VerticalSpreadTradePlanFunctionState> LoadStateAsync(UpdateVerticalSpreadTradePlanCommand request, CancellationToken cancellationToken = default) => (await LoadStateFromCreationSnapshotAsync<VerticalSpreadTradePlanFunctionState>(request, cancellationToken).ConfigureAwait(false)).Prepare(request);
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Publication is best effort after the atomic source and snapshot commit; failure must not roll back or retry an accepted plan.")]
     public async ValueTask SaveCompletedStateAsync(IFunctionActorContext context, VerticalSpreadTradePlanFunctionState state, UpdateVerticalSpreadTradePlanCommand request, CancellationToken cancellationToken = default)
     {

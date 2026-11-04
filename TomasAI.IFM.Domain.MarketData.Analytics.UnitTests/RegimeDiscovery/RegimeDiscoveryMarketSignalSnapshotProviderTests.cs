@@ -11,6 +11,74 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.RegimeDiscovery;
 public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
 {
     [Fact]
+    public async Task Structure_restore_uses_daily_ema_and_keeps_newer_live_intervals()
+    {
+        var contract = $"ES-{Guid.NewGuid():N}";
+        var end = DateTimeOffset.UtcNow.AddMinutes(-1);
+        RegimeDiscoverySignalCacheAdapter.Publish(new FuturesAtrSignalReadModel
+        {
+            ContractId = contract, TimePeriod = TimeFrameType.OneHour, AtrValue = 2,
+            ValueDate = DateOnly.FromDateTime(end.UtcDateTime), Timestamp = TimeOnly.FromDateTime(end.UtcDateTime), IsWarm = true
+        });
+        RegimeDiscoverySignalCacheAdapter.Publish(new TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal.FuturesEmaSignalReadModel
+        {
+            Metadata = new()
+            {
+                ContractId = contract, SignalKey = new(MarketSeriesIdentity.ForContract(contract), MarketAnalyticsSignalKind.Ema, TimeFrameType.Daily, "ema"),
+                ValueDate = DateOnly.FromDateTime(end.UtcDateTime), MarketDataAsOfUtc = end, CalculatedAtUtc = end,
+                SchemaVersion = 1, CalculationVersion = "1", IsValid = true
+            }, Ema20 = 100, IsWarm = true
+        });
+        var bars = Enumerable.Range(0, 21).Select(i => new TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel
+        {
+            ContractId = contract, TimeFrame = TimeFrameType.OneHour, ValueDate = DateOnly.FromDateTime(end.UtcDateTime),
+            IntervalEndUtc = end.AddHours(i - 20), LastMarketEventUtc = end.AddHours(i - 20), CalculatedAtUtc = end,
+            High = 110, Low = 90, Close = 104, LastSourceSequence = i + 1
+        }).ToArray();
+        RegimeDiscoverySignalCacheAdapter.RestoreBars(bars);
+        var live = bars[^1] with { IntervalEndUtc = end.AddSeconds(1), LastMarketEventUtc = end.AddSeconds(1), Close = 106, LastSourceSequence = 22 };
+        RegimeDiscoverySignalCacheAdapter.Publish(live);
+        RegimeDiscoverySignalCacheAdapter.RestoreBars(bars);
+        RegimeDiscoverySignalCacheAdapter.Publish(bars[0]);
+        var snapshot = await new RegimeDiscoveryMarketSignalSnapshotProvider().CaptureAsync(
+            SingleMetricRequest(contract, RegimeDiscoverySignalMetric.Ema20Interaction, TimeFrameType.OneHour));
+        snapshot.IsSuccess.Should().BeTrue();
+        snapshot.Snapshot!.Observations.Single().Value.Should().Be(3m);
+        snapshot.Snapshot.Observations.Single().SourceSequence.Should().Be(22);
+    }
+
+    [Fact]
+    public async Task Continuous_series_evidence_is_available_to_its_exact_contract_without_losing_provenance()
+    {
+        var contract = $"ES-{Guid.NewGuid():N}";
+        var series = MarketSeriesIdentity.ForFuturesSeries(new("ES", "calendar-front", "unadjusted", 1));
+        var now = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var metadata = new MarketAnalyticsSignalMetadata
+        {
+            ContractId = contract,
+            SignalKey = new(series, MarketAnalyticsSignalKind.Ema, TimeFrameType.FiveMinutes, "ema-10-20-50-200-v1"),
+            ValueDate = DateOnly.FromDateTime(now.UtcDateTime),
+            MarketDataAsOfUtc = now, CalculatedAtUtc = now,
+            SourceSequence = 987654321, SchemaVersion = 1, CalculationVersion = "1", IsValid = true
+        };
+        RegimeDiscoverySignalCacheAdapter.Publish(new TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal.FuturesEmaSignalReadModel
+        { Metadata = metadata, Ema20 = 123m, IsWarm = true });
+        var provider = new RegimeDiscoveryMarketSignalSnapshotProvider();
+        var request = SingleMetricRequest(contract, RegimeDiscoverySignalMetric.Ema20, TimeFrameType.FiveMinutes);
+        foreach (var identity in new[] { MarketSeriesIdentity.ForContract(contract), series })
+        {
+            var result = await provider.CaptureAsync(request with { MarketSeriesIdentity = identity });
+            result.IsSuccess.Should().BeTrue();
+            var observation = result.Snapshot!.Observations.Single();
+            observation.Value.Should().Be(123m);
+            observation.SourceSequence.Should().Be(metadata.SourceSequence);
+            observation.MarketDataAsOfUtc.Should().Be(now.UtcDateTime);
+        }
+        (await provider.CaptureAsync(request with { MarketSeriesIdentity = MarketSeriesIdentity.ForContract(contract + "-OTHER") }))
+            .IsSuccess.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Rsi13_cannot_satisfy_an_rsi14_requirement()
     {
         var contract = $"ES-{Guid.NewGuid():N}"; var now = DateTime.UtcNow.AddSeconds(-1);

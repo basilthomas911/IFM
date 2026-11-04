@@ -149,7 +149,7 @@ using TomasAI.IFM.Application.MarketData.OptionChainCache;
 namespace TomasAI.IFM.Application.Api.Server.Core.DependencyInjection;
 public static partial class CoreServiceRegistration
 {
-    static void RegisterRemoteMarketDataRuntimeServices(IServiceCollection services, ConfigurationManager config)
+    static void RegisterRemoteMarketDataRuntimeServices(IServiceCollection services, ConfigurationManager config, bool focusedActorIntegration)
     {
         services.AddSingleton<IStatusConsoleWriter, StatusConsoleWriter>();
         services.AddSingleton<IAzureStorageOptions>(_ => config.GetSection("AzureStorage").Get<AzureStorageOptions>()!);
@@ -186,6 +186,12 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<MarketDataRemoteAdmission>();
         services.AddSingleton<IRealtimeSourceAdmission>(p => p.GetRequiredService<MarketDataRemoteAdmission>());
         services.AddHostedService(p => p.GetRequiredService<MarketDataClientReceiver>());
+        if (!focusedActorIntegration)
+        {
+            services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorSeedReader>();
+            services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorWarmup>();
+            services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.SessionAnalyticsStartupService>();
+        }
         services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.OptionFeedRecoveryNotificationService>();
         services.AddSingleton<IOptionPipelineRecoveryRuntime, OptionPipelineRecoveryRuntime>();
         services.AddSingleton<OptionPipelineRecoveryCoordinator>();

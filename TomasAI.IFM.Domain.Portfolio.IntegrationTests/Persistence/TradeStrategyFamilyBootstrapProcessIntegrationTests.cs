@@ -28,16 +28,15 @@ public sealed class TradeStrategyFamilyBootstrapProcessIntegrationTests
     [Trait("Gate", "PF-22")]
     public async Task Simultaneous_processes_seed_exactly_one_row_per_stable_family_key()
     {
-        ReferenceConnection.Should().MatchRegex(@"^Contact Points=127\.0\.0\.1;Port=\d+;Default Keyspace=ifm_synthetic_[a-f0-9]{12}_reference$");
-        SequenceConnection.Should().MatchRegex(@"^Host=127\.0\.0\.1;Port=\d+;Database=ifm_eventlog_bench_[a-f0-9]{12}_synthetic_host$");
+        OwnedPortfolioTestDatabase.IsOwned(new Npgsql.NpgsqlConnectionStringBuilder(ReferenceConnection)).Should().BeTrue();
+        OwnedPortfolioTestDatabase.IsOwned(new Npgsql.NpgsqlConnectionStringBuilder(SequenceConnection)).Should().BeTrue();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         var settings = new DbConnectionSettings();
-        settings.Add(ReferenceDbContext.ReferenceDbConnection, ReferenceConnection, "System.Data.ScyllaDb");
+        settings.Add(ReferenceDbContext.ReferenceDbConnection, ReferenceConnection, "System.Data.Postgres");
         settings.Add(SequenceIdDbContext.SequenceIdDbConnection, SequenceConnection, "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
         var schema = new ReferenceSchemaDb(settings, logger);
-        await schema.RecreateAsync(["trade_strategy_family"], timeout.Token);
-        await schema.CreateAsync(["trade_strategy_family_catalog", "trade_strategy_symbol"], timeout.Token);
+        await schema.CreateAllAsync();
         await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
 
         var processRuns = await Task.WhenAll(Enumerable.Range(0, 8)
@@ -58,9 +57,8 @@ public sealed class TradeStrategyFamilyBootstrapProcessIntegrationTests
 
     static async Task<(int ExitCode, string Output)> RunBootstrapProcessAsync(CancellationToken cancellationToken)
     {
-        var repositoryRoot = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Parent!.Parent!.Parent!.FullName;
-        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
-        var serverDirectory = Path.Combine(repositoryRoot, "TomasAI.IFM.Application.Api.Server", "bin", configuration, "net10.0");
+        var serverDirectory = AppContext.BaseDirectory;
+        using var deployment = new TomasAI.IFM.IntegrationTesting.ApiProcessDeploymentManifest(serverDirectory);
         var serverAssembly = Path.Combine(serverDirectory, "TomasAI.IFM.Application.Api.Server.dll");
         File.Exists(serverAssembly).Should().BeTrue($"the bootstrap host must be built at {serverAssembly}");
 
@@ -73,6 +71,7 @@ public sealed class TradeStrategyFamilyBootstrapProcessIntegrationTests
             CreateNoWindow = true,
         };
         start.ArgumentList.Add(serverAssembly);
+        deployment.Configure(start);
         start.ArgumentList.Add("--bootstrap-trade-strategy-families-only");
         start.Environment["DOTNET_ENVIRONMENT"] = "Development";
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";

@@ -1472,6 +1472,111 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Restores creation plus tail without observing an append beyond the captured head.</summary>
+    public async ValueTask MapReduceActorEventStreamFromCreationAsync<TState>(
+        long eventStreamId,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken = default)
+        where TState : IActorState<TState>
+        => await ReadCreationSnapshotAsync(eventStreamId, reducerAction, null, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Reads latest independent replacement snapshots without mixing their committed append boundaries.</summary>
+    public async ValueTask MapReduceActorEventStreamFromLatestSnapshotsAsync<TState, TFirst, TSecond>(
+        long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken = default)
+        where TState : IActorState<TState>
+        where TFirst : IEvent
+        where TSecond : IEvent
+    {
+        var first = await GetCompatibleEventNameIdsAsync<TFirst>(cancellationToken).ConfigureAwait(false);
+        var second = await GetCompatibleEventNameIdsAsync<TSecond>(cancellationToken).ConfigureAwait(false);
+        await ReadCreationSnapshotAsync(eventStreamId, reducerAction, first.Concat(second).Distinct().ToArray(),
+            cancellationToken, components: true).ConfigureAwait(false);
+    }
+
+    /// <summary>Uses a full checkpoint only when its owning repository explicitly declares that optimization.</summary>
+    public async ValueTask MapReduceActorEventStreamFromCreationWithCheckpointAsync<TState, TCheckpoint>(
+        long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken = default)
+        where TState : IActorState<TState>
+        where TCheckpoint : IEvent
+    {
+        var names = await GetCompatibleEventNameIdsAsync<TCheckpoint>(cancellationToken).ConfigureAwait(false);
+        await ReadCreationSnapshotAsync(eventStreamId, reducerAction, names, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Reads only creation/head when the state contract declares no retained business fields.</summary>
+    public async ValueTask MapReduceStatelessActorEventStreamFromCreationAsync<TState>(
+        long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken = default)
+        where TState : IActorState<TState>, IStatelessCreationSnapshotState
+        => await ReadCreationSnapshotAsync(eventStreamId, reducerAction, null, cancellationToken, true).ConfigureAwait(false);
+
+    async ValueTask ReadCreationSnapshotAsync(long eventStreamId,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction, int[]? checkpointNames,
+        CancellationToken cancellationToken, bool stateless = false, bool components = false)
+    {
+        ArgumentNullException.ThrowIfNull(reducerAction);
+        cancellationToken.ThrowIfCancellationRequested();
+        long head = 0;
+        long replayedVersion = 0;
+        var sql = components ? EventSourceDbSql.GetEventLogFromLatestComponentSnapshots
+            : stateless ? EventSourceDbSql.GetStatelessEventLogFromCreationSnapshot
+            : checkpointNames is null ? EventSourceDbSql.GetEventLogFromCreationSnapshot : EventSourceDbSql.GetEventLogFromCreationWithCheckpoint;
+        var statementName = components ? nameof(EventSourceDbSql.GetEventLogFromLatestComponentSnapshots)
+            : stateless ? nameof(EventSourceDbSql.GetStatelessEventLogFromCreationSnapshot)
+            : checkpointNames is null ? nameof(EventSourceDbSql.GetEventLogFromCreationSnapshot)
+            : nameof(EventSourceDbSql.GetEventLogFromCreationWithCheckpoint);
+        var query = _dbFactory.ActorEventSourceDb.Use($"{nameof(EventSourceDbSql)}.{statementName}", this.EventLogSql(sql));
+        if (checkpointNames is null)
+            query.SetParameters(new GetEventLogByEventStreamId(eventStreamId));
+        else
+            query.SetParameters(new GetMaxEventVersion(eventStreamId, checkpointNames));
+        await query.ExecuteMapReduceAsync(MapCreationRow,
+                ReduceAndValidate, cancellationToken)
+            .ConfigureAwait(false);
+        if (replayedVersion != head)
+            throw new InvalidDataException($"Creation snapshot replay for stream {eventStreamId} ended at {replayedVersion}, expected {head}.");
+
+        void ReduceAndValidate(IEnumerable<EventStreamReadModel> rows)
+        {
+            using var iterator = rows.GetEnumerator();
+            reducerAction(ReadRows());
+            // Validate the remaining rows even when a reducer stops reading early.
+            while (iterator.MoveNext()) { }
+
+            IEnumerable<EventStreamReadModel> ReadRows()
+            {
+                while (iterator.MoveNext())
+                    if (iterator.Current.EventVersion > 0)
+                        yield return iterator.Current;
+            }
+        }
+
+        EventStreamReadModel MapCreationRow(IObjectDataRecord record)
+        {
+            head = record.GetLong(8);
+            if (record.IsNull(3))
+            {
+                if (head != 0)
+                    throw new InvalidDataException($"Creation snapshot is missing for nonempty stream {eventStreamId}.");
+                return new EventStreamReadModel();
+            }
+            var version = record.GetLong(7);
+            var isCheckpoint = components
+                ? replayedVersion >= 1 && version > replayedVersion && version == record.GetLong(9)
+                : (stateless || checkpointNames is not null) && replayedVersion == 1 && version == record.GetLong(9);
+            if (version != replayedVersion + 1 && !isCheckpoint)
+                throw new InvalidDataException($"Creation snapshot replay gap in stream {eventStreamId}: {replayedVersion} -> {version}.");
+            replayedVersion = version;
+            return new EventStreamReadModel
+            {
+                EventVersion = record.GetLong(3), EventTypeName = record.GetString(2),
+                EventData = record.GetBytes(4), StreamVersion = version
+            };
+        }
+    }
+
     /// <summary>
     /// Processes the full event stream by mapping records and invoking the provided reducer action.
     /// </summary>

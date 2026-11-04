@@ -92,6 +92,12 @@ fn cache_waits_for_market_data(code: &str) -> bool {
             | "IncoherentQuotes"
     )
 }
+
+// A live setup retains its original deadline. Once component setup has
+// completed, optional cache work cannot borrow a spent publication deadline.
+fn cache_capture_budget(setup: Option<Deadline>, components_ready: bool) -> Deadline {
+    if components_ready { Deadline::recovery() } else { setup.unwrap_or_else(Deadline::recovery) }
+}
 // No eligible spread is a valid business result only when the complete captured
 // scope was actually valued. Missing/invalid inputs remain unavailable and are
 // not connection failure; they must never be converted to an empty success.
@@ -563,9 +569,14 @@ impl Run {
             // Retain the copied failure before cancellation. A replacement's
             // independent diagnostic sender can deliver it after this task exits.
             let safe = error.replace(&self.intent.source.key, "[REDACTED]");
+            let label = if safe.starts_with("Native background policy/coverage changed") {
+                "Reconfiguring"
+            } else {
+                "Failed"
+            };
             let _ = self.stage(
                 &mut stage,
-                &format!("Failed: {}", safe.chars().take(3000).collect::<String>()),
+                &format!("{label}: {}", safe.chars().take(3000).collect::<String>()),
             );
             let deadline = self
                 .retirement
@@ -1080,7 +1091,14 @@ impl Run {
                     self.health.send_replace(Readiness{setup_complete:false,proofs:vec![],failure:Some(error.clone()),deadline:Some(deadline)});return Err(error);
                 }
                 if broker.stopped || io.terminal || !numerical.running || !reference.running || matches!(transport.phase,super::lanes::Phase::Failed|super::lanes::Phase::Stopped){return Err("Native options resource terminated before complete readiness".into());}
-                let budget=[*setup,transport.deadline,numerical.deadline,engine.reference_deadline()?,io.deadline,broker.pending_since.map(Deadline::recovery_from),cache_broker.deadline,background.deadline].into_iter().flatten().reduce(Deadline::earliest).unwrap_or_else(Deadline::recovery);
+                // Optional cache construction owns a fresh bounded operation.
+                // Healthy pending business evidence may retain an old deadline;
+                // it cannot turn this operation into an immediate dataset fault.
+                // Actual component failures above still retain their first budget.
+                let components_ready=transport.phase==super::lanes::Phase::Running
+                    && broker.connected && cache_broker.connected && io.running
+                    && !reference.recovering && !numerical.recovering;
+                let budget=cache_capture_budget(*setup,components_ready);
                 let mut drained=0;
                 for _ in 0..64 {
                     let Some(output)=data.consume_output(Lane::OptionsGlbx,|v|Ok(Some(v.clone())))? else {break;};
@@ -1127,7 +1145,8 @@ impl Run {
                         let page=capture::Page{generation:self.generation,token:token.clone(),total:items.len(),instruments:items,continuation:None};
                         let snapshot=match capture::capture(request,vec![page],&self.clock,stop,budget).await {
                             Ok(snapshot)=>snapshot,
-                            Err(error) if cache_waits_for_market_data(&error.code)=>{complete_choices=false;continue;},
+                            Err(error) if cache_waits_for_market_data(&error.code)
+                                || error.code=="SnapshotTimeout" && !stop.is_cancelled()=>{complete_choices=false;continue;},
                             Err(error)=>return Err(format!("Native cache capture failed: {}: {}; horizon={}; scope_chars={}; capture_age_ms={}",error.code,error.input,cache.horizon,cache.scope.encode_utf16().count(),self.clock.utc_ticks().unwrap_or(capture_at).saturating_sub(capture_at)/10_000)),
                         };
                         let snapshot=if let Some(ranking)=&cache.ranking {
@@ -1204,9 +1223,7 @@ impl Run {
                 let published_deadline=[*setup,transport.deadline,numerical.deadline,engine.reference_deadline()?,io.deadline,broker.pending_since.map(Deadline::recovery_from),cache_broker.deadline,background.deadline].into_iter().flatten().reduce(Deadline::earliest);
                 // These are component/setup facts, independent of whether an
                 // option currently has a quote or produces an executable plan.
-                let setup_complete=transport.phase==super::lanes::Phase::Running
-                    && broker.connected && cache_broker.connected && io.running
-                    && !reference.recovering && !numerical.recovering;
+                let setup_complete=components_ready;
                 let proof_mask = proofs.iter().fold(0u8, |mask, proof| mask | *proof as u8);
                 if reported_readiness.insert(proof_mask) {
                     let missing: Vec<_> = [Proof::Transport, Proof::Reference, Proof::Pricing,
@@ -1489,6 +1506,14 @@ fn active_failure<const N: usize>(
 #[cfg(test)]
 mod failure_budget_tests {
     use super::*;
+    #[tokio::test(start_paused = true)]
+    async fn optional_cache_has_its_own_budget_but_setup_never_renews() {
+        let setup = Deadline::recovery();
+        tokio::time::advance(std::time::Duration::from_secs(121)).await;
+        assert!(cache_capture_budget(Some(setup),false).remaining().is_zero());
+        assert_eq!(cache_capture_budget(Some(setup),true).remaining(), std::time::Duration::from_secs(120));
+        assert_eq!(cache_capture_budget(None,true).remaining(), std::time::Duration::from_secs(120));
+    }
     #[test]
     fn known_pending_market_inputs_do_not_hide_structural_or_component_failures() {
         for code in [

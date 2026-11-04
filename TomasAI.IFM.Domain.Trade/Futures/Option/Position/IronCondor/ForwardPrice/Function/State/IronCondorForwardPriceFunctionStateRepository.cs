@@ -1,4 +1,4 @@
-﻿using ForwardPriceSessionId = TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanId;
+using ForwardPriceSessionId = TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanId;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventSourcing.Repository;
@@ -12,12 +12,12 @@ public sealed class IronCondorForwardPriceFunctionStateRepository(IEventSourceAc
     IActorService actors, ILogger<IronCondorForwardPriceFunctionStateRepository> logger)
     : BaseEventSourceActorRepository(factory, events, actors, logger), IEventSourceFunctionStateRepository<IronCondorForwardPriceFunctionState, CalculateIronCondorForwardPriceCommand>
 {
-    /// <summary>Loads at most the latest completed calculation for this trade/session.</summary>
+    /// <summary>Restores creation and the latest complete calculation for this trade/session.</summary>
     public async ValueTask<IronCondorForwardPriceFunctionState> LoadStateAsync(CalculateIronCondorForwardPriceCommand request, CancellationToken cancellationToken = default)
     {
         var state = new IronCondorForwardPriceFunctionState { Id = request.Subject.ThreadId };
         var stream = await GetStreamId(request.StreamId, cancellationToken).ConfigureAwait(false);
-        await EventSourceDb.MapReduceActorEventStreamAsync<IronCondorForwardPriceFunctionState, IronCondorForwardPriceCalculatedEvent>(stream, 1, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
+        await EventSourceDb.MapReduceActorEventStreamFromCreationWithCheckpointAsync<IronCondorForwardPriceFunctionState, IronCondorForwardPriceCalculatedEvent>(stream, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
         return state.Prepare(request);
     }
     /// <summary>Commits only the completed event; no distribution persistence or event broadcast is introduced.</summary>

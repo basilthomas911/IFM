@@ -43,9 +43,12 @@ public sealed partial class CompositionBusinessProjectionTests
             evidence.Add(value);
             File.WriteAllText(Path.Combine(directory, "live-pricing-recovery.json"), JsonSerializer.Serialize(evidence, new JsonSerializerOptions { WriteIndented = true }));
         }
+        var postgres = Environment.GetEnvironmentVariable("IFM_OCP_POSTGRES_CONNECTION")
+            ?? Environment.GetEnvironmentVariable("IFM_TEST_SECURITIES_CONNECTION")
+            ?? throw new InvalidOperationException("Live composition qualification requires its PostgreSQL reference/market connection.");
         var settings = new DbConnectionSettings()
-            .Add(SecuritiesDbContext.SecuritiesDbConnection, "Contact Points=localhost;Port=9042;Default Keyspace=securities_test_db", "System.Data.ScyllaDb")
-            .Add("market", "Contact Points=localhost;Port=9042;Default Keyspace=market_data_test_db", "System.Data.ScyllaDb");
+            .Add(SecuritiesDbContext.SecuritiesDbConnection, postgres, "System.Data.Postgres")
+            .Add("market", postgres, "System.Data.Postgres");
         var securitiesFactory = Substitute.For<IDbContextFactory>();
         var securitiesDb = new SecuritiesDbContext(settings, securitiesFactory, NullLogger<DbProvider>.Instance);
         securitiesFactory.SecuritiesDb.Returns(securitiesDb);

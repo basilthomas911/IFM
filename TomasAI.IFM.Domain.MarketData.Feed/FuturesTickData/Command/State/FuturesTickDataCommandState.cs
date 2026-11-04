@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 /// such as <see cref="FuturesTickDataInsertedEvent"/>, <see cref="FuturesTickDataStreamingStartedEvent"/>,
 /// and <see cref="FuturesTickDataStreamingStoppedEvent"/>.</remarks>
 public class FuturesTickDataCommandState
-    : BaseEventSourceActorState<FuturesTickDataCommandState>, IEventSourceActorState<FuturesTickDataCommandState>
+    : BaseEventSourceActorState<FuturesTickDataCommandState>, IEventSourceActorState<FuturesTickDataCommandState>, IStatelessCreationSnapshotState
 {
     public override ActorThreadId Id { get; set; } = default!;
 

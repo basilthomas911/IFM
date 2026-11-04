@@ -44,6 +44,19 @@ public sealed class IntradayFourHourInitializationTests
         Assert.True(adxCommand.Execute(adx).Success);
         Assert.True(atrCommand.Execute(atr).Success);
         Assert.True(macdCommand.Execute(macd).Success);
+        var newerTime = bars[^1].LastMarketEventUtc.AddMinutes(5);
+        var latestAdx = adx.AdxSignals.Last();
+        var latestAtr = atr.AtrSignal!;
+        var latestMacd = macd.MacdSignals.Last();
+        Assert.False(adxCommand.Compute([latestAdx with { Metadata = latestAdx.Metadata! with { MarketDataAsOfUtc = newerTime } }], out _));
+        Assert.False(atrCommand.Compute(latestAtr with { Metadata = latestAtr.Metadata! with { MarketDataAsOfUtc = newerTime } }, out _));
+        Assert.False(macdCommand.Compute(latestMacd with { Metadata = latestMacd.Metadata! with { MarketDataAsOfUtc = newerTime } }, out _));
+        // Published metadata uses the completed interval end, which can be
+        // later than its final trade. The same interval remains a valid seed.
+        var sameInterval = bars[^1].IntervalEndUtc;
+        Assert.True(adxCommand.Compute([latestAdx with { Metadata = latestAdx.Metadata! with { MarketDataAsOfUtc = sameInterval } }], out _));
+        Assert.True(atrCommand.Compute(latestAtr with { Metadata = latestAtr.Metadata! with { MarketDataAsOfUtc = sameInterval } }, out _));
+        Assert.True(macdCommand.Compute(latestMacd with { Metadata = latestMacd.Metadata! with { MarketDataAsOfUtc = sameInterval } }, out _));
         Assert.All(adx.Events, e => Assert.Equal(adxCommand.CommandId, e.CommandId));
         Assert.All(atr.Events, e => Assert.Equal(atrCommand.CommandId, e.CommandId));
         Assert.All(macd.Events, e => Assert.Equal(macdCommand.CommandId, e.CommandId));
@@ -82,8 +95,8 @@ public sealed class IntradayFourHourInitializationTests
         Assert.True(Assert.Single(restoredAtr.Events.OfType<FuturesAtrSignalGeneratedEvent>()).FuturesAtrSignal.IsWarm);
         var reinitialized = new FuturesAtrSignalCommandState();
         foreach (var fact in restoredAtr.Events) reinitialized.Apply(fact, false);
-        Assert.True((atrCommand with { CommandId = Guid.NewGuid() }).Execute(reinitialized).Success);
-        Assert.Equal(48, reinitialized.Events.OfType<FuturesAtrSignalGeneratedEvent>().Count());
+        Assert.False((atrCommand with { CommandId = Guid.NewGuid() }).Execute(reinitialized).Success);
+        Assert.Empty(reinitialized.Events);
         Assert.True(restoredMacd.MacdSignals.Last().IsWarm);
     }
 

@@ -27,7 +27,7 @@ public sealed class EventLogQualificationLoadTests(ITestOutputHelper output)
         var url = Environment.GetEnvironmentVariable("IFM_NATS_URL");
         url.Should().MatchRegex(@"^nats://127\.0\.0\.1:\d+$");
         var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION") ?? "";
-        Regex.IsMatch(connection, @"\AHost=127\.0\.0\.1;Port=\d+;Database=ifm_eventlog_bench_[a-f0-9]{12}_synthetic_host\z")
+        TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.OwnedPortfolioTestDatabase.IsOwned(new Npgsql.NpgsqlConnectionStringBuilder(connection))
             .Should().BeTrue("load qualification must never fall back to ordinary application stores");
         const int count = 256;
         const int concurrency = 8;
@@ -135,7 +135,9 @@ public sealed class EventLogQualificationLoadTests(ITestOutputHelper output)
     static string ManifestPath()
     {
         var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION") ?? "";
-        var match = Regex.Match(connection, @"\AHost=127\.0\.0\.1;Port=\d+;Database=ifm_eventlog_bench_([a-f0-9]{12})_synthetic_host\z");
+        var database = new Npgsql.NpgsqlConnectionStringBuilder(connection);
+        TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.OwnedPortfolioTestDatabase.IsOwned(database).Should().BeTrue();
+        var match = Regex.Match(database.Database!, @"^ifm_eventlog_bench_([a-f0-9]{12})_synthetic_host$");
         match.Success.Should().BeTrue();
         var directory = Path.GetFullPath(Environment.GetEnvironmentVariable("IFM_QUALIFICATION_ARTIFACT_DIRECTORY") ?? throw new InvalidOperationException("Qualification artifact directory required."));
         Path.GetFileName(directory).Should().Be("acceptance-" + match.Groups[1].Value);

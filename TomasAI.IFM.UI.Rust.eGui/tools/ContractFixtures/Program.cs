@@ -362,7 +362,7 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
             strategies.Mode=MessagePackSerializer.Deserialize<string>(request.Data!,MessagePackBinarySerializer.Options);
             response=MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<bool>>{Success=true,ErrorMessage="",Value=new(true)},MessagePackBinarySerializer.Options);
         }
-        else if(request.Subject.StartsWith("Query.ParameterSetQuery.",StringComparison.Ordinal)||request.Subject.StartsWith("Command.ParameterSetCommand.",StringComparison.Ordinal)||request.Subject.StartsWith("Command.ParameterAssignmentCommand.",StringComparison.Ordinal)){
+        else if(request.Subject.StartsWith("Query.ParameterSetQuery.",StringComparison.Ordinal)||request.Subject.StartsWith("Query.ParameterAssignmentQuery.",StringComparison.Ordinal)||request.Subject.StartsWith("Query.ParameterStartupQuery.",StringComparison.Ordinal)||request.Subject.StartsWith("Query.ParameterPreparationQuery.",StringComparison.Ordinal)||request.Subject.StartsWith("Command.ParameterSetCommand.",StringComparison.Ordinal)||request.Subject.StartsWith("Command.ParameterAssignmentCommand.",StringComparison.Ordinal)){
             response=await parameterAdmin.Handle(connection,request.Subject,request.Data!,timeout.Token);
         }
         else if(request.Subject=="Query.NativeCompatibility.ParameterMode.none"){

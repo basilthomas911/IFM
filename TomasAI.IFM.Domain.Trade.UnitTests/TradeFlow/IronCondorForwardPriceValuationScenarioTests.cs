@@ -193,9 +193,9 @@ public sealed class IronCondorForwardPriceValuationScenarioTests(ITestOutputHelp
         return (low+high)/2;
     }
 
-    static string Workspace()
+    static string Workspace([System.Runtime.CompilerServices.CallerFilePath] string sourceFile = "")
     {
-        var folder=new DirectoryInfo(AppContext.BaseDirectory);
+        var folder=new DirectoryInfo(Path.GetDirectoryName(sourceFile)!);
         while(folder is not null && !Directory.Exists(Path.Combine(folder.FullName,".git"))) folder=folder.Parent;
         return folder?.FullName ?? throw new InvalidOperationException("Repository root not found.");
     }

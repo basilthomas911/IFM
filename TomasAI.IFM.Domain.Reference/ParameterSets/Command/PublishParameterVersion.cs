@@ -26,7 +26,7 @@ public static class PublishParameterVersion
         /// <param name="state">The authoritative actor state.</param>
         /// <param name="logger">The actor logger.</param>
         /// <returns>The command acceptance or business failure.</returns>
-        public async Task<ServiceResult<GuidResult>> ExecuteAsync(IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
+        public Task<ServiceResult<GuidResult>> ExecuteAsync(IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(state);
@@ -36,7 +36,7 @@ public static class PublishParameterVersion
             if (state.Operations.TryGetValue(command.CommandId, out var previous))
             {
                 if (!string.Equals(previous, hash, StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
-                return new ServiceOk<GuidResult>(new(command.CommandId));
+                return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(command.CommandId)));
             }
             var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply PublishParameterVersion event";
             command.Compute(state, hash, out var parameterChange);
@@ -46,12 +46,11 @@ public static class PublishParameterVersion
                 var policy = version.Values().Get<StrategyOptionChainParameterSet>();
                 if (policy.Enabled)
                 {
-                    var definition = await context.ConfigurationDb.GetStrategyCatalogAsync(new(
-                        Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Structure, policy.StrategyDefinitionId,
-                        policy.StrategyDefinitionVersion)).ConfigureAwait(false);
-                    if (definition is null || definition.Status != Domain.Reference.Shared.StrategyCatalog.CatalogLifecycleStatus.Published
-                        || !definition.Definition.Capabilities.Any(x => string.Equals(x.Role, "builder", StringComparison.Ordinal) && x.Version == 1 && x.Code is "IronCondor" or "CallVertical" or "PutVertical"))
-                        return command.UpdateFailed("PARAM.OPTION_CHAIN_CATALOG_UNSUPPORTED: an exact published option strategy structure is required.");
+                    var catalog = command.Evidence?.Catalog;
+                    if (command.Evidence?.ExactVersion?.Reference != version.Reference || catalog is null
+                        || catalog.DefinitionId != policy.StrategyDefinitionId || catalog.Version != policy.StrategyDefinitionVersion
+                        || string.IsNullOrEmpty(catalog.ContentHash) || !catalog.Published || !catalog.SupportedBuilder)
+                        return Task.FromResult(command.UpdateFailed("PARAM.OPTION_CHAIN_CATALOG_UNSUPPORTED: an exact published option strategy structure is required."));
                 }
             }
             var updated = parameterChange.RejectionReason is not null
@@ -60,7 +59,7 @@ public static class PublishParameterVersion
             var result = updated
                 ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
                 : command.UpdateFailed(errorMsg);
-            return result;
+            return Task.FromResult(result);
         }
 
         /// <summary>Computes the proposed business change without changing actor state.</summary>

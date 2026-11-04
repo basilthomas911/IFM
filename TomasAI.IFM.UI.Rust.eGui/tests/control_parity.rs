@@ -5,6 +5,46 @@ use egui_kittest::{
 };
 
 
+/// Collapsed grids and DPI transitions must not produce negative content sizes.
+#[test]
+fn grid_viewport_handles_space_smaller_than_its_border() {
+    for scale in [1., 2.] {
+        let ctx = egui::Context::default();
+        ctx.set_pixels_per_point(scale);
+        for size in [
+            egui::Vec2::ZERO,
+            egui::vec2(80., 0.5),
+            egui::vec2(0.5, 80.),
+            egui::vec2(1., 1.),
+            egui::vec2(80., 80.),
+        ] {
+            for _ in 0..3 {
+                let _ = ctx.run(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO, egui::vec2(600., 400.),
+                        )),
+                        ..Default::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            let bounds = egui::Rect::from_min_size(ui.cursor().min, size);
+                            ifm_ui_egui::control_parity::grid_viewport(ui, bounds, |ui| {
+                                let content = ui.max_rect();
+                                assert!(content.width() >= 0. && content.height() >= 0.);
+                                assert!(content.left() >= bounds.left() && content.right() <= bounds.right());
+                                assert!(content.top() >= bounds.top() && content.bottom() <= bounds.bottom());
+                                ui.allocate_exact_size(egui::Vec2::ZERO, egui::Sense::hover());
+                            });
+                        });
+                    },
+                );
+            }
+        }
+    }
+}
+
+
 /// Verifies that report grid reclaims hidden scrollbar gutters.
 #[test]
 fn report_grid_reclaims_hidden_scrollbar_gutters() {

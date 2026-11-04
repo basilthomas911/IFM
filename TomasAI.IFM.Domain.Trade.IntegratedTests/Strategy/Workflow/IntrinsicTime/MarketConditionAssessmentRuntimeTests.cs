@@ -44,12 +44,14 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
                 services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true, MarketConditionAssessmentProfileId = profile });
                 services.RemoveAll<IMarketConditionAssessmentSnapshotProvider>(); services.AddSingleton<IMarketConditionAssessmentSnapshotProvider>(source);
                 if (failure == "project") OverrideSimpleInjector<IFunctionProjector<MarketConditionAssessmentCompletedEvent>>(services, new FailingAssessmentProjector());
-                if (failure == "append")
+                // Exercise independent projector/append failures through the compatibility
+                // repository; native repositories commit both within one transaction.
+                if (failure is "append" or "project")
                 {
                     var container = (SimpleInjector.Container)services.Single(x => x.ServiceType == typeof(SimpleInjector.Container)).ImplementationInstance!;
                     container.Register<MarketConditionAssessmentStateRepository>();
                     OverrideSimpleInjector<IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand>>(services,
-                        new RecordingAssessmentRepository { FailPersist = true, Resolve = () => container.GetInstance<MarketConditionAssessmentStateRepository>() });
+                        new RecordingAssessmentRepository { FailPersist = failure == "append", Resolve = () => container.GetInstance<MarketConditionAssessmentStateRepository>() });
                 }
             }));
         _ = factory.CreateClient(); var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();

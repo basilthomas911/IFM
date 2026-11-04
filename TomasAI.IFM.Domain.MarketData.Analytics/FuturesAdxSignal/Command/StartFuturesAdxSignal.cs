@@ -51,6 +51,8 @@ public static class StartFuturesAdxSignal
             var historicalEvents = new List<FuturesAdxSignalGeneratedEvent>();
             var hasHistoricalSeed = command.HistoricalSeed is { Length: > 0 };
             string? rejectionReason = command.EntityId.PeriodLength <= 0 ? "ADX period length must be positive" : null;
+            if (hasHistoricalSeed && adxSignals.LastOrDefault()?.Metadata?.MarketDataAsOfUtc > command.HistoricalSeed![^1].IntervalEndUtc)
+                rejectionReason = "ADX historical initialization would replace a newer live observation";
             if (rejectionReason is null && hasHistoricalSeed)
             {
                 foreach (var bar in command.HistoricalSeed!)

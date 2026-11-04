@@ -50,8 +50,10 @@ public static class StartFuturesMacdSignal
             var seededSignals = new List<FuturesMacdSignalReadModel>();
             var historicalEvents = new List<FuturesMacdSignalGeneratedEvent>();
             var hasHistoricalSeed = command.HistoricalSeed is { Length: > 0 };
-            string? rejectionReason = null;
-            if (hasHistoricalSeed)
+            string? rejectionReason = hasHistoricalSeed
+                && currentFuturesMacdSignal?.Metadata?.MarketDataAsOfUtc > command.HistoricalSeed![^1].IntervalEndUtc
+                ? "MACD historical initialization would replace a newer live observation" : null;
+            if (hasHistoricalSeed && rejectionReason is null)
             {
                 foreach (var bar in command.HistoricalSeed!)
                 {

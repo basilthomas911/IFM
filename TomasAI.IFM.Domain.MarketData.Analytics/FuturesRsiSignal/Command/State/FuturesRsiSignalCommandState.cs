@@ -14,6 +14,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State
 public class FuturesRsiSignalCommandState : BaseEventSourceActorState<FuturesRsiSignalCommandState>, IEventSourceActorState<FuturesRsiSignalCommandState>
 {
     const int MaxSignalHistory = 256;
+    int replayWindow = MaxSignalHistory;
+    /// <summary>Retains the same calculation sample window when restoring all lifecycle facts.</summary>
+    internal void LimitReplayWindow(int count) => replayWindow = Math.Clamp(count, 1, MaxSignalHistory);
     readonly List<FuturesRsiSignalReadModel> _futuresRsiSignals = [];
     /// <summary>Gets the current event-sourced Wilder RSI accumulator state.</summary>
     public FuturesRsiAccumulatorCheckpoint? FuturesRsiCheckpoint { get; private set; }
@@ -49,7 +52,7 @@ public class FuturesRsiSignalCommandState : BaseEventSourceActorState<FuturesRsi
 
             FuturesRsiCheckpoint = e.RestoredCheckpoint ?? FuturesRsiCheckpoint;
             if (_futuresRsiSignals.Count == 0 && e.HistoricalWarmSignals is { Length: > 0 })
-                _futuresRsiSignals.AddRange(e.HistoricalWarmSignals.TakeLast(MaxSignalHistory));
+                _futuresRsiSignals.AddRange(e.HistoricalWarmSignals.TakeLast(replayWindow));
             if (e.RestoredSignal is { } signal && _futuresRsiSignals.Count == 0)
                 _futuresRsiSignals.Add(signal);
             return true;
@@ -61,7 +64,7 @@ public class FuturesRsiSignalCommandState : BaseEventSourceActorState<FuturesRsi
             {
                 FuturesRsiCheckpoint = e.FuturesRsiCheckpoint ?? FuturesRsiCheckpoint;
                 _futuresRsiSignals.Add(e.FuturesRsiSignal);
-                if (_futuresRsiSignals.Count > MaxSignalHistory)
+                if (_futuresRsiSignals.Count > replayWindow)
                     _futuresRsiSignals.RemoveAt(0);
                 return true;
             }
@@ -74,7 +77,7 @@ public class FuturesRsiSignalCommandState : BaseEventSourceActorState<FuturesRsi
             if (e.FuturesRsiSignal is not null)
             {
                 _futuresRsiSignals.Add(e.FuturesRsiSignal);
-                if (_futuresRsiSignals.Count > MaxSignalHistory)
+                if (_futuresRsiSignals.Count > replayWindow)
                     _futuresRsiSignals.RemoveAt(0);
                 return true;
             }

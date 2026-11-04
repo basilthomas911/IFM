@@ -15,10 +15,8 @@ public sealed class CapacityConsumptionFunctionStateRepository(IPortfolioDbReadC
     public async ValueTask<CapacityConsumptionFunctionState> LoadStateAsync(ConsumeCapacityReservationCommand request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var state = new CapacityConsumptionFunctionState { Id = request.Subject.ThreadId };
-        var completed = await (database.ReadOperationAsync<CapacityConsumptionCompletedEvent>(request.PortfolioId, request.OperationId, null, cancellationToken)).ConfigureAwait(false);
-        if (completed is not null) state.ReplayEvents(new IEvent[] { completed });
-        return state;
+        return await global::TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioOperationCreationSnapshot.LoadAsync<CapacityConsumptionFunctionState, CapacityConsumptionCompletedEvent>(
+            database, request.PortfolioId, request.OperationId, request.Subject.ThreadId, cancellationToken).ConfigureAwait(false);
     }
     public ValueTask SaveCompletedStateAsync(IFunctionActorContext context, CapacityConsumptionFunctionState state, ConsumeCapacityReservationCommand request, CancellationToken cancellationToken = default)
         => ValueTask.FromException(new InvalidOperationException("Financial completion requires an enlisted business/event transaction."));

@@ -51,6 +51,8 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
     public TomasAI.IFM.Application.Storage.MarketDataDb.IMarketDataDbContext MarketDataDb { get; private set; } = default!;
     public ReferenceDbContext ReferenceDb { get; private set; } = default!;
     public EventSourceActorDbContext ActorEventSourceDb { get; private set; } = default!;
+    public TomasAI.IFM.Application.Storage.ConfigurationDb.IConfigurationDbContext ConfigurationDb { get; private set; } = default!;
+    public IPostgresEventTransaction EventTransactions { get; private set; } = default!;
     public TomasAI.IFM.Application.Blackboard.IBlackboardService BlackboardService { get; private set; } = default!;
 
     public async Task InitializeAsync()
@@ -105,6 +107,8 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
             MarketDataDb = dbFactory.MarketDataDb;
             ReferenceDb = (ReferenceDbContext)dbFactory.ReferenceDb;
             ActorEventSourceDb = (EventSourceActorDbContext)dbFactory.ActorEventSourceDb;
+            ConfigurationDb = dbFactory.ConfigurationDb;
+            EventTransactions = _host.Services.GetRequiredService<IPostgresEventTransaction>();
             BlackboardService = _host.Services.GetRequiredService<TomasAI.IFM.Application.Blackboard.IBlackboardService>();
         }
         catch

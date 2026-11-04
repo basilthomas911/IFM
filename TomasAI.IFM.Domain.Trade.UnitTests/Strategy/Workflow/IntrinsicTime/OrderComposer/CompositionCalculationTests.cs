@@ -34,6 +34,9 @@ public sealed class CompositionCalculationTests
         Assert.True(candidate.DecisionEvidence.IsValid);
         var savedInputs = candidate.DecisionEvidence.Read<ExecuteOrderCompositionPipelineCommand>();
         Assert.Equal(c.Fingerprint(), savedInputs.Fingerprint());
+        var envelope = TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.CreateComposition(result);
+        Assert.True(MessagePackBinarySerializer.MeasureContent(result) <= 524288,
+            $"{variant}/{horizon}: composition content exceeds its stage budget.");
     }
     [Theory]
     [InlineData(2, 1, 105, 395)]

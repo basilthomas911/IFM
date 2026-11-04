@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.State;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.State;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -19,7 +21,6 @@ public interface IParameterSetCommandContext
     TomasAI.IFM.Application.MarketData.Contracts.IStrategyOptionChainParameterStore OptionChainParameters
         => throw new InvalidOperationException("Option-chain parameter projection is not configured.");
     IParameterAccessPolicy AccessPolicy { get; }
-    IEventSourceActorStateRepository<ParameterStartupCommandState> Startups { get; }
     /// <summary>Gets EventSourceDb.</summary>
     IEventSourceActorDbContext DbEventSource { get; }
     /// <summary>Gets ConfigurationDb.</summary>
@@ -36,7 +37,6 @@ public interface IParameterSetCommandContext
     IEventSourceActorStateFactory StateFactory { get; }
     /// <summary>Gets actor infrastructure.</summary>
     IActorService ActorService { get; }
-    IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments { get; }
     /// <summary>Gets the logger.</summary>
     ILogger<ParameterSetCommandActor> Logger { get; }
 }

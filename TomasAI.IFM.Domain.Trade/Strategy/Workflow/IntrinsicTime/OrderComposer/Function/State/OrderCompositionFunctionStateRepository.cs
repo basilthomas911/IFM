@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using Microsoft.Extensions.Logging;
@@ -14,7 +14,7 @@ public sealed class OrderCompositionFunctionStateRepository(IEventSourceActorSta
     public bool UsesAtomicPersistence => string.Equals(databases?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
 
     public ValueTask<OrderCompositionFunctionCompletedEvent> CommitAsync(IFunctionActorContext context, ExecuteOrderCompositionPipelineCommand request, OrderCompositionFunctionCompletedEvent candidate, CancellationToken cancellationToken = default) => TradePipelineAtomicPersistence.CommitAsync(request, candidate, EventSourceDb, databases, transactions, cancellationToken);
-    public async ValueTask<OrderCompositionFunctionState> LoadStateAsync(ExecuteOrderCompositionPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateAsync<OrderCompositionFunctionState>(request, cancellationToken).ConfigureAwait(false);
+    public async ValueTask<OrderCompositionFunctionState> LoadStateAsync(ExecuteOrderCompositionPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateFromCreationSnapshotAsync<OrderCompositionFunctionState>(request, cancellationToken).ConfigureAwait(false);
     public async ValueTask SaveCompletedStateAsync(IFunctionActorContext context, OrderCompositionFunctionState state, ExecuteOrderCompositionPipelineCommand request, CancellationToken cancellationToken = default)
     {
         await SaveStateEventsAsync(state, request, expectedStreamVersion: 0, cancellationToken).ConfigureAwait(false);

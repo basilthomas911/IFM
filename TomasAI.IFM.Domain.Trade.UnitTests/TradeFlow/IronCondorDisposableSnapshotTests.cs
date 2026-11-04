@@ -27,15 +27,15 @@ public sealed class IronCondorDisposableSnapshotTests
     static readonly DateTime Now = new(2026, 10, 7, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public async Task Loads_only_one_latest_source_snapshot_without_retained_state_or_scylla_access()
+    public async Task Loads_creation_and_latest_complete_checkpoint_without_projection_access()
     {
         var source = SourceDatabase();
         var original = Request();
         var persisted = Completed(original) with { EventId = 209, Plan = new() { PlanRevision = 4 } };
-        source.MapReduceActorEventStreamAsync<IronCondorTradePlanFunctionState, IronCondorTradePlanUpdatedEvent>(
-            42, 1, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>()).Returns(call =>
+        source.MapReduceActorEventStreamFromCreationWithCheckpointAsync<IronCondorTradePlanFunctionState, IronCondorTradePlanUpdatedEvent>(
+            42, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
-            call.ArgAt<Action<IEnumerable<EventStreamReadModel>>>(2)([Stored(persisted, 7)]);
+            call.ArgAt<Action<IEnumerable<EventStreamReadModel>>>(1)([Stored(Completed(original) with { EventId = 201 }, 1), Stored(persisted, 7)]);
             return ValueTask.CompletedTask;
         });
         var repository = Repository(source);
@@ -50,11 +50,33 @@ public sealed class IronCondorDisposableSnapshotTests
         second.Should().NotBeSameAs(first);
         second.IsCompleted.Should().BeFalse();
         second.LatestPlanRevision.Should().Be(4);
-        await source.Received(2).MapReduceActorEventStreamAsync<IronCondorTradePlanFunctionState, IronCondorTradePlanUpdatedEvent>(
-            42, 1, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>());
+        await source.Received(2).MapReduceActorEventStreamFromCreationWithCheckpointAsync<IronCondorTradePlanFunctionState, IronCondorTradePlanUpdatedEvent>(
+            42, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>());
         source.ReceivedCalls().Should().OnlyContain(call =>
             call.GetMethodInfo().Name == nameof(IEventSourceActorDbContext.GetEventStreamIdAsync)
-            || call.GetMethodInfo().Name == nameof(IEventSourceActorDbContext.MapReduceActorEventStreamAsync));
+            || call.GetMethodInfo().Name == nameof(IEventSourceActorDbContext.MapReduceActorEventStreamFromCreationWithCheckpointAsync));
+    }
+
+    [Fact]
+    public void Explicit_plan_checkpoint_matches_complete_replay_and_duplicate_request_matching()
+    {
+        var request = Request();
+        var first = Completed(request) with { EventId = 101 };
+        var middle = first with { EventId = 102, Plan = first.Plan with { PlanRevision = 2 } };
+        var last = first with { EventId = 103, Plan = first.Plan with { PlanRevision = 3 } };
+        var full = new IronCondorTradePlanFunctionState();
+        var optimized = new IronCondorTradePlanFunctionState();
+        full.ReplayEvents([Stored(first, 1), Stored(middle, 2), Stored(last, 3)]);
+        optimized.ReplayEvents([Stored(first, 1), Stored(last, 3)]);
+        full.Prepare(request); optimized.Prepare(request);
+        optimized.CompletedEvent.Should().BeEquivalentTo(full.CompletedEvent);
+        optimized.Matches(request).Should().BeTrue();
+        optimized.CommittedStreamVersion.Should().Be(3);
+        optimized.Events.Should().BeEmpty();
+        var next = request with { CommandId = Guid.NewGuid() };
+        full.Prepare(next); optimized.Prepare(next);
+        optimized.IsCompleted.Should().Be(full.IsCompleted).And.BeFalse();
+        optimized.LatestSourceTradePlan.Should().BeEquivalentTo(full.LatestSourceTradePlan);
     }
 
     [Fact]
@@ -67,10 +89,10 @@ public sealed class IronCondorDisposableSnapshotTests
         var repository = Repository(source, projector, logger);
         IronCondorTradePlanUpdatedEvent? lastStored = null;
         long storedVersion = 0;
-        source.MapReduceActorEventStreamAsync<IronCondorTradePlanFunctionState, IronCondorTradePlanUpdatedEvent>(
-            42, 1, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>()).Returns(call =>
+        source.MapReduceActorEventStreamFromCreationWithCheckpointAsync<IronCondorTradePlanFunctionState, IronCondorTradePlanUpdatedEvent>(
+            42, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
-            call.ArgAt<Action<IEnumerable<EventStreamReadModel>>>(2)(lastStored is null ? [] : [Stored(lastStored, storedVersion)]);
+            call.ArgAt<Action<IEnumerable<EventStreamReadModel>>>(1)(lastStored is null ? [] : [Stored(lastStored, storedVersion)]);
             return ValueTask.CompletedTask;
         });
         source.SaveEventsAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<DomainEventCollection>(),

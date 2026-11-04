@@ -51,7 +51,7 @@ public class FuturesOptionTickDataStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded state as a <see
     /// cref="FuturesOptionTickDataCommandState"/> instance.</returns>
     public async ValueTask<FuturesOptionTickDataCommandState> LoadStateAsync(ICommand command)
-        => await (LoadEmptyStateAsync<FuturesOptionTickDataCommandState>()).ConfigureAwait(false);
+        => await LoadStatelessStateFromCreationSnapshotAsync<FuturesOptionTickDataCommandState>(command).ConfigureAwait(false);
 
     /// <summary>
     /// save futures option tick data state changes

@@ -63,7 +63,11 @@ public static class IntrinsicTimeWorkflowCommandValidation
             };
             if (completionResult is not null)
             {
-                var resultErrors = StrategyStageResultEnvelopeValidationRules.WithMaximumPayloadBytes(command is CompleteTradeSelectionCommand ? 524288 : StrategyStageResultEnvelope.DefaultMaximumPayloadBytes).Execute(completionResult);
+                // Composer and Risk results have the same declared 512 KiB content
+                // budget as Selection; ingress must agree with their producer contracts.
+                var maximumPayloadBytes = command is CompleteTradeSelectionCommand or CompleteOrderCompositionCommand or CompleteRiskManagementCommand
+                    ? 524288 : StrategyStageResultEnvelope.DefaultMaximumPayloadBytes;
+                var resultErrors = StrategyStageResultEnvelopeValidationRules.WithMaximumPayloadBytes(maximumPayloadBytes).Execute(completionResult);
                 errors.AddRange(resultErrors);
             }
 

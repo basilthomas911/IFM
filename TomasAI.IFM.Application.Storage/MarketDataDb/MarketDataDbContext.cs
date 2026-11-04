@@ -3455,7 +3455,8 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     /// <returns>The typed result of the market-data query or mutation.</returns>
     public Task<FuturesBbSignalReadModel?> GetLatestFuturesBollingerBandSignalForTimeFrameAsync(MarketSeriesIdentity seriesIdentity, DateOnly valueDate, TimeFrameType timeFrame, CancellationToken cancellationToken = default)
     {
-        if (timeFrame is not (TimeFrameType.FifteenSeconds or TimeFrameType.FiveMinutes or TimeFrameType.Daily))
+        if (timeFrame is not (TimeFrameType.FifteenSeconds or TimeFrameType.OneMinute or TimeFrameType.FiveMinutes
+            or TimeFrameType.FifteenMinutes or TimeFrameType.OneHour or TimeFrameType.FourHours or TimeFrameType.Daily))
             throw new ArgumentOutOfRangeException(nameof(timeFrame));
         return this.ReadMonthAsync(seriesIdentity, valueDate, valueDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc), BollingerBandConfigurationId, MarketDataDbCql.GetLatestFuturesBollingerBandSignal, nameof(MarketDataDbCql.GetLatestFuturesBollingerBandSignal), MapToFuturesBollingerBandSignal, cancellationToken, timeFrame);
     }
@@ -3890,6 +3891,28 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     /// <param name="observation">The observation used by this operation.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
+    /// <inheritdoc />
+    public Task<FuturesTradeSessionBarReadModel?> GetStoredTradeSessionBarAsync(string contractId, TimeFrameType frame,
+        DateOnly valueDate, DateTimeOffset intervalEndUtc, CancellationToken cancellationToken = default)
+        => this.Database.Use(nameof(MarketDataDbSql.GetStoredTradeSessionBar), MarketDataDbSql.GetStoredTradeSessionBar)
+            .SetParameters(new StoredTradeSessionBarKey(contractId, frame, valueDate, intervalEndUtc))
+            .ExecuteSingleAsync<FuturesTradeSessionBarReadModel?>(row => new()
+            {
+                MarketSeriesIdentity = MarketSeriesIdentity.ForContract(contractId), ContractId = contractId,
+                TimeFrame = frame, ValueDate = valueDate, ObservationId = new(row.GetGuid(0)),
+                IntervalStartUtc = new(DateTime.SpecifyKind(row.GetDateTime(1), DateTimeKind.Utc)),
+                IntervalEndUtc = new(DateTime.SpecifyKind(row.GetDateTime(2), DateTimeKind.Utc)),
+                Open = row.GetDecimal(3), High = row.GetDecimal(4), Low = row.GetDecimal(5), Close = row.GetDecimal(6),
+                Volume = row.GetDecimal(7), TradeCount = row.GetLong(8), PriceVolumeSum = row.GetDecimal(9),
+                FirstSourceSequence = row.GetLong(10), LastSourceSequence = row.GetLong(11),
+                FirstMarketEventUtc = new(DateTime.SpecifyKind(row.GetDateTime(12), DateTimeKind.Utc)),
+                LastMarketEventUtc = new(DateTime.SpecifyKind(row.GetDateTime(13), DateTimeKind.Utc)),
+                CalculatedAtUtc = new(DateTime.SpecifyKind(row.GetDateTime(14), DateTimeKind.Utc)),
+                SchemaVersion = checked((ushort)row.GetInt(15)), CalculationVersion = row.GetString(16),
+                CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate, IsComplete = true, IsValid = true
+            }, cancellationToken);
+
+    /// <inheritdoc />
     public async ValueTask<bool> TryWriteObservationAsync(FuturesTradeSessionBarReadModel observation, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(observation);

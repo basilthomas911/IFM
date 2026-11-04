@@ -50,4 +50,26 @@ public sealed class CommandAuditMessagePackCodec
         var candidate = Serialize(command);
         return CryptographicOperations.FixedTimeEquals(candidate.Sha256, expectedHash);
     }
+
+    /// <summary>Checks exact stored fields, permitting only newly appended null fields.</summary>
+    public bool MatchesStoredEncoding(ICommand command, ReadOnlyMemory<byte> stored)
+    {
+        var rewritten = Serialize(command).Bytes;
+        if (stored.Span.SequenceEqual(rewritten)) return true;
+        if (command is not IAppendOnlyCommandRetryIdentity) return false;
+        var originalReader = new MessagePackReader(stored);
+        var currentReader = new MessagePackReader(rewritten);
+        var originalCount = originalReader.ReadArrayHeader();
+        var currentCount = currentReader.ReadArrayHeader();
+        if (originalCount > currentCount) return false;
+        for (var index = 0; index < originalCount; index++)
+        {
+            var before = originalReader.ReadRaw();
+            var after = currentReader.ReadRaw();
+            if (!before.IsSingleSegment || !after.IsSingleSegment || !before.FirstSpan.SequenceEqual(after.FirstSpan)) return false;
+        }
+        for (var index = originalCount; index < currentCount; index++)
+            if (!currentReader.TryReadNil()) return false;
+        return originalReader.End && currentReader.End;
+    }
 }

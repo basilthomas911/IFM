@@ -41,7 +41,7 @@ public sealed class RegimeDiscoveryCalculationModelTests
             {
                 Observations = input.Snapshot.Observations
                     .Where(observation => !(observation.Metric == RegimeDiscoverySignalMetric.Ema200 &&
-                                            observation.SignalKey.TimeFrame == TimeFrameType.FifteenMinutes))
+                                            observation.SignalKey.TimeFrame == TimeFrameType.Daily))
                     .ToArray()
             }
         };
@@ -352,7 +352,12 @@ public sealed class RegimeDiscoveryCalculationModelTests
         ICollection<RegimeDiscoverySignalObservation> observations,
         TimeFrameType timeFrame,
         RegimeDiscoverySignalMetric metric,
-        decimal value) => observations.Add(new RegimeDiscoverySignalObservation
+        decimal value)
+    {
+        if (RegimeDiscoveryEmaBaseline.IsBaseline(metric))
+            timeFrame = TimeFrameType.Daily;
+        if (observations.Any(value => value.Metric == metric && value.SignalKey.TimeFrame == timeFrame)) return;
+        observations.Add(new RegimeDiscoverySignalObservation
         {
             Metric = metric,
             SignalKey = new MarketAnalyticsSignalKey(
@@ -369,6 +374,7 @@ public sealed class RegimeDiscoveryCalculationModelTests
             FreshnessFactor = 0.95m,
             SignalIdentity = $"ES-202609.{metric}.{timeFrame}"
         });
+    }
 
     static MarketAnalyticsSignalKind Kind(RegimeDiscoverySignalMetric metric) => metric switch
     {

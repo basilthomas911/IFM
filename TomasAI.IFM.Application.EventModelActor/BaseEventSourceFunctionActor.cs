@@ -262,6 +262,10 @@ public abstract class BaseEventSourceFunctionActor<
                     }
                     catch (Exception exception)
                     {
+                        SharedActorDiagnosticLog.Write32(_logger, exception, Id, stage);
+                        primaryFailureId = ActorOperationalMetrics.RecordHandledFailure(
+                            Mailbox, _context.SupervisorRuntime, threadId, message.Subject.Verb,
+                            MapFailureStage(stage), exception);
                         terminal = HandleFunctionEvent(_context,
                             new(typeof(TFailedEvent), request, Exception: exception, Stage: stage));
                     }

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -11,7 +11,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Order.Broker.Command.State;
 public sealed class BrokerOrderStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<BrokerOrderCommandActor> eventProjector, ILogger<BrokerOrderStateRepository> logger) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<BrokerOrderCommandState>
 {
-    public ValueTask<BrokerOrderCommandState> LoadStateAsync(ICommand command) => new(LoadStateAsync<BrokerOrderCommandState>(command));
+    public ValueTask<BrokerOrderCommandState> LoadStateAsync(ICommand command) => new(LoadStateFromCreationSnapshotAsync<BrokerOrderCommandState>(command));
     public async ValueTask SaveStateAsync(ICommandActorContext context, BrokerOrderCommandState state, ICommand command) => await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents) => eventProjector.DomainEventsProjectionAsync(domainEvents);
 }

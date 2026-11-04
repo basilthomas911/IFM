@@ -11,6 +11,39 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// </summary>
 public interface IEventSourceActorDbReadContext
 {
+    /// <summary>Restores independently replacing state components from their latest source snapshots at one committed head.</summary>
+    /// <remarks>The owning repository must declare every retained state component; delta events are not eligible snapshots.</remarks>
+    ValueTask MapReduceActorEventStreamFromLatestSnapshotsAsync<TState, TFirst, TSecond>(
+        long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken = default)
+        where TState : IActorState<TState>
+        where TFirst : IEvent
+        where TSecond : IEvent;
+
+    /// <summary>Restores creation and the committed head for a reducer with no retained business fields.</summary>
+    ValueTask MapReduceStatelessActorEventStreamFromCreationAsync<TState>(
+        long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken = default)
+        where TState : IActorState<TState>, IStatelessCreationSnapshotState;
+
+    /// <summary>Replays the stream creation fact and its tail through one captured committed head.</summary>
+    /// <typeparam name="TState">The state reconstructed from the source facts.</typeparam>
+    /// <param name="eventStreamId">The persisted stream identity.</param>
+    /// <param name="reducerAction">The reducer receiving ordered source facts.</param>
+    /// <param name="cancellationToken">Cancels the source read.</param>
+    ValueTask MapReduceActorEventStreamFromCreationAsync<TState>(
+        long eventStreamId,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken = default)
+        where TState : IActorState<TState>;
+
+    /// <summary>Reads creation plus an explicitly declared complete checkpoint and its remaining tail.</summary>
+    ValueTask MapReduceActorEventStreamFromCreationWithCheckpointAsync<TState, TCheckpoint>(
+        long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,
+        CancellationToken cancellationToken = default)
+        where TState : IActorState<TState>
+        where TCheckpoint : IEvent;
+
     /// <summary>Get Event Stream Id From Db using the event-source persistence services.</summary>
     /// <param name="eventStream">The event stream name.</param>
     /// <returns>The typed result of the event-source operation.</returns>

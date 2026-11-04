@@ -8,7 +8,7 @@ public sealed class EventLogEngineQualificationTests
         ["DOTNET_ENVIRONMENT"] = "Test",
         ["IFM_TEST_POSTGRES_CONNECTION"] = "Host=127.0.0.1;Port=15432;Database=ifm_eventlog_bench_092020260032_synthetic_host",
         ["IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION"] = "Host=127.0.0.1;Port=15432;Database=ifm_eventlog_bench_092020260032_synthetic_host",
-        ["IFM_TEST_TRADE_CONNECTION"] = "Contact Points=127.0.0.1;Port=19042;Default Keyspace=ifm_synthetic_092020260032_trade",
+        ["IFM_TEST_TRADE_CONNECTION"] = "Host=127.0.0.1;Port=15432;Database=ifm_eventlog_bench_092020260032_synthetic_host",
         ["IFM_TEST_REDIS_URL"] = "127.0.0.1:16379",
         ["IFM_FINANCIAL_TEST_NATS_URL"] = "nats://127.0.0.1:14223"
     };

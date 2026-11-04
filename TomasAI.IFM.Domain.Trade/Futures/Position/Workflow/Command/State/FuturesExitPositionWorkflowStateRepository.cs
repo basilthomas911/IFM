@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.Trade.Persistence;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -12,7 +12,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Futures.Position.Workflow.Command.State;
 public sealed class FuturesExitPositionWorkflowStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<FuturesExitPositionWorkflowCommandActor> projector, ILogger<FuturesExitPositionWorkflowStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<FuturesExitPositionWorkflowCommandState>
 {
-    public ValueTask<FuturesExitPositionWorkflowCommandState> LoadStateAsync(ICommand command) => new(LoadStateAsync<FuturesExitPositionWorkflowCommandState>(command));
+    public ValueTask<FuturesExitPositionWorkflowCommandState> LoadStateAsync(ICommand command) => new(LoadStateFromCreationSnapshotAsync<FuturesExitPositionWorkflowCommandState>(command));
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesExitPositionWorkflowCommandState state, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(state);

@@ -20,7 +20,7 @@ public sealed class ScheduledTaskCatalogStateRepositoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Load_restores_later_registration_snapshot_then_capability_and_project_changes(bool cancellable)
+    public async Task Load_restores_creation_then_capability_and_project_changes(bool cancellable)
     {
         var id = new ScheduledTaskId(Guid.NewGuid());
         var command = new RegisterScheduledTaskProjectCommand { CommandId = Guid.NewGuid(), EntityId = id,
@@ -41,12 +41,12 @@ public sealed class ScheduledTaskCatalogStateRepositoryTests
         var token = cancellable ? deadline.Token : CancellationToken.None;
         store.GetEventStreamIdAsync(command.StreamId, token).Returns(91L);
         store.GetCommittedStreamVersionAsync(91, token).Returns(14L);
-        store.MapReduceActorEventStreamAsync<ScheduledTaskCatalogCommandState, ScheduledTaskCatalogProjectRegisteredEvent>(91,
+        store.MapReduceActorEventStreamFromCreationAsync<ScheduledTaskCatalogCommandState>(91,
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), token).Returns(call =>
         {
             var rows = events.Select((source, index) => new EventStreamReadModel
             {
-                EventVersion = index + 12, StreamVersion = index + 12,
+                EventVersion = index + 12, StreamVersion = index + 1,
                 EventTypeName = source.GetType().AssemblyQualifiedName!,
                 EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(source)
             });
@@ -60,9 +60,9 @@ public sealed class ScheduledTaskCatalogStateRepositoryTests
 
         Assert.Equivalent(admitted, loaded.ScheduledTaskCatalog);
         Assert.Equal(command.Subject.ThreadId, loaded.Id);
-        Assert.Equal(14, loaded.CommittedStreamVersion);
+        Assert.Equal(3, loaded.CommittedStreamVersion);
         Assert.Empty(loaded.Events); Assert.False(loaded.Updated);
-        await store.Received(1).MapReduceActorEventStreamAsync<ScheduledTaskCatalogCommandState, ScheduledTaskCatalogProjectRegisteredEvent>(91,
+        await store.Received(1).MapReduceActorEventStreamFromCreationAsync<ScheduledTaskCatalogCommandState>(91,
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), token);
         await store.DidNotReceiveWithAnyArgs().MapReduceActorEventStreamAsync<ScheduledTaskCatalogCommandState>(default, default!, default);
     }

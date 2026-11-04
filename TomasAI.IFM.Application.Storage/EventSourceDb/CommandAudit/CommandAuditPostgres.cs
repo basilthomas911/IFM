@@ -62,12 +62,12 @@ internal static class CommandAuditPostgres
         {
             if (results[index].Accepted || envelopes[index].RetryCommandType is null) continue;
             var matches = await MatchesStoredRetryAsync(connection, transaction, envelopes[index], cancellationToken).ConfigureAwait(false);
-            results[index] = new(false, false, !matches);
+            results[index] = matches.HasValue ? new(false, false, !matches.Value) : new(false, true, false);
         }
         return results;
     }
 
-    static async Task<bool> MatchesStoredRetryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+    static async Task<bool?> MatchesStoredRetryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
         CommandAuditEnvelope candidate, CancellationToken token)
     {
         var read = new NpgsqlCommand("SELECT commandpayload,commandpayloadformat,commandpayloadversion,commandpayloadsha256 FROM command_log WHERE commandid=$1", connection, transaction) { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
@@ -75,7 +75,10 @@ internal static class CommandAuditPostgres
         PostgresValueBinding.AddParameter(read, candidate.CommandId);
         var reader = await read.ExecuteReaderAsync(token).ConfigureAwait(false);
         await using var readerDisposal = reader.ConfigureAwait(false);
-        if (!await reader.ReadAsync(token).ConfigureAwait(false) || Enumerable.Range(0, 4).Any(reader.IsDBNull)) return false;
+        if (!await reader.ReadAsync(token).ConfigureAwait(false)) return false;
+        if (Enumerable.Range(0, 4).All(reader.IsDBNull)
+            && candidate.RetryCommandType!.IsAssignableTo(typeof(TomasAI.IFM.Shared.EventSourcing.IAppendOnlyCommandRetryIdentity))) return null;
+        if (Enumerable.Range(0, 4).Any(reader.IsDBNull)) return false;
         var bytes = (await reader.GetFieldValueAsync<byte[]>(0,token).ConfigureAwait(false));
         var hash = (await reader.GetFieldValueAsync<byte[]>(3,token).ConfigureAwait(false));
         if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(bytes), hash)) return false;
@@ -84,7 +87,7 @@ internal static class CommandAuditPostgres
         // Fail closed if decoding under the candidate type would drop unknown fields
         // or otherwise reinterpret the original audit envelope.
         return stored is TomasAI.IFM.Shared.EventSourcing.ICommandRetryIdentity retry
-            && codec.Serialize(retry).Bytes.AsSpan().SequenceEqual(bytes)
+            && codec.MatchesStoredEncoding(retry, bytes)
             && CryptographicOperations.FixedTimeEquals(codec.Serialize(retry.ForRetryIdentity()).Sha256, candidate.RetrySha256);
     }
 

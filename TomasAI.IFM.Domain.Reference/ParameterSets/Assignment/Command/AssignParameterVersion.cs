@@ -1,0 +1,123 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.State;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Model;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Actor;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Model;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Actor;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Model;
+namespace TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command;
+
+public static class AssignParameterVersion
+{
+
+    /// <param name="command">
+    /// The concrete lifecycle intent.
+    /// The originating command.
+    /// </param>
+    extension(AssignParameterVersionCommand command)
+    {
+        /// <summary>Authorizes the request, checks replay, and applies its computed source event.</summary>
+        ///
+        /// <param name="context">The authorized command services and repositories.</param>
+        /// <param name="state">The authoritative actor state.</param>
+        /// <param name="logger">The actor logger.</param>
+        /// <returns>The command acceptance or business failure.</returns>
+        public Task<ServiceResult<GuidResult>> ExecuteAsync(IParameterAssignmentCommandContext context, ParameterAssignmentCommandState state, ILogger<ParameterAssignmentCommandActor> logger)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentNullException.ThrowIfNull(state);
+            ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
+            context.AccessPolicy.Demand(ParameterCapability.Assign);
+            if (command.Scope is null || command.Reference is null || command.EntityId.AssignmentId != ParameterAssignmentPolicyModel.AssignmentId(command.Scope))
+            {
+#pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
+                throw new ArgumentException("PARAM.IDENTITY_INVALID");
+            }
+#pragma warning restore MA0015
+            var hash = ParameterBinaryFingerprint.Hash((command.CommandName, command.EntityId.AssignmentId, command.ExpectedRevision, command.Scope, command.Reference));
+            if (state.Operations.TryGetValue(command.CommandId, out var prior))
+            {
+                if (!string.Equals(prior, hash, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
+                }
+                return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(command.CommandId)));
+            }
+            var version = command.Evidence?.ExactVersion ?? throw new InvalidOperationException("PARAM.EVIDENCE_REQUIRED");
+            if (version.Reference != command.Reference)
+            {
+                throw new InvalidOperationException("PARAM.EXACT_VERSION_MISSING");
+            }
+            var errorMsg = "ParameterAssignment.STATE.APPLY_FAILED: unable to apply AssignParameterVersion event";
+            var updated = command.Compute(state, hash, version, out var parameterChange) switch
+            {
+                _ when parameterChange.RejectionReason is not null
+                    => command.UpdateFailed(ref errorMsg, parameterChange.RejectionReason),
+                _ => state.Update(state.Revision == 0
+                    ? command.CreateParameterAssignmentCreatedEvent(parameterChange)
+                    : command.CreateParameterAssignmentChangedEvent(parameterChange), command)
+            };
+            var result = updated
+                ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+                : command.UpdateFailed(errorMsg);
+            return Task.FromResult(result);
+        }
+
+        /// <summary>Computes the proposed business change without changing actor state.</summary>
+        ///
+        /// <param name="state">The authoritative state, read without mutation.</param>
+        /// <param name="hash">The request identity hash.</param>
+        /// <param name="version">The exact committed parameter version.</param>
+        /// <param name="parameterChange">The proposed business change or rejection reason.</param>
+        /// <returns>True when computation succeeds; otherwise false with its business rejection.</returns>
+        internal bool Compute(ParameterAssignmentCommandState state, string hash, ParameterSetVersion version, out ParameterAssignmentChange parameterChange)
+        {
+            try
+            {
+                var parameterAssignment = ParameterAssignmentModel.Assign(command.Scope, version, state.Assignment, command.ExpectedRevision, DateTime.UtcNow, command.OriginatedBy);
+                parameterChange = new(parameterAssignment, hash, ParameterAuditModel.ForAssignment(command.CommandId, command.CommandName, command.OriginatedBy, state.Assignment, parameterAssignment));
+                return true;
+            }
+            catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)
+            {
+                parameterChange = new(null, hash, null, rejection.Message);
+                return false;
+            }
+        }
+
+        /// <summary>Creates the first event and default snapshot for this assignment.</summary>
+        internal ParameterAssignmentCreatedEvent CreateParameterAssignmentCreatedEvent(ParameterAssignmentChange parameterChange)
+            => new()
+            {
+                CommandId = command.CommandId,
+                Subject = new ActorSubject(ActorType.Event, ParameterAssignmentCreatedEvent.Actor, ParameterAssignmentCreatedEvent.Verb, command.EntityId.Format()),
+                EntityId = command.EntityId,
+                Revision = parameterChange.ParameterAssignment!.Revision,
+                RequestHash = parameterChange.RequestHash,
+                Assignment = parameterChange.ParameterAssignment,
+                Audit = parameterChange.ParameterAudit,
+            };
+
+        /// <summary>Creates the source event with the originating command identity.</summary>
+        ///
+        /// <param name="parameterChange">The accepted immutable business change.</param>
+        /// <returns>The source event ready for state application.</returns>
+        internal ParameterAssignmentChangedEvent CreateParameterAssignmentChangedEvent(ParameterAssignmentChange parameterChange)
+            => new()
+            {
+                CommandId = command.CommandId,
+                Subject = new ActorSubject(ActorType.Event, ParameterAssignmentChangedEvent.Actor, ParameterAssignmentChangedEvent.Verb, command.EntityId.Format()),
+                EntityId = command.EntityId,
+                Revision = parameterChange.ParameterAssignment!.Revision,
+                RequestHash = parameterChange.RequestHash,
+                Assignment = parameterChange.ParameterAssignment,
+                Audit = parameterChange.ParameterAudit,
+            };
+    }
+}

@@ -12,27 +12,26 @@ fn retention_is_two_visible_pages_at_boundaries_and_resize() {
 }
 
 
-/// Verifies that warning storm keeps one current warning without evicting recovery deduplication.
+/// Verifies that warnings share bounded dialog history and deduplicate recent failures.
 #[test]
-fn warning_storm_keeps_one_current_warning_without_evicting_recovery_deduplication() {
+fn warning_storm_keeps_bounded_dialog_history_and_recent_deduplication() {
     let mut n = Notifications::default();
     n.set_console_capacity(24);
     assert!(n.error("recovery-operation".into(), "Recovery failed".into()));
     for i in 0..1050 {
         n.warning(format!("warning-{i}"), format!("Latest warning {i}"));
     }
-    assert_eq!(
-        n.publication
-            .status_rows
-            .iter()
-            .filter(|r| r.id.starts_with("current-warning|"))
-            .count(),
-        1
-    );
+    // Publication snapshots trim console rows; dialog history has its own limit.
+    n.set_console_capacity(24);
+    assert_eq!(n.publication.status_rows.len(), 24);
+    assert_eq!(n.publication.error_history.len(), 1024);
     assert_eq!(n.publication.latest_status(), Some("Latest warning 1049"));
-    assert_eq!(n.publication.error, "Recovery failed");
-    assert!(!n.error("recovery-operation".into(), "Duplicate failure".into()));
+    assert_eq!(n.publication.error, "Latest warning 1049");
+    assert_eq!(n.publication.error_sequence, 1051);
+    assert!(!n.warning("warning-1049".into(), "Duplicate warning".into()));
+    assert_eq!(n.publication.error_sequence, 1051);
 }
+
 
 
 /// Verifies that actual console viewport resize updates capacity and virtualizes rows.

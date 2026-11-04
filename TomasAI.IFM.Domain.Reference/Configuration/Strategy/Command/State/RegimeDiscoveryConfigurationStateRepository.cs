@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -27,7 +27,7 @@ public sealed class RegimeDiscoveryConfigurationStateRepository(
 
     /// <summary>Loads configuration source facts with cancellation.</summary>
     public async ValueTask<RegimeDiscoveryConfigurationCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateAsync<RegimeDiscoveryConfigurationCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotAsync<RegimeDiscoveryConfigurationCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Saves pending lifecycle events atomically.</summary>
     public async ValueTask SaveStateAsync(ICommandActorContext context,

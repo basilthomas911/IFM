@@ -13,6 +13,9 @@ public static class FuturesRsiHistoricalSeedModel
         if (restored is not null && !command.ForceHistoricalInitialization)
             return new([], "RSI.SEED_CHECKPOINT_PRESERVED");
         if (command.HistoricalSeed is not { } seed) return new([], "RSI.SEED_NOT_REQUESTED");
+        if (command.ForceHistoricalInitialization && restored is not null && seed.Observations is { Length: > 0 }
+            && restored.LastIntervalEndUtc > seed.Observations[^1].IntervalEndUtc)
+            return new([], "RSI.SEED_NEWER_CHECKPOINT_PRESERVED");
         if (seed.RequestedPeriods < command.EntityId.PeriodLength + 2 || seed.RequestedPeriods > 512 || seed.Observations is null || seed.Observations.Length > 512 ||
          seed.AsOfUtc == default || seed.AsOfUtc.Offset != TimeSpan.Zero || seed.AsOfUtc > now || calendar is null) return new([], "RSI.SEED_INVALID_EMPTY");
         var windows = RsiHistoricalSeedWindowModel.Create(command.EntityId.TimePeriod, seed.RequestedPeriods, seed.AsOfUtc, calendar);

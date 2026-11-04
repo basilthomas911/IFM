@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Model;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Model;
 using System.Text.Json;
 using FluentAssertions;
 using MessagePack;

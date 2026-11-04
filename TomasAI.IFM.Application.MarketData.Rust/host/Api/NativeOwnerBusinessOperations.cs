@@ -67,6 +67,9 @@ public sealed partial class NativeOwnerBusinessOperations(IServiceProvider servi
     /// <summary>Persists native historical data with existing durable checkpoints.</summary>
     public Task<HistoricalDataLoaderState> LoadHistoricalAsync(MarketDataHistoricalRequest request,CancellationToken token=default)=>Get<HistoricalDataLoader>().ExecuteAsync(request,token).AsTask();
     /// <summary>Builds indicator seed data using the independent native replay/history runtime.</summary>
+    /// <summary>Reads completed indicator seed bars under the native owner.</summary>
+    public global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadIndicatorSeedBarsAsync(global::System.String contractId, global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType timeFrame, global::System.Threading.CancellationToken cancellationToken = default) => Get<Seeding.NativeFuturesSeedReplay>().ReadAsync(contractId,timeFrame,cancellationToken);
+    /// <inheritdoc />
     public Task<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(string contract,CancellationToken token=default)=>Get<Seeding.NativeFuturesSeedReplay>().ReadAsync(contract,token);
     /// <summary>Loads saved business demand; native code resolves its contracts.</summary>
     public Task<bool> LoadTradeFeedRecoveryAsync(string trade,DateOnly date,CancellationToken token=default)=>trades.LoadAsync(trade,date,false,token);

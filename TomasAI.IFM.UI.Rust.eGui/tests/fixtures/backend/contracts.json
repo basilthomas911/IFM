@@ -78102,6 +78102,12 @@
         "index": 7,
         "mapKey": null,
         "type": "System.String"
+      },
+      {
+        "name": "Evidence",
+        "index": 8,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterCommandEvidence"
       }
     ],
     "actor": "ParameterStartupCommand",
@@ -78169,6 +78175,12 @@
         "index": 8,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterVersionRef"
+      },
+      {
+        "name": "Evidence",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterCommandEvidence"
       }
     ],
     "actor": "ParameterAssignmentCommand",
@@ -78436,6 +78448,12 @@
         "index": 14,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSetValue"
+      },
+      {
+        "name": "Evidence",
+        "index": 15,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterCommandEvidence"
       }
     ],
     "actor": "ParameterSetCommand",
@@ -78567,7 +78585,7 @@
         "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentScope"
       }
     ],
-    "actor": "ParameterSetQuery",
+    "actor": "ParameterAssignmentQuery",
     "verb": "GetParameterAssignment"
   },
   {
@@ -78666,7 +78684,7 @@
         "type": "System.Guid"
       }
     ],
-    "actor": "ParameterSetQuery",
+    "actor": "ParameterStartupQuery",
     "verb": "GetParameterSignalMonitoring"
   },
   {
@@ -78697,7 +78715,7 @@
         "type": "System.Guid"
       }
     ],
-    "actor": "ParameterSetQuery",
+    "actor": "ParameterStartupQuery",
     "verb": "GetParameterStartupReport"
   },
   {
@@ -78728,7 +78746,7 @@
         "type": "System.Guid"
       }
     ],
-    "actor": "ParameterSetQuery",
+    "actor": "ParameterStartupQuery",
     "verb": "GetParameterStartupRun"
   },
   {
@@ -78771,7 +78789,7 @@
         "type": "System.Nullable\u00601[System.Guid]"
       }
     ],
-    "actor": "ParameterSetQuery",
+    "actor": "ParameterStartupQuery",
     "verb": "GetParameterStartupRuns"
   },
   {
@@ -80209,6 +80227,103 @@
     "verb": "ParameterAssignmentChanged"
   },
   {
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentCreatedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "Revision",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "RequestHash",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "AssignmentJson",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "AuditJson",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Assignment",
+        "index": 12,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentRevision"
+      },
+      {
+        "name": "Audit",
+        "index": 13,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAuditEntry"
+      }
+    ],
+    "actor": "ParameterAssignment",
+    "verb": "ParameterAssignmentCreated"
+  },
+  {
     "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentEntityId",
     "isEnum": false,
     "errorId": null,
@@ -80550,6 +80665,147 @@
       }
     ],
     "members": [],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterCatalogEvidence",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "DefinitionId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Version",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ContentHash",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Published",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "SupportedBuilder",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Boolean"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterCommandEvidence",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "RevisionFence",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "ExactVersion",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSetVersion"
+      },
+      {
+        "name": "Assignments",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Collections.Immutable.ImmutableArray\u00601[TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentRevision]"
+      },
+      {
+        "name": "Versions",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Collections.Immutable.ImmutableArray\u00601[TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSetVersion]"
+      },
+      {
+        "name": "HasActiveAssignments",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "Catalog",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterCatalogEvidence"
+      },
+      {
+        "name": "LegacyVersion",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterLegacyVersion"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterCommandPreparation",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Assignment",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.AssignParameterVersionCommand"
+      },
+      {
+        "name": "Retirement",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.RetireParameterVersionCommand"
+      },
+      {
+        "name": "Publication",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.PublishParameterVersionCommand"
+      },
+      {
+        "name": "Startup",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ApplySignalStartupPlanCommand"
+      },
+      {
+        "name": "Creation",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.CreateParameterSetCommand"
+      }
+    ],
     "actor": null,
     "verb": null
   },
@@ -81816,6 +82072,121 @@
     "verb": "ParameterStartupChanged"
   },
   {
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterStartupCreatedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "ImportedFromRegistry",
+        "index": 15,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "ReleasedAtCreation",
+        "index": 16,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterStartupEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "Revision",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "RunId",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "RunJson",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Released",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "ReportJson",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Run",
+        "index": 13,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterStartupRun"
+      },
+      {
+        "name": "Report",
+        "index": 14,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSignalStartupReport"
+      }
+    ],
+    "actor": "ParameterStartup",
+    "verb": "ParameterStartupCreated"
+  },
+  {
     "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterStartupEntityId",
     "isEnum": false,
     "errorId": null,
@@ -82202,6 +82573,37 @@
     "verb": null
   },
   {
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.PrepareParameterCommandQuery",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.Contracts.IActorEntityId"
+      },
+      {
+        "name": "Preparation",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterCommandPreparation"
+      }
+    ],
+    "actor": "ParameterPreparationQuery",
+    "verb": "PrepareParameterCommand"
+  },
+  {
     "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.PreviewLegacyParameterMigrationQuery",
     "isEnum": false,
     "errorId": null,
@@ -82266,7 +82668,7 @@
         "type": "System.Guid"
       }
     ],
-    "actor": "ParameterSetQuery",
+    "actor": "ParameterStartupQuery",
     "verb": "PreviewSignalStartupPlan"
   },
   {
@@ -82431,6 +82833,12 @@
         "index": 12,
         "mapKey": null,
         "type": "System.String"
+      },
+      {
+        "name": "Evidence",
+        "index": 13,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterCommandEvidence"
       }
     ],
     "actor": "ParameterSetCommand",
@@ -82823,6 +83231,12 @@
         "index": 12,
         "mapKey": null,
         "type": "System.String"
+      },
+      {
+        "name": "Evidence",
+        "index": 13,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterCommandEvidence"
       }
     ],
     "actor": "ParameterSetCommand",
@@ -88930,7 +89344,7 @@
         "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseBackupMode"
       }
     ],
-    "actor": "DatabaseBackupCommand",
+    "actor": "DatabaseRecoveryCommand",
     "verb": null
   },
   {
@@ -89135,7 +89549,7 @@
         "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseBackupMode"
       }
     ],
-    "actor": "DatabaseBackupCommand",
+    "actor": "DatabaseRecoveryCommand",
     "verb": null
   },
   {
@@ -89545,7 +89959,7 @@
         "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseBackupMode"
       }
     ],
-    "actor": "DatabaseBackupCommand",
+    "actor": "DatabaseRecoveryCommand",
     "verb": null
   },
   {
@@ -90112,7 +90526,7 @@
         "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseBackupMode"
       }
     ],
-    "actor": "DatabaseBackupCommand",
+    "actor": "DatabaseBackupRetentionCommand",
     "verb": null
   },
   {
@@ -90498,7 +90912,7 @@
         "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseBackupMode"
       }
     ],
-    "actor": "DatabaseBackupCommand",
+    "actor": "DatabaseBackupSetCommand",
     "verb": null
   },
   {
@@ -93237,7 +93651,7 @@
         "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseBackupMode"
       }
     ],
-    "actor": "DatabaseBackupCommand",
+    "actor": "DatabaseBackupSetCommand",
     "verb": null
   },
   {
@@ -93442,7 +93856,7 @@
         "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseBackupMode"
       }
     ],
-    "actor": "DatabaseBackupCommand",
+    "actor": "DatabaseBackupRetentionCommand",
     "verb": null
   },
   {
@@ -93852,7 +94266,7 @@
         "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseBackupMode"
       }
     ],
-    "actor": "DatabaseBackupCommand",
+    "actor": "DatabaseRecoveryCommand",
     "verb": null
   },
   {
@@ -94057,7 +94471,7 @@
         "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseBackupMode"
       }
     ],
-    "actor": "DatabaseBackupCommand",
+    "actor": "DatabaseRecoveryCommand",
     "verb": null
   },
   {
@@ -94262,7 +94676,7 @@
         "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseBackupMode"
       }
     ],
-    "actor": "DatabaseBackupCommand",
+    "actor": "DatabaseBackupPolicyCommand",
     "verb": null
   },
   {
@@ -114461,6 +114875,913 @@
     "verb": null
   },
   {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Commands.RecordScheduledTaskHostCapabilityCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "ExpectedRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "Operator",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Reason",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "HostCapability",
+        "index": 7,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability"
+      }
+    ],
+    "actor": "ScheduledTaskCatalogCommand",
+    "verb": "RecordScheduledTaskHostCapability"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Commands.RegisterScheduledTaskProjectCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "ExpectedRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "Operator",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Reason",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "HostId",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Environment",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Project",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject"
+      }
+    ],
+    "actor": "ScheduledTaskCatalogCommand",
+    "verb": "RegisterScheduledTaskProject"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Id",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "Revision",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "HostId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Environment",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Projects",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject[]"
+      },
+      {
+        "name": "HostCapability",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "HostId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Environment",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Platform",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Ready",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "ObservedAtUtc",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.DateTimeOffset"
+      },
+      {
+        "name": "Detail",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Generation",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Int64"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "TaskKey",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "DisplayName",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ProjectName",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ManifestVersion",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Platform",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ArtifactDigest",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Available",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "MaximumRuntimeSeconds",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "MarketSensitive",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "CompletionProtocol",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain.ScheduledTaskCatalogHostCapabilityRecordedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskCatalog",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskHostCapabilityRecorded"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain.ScheduledTaskCatalogProjectRegisteredEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskCatalog",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskProjectRegistered"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskCatalog",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskHostCapabilityRecordedComplete"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogHostCapabilityRecordedFailEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskCatalog",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ErrorMessage",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ErrorType",
+        "index": 12,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
+      },
+      {
+        "name": "ErrorData",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandName",
+        "index": 14,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandData",
+        "index": 15,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskHostCapabilityRecordedFail"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogProjectRegisteredCompleteEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskCatalog",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskProjectRegisteredComplete"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogProjectRegisteredFailEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskCatalog",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ErrorMessage",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ErrorType",
+        "index": 12,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
+      },
+      {
+        "name": "ErrorData",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandName",
+        "index": 14,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandData",
+        "index": 15,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskProjectRegisteredFail"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Queries.GetScheduledTaskCatalogQuery",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "Environment",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "HostId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "PageSize",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      }
+    ],
+    "actor": "ScheduledTaskQuery",
+    "verb": "GetScheduledTaskCatalog"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Queries.GetScheduledTaskHostHealthQuery",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "Environment",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "HostId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "PageSize",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      }
+    ],
+    "actor": "ScheduledTaskQuery",
+    "verb": "GetScheduledTaskHostHealth"
+  },
+  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.AdmitScheduledTaskRunCommand",
     "isEnum": false,
     "errorId": null,
@@ -114617,109 +115938,6 @@
     ],
     "actor": "ScheduledTaskCommand",
     "verb": "ChangeScheduledTaskSchedule"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.CompleteScheduledTaskRunCommand",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "CommandId",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "Subject",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 2,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "ExpectedRevision",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "Operator",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Reason",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "FinishedAtUtc",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTimeOffset"
-      },
-      {
-        "name": "ExitCode",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "ValueDate",
-        "index": 9,
-        "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateOnly]"
-      },
-      {
-        "name": "Stage",
-        "index": 10,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Detail",
-        "index": 11,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "StandardOutputTail",
-        "index": 12,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "StandardErrorTail",
-        "index": 13,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OutputDirectory",
-        "index": 14,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": "ScheduledTaskRunCommand",
-    "verb": "CompleteScheduledTaskRun"
   },
   {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.CreateScheduledTaskCommand",
@@ -114899,164 +116117,6 @@
     "verb": "EnableScheduledTask"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.FailScheduledTaskRunCommand",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "CommandId",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "Subject",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 2,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "ExpectedRevision",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "Operator",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Reason",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "FinishedAtUtc",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTimeOffset"
-      },
-      {
-        "name": "ExitCode",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Nullable\u00601[System.Int32]"
-      },
-      {
-        "name": "Stage",
-        "index": 9,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Detail",
-        "index": 10,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "StandardOutputTail",
-        "index": 11,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "StandardErrorTail",
-        "index": 12,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OutputDirectory",
-        "index": 13,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": "ScheduledTaskRunCommand",
-    "verb": "FailScheduledTaskRun"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Commands.RecordScheduledTaskHostCapabilityCommand",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "CommandId",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "Subject",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 2,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "ExpectedRevision",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "Operator",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Reason",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "HostCapability",
-        "index": 7,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability"
-      }
-    ],
-    "actor": "ScheduledTaskCatalogCommand",
-    "verb": "RecordScheduledTaskHostCapability"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskInstallationCommand",
     "isEnum": false,
     "errorId": null,
@@ -115203,73 +116263,6 @@
     "verb": "RecordScheduledTaskInstallationFailure"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunAdmissionCommand",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "CommandId",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "Subject",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 2,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "ExpectedRevision",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "Operator",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Reason",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "Accepted",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.Boolean"
-      },
-      {
-        "name": "Detail",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": "ScheduledTaskRunCommand",
-    "verb": "RecordScheduledTaskRunAdmission"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskRunCompletionCommand",
     "isEnum": false,
     "errorId": null,
@@ -115331,304 +116324,6 @@
     "verb": "RecordScheduledTaskRunCompletion"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunStageCommand",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "CommandId",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "Subject",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 2,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "ExpectedRevision",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "Operator",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Reason",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "Stage",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ValueDate",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.DateOnly"
-      },
-      {
-        "name": "Detail",
-        "index": 9,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": "ScheduledTaskRunCommand",
-    "verb": "RecordScheduledTaskRunStage"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunStartedCommand",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "CommandId",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "Subject",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 2,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "ExpectedRevision",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "Operator",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Reason",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ProcessId",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "StartedAtUtc",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.DateTimeOffset"
-      }
-    ],
-    "actor": "ScheduledTaskRunCommand",
-    "verb": "RecordScheduledTaskRunStarted"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunUncertainCommand",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "CommandId",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "Subject",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 2,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "ExpectedRevision",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "Operator",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Reason",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "FinishedAtUtc",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTimeOffset"
-      },
-      {
-        "name": "Detail",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "StandardOutputTail",
-        "index": 9,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "StandardErrorTail",
-        "index": 10,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OutputDirectory",
-        "index": 11,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": "ScheduledTaskRunCommand",
-    "verb": "RecordScheduledTaskRunUncertain"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Commands.RegisterScheduledTaskProjectCommand",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "CommandId",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "Subject",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 2,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "ExpectedRevision",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "Operator",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Reason",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "HostId",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Environment",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Project",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject"
-      }
-    ],
-    "actor": "ScheduledTaskCatalogCommand",
-    "verb": "RegisterScheduledTaskProject"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RemoveScheduledTaskCommand",
     "isEnum": false,
     "errorId": null,
@@ -115684,103 +116379,6 @@
     "verb": "RemoveScheduledTask"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RequestScheduledTaskRunCommand",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "CommandId",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "Subject",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 2,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "ExpectedRevision",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "Operator",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Reason",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduleId",
-        "index": 7,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "DefinitionRevision",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "IntendedFireTimeUtc",
-        "index": 9,
-        "mapKey": null,
-        "type": "System.DateTimeOffset"
-      },
-      {
-        "name": "Manual",
-        "index": 10,
-        "mapKey": null,
-        "type": "System.Boolean"
-      },
-      {
-        "name": "TaskKey",
-        "index": 11,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "HostId",
-        "index": 12,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Environment",
-        "index": 13,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": "ScheduledTaskRunCommand",
-    "verb": "RequestScheduledTaskRun"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledMarketPositionPage",
     "isEnum": false,
     "errorId": null,
@@ -115800,55 +116398,6 @@
         "index": 1,
         "mapKey": null,
         "type": "System.Byte[]"
-      }
-    ],
-    "actor": null,
-    "verb": null
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Id",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "Revision",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "HostId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Environment",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Projects",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject[]"
-      },
-      {
-        "name": "HostCapability",
-        "index": 5,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability"
       }
     ],
     "actor": null,
@@ -115976,61 +116525,6 @@
     "verb": null
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskHostCapability",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "HostId",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Environment",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Platform",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Ready",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Boolean"
-      },
-      {
-        "name": "ObservedAtUtc",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.DateTimeOffset"
-      },
-      {
-        "name": "Detail",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Generation",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.Int64"
-      }
-    ],
-    "actor": null,
-    "verb": null
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId",
     "isEnum": false,
     "errorId": null,
@@ -116068,333 +116562,6 @@
       {
         "name": "Failed",
         "value": 2
-      }
-    ],
-    "members": [],
-    "actor": null,
-    "verb": null
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskOutputPage",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Text",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "NextOffset",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "EndOfOutput",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Boolean"
-      },
-      {
-        "name": "Available",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Boolean"
-      }
-    ],
-    "actor": null,
-    "verb": null
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskProject",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "TaskKey",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "DisplayName",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ProjectName",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ManifestVersion",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Platform",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ArtifactDigest",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Available",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.Boolean"
-      },
-      {
-        "name": "MaximumRuntimeSeconds",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "MarketSensitive",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Boolean"
-      },
-      {
-        "name": "CompletionProtocol",
-        "index": 9,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": null,
-    "verb": null
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Id",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "ScheduleId",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "Revision",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "DefinitionRevision",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "TaskKey",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Environment",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "HostId",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "IntendedFireTimeUtc",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTimeOffset"
-      },
-      {
-        "name": "Manual",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Boolean"
-      },
-      {
-        "name": "Status",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunStatus"
-      },
-      {
-        "name": "StartedAtUtc",
-        "index": 10,
-        "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateTimeOffset]"
-      },
-      {
-        "name": "FinishedAtUtc",
-        "index": 11,
-        "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateTimeOffset]"
-      },
-      {
-        "name": "ValueDate",
-        "index": 12,
-        "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateOnly]"
-      },
-      {
-        "name": "Stage",
-        "index": 13,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "Detail",
-        "index": 14,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ExitCode",
-        "index": 15,
-        "mapKey": null,
-        "type": "System.Nullable\u00601[System.Int32]"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 16,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ProcessId",
-        "index": 17,
-        "mapKey": null,
-        "type": "System.Nullable\u00601[System.Int32]"
-      },
-      {
-        "name": "Reason",
-        "index": 18,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "CompletedEndOfDayValueDate",
-        "index": 19,
-        "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateOnly]"
-      },
-      {
-        "name": "StandardOutputTail",
-        "index": 20,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "StandardErrorTail",
-        "index": 21,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "OutputDirectory",
-        "index": 22,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": null,
-    "verb": null
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunPage",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Runs",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun[]"
-      },
-      {
-        "name": "PagingState",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Byte[]"
-      }
-    ],
-    "actor": null,
-    "verb": null
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunStatus",
-    "isEnum": true,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": [
-      {
-        "name": "Requested",
-        "value": 0
-      },
-      {
-        "name": "Admitted",
-        "value": 1
-      },
-      {
-        "name": "Running",
-        "value": 2
-      },
-      {
-        "name": "Succeeded",
-        "value": 3
-      },
-      {
-        "name": "Failed",
-        "value": 4
-      },
-      {
-        "name": "Uncertain",
-        "value": 5
-      },
-      {
-        "name": "Rejected",
-        "value": 6
       }
     ],
     "members": [],
@@ -116874,79 +117041,6 @@
     "verb": "ScheduledTaskEnabled"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain.ScheduledTaskCatalogHostCapabilityRecordedEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskCatalog",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskHostCapabilityRecorded"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskInstallationFailureRecordedEvent",
     "isEnum": false,
     "errorId": null,
@@ -117093,79 +117187,6 @@
     "verb": "ScheduledTaskInstallationRecorded"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain.ScheduledTaskCatalogProjectRegisteredEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskCatalog",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskProjectRegistered"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRemovedEvent",
     "isEnum": false,
     "errorId": null,
@@ -117237,79 +117258,6 @@
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRemoved"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunAdmissionRecordedEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskRun",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskRunAdmissionRecorded"
   },
   {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunAdmittedEvent",
@@ -117385,152 +117333,6 @@
     "verb": "ScheduledTaskRunAdmitted"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunCompletedEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskRun",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskRunCompleted"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunFailedEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskRun",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskRunFailed"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunReleasedEvent",
     "isEnum": false,
     "errorId": null,
@@ -117602,298 +117404,6 @@
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunReleased"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunRequestedEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskRun",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskRunRequested"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunStageRecordedEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskRun",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskRunStageRecorded"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunStartedEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskRun",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskRunStarted"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunUncertainRecordedEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskRun",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskRunUncertainRecorded"
   },
   {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskScheduleChangedEvent",
@@ -118588,188 +118098,6 @@
     "verb": "ScheduledTaskEnabledFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskCatalog",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskHostCapabilityRecordedComplete"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogHostCapabilityRecordedFailEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskCatalog",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
-      },
-      {
-        "name": "ErrorCode",
-        "index": 10,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "ErrorMessage",
-        "index": 11,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ErrorType",
-        "index": 12,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
-      },
-      {
-        "name": "ErrorData",
-        "index": 13,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "CommandName",
-        "index": 14,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "CommandData",
-        "index": 15,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskHostCapabilityRecordedFail"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskInstallationFailureRecordedCompleteEvent",
     "isEnum": false,
     "errorId": null,
@@ -119134,188 +118462,6 @@
     "verb": "ScheduledTaskInstallationRecordedFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogProjectRegisteredCompleteEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskCatalog",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskProjectRegisteredComplete"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.ScheduledTaskCatalogProjectRegisteredFailEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskCatalog",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts.ScheduledTaskCatalog"
-      },
-      {
-        "name": "ErrorCode",
-        "index": 10,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "ErrorMessage",
-        "index": 11,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ErrorType",
-        "index": 12,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
-      },
-      {
-        "name": "ErrorData",
-        "index": 13,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "CommandName",
-        "index": 14,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "CommandData",
-        "index": 15,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskProjectRegisteredFail"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRemovedCompleteEvent",
     "isEnum": false,
     "errorId": null,
@@ -119498,188 +118644,6 @@
     "verb": "ScheduledTaskRemovedFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunAdmissionRecordedCompleteEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskRun",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskRunAdmissionRecordedComplete"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunAdmissionRecordedFailEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskRun",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
-      },
-      {
-        "name": "ErrorCode",
-        "index": 10,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "ErrorMessage",
-        "index": 11,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ErrorType",
-        "index": 12,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
-      },
-      {
-        "name": "ErrorData",
-        "index": 13,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "CommandName",
-        "index": 14,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "CommandData",
-        "index": 15,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskRunAdmissionRecordedFail"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmittedCompleteEvent",
     "isEnum": false,
     "errorId": null,
@@ -119860,6 +118824,2102 @@
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunAdmittedFail"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunReleasedCompleteEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskDefinition",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskDefinition"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskRunReleasedComplete"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunReleasedFailEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskDefinition",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskDefinition"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ErrorMessage",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ErrorType",
+        "index": 12,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
+      },
+      {
+        "name": "ErrorData",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandName",
+        "index": 14,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandData",
+        "index": 15,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskRunReleasedFail"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskScheduleChangedCompleteEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskDefinition",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskDefinition"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskScheduleChangedComplete"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskScheduleChangedFailEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskDefinition",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskDefinition"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ErrorMessage",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ErrorType",
+        "index": 12,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
+      },
+      {
+        "name": "ErrorData",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandName",
+        "index": 14,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandData",
+        "index": 15,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskScheduleChangedFail"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.GetScheduledMarketPositionsQuery",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "Environment",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "HostId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "PageSize",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "PagingState",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.Byte[]"
+      },
+      {
+        "name": "ValueDate",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.DateOnly"
+      }
+    ],
+    "actor": "ScheduledTaskQuery",
+    "verb": "GetScheduledMarketPositions"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.GetScheduledTaskQuery",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "Environment",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "HostId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "PageSize",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      }
+    ],
+    "actor": "ScheduledTaskQuery",
+    "verb": "GetScheduledTask"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.GetScheduledTasksDashboardQuery",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "Environment",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "HostId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "PageSize",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "SelectedScheduleId",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      }
+    ],
+    "actor": "ScheduledTaskQuery",
+    "verb": "GetScheduledTasksDashboard"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.PreviewScheduledTaskScheduleQuery",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "Environment",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "HostId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "PageSize",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "Schedule",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskSchedule"
+      }
+    ],
+    "actor": "ScheduledTaskQuery",
+    "verb": "PreviewScheduledTaskSchedule"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.CompleteScheduledTaskRunCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "ExpectedRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "Operator",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Reason",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "FinishedAtUtc",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTimeOffset"
+      },
+      {
+        "name": "ExitCode",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ValueDate",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.DateOnly]"
+      },
+      {
+        "name": "Stage",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Detail",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "StandardOutputTail",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "StandardErrorTail",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OutputDirectory",
+        "index": 14,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "ScheduledTaskRunCommand",
+    "verb": "CompleteScheduledTaskRun"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.FailScheduledTaskRunCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "ExpectedRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "Operator",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Reason",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "FinishedAtUtc",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTimeOffset"
+      },
+      {
+        "name": "ExitCode",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Int32]"
+      },
+      {
+        "name": "Stage",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Detail",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "StandardOutputTail",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "StandardErrorTail",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OutputDirectory",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "ScheduledTaskRunCommand",
+    "verb": "FailScheduledTaskRun"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunAdmissionCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "ExpectedRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "Operator",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Reason",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Accepted",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "Detail",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "ScheduledTaskRunCommand",
+    "verb": "RecordScheduledTaskRunAdmission"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunStageCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "ExpectedRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "Operator",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Reason",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Stage",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ValueDate",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.DateOnly"
+      },
+      {
+        "name": "Detail",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "ScheduledTaskRunCommand",
+    "verb": "RecordScheduledTaskRunStage"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunStartedCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "ExpectedRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "Operator",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Reason",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ProcessId",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "StartedAtUtc",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.DateTimeOffset"
+      }
+    ],
+    "actor": "ScheduledTaskRunCommand",
+    "verb": "RecordScheduledTaskRunStarted"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RecordScheduledTaskRunUncertainCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "ExpectedRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "Operator",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Reason",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "FinishedAtUtc",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTimeOffset"
+      },
+      {
+        "name": "Detail",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "StandardOutputTail",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "StandardErrorTail",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OutputDirectory",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "ScheduledTaskRunCommand",
+    "verb": "RecordScheduledTaskRunUncertain"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands.RequestScheduledTaskRunCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "ExpectedRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "Operator",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Reason",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduleId",
+        "index": 7,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "DefinitionRevision",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "IntendedFireTimeUtc",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.DateTimeOffset"
+      },
+      {
+        "name": "Manual",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "TaskKey",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "HostId",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Environment",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "ScheduledTaskRunCommand",
+    "verb": "RequestScheduledTaskRun"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskOutputPage",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Text",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "NextOffset",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "EndOfOutput",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "Available",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Boolean"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Id",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "ScheduleId",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "Revision",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "DefinitionRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "TaskKey",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Environment",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "HostId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "IntendedFireTimeUtc",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTimeOffset"
+      },
+      {
+        "name": "Manual",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "Status",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunStatus"
+      },
+      {
+        "name": "StartedAtUtc",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.DateTimeOffset]"
+      },
+      {
+        "name": "FinishedAtUtc",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.DateTimeOffset]"
+      },
+      {
+        "name": "ValueDate",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.DateOnly]"
+      },
+      {
+        "name": "Stage",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Detail",
+        "index": 14,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ExitCode",
+        "index": 15,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Int32]"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 16,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ProcessId",
+        "index": 17,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Int32]"
+      },
+      {
+        "name": "Reason",
+        "index": 18,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CompletedEndOfDayValueDate",
+        "index": 19,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.DateOnly]"
+      },
+      {
+        "name": "StandardOutputTail",
+        "index": 20,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "StandardErrorTail",
+        "index": 21,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "OutputDirectory",
+        "index": 22,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunPage",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Runs",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun[]"
+      },
+      {
+        "name": "PagingState",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Byte[]"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRunStatus",
+    "isEnum": true,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": [
+      {
+        "name": "Requested",
+        "value": 0
+      },
+      {
+        "name": "Admitted",
+        "value": 1
+      },
+      {
+        "name": "Running",
+        "value": 2
+      },
+      {
+        "name": "Succeeded",
+        "value": 3
+      },
+      {
+        "name": "Failed",
+        "value": 4
+      },
+      {
+        "name": "Uncertain",
+        "value": 5
+      },
+      {
+        "name": "Rejected",
+        "value": 6
+      }
+    ],
+    "members": [],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunAdmissionRecordedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskRun",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskRunAdmissionRecorded"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunCompletedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskRun",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskRunCompleted"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunFailedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskRun",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskRunFailed"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunRequestedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskRun",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskRunRequested"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunStageRecordedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskRun",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskRunStageRecorded"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunStartedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskRun",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskRunStarted"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain.ScheduledTaskRunUncertainRecordedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskRun",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskRunUncertainRecorded"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunAdmissionRecordedCompleteEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskRun",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskRunAdmissionRecordedComplete"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunAdmissionRecordedFailEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "OperationCommandId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ScheduledTaskRun",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.ScheduledTaskRun"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ErrorMessage",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ErrorType",
+        "index": 12,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
+      },
+      {
+        "name": "ErrorData",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandName",
+        "index": 14,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandData",
+        "index": 15,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "ScheduledTaskEvent",
+    "verb": "ScheduledTaskRunAdmissionRecordedFail"
   },
   {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunCompletedCompleteEvent",
@@ -120224,188 +121284,6 @@
     ],
     "actor": "ScheduledTaskEvent",
     "verb": "ScheduledTaskRunFailedFail"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunReleasedCompleteEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskDefinition",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskDefinition"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskRunReleasedComplete"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunReleasedFailEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskDefinition",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskDefinition"
-      },
-      {
-        "name": "ErrorCode",
-        "index": 10,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "ErrorMessage",
-        "index": 11,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ErrorType",
-        "index": 12,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
-      },
-      {
-        "name": "ErrorData",
-        "index": 13,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "CommandName",
-        "index": 14,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "CommandData",
-        "index": 15,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskRunReleasedFail"
   },
   {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunRequestedCompleteEvent",
@@ -121136,329 +122014,6 @@
     "verb": "ScheduledTaskRunUncertainRecordedFail"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskScheduleChangedCompleteEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskDefinition",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskDefinition"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskScheduleChangedComplete"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskScheduleChangedFailEvent",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "Id",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EventId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int64"
-      },
-      {
-        "name": "CommandId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "EntityId",
-        "index": 4,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "AggregateId",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "EventSource",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ReceivedOn",
-        "index": 7,
-        "mapKey": null,
-        "type": "System.DateTime"
-      },
-      {
-        "name": "OperationCommandId",
-        "index": 8,
-        "mapKey": null,
-        "type": "System.Guid"
-      },
-      {
-        "name": "ScheduledTaskDefinition",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskDefinition"
-      },
-      {
-        "name": "ErrorCode",
-        "index": 10,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "ErrorMessage",
-        "index": 11,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "ErrorType",
-        "index": 12,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
-      },
-      {
-        "name": "ErrorData",
-        "index": 13,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "CommandName",
-        "index": 14,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "CommandData",
-        "index": 15,
-        "mapKey": null,
-        "type": "System.String"
-      }
-    ],
-    "actor": "ScheduledTaskEvent",
-    "verb": "ScheduledTaskScheduleChangedFail"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.GetScheduledMarketPositionsQuery",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "Environment",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "HostId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "PageSize",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "PagingState",
-        "index": 5,
-        "mapKey": null,
-        "type": "System.Byte[]"
-      },
-      {
-        "name": "ValueDate",
-        "index": 6,
-        "mapKey": null,
-        "type": "System.DateOnly"
-      }
-    ],
-    "actor": "ScheduledTaskQuery",
-    "verb": "GetScheduledMarketPositions"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Queries.GetScheduledTaskCatalogQuery",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "Environment",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "HostId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "PageSize",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.Int32"
-      }
-    ],
-    "actor": "ScheduledTaskQuery",
-    "verb": "GetScheduledTaskCatalog"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Queries.GetScheduledTaskHostHealthQuery",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "Environment",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "HostId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "PageSize",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.Int32"
-      }
-    ],
-    "actor": "ScheduledTaskQuery",
-    "verb": "GetScheduledTaskHostHealth"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries.GetScheduledTaskOutputQuery",
     "isEnum": false,
     "errorId": null,
@@ -121518,49 +122073,6 @@
     ],
     "actor": "ScheduledTaskQuery",
     "verb": "GetScheduledTaskOutput"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.GetScheduledTaskQuery",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "Environment",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "HostId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "PageSize",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.Int32"
-      }
-    ],
-    "actor": "ScheduledTaskQuery",
-    "verb": "GetScheduledTask"
   },
   {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries.GetScheduledTaskRunHistoryQuery",
@@ -121673,55 +122185,6 @@
     "verb": "GetScheduledTaskRun"
   },
   {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.GetScheduledTasksDashboardQuery",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "Environment",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "HostId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "PageSize",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "SelectedScheduleId",
-        "index": 5,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      }
-    ],
-    "actor": "ScheduledTaskQuery",
-    "verb": "GetScheduledTasksDashboard"
-  },
-  {
     "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries.ListScheduledTaskRunsQuery",
     "isEnum": false,
     "errorId": null,
@@ -121769,55 +122232,6 @@
     ],
     "actor": "ScheduledTaskQuery",
     "verb": "ListScheduledTaskRuns"
-  },
-  {
-    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries.PreviewScheduledTaskScheduleQuery",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId"
-      },
-      {
-        "name": "Environment",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "HostId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.String"
-      },
-      {
-        "name": "PageSize",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "Schedule",
-        "index": 5,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskSchedule"
-      }
-    ],
-    "actor": "ScheduledTaskQuery",
-    "verb": "PreviewScheduledTaskSchedule"
   },
   {
     "type": "TomasAI.IFM.Domain.Trade.Shared.ActionSource",

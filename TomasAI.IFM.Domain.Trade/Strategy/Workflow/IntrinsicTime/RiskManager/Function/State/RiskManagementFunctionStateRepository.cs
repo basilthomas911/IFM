@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -9,7 +9,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.State;
 public sealed class RiskManagementFunctionStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, ILogger<RiskManagementFunctionStateRepository> logger) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceFunctionStateRepository<RiskManagementFunctionState, ExecuteRiskManagementPipelineCommand>
 {
-    public async ValueTask<RiskManagementFunctionState> LoadStateAsync(ExecuteRiskManagementPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateAsync<RiskManagementFunctionState>(request, cancellationToken).ConfigureAwait(false);
+    public async ValueTask<RiskManagementFunctionState> LoadStateAsync(ExecuteRiskManagementPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateFromCreationSnapshotAsync<RiskManagementFunctionState>(request, cancellationToken).ConfigureAwait(false);
     public async ValueTask SaveCompletedStateAsync(IFunctionActorContext context, RiskManagementFunctionState state, ExecuteRiskManagementPipelineCommand request, CancellationToken cancellationToken = default)
     {
         await SaveStateEventsAsync(state, request, expectedStreamVersion: 0, cancellationToken).ConfigureAwait(false);

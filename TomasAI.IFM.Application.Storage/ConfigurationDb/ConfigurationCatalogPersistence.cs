@@ -115,7 +115,13 @@ internal static class ConfigurationCatalogPersistence
         internal async Task ProjectCatalogStartupAsync(IEnlistedPostgresTransaction tx, ParameterStartupChangedEvent fact, CancellationToken token)
         {
             var run = fact.ReadRun(); var report = fact.ReadReport(); var factHash = Hash((fact.RunId, fact.Released, run, report));
-            if (await DuplicateAsync(tx, "startup", Guid.Empty, fact.Revision, fact.CommandId, factHash, factHash, token).ConfigureAwait(false)) return;
+            if (fact is ParameterStartupCreatedEvent checkpoint)
+                factHash = Hash((fact.RunId, fact.Released, run, report, checkpoint.ImportedFromRegistry, checkpoint.ReleasedAtCreation));
+            var historicalRegistry = fact.EntityId == ParameterStartupEntityId.Registry;
+            var kind = historicalRegistry ? "startup" : "startup-run";
+            var owner = historicalRegistry ? Guid.Empty : fact.RunId;
+            if (!historicalRegistry && fact.EntityId.Id != fact.RunId) throw new InvalidDataException("PARAM.STARTUP_OWNER_MISMATCH");
+            if (await DuplicateAsync(tx, kind, owner, fact.Revision, fact.CommandId, factHash, factHash, token).ConfigureAwait(false)) return;
             if (run is not null)
             {
                 if (run.RunId != fact.RunId || run.Plan.StartupRunId != fact.RunId) throw new InvalidDataException("PARAM.STARTUP_INVALID");
@@ -128,16 +134,16 @@ internal static class ConfigurationCatalogPersistence
                     await context.InsertTypedParameterValueAsync(tx, values, token).ConfigureAwait(false);
                 }
                 await context.WriteAsync(tx, fact.RunId, 1, ParameterStartupProjection.From(run), false, token).ConfigureAwait(false);
-                await tx.ExecuteAsync(ConfigurationDbSql.TypedCatalog.StartupState, [fact.RunId, fact.Revision, true], token).ConfigureAwait(false);
+                await tx.ExecuteAsync(ConfigurationDbSql.TypedCatalog.StartupState, [fact.RunId, fact.Revision, fact is not ParameterStartupCreatedEvent { ReleasedAtCreation: true }], token).ConfigureAwait(false);
             }
-            else if (report is not null)
+            if (report is not null)
             {
                 if (report.RunId != fact.RunId) throw new InvalidDataException("PARAM.STARTUP_REPORT_INVALID");
                 await context.WriteAsync(tx, fact.RunId, 1, report, false, token).ConfigureAwait(false);
             }
-            else if (fact.Released) await tx.ExecuteAsync(ConfigurationDbSql.TypedCatalog.StartupState, [fact.RunId, fact.Revision, false], token).ConfigureAwait(false);
-            else throw new InvalidDataException("PARAM.STARTUP_INVALID");
-            await Receipt(tx, "startup", Guid.Empty, fact.Revision, fact.CommandId, factHash, 0, fact.ReceivedOn, factHash, token).ConfigureAwait(false);
+            else if (run is null && fact.Released) await tx.ExecuteAsync(ConfigurationDbSql.TypedCatalog.StartupState, [fact.RunId, fact.Revision, false], token).ConfigureAwait(false);
+            else if (run is null) throw new InvalidDataException("PARAM.STARTUP_INVALID");
+            await Receipt(tx, kind, owner, fact.Revision, fact.CommandId, factHash, 0, fact.ReceivedOn, factHash, token).ConfigureAwait(false);
         }
     }
 }

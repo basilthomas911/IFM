@@ -94,7 +94,16 @@ pub fn grid_viewport<R>(
     bounds: egui::Rect,
     contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
-    let inside = bounds.shrink(1. / ui.ctx().pixels_per_point());
+    // A nested panel can temporarily leave less than two border pixels during
+    // layout or DPI changes. Keep its content rectangle nonnegative and inside
+    // the available bounds instead of passing a negative size to egui.
+    let border = 1. / ui.ctx().pixels_per_point();
+    let size = bounds.size().max(egui::Vec2::ZERO);
+    let inset = egui::vec2(border.min(size.x / 2.), border.min(size.y / 2.));
+    let inside = egui::Rect::from_min_size(
+        bounds.min + inset,
+        (size - 2. * inset).max(egui::Vec2::ZERO),
+    );
     let result = ui
         .scope_builder(egui::UiBuilder::new().max_rect(inside), |ui| {
             // Join the fixed header directly to the body and its vertical track.

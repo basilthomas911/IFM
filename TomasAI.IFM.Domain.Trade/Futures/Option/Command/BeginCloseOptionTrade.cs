@@ -46,7 +46,8 @@ public static class BeginCloseOptionTrade
         /// <param name="command">The originating begin-close command.</param>
         /// <param name="current">The current established option-trade state.</param>
         /// <returns>The immutable proposed established trade change.</returns>
-        EstablishedTradeChange CalculateTradeChange(EstablishedTradeDefinition current) => new(current with { Status = EstablishedTradeStatus.Closing }, false);
+        EstablishedTradeChange CalculateTradeChange(EstablishedTradeDefinition current) => new(current with
+        { Status = EstablishedTradeStatus.Closing, EvidenceRevision = checked(current.EvidenceRevision + 1) }, false);
 
         /// <summary>Computes an established trade definition without changing state.</summary>
         ///

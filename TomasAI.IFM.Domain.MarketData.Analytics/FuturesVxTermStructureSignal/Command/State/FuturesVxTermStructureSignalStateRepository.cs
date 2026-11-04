@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using Microsoft.Extensions.Logging;
@@ -28,8 +28,7 @@ public sealed class FuturesVxTermStructureSignalStateRepository(
     /// <inheritdoc />
     public async ValueTask<FuturesVxTermStructureSignalCommandState> LoadStateAsync(
         ICommand command, CancellationToken cancellationToken) =>
-        await (LoadStateFromSnapshotAsync<FuturesVxTermStructureSignalCommandState,
-            FuturesVxTermStructureSignalUpdatedEvent>(command, cancellationToken)).ConfigureAwait(false);
+        await (LoadStateFromCreationSnapshotAsync<FuturesVxTermStructureSignalCommandState>(command, cancellationToken)).ConfigureAwait(false);
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context,
         FuturesVxTermStructureSignalCommandState state, ICommand command) =>

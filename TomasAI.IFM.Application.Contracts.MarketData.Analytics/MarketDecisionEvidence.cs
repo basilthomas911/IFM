@@ -9,6 +9,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 [MessagePackObject]
 public sealed record MarketDecisionEvidence
 {
+    static readonly MessagePackSerializerOptions CompressedOptions = MessagePackSerializerOptions.Standard
+        .WithCompression(MessagePackCompression.Lz4BlockArray);
+
     [Key(0)] public int SchemaVersion { get; init; } = 1;
     [Key(1)] public string Source { get; init; } = "";
     [Key(2)] public DateTime CapturedAtUtc { get; init; }
@@ -20,7 +23,19 @@ public sealed record MarketDecisionEvidence
     public static MarketDecisionEvidence Capture<T>(T inputs, DateTime capturedAtUtc)
     {
         var bytes = MessagePackSerializer.Serialize(inputs);
-        return new() { Source = typeof(T).FullName!, CapturedAtUtc = capturedAtUtc, Encoding = "messagepack/base64",
+        var encoding = "messagepack/base64";
+        // Preserve the entire frozen request, including upstream evidence, without
+        // repeatedly embedding its expanded bytes in every downstream stage result.
+        if (bytes.Length >= 4096)
+        {
+            var compressed = MessagePackSerializer.Serialize(inputs, CompressedOptions);
+            if (compressed.Length < bytes.Length)
+            {
+                bytes = compressed;
+                encoding = "messagepack-lz4/base64";
+            }
+        }
+        return new() { Source = typeof(T).FullName!, CapturedAtUtc = capturedAtUtc, Encoding = encoding,
             Payload = Convert.ToBase64String(bytes), PayloadSha256 = Convert.ToHexString(SHA256.HashData(bytes)) };
     }
 
@@ -41,7 +56,7 @@ public sealed record MarketDecisionEvidence
             if (SchemaVersion != 1 || string.IsNullOrWhiteSpace(Source) || CapturedAtUtc.Kind != DateTimeKind.Utc) return false;
             try
             {
-                var bytes = Encoding switch { "messagepack/base64" => Convert.FromBase64String(Payload),
+                var bytes = Encoding switch { "messagepack/base64" or "messagepack-lz4/base64" => Convert.FromBase64String(Payload),
                     "json/utf8" => System.Text.Encoding.UTF8.GetBytes(Payload), _ => [] };
                 return bytes.Length > 0 && string.Equals(Convert.ToHexString(SHA256.HashData(bytes)), PayloadSha256, StringComparison.Ordinal);
             }
@@ -50,7 +65,12 @@ public sealed record MarketDecisionEvidence
     }
 
     /// <summary>Rehydrates verified typed inputs for replay/audit without consulting realtime state.</summary>
-    public T Read<T>() => IsValid && string.Equals(Encoding,"messagepack/base64",StringComparison.Ordinal) && string.Equals(Source,typeof(T).FullName,StringComparison.Ordinal)
-        ? MessagePackSerializer.Deserialize<T>(Convert.FromBase64String(Payload))
-        : throw new InvalidDataException("Market decision evidence does not match the requested type or integrity hash.");
+    public T Read<T>()
+    {
+        if (!IsValid || Encoding is not ("messagepack/base64" or "messagepack-lz4/base64")
+            || !string.Equals(Source, typeof(T).FullName, StringComparison.Ordinal))
+            throw new InvalidDataException("Market decision evidence does not match the requested type or integrity hash.");
+        return MessagePackSerializer.Deserialize<T>(Convert.FromBase64String(Payload),
+            Encoding == "messagepack-lz4/base64" ? CompressedOptions : MessagePackSerializerOptions.Standard);
+    }
 }

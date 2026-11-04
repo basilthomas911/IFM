@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.State;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Actor;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -76,7 +79,7 @@ public sealed class CommandExtensionConventionTests
             .SelectMany(type => type.GetMethods(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic))
             .Where(method => method.Name.StartsWith("Create") && typeof(IEvent).IsAssignableFrom(method.ReturnType))
             .ToArray();
-        factories.Should().HaveCount(16);
+        factories.Should().HaveCount(17);
         foreach (var factory in factories)
         {
             var parameters = factory.GetParameters();

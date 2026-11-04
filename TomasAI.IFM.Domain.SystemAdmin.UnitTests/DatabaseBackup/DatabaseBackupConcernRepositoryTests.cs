@@ -49,7 +49,7 @@ public sealed class DatabaseBackupConcernRepositoryTests
         store.GetEventStreamIdAsync($"Command.DatabaseBackupCommand.{id.Format()}", token).Returns(10L);
         store.GetEventStreamIdAsync(command.StreamId, token).Returns(20L);
         store.GetCommittedStreamVersionAsync(20, token).Returns(hasOwnHistory ? 1L : 0L);
-        store.MapReduceActorEventStreamAsync<DatabaseRecoveryCommandState>(Arg.Any<long>(),
+        store.MapReduceActorEventStreamFromCreationAsync<DatabaseRecoveryCommandState>(Arg.Any<long>(),
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), token).Returns(call =>
         {
             var events = call.Arg<long>() == 10 ? legacy : hasOwnHistory ? new DatabaseBackupEventContract[] { progress } : [];
@@ -73,7 +73,7 @@ public sealed class DatabaseBackupConcernRepositoryTests
         Assert.True(command.Execute(loaded).Success);
         Assert.Single(loaded.Events);
         Assert.Equal(command.Source.SourceRevisionOrSequence, loaded.Operation.LastServiceSequence);
-        await store.Received(1).GetCommittedStreamVersionAsync(20, token);
+        await store.DidNotReceive().GetCommittedStreamVersionAsync(20, token);
         await store.DidNotReceive().GetCommittedStreamVersionAsync(10, token);
     }
 }

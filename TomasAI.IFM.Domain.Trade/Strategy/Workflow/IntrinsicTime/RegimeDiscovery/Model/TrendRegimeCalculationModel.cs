@@ -88,7 +88,8 @@ public sealed class TrendRegimeCalculationModel
             RegimeDiscoverySignalMetric.MacdHistogram,
             RegimeDiscoverySignalMetric.Atr14
         };
-        var observations = requiredMetrics.ToDictionary(metric => metric, metric => RegimeDiscoveryMath.Find(input, metric, frame.TimeFrame));
+        var observations = requiredMetrics.ToDictionary(metric => metric, metric => RegimeDiscoveryMath.Find(input, metric,
+            RegimeDiscoveryEmaBaseline.IsBaseline(metric) ? TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily : frame.TimeFrame));
         if (observations.Values.Any(observation => !RegimeDiscoveryMath.IsAvailable(observation)))
         {
             foreach (var observation in observations.Values.Where(value => !RegimeDiscoveryMath.IsAvailable(value)))

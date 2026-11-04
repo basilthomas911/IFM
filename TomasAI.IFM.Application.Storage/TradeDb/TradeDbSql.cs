@@ -4,12 +4,12 @@ namespace TomasAI.IFM.Application.Storage.TradeDb;
 internal static class TradeDbSql
 {
     public const string DeleteOptionTrade = """
-        delete from option_trade
-where orderid = :orderId
-and tradeid = :tradeId
+        delete from trade.option_trade
+where orderid = $1
+and tradeid = $2
 """;
     public const string GetOptionTradeSpreadData = """
-        SELECT 
+        SELECT
     orderId AS "OrderId",
     tradeId AS "TradeId",
     valueDate AS "ValueDate",
@@ -21,13 +21,12 @@ and tradeid = :tradeId
     netSpread AS "NetSpread",
     createdOn AS "CreatedOn",
     createdBy AS "CreatedBy"
-FROM 
-    option_trade_spread_data
+FROM trade.option_trade_spread_data
 WHERE
-    orderId = :orderId
-    AND tradeId = :tradeId
-    AND valueDate = :valueDate
-    AND tradeType = :tradeType
+    orderId = $1
+    AND tradeId = $2
+    AND valueDate = $3
+    AND tradeType = $4
 LIMIT 1;
 """;
     public const string GetOptionTradeSpreadDataAll = """
@@ -43,7 +42,7 @@ LIMIT 1;
             netSpread AS "NetSpread",
             createdOn AS "CreatedOn",
             createdBy AS "CreatedBy"
-        FROM option_trade_spread_data
+        FROM trade.option_trade_spread_data
         """;
     public const string GetOptionTrade = """
         SELECT orderId AS "OrderId",
@@ -83,8 +82,8 @@ and tradeId = $2
        createdBy AS "CreatedBy",
        updatedOn AS "UpdatedOn",
        updatedBy AS "UpdatedBy"
-FROM option_trade
-WHERE orderId = :orderId;
+FROM trade.option_trade
+WHERE orderId = $1;
 """;
     public const string GetOptionTradesAll = """
         SELECT orderId AS "OrderId",
@@ -103,10 +102,10 @@ WHERE orderId = :orderId;
            createdBy AS "CreatedBy",
            updatedOn AS "UpdatedOn",
            updatedBy AS "UpdatedBy"
-        FROM option_trade;
+        FROM trade.option_trade;
     """;
     public const string InsertOptionTrade = """
-        INSERT INTO option_trade (
+        INSERT INTO trade.option_trade (
         orderId,
         tradeId,
         tradeDate,
@@ -124,43 +123,43 @@ WHERE orderId = :orderId;
         updatedOn,
         updatedBy
     ) VALUES (
-        :orderId,
-        :tradeId,
-        :tradeDate,
-        :maturityDate,
-        :tradeType,
-        :tradeState,
-        :tradeStrategy,
-        :tradeAction,
-        :underlyingContractId,
-        :underlyingAssetType,
-        :isPrimaryTrade,
-        :isHedgeTrade,
-        :createdOn,
-        :createdBy,
-        :updatedOn,
-        :updatedBy
-    );
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        $10,
+        $11,
+        $12,
+        $13,
+        $14,
+        $15,
+        $16
+    ) ON CONFLICT (orderid, tradeid) DO UPDATE SET tradeDate=EXCLUDED.tradeDate, maturityDate=EXCLUDED.maturityDate, tradeType=EXCLUDED.tradeType, tradeState=EXCLUDED.tradeState, tradeStrategy=EXCLUDED.tradeStrategy, tradeAction=EXCLUDED.tradeAction, underlyingContractId=EXCLUDED.underlyingContractId, underlyingAssetType=EXCLUDED.underlyingAssetType, isPrimaryTrade=EXCLUDED.isPrimaryTrade, isHedgeTrade=EXCLUDED.isHedgeTrade, createdOn=EXCLUDED.createdOn, createdBy=EXCLUDED.createdBy, updatedOn=EXCLUDED.updatedOn, updatedBy=EXCLUDED.updatedBy;
 """;
     public const string UpdateOptionTrade = """
-        UPDATE option_trade
-SET tradeDate = :tradeDate,
-    maturityDate = :maturityDate,
-    tradeType = :tradeType,
-    tradeState = :tradeState,
-    tradeStrategy = :tradeStrategy,
-    tradeAction = :tradeAction,
-    underlyingContractId = :underlyingContractId,
-    underlyingAssetType = :underlyingAssetType,
-    isPrimaryTrade = :isPrimaryTrade,
-    isHedgeTrade = :isHedgeTrade,
-    updatedOn = :updatedOn,
-    updatedBy = :updatedBy
-WHERE orderId = :orderId
-  AND tradeId = :tradeId;
+        UPDATE trade.option_trade
+SET tradeDate = $3,
+    maturityDate = $4,
+    tradeType = $5,
+    tradeState = $6,
+    tradeStrategy = $7,
+    tradeAction = $8,
+    underlyingContractId = $9,
+    underlyingAssetType = $10,
+    isPrimaryTrade = $11,
+    isHedgeTrade = $12,
+    updatedOn = $13,
+    updatedBy = $14
+WHERE orderId = $1
+  AND tradeId = $2;
 """;
     public const string GetOptionTradeSpreadBarData = """
-        SELECT 
+        SELECT
     orderId AS "OrderId",
     tradeId AS "TradeId",
     tradeType AS "TradeType",
@@ -170,16 +169,16 @@ WHERE orderId = :orderId
     winLimit AS "WinLimit",
     forwardSpread AS "ForwardSpread",
     netSpread AS "NetSpread"
-FROM option_trade_spread_bar_data
-WHERE orderId = :orderId
-  AND tradeId = :tradeId
-  AND valueDate = :valueDate
-  AND tradeType = :tradeType
-  AND barDate >= :startDate
-  AND barDate <= :endDate;
+FROM trade.option_trade_spread_bar_data
+WHERE orderId = $1
+  AND tradeId = $2
+  AND valueDate = $3
+  AND tradeType = $4
+  AND barDate >= $5
+  AND barDate <= $6;
 """;
     public const string GetOptionTradeSpreadBarDataAll = """
-        SELECT 
+        SELECT
             orderId AS "OrderId",
             tradeId AS "TradeId",
             tradeType AS "TradeType",
@@ -189,10 +188,10 @@ WHERE orderId = :orderId
             winLimit AS "WinLimit",
             forwardSpread AS "ForwardSpread",
             netSpread AS "NetSpread"
-        FROM option_trade_spread_bar_data;
+        FROM trade.option_trade_spread_bar_data;
         """;
     public const string GetTradePositions = """
-        SELECT 
+        SELECT
             orderId AS "OrderId",
             tradeId AS "TradeId",
             tradeType AS "TradeType",
@@ -214,12 +213,12 @@ WHERE orderId = :orderId
             createdBy AS "CreatedBy",
             updatedOn AS "UpdatedOn",
             updatedBy AS "UpdatedBy"
-        FROM trade_position
-        WHERE orderId = :orderId
-        AND tradeId = :tradeId;
+        FROM trade.trade_position
+        WHERE orderId = $1
+        AND tradeId = $2;
 """;
     public const string GetTradePositionsById = """
-        SELECT 
+        SELECT
             orderId AS "OrderId",
             tradeId AS "TradeId",
             tradeType AS "TradeType",
@@ -241,15 +240,15 @@ WHERE orderId = :orderId
             createdBy AS "CreatedBy",
             updatedOn AS "UpdatedOn",
             updatedBy AS "UpdatedBy"
-        FROM trade_position
-        WHERE orderId = :orderId
-        AND tradeId = :tradeId
-        AND valueDate = :valueDate
-        AND tradeStatus = :tradeStatus
-        AND daysToExpiry = :daysToExpiry;
+        FROM trade.trade_position
+        WHERE orderId = $1
+        AND tradeId = $2
+        AND valueDate = $3
+        AND tradeStatus = $4
+        AND daysToExpiry = $5;
 """;
     public const string GetTradePositionsAll = """
-        SELECT 
+        SELECT
             orderId AS "OrderId",
             tradeId AS "TradeId",
             tradeType AS "TradeType",
@@ -271,10 +270,10 @@ WHERE orderId = :orderId
             createdBy AS "CreatedBy",
             updatedOn AS "UpdatedOn",
             updatedBy AS "UpdatedBy"
-        FROM trade_position;
+        FROM trade.trade_position;
 """;
     public const string GetOptionLegs = """
-        SELECT 
+        SELECT
             orderId AS "OrderId",
             tradeId AS "TradeId",
             contractId AS "ContractId",
@@ -286,8 +285,8 @@ WHERE orderId = :orderId
             createdBy AS "CreatedBy",
             updatedOn AS "UpdatedOn",
             updatedBy AS "UpdatedBy"
-        FROM option_leg
-        WHERE tradeId = :tradeId;
+        FROM trade.option_leg
+        WHERE tradeId = $1;
         """;
     public const string GetOptionLegsByOrderAndTrade = """
         SELECT
@@ -302,12 +301,12 @@ WHERE orderId = :orderId
             createdBy AS "CreatedBy",
             updatedOn AS "UpdatedOn",
             updatedBy AS "UpdatedBy"
-        FROM option_leg
-        WHERE orderId = :orderId
-          AND tradeId = :tradeId;
+        FROM trade.option_leg
+        WHERE orderId = $1
+          AND tradeId = $2;
         """;
     public const string GetOptionLegsAll = """
-        SELECT 
+        SELECT
             orderId AS "OrderId",
             tradeId AS "TradeId",
             contractId AS "ContractId",
@@ -319,10 +318,10 @@ WHERE orderId = :orderId
             createdBy AS "CreatedBy",
             updatedOn AS "UpdatedOn",
             updatedBy AS "UpdatedBy"
-        FROM option_leg
+        FROM trade.option_leg
         """;
     public const string GetOptionLegData = """
-        SELECT 
+        SELECT
             OrderId AS "OrderId",
             TradeId AS "TradeId",
            TradeType AS "TradeType",
@@ -342,10 +341,10 @@ WHERE orderId = :orderId
            CreatedBy AS "CreatedBy",
            UpdatedOn AS "UpdatedOn",
            UpdatedBy AS "UpdatedBy"
-    FROM option_leg_data
-    WHERE OrderId = :orderId
-    AND TradeId = :tradeId
-    AND ValueDate = :valueDate;
+    FROM trade.option_leg_data
+    WHERE OrderId = $1
+    AND TradeId = $2
+    AND ValueDate = $3;
     """;
     public const string GetOptionLegDataAll = """
         SELECT  OrderId AS "OrderId",
@@ -367,7 +366,7 @@ WHERE orderId = :orderId
            CreatedBy AS "CreatedBy",
            UpdatedOn AS "UpdatedOn",
            UpdatedBy AS "UpdatedBy"
-        FROM option_leg_data;
+        FROM trade.option_leg_data;
         """;
     public const string GetTradeTypeLimits = """
         SELECT TradeId AS "TradeId",
@@ -375,8 +374,8 @@ WHERE orderId = :orderId
        MaxLossLimit AS "MaxLossLimit",
        MinProfitLimit AS "MinProfitLimit",
        MaxProfitLimit AS "MaxProfitLimit"
-FROM trade_type_limit
-WHERE TradeId = :tradeId;
+FROM trade.trade_type_limit
+WHERE TradeId = $1;
 """;
     public const string GetTradeTypeLimitAll = """
         SELECT TradeId AS "TradeId",
@@ -384,7 +383,7 @@ WHERE TradeId = :tradeId;
            MaxLossLimit AS "MaxLossLimit",
            MinProfitLimit AS "MinProfitLimit",
            MaxProfitLimit AS "MaxProfitLimit"
-        FROM trade_type_limit;
+        FROM trade.trade_type_limit;
     """;
     public const string GetTradeHistory = """
         SELECT orderId AS "OrderId",
@@ -396,12 +395,12 @@ WHERE TradeId = :tradeId;
        SUM(commission) AS "Commission",
        SUM(netSpread) AS "NetSpread",
        SUM(tradePnl) AS "TradePnl"
-FROM trade_position 
-WHERE orderId = :orderId
+FROM trade.trade_position
+WHERE orderId = $1
 GROUP BY orderId, tradeId, valueDate, tradeStatus, daysToExpiry, tradeType
 """;
     public const string GetTradePosition = """
-        SELECT 
+        SELECT
     OrderId AS "OrderId",
     TradeId AS "TradeId",
     TradeType AS "TradeType",
@@ -423,13 +422,13 @@ GROUP BY orderId, tradeId, valueDate, tradeStatus, daysToExpiry, tradeType
     CreatedBy AS "CreatedBy",
     UpdatedOn AS "UpdatedOn",
     UpdatedBy AS "UpdatedBy"
-FROM trade_position
-WHERE OrderId = :orderId
-  AND TradeId = :tradeId
-  AND ValueDate = :valueDate
-  AND TradeStatus = :tradeStatus
-  AND DaysToExpiry = :daysToExpiry
-  AND TradeType = :tradeType;
+FROM trade.trade_position
+WHERE OrderId = $1
+  AND TradeId = $2
+  AND ValueDate = $3
+  AND TradeStatus = $4
+  AND DaysToExpiry = $5
+  AND TradeType = $6;
 """;
     public const string GetTradeTypeLimit = """
         SELECT TradeId AS "TradeId",
@@ -437,9 +436,9 @@ WHERE OrderId = :orderId
     MaxLossLimit AS "MaxLossLimit",
     MinProfitLimit AS "MinProfitLimit",
     MaxProfitLimit as "MaxProfitLimit"
-FROM trade_type_limit
-WHERE TradeId = :tradeId 
-AND TradeType = :tradeType;
+FROM trade.trade_type_limit
+WHERE TradeId = $1
+AND TradeType = $2;
 """;
     public const string GetTradeLimit = """
         SELECT TradeId AS "TradeId",
@@ -457,8 +456,8 @@ AND TradeType = :tradeType;
        CreatedBy AS "CreatedBy",
        UpdatedOn AS "UpdatedOn",
        UpdatedBy AS "UpdatedBy"
-FROM trade_limit
-WHERE TradeId = :tradeId;
+FROM trade.trade_limit
+WHERE TradeId = $1;
 """;
     public const string GetTradeLimitAll = """
         SELECT TradeId AS "TradeId",
@@ -476,7 +475,7 @@ WHERE TradeId = :tradeId;
            CreatedBy AS "CreatedBy",
            UpdatedOn AS "UpdatedOn",
            UpdatedBy AS "UpdatedBy"
-        FROM trade_limit;
+        FROM trade.trade_limit;
     """;
     public const string GetTradeFills = """
         SELECT OrderId AS "OrderId",
@@ -485,9 +484,9 @@ WHERE TradeId = :tradeId;
                FillQuantity AS "FillQuantity",
                CreatedOn AS "CreatedOn",
                CreatedBy AS "CreatedBy"
-        FROM trade_fill
-        WHERE Orderid = :orderId
-        AND TradeId = :tradeId;
+        FROM trade.trade_fill
+        WHERE Orderid = $1
+        AND TradeId = $2;
 """;
     public const string GetTradeFillsAll = """
         SELECT OrderId AS "OrderId",
@@ -496,7 +495,7 @@ WHERE TradeId = :tradeId;
                FillQuantity AS "FillQuantity",
                CreatedOn AS "CreatedOn",
                CreatedBy AS "CreatedBy"
-        FROM trade_fill;
+        FROM trade.trade_fill;
         """;
     public const string GetTradeFillData = """
         SELECT OrderId AS "OrderId",
@@ -509,13 +508,13 @@ WHERE TradeId = :tradeId;
        OptionLegAction AS "OptionLegAction",
        CreatedOn AS "CreatedOn",
        CreatedBy AS "CreatedBy"
-FROM trade_fill_data
-WHERE OrderId = :orderId 
-AND TradeId = :tradeId 
-AND FillDate >= :fillDate;
+FROM trade.trade_fill_data
+WHERE OrderId = $1
+AND TradeId = $2
+AND FillDate >= $3;
 """;
     public const string GetTradePlacementSignal = """
-        SELECT 
+        SELECT
             contractId AS "ContractId",
             valueDate AS "ValueDate",
             sequenceId AS "SequenceId",
@@ -523,9 +522,9 @@ AND FillDate >= :fillDate;
             tradePrice AS "TradePrice",
             createdOn AS "CreatedOn",
             createdBy AS "CreatedBy"
-        FROM trade_placement_signal
-        WHERE contractId = :contractId
-          AND valueDate = :valueDate
+        FROM trade.trade_placement_signal
+        WHERE contractId = $1
+          AND valueDate = $2
           LIMIT 1;
         """;
     public const string GetTradePlans = """
@@ -577,8 +576,8 @@ AND FillDate >= :fillDate;
        TDIStrength AS "TDIStrength",
        CreatedOn AS "CreatedOn",
        CreatedBy AS "CreatedBy"
-FROM trade_plan
-WHERE OrderId = :orderId;
+FROM trade.trade_plan
+WHERE OrderId = $1;
 """;
     public const string GetLastTradePlans = """
         SELECT SequenceId AS "SequenceId",
@@ -629,9 +628,9 @@ WHERE OrderId = :orderId;
        TDIStrength AS "TDIStrength",
        CreatedOn AS "CreatedOn",
        CreatedBy AS "CreatedBy"
-FROM trade_plan
-WHERE OrderId = :orderId
-And TradeId = :tradeId;
+FROM trade.trade_plan
+WHERE OrderId = $1
+And TradeId = $2;
 """;
     public const string GetTradePlansAll = """
         SELECT SequenceId AS "SequenceId",
@@ -682,7 +681,7 @@ And TradeId = :tradeId;
            TDIStrength AS "TDIStrength",
            CreatedOn AS "CreatedOn",
            CreatedBy AS "CreatedBy"
-    FROM trade_plan;
+    FROM trade.trade_plan;
 """;
     public const string GetTradePlansByValueDate = """
         SELECT SequenceId AS "SequenceId",
@@ -733,15 +732,15 @@ And TradeId = :tradeId;
        TDIStrength AS "TDIStrength",
        CreatedOn AS "CreatedOn",
        CreatedBy AS "CreatedBy"
-FROM trade_plan
-WHERE OrderId = :orderId
-and tradeId = :tradeId
-and valueDate = :valueDate;
+FROM trade.trade_plan
+WHERE OrderId = $1
+and tradeId = $2
+and valueDate = $3;
 """;
     public const string GetTradePlanStopLossLimit = """
         SELECT StopLossLimit AS "StopLossLimit"
-FROM trade_plan
-WHERE OrderId = :orderId AND TradeId = :tradeId
+FROM trade.trade_plan
+WHERE OrderId = $1 AND TradeId = $2
 LIMIT 1;
 """;
     public const string GetTradePlansByDateRange = """
@@ -793,46 +792,46 @@ LIMIT 1;
        TDIStrength AS "TDIStrength",
        CreatedOn AS "CreatedOn",
        CreatedBy AS "CreatedBy"
-FROM trade_plan
-WHERE OrderId = :orderId
-and tradeId = :tradeId
-and valueDate >= :startDate
-and valueDate <= :endDate
+FROM trade.trade_plan
+WHERE OrderId = $1
+and tradeId = $2
+and valueDate >= $3
+and valueDate <= $4
 """;
     public const string GetTradePlanForwardLossRatios = """
         select forwardLossRatio as "ForwardLossRatio"
-from trade_plan_forward_loss_ratio
-where partitionId = 1 
-and  valueDate >= :startDate
-and valueDate <= :endDate
+from trade.trade_plan_forward_loss_ratio
+where partitionId = 1
+and  valueDate >= $1
+and valueDate <= $2
 """;
     public const string GetLastTradePlanForwardLossRatio = """
         select forwardLossRatio as "ForwardLossRatio", sequenceId as "SequenceId"
-from trade_plan_forward_loss_ratio
-where partitionId = 1 
-and valueDate = :valueDate
+from trade.trade_plan_forward_loss_ratio
+where partitionId = 1
+and valueDate = $1
 """;
     public const string GetTradePlanForwardLossLimit = """
-        SELECT 
+        SELECT
     OrderId AS "OrderId",
     TradeId AS "TradeId",
     TradeType AS "TradeType",
     ValueDate AS "ValueDate",
     LimitType AS "LimitType"
-FROM trade_plan_forward_loss_limit
-WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND TradeType = :tradeType;
+FROM trade.trade_plan_forward_loss_limit
+WHERE OrderId = $1 AND TradeId = $2 AND ValueDate = $3 AND TradeType = $4;
 """;
     public const string GetTradeLiveFeed = """
-        SELECT 
+        SELECT
     OrderId AS "OrderId",
     TradeId AS "TradeId",
     LiveFeed AS "LiveFeed"
-FROM trade_live_feed
-WHERE OrderId = :orderId
-AND TradeId = :tradeId;
+FROM trade.trade_live_feed
+WHERE OrderId = $1
+AND TradeId = $2;
 """;
     public const string GetTradeFillDataByTradeId = """
-        SELECT FundId AS "FundId",
+        SELECT
        OrderId AS "OrderId",
        TradeId AS "TradeId",
        ContractId AS "ContractId",
@@ -843,11 +842,11 @@ AND TradeId = :tradeId;
        OptionLegAction AS "OptionLegAction",
        CreatedOn AS "CreatedOn",
        CreatedBy AS "CreatedBy"
-FROM trade_fill_data
-WHERE TradeId = :tradeId;
+FROM trade.trade_fill_data
+WHERE TradeId = $1;
 """;
     public const string GetOptionLeg = """
-        SELECT 
+        SELECT
     tradeId AS "TradeId",
     contractId AS "ContractId",
     quantity AS "Quantity",
@@ -858,12 +857,12 @@ WHERE TradeId = :tradeId;
     createdBy AS "CreatedBy",
     updatedOn AS "UpdatedOn",
     updatedBy AS "UpdatedBy"
-FROM option_leg
-WHERE tradeId = :tradeId;
-AND contractId = :contractId
+FROM trade.option_leg
+WHERE tradeId = $1
+AND contractId = $2
 """;
     public const string InsertOptionLeg = """
-        INSERT INTO option_leg (
+        INSERT INTO trade.option_leg (
             OrderId,
             TradeId,
             ContractId,
@@ -876,21 +875,21 @@ AND contractId = :contractId
             UpdatedOn,
             UpdatedBy
         ) VALUES (
-            :orderId,
-            :tradeId,
-            :contractId,
-            :quantity,
-            :strikePrice,
-            :optionLegType,
-            :optionLegAction,
-            :createdOn,
-            :createdBy,
-            :updatedOn,
-            :updatedBy
-        );
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11
+        ) ON CONFLICT (tradeid, orderid, contractid) DO UPDATE SET Quantity=EXCLUDED.Quantity, StrikePrice=EXCLUDED.StrikePrice, OptionLegType=EXCLUDED.OptionLegType, OptionLegAction=EXCLUDED.OptionLegAction, CreatedOn=EXCLUDED.CreatedOn, CreatedBy=EXCLUDED.CreatedBy, UpdatedOn=EXCLUDED.UpdatedOn, UpdatedBy=EXCLUDED.UpdatedBy;
 """;
     public const string InsertOptionLegData = """
-        INSERT INTO option_leg_data (
+        INSERT INTO trade.option_leg_data (
             OrderId,
             TradeId,
             TradeType,
@@ -911,44 +910,44 @@ AND contractId = :contractId
             UpdatedOn,
             UpdatedBy
         ) VALUES (
-            :orderId,
-            :tradeId,
-            :tradeType,
-            :valueDate,
-            :daysToExpiry,
-            :tradeStatus,
-            :optionLegId,
-            :bidPrice,
-            :askPrice,
-            :impliedVolatility,
-            :delta,
-            :gamma,
-            :theta,
-            :vega,
-            :rho,
-            :createdOn,
-            :createdBy,
-            :updatedOn,
-            :updatedBy
-        );
-    """;
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12,
+            $13,
+            $14,
+            $15,
+            $16,
+            $17,
+            $18,
+            $19
+        ) ON CONFLICT (orderid, tradeid, valuedate, tradetype, daystoexpiry, tradestatus, optionlegid) DO UPDATE SET BidPrice=EXCLUDED.BidPrice, AskPrice=EXCLUDED.AskPrice, ImpliedVolatility=EXCLUDED.ImpliedVolatility, Delta=EXCLUDED.Delta, Gamma=EXCLUDED.Gamma, Theta=EXCLUDED.Theta, Vega=EXCLUDED.Vega, Rho=EXCLUDED.Rho, CreatedOn=EXCLUDED.CreatedOn, CreatedBy=EXCLUDED.CreatedBy, UpdatedOn=EXCLUDED.UpdatedOn, UpdatedBy=EXCLUDED.UpdatedBy;
+""";
     public const string UpdateOptionLegData = """
-        UPDATE option_leg_data
-        SET 
-            BidPrice = :bidPrice,
-            AskPrice = :askPrice,
-            ImpliedVolatility = :impliedVolatility,
-            Delta = :delta,
-            Gamma = :gamma,
-            Theta = :theta,
-            Vega = :vega,
-            Rho = :rho,
-            UpdatedOn = :updatedOn,
-            UpdatedBy = :updatedBy
-        WHERE OrderId = :orderId
-        AND TradeId = :tradeId 
-        AND ValueDate = :valueDate
-        AND OptionLegId = :optionLegId;
+        UPDATE trade.option_leg_data
+        SET
+            BidPrice = $1,
+            AskPrice = $2,
+            ImpliedVolatility = $3,
+            Delta = $4,
+            Gamma = $5,
+            Theta = $6,
+            Vega = $7,
+            Rho = $8,
+            UpdatedOn = $9,
+            UpdatedBy = $10
+        WHERE OrderId = $11
+        AND TradeId = $12
+        AND ValueDate = $13
+        AND OptionLegId = $14;
 """;
     public const string GetOptionLegDataByOptionLegId = """
         SELECT TradeId AS "TradeId",
@@ -969,94 +968,94 @@ AND contractId = :contractId
        CreatedBy AS "CreatedBy",
        UpdatedOn AS "UpdatedOn",
        UpdatedBy AS "UpdatedBy"
-FROM option_leg_data
-WHERE TradeId = :tradeId
-AND ValueDate = :valueDate
-and OptionLegId = :optionLegId;
+FROM trade.option_leg_data
+WHERE TradeId = $1
+AND ValueDate = $2
+and OptionLegId = $3;
 """;
     public const string DeleteTradePosition = """
-        delete from trade_position
-where orderid = :orderId
-and tradeid = :tradeId
+        delete from trade.trade_position
+where orderid = $1
+and tradeid = $2
 """;
     public const string DeleteTradePositionByPrimaryKey = """
-        delete from trade_position
-        where OrderId = :orderId
-      AND TradeId = :tradeId
-      AND ValueDate = :valueDate
-      AND TradeStatus = :tradeStatus
-      AND DaysToExpiry = :daysToExpiry
-      AND TradeType = :tradeType;
+        delete from trade.trade_position
+        where OrderId = $1
+      AND TradeId = $2
+      AND ValueDate = $3
+      AND TradeStatus = $4
+      AND DaysToExpiry = $5
+      AND TradeType = $6;
 """;
     public const string DeleteOptionLeg = """
-        delete from option_leg
-        where OrderId = :orderId
-        and TradeId = :tradeId
+        delete from trade.option_leg
+        where OrderId = $1
+        and TradeId = $2
         """;
     public const string DeleteOptionLegById = """
-        delete from option_leg
-        where OrderId = :orderId 
-        and TradeId = :tradeId
-        and ContractId = :contractId
+        delete from trade.option_leg
+        where OrderId = $1
+        and TradeId = $2
+        and ContractId = $3
         """;
     public const string DeleteOptionLegData = """
-        delete from option_leg_data
-        where orderId = :orderId 
-        and tradeId = :tradeId;
+        delete from trade.option_leg_data
+        where orderId = $1
+        and tradeId = $2;
         """;
     public const string DeleteOptionLegDataById = """
-        delete from option_leg_data
-        where orderId = :orderId 
-        and tradeId = :tradeId
-        and valueDate = :valueDate
-        and optionlegId = :optionLegId
+        delete from trade.option_leg_data
+        where orderId = $1
+        and tradeId = $2
+        and valueDate = $3
+        and optionlegId = $4
         """;
     public const string DeleteTradeTypeLimit = """
-        delete from trade_type_limit
-where tradeid = :tradeId
+        delete from trade.trade_type_limit
+where tradeid = $1
 """;
     public const string DeleteTradeLimit = """
-        delete from trade_limit
-where tradeid = :tradeId
+        delete from trade.trade_limit
+where tradeid = $1
 """;
     public const string DeleteTradeLimitByTradeType = """
-        delete from trade_limit
-where tradeid = :tradeId
-and tradetype = :tradeType
+        delete from trade.trade_limit
+where tradeid = $1
+and tradetype = $2
 """;
     public const string DeleteTradeFill = """
-        delete from trade_fill
-        where orderId = :orderId
-        and tradeId = :tradeId;
+        delete from trade.trade_fill
+        where orderId = $1
+        and tradeId = $2;
 """;
     public const string DeleteTradeFillById = """
-        delete from trade_fill
-        where orderId = :orderId
-        and tradeId = :tradeId
-        and fillDate = :fillDate;
+        delete from trade.trade_fill
+        where orderId = $1
+        and tradeId = $2
+        and fillDate = $3;
 """;
     public const string DeleteTradeFillData = """
-        delete from trade_fill_data
-        where orderId = :orderId
-        and tradeId = :tradeId;
+        delete from trade.trade_fill_data
+        where orderId = $1
+        and tradeId = $2;
         """;
     public const string DeleteTradePlacementSignal = """
-        delete from trade_placement_signal 
-        where ContractId = :contractId
-        and ValueDate = :valueDate;
+        delete from trade.trade_placement_signal
+        where ContractId = $1
+        and ValueDate = $2;
         """;
     public const string DeleteTradePlacementSignalBySequenceId = """
-        delete from trade_placement_signal 
-        where ContractId = :contractId
-        and ValueDate = :valueDate
-        and SequenceId = :sequenceId;
+        delete from trade.trade_placement_signal
+        where ContractId = $1
+        and ValueDate = $2
+        and SequenceId = $3;
         """;
     public const string DeleteOptionTradeSpreadData = """
-        DELETE FROM option_trade_spread_data
-WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND TradeType = :tradeType;
+        DELETE FROM trade.option_trade_spread_data
+WHERE OrderId = $1 AND TradeId = $2 AND ValueDate = $3 AND TradeType = $4;
 """;
     public const string InsertTradePosition = """
-        INSERT INTO trade_position (
+        INSERT INTO trade.trade_position (
             OrderId,
             TradeId,
             TradeType,
@@ -1079,31 +1078,31 @@ WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND T
             UpdatedOn,
             UpdatedBy
         ) VALUES (
-            :orderId,
-            :tradeId,
-            :tradeType, 
-            :valueDate,
-            :daysToExpiry, 
-            :tradeStatus,
-            :commission,
-            :deltaHedge,
-            :netSpread,
-            :tradeValue,
-            :tradePnl,
-            :assetPrice,
-            :otmProbability,
-            :forwardPrice,
-            :forwardLossRatio,
-            :lossProbability,
-            :riskFreeRate,
-            :createdOn,
-            :createdBy,
-            :updatedOn,
-            :updatedBy
-        );
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12,
+            $13,
+            $14,
+            $15,
+            $16,
+            $17,
+            $18,
+            $19,
+            $20,
+            $21
+        ) ON CONFLICT (orderid, tradeid, valuedate, tradestatus, daystoexpiry, tradetype) DO UPDATE SET Commission=EXCLUDED.Commission, DeltaHedge=EXCLUDED.DeltaHedge, NetSpread=EXCLUDED.NetSpread, TradeValue=EXCLUDED.TradeValue, TradePnl=EXCLUDED.TradePnl, AssetPrice=EXCLUDED.AssetPrice, OTMProbability=EXCLUDED.OTMProbability, ForwardPrice=EXCLUDED.ForwardPrice, ForwardLossRatio=EXCLUDED.ForwardLossRatio, LossProbability=EXCLUDED.LossProbability, RiskFreeRate=EXCLUDED.RiskFreeRate, CreatedOn=EXCLUDED.CreatedOn, CreatedBy=EXCLUDED.CreatedBy, UpdatedOn=EXCLUDED.UpdatedOn, UpdatedBy=EXCLUDED.UpdatedBy;
 """;
     public const string InsertTradeLimit = """
-        INSERT INTO trade_limit (
+        INSERT INTO trade.trade_limit (
     TradeId,
     TradeType,
     RiskMargin,
@@ -1120,40 +1119,40 @@ WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND T
     UpdatedOn,
     UpdatedBy
 ) VALUES (
-    :tradeid,
-    :tradeType,
-    :riskMargin,
-    :maxProfit,
-    :maxLoss,
-    :maxReturn,
-    :maxLossLimit,
-    :minProfitLimit,
-    :maxProfitLimit,
-    :minProfitTarget,
-    :dailyProfitTarget,
-    :createdOn,
-    :createdBy,
-    :updatedOn,
-    :updatedBy
-);
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15
+) ON CONFLICT (tradeid, tradetype) DO UPDATE SET RiskMargin=EXCLUDED.RiskMargin, MaxProfit=EXCLUDED.MaxProfit, MaxLoss=EXCLUDED.MaxLoss, MaxReturn=EXCLUDED.MaxReturn, MaxLossLimit=EXCLUDED.MaxLossLimit, MinProfitLimit=EXCLUDED.MinProfitLimit, MaxProfitLimit=EXCLUDED.MaxProfitLimit, MinProfitTarget=EXCLUDED.MinProfitTarget, DailyProfitTarget=EXCLUDED.DailyProfitTarget, CreatedOn=EXCLUDED.CreatedOn, CreatedBy=EXCLUDED.CreatedBy, UpdatedOn=EXCLUDED.UpdatedOn, UpdatedBy=EXCLUDED.UpdatedBy;
 """;
     public const string InsertTradeTypeLimit = """
-        INSERT INTO trade_type_limit (
+        INSERT INTO trade.trade_type_limit (
             TradeId,
             TradeType,
             MaxLossLimit,
             MinProfitLimit,
             MaxProfitLimit
         ) VALUES (
-            :tradeId,
-            :tradeType,
-            :maxLossLimit,
-            :minProfitLimit,
-            :maxProfitLimit
-        );
-    """;
+            $1,
+            $2,
+            $3,
+            $4,
+            $5
+        ) ON CONFLICT (tradeid, tradetype) DO UPDATE SET MaxLossLimit=EXCLUDED.MaxLossLimit, MinProfitLimit=EXCLUDED.MinProfitLimit, MaxProfitLimit=EXCLUDED.MaxProfitLimit;
+""";
     public const string InsertTradeFill = """
-        INSERT INTO trade_fill (
+        INSERT INTO trade.trade_fill (
             OrderId,
             TradeId,
             FillDate,
@@ -1161,16 +1160,16 @@ WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND T
             CreatedOn,
             CreatedBy
         ) VALUES (
-            :orderId,
-            :tradeId,
-            :fillDate,
-            :fillQuantity,
-            :createdOn,
-            :createdBy
-        );
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6
+        ) ON CONFLICT (orderid, tradeid, filldate) DO UPDATE SET FillQuantity=EXCLUDED.FillQuantity, CreatedOn=EXCLUDED.CreatedOn, CreatedBy=EXCLUDED.CreatedBy;
 """;
     public const string InsertTradeFillData = """
-        INSERT INTO trade_fill_data (
+        INSERT INTO trade.trade_fill_data (
         OrderId,
         TradeId,
         ContractId,
@@ -1182,20 +1181,20 @@ WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND T
         CreatedOn,
         CreatedBy
     ) VALUES (
-        :orderId,
-        :tradeId,
-        :contractId,
-        :fillDate,
-        :bidPrice,
-        :askPrice,
-        :commission,
-        :optionLegAction,
-        :createdOn,
-        :createdBy
-    ) ;
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        $10
+    )  ON CONFLICT (orderid, tradeid, filldate, contractid) DO UPDATE SET BidPrice=EXCLUDED.BidPrice, AskPrice=EXCLUDED.AskPrice, Commission=EXCLUDED.Commission, OptionLegAction=EXCLUDED.OptionLegAction, CreatedOn=EXCLUDED.CreatedOn, CreatedBy=EXCLUDED.CreatedBy;
 """;
     public const string InsertOptionTradeSpreadData = """
-        INSERT INTO option_trade_spread_data (
+        INSERT INTO trade.option_trade_spread_data (
     OrderId,
     TradeId,
     TradeType,
@@ -1208,21 +1207,21 @@ WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND T
     CreatedOn,
     CreatedBy
 ) VALUES (
-    :orderId,
-    :tradeId,
-    :tradeType,
-    :valueDate,
-    :sequenceId,
-    :lossLimit,
-    :winLimit,
-    :forwardSpread,
-    :netSpread,
-    :createdOn,
-    :createdBy
-);
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11
+) ON CONFLICT (orderid, tradeid, valuedate, tradetype, sequenceid) DO UPDATE SET LossLimit=EXCLUDED.LossLimit, WinLimit=EXCLUDED.WinLimit, ForwardSpread=EXCLUDED.ForwardSpread, NetSpread=EXCLUDED.NetSpread, CreatedOn=EXCLUDED.CreatedOn, CreatedBy=EXCLUDED.CreatedBy;
 """;
     public const string InsertOptionTradeSpreadBarData = """
-        INSERT INTO option_trade_spread_bar_data (
+        INSERT INTO trade.option_trade_spread_bar_data (
             OrderId,
             TradeId,
             TradeType,
@@ -1233,53 +1232,53 @@ WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND T
             ForwardSpread,
             NetSpread
         ) VALUES (
-            :orderId,
-            :tradeId,
-            :tradeType,
-            :valueDate,
-            :barDate,
-            :lossLimit,
-            :winLimit,
-            :forwardSpread,
-            :netSpread
-        );
-        """;
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9
+        ) ON CONFLICT (orderid, tradeid, valuedate, tradetype, bardate) DO UPDATE SET LossLimit=EXCLUDED.LossLimit, WinLimit=EXCLUDED.WinLimit, ForwardSpread=EXCLUDED.ForwardSpread, NetSpread=EXCLUDED.NetSpread;
+""";
     public const string InsertTradeLiveFeed = """
-        INSERT INTO trade_live_feed (
+        INSERT INTO trade.trade_live_feed (
     OrderId,
     TradeId,
     LiveFeed
 ) VALUES (
-    :orderId,
-    :tradeId,
-    :liveFeed
-) IF NOT EXISTS;
+    $1,
+    $2,
+    $3
+) ON CONFLICT (orderid, tradeid) DO NOTHING;
 """;
     public const string InsertTradePositionState = """
-        INSERT INTO trade_position_state (
+        INSERT INTO trade.trade_position_state (
     OrderId,
     TradeId,
     TradePositionState,
     OpenedOn,
     OpenedBy
 ) VALUES (
-    :orderId,
-    :tradeId,
-    :tradePositionState,
-    :openedOn,
-    :openedBy
-) IF NOT EXISTS;
+    $1,
+    $2,
+    $3,
+    $4,
+    $5
+) ON CONFLICT (orderid, tradeid) DO NOTHING;
 """;
     public const string UpdateTradePlanForwardLossLimit = """
-        UPDATE trade_plan_forward_loss_limit
-SET LimitType = :limitType
-WHERE OrderId = :orderId 
-  AND TradeId = :tradeId
-  AND TradeType = :tradeType
-  AND ValueDate = :valueDate;
+        UPDATE trade.trade_plan_forward_loss_limit
+SET LimitType = $1
+WHERE OrderId = $2
+  AND TradeId = $3
+  AND TradeType = $4
+  AND ValueDate = $5;
 """;
     public const string InsertTradePlacementSignal = """
-        INSERT INTO trade_placement_signal (
+        INSERT INTO trade.trade_placement_signal (
     SequenceId,
     ContractId,
     ValueDate,
@@ -1288,107 +1287,107 @@ WHERE OrderId = :orderId
     CreatedOn,
     CreatedBy
 ) VALUES (
-    :sequenceId,
-    :contractId,
-    :valueDate,
-    :tradePlacementSignal,
-    :tradePrice,
-    :createdOn,
-    :createdBy
-);
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+) ON CONFLICT (contractid, valuedate, sequenceid) DO UPDATE SET TradePlacementSignal=EXCLUDED.TradePlacementSignal, TradePrice=EXCLUDED.TradePrice, CreatedOn=EXCLUDED.CreatedOn, CreatedBy=EXCLUDED.CreatedBy;
 """;
     public const string UpdateTradePosition = """
-        UPDATE trade_position
-SET 
-    Commission = :commission,
-    DeltaHedge = :deltaHedge,
-    NetSpread = :netSpread,
-    TradeValue = :tradeValue,
-    TradePnl = :tradePnl,
-    AssetPrice = :assetPrice,
-    OTMProbability = :otmProbability,
-    ForwardPrice = :forwardPrice,
-    LossProbability = :lossProbability,
-    RiskFreeRate = :riskFreeRate,
-    UpdatedOn = :updatedOn,
-    UpdatedBy = :updatedBy
-WHERE 
-    OrderId = :orderId 
-    AND TradeId = :tradeId 
-    AND ValueDate = :valueDate
-    AND TradeStatus = :tradeStatus
-    AND DaysToExpiry = :daysToExpiry
-    AND TradeType = :tradeType;
+        UPDATE trade.trade_position
+SET
+    Commission = $1,
+    DeltaHedge = $2,
+    NetSpread = $3,
+    TradeValue = $4,
+    TradePnl = $5,
+    AssetPrice = $6,
+    OTMProbability = $7,
+    ForwardPrice = $8,
+    LossProbability = $9,
+    RiskFreeRate = $10,
+    UpdatedOn = $11,
+    UpdatedBy = $12
+WHERE
+    OrderId = $13
+    AND TradeId = $14
+    AND ValueDate = $15
+    AND TradeStatus = $16
+    AND DaysToExpiry = $17
+    AND TradeType = $18;
 """;
     public const string UpdateOptionTradeState = """
-        UPDATE option_trade
-SET 
-    TradeState = :tradeState
-WHERE 
-    OrderId = :orderId
-    AND TradeId = :tradeId;
+        UPDATE trade.option_trade
+SET
+    TradeState = $1
+WHERE
+    OrderId = $2
+    AND TradeId = $3;
 """;
     public const string UpdateTradeLiveFeed = """
-        UPDATE trade_live_feed
-SET LiveFeed = :liveFeed
-WHERE OrderId = :orderId
-AND TradeId = :tradeId
+        UPDATE trade.trade_live_feed
+SET LiveFeed = $1
+WHERE OrderId = $2
+AND TradeId = $3
 """;
     public const string UpdateTradePositionStatus = """
-        UPDATE trade_position
-SET TradeStatus = :newTradeStatus,
-    UpdatedOn = :updatedOn,
-    UpdatedBy = :updatedBy
-WHERE TradeId = :tradeId
-AND TradeType = :tradeType
-AND ValueDate = :valueDate
-AND DaysToExpiry = :daysToExpiry
-AND TradeStatus = :oldTradeStatus
+        UPDATE trade.trade_position
+SET TradeStatus = $1,
+    UpdatedOn = $2,
+    UpdatedBy = $3
+WHERE TradeId = $4
+AND TradeType = $5
+AND ValueDate = $6
+AND DaysToExpiry = $7
+AND TradeStatus = $8
 """;
     public const string UpdateOptionLegDataStatus = """
-        UPDATE option_leg_data
-SET TradeStatus = :newTradeStatus,
-    UpdatedOn = :updatedOn,
-    UpdatedBy = :updatedBy
-WHERE TradeId = :tradeId
-AND ValueDate = :valueDate
-AND OptionLegId = :optionLegId
+        UPDATE trade.option_leg_data
+SET TradeStatus = $1,
+    UpdatedOn = $2,
+    UpdatedBy = $3
+WHERE TradeId = $4
+AND ValueDate = $5
+AND OptionLegId = $6
 """;
     public const string DeleteTradePositionState = """
-        DELETE FROM trade_position_state
-WHERE OrderId = :orderId
-  AND TradeId = :tradeId;
+        DELETE FROM trade.trade_position_state
+WHERE OrderId = $1
+  AND TradeId = $2;
 """;
     public const string DeleteOptionTradeSpreadBarData = """
-        DELETE FROM option_trade_spread_bar_data
-WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND TradeType = :tradeType;
+        DELETE FROM trade.option_trade_spread_bar_data
+WHERE OrderId = $1 AND TradeId = $2 AND ValueDate = $3 AND TradeType = $4;
 """;
     public const string DeleteTradeLiveFeed = """
-        DELETE FROM trade_live_feed
-WHERE OrderId = :orderId AND TradeId = :tradeId;
+        DELETE FROM trade.trade_live_feed
+WHERE OrderId = $1 AND TradeId = $2;
 """;
     public const string DeleteTradeLiveFeeds = """
-        DELETE FROM trade_live_feed
-WHERE OrderId = :orderId;
+        DELETE FROM trade.trade_live_feed
+WHERE OrderId = $1;
 """;
     public const string DeleteTradePlanForwardLossLimit = """
-        DELETE FROM trade_plan_forward_loss_limit
-WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND TradeType = :tradeType;
+        DELETE FROM trade.trade_plan_forward_loss_limit
+WHERE OrderId = $1 AND TradeId = $2 AND ValueDate = $3 AND TradeType = $4;
 """;
     public const string UpdateTradeLimitDailyProfitTarget = """
-        UPDATE trade_limit
-SET DailyProfitTarget = :dailyProfitTarget,
-    UpdatedOn = :updatedOn,
-    UpdatedBy = :updatedBy
-WHERE TradeId = :tradeId
-AND TradeType = :tradeType;
+        UPDATE trade.trade_limit
+SET DailyProfitTarget = $1,
+    UpdatedOn = $2,
+    UpdatedBy = $3
+WHERE TradeId = $4
+AND TradeType = $5;
 """;
     public const string InsertTradePlanForwardLossLimit = """
-        INSERT INTO trade_plan_forward_loss_limit (OrderId, TradeId, TradeType, ValueDate, LimitType)
-VALUES (:orderId, :tradeId, :tradeType, :valueDate, :limitType);
+        INSERT INTO trade.trade_plan_forward_loss_limit (OrderId, TradeId, TradeType, ValueDate, LimitType)
+VALUES ($1, $2, $3, $4, $5) ON CONFLICT (orderid, tradeid, valuedate, tradetype) DO UPDATE SET LimitType=EXCLUDED.LimitType;
 """;
     public const string InsertTradePlan = """
-        INSERT INTO trade_plan (
+        INSERT INTO trade.trade_plan (
  SequenceId,
     OrderId,
     TradeId,
@@ -1438,84 +1437,84 @@ VALUES (:orderId, :tradeId, :tradeType, :valueDate, :limitType);
     CreatedOn,
     CreatedBy
 ) VALUES (
-    :sequenceId,
-    :orderId,
-    :tradeId,
-    :tradeType,
-    :tradeDate,
-    :valueDate,
-    :maturityDate,
-    :actionDate,
-    :actionType,
-    :actionSubType,
-    :actionState,
-    :actionReason,
-    :tradePnl,
-    :forwardLossRatio,
-    :lossProbability,
-    :mscore,
-    :maxProfit,
-    :maxLoss,
-    :minProfitTarget,
-    :dailyProfitTarget,
-    :assetPrice,
-    :assetStdDev,
-    :assetMean,
-    :assetPriceChange,
-    :marketTrend,
-    :marketVolatility,
-    :marketDirection,
-    :vixVolatility,
-    :tradeRisk,
-    :fiftyDayMA,
-    :fiveDayXMA,
-    :putOTMProbability,
-    :callOTMProbability,
-    :shortPutGamma,
-    :shortCallGamma,
-    :gammaRisk,
-    :netPrice,
-    :forwardPrice,
-    :forwardDelta,
-    :stopLossLimit,
-    :trendType,
-    :trendStrength,
-    :rsi,
-    :rsiSlope,
-    :tdi,
-    :tdiStrength,
-    :createdOn,
-    :createdBy
-);
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15,
+    $16,
+    $17,
+    $18,
+    $19,
+    $20,
+    $21,
+    $22,
+    $23,
+    $24,
+    $25,
+    $26,
+    $27,
+    $28,
+    $29,
+    $30,
+    $31,
+    $32,
+    $33,
+    $34,
+    $35,
+    $36,
+    $37,
+    $38,
+    $39,
+    $40,
+    $41,
+    $42,
+    $43,
+    $44,
+    $45,
+    $46,
+    $47,
+    $48
+) ON CONFLICT (orderid, tradeid, valuedate, sequenceid) DO UPDATE SET TradeType=EXCLUDED.TradeType, TradeDate=EXCLUDED.TradeDate, MaturityDate=EXCLUDED.MaturityDate, ActionDate=EXCLUDED.ActionDate, ActionType=EXCLUDED.ActionType, ActionSubType=EXCLUDED.ActionSubType, ActionState=EXCLUDED.ActionState, ActionReason=EXCLUDED.ActionReason, TradePnl=EXCLUDED.TradePnl, ForwardLossRatio=EXCLUDED.ForwardLossRatio, LossProbability=EXCLUDED.LossProbability, MScore=EXCLUDED.MScore, MaxProfit=EXCLUDED.MaxProfit, MaxLoss=EXCLUDED.MaxLoss, MinProfitTarget=EXCLUDED.MinProfitTarget, DailyProfitTarget=EXCLUDED.DailyProfitTarget, AssetPrice=EXCLUDED.AssetPrice, AssetStdDev=EXCLUDED.AssetStdDev, AssetMean=EXCLUDED.AssetMean, AssetPriceChange=EXCLUDED.AssetPriceChange, MarketTrend=EXCLUDED.MarketTrend, MarketVolatility=EXCLUDED.MarketVolatility, MarketDirection=EXCLUDED.MarketDirection, VixVolatility=EXCLUDED.VixVolatility, TradeRisk=EXCLUDED.TradeRisk, FiftyDayMA=EXCLUDED.FiftyDayMA, FiveDayXMA=EXCLUDED.FiveDayXMA, PutOTMProbability=EXCLUDED.PutOTMProbability, CallOTMProbability=EXCLUDED.CallOTMProbability, ShortPutGamma=EXCLUDED.ShortPutGamma, ShortCallGamma=EXCLUDED.ShortCallGamma, GammaRisk=EXCLUDED.GammaRisk, NetPrice=EXCLUDED.NetPrice, ForwardPrice=EXCLUDED.ForwardPrice, ForwardDelta=EXCLUDED.ForwardDelta, StopLossLimit=EXCLUDED.StopLossLimit, TrendType=EXCLUDED.TrendType, TrendStrength=EXCLUDED.TrendStrength, RSI=EXCLUDED.RSI, RSISlope=EXCLUDED.RSISlope, TDI=EXCLUDED.TDI, TDIStrength=EXCLUDED.TDIStrength, CreatedOn=EXCLUDED.CreatedOn, CreatedBy=EXCLUDED.CreatedBy;
 """;
     public const string InsertTradePlanForwardLossRatio = """
-        insert into trade_plan_forward_loss_ratio (
+        insert into trade.trade_plan_forward_loss_ratio (
  partitionId,
  valueDate,
  forwardLossRatio,
  sequenceId
 ) values (
- :partitionId,
- :valueDate,
- :forwardLossRatio,
- :sequenceId
-) if not exists;
+ $1,
+ $2,
+ $3,
+ $4
+) ON CONFLICT (partitionid, valuedate, forwardlossratio, sequenceid) DO NOTHING;
 """;
     public const string GetIntrinsicTimeStrategyWorkflow = """
 SELECT workflowId, workflowEntityId, workflowDefinitionId, workflowDefinitionVersion,
        contractId, timeFrameStartValueDate, timePeriod, triggerEventId, correlationId,
        status, outcome, currentStage, workflowRevision, lastEventId, stateSchemaVersion,
        statePayload, stopReasonCode, startedAtUtc, terminalAtUtc, updatedAtUtc
-FROM intrinsic_time_strategy_workflow
-WHERE workflowId = :workflowId;
+FROM trade.intrinsic_time_strategy_workflow
+WHERE workflowId = $1;
 """;
     public const string GetRegimeDiscovery = """
 SELECT workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,
        sourceEventSequence, status, parameterPayloadSha256, signalSnapshotId, resultPayload,
        resultPayloadSha256, failureCode, failureMessage, reasonsPayload, schemaVersion,
        terminalAtUtc, updatedAtUtc
-FROM regime_discovery
-WHERE workflowId = :workflowId;
+FROM trade.regime_discovery
+WHERE workflowId = $1;
 """;
     public const string GetMarketCondition = """
 SELECT workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,
@@ -1525,7 +1524,7 @@ SELECT workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEve
        resultPayloadSha256, evaluatedAtUtc, validUntilUtc, marketDataAsOfUtc, completedAtUtc, updatedAtUtc,
        volatilityBehavior, liquidityQuality, dataQuality, upstreamAlignment, evidencePayload,
        conflictingEvidencePayload, blockingReasonsPayload, reasonsPayload, summaryText
-FROM market_condition WHERE workflowId = :workflowId;
+FROM trade.market_condition WHERE workflowId = $1;
 """;
     public const string GetMarketConditionHistory = """
 SELECT workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,
@@ -1535,138 +1534,138 @@ SELECT workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEve
        resultPayloadSha256, evaluatedAtUtc, validUntilUtc, marketDataAsOfUtc, completedAtUtc, updatedAtUtc,
        volatilityBehavior, liquidityQuality, dataQuality, upstreamAlignment, evidencePayload,
        conflictingEvidencePayload, blockingReasonsPayload, reasonsPayload, summaryText
-FROM market_condition_by_fund
-WHERE fundId = :fundId AND instrumentRoot = :instrumentRoot AND targetHorizon = :targetHorizon
-  AND evaluatedAtUtc < :beforeUtc
-LIMIT :pageSize;
+FROM trade.market_condition_by_fund
+WHERE fundId = $1 AND instrumentRoot = $2 AND targetHorizon = $3
+  AND evaluatedAtUtc < $4
+LIMIT $5;
 """;
     public const string UpsertMarketCondition = """
-INSERT INTO market_condition (workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,
+INSERT INTO trade.market_condition (workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,
     fundId, instrumentRoot, targetHorizon, parameterSetId, parameterSetVersion, parameterPayloadSha256,
     snapshotId, snapshotSha256, tradeability, conditionType, direction, phase, strength, confidence,
     primaryReasonCode, resultPayload, resultPayloadSha256, evaluatedAtUtc, validUntilUtc, marketDataAsOfUtc,
     completedAtUtc, updatedAtUtc, volatilityBehavior, liquidityQuality, dataQuality, upstreamAlignment,
     evidencePayload, conflictingEvidencePayload, blockingReasonsPayload, reasonsPayload, summaryText)
-VALUES (:workflowId, :workflowEntityId, :inputWorkflowRevision, :commandId, :sourceEventId,
-    :fundId, :instrumentRoot, :targetHorizon, :parameterSetId, :parameterSetVersion, :parameterPayloadSha256,
-    :snapshotId, :snapshotSha256, :tradeability, :conditionType, :direction, :phase, :strength, :confidence,
-    :primaryReasonCode, :resultPayload, :resultPayloadSha256, :evaluatedAtUtc, :validUntilUtc, :marketDataAsOfUtc,
-    :completedAtUtc, :updatedAtUtc, :volatilityBehavior, :liquidityQuality, :dataQuality, :upstreamAlignment,
-    :evidencePayload, :conflictingEvidencePayload, :blockingReasonsPayload, :reasonsPayload, :summaryText);
+VALUES ($1, $2, $3, $4, $5,
+    $6, $7, $8, $9, $10, $11,
+    $12, $13, $14, $15, $16, $17, $18, $19,
+    $20, $21, $22, $23, $24, $25,
+    $26, $27, $28, $29, $30, $31,
+    $32, $33, $34, $35, $36) ON CONFLICT (workflowid) DO UPDATE SET workflowEntityId=EXCLUDED.workflowEntityId, inputWorkflowRevision=EXCLUDED.inputWorkflowRevision, commandId=EXCLUDED.commandId, sourceEventId=EXCLUDED.sourceEventId, fundId=EXCLUDED.fundId, instrumentRoot=EXCLUDED.instrumentRoot, targetHorizon=EXCLUDED.targetHorizon, parameterSetId=EXCLUDED.parameterSetId, parameterSetVersion=EXCLUDED.parameterSetVersion, parameterPayloadSha256=EXCLUDED.parameterPayloadSha256, snapshotId=EXCLUDED.snapshotId, snapshotSha256=EXCLUDED.snapshotSha256, tradeability=EXCLUDED.tradeability, conditionType=EXCLUDED.conditionType, direction=EXCLUDED.direction, phase=EXCLUDED.phase, strength=EXCLUDED.strength, confidence=EXCLUDED.confidence, primaryReasonCode=EXCLUDED.primaryReasonCode, resultPayload=EXCLUDED.resultPayload, resultPayloadSha256=EXCLUDED.resultPayloadSha256, evaluatedAtUtc=EXCLUDED.evaluatedAtUtc, validUntilUtc=EXCLUDED.validUntilUtc, marketDataAsOfUtc=EXCLUDED.marketDataAsOfUtc, completedAtUtc=EXCLUDED.completedAtUtc, updatedAtUtc=EXCLUDED.updatedAtUtc, volatilityBehavior=EXCLUDED.volatilityBehavior, liquidityQuality=EXCLUDED.liquidityQuality, dataQuality=EXCLUDED.dataQuality, upstreamAlignment=EXCLUDED.upstreamAlignment, evidencePayload=EXCLUDED.evidencePayload, conflictingEvidencePayload=EXCLUDED.conflictingEvidencePayload, blockingReasonsPayload=EXCLUDED.blockingReasonsPayload, reasonsPayload=EXCLUDED.reasonsPayload, summaryText=EXCLUDED.summaryText;
 """;
     public const string UpsertMarketConditionByFund = """
-INSERT INTO market_condition_by_fund (fundId, instrumentRoot, targetHorizon, evaluatedAtUtc, workflowId,
+INSERT INTO trade.market_condition_by_fund (fundId, instrumentRoot, targetHorizon, evaluatedAtUtc, workflowId,
     workflowEntityId, inputWorkflowRevision, commandId, sourceEventId, parameterSetId, parameterSetVersion,
     parameterPayloadSha256, snapshotId, snapshotSha256, tradeability, conditionType, direction, phase,
     strength, confidence, primaryReasonCode, resultPayload, resultPayloadSha256, validUntilUtc,
     marketDataAsOfUtc, completedAtUtc, updatedAtUtc, volatilityBehavior, liquidityQuality, dataQuality,
     upstreamAlignment, evidencePayload, conflictingEvidencePayload, blockingReasonsPayload, reasonsPayload,
     summaryText)
-VALUES (:fundId, :instrumentRoot, :targetHorizon, :evaluatedAtUtc, :workflowId,
-    :workflowEntityId, :inputWorkflowRevision, :commandId, :sourceEventId, :parameterSetId,
-    :parameterSetVersion, :parameterPayloadSha256, :snapshotId, :snapshotSha256, :tradeability,
-    :conditionType, :direction, :phase, :strength, :confidence, :primaryReasonCode, :resultPayload,
-    :resultPayloadSha256, :validUntilUtc, :marketDataAsOfUtc, :completedAtUtc, :updatedAtUtc,
-    :volatilityBehavior, :liquidityQuality, :dataQuality, :upstreamAlignment, :evidencePayload,
-    :conflictingEvidencePayload, :blockingReasonsPayload, :reasonsPayload, :summaryText);
+VALUES ($1, $2, $3, $4, $5,
+    $6, $7, $8, $9, $10,
+    $11, $12, $13, $14, $15,
+    $16, $17, $18, $19, $20, $21, $22,
+    $23, $24, $25, $26, $27,
+    $28, $29, $30, $31, $32,
+    $33, $34, $35, $36) ON CONFLICT (fundid, instrumentroot, targethorizon, evaluatedatutc, workflowid) DO UPDATE SET workflowEntityId=EXCLUDED.workflowEntityId, inputWorkflowRevision=EXCLUDED.inputWorkflowRevision, commandId=EXCLUDED.commandId, sourceEventId=EXCLUDED.sourceEventId, parameterSetId=EXCLUDED.parameterSetId, parameterSetVersion=EXCLUDED.parameterSetVersion, parameterPayloadSha256=EXCLUDED.parameterPayloadSha256, snapshotId=EXCLUDED.snapshotId, snapshotSha256=EXCLUDED.snapshotSha256, tradeability=EXCLUDED.tradeability, conditionType=EXCLUDED.conditionType, direction=EXCLUDED.direction, phase=EXCLUDED.phase, strength=EXCLUDED.strength, confidence=EXCLUDED.confidence, primaryReasonCode=EXCLUDED.primaryReasonCode, resultPayload=EXCLUDED.resultPayload, resultPayloadSha256=EXCLUDED.resultPayloadSha256, validUntilUtc=EXCLUDED.validUntilUtc, marketDataAsOfUtc=EXCLUDED.marketDataAsOfUtc, completedAtUtc=EXCLUDED.completedAtUtc, updatedAtUtc=EXCLUDED.updatedAtUtc, volatilityBehavior=EXCLUDED.volatilityBehavior, liquidityQuality=EXCLUDED.liquidityQuality, dataQuality=EXCLUDED.dataQuality, upstreamAlignment=EXCLUDED.upstreamAlignment, evidencePayload=EXCLUDED.evidencePayload, conflictingEvidencePayload=EXCLUDED.conflictingEvidencePayload, blockingReasonsPayload=EXCLUDED.blockingReasonsPayload, reasonsPayload=EXCLUDED.reasonsPayload, summaryText=EXCLUDED.summaryText;
 """;
     public const string UpsertRegimeDiscovery = """
-INSERT INTO regime_discovery (
+INSERT INTO trade.regime_discovery (
     workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,
     sourceEventSequence, status, parameterPayloadSha256, signalSnapshotId, resultPayload,
     resultPayloadSha256, failureCode, failureMessage, reasonsPayload, schemaVersion,
     terminalAtUtc, updatedAtUtc)
-VALUES (:workflowId, :workflowEntityId, :inputWorkflowRevision, :commandId, :sourceEventId,
-    :sourceEventSequence, :status, :parameterPayloadSha256, :signalSnapshotId, :resultPayload,
-    :resultPayloadSha256, :failureCode, :failureMessage, :reasonsPayload, :schemaVersion,
-    :terminalAtUtc, :updatedAtUtc);
+VALUES ($1, $2, $3, $4, $5,
+    $6, $7, $8, $9, $10,
+    $11, $12, $13, $14, $15,
+    $16, $17) ON CONFLICT (workflowid) DO UPDATE SET workflowEntityId=EXCLUDED.workflowEntityId, inputWorkflowRevision=EXCLUDED.inputWorkflowRevision, commandId=EXCLUDED.commandId, sourceEventId=EXCLUDED.sourceEventId, sourceEventSequence=EXCLUDED.sourceEventSequence, status=EXCLUDED.status, parameterPayloadSha256=EXCLUDED.parameterPayloadSha256, signalSnapshotId=EXCLUDED.signalSnapshotId, resultPayload=EXCLUDED.resultPayload, resultPayloadSha256=EXCLUDED.resultPayloadSha256, failureCode=EXCLUDED.failureCode, failureMessage=EXCLUDED.failureMessage, reasonsPayload=EXCLUDED.reasonsPayload, schemaVersion=EXCLUDED.schemaVersion, terminalAtUtc=EXCLUDED.terminalAtUtc, updatedAtUtc=EXCLUDED.updatedAtUtc;
 """;
     public const string GetActiveIntrinsicTimeStrategyWorkflow = """
 SELECT workflowEntityId, workflowId, contractId, timeFrameStartValueDate, timePeriod,
        currentStage, workflowRevision, lastEventId, stateSchemaVersion, statePayload,
        startedAtUtc, updatedAtUtc
-FROM intrinsic_time_strategy_workflow_active
-WHERE workflowEntityId = :workflowEntityId;
+FROM trade.intrinsic_time_strategy_workflow_active
+WHERE workflowEntityId = $1;
 """;
     public const string GetIntrinsicTimeStrategyWorkflowStartAttempts = """
 SELECT workflowEntityId, requestedAtUtc, requestedWorkflowId, decision, activeWorkflowId,
        startCommandId, triggerEventId, activeStage, reasonCode, sourceEventId
-FROM intrinsic_time_strategy_workflow_start_attempt
-WHERE workflowEntityId = :workflowEntityId AND requestedAtUtc < :beforeUtc
-LIMIT :pageSize;
+FROM trade.intrinsic_time_strategy_workflow_start_attempt
+WHERE workflowEntityId = $1 AND requestedAtUtc < $2
+LIMIT $3;
 """;
     public const string GetIntrinsicTimeStrategyWorkflowTimeline = """
 SELECT workflowId, eventId, workflowEntityId, workflowRevision, stage, eventName,
        eventSchemaVersion, eventPayload, occurredAtUtc
-FROM intrinsic_time_strategy_workflow_timeline
-WHERE workflowId = :workflowId AND eventId > :afterEventId
-LIMIT :pageSize;
+FROM trade.intrinsic_time_strategy_workflow_timeline
+WHERE workflowId = $1 AND eventId > $2
+LIMIT $3;
 """;
     public const string GetIntrinsicTimeStrategyWorkflowsByEntity = """
 SELECT workflowEntityId, startedAtUtc, workflowId, status, outcome, currentStage,
        workflowRevision, terminalAtUtc, stopReasonCode
-FROM intrinsic_time_strategy_workflow_by_entity
-WHERE workflowEntityId = :workflowEntityId AND startedAtUtc < :beforeUtc
-LIMIT :pageSize;
+FROM trade.intrinsic_time_strategy_workflow_by_entity
+WHERE workflowEntityId = $1 AND startedAtUtc < $2
+LIMIT $3;
 """;
     public const string GetIntrinsicTimeStrategyWorkflowsByStatusDay = """
 SELECT workflowEntityId, startedAtUtc, workflowId, status, outcome, currentStage,
        workflowRevision, terminalAtUtc, stopReasonCode
-FROM intrinsic_time_strategy_workflow_by_status_day
-WHERE status = :status AND startedDate = :startedDate
-LIMIT :pageSize;
+FROM trade.intrinsic_time_strategy_workflow_by_status_day
+WHERE status = $1 AND startedDate = $2
+LIMIT $3;
 """;
     public const string UpsertIntrinsicTimeStrategyWorkflow = """
-INSERT INTO intrinsic_time_strategy_workflow (
+INSERT INTO trade.intrinsic_time_strategy_workflow (
     workflowId, workflowEntityId, workflowDefinitionId, workflowDefinitionVersion,
     contractId, timeFrameStartValueDate, timePeriod, triggerEventId, correlationId,
     status, outcome, currentStage, workflowRevision, lastEventId, stateSchemaVersion,
     statePayload, stopReasonCode, startedAtUtc, terminalAtUtc, updatedAtUtc)
-VALUES (:workflowId, :workflowEntityId, :workflowDefinitionId, :workflowDefinitionVersion,
-    :contractId, :timeFrameStartValueDate, :timePeriod, :triggerEventId, :correlationId,
-    :status, :outcome, :currentStage, :workflowRevision, :lastEventId, :stateSchemaVersion,
-    :statePayload, :stopReasonCode, :startedAtUtc, :terminalAtUtc, :updatedAtUtc);
+VALUES ($1, $2, $3, $4,
+    $5, $6, $7, $8, $9,
+    $10, $11, $12, $13, $14, $15,
+    $16, $17, $18, $19, $20) ON CONFLICT (workflowid) DO UPDATE SET workflowEntityId=EXCLUDED.workflowEntityId, workflowDefinitionId=EXCLUDED.workflowDefinitionId, workflowDefinitionVersion=EXCLUDED.workflowDefinitionVersion, contractId=EXCLUDED.contractId, timeFrameStartValueDate=EXCLUDED.timeFrameStartValueDate, timePeriod=EXCLUDED.timePeriod, triggerEventId=EXCLUDED.triggerEventId, correlationId=EXCLUDED.correlationId, status=EXCLUDED.status, outcome=EXCLUDED.outcome, currentStage=EXCLUDED.currentStage, workflowRevision=EXCLUDED.workflowRevision, lastEventId=EXCLUDED.lastEventId, stateSchemaVersion=EXCLUDED.stateSchemaVersion, statePayload=EXCLUDED.statePayload, stopReasonCode=EXCLUDED.stopReasonCode, startedAtUtc=EXCLUDED.startedAtUtc, terminalAtUtc=EXCLUDED.terminalAtUtc, updatedAtUtc=EXCLUDED.updatedAtUtc;
 """;
     public const string UpsertActiveIntrinsicTimeStrategyWorkflow = """
-INSERT INTO intrinsic_time_strategy_workflow_active (
+INSERT INTO trade.intrinsic_time_strategy_workflow_active (
     workflowEntityId, workflowId, contractId, timeFrameStartValueDate, timePeriod,
     currentStage, workflowRevision, lastEventId, stateSchemaVersion, statePayload,
     startedAtUtc, updatedAtUtc)
-VALUES (:workflowEntityId, :workflowId, :contractId, :timeFrameStartValueDate, :timePeriod,
-    :currentStage, :workflowRevision, :lastEventId, :stateSchemaVersion, :statePayload,
-    :startedAtUtc, :updatedAtUtc);
+VALUES ($1, $2, $3, $4, $5,
+    $6, $7, $8, $9, $10,
+    $11, $12) ON CONFLICT (workflowentityid) DO UPDATE SET workflowId=EXCLUDED.workflowId, contractId=EXCLUDED.contractId, timeFrameStartValueDate=EXCLUDED.timeFrameStartValueDate, timePeriod=EXCLUDED.timePeriod, currentStage=EXCLUDED.currentStage, workflowRevision=EXCLUDED.workflowRevision, lastEventId=EXCLUDED.lastEventId, stateSchemaVersion=EXCLUDED.stateSchemaVersion, statePayload=EXCLUDED.statePayload, startedAtUtc=EXCLUDED.startedAtUtc, updatedAtUtc=EXCLUDED.updatedAtUtc;
 """;
     public const string DeleteActiveIntrinsicTimeStrategyWorkflow = """
-DELETE FROM intrinsic_time_strategy_workflow_active
-WHERE workflowEntityId = :workflowEntityId;
+DELETE FROM trade.intrinsic_time_strategy_workflow_active
+WHERE workflowEntityId = $1;
 """;
     public const string InsertIntrinsicTimeStrategyWorkflowStartAttempt = """
-INSERT INTO intrinsic_time_strategy_workflow_start_attempt (
+INSERT INTO trade.intrinsic_time_strategy_workflow_start_attempt (
     workflowEntityId, requestedAtUtc, requestedWorkflowId, decision, activeWorkflowId,
     startCommandId, triggerEventId, activeStage, reasonCode, sourceEventId)
-VALUES (:workflowEntityId, :requestedAtUtc, :requestedWorkflowId, :decision, :activeWorkflowId,
-    :startCommandId, :triggerEventId, :activeStage, :reasonCode, :sourceEventId);
+VALUES ($1, $2, $3, $4, $5,
+    $6, $7, $8, $9, $10) ON CONFLICT (workflowentityid, requestedatutc, requestedworkflowid) DO UPDATE SET decision=EXCLUDED.decision, activeWorkflowId=EXCLUDED.activeWorkflowId, startCommandId=EXCLUDED.startCommandId, triggerEventId=EXCLUDED.triggerEventId, activeStage=EXCLUDED.activeStage, reasonCode=EXCLUDED.reasonCode, sourceEventId=EXCLUDED.sourceEventId;
 """;
     public const string InsertIntrinsicTimeStrategyWorkflowTimeline = """
-INSERT INTO intrinsic_time_strategy_workflow_timeline (
+INSERT INTO trade.intrinsic_time_strategy_workflow_timeline (
     workflowId, eventId, workflowEntityId, workflowRevision, stage, eventName,
     eventSchemaVersion, eventPayload, occurredAtUtc)
-VALUES (:workflowId, :eventId, :workflowEntityId, :workflowRevision, :stage, :eventName,
-    :eventSchemaVersion, :eventPayload, :occurredAtUtc);
+VALUES ($1, $2, $3, $4, $5, $6,
+    $7, $8, $9) ON CONFLICT (workflowid, eventid) DO UPDATE SET workflowEntityId=EXCLUDED.workflowEntityId, workflowRevision=EXCLUDED.workflowRevision, stage=EXCLUDED.stage, eventName=EXCLUDED.eventName, eventSchemaVersion=EXCLUDED.eventSchemaVersion, eventPayload=EXCLUDED.eventPayload, occurredAtUtc=EXCLUDED.occurredAtUtc;
 """;
     public const string UpsertIntrinsicTimeStrategyWorkflowByEntity = """
-INSERT INTO intrinsic_time_strategy_workflow_by_entity (
+INSERT INTO trade.intrinsic_time_strategy_workflow_by_entity (
     workflowEntityId, startedAtUtc, workflowId, status, outcome, currentStage,
     workflowRevision, terminalAtUtc, stopReasonCode)
-VALUES (:workflowEntityId, :startedAtUtc, :workflowId, :status, :outcome, :currentStage,
-    :workflowRevision, :terminalAtUtc, :stopReasonCode);
+VALUES ($1, $2, $3, $4, $5, $6,
+    $7, $8, $9) ON CONFLICT (workflowentityid, startedatutc, workflowid) DO UPDATE SET status=EXCLUDED.status, outcome=EXCLUDED.outcome, currentStage=EXCLUDED.currentStage, workflowRevision=EXCLUDED.workflowRevision, terminalAtUtc=EXCLUDED.terminalAtUtc, stopReasonCode=EXCLUDED.stopReasonCode;
 """;
     public const string UpsertIntrinsicTimeStrategyWorkflowByStatusDay = """
-INSERT INTO intrinsic_time_strategy_workflow_by_status_day (
+INSERT INTO trade.intrinsic_time_strategy_workflow_by_status_day (
     status, startedDate, startedAtUtc, workflowId, workflowEntityId, outcome,
     currentStage, workflowRevision, terminalAtUtc, stopReasonCode)
-VALUES (:status, :startedDate, :startedAtUtc, :workflowId, :workflowEntityId, :outcome,
-    :currentStage, :workflowRevision, :terminalAtUtc, :stopReasonCode);
+VALUES ($1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10) ON CONFLICT (status, starteddate, startedatutc, workflowid) DO UPDATE SET workflowEntityId=EXCLUDED.workflowEntityId, outcome=EXCLUDED.outcome, currentStage=EXCLUDED.currentStage, workflowRevision=EXCLUDED.workflowRevision, terminalAtUtc=EXCLUDED.terminalAtUtc, stopReasonCode=EXCLUDED.stopReasonCode;
 """;
     internal const string NativeGetIntrinsicTimeStrategyWorkflow = """
 SELECT workflowId, workflowEntityId, workflowDefinitionId, workflowDefinitionVersion,
@@ -1716,15 +1715,15 @@ ORDER BY startedAtUtc DESC, workflowId DESC
 LIMIT $3;
 """;
     internal const string ContextStatement1 = "SELECT payload,payload_sha256 FROM trade.market_condition_assessment WHERE workflow_id=$1;";
-    internal const string ContextStatement2 = "SELECT payload,content_hash FROM risk_management_invocation WHERE workflow_id=? AND invocation_id=? ORDER BY revision DESC LIMIT 1;";
+    internal const string ContextStatement2 = "SELECT payload,content_hash FROM trade.risk_management_invocation WHERE workflow_id=$1 AND invocation_id=$2 ORDER BY revision DESC LIMIT 1;";
 
     internal const string ContextStatement4 = "SELECT payload FROM trade.trade_order WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 ORDER BY revision DESC LIMIT 1;";
-    internal const string ContextStatement5 = "SELECT payload FROM established_trade_history WHERE portfolioId=? AND fundId=? AND strategyKind=? AND establishedAtUtc>=? AND establishedAtUtc<=?;";
+    internal const string ContextStatement5 = "SELECT payload FROM trade.established_trade_history WHERE portfolioId=$1 AND fundId=$2 AND strategyKind=$3 AND establishedAtUtc>=$4 AND establishedAtUtc<=$5;";
     internal const string HelperStatement6 = "SELECT payload,payload_sha256 FROM trade.market_condition_assessment_by_profile WHERE market_profile_id=$1 AND instrument_root=$2 AND target_horizon=$3 AND evaluated_at_utc<$4 ORDER BY evaluated_at_utc DESC,workflow_id LIMIT $5;";
-    internal const string HelperStatement7 = "INSERT INTO risk_management_invocation (workflow_id,invocation_id,revision,payload,content_hash) VALUES (?,?,?,?,?) IF NOT EXISTS;";
-    internal const string HelperStatement8 = "SELECT content_hash FROM risk_management_invocation WHERE workflow_id=? AND invocation_id=? AND revision=?;";
-    internal const string HelperStatement9 = "INSERT INTO risk_management_history (portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id,revision,payload) VALUES (?,?,?,?,?,?,?) IF NOT EXISTS;";
-    internal const string HelperStatement10 = "UPDATE risk_management_history SET revision=?,payload=? WHERE portfolio_id=? AND fund_id=? AND value_date=? AND evaluated_at_utc=? AND invocation_id=? IF revision<?;";
+    internal const string HelperStatement7 = "WITH inserted AS (INSERT INTO trade.risk_management_invocation (workflow_id,invocation_id,revision,payload,content_hash) VALUES ($1,$2,$3,$4,$5) ON CONFLICT(workflow_id,invocation_id,revision) DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM inserted);";
+    internal const string HelperStatement8 = "SELECT content_hash FROM trade.risk_management_invocation WHERE workflow_id=$1 AND invocation_id=$2 AND revision=$3;";
+    internal const string HelperStatement9 = "WITH inserted AS (INSERT INTO trade.risk_management_history (portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id,revision,payload) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id) DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM inserted);";
+    internal const string HelperStatement10 = "WITH changed AS (UPDATE trade.risk_management_history SET revision=$1,payload=$2 WHERE portfolio_id=$3 AND fund_id=$4 AND value_date=$5 AND evaluated_at_utc=$6 AND invocation_id=$7 AND revision<$8 RETURNING 1) SELECT EXISTS(SELECT 1 FROM changed);";
     internal const string HelperStatement11 = """
             INSERT INTO trade.trade_order(portfolioId,fundId,orderId,revision,status,valueDate,updatedAtUtc,definitionHash,payload)
             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -1784,12 +1783,12 @@ LIMIT $3;
     internal const string HelperStatement21 = "DELETE FROM trade.open_position_route_recovery WHERE positionId=$1;";
     internal const string HelperStatement22 = """
                 INSERT INTO trade.open_position_route(contractId,portfolioId,fundId,orderId,tradeId,positionId,tradeLegId,tradeType,generation)
-                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9);
-                """;
+                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (contractid, positionid, tradelegid) DO UPDATE SET portfolioId=EXCLUDED.portfolioId, fundId=EXCLUDED.fundId, orderId=EXCLUDED.orderId, tradeId=EXCLUDED.tradeId, tradeType=EXCLUDED.tradeType, generation=EXCLUDED.generation;
+""";
     internal const string HelperStatement23 = """
                 INSERT INTO trade.open_position_route_recovery(shard,positionId,tradeLegId,contractId,portfolioId,fundId,orderId,tradeId,tradeType,generation)
-                VALUES(0,$1,$2,$3,$4,$5,$6,$7,$8,$9);
-                """;
+                VALUES(0,$1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (shard, positionid, tradelegid) DO UPDATE SET contractId=EXCLUDED.contractId, portfolioId=EXCLUDED.portfolioId, fundId=EXCLUDED.fundId, orderId=EXCLUDED.orderId, tradeId=EXCLUDED.tradeId, tradeType=EXCLUDED.tradeType, generation=EXCLUDED.generation;
+""";
     internal const string InsertInitialMonitoringLimit = """
         INSERT INTO trade.trade_limit (tradeId,tradeType,riskMargin,maxProfit,maxLoss,maxReturn,maxLossLimit,minProfitLimit,maxProfitLimit,minProfitTarget,dailyProfitTarget,createdOn,createdBy,updatedOn,updatedBy)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT(tradeId,tradeType) DO NOTHING;

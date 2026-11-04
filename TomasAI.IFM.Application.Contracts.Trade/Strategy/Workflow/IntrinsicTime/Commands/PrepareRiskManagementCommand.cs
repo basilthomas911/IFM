@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Comman
 
 /// <summary>Requests preparation from authoritative server services, without accepting caller-supplied balances or margin.</summary>
 [MessagePackObject]
-public sealed record PrepareRiskManagementCommand : ICommand<IntrinsicTimeStrategyWorkflowEntityId>
+public sealed record PrepareRiskManagementCommand : ICommand<IntrinsicTimeStrategyWorkflowEntityId>, IRecoverableCommandAudit
 {
     public PrepareRiskManagementCommand() { }
     [SerializationConstructor]
@@ -33,6 +33,8 @@ public sealed record PrepareRiskManagementCommand : ICommand<IntrinsicTimeStrate
     [IgnoreMember] public string CommandName => nameof(PrepareRiskManagementCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    /// <summary>Retains every frozen command field when resuming an audit without committed source events.</summary>
+    public ICommand ForRetryIdentity() => this;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]

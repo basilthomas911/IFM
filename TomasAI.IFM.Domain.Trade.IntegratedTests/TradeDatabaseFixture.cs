@@ -38,7 +38,7 @@ public class TradeDatabaseFixture : IDisposable
     void SetTradeDatabase()
     {
         var dbConn = new DbConnectionSettings()
-                         .Add("TradeDbConnection", Environment.GetEnvironmentVariable("IFM_TEST_TRADE_CONNECTION") ?? "Contact Points=localhost;Port=9042;Default Keyspace=trade_test_db", "System.Data.ScyllaDb");
+                         .Add("TradeDbConnection", Environment.GetEnvironmentVariable("IFM_TEST_TRADE_CONNECTION") ?? "Host=localhost;Port=5432;Database=trade-test-db", "System.Data.Postgres");
 
         var diContainer = new Dictionary<Type, TradeDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);

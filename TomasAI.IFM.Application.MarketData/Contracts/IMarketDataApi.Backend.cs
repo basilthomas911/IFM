@@ -63,6 +63,11 @@ public partial interface IMarketDataApi
     [MarketDataHostOperation]
     Task<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(string contractId, CancellationToken cancellationToken = default)
         => Task.FromException<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]>(new NotSupportedException("Backend seed replay is not configured."));
+    /// <summary>Reads 48 completed intraday indicator bars using local live replay and zero-cost historical acquisition.</summary>
+    [MarketDataHostOperation]
+    Task<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadIndicatorSeedBarsAsync(
+        string contractId, TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType timeFrame, CancellationToken cancellationToken = default)
+        => Task.FromException<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]>(new NotSupportedException("Backend indicator seed replay is not configured."));
     [MarketDataHostOperation]
     Task<MarketDataReadSnapshot> GetBackendReadSnapshotAsync(CancellationToken cancellationToken = default)
         => Task.FromException<MarketDataReadSnapshot>(new NotSupportedException("Backend cache synchronization is not configured."));

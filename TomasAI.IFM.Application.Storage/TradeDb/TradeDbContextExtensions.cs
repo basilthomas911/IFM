@@ -983,42 +983,31 @@ public static class TradeDbContextExtensions
             if (row is null)
                 return new(RiskHistoryProjectionDisposition.NotApplicable);
             token.ThrowIfCancellationRequested();
-            // The exact invocation row and its scoped summary are one rebuildable projection unit.
-            // Once the unit starts, finish every idempotent Scylla statement even if the recovery
-            // worker is asked to stop; otherwise shutdown can leave an exact row without its history
-            // row and surface cancellation from the second statement as an unhandled worker error.
-            var projectionToken = CancellationToken.None;
             if (snapshot.WorkflowId != snapshot.State.WorkflowId || snapshot.WorkflowRevision != row.Revision || snapshot.EntityId != snapshot.State.EntityId)
                 throw new InvalidDataException("Risk history source identity mismatch.");
             var canonical = MessagePackBinarySerializer.Shared.Deserialize<WorkflowStrategyStateUpdatedEvent>(MessagePackBinarySerializer.Shared.Serialize(snapshot with { EventId = 0 }));
             var payload = MessagePackBinarySerializer.Shared.Serialize(canonical);
             var hash = RiskContracts.Hash(canonical);
-            var inserted = await (context.Use("RiskHistory.Insert", TradeDbSql.HelperStatement7)
-            .SetParameters(new RiskValues([row.WorkflowId, row.InvocationId, row.Revision, payload, hash]))
-            .ExecuteSingleAsync(r => r.GetBool(0), projectionToken))
-            .ConfigureAwait(false);
-            if (!inserted)
+            return await context.NativeTransaction().ExecuteOnceAsync(async (db, projectionToken) =>
             {
-                var old = await (context.Use("RiskHistory.Verify", TradeDbSql.HelperStatement8)
-            .SetParameters(new RiskValues([row.WorkflowId, row.InvocationId, row.Revision]))
-            .ExecuteSingleAsync(r => r.GetString(0), projectionToken))
-            .ConfigureAwait(false);
-                if (!string.Equals(old, hash, StringComparison.Ordinal))
-                    return new(RiskHistoryProjectionDisposition.Conflict, row.WorkflowId, row.InvocationId, row.Revision, old, hash);
-            }
-
-            var disposition = inserted ? RiskHistoryProjectionDisposition.Projected : RiskHistoryProjectionDisposition.AlreadyProjected;
-            var summary = MessagePackBinarySerializer.Shared.Serialize(row);
-            var added = await (context.Use("RiskHistory.SummaryInsert", TradeDbSql.HelperStatement9)
-            .SetParameters(new RiskValues([row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision, summary]))
-            .ExecuteSingleAsync(r => r.GetBool(0), projectionToken))
-            .ConfigureAwait(false);
-            if (!added)
-                await (context.Use("RiskHistory.SummaryAdvance", TradeDbSql.HelperStatement10)
-            .SetParameters(new RiskValues([row.Revision, summary, row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision]))
-            .ExecuteSingleAsync(r => r.GetBool(0), projectionToken))
-            .ConfigureAwait(false);
-            return new(disposition, row.WorkflowId, row.InvocationId, row.Revision, hash, hash);
+                var inserted = (bool)(await db.ScalarAsync(TradeDbSql.HelperStatement7,
+                    [row.WorkflowId, row.InvocationId, row.Revision, payload, hash], projectionToken).ConfigureAwait(false))!;
+                if (!inserted)
+                {
+                    var old = (string?)await db.ScalarAsync(TradeDbSql.HelperStatement8,
+                        [row.WorkflowId, row.InvocationId, row.Revision], projectionToken).ConfigureAwait(false);
+                    if (!string.Equals(old, hash, StringComparison.Ordinal))
+                        return new RiskHistoryProjectionResult(RiskHistoryProjectionDisposition.Conflict, row.WorkflowId, row.InvocationId, row.Revision, old, hash);
+                }
+                var summary = MessagePackBinarySerializer.Shared.Serialize(row);
+                var added = (bool)(await db.ScalarAsync(TradeDbSql.HelperStatement9,
+                    [row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision, summary], projectionToken).ConfigureAwait(false))!;
+                if (!added)
+                    await db.ScalarAsync(TradeDbSql.HelperStatement10,
+                        [row.Revision, summary, row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision], projectionToken).ConfigureAwait(false);
+                return new RiskHistoryProjectionResult(inserted ? RiskHistoryProjectionDisposition.Projected : RiskHistoryProjectionDisposition.AlreadyProjected,
+                    row.WorkflowId, row.InvocationId, row.Revision, hash, hash);
+            }, token).ConfigureAwait(false);
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Keep the C# 14 DbContext binding extension receiver contract.")]
@@ -2020,7 +2009,12 @@ public static class TradeDbContextExtensions
             ArgumentNullException.ThrowIfNull(transaction);
             ArgumentNullException.ThrowIfNull(source);
             var state = TradeProjectionFacts.Workflow(source);
-            var payload = MessagePackSerializer.Serialize(state, cancellationToken: token);
+            byte[] payload;
+            using (var serialization = TradeStorageTelemetry.Source.StartActivity("workflow.project.state_serialize"))
+            {
+                payload = MessagePackSerializer.Serialize(state, cancellationToken: token);
+                serialization?.SetTag("ifm.payload.bytes", payload.Length);
+            }
             await TradeDbContextExtensions.WorkflowWriteDetailAsync(transaction, source, payload, token)
             .ConfigureAwait(false);
             await TradeDbContextExtensions.WorkflowWriteHistoryAsync(transaction, source, token)
@@ -2041,12 +2035,13 @@ public static class TradeDbContextExtensions
 
     extension(IEnlistedPostgresTransaction db)
     {
-        internal Task<int> WorkflowWriteDetailAsync(WorkflowStrategyStateUpdatedEvent source, byte[] payload, CancellationToken token)
+        internal async Task<int> WorkflowWriteDetailAsync(WorkflowStrategyStateUpdatedEvent source, byte[] payload, CancellationToken token)
         {
+            using var write = TradeStorageTelemetry.Source.StartActivity("workflow.project.detail_write");
             var state = source.State;
             var entity = state.EntityId;
             var iti = entity.ItiSignalEntityId;
-            return TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow", "workflowId,workflowEntityId,workflowDefinitionId,workflowDefinitionVersion,contractId,timeFrameStartValueDate,timePeriod,triggerEventId,correlationId,status,outcome,currentStage,workflowRevision,lastEventId,stateSchemaVersion,statePayload,stopReasonCode,startedAtUtc,terminalAtUtc,updatedAtUtc", "workflowId", [state.WorkflowId.Value, entity.Format(), entity.WorkflowDefinitionId, state.WorkflowDefinitionVersion, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod.ToString(), state.TriggerEventId, state.CorrelationId, TradeProjectionFacts.Status(state).ToString(), TradeProjectionFacts.Outcome(state).ToString(), state.CurrentStage.ToString(), state.WorkflowRevision, source.EventId, 2, payload, state.StopReasonCode, state.StartedAtUtc, state.TerminalAtUtc, state.UpdatedAtUtc], token, "lastEventId");
+            return await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow", "workflowId,workflowEntityId,workflowDefinitionId,workflowDefinitionVersion,contractId,timeFrameStartValueDate,timePeriod,triggerEventId,correlationId,status,outcome,currentStage,workflowRevision,lastEventId,stateSchemaVersion,statePayload,stopReasonCode,startedAtUtc,terminalAtUtc,updatedAtUtc", "workflowId", [state.WorkflowId.Value, entity.Format(), entity.WorkflowDefinitionId, state.WorkflowDefinitionVersion, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod.ToString(), state.TriggerEventId, state.CorrelationId, TradeProjectionFacts.Status(state).ToString(), TradeProjectionFacts.Outcome(state).ToString(), state.CurrentStage.ToString(), state.WorkflowRevision, source.EventId, 2, payload, state.StopReasonCode, state.StartedAtUtc, state.TerminalAtUtc, state.UpdatedAtUtc], token, "lastEventId").ConfigureAwait(false);
         }
     }
 
@@ -2069,7 +2064,13 @@ public static class TradeDbContextExtensions
         internal async Task WorkflowWriteTimelineAsync(WorkflowStrategyStateUpdatedEvent source, CancellationToken token)
         {
             var state = source.State;
-            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_timeline", "workflowId,eventId,workflowEntityId,workflowRevision,stage,eventName,eventSchemaVersion,eventPayload,occurredAtUtc", "workflowId,eventId", [source.WorkflowId.Value, source.EventId, source.EntityId.Format(), source.WorkflowRevision, state.CurrentStage.ToString(), source.EventName, 2, MessagePackSerializer.Serialize(source, cancellationToken: token), source.UpdatedAtUtc], token)
+            byte[] payload;
+            using (var serialization = TradeStorageTelemetry.Source.StartActivity("workflow.project.timeline_serialize"))
+            {
+                payload = MessagePackSerializer.Serialize(source, cancellationToken: token);
+                serialization?.SetTag("ifm.payload.bytes", payload.Length);
+            }
+            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_timeline", "workflowId,eventId,workflowEntityId,workflowRevision,stage,eventName,eventSchemaVersion,eventPayload,occurredAtUtc", "workflowId,eventId", [source.WorkflowId.Value, source.EventId, source.EntityId.Format(), source.WorkflowRevision, state.CurrentStage.ToString(), source.EventName, 2, payload, source.UpdatedAtUtc], token)
             .ConfigureAwait(false);
             if (state.Status == WorkflowStrategyMachineStatus.Started && source.PreviousStatus != WorkflowStrategyMachineStatus.Started)
                 await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_start_attempt", "workflowEntityId,requestedAtUtc,requestedWorkflowId,decision,activeWorkflowId,startCommandId,triggerEventId,activeStage,reasonCode,sourceEventId", "workflowEntityId,requestedAtUtc,requestedWorkflowId", [source.EntityId.Format(), state.StartedAtUtc, source.WorkflowId.Value, StrategyWorkflowStartDecision.Accepted.ToString(), source.WorkflowId.Value, source.CommandId, state.TriggerEventId, state.CurrentStage.ToString(), string.Empty, source.EventId], token)
@@ -2084,12 +2085,14 @@ public static class TradeDbContextExtensions
             var state = source.State;
             if (state.Status != WorkflowStrategyMachineStatus.Started)
             {
+                using var delete = TradeStorageTelemetry.Source.StartActivity("workflow.project.active_delete");
                 await db.ExecuteAsync(TradeDbSql.HelperStatement46, [source.EntityId.Format(), source.EventId], token)
             .ConfigureAwait(false);
                 return;
             }
 
             var iti = source.EntityId.ItiSignalEntityId;
+            using var write = TradeStorageTelemetry.Source.StartActivity("workflow.project.active_write");
             await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_active", "workflowEntityId,workflowId,contractId,timeFrameStartValueDate,timePeriod,currentStage,workflowRevision,lastEventId,stateSchemaVersion,statePayload,startedAtUtc,updatedAtUtc", "workflowEntityId", [source.EntityId.Format(), source.WorkflowId.Value, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod.ToString(), state.CurrentStage.ToString(), state.WorkflowRevision, source.EventId, 2, payload, state.StartedAtUtc, state.UpdatedAtUtc], token, "lastEventId")
             .ConfigureAwait(false);
         }
@@ -2116,9 +2119,17 @@ public static class TradeDbContextExtensions
 
     extension(IEnlistedPostgresTransaction db)
     {
-        internal Task<int> WorkflowUpsertAsync(string table, string columnList, string keyList, object? [] values, CancellationToken token, string? revision = null)
+        internal async Task<int> WorkflowUpsertAsync(string table, string columnList, string keyList, object? [] values, CancellationToken token, string? revision = null)
         {
-            return db.ExecuteAsync(TradeDbSql.WorkflowUpsert(table, columnList, keyList, values.Length, revision), values, token);
+            var operation = table switch
+            {
+                "intrinsic_time_strategy_workflow_by_entity" => "workflow.project.entity_write",
+                "intrinsic_time_strategy_workflow_by_status_day" => "workflow.project.status_write",
+                "intrinsic_time_strategy_workflow_timeline" => "workflow.project.timeline_write",
+                _ => null
+            };
+            using var write = operation is null ? null : TradeStorageTelemetry.Source.StartActivity(operation);
+            return await db.ExecuteAsync(TradeDbSql.WorkflowUpsert(table, columnList, keyList, values.Length, revision), values, token).ConfigureAwait(false);
         }
     }
 

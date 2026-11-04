@@ -87,9 +87,14 @@ public static class StartFuturesRsiSignal
             FuturesRsiSignalReadModel[]? futuresRsiSignals = null;
             if (command.ForceHistoricalInitialization)
             {
-                if (futuresRsiSignal is { IsWarm: true } && acceptedHistory.Count >= FuturesTdiConfiguration.Standard.RequiredRsiSamples)
-                    futuresRsiSignals = acceptedHistory.TakeLast(FuturesTdiConfiguration.Standard.RequiredRsiSamples).ToArray();
-                else rejectionReason ??= "RSI four-hour initialization did not provide a warm TDI window.";
+                if (futuresRsiSignal is not { IsWarm: true })
+                    rejectionReason ??= "RSI historical initialization did not provide a warm RSI value.";
+                else if (command.EntityId.PeriodLength == FuturesTdiConfiguration.Standard.RsiPeriod)
+                {
+                    if (acceptedHistory.Count >= FuturesTdiConfiguration.Standard.RequiredRsiSamples)
+                        futuresRsiSignals = acceptedHistory.TakeLast(FuturesTdiConfiguration.Standard.RequiredRsiSamples).ToArray();
+                    else rejectionReason ??= "RSI four-hour initialization did not provide a warm TDI window.";
+                }
             }
             futuresRsiInitialization = new(restoredSignal,
                 command.ForceHistoricalInitialization ? null : currentFuturesRsiCheckpoint,

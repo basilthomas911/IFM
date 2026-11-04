@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.State;
 /// <summary>Holds the single latest source snapshot while processing one monitoring request.</summary>
-/// <remarks>The repository loads at most one full snapshot. No rolling plan collection is maintained.</remarks>
+/// <remarks>The repository reads creation and the latest complete checkpoint. No rolling plan collection is maintained.</remarks>
 public sealed class IronCondorTradePlanFunctionState : BaseEventSourceActorState<IronCondorTradePlanFunctionState>, IEventSourceFunctionState<IronCondorTradePlanFunctionState, UpdateIronCondorTradePlanCommand, IronCondorTradePlanUpdatedEvent>
 {
     Guid activeCommandId;

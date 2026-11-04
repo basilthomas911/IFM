@@ -34,7 +34,7 @@ public class FuturesTradeSignalStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<FuturesTradeSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<FuturesTradeSignalCommandState, FuturesTradeSignalUpdatedEvent>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotWithCheckpointAsync<FuturesTradeSignalCommandState, FuturesTradeSignalUpdatedEvent>(command, static snapshot => snapshot.FuturesTradeSignal is not null, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Saves futures trade signal state changes and denormalizes the associated domain events.

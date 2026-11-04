@@ -50,6 +50,8 @@ public interface IRustMarketDataHostServices
     global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel[]> PrepareSessionAsync(global::System.DateOnly valueDate, global::System.Threading.CancellationToken cancellationToken = default);
     /// <summary>Executes the ReadEconomicCalendarAsync application operation.</summary>
     global::System.Threading.Tasks.Task<global::TomasAI.IFM.Shared.MarketData.Contracts.EconomicCalendarEntry[]> ReadEconomicCalendarAsync(global::System.DateOnly fromInclusive, global::System.DateOnly toInclusive, global::System.String[]? countryCodes, global::System.Threading.CancellationToken cancellationToken = default);
+    /// <summary>Reads completed intraday indicator bars without paid acquisition.</summary>
+    global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadIndicatorSeedBarsAsync(global::System.String contractId, global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType timeFrame, global::System.Threading.CancellationToken cancellationToken = default);
     /// <summary>Executes the ReadFiveMinuteSeedBarsAsync application operation.</summary>
     global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(global::System.String contractId, global::System.Threading.CancellationToken cancellationToken = default);
     /// <summary>Executes the ReadTradeFeedRecoveryAsync application operation.</summary>

@@ -707,6 +707,14 @@ public sealed class PostgresEodObservationTests
         var intradayRead = await db.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(series, valueDate,
             TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.FifteenSeconds);
         Assert.Equal(intradayBb.StandardDeviation20, intradayRead!.StandardDeviation20);
+        foreach (var frame in new[] { TimeFrameType.FifteenMinutes, TimeFrameType.OneHour, TimeFrameType.FourHours })
+        {
+            var recovered = bb with { Metadata = bb.Metadata with { SignalKey = bb.Metadata.SignalKey with { TimeFrame = frame } } };
+            await db.InsertFuturesBollingerBandSignalAsync(recovered);
+            var restored = await db.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(series, valueDate, frame);
+            Assert.True(restored!.IsWarm);
+            Assert.Equal(recovered.Width20Ratio, restored.Width20Ratio);
+        }
 
 
         var loadedEma = await db.GetLatestFuturesEmaSignalAsync(

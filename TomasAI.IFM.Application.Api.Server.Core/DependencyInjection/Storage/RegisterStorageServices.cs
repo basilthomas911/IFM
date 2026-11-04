@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Model;
 using TomasAI.IFM.Shared.Identity;
 using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Application.Api.Server.Core.DependencyInjection.Domain;
@@ -210,7 +211,7 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.ParameterSets.IRsiHistoricalPilotStartup, TomasAI.IFM.Application.Api.Server.Core.Startup.ParameterSets.RsiHistoricalPilotStartup>();
         services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi, TomasAI.IFM.Application.Api.Nats.Client.ParameterSetsApi>();
         services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot>(provider =>
-        new TomasAI.IFM.Domain.Reference.ParameterSets.Model.ParameterRuntimeSnapshotModel(
+        new TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Model.ParameterRuntimeSnapshotModel(
         provider.GetRequiredService<IHostEnvironment>().IsDevelopment() && config.GetValue<bool>("ParameterSets:SingleUserDevelopmentEnabled")));
         services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterAccessPolicy>(provider =>
         new TomasAI.IFM.Domain.Reference.ParameterSets.Model.SingleUserDevelopmentParameterAccessPolicy(

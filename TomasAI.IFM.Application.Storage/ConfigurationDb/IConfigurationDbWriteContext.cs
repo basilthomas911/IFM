@@ -16,6 +16,9 @@ namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 /// </summary>
 public interface IConfigurationDbWriteContext
 {
+    /// <summary>Invalidates prepared evidence in the same transaction as an accepted parameter mutation.</summary>
+    Task AdvanceParameterRevisionFenceAsync(IEnlistedPostgresTransaction transaction, CancellationToken cancellationToken = default);
+
     /// <summary>Creates a validated immutable strategy position-risk draft; activation remains explicit.</summary>
     Task InsertStrategyPositionRiskDraftAsync(TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet policy, string description, string createdBy, CancellationToken cancellationToken = default);
     /// <summary>Inserts an immutable Regime Discovery draft.</summary>

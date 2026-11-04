@@ -243,7 +243,15 @@ pub fn add(
             ("TradeAction".into(), action.into()),
             (
                 "Reference".into(),
-                format!("{} @ {}", contract_id.trim(), effective.format("%Y%m%d")).into(),
+                format!(
+                    "{} @ {}{}",
+                    contract_id.trim(),
+                    effective.format("%Y%m%d"),
+                    maturity
+                        .map(|date| format!(" - {}", date.format("%Y%m%d")))
+                        .unwrap_or_default()
+                )
+                .into(),
             ),
             ("PrimaryTrade".into(), primary_trade.into()),
             ("BaseContractSymbol".into(), symbol.into()),

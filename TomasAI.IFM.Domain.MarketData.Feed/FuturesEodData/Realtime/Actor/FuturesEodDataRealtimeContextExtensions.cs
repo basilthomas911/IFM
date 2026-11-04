@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
@@ -129,6 +130,11 @@ public static class FuturesEodDataRealtimeContextExtensions
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(trade);
+            // Tick aggregation carries both futures and options. Reject unrelated
+            // observations before they can consume a futures worker slot.
+            if (trade.AssetTypeId != AssetTypeId.Futures
+                || !context.MarketDataApi.IsTickDataStreamActive(trade.EntityId.ContractId))
+                return;
             var state = context.TradeDispatch;
             var started = Stopwatch.GetTimestamp();
             var outcome = "Failed";

@@ -199,12 +199,12 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
             .ExecuteQueryAsync(MapToOptionTradeSpreadBarsData!, cancellationToken);
     /// <inheritdoc/>
     public async Task<TradePriceReadModel?> GetIronCondorTradePriceAsync(int tradeId, DateOnly valueDate) => await (this.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.GetOptionLegs)}", TradeDbSql.GetOptionLegs)
-            .SetParameters(new GetOptionLegsWithValueDate(tradeId, valueDate))
+            .SetParameters(new GetOptionLegs(tradeId))
             .ExecuteSingleAsync(MapToTradePrice))
             .ConfigureAwait(false);
     /// <inheritdoc/>
     public Task<TradePriceReadModel?> GetIronCondorTradePriceAsync(int tradeId, DateOnly valueDate, CancellationToken cancellationToken) => this.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.GetOptionLegs)}", TradeDbSql.GetOptionLegs)
-            .SetParameters(new GetOptionLegsWithValueDate(tradeId, valueDate))
+            .SetParameters(new GetOptionLegs(tradeId))
             .ExecuteSingleAsync(MapToTradePrice, cancellationToken);
     /// <inheritdoc/>
     public async Task<ICollection<TradePositionReadModel>> GetTradePositionsAsync(int orderId, int tradeId)

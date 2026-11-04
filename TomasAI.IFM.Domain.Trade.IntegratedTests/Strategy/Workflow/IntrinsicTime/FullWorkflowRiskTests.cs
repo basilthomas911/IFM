@@ -80,7 +80,8 @@ public sealed partial class TradeSelectionRuntimeTests
         using var listener = new System.Diagnostics.ActivityListener
         {
             ShouldListenTo = source => captureTrace && (source.Name == TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.WorkflowTrace.SourceName
-                || source.Name == ActorTrace.SourceName || source.Name == "TomasAI.IFM.Domain.Portfolio" || source.Name == "TomasAI.IFM.PortfolioFinancial"),
+                || source.Name == ActorTrace.SourceName || source.Name == TomasAI.IFM.Application.Storage.TradeDb.TradeStorageTelemetry.SourceName
+                || source.Name == "TomasAI.IFM.Domain.Portfolio" || source.Name == "TomasAI.IFM.PortfolioFinancial"),
             Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = span => spans.Enqueue(span)
         };
@@ -99,7 +100,7 @@ public sealed partial class TradeSelectionRuntimeTests
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
             var container = (SimpleInjector.Container)services.Single(x => x.ServiceType == typeof(SimpleInjector.Container)).ImplementationInstance!;
             // Observe the post-commit enqueue boundary. Every full-workflow event still reaches
-            // the production projector, queue, Scylla writes, cache and realtime dispatcher.
+            // the production projector, queue, enlisted PostgreSQL writes, cache and realtime dispatcher.
             var projector = Substitute.For<TomasAI.IFM.Application.EventProjector.Contracts.IEventProjector<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor.IntrinsicTimeStrategyWorkflowCommandActor>>();
             TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.EventProjector.IntrinsicTimeStrategyWorkflowEventProjector? production = null;
             projector.StartAsync(Arg.Any<ICommandActorContext>(), Arg.Any<CancellationToken>()).Returns(call =>
@@ -355,6 +356,8 @@ public sealed partial class TradeSelectionRuntimeTests
                 (final!.FinancialHandoff?.Phase).Should().Be(RiskFinancialHandoffPhase.Authorized,
                     $"candidate age {candidateAge} ms; workflow stopped at {final.CurrentStage}/{final.Status}: {final.StopReasonCode}; {final.RegimeDiscovery.Failure}; {final.MarketCondition.Failure}; {final.TradeSelection.Failure}; {final.OrderComposition.Failure}; {final.RiskManagement.Failure}");
                 final.Status.Should().Be(WorkflowStrategyMachineStatus.Completed);
+                final.CompositionExecution!.CommandId.Should().NotBe(final.CompositionDispatch!.CommandId,
+                    "preparation acceptance and Function execution reserve different command-audit payloads");
                 final.WorkflowId.Should().Be(start.ProposedWorkflowId);
                 foreach (var stage in new[] { final.RegimeDiscovery, final.MarketCondition, final.TradeSelection, final.OrderComposition, final.RiskManagement })
                 {
@@ -397,7 +400,7 @@ public sealed partial class TradeSelectionRuntimeTests
                         "workflow.project.active_delete", "workflow.project.notify", "authorization.reserve_call",
                         "authorization.fund_authorize_call", "authorization.verify.reservation_receipt",
                         "authorization.verify.fund_receipt", "authorization.advance_send", "risk.prepare.build_request" })
-                        workflowSpans.Should().Contain(x => x.OperationName == operation, "the detailed timing boundary must be exercised");
+                        workflowSpans.Should().Contain(x => x.OperationName == operation, $"the detailed timing boundary {operation} must be exercised");
                     workflowSpans.Where(x => x.OperationName is "workflow.project.timeline_serialize" or "workflow.project.state_serialize")
                         .Should().OnlyContain(x => x.GetTagItem("ifm.payload.bytes") is int && (int)x.GetTagItem("ifm.payload.bytes")! > 0);
                     recorded.Select(x => x.TraceId).Distinct().Should().ContainSingle("the workflow must preserve W3C context across actors and projector queues");

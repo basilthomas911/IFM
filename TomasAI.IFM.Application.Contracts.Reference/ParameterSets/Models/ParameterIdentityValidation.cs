@@ -27,13 +27,13 @@ public static class ParameterIdentityValidation
             return errors;
         }
 
-        /// <summary>Checks the singleton startup registry identity.</summary>
+        /// <summary>Checks the per-run startup identity.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The serialized collection contract retains its concrete collection shape.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retain the published collection contract used by callers and serialization.")]
         public List<ValidationError> ValidateParameterStartupId(ParameterStartupEntityId id)
         {
             ArgumentNullException.ThrowIfNull(errors);
-            if (id != ParameterStartupEntityId.Registry) errors.Add(new("ParameterStartup.EntityId must be the startup registry."));
+            if (id.Id == Guid.Empty || id == ParameterStartupEntityId.Registry) errors.Add(new("ParameterStartup.EntityId must identify one run."));
             return errors;
         }
     }

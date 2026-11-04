@@ -22,6 +22,9 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Keep the published context interface and named argument contract; inherited capability members intentionally describe the same database operation.")]
 public interface IMarketDataDbReadContext
 {
+    /// <summary>Reads one completed, immutable contract interval for indicator restart without reacquiring provider history.</summary>
+    Task<FuturesTradeSessionBarReadModel?> GetStoredTradeSessionBarAsync(string contractId, TimeFrameType frame,
+        DateOnly valueDate, DateTimeOffset intervalEndUtc, CancellationToken cancellationToken = default);
     /// <summary>Checks usable PostgreSQL canonical query indexes; raw tick readiness belongs to TradeTickQuoteDb.</summary>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>

@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.State;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Model;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Query;
 using FluentAssertions;
 using MessagePack;
 using Microsoft.Extensions.Logging;
@@ -54,6 +57,8 @@ public sealed class ParameterStartupQueryTests
         state.ActiveRuns.Add(second.RunId, second);
         state.ActiveRuns.Add(third.RunId, third);
         var context = Context(state);
+        context.ConfigurationDb.GetParameterStartupRunIdsAsync(2, first.CreatedAtUtc, first.RunId, CancellationToken.None)
+            .Returns(new[] { second.RunId, third.RunId });
         var query = new GetParameterStartupRunsQuery
         {
             Limit = 2,

@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Persistence;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
@@ -25,7 +26,8 @@ public sealed class ParameterCatalogMigrationService(IPostgresEventTransaction t
                     WHERE eventtypename LIKE '%ParameterSetCreatedEvent%' OR eventtypename LIKE '%ParameterDraftSavedEvent%'
                        OR eventtypename LIKE '%ParameterSetRenamedEvent%' OR eventtypename LIKE '%ParameterVersionPublishedEvent%'
                        OR eventtypename LIKE '%ParameterVersionRetiredEvent%' OR eventtypename LIKE '%ParameterAssignmentChangedEvent%'
-                       OR eventtypename LIKE '%ParameterStartupChangedEvent%'
+                       OR eventtypename LIKE '%ParameterStartupChangedEvent%' OR eventtypename LIKE '%ParameterAssignmentCreatedEvent%'
+                       OR eventtypename LIKE '%ParameterStartupCreatedEvent%'
                 )
                 SELECT n.eventtypename,l.eventversion,l.eventpayload FROM names n
                 CROSS JOIN LATERAL (

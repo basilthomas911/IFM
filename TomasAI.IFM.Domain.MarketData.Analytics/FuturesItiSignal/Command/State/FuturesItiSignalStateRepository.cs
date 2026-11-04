@@ -49,7 +49,7 @@ public class FuturesItiSignalStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<FuturesItiSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<FuturesItiSignalCommandState, FuturesItiSignalGeneratedEvent>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotWithCheckpointAsync<FuturesItiSignalCommandState, FuturesItiSignalGeneratedEvent>(command, static snapshot => snapshot.FuturesItiSignal is not null, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Saves futures ITI signal state changes and denormalizes the associated domain events.

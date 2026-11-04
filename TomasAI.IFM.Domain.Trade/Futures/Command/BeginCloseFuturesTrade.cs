@@ -40,7 +40,8 @@ public static class BeginCloseFuturesTrade
         ///
         /// <param name = "current">The current established futures-trade state.</param>
         /// <returns>The immutable proposed established trade change.</returns>
-        EstablishedTradeChange CalculateTradeChange(EstablishedTradeDefinition current) => new(current with { Status = EstablishedTradeStatus.Closing }, false);
+        EstablishedTradeChange CalculateTradeChange(EstablishedTradeDefinition current) => new(current with
+        { Status = EstablishedTradeStatus.Closing, EvidenceRevision = checked(current.EvidenceRevision + 1) }, false);
 
         /// <summary>Computes an established trade definition without changing state.</summary>
         ///

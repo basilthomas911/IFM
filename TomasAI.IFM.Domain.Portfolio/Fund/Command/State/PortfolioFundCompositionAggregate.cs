@@ -453,11 +453,14 @@ public sealed class PortfolioFundCompositionAggregate
         authorization.Validate();
         ValidateUtc(now, nameof(now));
         var current = RequireOrder(orderId, expectedVersion);
-        if (authorization.PortfolioId != current.PortfolioId || authorization.FundId != current.FundId ||
-            authorization.OrderId != current.OrderId || authorization.WorkflowId != current.WorkflowId ||
-            !string.Equals(authorization.CompositionResultHash,current.CompositionResultHash,StringComparison.Ordinal) || now >= authorization.ValidUntilUtc ||
-            now >= current.ExpiresAtUtc || authorization.ValidUntilUtc > current.ExpiresAtUtc)
-            throw new InvalidOperationException("Financial authorization does not match the current composed Fund order.");
+        var rejection = authorization.PortfolioId != current.PortfolioId || authorization.FundId != current.FundId ||
+            authorization.OrderId != current.OrderId || authorization.WorkflowId != current.WorkflowId ? "IdentityMismatch"
+            : !string.Equals(authorization.CompositionResultHash,current.CompositionResultHash,StringComparison.Ordinal) ? "CompositionHashMismatch"
+            : now >= authorization.ValidUntilUtc ? "AuthorizationExpired"
+            : now >= current.ExpiresAtUtc ? "OrderExpired"
+            : authorization.ValidUntilUtc > current.ExpiresAtUtc ? "AuthorizationOutlivesOrder" : null;
+        if (rejection is not null)
+            throw new InvalidOperationException("Financial authorization does not match the current composed Fund order: " + rejection + ".");
         if (current.RiskAuthorization == authorization) return current;
         if (!string.Equals(current.Status,nameof(FundCompositionState.RiskPending),StringComparison.Ordinal) || current.RiskAuthorization is not null)
             throw new InvalidOperationException("Only a RiskPending Fund order can accept new financial authorization.");

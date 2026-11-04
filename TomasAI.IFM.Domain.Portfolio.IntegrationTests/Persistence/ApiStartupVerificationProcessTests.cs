@@ -7,15 +7,14 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 public sealed class ApiStartupVerificationProcessTests
 {
     [Theory]
-    [InlineData("Development", null, true)]
-    [InlineData("Production", "DatabentoLive", true)]
-    [InlineData("Production", "Synthetic", false)]
+    [InlineData("Development", null)]
+    [InlineData("Production", "DatabentoLive")]
+    [InlineData("Production", "Synthetic")]
     [Trait("Category", "StartupVerification")]
-    public async Task Api_container_verifies_without_initializing_data_or_starting_services(string environment, string? dataSource, bool validConfiguration)
+    public async Task Api_container_verifies_without_initializing_data_or_starting_services(string environment, string? dataSource)
     {
-        var repositoryRoot = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Parent!.Parent!.Parent!.FullName;
-        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
-        var serverDirectory = Path.Combine(repositoryRoot, "TomasAI.IFM.Application.Api.Server", "bin", configuration, "net10.0");
+        var serverDirectory = AppContext.BaseDirectory;
+        using var deployment = new TomasAI.IFM.IntegrationTesting.ApiProcessDeploymentManifest(serverDirectory);
         var serverAssembly = Path.Combine(serverDirectory, "TomasAI.IFM.Application.Api.Server.dll");
         File.Exists(serverAssembly).Should().BeTrue("the real API host must be built");
         var start = new ProcessStartInfo("dotnet")
@@ -27,14 +26,15 @@ public sealed class ApiStartupVerificationProcessTests
             CreateNoWindow = true
         };
         start.ArgumentList.Add(serverAssembly);
+        deployment.Configure(start);
         start.ArgumentList.Add("--verify-startup-only");
         // Verifier must take precedence over this otherwise-mutating bootstrap switch.
         start.ArgumentList.Add("--bootstrap-trade-strategy-families-only");
         start.Environment["DOTNET_ENVIRONMENT"] = environment;
         start.Environment["ASPNETCORE_ENVIRONMENT"] = environment;
-        // Production must explicitly configure a valid feed source; verification must
+        // Feed persistence policy belongs to Market Data Host; API verification resolves its remote client.
         start.Environment.Remove("AppSettings__Databento__DeploymentProfile");
-        // not disable the existing synthetic-persistence isolation guard.
+        // Verify that local feed settings do not cause the API to construct feed workers.
         if (dataSource is null)
             start.Environment.Remove("AppSettings__Databento__DataSource");
         else
@@ -51,12 +51,8 @@ public sealed class ApiStartupVerificationProcessTests
             throw;
         }
         var output = $"{await stdout}{await stderr}";
-        process.ExitCode.Should().Be(validConfiguration ? 0 : 1, output);
+        process.ExitCode.Should().Be(0, output);
         output.Should().NotContain("TradeStrategyFamily bootstrap-only process completed.");
-        if (validConfiguration)
-            output.Should().Contain("IFM startup verification completed; no schemas, actors, feeds or HTTP listeners started.").And.NotContain("startup failed");
-        else
-            output.Should().Contain("The synthetic Databento feed may persist snapshots only under the SyntheticCi deployment profile.")
-                .And.NotContain("IFM startup verification completed");
+        output.Should().Contain("IFM startup verification completed; no schemas, actors, feeds or HTTP listeners started.").And.NotContain("startup failed");
     }
 }

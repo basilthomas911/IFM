@@ -218,7 +218,7 @@ pub async fn query(
     deadline: tokio::time::Instant,
 ) -> Result<Value, String> {
     let (actor, verb) = registry.route(&kind(name))?;
-    if actor != "ParameterSetQuery" {
+    if !matches!(actor, "ParameterSetQuery" | "ParameterAssignmentQuery" | "ParameterStartupQuery" | "ParameterPreparationQuery") {
         return Err("Not a parameter query".into());
     }
     let subject = ActorSubject::query(actor, verb, "none");
@@ -333,16 +333,42 @@ pub async fn command(
     );
     fields.insert("CommandId".into(), request.to_string().into());
     let body = overlay(registry, name, &template(name)?, &fields)?;
-    let reply = backend
-        .request_until(&subject, &body, deadline, None)
-        .await
-        .map_err(|e| format!("OutcomeUnknown: {e}"))?;
+    let preparation_slot = match name {
+        "AssignParameterVersionCommand" => Some(0),
+        "RetireParameterVersionCommand" => Some(1),
+        "PublishParameterVersionCommand" => Some(2),
+        "CreateParameterSetCommand" if !registry.wire_field(&kind(name), "LegacySource", &body)?.is_nil() => Some(4),
+        _ => None,
+    };
+    let mut reply = Value::Nil;
+    for attempt in 0..3 {
+        let prepared = if let Some(slot) = preparation_slot {
+            let mut preparation = vec![Value::Nil; 5];
+            preparation[slot] = body.clone();
+            let result = query(
+                backend, registry, "PrepareParameterCommandQuery",
+                BTreeMap::from([("Preparation".into(), Value::Array(preparation))]), deadline,
+            ).await?;
+            let candidate = result.as_array().filter(|values| values.len() == 5)
+                .and_then(|values| values.get(slot)).ok_or("Invalid parameter preparation response")?;
+            validate_prepared_command(registry, name, &body, candidate)?;
+            candidate.clone()
+        } else {
+            body.clone()
+        };
+        reply = backend.request_until(&subject, &prepared, deadline, None).await
+            .map_err(|error| format!("OutcomeUnknown: {error}"))?;
+        let stale = service_result(&reply).is_err_and(|error| error.contains("PARAM.EVIDENCE_STALE"));
+        if !stale || preparation_slot.is_none() || attempt == 2 {
+            break;
+        }
+    }
     match service_result(&reply) {
         Ok(v)
             if v.as_array()
                 .and_then(|v| v.first())
                 .and_then(Value::as_str)
-                .is_some_and(|s| uuid::Uuid::parse_str(s).is_ok_and(|v| !v.is_nil())) =>
+                .is_some_and(|s| uuid::Uuid::parse_str(s).is_ok_and(|value| value == request)) =>
         {
             Ok(())
         }
@@ -357,5 +383,52 @@ pub async fn command(
             Err(error)
         }
         Err(error) => Err(format!("OutcomeUnknown: {error}")),
+    }
+}
+
+
+/// Checks that preparation adds evidence without changing the requested business intent.
+fn validate_prepared_command(
+    registry: &Registry,
+    name: &str,
+    original: &Value,
+    prepared: &Value,
+) -> Result<(), String> {
+    let shape = registry.describe(&kind(name))?;
+    let evidence = shape.members.iter().find(|(name, _, _)| name == "Evidence")
+        .map(|(_, index, _)| *index).ok_or("Missing parameter evidence contract")?;
+    let original = original.as_array().ok_or("Invalid parameter command")?;
+    let prepared = prepared.as_array().ok_or("Invalid prepared parameter command")?;
+    if original.len() != prepared.len() || prepared.get(evidence).is_none_or(Value::is_nil)
+        || original.iter().zip(prepared).enumerate().any(|(index, (before, after))| index != evidence && before != after)
+    {
+        return Err("Parameter preparation changed command intent".into());
+    }
+    Ok(())
+}
+
+
+#[cfg(test)]
+mod preparation_tests {
+    use super::*;
+
+    /// Preparation must retain every original field except the appended evidence.
+    #[test]
+    fn preparation_preserves_command_intent_and_requires_evidence() {
+        let registry = Registry::compiled().unwrap();
+        let name = "AssignParameterVersionCommand";
+        let original = template(name).unwrap();
+        let index = registry.describe(&kind(name)).unwrap().members.into_iter()
+            .find(|(name, _, _)| name == "Evidence").unwrap().1;
+        assert!(validate_prepared_command(&registry, name, &original, &original).is_err());
+        let mut prepared = original.clone();
+        if let Value::Array(slots) = &mut prepared {
+            slots[index] = Value::Array(vec![0.into()]);
+        }
+        assert!(validate_prepared_command(&registry, name, &original, &prepared).is_ok());
+        if let Value::Array(slots) = &mut prepared {
+            slots[0] = uuid::Uuid::new_v4().to_string().into();
+        }
+        assert!(validate_prepared_command(&registry, name, &original, &prepared).is_err());
     }
 }

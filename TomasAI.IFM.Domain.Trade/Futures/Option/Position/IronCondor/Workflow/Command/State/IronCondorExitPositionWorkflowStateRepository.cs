@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.Trade.Persistence;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -12,7 +12,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.Command.State;
 public sealed class IronCondorExitPositionWorkflowStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<IronCondorExitPositionWorkflowCommandActor> projector, ILogger<IronCondorExitPositionWorkflowStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<IronCondorExitPositionWorkflowCommandState>
 {
-    public ValueTask<IronCondorExitPositionWorkflowCommandState> LoadStateAsync(ICommand command) => new(LoadStateAsync<IronCondorExitPositionWorkflowCommandState>(command));
+    public ValueTask<IronCondorExitPositionWorkflowCommandState> LoadStateAsync(ICommand command) => new(LoadStateFromCreationSnapshotAsync<IronCondorExitPositionWorkflowCommandState>(command));
     public async ValueTask SaveStateAsync(ICommandActorContext context, IronCondorExitPositionWorkflowCommandState state, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(state);

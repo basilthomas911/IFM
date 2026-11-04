@@ -15,6 +15,30 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesRsiSignal;
 
 public sealed class FuturesRsiHistoricalSeedTests
 {
+    [Fact]
+    public void Forced_seed_cannot_replace_a_newer_live_checkpoint()
+    {
+        var command = Command(TimeFrameType.FiveMinutes, 48, 14) with { ForceHistoricalInitialization = true };
+        var checkpoint = new FuturesRsiAccumulatorCheckpoint
+        {
+            LastIntervalEndUtc = command.HistoricalSeed!.Observations[^1].IntervalEndUtc.AddMinutes(5)
+        };
+        Assert.False(command.Compute(checkpoint, [], Calendar, out var decision));
+        Assert.Contains("NEWER_CHECKPOINT_PRESERVED", decision.RejectionReason);
+    }
+
+    [Fact]
+    public void Forced_rsi14_initialization_qualifies_its_own_warm_value_without_a_tdi13_window()
+    {
+        var command = Command(TimeFrameType.FiveMinutes, 48, 14) with { ForceHistoricalInitialization = true };
+        var state = new FuturesRsiSignalCommandState();
+        Assert.True(command.Execute(state, Calendar).Success);
+        var generated = Assert.Single(state.Events.OfType<FuturesRsiSignalGeneratedEvent>());
+        Assert.True(generated.FuturesRsiSignal.IsWarm);
+        Assert.Equal(14, generated.FuturesRsiSignal.PeriodLength);
+        Assert.Empty(state.Events.OfType<FuturesRsiSignalsGeneratedEvent>());
+    }
+
     static readonly CmeFuturesMarketSessionCalendar Calendar = new();
     static readonly DateTimeOffset Cutoff = new(2026, 8, 25, 18, 0, 0, TimeSpan.Zero);
     [Theory]

@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
+/// <summary>Creates the set stream and supplies its default snapshot, followed by all later set facts.</summary>
 [MessagePackObject]
 public sealed record ParameterSetCreatedEvent : IParameterSetFact
 {

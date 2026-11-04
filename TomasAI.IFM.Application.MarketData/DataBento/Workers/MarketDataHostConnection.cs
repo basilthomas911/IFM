@@ -48,7 +48,7 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
         var recovery = IsRecoveryRequest(path);
         var budget = recovery ? Timeout.InfiniteTimeSpan : path == "api/RefreshInstrumentDefinitionsAsync" ? TimeSpan.FromMinutes(30)
             : path == "api/LoadHistoricalAsync" ? TimeSpan.FromMinutes(25)
-            : path.EndsWith("/start", StringComparison.Ordinal) || path is "api/StartAsync" or "api/ReadFiveMinuteSeedBarsAsync" or "api/RefreshOptionCalendarAsync"
+            : path.EndsWith("/start", StringComparison.Ordinal) || path is "api/StartAsync" or "api/ReadFiveMinuteSeedBarsAsync" or "api/ReadIndicatorSeedBarsAsync" or "api/RefreshOptionCalendarAsync"
             ? TimeSpan.FromSeconds(180) : path is "api/AcquireOptionScopeAsync" or "api/PrepareCompositionAsync" ? TimeSpan.FromSeconds(90)
             : path is "api/ReadTradeFeedRecoveryAsync" or "api/LoadTradeFeedRecoveryAsync" or "api/EnableTradeFeedRecoveryAsync"
                 or "api/DisableTradeFeedRecoveryAsync" or "api/CloseTradeFeedRecoveryAsync" ? TimeSpan.FromMinutes(2)

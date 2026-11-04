@@ -24,9 +24,8 @@ internal static class EventLogEngineQualification
         var parsed = new Npgsql.NpgsqlConnectionStringBuilder(postgres);
         if (parsed.Host != "127.0.0.1" || parsed.Port <= 0 || parsed.Database != $"ifm_eventlog_bench_{run}_synthetic_host")
             throw new InvalidOperationException("Qualification PostgreSQL must be loopback and run-scoped.");
-        var trade = read("IFM_TEST_TRADE_CONNECTION") ?? string.Empty;
-        if (!System.Text.RegularExpressions.Regex.IsMatch(trade, $@"\AContact Points=127\.0\.0\.1;Port=\d+;Default Keyspace=ifm_synthetic_{run}_trade\z"))
-            throw new InvalidOperationException("Qualification CQL endpoint mismatch.");
+        if (read("IFM_TEST_TRADE_CONNECTION") != postgres)
+            throw new InvalidOperationException("Qualification TradeDb must use the owned PostgreSQL endpoint.");
         if (!System.Text.RegularExpressions.Regex.IsMatch(read("IFM_TEST_REDIS_URL") ?? string.Empty, @"\A127\.0\.0\.1:\d+(,.*)?\z"))
             throw new InvalidOperationException("Qualification Redis endpoint mismatch.");
         if (!Uri.TryCreate(read("IFM_FINANCIAL_TEST_NATS_URL"), UriKind.Absolute, out var nats)
@@ -40,8 +39,6 @@ internal static class EventLogEngineQualification
         var run = Validate();
         if (run is null) return builder;
         var postgres = Environment.GetEnvironmentVariable("IFM_TEST_POSTGRES_CONNECTION")!;
-        var scyllaPort = int.Parse(Environment.GetEnvironmentVariable("IFM_QUALIFICATION_SCYLLA_PORT")
-            ?? throw new InvalidOperationException("Qualification CQL port is required."));
         return builder.ConfigureAppConfiguration((_, config) =>
         {
             var values = new Dictionary<string, string?>
@@ -52,11 +49,8 @@ internal static class EventLogEngineQualification
                 ["AppSettings:Databento:DeploymentProfile"] = "SyntheticCi",
                 ["TradeBroker:Emulator:AccountAlias"] = $"EventLogQualification-{run}"
             };
-            foreach (var (name, suffix) in new[] {
-                ("Trade", "trade"), ("Fund", "fund"), ("Reference", "reference"),
-                ("MarketData", "marketdata"), ("Securities", "securities") })
-                values[$"ConnectionStrings:{name}DbConnection"] =
-                    $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{run}_{suffix}";
+            foreach (var name in new[] { "Trade", "Fund", "Reference", "MarketData", "Securities" })
+                values[$"ConnectionStrings:{name}DbConnection"] = postgres;
             values["IFM_TEST_MARKET_DATA_CONNECTION"] = values["ConnectionStrings:MarketDataDbConnection"];
             config.AddInMemoryCollection(values);
         }).ConfigureServices(services =>

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using Microsoft.Extensions.Logging;
@@ -15,7 +15,7 @@ public sealed class MarketConditionAssessmentStateRepository(IEventSourceActorSt
     public bool UsesAtomicPersistence => string.Equals(databases?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
 
     public ValueTask<MarketConditionAssessmentCompletedEvent> CommitAsync(IFunctionActorContext context, ExecuteMarketConditionAssessmentCommand request, MarketConditionAssessmentCompletedEvent candidate, CancellationToken cancellationToken = default) => TradePipelineAtomicPersistence.CommitAsync(request, candidate, EventSourceDb, databases, transactions, cancellationToken);
-    public async ValueTask<MarketConditionAssessmentState> LoadStateAsync(ExecuteMarketConditionAssessmentCommand request, CancellationToken cancellationToken = default) => await LoadStateAsync<MarketConditionAssessmentState>(request, cancellationToken).ConfigureAwait(false);
+    public async ValueTask<MarketConditionAssessmentState> LoadStateAsync(ExecuteMarketConditionAssessmentCommand request, CancellationToken cancellationToken = default) => await LoadStateFromCreationSnapshotAsync<MarketConditionAssessmentState>(request, cancellationToken).ConfigureAwait(false);
     public async ValueTask SaveCompletedStateAsync(IFunctionActorContext context, MarketConditionAssessmentState state, ExecuteMarketConditionAssessmentCommand request, CancellationToken cancellationToken = default)
     {
         using var activity = MarketConditionTelemetry.Start("market-condition.completed-state-append");

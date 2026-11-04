@@ -1,3 +1,7 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.EventProjector;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Actor;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.EventProjector;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Actor;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;

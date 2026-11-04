@@ -25,14 +25,14 @@ using Xunit.Abstractions;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.TradeFlow;
 
-/// <summary>Runs the real history writer only against an explicitly selected disposable keyspace.</summary>
+/// <summary>Runs the real history writer only against an explicitly selected disposable PostgreSQL database.</summary>
 public sealed class PositionLifecycleStorageFactAttribute : FactAttribute
 {
     /// <summary>Skips storage qualification when its dedicated connection has not been supplied.</summary>
     public PositionLifecycleStorageFactAttribute()
     {
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("IFM_TEST_POSITION_LIFECYCLE_CONNECTION")))
-            Skip = "Provide IFM_TEST_POSITION_LIFECYCLE_CONNECTION for the disposable position_lifecycle_verification keyspace.";
+            Skip = "Provide IFM_TEST_POSITION_LIFECYCLE_CONNECTION for the disposable PostgreSQL position_lifecycle_verification database.";
     }
 }
 
@@ -42,14 +42,16 @@ public sealed class IronCondorPositionLifecycleAuditTests(ITestOutputHelper outp
 {
     static readonly DateTime OpenedAt = new(2026, 10, 7, 14, 0, 0, DateTimeKind.Utc);
 
-    /// <summary>Exercises execution-created Open, multiple MTMs, EOD, next-session MTM and fill-backed Closed through real Scylla readback.</summary>
+    /// <summary>Exercises execution-created Open, multiple MTMs, EOD, next-session MTM and fill-backed Closed through PostgreSQL readback.</summary>
     [PositionLifecycleStorageFact]
     public async Task Concrete_commands_persist_open_each_mark_eod_and_fill_backed_close_as_separate_history_rows()
     {
         var connection = Environment.GetEnvironmentVariable("IFM_TEST_POSITION_LIFECYCLE_CONNECTION")!;
-        if (!connection.Contains("Default Keyspace=position_lifecycle_verification", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("This audit requires the isolated position_lifecycle_verification keyspace.");
-        var settings = new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection, connection, "System.Data.ScyllaDb");
+        var target = new Npgsql.NpgsqlConnectionStringBuilder(connection);
+        if (!string.Equals(target.Database, "position_lifecycle_verification", StringComparison.Ordinal)
+            || target.Host is not ("localhost" or "127.0.0.1"))
+            throw new InvalidOperationException("This audit requires the isolated loopback PostgreSQL position_lifecycle_verification database.");
+        var settings = new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection, connection, "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
         await new TradeSchemaDb(settings, logger).CreateAsync(["strategy_position_current", "strategy_position_history"]);
         var factory = Substitute.For<IDbContextFactory>();
@@ -158,7 +160,8 @@ public sealed class IronCondorPositionLifecycleAuditTests(ITestOutputHelper outp
         previousEodPnl.Should().Be(1);
         state.PositionSnapshot!.UnrealizedPnl.Should().Be(3);
         (state.PositionSnapshot.UnrealizedPnl - previousEodPnl).Should().Be(2);
-        state.PositionSnapshot.DailyPnl.Should().Be(2);
+        state.PositionSnapshot.DailyPnlPoints.Should().Be(2);
+        state.PositionSnapshot.DailyPnl.Should().Be(100, "two points use the captured 50-per-point contract multiplier");
     }
 
     /// <summary>Proves reversing quantities without an explicit closing target creates a second established trade.</summary>

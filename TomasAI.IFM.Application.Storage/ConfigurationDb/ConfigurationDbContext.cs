@@ -4,7 +4,6 @@ using System.Text.Json;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
@@ -525,6 +524,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var transaction = await connection.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
+        await this.Execute(connection, transaction, ConfigurationDbSql.AcquireParameterWriterLock, cancellationToken).ConfigureAwait(false);
         await this.CatalogWriteLock(connection, transaction, cancellationToken)
             .ConfigureAwait(false);
         var graph = await this.LoadCatalogGraph(connection, transaction, key, effectiveFromUtc, true, cancellationToken)
@@ -538,6 +538,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             .ConfigureAwait(false);
         if (count != 1)
             throw new InvalidOperationException("Catalog publication conflict.");
+        await this.Execute(connection, transaction, ConfigurationDbSql.TypedCatalog.AdvanceRevisionFence, cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -557,6 +558,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var transaction = await connection.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
+        await this.Execute(connection, transaction, ConfigurationDbSql.AcquireParameterWriterLock, cancellationToken).ConfigureAwait(false);
         await this.CatalogWriteLock(connection, transaction, cancellationToken)
             .ConfigureAwait(false);
         var current = await this.ReadCatalog(connection, transaction, key, true, cancellationToken)
@@ -565,6 +567,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             throw new InvalidOperationException("Retire requires the exact Published version and a timestamp at or after publication.");
         await this.Execute(connection, transaction, ConfigurationDbSql.RetireStrategyCatalog, cancellationToken, new RetireCatalog((short)key.Kind, key.Id, key.Version, retiredAtUtc, retiredBy))
             .ConfigureAwait(false);
+        await this.Execute(connection, transaction, ConfigurationDbSql.TypedCatalog.AdvanceRevisionFence, cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -1004,6 +1007,35 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             !string.Equals(ParameterValueCodec.Hash(value), header.Hash, StringComparison.Ordinal))
             throw new InvalidOperationException("PARAM.PROJECTION_CONTENT_MISMATCH");
         return value;
+    }
+
+    /// <summary>Reads the infrastructure fence used to reject stale prepared commands.</summary>
+    public async Task<long> GetParameterRevisionFenceAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await this.OpenCatalogAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var session = new ConfigurationDbSession(connection, transaction);
+        var revision = await session.ScalarAsync(ConfigurationDbSql.TypedCatalog.ReadRevisionFence, [], cancellationToken).ConfigureAwait(false);
+        return revision is long value ? value : throw new InvalidDataException("PARAM.REVISION_FENCE_MISSING");
+    }
+
+    /// <summary>Advances the evidence fence atomically with an accepted mutation.</summary>
+    public async Task AdvanceParameterRevisionFenceAsync(IEnlistedPostgresTransaction transaction, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        if (await transaction.ExecuteAsync(ConfigurationDbSql.TypedCatalog.AdvanceRevisionFence, [], cancellationToken).ConfigureAwait(false) != 1)
+            throw new InvalidDataException("PARAM.REVISION_FENCE_MISSING");
+    }
+
+    /// <summary>Reads a bounded page of active run identities without relying on a registry actor cache.</summary>
+    public async Task<Guid[]> GetParameterStartupRunIdsAsync(int limit, DateTime? afterCreatedAtUtc = null, Guid? afterRunId = null, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await this.OpenCatalogAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var session = new ConfigurationDbSession(connection, transaction);
+        var ids = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.StartupPage,
+            [afterCreatedAtUtc?.ToBinary(), afterRunId ?? Guid.Empty, Math.Clamp(limit, 1, 25)], reader => reader.GetGuid(0), cancellationToken).ConfigureAwait(false);
+        return ids.ToArray();
     }
 
     /// <summary>Reads one immutable assignment revision and verifies all scalar and child rows.</summary>

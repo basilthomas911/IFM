@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using Microsoft.Extensions.Logging;
@@ -24,7 +24,7 @@ public sealed class FuturesBbSignalStateRepository(IEventSourceActorStateFactory
     public ValueTask<FuturesBbSignalCommandState> LoadStateAsync(ICommand command) => LoadStateAsync(command, CancellationToken.None);
     /// <inheritdoc />
     public async ValueTask<FuturesBbSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) =>
-        await (LoadStateFromSnapshotAsync<FuturesBbSignalCommandState, FuturesBbSignalGeneratedEvent>(
+        await (LoadStateFromCreationSnapshotAsync<FuturesBbSignalCommandState>(
             command,
             cancellationToken)).ConfigureAwait(false);
     /// <inheritdoc />

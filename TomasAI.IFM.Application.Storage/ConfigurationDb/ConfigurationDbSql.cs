@@ -7,6 +7,8 @@ internal static class ConfigurationDbSql
 {
     internal static class TypedCatalog
     {
+        internal const string ReadRevisionFence = "SELECT revision FROM reference_configuration.parameter_revision_fence WHERE singleton=true;";
+        internal const string AdvanceRevisionFence = "UPDATE reference_configuration.parameter_revision_fence SET revision=revision+1 WHERE singleton=true;";
         internal const string Header="SELECT content_sha256 FROM reference_configuration.parameter_projection_record WHERE kind=$1 AND owner_id=$2 AND owner_version=$3;";
         internal const string PutHeader="INSERT INTO reference_configuration.parameter_projection_record(kind,owner_id,owner_version,content_sha256) VALUES($1,$2,$3,$4) ON CONFLICT(kind,owner_id,owner_version) DO UPDATE SET content_sha256=EXCLUDED.content_sha256;";
         internal const string Receipt="SELECT request_sha256,fact_sha256 FROM reference_configuration.parameter_catalog_operation WHERE operation_id=$1;";
@@ -20,6 +22,13 @@ internal static class ConfigurationDbSql
             ORDER BY s.name,s.set_id,m.owner_version DESC LIMIT $6;
             """;
         internal const string StartupState="INSERT INTO reference_configuration.parameter_catalog_startup_state(run_id,revision,active) VALUES($1,$2,$3) ON CONFLICT(run_id) DO UPDATE SET revision=EXCLUDED.revision,active=EXCLUDED.active;";
+        internal const string StartupPage = """
+            SELECT p.run_id FROM reference_configuration.parameter_catalog_startup p
+            JOIN reference_configuration.parameter_catalog_startup_state s ON s.run_id=p.run_id
+            WHERE s.active AND p.row_path='$' AND p.owner_version=1
+              AND ($1::bigint IS NULL OR (p.created_at_utc,p.run_id)>($1,$2::uuid))
+            ORDER BY p.created_at_utc,p.run_id LIMIT $3;
+            """;
         internal static string Delete(ParameterValueMapping.Table table)=>$"DELETE FROM reference_configuration.{table.Name} WHERE owner_set_id=$1 AND owner_version=$2;";
     }
     internal static class TypedParameters

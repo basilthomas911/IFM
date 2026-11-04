@@ -47,15 +47,15 @@ public sealed class TradeStrategyCatalogTransportTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task Serialized_symbol_query_dispatches_and_replies_with_provider_result(bool available)
+    public async Task Serialized_symbol_query_reads_the_published_reference_snapshot(bool available)
     {
-        var api = Substitute.For<IMarketDataApi>();
         var ctx = Substitute.For<IReferenceQueryContext>();
         ctx.Logger.Returns(Substitute.For<ILogger<ReferenceQueryActor>>());
         ctx.ActorId.Returns(new ActorMailboxId(ActorType.Query, ReferenceQueryActor.ActorName));
-        ctx.MarketDataApi.Returns(available ? api : null);
         var expected = new ServiceOk<TradeStrategySymbolReadModel[]>([new() { Id = 10, Symbol = "ES", Exchange = "XCME", Currency = "USD", Description = "ES futures" }]);
-        api.GetTradeStrategySymbolsAsync(TradeStrategyFamilyType.Futures, Arg.Any<CancellationToken>()).Returns(expected);
+        var snapshot = new InstrumentDefinitionSnapshot(Guid.NewGuid(), DateTime.UtcNow, 1, ["GLBX.MDP3"]);
+        ctx.DbFactory.ReferenceDb.GetInstrumentDefinitionSnapshotAsync(Arg.Any<CancellationToken>()).Returns(available ? snapshot : null);
+        ctx.DbFactory.ReferenceDb.GetInstrumentDefinitionSymbolsAsync(snapshot.Id, TradeStrategyFamilyType.Futures, Arg.Any<CancellationToken>()).Returns(expected.Value!);
         var query = MessagePackSerializer.Deserialize<GetTradeStrategySymbolsQuery>(MessagePackSerializer.Serialize(new GetTradeStrategySymbolsQuery
         {
             Subject = new ActorSubject(ActorType.Query, GetTradeStrategySymbolsQuery.Actor, GetTradeStrategySymbolsQuery.Verb, "0"),

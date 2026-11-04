@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using Microsoft.Extensions.Logging;
@@ -14,7 +14,7 @@ public sealed class TradeSelectionFunctionStateRepository(IEventSourceActorState
     public bool UsesAtomicPersistence => string.Equals(databases?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
 
     public ValueTask<TradeSelectionFunctionCompletedEvent> CommitAsync(IFunctionActorContext context, ExecuteTradeSelectionPipelineCommand request, TradeSelectionFunctionCompletedEvent candidate, CancellationToken cancellationToken = default) => TradePipelineAtomicPersistence.CommitAsync(request, candidate, EventSourceDb, databases, transactions, cancellationToken);
-    public async ValueTask<TradeSelectionFunctionState> LoadStateAsync(ExecuteTradeSelectionPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateAsync<TradeSelectionFunctionState>(request, cancellationToken).ConfigureAwait(false);
+    public async ValueTask<TradeSelectionFunctionState> LoadStateAsync(ExecuteTradeSelectionPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateFromCreationSnapshotAsync<TradeSelectionFunctionState>(request, cancellationToken).ConfigureAwait(false);
     public async ValueTask SaveCompletedStateAsync(IFunctionActorContext context, TradeSelectionFunctionState state, ExecuteTradeSelectionPipelineCommand request, CancellationToken cancellationToken = default)
     {
         await SaveStateEventsAsync(state, request, expectedStreamVersion: 0, cancellationToken).ConfigureAwait(false);

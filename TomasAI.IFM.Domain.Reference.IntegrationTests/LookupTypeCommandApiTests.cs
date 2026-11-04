@@ -21,11 +21,10 @@ public class LookupTypeCommandApiTests(ReferenceIntegrationInfrastructureFixture
     public async Task AddLookupType_Ok()
     {
         // arrange...
-        var lookupType = SampleData.LookupType1;
+        var lookupType = SampleData.LookupType1 with { LookupTypeName = "Test" + Guid.NewGuid().ToString("N") };
         var cmdParam = new AddLookupTypeParameter(lookupType, AddLookupTypeCommand.ErrorId);
         var entityId = new LookupTypeId(cmdParam.LookupType.LookupTypeName, cmdParam.LookupType.OrderId);
         var subject = new ActorSubject(ActorType.Command, AddLookupTypeCommand.Actor, AddLookupTypeCommand.Verb, entityId.Format());
-        await ClearEventStreamAsync(subject);
 
         await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
 
@@ -53,14 +52,10 @@ public class LookupTypeCommandApiTests(ReferenceIntegrationInfrastructureFixture
     public async Task ChangeLookupType_Ok()
     {
         // arrange...
-        var lookupType = SampleData.LookupType1;
+        var lookupType = SampleData.LookupType1 with { LookupTypeName = "Test" + Guid.NewGuid().ToString("N") };
         var lookupTypeId = new LookupTypeId(lookupType.LookupTypeName, lookupType.OrderId);
         var cmdParam = new AddLookupTypeParameter(lookupType, AddLookupTypeCommand.ErrorId);
         var entityId = new LookupTypeId(cmdParam.LookupType.LookupTypeName, cmdParam.LookupType.OrderId);
-        await ClearEventStreamAsync(new ActorSubject(
-            ActorType.Command, AddLookupTypeCommand.Actor, AddLookupTypeCommand.Verb, entityId.Format()));
-        await ClearEventStreamAsync(new ActorSubject(
-            ActorType.Command, ChangeLookupTypeCommand.Actor, ChangeLookupTypeCommand.Verb, entityId.Format()));
 
         await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
 
@@ -100,12 +95,8 @@ public class LookupTypeCommandApiTests(ReferenceIntegrationInfrastructureFixture
     public async Task RemoveLookupType_Ok()
     {
         // arrange...
-        var lookupType = SampleData.LookupType1;
+        var lookupType = SampleData.LookupType1 with { LookupTypeName = "Test" + Guid.NewGuid().ToString("N") };
         var lookupTypeId = new LookupTypeId(lookupType.LookupTypeName, lookupType.OrderId);
-        await ClearEventStreamAsync(new ActorSubject(
-            ActorType.Command, AddLookupTypeCommand.Actor, AddLookupTypeCommand.Verb, lookupTypeId.Format()));
-        await ClearEventStreamAsync(new ActorSubject(
-            ActorType.Command, RemoveLookupTypeCommand.Actor, RemoveLookupTypeCommand.Verb, lookupTypeId.Format()));
 
         // first ensure the lookup type exists by adding it
         await infrastructure.ReferenceDb.DeleteLookupTypeAsync(lookupType.Id);
@@ -135,14 +126,6 @@ public class LookupTypeCommandApiTests(ReferenceIntegrationInfrastructureFixture
         // verify lookup type was removed from database
         var removedLookupType = await infrastructure.ReferenceDb.GetLookupTypeAsync(lookupType.Id);
         removedLookupType.Should().BeNull();
-    }
-
-    async Task ClearEventStreamAsync(ActorSubject subject)
-    {
-        infrastructure.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
-        var eventStreamId = await infrastructure.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await infrastructure.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
     }
 
     static async Task WaitUntilAsync(Func<Task<bool>> condition)

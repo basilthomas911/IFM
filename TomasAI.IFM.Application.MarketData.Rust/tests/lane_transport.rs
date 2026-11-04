@@ -4243,6 +4243,34 @@ async fn live_replay_finishes_native_volume_without_exposing_historical_last_pri
 async fn live_quotes_during_replay_evict_oldest_without_restarting_source() {
     verify_live_replay(Mode::ReplayLiveQuoteFlood, 4, 8).await;
 }
+
+#[tokio::test]
+async fn paired_futures_share_one_completed_replay_epoch() {
+    use ifm_market_data_native::{
+        dataset::live::{Evidence, LiveData, Registration, Start}, latest::Asset,
+        runtime::{clock::Clock, owner::Owner},
+    };
+    let fixture = Fixture::new(Mode::Replay).await;
+    let owner = Arc::new(Owner::default());
+    let date = time::Date::from_calendar_date(2026, time::Month::October, 26).unwrap();
+    let data = LiveData::new(date, 1, 8, Arc::new(Clock::new(0, false).unwrap()), owner.clone()).unwrap();
+    let mut replay = plan(Lane::FuturesGlbx);
+    replay.subscriptions[0].replay_start_ns = Some(0);
+    let registrations = [42, 43].into_iter().map(|instrument| Registration {
+        publisher: 0, instrument, contract: if instrument == 42 { "ES20261218" } else { "ES20270319" }.into(), source: "ESZ6".into(),
+        asset: Asset::Futures, tick: Some(250000000), vwap: true, required: instrument == 42,
+    }).collect();
+    data.start(Start { plan: replay, registrations, key: "x".repeat(32), gateway: fixture.gateway(), evidence: Evidence::Observations },
+        &CancellationToken::new(), Deadline::after(Duration::from_secs(5))).await.unwrap();
+    let epoch = |instrument| data.publication_state(Lane::FuturesGlbx, instrument).unwrap().unwrap().1.vwap.unwrap().epoch;
+    let first = epoch(42);
+    assert_ne!(first, 0);
+    assert_eq!(first, epoch(43), "Curve legs from the same provider replay must be compatible");
+    data.stop(Lane::FuturesGlbx, &CancellationToken::new(), Deadline::after(Duration::from_secs(2))).await.unwrap();
+    owner.stop().unwrap();
+    owner.wait_idle(&CancellationToken::new(), Deadline::after(Duration::from_secs(2))).await.unwrap();
+    fixture.stop().await;
+}
 async fn verify_live_replay(mode: Mode, replay_volume: i64, live_sequence: i64) {
     use ifm_market_data_native::{
         dataset::live::{Evidence, LiveData, Registration, Start},

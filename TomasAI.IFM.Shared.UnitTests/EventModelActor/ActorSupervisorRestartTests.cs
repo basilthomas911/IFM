@@ -87,12 +87,23 @@ public sealed class ActorSupervisorRestartTests
     [Fact]
     public async Task Cancellation_keeps_accepted_work_and_requires_explicit_resume()
     {
-        await using var fixture = new Fixture(TimeSpan.FromMilliseconds(250));
+        await using var fixture = new Fixture(TimeSpan.Zero);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Actor.ProcessingGate = release.Task;
         (await fixture.Actor.Mailbox.ThreadQueues.WriteAsync(new Message(1))).Should().BeTrue();
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(25));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-            await fixture.Supervisor.RestartAsync(fixture.ThreadId, 1, TimeSpan.FromSeconds(2), cancellation.Token));
-        fixture.Actor.Mailbox.ThreadQueues.IsAdmissionOpen(fixture.ThreadId).Should().BeFalse();
+        await fixture.Actor.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        using var cancellation = new CancellationTokenSource();
+        var restart = fixture.Supervisor.RestartAsync(fixture.ThreadId, 1, TimeSpan.FromSeconds(2), cancellation.Token).AsTask();
+        try
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            while (fixture.Actor.Mailbox.ThreadQueues.IsAdmissionOpen(fixture.ThreadId))
+                await Task.Delay(1, deadline.Token);
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => restart);
+            fixture.Actor.Mailbox.ThreadQueues.IsAdmissionOpen(fixture.ThreadId).Should().BeFalse();
+        }
+        finally { release.TrySetResult(); }
         await fixture.Actor.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await fixture.Supervisor.ResumeAsync(fixture.ThreadId);
         fixture.Actor.Mailbox.ThreadQueues.IsAdmissionOpen(fixture.ThreadId).Should().BeTrue();
@@ -139,11 +150,15 @@ public sealed class ActorSupervisorRestartTests
         public bool IsRunning => true;
         public IReadOnlyCollection<int> Processed => _processed;
         public TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task? ProcessingGate { get; set; }
         public ValueTask StartAsync(IActorSupervisor supervisor) => ValueTask.CompletedTask;
         public ValueTask StopAsync() => ValueTask.CompletedTask;
         public ValueTask HandleMessageAsync(IActorMessage message) => HandleMessageAsync(message, message.Subject.ThreadId);
         public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
         {
+            Started.TrySetResult();
+            if (ProcessingGate is { } gate) await gate.ConfigureAwait(false);
             if (delay > TimeSpan.Zero) await Task.Delay(delay).ConfigureAwait(false);
             _processed.Enqueue(((Message)message).Value);
             Completed.TrySetResult();

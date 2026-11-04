@@ -43,11 +43,11 @@ public sealed class FinancialWireContractVerificationTests
     public static TheoryData<Type, int> Contracts => new()
     {
         {typeof(PostFundTransactionCommand),17},{typeof(PostFundTransactionsCommand),17},
-        {typeof(ConfigureLedgerCommand),17},{typeof(LedgerConfigurationCompletedEvent),16},
-        {typeof(SubmitEmulatorOrderCommand),17},{typeof(EmulatorOrderSubmittedEvent),16},
+        {typeof(ConfigureLedgerCommand),17},{typeof(LedgerConfigurationCompletedEvent),17},
+        {typeof(SubmitEmulatorOrderCommand),17},{typeof(EmulatorOrderSubmittedEvent),17},
         {typeof(ReservePortfolioTradeRiskCommand),17},{typeof(ConsumeCapacityReservationCommand),17},{typeof(ChangeCapacityReservationCommand),17},
-        {typeof(LedgerPostingCompletedEvent),16},{typeof(LedgerPostingBatchCompletedEvent),16},
-        {typeof(CapacityReservationCompletedEvent),16},{typeof(CapacityConsumptionCompletedEvent),16},{typeof(CapacityLifecycleCompletedEvent),16},
+        {typeof(LedgerPostingCompletedEvent),17},{typeof(LedgerPostingBatchCompletedEvent),17},
+        {typeof(CapacityReservationCompletedEvent),17},{typeof(CapacityConsumptionCompletedEvent),17},{typeof(CapacityLifecycleCompletedEvent),17},
         {typeof(LedgerPostingFailedEvent),25},{typeof(LedgerPostingBatchFailedEvent),25},
         {typeof(CapacityReservationFailedEvent),25},{typeof(CapacityConsumptionFailedEvent),25},{typeof(CapacityLifecycleFailedEvent),25}
     };
@@ -58,6 +58,9 @@ public sealed class FinancialWireContractVerificationTests
         var properties = contract.GetProperties().Select(x => (Property: x, Key: x.GetCustomAttribute<KeyAttribute>())).Where(x => x.Key is not null).ToArray();
         properties.Select(x => x.Key!.IntKey!.Value).Order().Should().Equal(Enumerable.Range(0, expectedKeys));
         properties.Single(x => x.Key!.IntKey == 0).Property.Name.Should().Be("SchemaVersion");
+        if (typeof(IFinancialCompletedEvent).IsAssignableFrom(contract))
+            properties.Single(x => x.Key!.IntKey == 16).Property.Name.Should().Be(
+                contract == typeof(EmulatorOrderSubmittedEvent) ? "ProjectionRequest" : "ProjectionFacts");
         var message = Activator.CreateInstance(contract)!;
         typeof(FinancialWireContractVerificationTests).GetMethod(nameof(RoundTrip), BindingFlags.Static | BindingFlags.NonPublic)!
             .MakeGenericMethod(contract).Invoke(null, [message]);

@@ -151,6 +151,12 @@ public interface IConfigurationDbReadContext
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     Task<ParameterSetVersion[]> GetParameterSetsAsync(string componentCode, Guid? setId = null, CancellationToken cancellationToken = default, int limit = 100, string afterName = "", Guid? afterSetId = null, int afterVersion = 0);
 
+    /// <summary>Lists active startup run identities in stable creation order, independently of actor caches.</summary>
+    Task<Guid[]> GetParameterStartupRunIdsAsync(int limit, DateTime? afterCreatedAtUtc = null, Guid? afterRunId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Reads the concurrency fence for prepared parameter-command evidence.</summary>
+    Task<long> GetParameterRevisionFenceAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Reads typed scalar/child rows in the caller's transaction and verifies their content fingerprint.</summary>
     Task<ParameterSetValue?> GetTypedParameterValueAsync(IEnlistedPostgresTransaction transaction, Guid setId, int version, CancellationToken cancellationToken = default);
 

@@ -13,6 +13,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.State
 public class FuturesAdxSignalCommandState : BaseEventSourceActorState<FuturesAdxSignalCommandState>, IEventSourceActorState<FuturesAdxSignalCommandState>
 {
     readonly List<FuturesAdxSignalReadModel> _adxSignals = new(32);
+    int replayWindow;
+    /// <summary>Preserves the repository's configured computation window while replaying from creation.</summary>
+    internal void LimitReplayWindow(int count) => replayWindow = Math.Max(1, count);
     FuturesAdxSignalReadModel? _adxSignal;
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.
@@ -57,6 +60,8 @@ public class FuturesAdxSignalCommandState : BaseEventSourceActorState<FuturesAdx
             if (signal is null)
                 return false;
             _adxSignals.Add(signal);
+            if (replayWindow > 0 && _adxSignals.Count > replayWindow)
+                _adxSignals.RemoveRange(0, _adxSignals.Count - replayWindow);
             _adxSignal = signal;
             return true;
         }

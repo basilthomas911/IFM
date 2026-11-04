@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -33,19 +33,16 @@ public class FuturesAdxSignalStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<FuturesAdxSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => command switch
+    {
+        var window = command switch
         {
-            ICommand<FuturesAdxDailySignalEntityId> dailyCommand
-                => await (LoadStateAsync<FuturesAdxSignalCommandState, FuturesAdxDailySignalGeneratedEvent>(
-                    command,
-                    dailyCommand.EntityId.PeriodLength, cancellationToken)).ConfigureAwait(false),
-            ICommand<FuturesAdxSignalEntityId> adxCommand
-                => await (LoadStateFromSnapshotLastNRangeAsync<
-                    FuturesAdxSignalCommandState,
-                    FuturesAdxSignalStartedEvent,
-                    FuturesAdxSignalGeneratedEvent>(command, adxCommand.EntityId.PeriodLength, cancellationToken)).ConfigureAwait(false),
-            _ => throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command))
+            ICommand<FuturesAdxDailySignalEntityId> daily => daily.EntityId.PeriodLength,
+            ICommand<FuturesAdxSignalEntityId> adx => adx.EntityId.PeriodLength,
+            _ => 256
         };
+        return await LoadStateFromCreationSnapshotAsync<FuturesAdxSignalCommandState>(
+            command, cancellationToken, state => state.LimitReplayWindow(window)).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Saves futures ADX signal state changes and denormalizes the associated domain events.

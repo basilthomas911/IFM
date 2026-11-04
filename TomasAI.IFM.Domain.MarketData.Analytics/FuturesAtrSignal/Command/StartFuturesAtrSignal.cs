@@ -50,9 +50,11 @@ public static class StartFuturesAtrSignal
             var seededSignals = new List<FuturesAtrSignalReadModel>();
             var historicalEvents = new List<FuturesAtrSignalGeneratedEvent>();
             var hasHistoricalSeed = command.HistoricalSeed is { Length: > 0 };
-            string? rejectionReason = null;
+            string? rejectionReason = hasHistoricalSeed
+                && currentFuturesAtrSignal?.Metadata?.MarketDataAsOfUtc > command.HistoricalSeed![^1].IntervalEndUtc
+                ? "ATR historical initialization would replace a newer live observation" : null;
             FuturesAtrAccumulatorCheckpoint? futuresAtrCheckpoint = null;
-            if (hasHistoricalSeed)
+            if (hasHistoricalSeed && rejectionReason is null)
             {
                 foreach (var bar in command.HistoricalSeed!)
                 {

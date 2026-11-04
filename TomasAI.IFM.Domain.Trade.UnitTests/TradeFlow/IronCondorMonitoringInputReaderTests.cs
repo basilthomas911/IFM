@@ -91,8 +91,13 @@ public sealed class IronCondorMonitoringInputReaderTests
         var date = new DateOnly(2026, 10, 7);
         var now = new DateTime(2026, 10, 7, 12, 0, 0, DateTimeKind.Utc);
         var legs = Legs(1).Select((leg, index) => leg with { ContractId = $"option-{index}", Expiry = date.AddDays(10) }).ToArray();
-        trades.GetEstablishedTradeAsync(tradeId, Arg.Any<CancellationToken>()).Returns(new EstablishedTradeDefinition
-            { Id = tradeId, StrategyKind = TradeStrategyKind.IronCondor, Legs = legs, EstablishedAtUtc = now.AddDays(-1) });
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        trades.GetEstablishedTradeAsync(tradeId, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            started.TrySetResult();
+            return Task.FromResult<EstablishedTradeDefinition?>(new EstablishedTradeDefinition
+                { Id = tradeId, StrategyKind = TradeStrategyKind.IronCondor, Legs = legs, EstablishedAtUtc = now.AddDays(-1) });
+        });
         securities.GetFuturesOptionContractAsync(legs[0].ContractId, Arg.Any<CancellationToken>()).Returns(
             new TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel { UnderlyingContractId = "ESZ6" });
         securities.GetFuturesContractAsync("ESZ6", Arg.Any<CancellationToken>()).Returns(
@@ -108,6 +113,8 @@ public sealed class IronCondorMonitoringInputReaderTests
         var reader = new IronCondorMonitoringInputReader(databases, Substitute.For<ILogger>());
         var position = new StrategyPositionSnapshot { Id = StrategyPositionId.Create(tradeId, TradeStrategyKind.IronCondor) };
         TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanInputs? captured = null;
+        reader.Capture(position, date, now);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         var deadline = Stopwatch.StartNew();
         while ((captured = reader.Capture(position, date, now)) is null && deadline.Elapsed < TimeSpan.FromSeconds(3))
             await Task.Delay(10);
@@ -152,6 +159,7 @@ public sealed class IronCondorMonitoringInputReaderTests
             { TradeId = 4, TradeType = TradeType.ShortIronCondor, MaxLoss = -2000, MaxProfit = 1300 });
         var pricingCalls = 0;
         var logger = Substitute.For<ILogger>();
+        logger.IsEnabled(LogLevel.Error).Returns(true);
         using var lifetime = new CancellationTokenSource();
         var reader = new IronCondorMonitoringInputReader(databases, logger,
             captureOptionRisk: (_, _, _) => { Interlocked.Increment(ref pricingCalls); return Task.FromResult(risk); }, stoppingToken: lifetime.Token);

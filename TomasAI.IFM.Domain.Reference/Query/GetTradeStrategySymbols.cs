@@ -16,9 +16,11 @@ public static class GetTradeStrategySymbols
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
-            var result = context.MarketDataApi is null
-                ? new ServiceFailed<TradeStrategySymbolReadModel[]>(GetTradeStrategySymbolsQuery.ErrorId, "Market-data API is unavailable.")
-                : await (context.MarketDataApi.GetTradeStrategySymbolsAsync(query.Family, cancellationToken)).ConfigureAwait(false);
+            var database = context.DbFactory.ReferenceDb;
+            var snapshot = await database.GetInstrumentDefinitionSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            ServiceResult<TradeStrategySymbolReadModel[]> result = snapshot is null
+                ? new ServiceFailed<TradeStrategySymbolReadModel[]>(GetTradeStrategySymbolsQuery.ErrorId, "No published instrument-definition snapshot is available.")
+                : new ServiceOk<TradeStrategySymbolReadModel[]>(await database.GetInstrumentDefinitionSymbolsAsync(snapshot.Id, query.Family, cancellationToken).ConfigureAwait(false));
             await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result)).ConfigureAwait(false);
         }
     }

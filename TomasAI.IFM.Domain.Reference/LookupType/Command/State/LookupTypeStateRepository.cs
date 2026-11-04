@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
@@ -44,7 +44,7 @@ public class LookupTypeStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<LookupTypeCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromSnapshotAsync<LookupTypeCommandState, LookupTypeAddedEvent>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromCreationSnapshotAsync<LookupTypeCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously saves the current state of the lookup type actor by persisting the pending events from the state

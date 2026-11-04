@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
 [MessagePackObject(AllowPrivate = true)]
-public sealed record CreateParameterSetCommand : IParameterSetMutation
+public sealed record CreateParameterSetCommand : IParameterSetMutation, IAppendOnlyCommandRetryIdentity
 {
 
     /// <summary>Creates an empty command for serialization.</summary>
@@ -27,8 +27,9 @@ public sealed record CreateParameterSetCommand : IParameterSetMutation
     /// <param name="payloadJson">The PayloadJson field.</param>
     /// <param name="legacySource">The LegacySource field.</param>
     [SerializationConstructor]
-    public CreateParameterSetCommand(Guid commandId, ActorSubject subject, bool postEvents, ParameterSetEntityId entityId, int errorCode, BoundedContextName routeTo, long expectedRevision, int version, string componentCode, string name, string description, int schemaVersion, string payloadJson, ParameterLegacyReference? legacySource, ParameterSetValue? parameters)
+    public CreateParameterSetCommand(Guid commandId, ActorSubject subject, bool postEvents, ParameterSetEntityId entityId, int errorCode, BoundedContextName routeTo, long expectedRevision, int version, string componentCode, string name, string description, int schemaVersion, string payloadJson, ParameterLegacyReference? legacySource, ParameterSetValue? parameters, ParameterCommandEvidence? evidence = null)
     {
+        Evidence = evidence;
         CommandId = commandId;
         Subject = subject;
         PostEvents = postEvents;
@@ -62,10 +63,14 @@ public sealed record CreateParameterSetCommand : IParameterSetMutation
     [Key(12)] public string PayloadJson { get; init; } = string.Empty;
     [Key(13)] public ParameterLegacyReference? LegacySource { get; init; }
     [Key(14)] public ParameterSetValue? Parameters { get; init; }
+    [Key(15)] public ParameterCommandEvidence? Evidence { get; init; }
     [IgnoreMember] public string CommandName => nameof(CreateParameterSetCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance property implements command or exception metadata required by the published interface.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
+    /// <summary>Excludes per-attempt evidence while retaining the complete business request identity.</summary>
+    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { Evidence = null };
+
 }

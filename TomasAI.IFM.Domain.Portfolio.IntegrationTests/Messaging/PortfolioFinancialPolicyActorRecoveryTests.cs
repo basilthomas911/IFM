@@ -27,7 +27,7 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
     [Fact]
     [Trait("Category", "Portfolio")]
     [Trait("Gate", "PF-24")]
-    public async Task Retry_heals_assignment_and_projections_after_policy_commit_partial_failure()
+    public async Task Retry_commits_policy_and_assignment_once_after_atomic_commit_failure()
     {
         var store = new InMemoryPolicyStore();
         var policyId = new PortfolioFinancialPolicyId(701, 8101);
@@ -41,7 +41,7 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
 
         var firstAttempt = async () => await typed.ReceiveAsync(context, firstState, command);
         await firstAttempt.Should().ThrowAsync<InvalidOperationException>().WithMessage("*injected*");
-        store.PolicyHistory(policyId).Should().HaveCount(2, "the policy activation committed before the injected Portfolio failure");
+        store.PolicyHistory(policyId).Should().HaveCount(1, "the atomic policy/Portfolio batch rolls back completely");
         (await store.LoadPortfolioAsync(new(701))).Current!.ActivePolicyId.Should().Be(0, "the prior Portfolio assignment remains valid until healing succeeds");
 
         var retryState = await typed.OnLoadStateAsync(context, command.Subject.ThreadId, command);
@@ -53,8 +53,8 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
         healed.Current!.ActivePolicyId.Should().Be(8101);
         healed.Current.ActivePolicyVersion.Should().Be(1);
         await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Single() is PortfolioFinancialPolicyActivatedEvent));
-        await projections.Received().UpsertPortfolioAsync(Arg.Any<PortfolioProjection<PortfolioReadModel>>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
-        await projections.Received().UpsertPolicyAsync(Arg.Any<PortfolioProjection<PortfolioFinancialPolicyReadModel>>(), Arg.Any<CancellationToken>());
+        await projections.DidNotReceive().UpsertPortfolioAsync(Arg.Any<PortfolioProjection<PortfolioReadModel>>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await projections.DidNotReceive().UpsertPolicyAsync(Arg.Any<PortfolioProjection<PortfolioFinancialPolicyReadModel>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -178,6 +178,22 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
 
         public IReadOnlyList<IPortfolioFinancialPolicyDomainEvent> PolicyHistory(PortfolioFinancialPolicyId id)
         { lock (sync) return policies[id].ToArray(); }
+
+        public Task AppendPolicyAndPortfolioAsync(PortfolioFinancialPolicyId policyId, IPortfolioFinancialPolicyDomainEvent policyEvent,
+            PortfolioId portfolioId, IPortfolioDomainEvent portfolioEvent, CancellationToken cancellationToken = default)
+        {
+            lock (sync)
+            {
+                var policyHistory = policies[policyId];
+                var portfolioHistory = portfolios[portfolioId.Id];
+                if (policyHistory.Count != policyEvent.Revision - 1 || portfolioHistory.Count != portfolioEvent.Revision - 1)
+                    throw new InvalidOperationException("Concurrent policy or Portfolio revision.");
+                if (FailNextPortfolioAppend) { FailNextPortfolioAppend = false; throw new InvalidOperationException("injected atomic append failure"); }
+                policyHistory.Add(policyEvent);
+                portfolioHistory.Add(portfolioEvent);
+            }
+            return Task.CompletedTask;
+        }
 
         public Task AppendPortfolioAsync(PortfolioId id, IPortfolioDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default)
         {

@@ -1,26 +1,19 @@
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
-using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
-using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Query.Actor;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Query.Actor;
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.State;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
+using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.Extensions;
-
 namespace TomasAI.IFM.Domain.Reference.ParameterSets.Query.Actor;
 
-/// <summary>Defines readonly services owned by the strategy-configuration Query actor.</summary>
-public interface IParameterSetQueryContext
-    : IQueryActorContext<ParameterSetQueryActor>
+/// <summary>Set queries, with read-only compatibility for published legacy query routes.</summary>
+public interface IParameterSetQueryContext : IQueryActorContext<ParameterSetQueryActor>, IParameterAssignmentQueryServices, IParameterStartupQueryServices
 {
-    IRegimeDiscoveryMarketSignalSnapshotProvider SignalSnapshots { get; }
-    IParameterAccessPolicy AccessPolicy { get; }
-    IEventSourceActorStateRepository<ParameterStartupCommandState> Startups { get; }
-    /// <summary>Gets ConfigurationDb.</summary>
-    IConfigurationDbContext ConfigurationDb { get; }
-    IEventSourceActorStateRepository<ParameterSetCommandState> StateRepository { get; }
-    IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments { get; }
-    /// <summary>Gets the logger.</summary>
+    new IParameterAccessPolicy AccessPolicy { get; }
+    new IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments { get; }
     ILogger<ParameterSetQueryActor> Logger { get; }
 }

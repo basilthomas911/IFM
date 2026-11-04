@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Validation;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Persistence;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Validation;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
@@ -80,12 +81,17 @@ public sealed class ParameterSetCommandActor(ICommandActorContext<ParameterSetCo
         if (command is CreateParameterSetCommand or SaveParameterDraftCommand)
         {
             var mutation = (IParameterSetMutation)command;
-            if (await (Services.ConfigurationDb.GetParameterSchemaAsync(mutation.ComponentCode, mutation.SchemaVersion)).ConfigureAwait(false) is null)
-                throw new InvalidOperationException("PARAM.SCHEMA_UNREGISTERED");
+            try { _ = ParameterSchemaRegistry.Default.Get(mutation.ComponentCode, mutation.SchemaVersion); }
+            catch (ArgumentException error) { throw new InvalidOperationException("PARAM.SCHEMA_UNREGISTERED", error); }
         }
         var lease = await (Services.ConfigurationDb.AcquireParameterWriteLeaseAsync()).ConfigureAwait(false);
         if (!leases.TryAdd((command.StreamId, command.CommandId), lease)) { await (lease.DisposeAsync()).ConfigureAwait(false); throw new InvalidOperationException("PARAM.OPERATION_ALREADY_RUNNING"); }
-        try { return await (Services.StateRepository.LoadStateAsync(command)).ConfigureAwait(false); }
+        try
+        {
+            var state = await Services.StateRepository.LoadStateAsync(command).ConfigureAwait(false);
+            if (!(state.Operations.ContainsKey(command.CommandId))) await ParameterEvidenceFence.DemandAsync(Services.ConfigurationDb, command).ConfigureAwait(false);
+            return state;
+        }
         catch { await (ReleaseLease(command)).ConfigureAwait(false); throw; }
     }
     protected override async ValueTask OnSaveStateAsync(ICommandActorContext<ParameterSetCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)

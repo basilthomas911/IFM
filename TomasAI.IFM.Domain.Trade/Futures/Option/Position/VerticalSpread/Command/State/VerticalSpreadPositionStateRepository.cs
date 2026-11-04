@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -13,7 +13,8 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Comman
 public sealed class VerticalSpreadPositionStateRepository(IEventSourceActorStateFactory factory, IEventSourceActorDbContext source, IActorService actors, IEventProjector<FuturesVerticalSpreadTradePositionCommandActor> projector, ILogger<VerticalSpreadPositionStateRepository> logger, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(factory, source, actors, logger), IResidentEventSourceActorStateRepository<VerticalSpreadPositionCommandState>
 {
     public ValueTask<VerticalSpreadPositionCommandState> LoadStateAsync(ICommand command) => LoadStateAsync(command, CancellationToken.None);
-    public async ValueTask<VerticalSpreadPositionCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) => await LoadStateAsync<VerticalSpreadPositionCommandState>(command, cancellationToken).ConfigureAwait(false);
+    public async ValueTask<VerticalSpreadPositionCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) => await LoadStateFromCreationSnapshotWithCheckpointAsync<VerticalSpreadPositionCommandState, TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.VerticalSpreadPositionChangedEvent>(command,
+        snapshot => snapshot.PositionSnapshot is not null, cancellationToken).ConfigureAwait(false);
     public ValueTask SaveStateAsync(ICommandActorContext context, VerticalSpreadPositionCommandState state, ICommand command) => SaveStateAsync(context, state, command, CancellationToken.None);
     public async ValueTask SaveStateAsync(ICommandActorContext context, VerticalSpreadPositionCommandState state, ICommand command, CancellationToken cancellationToken)
     {

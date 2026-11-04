@@ -7,6 +7,104 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// </summary>
 public static class EventSourceDbSql
 {
+    /// <summary>Reads creation, the latest replacement for each declared component, and the captured head without scanning superseded payloads.</summary>
+    public const string GetEventLogFromLatestComponentSnapshots = """
+        WITH snapshot_head AS MATERIALIZED (
+            SELECT CurrentVersion FROM event_stream_id WHERE EventStreamId=$1
+        ), selected AS MATERIALIZED (
+            SELECT 1::bigint AS StreamVersion
+            UNION SELECT CurrentVersion FROM snapshot_head
+            UNION
+            SELECT latest.StreamVersion
+            FROM unnest($2::integer[]) AS names(EventNameId)
+            CROSS JOIN snapshot_head
+            CROSS JOIN LATERAL (
+                SELECT el.StreamVersion FROM event_log el
+                WHERE el.EventStreamId=$1 AND el.EventNameId=names.EventNameId
+                    AND el.StreamVersion<=snapshot_head.CurrentVersion
+                ORDER BY el.EventVersion DESC LIMIT 1
+            ) latest
+        )
+        SELECT el.EventStreamId,en.EventName,en.EventTypeName,el.EventVersion,
+               el.EventPayload,el.CommandId,el.EventTimestamp,el.StreamVersion,
+               snapshot_head.CurrentVersion AS SnapshotHead,el.StreamVersion AS CheckpointVersion
+        FROM snapshot_head CROSS JOIN selected
+        LEFT JOIN event_log el ON el.EventStreamId=$1 AND el.StreamVersion=selected.StreamVersion
+        LEFT JOIN event_name_id en ON en.EventNameId=el.EventNameId
+        WHERE selected.StreamVersion>0
+        ORDER BY selected.StreamVersion;
+        """;
+
+    /// <summary>Restores a stateless reducer without reading its raw tick history.</summary>
+    public const string GetStatelessEventLogFromCreationSnapshot = """
+        WITH snapshot_head AS MATERIALIZED (
+            SELECT CurrentVersion FROM event_stream_id WHERE EventStreamId=$1
+        )
+        SELECT el.EventStreamId,en.EventName,en.EventTypeName,el.EventVersion,
+               el.EventPayload,el.CommandId,el.EventTimestamp,el.StreamVersion,
+               snapshot_head.CurrentVersion AS SnapshotHead,snapshot_head.CurrentVersion AS CheckpointVersion
+        FROM snapshot_head
+        LEFT JOIN LATERAL (
+            SELECT * FROM event_log creation
+            WHERE creation.EventStreamId=$1 AND creation.StreamVersion=1
+              AND creation.StreamVersion<=snapshot_head.CurrentVersion
+            UNION ALL
+            SELECT * FROM event_log head
+            WHERE head.EventStreamId=$1 AND head.StreamVersion=snapshot_head.CurrentVersion
+              AND head.StreamVersion>1
+        ) el ON true
+        LEFT JOIN event_name_id en ON en.EventNameId=el.EventNameId
+        ORDER BY el.StreamVersion;
+        """;
+
+    /// <summary>Reads the first committed source fact and its ordered tail at one MVCC snapshot.</summary>
+    public const string GetEventLogFromCreationSnapshot = """
+        WITH snapshot_head AS MATERIALIZED (
+            SELECT CurrentVersion FROM event_stream_id WHERE EventStreamId = $1
+        )
+        SELECT el.EventStreamId, en.EventName, en.EventTypeName, el.EventVersion,
+               el.EventPayload, el.CommandId, el.EventTimestamp, el.StreamVersion,
+               snapshot_head.CurrentVersion AS SnapshotHead
+        FROM snapshot_head
+        LEFT JOIN event_log el ON el.EventStreamId = $1
+            AND el.StreamVersion >= 1 AND el.StreamVersion <= snapshot_head.CurrentVersion
+        LEFT JOIN event_name_id en ON en.EventNameId = el.EventNameId
+        ORDER BY el.StreamVersion;
+        """;
+
+    /// <summary>Retains creation while skipping only facts superseded by an explicit full checkpoint.</summary>
+    public const string GetEventLogFromCreationWithCheckpoint = """
+        WITH snapshot_head AS MATERIALIZED (
+            SELECT CurrentVersion FROM event_stream_id WHERE EventStreamId = $1
+        ), checkpoint AS MATERIALIZED (
+            SELECT coalesce(max(latest.StreamVersion),1) AS StreamVersion
+            FROM unnest($2::integer[]) AS names(EventNameId)
+            CROSS JOIN snapshot_head
+            CROSS JOIN LATERAL (
+                SELECT el.StreamVersion FROM event_log el
+                WHERE el.EventStreamId=$1 AND el.EventNameId=names.EventNameId
+                  AND el.StreamVersion<=snapshot_head.CurrentVersion
+                ORDER BY el.EventVersion DESC LIMIT 1
+            ) latest
+        )
+        SELECT el.EventStreamId, en.EventName, en.EventTypeName, el.EventVersion,
+               el.EventPayload, el.CommandId, el.EventTimestamp, el.StreamVersion,
+               snapshot_head.CurrentVersion AS SnapshotHead, checkpoint.StreamVersion AS CheckpointVersion
+        FROM snapshot_head CROSS JOIN checkpoint
+        LEFT JOIN LATERAL (
+            SELECT * FROM event_log creation
+            WHERE creation.EventStreamId=$1 AND creation.StreamVersion=1
+              AND creation.StreamVersion<=snapshot_head.CurrentVersion
+            UNION ALL
+            SELECT * FROM event_log tail
+            WHERE tail.EventStreamId=$1 AND tail.StreamVersion>1
+              AND tail.StreamVersion>=checkpoint.StreamVersion
+              AND tail.StreamVersion<=snapshot_head.CurrentVersion
+        ) el ON true
+        LEFT JOIN event_name_id en ON en.EventNameId=el.EventNameId
+        ORDER BY el.StreamVersion;
+        """;
+
     /// <summary>Finds current, stable and historical metadata rows for a typed read without rewriting them.</summary>
     public const string GetCompatibleEventNameIds = """
         SELECT EventNameId, EventName, EventTypeName FROM event_name_id

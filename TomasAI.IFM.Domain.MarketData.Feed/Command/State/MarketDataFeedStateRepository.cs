@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.Extensions;
@@ -47,12 +47,12 @@ public class MarketDataFeedStateRepository(
     public async ValueTask<MarketDataFeedCommandState> LoadStateAsync(ICommand command)
         => command switch
         {
-            _ when command is TurnTradeLiveFeedOnCommand => await (LoadStateFromSnapshotAsync<MarketDataFeedCommandState, TradeLiveFeedAddedEvent>(command)).ConfigureAwait(false),
-            _ when command is TurnTradeLiveFeedOffCommand => await (LoadStateFromSnapshotAsync<MarketDataFeedCommandState, TradeLiveFeedAddedEvent>(command)).ConfigureAwait(false),
-            _ when command is AddTradeLiveFeedCommand => await (LoadStateFromSnapshotAsync<MarketDataFeedCommandState, TradeLiveFeedAddedEvent>(command)).ConfigureAwait(false),
-            _ when command is RemoveTradeLiveFeedCommand => await (LoadStateFromSnapshotAsync<MarketDataFeedCommandState, TradeLiveFeedAddedEvent>(command)).ConfigureAwait(false),
-            _ when command is HaltTradeLiveFeedCommand => await (LoadStateFromSnapshotAsync<MarketDataFeedCommandState, TradeLiveFeedAddedEvent>(command)).ConfigureAwait(false),
-            _ => await (LoadStateFromSnapshotAsync<MarketDataFeedCommandState, MarketDataFeedStartedEvent>(command)).ConfigureAwait(false)
+            _ when command is TurnTradeLiveFeedOnCommand => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false),
+            _ when command is TurnTradeLiveFeedOffCommand => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false),
+            _ when command is AddTradeLiveFeedCommand => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false),
+            _ when command is RemoveTradeLiveFeedCommand => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false),
+            _ when command is HaltTradeLiveFeedCommand => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false),
+            _ => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false)
         };
 
     /// <summary>

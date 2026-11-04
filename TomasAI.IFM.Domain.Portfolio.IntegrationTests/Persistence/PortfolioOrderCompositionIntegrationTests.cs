@@ -293,7 +293,7 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
     static async Task VerifySourceOnlyRebuildAsync(IFinancialCompletedEvent completed)
     {
         var connection=new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")!);
-        if(connection.Database!="ifm_storage_refactor_test") throw new InvalidOperationException("Isolated test database required.");
+        if(!OwnedPortfolioTestDatabase.IsOwned(connection)) throw new InvalidOperationException("Isolated test database required.");
         var owner=Transactions();
         var source=completed is PortfolioOrderCompositionCompletedEvent
             ? (IFinancialCompletedEvent)(await new PortfolioFinancialStore(owner).ReadOperationAsync<PortfolioOrderCompositionCompletedEvent>(completed.PortfolioId,completed.OperationId))!

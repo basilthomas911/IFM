@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -50,7 +50,7 @@ public class FuturesClosingPriceStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded state as a <see
     /// cref="FuturesClosingPriceCommandState"/> instance.</returns>
     public async ValueTask<FuturesClosingPriceCommandState> LoadStateAsync(ICommand command)
-        => await (LoadStateFromSnapshotAsync<FuturesClosingPriceCommandState, FuturesClosingPriceInsertedEvent>(command)).ConfigureAwait(false);
+        => await (LoadStateFromCreationSnapshotAsync<FuturesClosingPriceCommandState>(command)).ConfigureAwait(false);
 
     /// <summary>
     /// save futures closing price state changes

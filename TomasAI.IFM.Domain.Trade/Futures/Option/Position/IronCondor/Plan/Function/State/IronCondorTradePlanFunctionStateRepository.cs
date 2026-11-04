@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -9,14 +9,14 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.State;
-/// <summary>Loads the latest source snapshot and commits PostgreSQL event and plan writes atomically.</summary>
-/// <remarks>No history is replayed or cached. The Scylla path is retained only until development data is migrated.</remarks>
+/// <summary>Loads creation and the latest complete checkpoint and commits PostgreSQL event and plan writes atomically.</summary>
+/// <remarks>Superseded intermediate plans are skipped and no history collection is cached. The Scylla path is retained only until development data is migrated.</remarks>
 public sealed class IronCondorTradePlanFunctionStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<FuturesIronCondorTradePositionCommandActor> projector, ILogger<IronCondorTradePlanFunctionStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState, UpdateIronCondorTradePlanCommand>
 {
-    /// <summary>Restores only the last full snapshot in the source stream; it never queries Scylla or loads earlier plans.</summary>
+    /// <summary>Restores creation and the latest full checkpoint without querying Scylla.</summary>
     /// <param name = "request">The current position and captured calculation inputs.</param>
-    /// <param name = "cancellationToken">Cancels the single-snapshot load.</param>
-    /// <returns>A request-local state initialized from at most one persisted snapshot event.</returns>
+    /// <param name = "cancellationToken">Cancels creation/checkpoint loading.</param>
+    /// <returns>A request-local state restored through the captured stream head.</returns>
     public async ValueTask<IronCondorTradePlanFunctionState> LoadStateAsync(UpdateIronCondorTradePlanCommand request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -25,7 +25,7 @@ public sealed class IronCondorTradePlanFunctionStateRepository(IEventSourceActor
             Id = request.Subject.ThreadId
         };
         var streamId = await GetStreamId(request.StreamId, cancellationToken).ConfigureAwait(false);
-        await EventSourceDb.MapReduceActorEventStreamAsync<IronCondorTradePlanFunctionState, IronCondorTradePlanUpdatedEvent>(streamId, 1, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
+        await EventSourceDb.MapReduceActorEventStreamFromCreationWithCheckpointAsync<IronCondorTradePlanFunctionState, IronCondorTradePlanUpdatedEvent>(streamId, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
         return state.Prepare(request);
     }
 

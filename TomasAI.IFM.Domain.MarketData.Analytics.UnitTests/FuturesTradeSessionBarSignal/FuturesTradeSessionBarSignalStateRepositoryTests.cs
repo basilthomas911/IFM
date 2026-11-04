@@ -19,7 +19,7 @@ public sealed class FuturesTradeSessionBarSignalStateRepositoryTests
 {
     /// <summary>Loads the last appended Published event without assuming it is the newest market interval.</summary>
     [Fact]
-    public async Task LoadStateUsesLatestPublishedBarSnapshot()
+    public async Task LoadStateReplaysPublicationFromCreation()
     {
         const long streamId = 42;
         var series = MarketSeriesIdentity.ForFuturesSeries(
@@ -69,9 +69,7 @@ public sealed class FuturesTradeSessionBarSignalStateRepositoryTests
         stateFactory.CreateState<FuturesTradeSessionBarSignalCommandState>().Returns(state);
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
         eventSource.GetEventStreamIdAsync(command.StreamId, CancellationToken.None).Returns(streamId);
-        eventSource.MapReduceActorEventStreamAsync<
-                FuturesTradeSessionBarSignalCommandState,
-                FuturesTradeSessionBarPublishedEvent>(
+        eventSource.MapReduceActorEventStreamFromCreationAsync<FuturesTradeSessionBarSignalCommandState>(
                 streamId,
                 Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None)
             .Returns(call =>
@@ -79,7 +77,7 @@ public sealed class FuturesTradeSessionBarSignalStateRepositoryTests
                 call.Arg<Action<IEnumerable<EventStreamReadModel>>>()([
                     new EventStreamReadModel
                     {
-                        EventVersion = 99,
+                        EventVersion = 99, StreamVersion = 1,
                         EventTypeName = typeof(FuturesTradeSessionBarPublishedEvent).AssemblyQualifiedName!,
                         EventData = EventLogMessagePackCodec.Shared.Serialize(published)
                     }
@@ -99,9 +97,7 @@ public sealed class FuturesTradeSessionBarSignalStateRepositoryTests
         Assert.Equal(command.Subject.ThreadId, loaded.Id);
         Assert.Equal(barId, loaded.LastAppliedBarId);
         Assert.Equal(command.Bar, loaded.LastAppliedBar);
-        await eventSource.Received(1).MapReduceActorEventStreamAsync<
-            FuturesTradeSessionBarSignalCommandState,
-            FuturesTradeSessionBarPublishedEvent>(
+        await eventSource.Received(1).MapReduceActorEventStreamFromCreationAsync<FuturesTradeSessionBarSignalCommandState>(
             streamId,
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
         await eventSource.DidNotReceiveWithAnyArgs().MapReduceActorEventStreamAsync<

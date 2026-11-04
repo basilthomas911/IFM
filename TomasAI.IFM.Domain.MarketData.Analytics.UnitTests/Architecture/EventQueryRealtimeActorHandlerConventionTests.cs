@@ -123,9 +123,9 @@ public sealed class EventQueryRealtimeActorHandlerConventionTests
         return source.Substring(start, end.Index + end.Length);
     }
 
-    static string FindAnalyticsRoot()
+    static string FindAnalyticsRoot([System.Runtime.CompilerServices.CallerFilePath] string sourceFile = "")
     {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var directory = new DirectoryInfo(Path.GetDirectoryName(sourceFile)!);
              directory is not null;
              directory = directory.Parent)
         {

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
@@ -46,8 +46,8 @@ public class FuturesOptionContractStateRepository(
 
     public async ValueTask<FuturesOptionContractCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
         => command is AddFuturesOptionContractsCommand
-            ? await LoadStateFromSnapshotAsync<FuturesOptionContractCommandState, FuturesOptionContractsAddedEvent>(command, cancellationToken).ConfigureAwait(false)
-            : await LoadStateFromSnapshotAsync<FuturesOptionContractCommandState, FuturesOptionContractAddedEvent>(command, cancellationToken).ConfigureAwait(false);
+            ? await LoadStateFromCreationSnapshotAsync<FuturesOptionContractCommandState>(command, cancellationToken).ConfigureAwait(false)
+            : await LoadStateFromCreationSnapshotAsync<FuturesOptionContractCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Saves the specified state asynchronously, associating it with the provided command.

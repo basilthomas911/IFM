@@ -54,7 +54,9 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
         if (stream is null)
             return state;
         using var snapshotRead = WorkflowTrace.Start("workflow.state.snapshot_read", null);
-        var events = await _eventSource.LoadActorEventStreamAsync<IntrinsicTimeStrategyWorkflowCommandState, WorkflowStrategyStateUpdatedEvent>(stream.EventStreamId).ConfigureAwait(false);
+        var events = new List<global::TomasAI.IFM.Shared.EventSourcing.ViewModels.EventStreamReadModel>();
+        await _eventSource.MapReduceActorEventStreamFromCreationAsync<IntrinsicTimeStrategyWorkflowCommandState>(
+            stream.EventStreamId, rows => events.AddRange(rows), cancellationToken).ConfigureAwait(false);
         snapshotRead?.SetTag("ifm.workflow.snapshot_count", events.Count);
         snapshotRead?.Stop();
         if (events.Count == 0)
@@ -81,10 +83,11 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
             throw new LegacyWorkflowStreamException(command.StreamId, events.Count, "The stream contains events after its latest authoritative snapshot.");
         }
 
+        foreach (var entry in snapshots.OrderBy(static value => value.Stream.StreamVersion))
+            if (entry.Event is not WorkflowStrategyStateUpdatedEvent snapshot || !state.Apply(snapshot, addEvent: false))
+                throw new InvalidOperationException($"The workflow creation snapshot or tail in {command.StreamId} is invalid or cannot be applied.");
         var latest = snapshots.MaxBy(static value => value.Stream.StreamVersion);
-        var domainEvent = latest.Event;
-        if (domainEvent is not WorkflowStrategyStateUpdatedEvent snapshot || !state.Apply(snapshot, addEvent: false))
-            throw new InvalidOperationException($"The latest workflow snapshot in {command.StreamId} is invalid or cannot be applied.");
+        state.RestoreCommittedStreamVersion(latest.Stream.StreamVersion);
         state.SetPersistedStreamVersion(latest.Stream.StreamVersion);
         return state;
     }
