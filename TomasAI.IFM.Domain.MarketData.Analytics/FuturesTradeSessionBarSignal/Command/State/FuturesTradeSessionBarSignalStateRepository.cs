@@ -34,8 +34,8 @@ public sealed class FuturesTradeSessionBarSignalStateRepository(
     public async ValueTask<FuturesTradeSessionBarSignalCommandState> LoadStateAsync(
         ICommand command,
         CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<
-                FuturesTradeSessionBarSignalCommandState>(command, cancellationToken)
+        => await LoadStateFromLatestCheckpointAsync<FuturesTradeSessionBarSignalCommandState, FuturesTradeSessionBarPublishedEvent>(
+            command, static fact => fact.Bar is not null, cancellationToken)
             .ConfigureAwait(false);
 
     /// <summary>Commits pending publisher events and queues their projections.</summary>

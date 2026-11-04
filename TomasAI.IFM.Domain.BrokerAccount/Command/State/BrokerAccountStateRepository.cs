@@ -28,11 +28,11 @@ public sealed class BrokerAccountStateRepository(
     /// <inheritdoc />
     public async ValueTask<BrokerAccountCommandState> LoadStateAsync(ICommand command,
         CancellationToken cancellationToken)
-    {
-        var state = await LoadStateFromCreationSnapshotAsync<BrokerAccountCommandState>(
-            command, cancellationToken).ConfigureAwait(false);
-        return state;
-    }
+        => await LoadStateFromLatestCheckpointAsync<BrokerAccountCommandState>(
+            command, CheckpointTypes, static (state, fact, checkpoint) => state.ApplyCheckpointEvent(fact, checkpoint),
+            cancellationToken).ConfigureAwait(false);
+
+    private static readonly Type[] CheckpointTypes = [typeof(BrokerAccountChangedEvent)];
 
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context,

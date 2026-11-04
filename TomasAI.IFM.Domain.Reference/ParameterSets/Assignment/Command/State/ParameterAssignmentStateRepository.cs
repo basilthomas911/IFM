@@ -30,14 +30,15 @@ public sealed class ParameterAssignmentStateRepository(
 
     /// <summary>Loads configuration source facts with cancellation.</summary>
     public async ValueTask<ParameterAssignmentCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<ParameterAssignmentCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<ParameterAssignmentCommandState, ParameterAssignmentStateSnapshottedEvent>(
+            command, ParameterAssignmentCommandState.IsCompleteSnapshot, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Saves pending lifecycle events atomically.</summary>
     public async ValueTask SaveStateAsync(ICommandActorContext context,
         ParameterAssignmentCommandState state, ICommand command)
         => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
-    /// <summary>Commits the source event, accepted configuration, audit and applicable cache policy together.</summary>
+    /// <summary>Commits the source events, pending projection markers, and evidence fence together.</summary>
     public async ValueTask SaveStateAsync(ICommandActorContext context, ParameterAssignmentCommandState state,
         ICommand command, CancellationToken cancellationToken)
     {
@@ -47,7 +48,7 @@ public sealed class ParameterAssignmentStateRepository(
         var database = databases.ConfigurationDb;
         if (!string.Equals(database.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
         {
-            await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+            await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken).ConfigureAwait(false);
             return;
         }
         if (state.Events.Count == 0) return;
@@ -55,19 +56,29 @@ public sealed class ParameterAssignmentStateRepository(
             PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString))
             throw new InvalidOperationException("Parameter source events and projections must share one PostgreSQL database/security identity.");
         var pending = new DomainEventCollection(state.Events);
+        var snapshot = ShouldCapturePeriodicSnapshot(state.CommittedStreamVersion, pending.Count)
+            ? state.CaptureSnapshot(command) : null;
         var transactions = context.Container.Resolve<IPostgresEventTransaction>();
         await transactions.ExecuteAsync(async (transaction, token) =>
         {
             var version = state.CommittedStreamVersion;
             foreach (var source in pending)
             {
-                await transaction.AppendAsync(command.StreamId, command.CommandId, source, version++, token).ConfigureAwait(false);
-                await ParameterAcceptedProjection.ApplyAsync(databases, transaction, source, token).ConfigureAwait(false);
+                var eventId = await transaction.AppendAsync(command.StreamId, command.CommandId, source, version++, token).ConfigureAwait(false);
+                await database.MarkParameterProjectionPendingAsync(transaction, eventId, token).ConfigureAwait(false);
             }
+            if (snapshot is not null)
+                await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, token).ConfigureAwait(false);
             await database.AdvanceParameterRevisionFenceAsync(transaction, token).ConfigureAwait(false);
             return true;
         }, cancellationToken).ConfigureAwait(false);
         state.AcceptChanges();
+        if (snapshot is not null)
+            state.RestoreCommittedStreamVersion(checked(state.CommittedStreamVersion + 1));
+        // First apply through the projector after commit so the normal reply still supports immediate reads.
+        // The committed marker remains recoverable if this process stops before projection or enqueue.
+        foreach (var source in pending)
+            await projector.ProcessDomainEventAsync(source).ConfigureAwait(false);
         await DenormalizeEventsAsync(context, pending).ConfigureAwait(false);
     }
 

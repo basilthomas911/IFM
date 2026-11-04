@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.EventSourcing;
+using TomasAI.IFM.Shared.EventModelActor;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Text.Json;
@@ -427,15 +429,24 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Retain sequential awaited database operations and explicit loops without allocating LINQ iterators on persistence paths.")]
     public async Task<string> InsertStrategyCatalogDraftAsync(StrategyCatalogDefinition definition, int expectedPreviousVersion, string createdBy, CancellationToken cancellationToken = default)
     {
-        var d = Canonicalize(definition);
-        var hash = CanonicalContentHash(d);
-        var json = JsonSerializer.Serialize(d, JsonOptions);
         var connection = await this.OpenCatalogAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var connectionDisposal = connection.ConfigureAwait(false);
         var transaction = await connection.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
+        var hash = await InsertStrategyCatalogDraftCoreAsync(connection, transaction, definition, expectedPreviousVersion, createdBy, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return hash;
+    }
+
+    async Task<string> InsertStrategyCatalogDraftCoreAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+        StrategyCatalogDefinition definition, int expectedPreviousVersion, string createdBy, CancellationToken cancellationToken)
+    {
+        var d = Canonicalize(definition);
+        var hash = CanonicalContentHash(d);
+        var json = JsonSerializer.Serialize(d, JsonOptions);
         await this.CatalogWriteLock(connection, transaction, cancellationToken)
             .ConfigureAwait(false);
         var latest = await this.Scalar(connection, transaction, ConfigurationDbSql.GetLatestStrategyCatalogVersion, cancellationToken, new CatalogIdentity((short)d.Key.Kind, d.Key.Id))
@@ -458,19 +469,22 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             ValidateParameters(ReadShape(schema!.Definition.Settings), d.Settings);
         }
 
-        var now = DateTime.UtcNow.CatalogNow();
-        await this.Execute(connection, transaction, ConfigurationDbSql.InsertStrategyCatalogIdentity, cancellationToken, new InsertCatalogIdentity((short)d.Key.Kind, d.Key.Id, d.Code, now, createdBy))
+        await MaterializeCatalogDraftAsync(connection, transaction, d, hash, json, DateTime.UtcNow.CatalogNow(), createdBy, cancellationToken).ConfigureAwait(false);
+        return hash;
+    }
+
+    async Task MaterializeCatalogDraftAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+        StrategyCatalogDefinition d, string hash, string json, DateTime now, string principal, CancellationToken token)
+    {
+        await this.Execute(connection, transaction, ConfigurationDbSql.InsertStrategyCatalogIdentity, token, new InsertCatalogIdentity((short)d.Key.Kind, d.Key.Id, d.Code, now, principal))
             .ConfigureAwait(false);
-        await this.Execute(connection, transaction, ConfigurationDbSql.InsertStrategyCatalogVersion, cancellationToken, new InsertCatalogVersion(json, hash, now, createdBy))
+        await this.Execute(connection, transaction, ConfigurationDbSql.InsertStrategyCatalogVersion, token, new InsertCatalogVersion(json, hash, now, principal))
             .ConfigureAwait(false);
         foreach (var child in ConfigurationSchemaSql.StrategyCatalog.Children)
-            await this.Execute(connection, transaction, ConfigurationDbSql.InsertStrategyCatalogChildren(child), cancellationToken, new TextValue(json))
+            await this.Execute(connection, transaction, ConfigurationDbSql.InsertStrategyCatalogChildren(child), token, new TextValue(json))
             .ConfigureAwait(false);
-        await this.Execute(connection, transaction, ConfigurationDbSql.SealStrategyCatalogVersion, cancellationToken, new CatalogVersion((short)d.Key.Kind, d.Key.Id, d.Key.Version))
+        await this.Execute(connection, transaction, ConfigurationDbSql.SealStrategyCatalogVersion, token, new CatalogVersion((short)d.Key.Kind, d.Key.Id, d.Key.Version))
             .ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken)
-            .ConfigureAwait(false);
-        return hash;
     }
 
     /// <summary>Gets one exact strategy-catalog definition.</summary>
@@ -524,6 +538,14 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var transaction = await connection.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
+        await PublishStrategyCatalogCoreAsync(connection, transaction, key, expectedContentHash, effectiveFromUtc, publishedBy, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    async Task PublishStrategyCatalogCoreAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+        CatalogKey key, string expectedContentHash, DateTime effectiveFromUtc, string publishedBy, CancellationToken cancellationToken)
+    {
         await this.Execute(connection, transaction, ConfigurationDbSql.AcquireParameterWriterLock, cancellationToken).ConfigureAwait(false);
         await this.CatalogWriteLock(connection, transaction, cancellationToken)
             .ConfigureAwait(false);
@@ -539,8 +561,6 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         if (count != 1)
             throw new InvalidOperationException("Catalog publication conflict.");
         await this.Execute(connection, transaction, ConfigurationDbSql.TypedCatalog.AdvanceRevisionFence, cancellationToken).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken)
-            .ConfigureAwait(false);
     }
 
     /// <summary>Retires a published strategy-catalog version.</summary>
@@ -558,6 +578,14 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var transaction = await connection.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
+        await RetireStrategyCatalogCoreAsync(connection, transaction, key, expectedContentHash, retiredAtUtc, retiredBy, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    async Task RetireStrategyCatalogCoreAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+        CatalogKey key, string expectedContentHash, DateTime retiredAtUtc, string retiredBy, CancellationToken cancellationToken)
+    {
         await this.Execute(connection, transaction, ConfigurationDbSql.AcquireParameterWriterLock, cancellationToken).ConfigureAwait(false);
         await this.CatalogWriteLock(connection, transaction, cancellationToken)
             .ConfigureAwait(false);
@@ -568,8 +596,210 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         await this.Execute(connection, transaction, ConfigurationDbSql.RetireStrategyCatalog, cancellationToken, new RetireCatalog((short)key.Kind, key.Id, key.Version, retiredAtUtc, retiredBy))
             .ConfigureAwait(false);
         await this.Execute(connection, transaction, ConfigurationDbSql.TypedCatalog.AdvanceRevisionFence, cancellationToken).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken)
-            .ConfigureAwait(false);
+    }
+
+    /// <summary>Commits a catalog source fact with the existing relational catalog transition.</summary>
+    public async Task<StrategyCatalogSourceEvent?> RecordStrategyCatalogTransitionAsync(EnlistedEventTransaction enlisted, CatalogCommandRequest request,
+        string principal, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(enlisted);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(principal);
+        var key = request.Operation == CatalogCommandOperation.SaveDraft ? request.Definition?.Key : request.Key;
+        if (key is null || request.OperationId == Guid.Empty)
+            throw new InvalidOperationException("Catalog operation and version identity are required.");
+
+        var (connection, transaction) = enlisted.GetConnectionAndTransaction();
+        await this.Execute(connection, transaction, ConfigurationDbSql.AcquireParameterWriterLock, token).ConfigureAwait(false);
+        await this.CatalogWriteLock(connection, transaction, token).ConfigureAwait(false);
+        var entityId = new ActorEntityId($"{(int)key.Kind}-{key.Id:N}-{key.Version}");
+        var subject = new ActorSubject(ActorType.Event, "StrategyCatalogEvent", request.Operation.ToString(), entityId.Format());
+        var stream = $"StrategyCatalog.{entityId.Format()}";
+        var requestJson = StrategyCatalogJson.Write(request);
+        var latest = await enlisted.QueryAsync(ConfigurationDbSql.TypedCatalog.CatalogSourceHead,
+            [stream, request.OperationId], reader => (
+                Version: reader.GetInt64(0), EventId: reader.GetInt64(1),
+                Type: reader.GetString(2), Payload: (byte[])reader.GetValue(3)), token).ConfigureAwait(false);
+        var previous = latest.Count == 0 ? null :
+            EventLogMessagePackCodec.Shared.Deserialize(latest[0].Type, latest[0].EventId, latest[0].Payload) as StrategyCatalogSourceEvent
+                ?? throw new InvalidDataException("Unexpected source event in a strategy catalog stream.");
+        if (previous?.CommandId == request.OperationId)
+        {
+            if (!string.Equals(previous.RequestJson, requestJson, StringComparison.Ordinal) ||
+                !string.Equals(previous.Principal, principal, StringComparison.Ordinal))
+                throw new InvalidOperationException("Catalog operation identity was reused with different input.");
+            return null;
+        }
+
+        var before = await this.ReadCatalog(connection, transaction, key, true, token).ConfigureAwait(false);
+        if (previous is not null && (before is null ||
+            !string.Equals(previous.AfterJson, StrategyCatalogJson.Write(before), StringComparison.Ordinal)))
+            throw new InvalidOperationException("The strategy catalog projection differs from its committed source state.");
+        if (await enlisted.ScalarAsync(ConfigurationDbSql.TypedCatalog.ReadProjectedRevision, [], token).ConfigureAwait(false) is null)
+            throw new InvalidOperationException("PARAM.PROJECTION_LAG");
+
+        // Reuse the existing transactional graph validation, then discard its tentative relational writes.
+        await enlisted.ExecuteAsync("SAVEPOINT catalog_acceptance;", [], token).ConfigureAwait(false);
+        switch (request.Operation)
+        {
+            case CatalogCommandOperation.SaveDraft when request.Definition is { } definition:
+                if (before is not null &&
+                    string.Equals(before.ContentHash, CanonicalContentHash(Canonicalize(definition)), StringComparison.Ordinal) &&
+                    string.Equals(before.CreatedBy, principal, StringComparison.Ordinal) &&
+                    key.Version == request.ExpectedPreviousVersion + 1)
+                    return null;
+                await InsertStrategyCatalogDraftCoreAsync(connection, transaction, definition, request.ExpectedPreviousVersion, principal, token).ConfigureAwait(false);
+                break;
+            case CatalogCommandOperation.Publish when request.ExpectedHash is { } publishHash && request.EffectiveUtc is { } effective:
+                if (before is { Status: CatalogLifecycleStatus.Published } &&
+                    string.Equals(before.ContentHash, publishHash, StringComparison.Ordinal) && before.EffectiveFromUtc == effective &&
+                    string.Equals(before.PublishedBy, principal, StringComparison.Ordinal))
+                    return null;
+                await PublishStrategyCatalogCoreAsync(connection, transaction, key, publishHash, effective, principal, token).ConfigureAwait(false);
+                break;
+            case CatalogCommandOperation.Retire when request.ExpectedHash is { } retireHash && request.EffectiveUtc is { } retired:
+                if (before is { Status: CatalogLifecycleStatus.Retired } &&
+                    string.Equals(before.ContentHash, retireHash, StringComparison.Ordinal) && before.RetiredAtUtc == retired &&
+                    string.Equals(before.RetiredBy, principal, StringComparison.Ordinal))
+                    return null;
+                await RetireStrategyCatalogCoreAsync(connection, transaction, key, retireHash, retired, principal, token).ConfigureAwait(false);
+                break;
+            default:
+                throw new InvalidOperationException("Incomplete or unsupported catalog operation.");
+        }
+        var after = await this.ReadCatalog(connection, transaction, key, true, token).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("The committed catalog version was not materialized.");
+        var fact = new StrategyCatalogSourceEvent
+        {
+            Subject = subject, EntityId = entityId, Id = request.OperationId, CommandId = request.OperationId,
+            AggregateId = entityId.Format(), EventSource = "StrategyCatalogCommandActor", ReceivedOn = DateTime.UtcNow,
+            RequestJson = requestJson, BeforeJson = before is null ? string.Empty : StrategyCatalogJson.Write(before),
+            AfterJson = StrategyCatalogJson.Write(after), Principal = principal
+        };
+        await enlisted.ExecuteAsync("ROLLBACK TO SAVEPOINT catalog_acceptance;", [], token).ConfigureAwait(false);
+        var eventId = await enlisted.AppendAsync(stream, request.OperationId, fact, latest.Count == 0 ? 0 : latest[0].Version, token).ConfigureAwait(false);
+        await MarkParameterProjectionPendingAsync(enlisted, eventId, token).ConfigureAwait(false);
+        await AdvanceParameterRevisionFenceAsync(enlisted, token).ConfigureAwait(false);
+        return fact;
+    }
+
+    /// <summary>Materializes an accepted source fact or a historical baseline without re-running command validation.</summary>
+    public async Task<bool> ProjectStrategyCatalogSourceAsync(EnlistedEventTransaction enlisted, StrategyCatalogSourceEvent source,
+        bool rebuild, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(enlisted);
+        ArgumentNullException.ThrowIfNull(source);
+        var (connection, transaction) = enlisted.GetConnectionAndTransaction();
+        await this.Execute(connection, transaction, ConfigurationDbSql.AcquireParameterWriterLock, token).ConfigureAwait(false);
+        await this.CatalogWriteLock(connection, transaction, token).ConfigureAwait(false);
+        if (!rebuild && !await CompleteParameterProjectionAsync(enlisted, source.EventId, token).ConfigureAwait(false))
+            return false;
+
+        var accepted = StrategyCatalogJson.Read<StoredStrategyCatalogDefinition>(source.AfterJson);
+        var key = accepted.Definition.Key;
+        var existing = await this.ReadCatalog(connection, transaction, key, true, token).ConfigureAwait(false);
+        if (existing is not null && string.Equals(StrategyCatalogJson.Write(existing), source.AfterJson, StringComparison.Ordinal))
+            return false;
+        if (existing is null && rebuild && !string.IsNullOrEmpty(source.BeforeJson))
+        {
+            var baseline = StrategyCatalogJson.Read<StoredStrategyCatalogDefinition>(source.BeforeJson);
+            await MaterializeCatalogVersionAsync(connection, transaction, baseline, null, token).ConfigureAwait(false);
+            existing = baseline;
+        }
+        if ((existing is null ? string.Empty : StrategyCatalogJson.Write(existing)) != source.BeforeJson)
+            throw new InvalidDataException("Strategy catalog projection predecessor differs from the accepted source event.");
+        await MaterializeCatalogVersionAsync(connection, transaction, accepted, existing, token).ConfigureAwait(false);
+        var materialized = await this.ReadCatalog(connection, transaction, key, true, token).ConfigureAwait(false);
+        if (materialized is null || !string.Equals(StrategyCatalogJson.Write(materialized), source.AfterJson, StringComparison.Ordinal))
+            throw new InvalidDataException("Strategy catalog projection differs from the accepted source event.");
+        return true;
+    }
+
+    public async Task<int> CaptureStrategyCatalogBaselineAsync(EnlistedEventTransaction enlisted, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(enlisted);
+        var (connection, transaction) = enlisted.GetConnectionAndTransaction();
+        await this.CatalogWriteLock(connection, transaction, token).ConfigureAwait(false);
+        var keys = await enlisted.QueryAsync(ConfigurationDbSql.TypedCatalog.CatalogVersionsWithoutSource, [],
+            reader => new CatalogKey((StrategyCatalogKind)reader.GetInt16(0), reader.GetGuid(1), reader.GetInt32(2)), token).ConfigureAwait(false);
+        foreach (var key in keys)
+        {
+            var version = await this.ReadCatalog(connection, transaction, key, true, token).ConfigureAwait(false)
+                ?? throw new InvalidDataException("A catalog version disappeared during baseline capture.");
+            var id = Guid.NewGuid();
+            var entityId = StrategyCatalogLifecycleCommand.Address(key);
+            var fact = new StrategyCatalogSourceEvent
+            {
+                IsBaseline = true,
+                Subject = new(ActorType.Event, "StrategyCatalogEvent", "BaselineCaptured", entityId.Format()),
+                EntityId = entityId, Id = id, CommandId = id, AggregateId = entityId.Format(),
+                EventSource = "StrategyCatalogMigration", ReceivedOn = DateTime.UtcNow,
+                AfterJson = StrategyCatalogJson.Write(version), Principal = version.CreatedBy
+            };
+            await enlisted.AppendAsync($"StrategyCatalog.{entityId.Format()}", id, fact, 0, token).ConfigureAwait(false);
+        }
+        return keys.Count;
+    }
+
+    public Task<IReadOnlyList<StrategyCatalogSourceEvent>> GetStrategyCatalogSourceHeadsAsync(
+        IEnlistedPostgresTransaction transaction, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        return transaction.QueryAsync(ConfigurationDbSql.TypedCatalog.CatalogSourceHeads, [], reader =>
+            EventLogMessagePackCodec.Shared.Deserialize(reader.GetString(1), reader.GetInt64(0), (byte[])reader.GetValue(2))
+                as StrategyCatalogSourceEvent ?? throw new InvalidDataException("Unexpected strategy catalog stream head."), token);
+    }
+
+    public async Task RebuildStrategyCatalogAsync(EnlistedEventTransaction enlisted,
+        IReadOnlyCollection<StrategyCatalogSourceEvent> sourceHeads, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(sourceHeads);
+        var remaining = sourceHeads.Select(fact => (Fact: fact, Version: StrategyCatalogJson.Read<StoredStrategyCatalogDefinition>(fact.AfterJson)))
+            .GroupBy(item => item.Version.Definition.Key)
+            .ToDictionary(group => group.Key, group => group.MaxBy(item => item.Fact.EventId));
+        while (remaining.Count > 0)
+        {
+            token.ThrowIfCancellationRequested();
+            var ready = remaining.Values
+                .Where(item => !Dependencies(item.Version.Definition).Any(remaining.ContainsKey))
+                .OrderBy(item => item.Version.CreatedUtc)
+                .ThenBy(item => item.Version.Definition.Key.Version)
+                .ToArray();
+            if (ready.Length == 0)
+                throw new InvalidDataException("Catalog source events contain a cyclic dependency.");
+            foreach (var item in ready)
+            {
+                await ProjectStrategyCatalogSourceAsync(enlisted, item.Fact, true, token).ConfigureAwait(false);
+                remaining.Remove(item.Version.Definition.Key);
+            }
+        }
+    }
+
+    async Task MaterializeCatalogVersionAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+        StoredStrategyCatalogDefinition accepted, StoredStrategyCatalogDefinition? previous, CancellationToken token)
+    {
+        var definition = Canonicalize(accepted.Definition);
+        var key = definition.Key;
+        if (previous is null)
+        {
+            var json = JsonSerializer.Serialize(definition, JsonOptions);
+            await MaterializeCatalogDraftAsync(connection, transaction, definition, accepted.ContentHash, json,
+                accepted.CreatedUtc, accepted.CreatedBy, token).ConfigureAwait(false);
+        }
+        if (accepted.EffectiveFromUtc is { } effective && (previous is null || previous.Status == CatalogLifecycleStatus.Draft))
+        {
+            var count = await this.Execute(connection, transaction, ConfigurationDbSql.PublishStrategyCatalog, token,
+                new PublishCatalog((short)key.Kind, key.Id, key.Version, effective, accepted.PublishedBy!, accepted.ContentHash)).ConfigureAwait(false);
+            if (count != 1)
+                throw new InvalidDataException("Accepted catalog publication could not be materialized.");
+        }
+        if (accepted.RetiredAtUtc is { } retired && (previous is null || previous.Status != CatalogLifecycleStatus.Retired))
+        {
+            var count = await this.Execute(connection, transaction, ConfigurationDbSql.RetireStrategyCatalog, token,
+                new RetireCatalog((short)key.Kind, key.Id, key.Version, retired, accepted.RetiredBy!)).ConfigureAwait(false);
+            if (count != 1)
+                throw new InvalidDataException("Accepted catalog retirement could not be materialized.");
+        }
     }
 
     /// <summary>Gets a validated published strategy deployment snapshot.</summary>
@@ -1019,6 +1249,31 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         return revision is long value ? value : throw new InvalidDataException("PARAM.REVISION_FENCE_MISSING");
     }
 
+    public async Task<long?> GetProjectedParameterRevisionAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await this.OpenCatalogAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var session = new ConfigurationDbSession(connection, transaction);
+        return await session.ScalarAsync(ConfigurationDbSql.TypedCatalog.ReadProjectedRevision, [], cancellationToken)
+            .ConfigureAwait(false) as long?;
+    }
+
+    public async Task MarkParameterProjectionPendingAsync(
+        IEnlistedPostgresTransaction transaction, long eventId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        await transaction.ExecuteAsync(ConfigurationDbSql.TypedCatalog.MarkParameterProjectionPending, [eventId], cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<bool> CompleteParameterProjectionAsync(
+        IEnlistedPostgresTransaction transaction, long eventId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        return await transaction.ExecuteAsync(ConfigurationDbSql.TypedCatalog.CompleteParameterProjection, [eventId], cancellationToken)
+            .ConfigureAwait(false) == 1;
+    }
+
     /// <summary>Advances the evidence fence atomically with an accepted mutation.</summary>
     public async Task AdvanceParameterRevisionFenceAsync(IEnlistedPostgresTransaction transaction, CancellationToken cancellationToken = default)
     {
@@ -1036,6 +1291,133 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var ids = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.StartupPage,
             [afterCreatedAtUtc?.ToBinary(), afterRunId ?? Guid.Empty, Math.Clamp(limit, 1, 25)], reader => reader.GetGuid(0), cancellationToken).ConfigureAwait(false);
         return ids.ToArray();
+    }
+
+    public async Task<ParameterSetSnapshot> GetParameterSetSnapshotAsync(Guid setId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await this.OpenCatalogAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken).ConfigureAwait(false);
+        var session = new ConfigurationDbSession(connection, transaction);
+        var rows = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.SetSnapshotVersions, [setId],
+            reader => (Version: reader.GetInt64(0), Name: reader.GetString(1), Description: reader.GetString(2), Revision: reader.GetInt64(3)),
+            cancellationToken).ConfigureAwait(false);
+        var versions = new List<ParameterSetVersion>(rows.Count);
+        foreach (var row in rows)
+        {
+            var metadata = await this.ReadCatalogAsync<ParameterVersionMetadata>(session, setId, row.Version, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidDataException("Missing parameter metadata");
+            var values = await GetTypedParameterValueAsync(session, setId, checked((int)row.Version), cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidDataException("Missing typed parameter values");
+            versions.Add(metadata.Restore(values) with { Name = row.Name, Description = row.Description, CatalogRevision = row.Revision });
+        }
+
+        var references = versions.ToDictionary(item => item.Reference.Version, item => item.Reference);
+        var operations = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.OwnerOperations, ["set", setId],
+            reader => new ParameterOperationReceipt(reader.GetGuid(0), reader.GetString(2), reader.GetInt64(1), references[reader.GetInt32(3)]),
+            cancellationToken).ConfigureAwait(false);
+        var audit = new List<ParameterAuditEntry>();
+        foreach (var operation in operations)
+        {
+            if (await GetParameterAuditProjectionAsync(session, operation.OperationId, cancellationToken).ConfigureAwait(false) is { } entry)
+                audit.Add(entry);
+        }
+        return new(setId, rows.Count == 0 ? 0 : rows[0].Revision, versions.ToArray(), operations.ToArray(), audit.ToArray());
+    }
+
+    public async Task<ParameterAssignmentSnapshot> GetParameterAssignmentSnapshotAsync(
+        ParameterAssignmentEntityId identity, ParameterAssignmentScope scope, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await this.OpenCatalogAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken).ConfigureAwait(false);
+        var session = new ConfigurationDbSession(connection, transaction);
+        var operations = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.OwnerOperations, ["assignment", identity.AssignmentId],
+            reader => (Id: reader.GetGuid(0), Revision: reader.GetInt64(1)), cancellationToken).ConfigureAwait(false);
+        if (operations.Count == 0)
+            return new(identity, scope, 0, null, []);
+
+        var revision = operations[^1].Revision;
+        var assignment = await GetParameterAssignmentProjectionAsync(session, identity.AssignmentId, revision, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidDataException("PARAM.ASSIGNMENT_PROJECTION_MISSING");
+        var audit = new List<ParameterAuditEntry>();
+        foreach (var operation in operations)
+        {
+            if (await GetParameterAuditProjectionAsync(session, operation.Id, cancellationToken).ConfigureAwait(false) is { } entry)
+                audit.Add(entry);
+        }
+        return new(identity, scope, revision, assignment, audit.ToArray());
+    }
+
+    public async Task<(ParameterAssignmentRevision[] Assignments, ParameterSetVersion[] Versions)> GetParameterStartupInputsAsync(
+        Guid[] assignmentIds, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await this.OpenCatalogAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken).ConfigureAwait(false);
+        var session = new ConfigurationDbSession(connection, transaction);
+        var assignments = new List<ParameterAssignmentRevision>(assignmentIds.Length);
+        foreach (var id in assignmentIds)
+        {
+            var revision = Convert.ToInt64(await session.ScalarAsync(ConfigurationDbSql.TypedCatalog.Revision,
+                ["assignment", id], cancellationToken).ConfigureAwait(false));
+            if (revision > 0)
+            {
+                var assignment = await GetParameterAssignmentProjectionAsync(session, id, revision, cancellationToken).ConfigureAwait(false)
+                    ?? throw new InvalidDataException("PARAM.ASSIGNMENT_PROJECTION_MISSING");
+                assignments.Add(assignment);
+            }
+        }
+        var versions = new List<ParameterSetVersion>();
+        foreach (var reference in assignments.Where(item => item.Enabled).Select(item => item.Reference).Distinct())
+        {
+            var metadata = await this.ReadCatalogAsync<ParameterVersionMetadata>(session, reference.SetId, reference.Version, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("PARAM.EXACT_VERSION_MISSING");
+            var values = await GetTypedParameterValueAsync(session, reference.SetId, reference.Version, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("PARAM.EXACT_VERSION_MISSING");
+            versions.Add(metadata.Restore(values));
+        }
+        return (assignments.ToArray(), versions.ToArray());
+    }
+
+    public async Task<bool> HasParameterStartupProjectionAsync(Guid runId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await this.OpenCatalogAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var session = new ConfigurationDbSession(connection, transaction);
+        return await session.ScalarAsync(ConfigurationDbSql.TypedCatalog.HasStartup, [runId], cancellationToken)
+            .ConfigureAwait(false) is true;
+    }
+
+    public async Task<(ParameterStartupRun? Run, ParameterSignalStartupReport? Report)> GetActiveParameterStartupAsync(
+        Guid runId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await this.OpenCatalogAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken).ConfigureAwait(false);
+        var session = new ConfigurationDbSession(connection, transaction);
+        var active = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.ActiveStartup,
+            [runId], reader => reader.GetGuid(0), cancellationToken).ConfigureAwait(false);
+        if (active.Count == 0)
+            return (null, null);
+
+        var run = await GetParameterStartupProjectionAsync(session, runId, cancellationToken).ConfigureAwait(false);
+        var report = await GetParameterStartupReportProjectionAsync(session, runId, cancellationToken).ConfigureAwait(false);
+        return (run, report);
+    }
+
+    public async Task<ParameterStartupRun[]> GetActiveParameterStartupPageAsync(
+        int limit, DateTime? afterCreatedAtUtc, Guid? afterRunId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await this.OpenCatalogAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken).ConfigureAwait(false);
+        var session = new ConfigurationDbSession(connection, transaction);
+        var ids = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.StartupPage,
+            [afterCreatedAtUtc?.ToBinary(), afterRunId ?? Guid.Empty, Math.Clamp(limit, 1, 25)],
+            reader => reader.GetGuid(0), cancellationToken).ConfigureAwait(false);
+        var runs = new List<ParameterStartupRun>(ids.Count);
+        foreach (var id in ids)
+        {
+            var run = await GetParameterStartupProjectionAsync(session, id, cancellationToken).ConfigureAwait(false);
+            runs.Add(run ?? throw new InvalidDataException("PARAM.STARTUP_PROJECTION_MISSING"));
+        }
+        return runs.ToArray();
     }
 
     /// <summary>Reads one immutable assignment revision and verifies all scalar and child rows.</summary>

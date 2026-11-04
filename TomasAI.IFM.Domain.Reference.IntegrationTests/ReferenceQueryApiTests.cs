@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.Reference.Shared.SeedAllocation;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -98,7 +101,7 @@ public class ReferenceQueryApiTests(ReferenceIntegrationInfrastructureFixture in
     }
 
     [Fact]
-    public async Task GetNextSeedIdQuery_Ok()
+    public async Task Seed_allocation_returns_a_positive_id()
     {
         // arrange...
         var seedType = "FundId";
@@ -112,6 +115,28 @@ public class ReferenceQueryApiTests(ReferenceIntegrationInfrastructureFixture in
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
         response.Value.Value.Should().NotBe(0);
+    }
+
+    [Fact]
+    public async Task Seed_allocation_replays_the_same_id_for_the_same_operation()
+    {
+        var commandId = Guid.NewGuid();
+        var entityId = new ActorEntityId(commandId.ToString("N"));
+        var request = new AllocateSeedIdCommand
+        {
+            CommandId = commandId,
+            EntityId = entityId,
+            SeedType = "TradeId",
+            Subject = new(ActorType.Function, AllocateSeedIdCommand.Actor, AllocateSeedIdCommand.Verb, entityId.Format())
+        };
+        var first = await _actorProducer.RequestFunctionAsync<AllocateSeedIdCommand, ActorEntityId,
+            FunctionResult<SeedAllocationCompletedEvent, SeedAllocationFailedEvent>>(request.Subject, request, entityId, CancellationToken.None);
+        var repeated = await _actorProducer.RequestFunctionAsync<AllocateSeedIdCommand, ActorEntityId,
+            FunctionResult<SeedAllocationCompletedEvent, SeedAllocationFailedEvent>>(request.Subject, request, entityId, CancellationToken.None);
+        Assert.True(first.Success, first.ErrorMessage);
+        Assert.True(repeated.Success, repeated.ErrorMessage);
+        Assert.Equal(first.Value!.Completed!.Value, repeated.Value!.Completed!.Value);
+        Assert.Equal(commandId, repeated.Value.Completed.CommandId);
     }
 
     [Fact]

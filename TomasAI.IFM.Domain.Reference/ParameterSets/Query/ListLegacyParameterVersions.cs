@@ -10,7 +10,7 @@ public static class ListLegacyParameterVersions
 
     extension(ListLegacyParameterVersionsQuery query)
     {
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ParameterLegacyVersion[]> ExecuteAsync(
             IParameterSetQueryContext context,
             ILogger<ParameterSetQueryActor> logger,
             CancellationToken token)
@@ -19,7 +19,7 @@ public static class ListLegacyParameterVersions
             ArgumentNullException.ThrowIfNull(query);
             context.AccessPolicy.Demand(ParameterCapability.Read);
             var rows = await (context.ConfigurationDb.GetLegacyParameterVersionsAsync(offset: query.Offset, cancellationToken: token)).ConfigureAwait(false);
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterLegacyVersion[]>(rows))).ConfigureAwait(false);
+            return rows;
         }
     }
 }

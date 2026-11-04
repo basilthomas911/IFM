@@ -7,5 +7,18 @@ public sealed class DatabaseBackupRetentionCommandState : DatabaseOperationComma
     public DatabaseRetentionState Retention { get; private set; } = new();
     internal DatabaseRetentionDecisionState RetentionDecision => new(Operation, Retention);
     internal TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Model.DatabaseServiceReconciliationDecisionState ReconciliationDecision => new(Operation, new(), Retention, OperationDecision.ProcessedServiceEvents);
+    protected override DatabaseOperationStateSnapshottedEvent CaptureConcern(DatabaseOperationStateSnapshottedEvent snapshot)
+        => snapshot with { Retention = Retention };
+
+    protected override bool HasConcernSnapshot(DatabaseOperationStateSnapshottedEvent snapshot) => snapshot.Retention is not null;
+
+    protected override bool RestoreConcern(DatabaseOperationStateSnapshottedEvent snapshot)
+    {
+        if (snapshot.Retention is not { } value)
+            return false;
+        Retention = value;
+        return true;
+    }
+
     protected override void ApplyConcern(DatabaseBackupEventContract source) { Retention = Retention.Apply(source); }
 }

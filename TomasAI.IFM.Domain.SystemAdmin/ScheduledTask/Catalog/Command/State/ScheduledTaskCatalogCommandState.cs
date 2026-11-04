@@ -13,24 +13,24 @@ public sealed class ScheduledTaskCatalogCommandState : BaseEventSourceActorState
     /// <summary>Gets the current business aggregate; only Apply mutates it.</summary>
     public ScheduledTaskCatalog? ScheduledTaskCatalog { get; private set; }
     /// <summary>Dispatches concrete source events to the owned aggregate.</summary>
-    protected override bool Apply(IEvent domainEvent) => domainEvent switch
+    protected override bool Apply(IEvent domainEvent) => ApplyCheckpointEvent(domainEvent, false, replay: false);
+
+    /// <summary>Allows a full persisted replacement to resume at a later revision during checkpoint replay.</summary>
+    internal bool ApplyCheckpointEvent(IEvent domainEvent, bool snapshot, bool replay = true) => domainEvent switch
     {
-        ScheduledTaskCatalogProjectRegisteredEvent changed => ApplyScheduledTaskCatalog(changed.EntityId, changed.ScheduledTaskCatalog),
-        ScheduledTaskCatalogHostCapabilityRecordedEvent changed => ApplyScheduledTaskCatalog(changed.EntityId, changed.ScheduledTaskCatalog),
+        ScheduledTaskCatalogProjectRegisteredEvent changed => ApplyScheduledTaskCatalog(changed.EntityId, changed.ScheduledTaskCatalog, snapshot || (replay && ScheduledTaskCatalog is null)),
+        ScheduledTaskCatalogHostCapabilityRecordedEvent changed => ApplyScheduledTaskCatalog(changed.EntityId, changed.ScheduledTaskCatalog, snapshot),
         _ => false
     };
     /// <summary>Restores an initial registered-project snapshot at its persisted revision during replay only.</summary>
-    protected override bool ApplyReplayEvent(IEvent domainEvent) =>
-        ScheduledTaskCatalog is null && domainEvent is ScheduledTaskCatalogProjectRegisteredEvent snapshot
-            ? ApplyScheduledTaskCatalog(snapshot.EntityId, snapshot.ScheduledTaskCatalog, initialSnapshot: true)
-            : base.ApplyReplayEvent(domainEvent);
+    protected override bool ApplyReplayEvent(IEvent domainEvent) => ApplyCheckpointEvent(domainEvent, false);
 
-    /// <summary>Requires consecutive live revisions; only the initial replay snapshot may start at a later positive revision.</summary>
+    /// <summary>Requires consecutive revisions outside checkpoint restoration.</summary>
     private bool ApplyScheduledTaskCatalog(ScheduledTaskId identity, ScheduledTaskCatalog? change, bool initialSnapshot = false)
     {
         if (!identity.IsValid || change is null || change.Id != identity ||
             ScheduledTaskCatalog is { } current && current.Id != identity ||
-            change.Revision <= 0 ||
+            change.Revision <= (ScheduledTaskCatalog?.Revision ?? 0) ||
             (!initialSnapshot && change.Revision != (ScheduledTaskCatalog?.Revision ?? 0) + 1)) return false;
         ScheduledTaskCatalog = change;
         return true;

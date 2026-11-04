@@ -53,8 +53,8 @@ public class FuturesEodDataStateRepository(
     /// <summary>Loads the single latest accepted source and its committed stream version.</summary>
     public async ValueTask<FuturesEodDataCommandState> LoadStateAsync(ICommand command,CancellationToken cancellationToken)
         => command is TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands.InsertVixFuturesEodDataCommand
-            ? await LoadStateFromCreationSnapshotAsync<FuturesEodDataCommandState>(command,cancellationToken).ConfigureAwait(false)
-            : await LoadStateFromCreationSnapshotAsync<FuturesEodDataCommandState>(command,cancellationToken).ConfigureAwait(false);
+            ? await LoadStatelessStateFromCreationSnapshotAsync<FuturesEodDataCommandState>(command,cancellationToken).ConfigureAwait(false)
+            : await LoadStatelessStateFromCreationSnapshotAsync<FuturesEodDataCommandState>(command,cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// save futures eod data state changes

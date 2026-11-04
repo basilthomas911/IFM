@@ -11,7 +11,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 internal sealed partial class TradeWorkspaceResponder {
  string mode="Disabled";
  public string Mode{get=>mode;set{if(value is "ResetCommands" or "ResetEmptyCommands"){ResetCommands();if(value=="ResetEmptyCommands")tradeRows.Clear();mode="Commands";}else if(value=="CommitPending"){deferred?.Invoke();deferred=null;mode="Commands";}else mode=value;}}
- public bool Handles(string subject)=>Mode!="Disabled"&&(subject.StartsWith("Query.PortfolioQuery.GetPortfolios.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFunds.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrdersPage.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrderTradesPage.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrderByOrderId.",StringComparison.Ordinal)||subject.StartsWith("Query.ReferenceQuery.GetNextSeedId.",StringComparison.Ordinal)||subject.StartsWith("Command.PortfolioFundCommand.",StringComparison.Ordinal));
+ public bool Handles(string subject)=>Mode!="Disabled"&&(subject.StartsWith("Query.PortfolioQuery.GetPortfolios.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFunds.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrdersPage.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrderTradesPage.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrderByOrderId.",StringComparison.Ordinal)||subject.StartsWith("Function.SeedAllocationFunction.AllocateSeedId.",StringComparison.Ordinal)||subject.StartsWith("Command.PortfolioFundCommand.",StringComparison.Ordinal));
  public static readonly FundOrderProjectionReadModel Order=new(){PortfolioId=1,FundId=2,OrderId=123,Status="Draft",CreatedOnUtc=StrategyFixtures.At,CreatedBy="Fixture",AggregateVersion=7,Origin=CompositionOrigin.ManualUi,OperatorReference="Native workspace fixture"};
  public static readonly FundOrderTradeProjectionReadModel Trade=new(){PortfolioId=1,FundId=2,OrderId=123,TradeId=456,TradeFamily="ShortIronCondor",TradeType="ShortIronCondor",TradeState="NewTrade",TradeAction="Sell",PrimaryTrade=true,BaseContractSymbol="ES",BaseContractId="ESZ6",UnderlyingRoot="ES",RequestedTradeDate=new(2026,10,26),CreatedOnUtc=StrategyFixtures.At,CreatedBy="Fixture",AggregateVersion=8};
  public byte[] Handle(string subject,byte[] bytes){
@@ -23,10 +23,15 @@ internal sealed partial class TradeWorkspaceResponder {
   }
   try{
    if(subject.StartsWith("Command.",StringComparison.Ordinal))return Command(subject,bytes);
-   if(subject.StartsWith("Query.ReferenceQuery.GetNextSeedId.",StringComparison.Ordinal)){
-    var q=MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.Reference.Shared.Queries.GetNextSeedIdQuery>(bytes,options);
-    if(q.Subject.ToString()!=subject||q.SeedType!="TradeId"||q.EntityId.Format()!="TradeId")throw new InvalidDataException("Incorrect trade identity allocation");
-    return Result(new ScalarReadModel<int>(++nextTrade));
+   if(subject.StartsWith("Function.SeedAllocationFunction.AllocateSeedId.",StringComparison.Ordinal)){
+    var q=MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.Reference.Shared.SeedAllocation.AllocateSeedIdCommand>(bytes,options);
+    if(q.Subject.ToString()!=subject||q.SeedType!="TradeId"||q.EntityId.Format()!=q.CommandId.ToString("N"))throw new InvalidDataException("Incorrect trade identity allocation");
+    return Result(FunctionResult<TomasAI.IFM.Domain.Reference.Shared.SeedAllocation.SeedAllocationCompletedEvent,
+        TomasAI.IFM.Domain.Reference.Shared.SeedAllocation.SeedAllocationFailedEvent>.Complete(new()
+        {
+            CommandId = q.CommandId, Id = q.CommandId, EntityId = q.EntityId,
+            Subject = q.Subject, SeedType = q.SeedType, Value = ++nextTrade
+        }));
    }
    if(subject.StartsWith("Query.PortfolioQuery.GetPortfolios.",StringComparison.Ordinal)){
     var q=MessagePackSerializer.Deserialize<GetPortfoliosQuery>(bytes,options);Check(q);

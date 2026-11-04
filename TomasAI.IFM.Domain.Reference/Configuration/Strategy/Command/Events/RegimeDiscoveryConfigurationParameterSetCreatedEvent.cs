@@ -9,8 +9,11 @@ namespace TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Events;
 
 /// <summary>Records creation of one immutable Draft Regime Discovery parameter-set version.</summary>
 [MessagePackObject]
-public sealed record RegimeDiscoveryParameterSetCreatedEvent : IEvent<RegimeDiscoveryParameterSetEntityId>
+public sealed record RegimeDiscoveryConfigurationParameterSetCreatedEvent : IEvent<RegimeDiscoveryParameterSetEntityId>, IRequireDurableProjection
 {
+    DurableProjectionRequirement IRequireDurableProjection.RequiredProjection =>
+        new("RegimeDiscoveryConfigurationCommandActor", "RegimeDiscoveryConfigurationEventProjector", TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.ApplyProjection);
+
     /// <summary>Gets the private event actor family.</summary>
     public const string Actor = "RegimeDiscoveryConfiguration";
     /// <summary>Gets the event verb.</summary>
@@ -42,7 +45,7 @@ public sealed record RegimeDiscoveryParameterSetCreatedEvent : IEvent<RegimeDisc
     /// <inheritdoc />
     [IgnoreMember] public string UserName => CreatedBy;
     /// <inheritdoc />
-    [IgnoreMember] public string EventName => nameof(RegimeDiscoveryParameterSetCreatedEvent);
+    [IgnoreMember] public string EventName => "RegimeDiscoveryParameterSetCreatedEvent";
     /// <inheritdoc />
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
 }

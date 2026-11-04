@@ -15,7 +15,8 @@ public sealed class RegimeDiscoveryFunctionStateRepository(IEventSourceActorStat
     public bool UsesAtomicPersistence => string.Equals(databases?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
 
     public ValueTask<RegimeDiscoveryPipelineCompletedEvent> CommitAsync(IFunctionActorContext context, ExecuteRegimeDiscoveryPipelineCommand request, RegimeDiscoveryPipelineCompletedEvent candidate, CancellationToken cancellationToken = default) => TradePipelineAtomicPersistence.CommitAsync(request, candidate, EventSourceDb, databases, transactions, cancellationToken);
-    public async ValueTask<RegimeDiscoveryFunctionState> LoadStateAsync(ExecuteRegimeDiscoveryPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateFromCreationSnapshotAsync<RegimeDiscoveryFunctionState>(request, cancellationToken).ConfigureAwait(false);
+    public async ValueTask<RegimeDiscoveryFunctionState> LoadStateAsync(ExecuteRegimeDiscoveryPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateFromLatestCheckpointAsync<RegimeDiscoveryFunctionState, RegimeDiscoveryPipelineCompletedEvent>(
+        request, static fact => fact.EventId > 0, cancellationToken).ConfigureAwait(false);
     public async ValueTask SaveCompletedStateAsync(IFunctionActorContext context, RegimeDiscoveryFunctionState state, ExecuteRegimeDiscoveryPipelineCommand request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);

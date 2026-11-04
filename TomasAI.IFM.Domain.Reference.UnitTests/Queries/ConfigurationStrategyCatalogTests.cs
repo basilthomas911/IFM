@@ -76,15 +76,18 @@ public sealed class ConfigurationStrategyCatalogTests
     }
 
     [Fact]
-    public async Task Duplicate_save_is_idempotent_but_changed_content_cannot_replace_a_version()
+    public async Task A_catalog_command_cannot_write_a_different_version_stream()
     {
-        var factory = Substitute.For<IDbContextFactory>(); var db = Substitute.For<IConfigurationDbContext>(); factory.ConfigurationDb.Returns(db);
+        var factory = Substitute.For<IDbContextFactory>();
         var definition = StrategyCatalogExamples.Create()[0];
-        db.GetStrategyCatalogAsync(definition.Key, Arg.Any<CancellationToken>()).Returns(new StoredStrategyCatalogDefinition(definition, StrategyCatalogValidation.ContentHash(definition), CatalogLifecycleStatus.Draft, DateTime.UtcNow, "operator", null, null, null, null));
         var service = new StrategyCatalogService(factory);
-        await service.ExecuteAsync(new(Guid.NewGuid(), CatalogCommandOperation.SaveDraft, definition), "operator");
-        await db.DidNotReceive().InsertStrategyCatalogDraftAsync(Arg.Any<StrategyCatalogDefinition>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-        await FluentActions.Invoking(() => service.ExecuteAsync(new(Guid.NewGuid(), CatalogCommandOperation.SaveDraft, definition with { Name = "Different" }), "operator")).Should().ThrowAsync<InvalidOperationException>();
+        var request = new CatalogCommandRequest(Guid.NewGuid(), CatalogCommandOperation.SaveDraft, definition);
+        var wrongIdentity = StrategyCatalogLifecycleCommand.Address(definition.Key with { Id = Guid.NewGuid() });
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ExecuteEventSourcedAsync(request, "operator", null!, wrongIdentity, CancellationToken.None));
+        Assert.Contains("route does not match", error.Message);
+        Assert.Empty(factory.ReceivedCalls());
     }
 
     [Theory]

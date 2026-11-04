@@ -65,17 +65,36 @@ public sealed class ParameterSetProjectionIntegrationTests(ReferenceIntegrationI
         Assert.Equal(ParameterValueCodec.Encode(values),ParameterValueCodec.Encode(read.Parameters!));
         await Assert.ThrowsAsync<InvalidDataException>(()=>store.ProjectParameterSetAsync(fact with{CommandId=Guid.NewGuid(),Revision=3,Version=version with{Reference=version.Reference with{PayloadSha256=new string('f',64)}}}));
         var published=renamed with{Status=ParameterVersionStatus.Published,PublishedAtUtc=DateTime.UtcNow,CatalogRevision=3};
-        await store.ProjectParameterSetAsync(new ParameterVersionPublishedEvent{CommandId=Guid.NewGuid(),EntityId=new(id),Revision=3,RequestHash=new string('c',64),Version=published});
+        await store.ProjectParameterSetAsync(new ParameterSetVersionPublishedEvent{CommandId=Guid.NewGuid(),EntityId=new(id),Revision=3,RequestHash=new string('c',64),Version=published});
         var nextValues=values.WithIdentity(id,2);
         var next=published with{Reference=published.Reference with{Version=2,PayloadSha256=ParameterValueCodec.Hash(nextValues)},Parameters=nextValues,
             Status=ParameterVersionStatus.Draft,PublishedAtUtc=null,CatalogRevision=4};
-        await store.ProjectParameterSetAsync(new ParameterDraftSavedEvent{CommandId=Guid.NewGuid(),EntityId=new(id),Revision=4,RequestHash=new string('d',64),Version=next});
+        await store.ProjectParameterSetAsync(new ParameterSetDraftSavedEvent{CommandId=Guid.NewGuid(),EntityId=new(id),Revision=4,RequestHash=new string('d',64),Version=next});
         var page=Assert.Single(await store.GetParameterSetsAsync(values.ComponentCode,id,limit:1));Assert.Equal(2,page.Reference.Version);
         var second=Assert.Single(await store.GetParameterSetsAsync(values.ComponentCode,id,limit:1,afterName:page.Name,afterSetId:id,afterVersion:2));Assert.Equal(1,second.Reference.Version);
         Assert.Empty(await store.GetParameterSetsAsync(values.ComponentCode,id,limit:1,afterName:second.Name,afterSetId:id,afterVersion:1));
         var retired=published with{Status=ParameterVersionStatus.Retired,RetiredAtUtc=DateTime.UtcNow,CatalogRevision=5};
-        await store.ProjectParameterSetAsync(new ParameterVersionRetiredEvent{CommandId=Guid.NewGuid(),EntityId=new(id),Revision=5,RequestHash=new string('e',64),Version=retired});
+        await store.ProjectParameterSetAsync(new ParameterSetVersionRetiredEvent{CommandId=Guid.NewGuid(),EntityId=new(id),Revision=5,RequestHash=new string('e',64),Version=retired});
         Assert.Equal(ParameterVersionStatus.Retired,(await store.GetParameterSetsAsync(values.ComponentCode,id)).Single(x=>x.Reference.Version==1).Status);
+        var projectedSet = await store.GetParameterSetSnapshotAsync(id);
+        Assert.Equal(5L, projectedSet.Revision);
+        Assert.Equal(new[] { 2, 1 }, projectedSet.Versions.Select(item => item.Reference.Version));
+        Assert.Equal(new long[] { 1, 2, 3, 4, 5 }, projectedSet.Operations.Select(item => item.Revision));
+        var assignmentId = new ParameterAssignmentEntityId(Guid.NewGuid());
+        var scope = new ParameterAssignmentScope("integration", id.ToString(), "risk", values.ComponentCode, "", new string('b', 64));
+        var assignment = new ParameterAssignmentRevision(assignmentId.AssignmentId, scope, 1, read.Reference,
+            true, ParameterApplicationPolicy.NextStartup, DateTime.UtcNow, "test");
+        await store.ProjectParameterAssignmentAsync(new ParameterAssignmentChangedEvent
+        {
+            CommandId = Guid.NewGuid(), EntityId = assignmentId, Revision = 1,
+            RequestHash = new string('c', 64), Assignment = assignment
+        });
+        var projectedAssignment = await store.GetParameterAssignmentSnapshotAsync(assignmentId, scope);
+        Assert.Equal(1L, projectedAssignment.Revision);
+        Assert.Equal(assignment.Reference, projectedAssignment.Assignment?.Reference);
+        var startupInputs = await store.GetParameterStartupInputsAsync([assignmentId.AssignmentId]);
+        Assert.Equal(assignment.Reference, Assert.Single(startupInputs.Assignments).Reference);
+        Assert.Equal(assignment.Reference, Assert.Single(startupInputs.Versions).Reference);
         var runId=Guid.NewGuid();var snapshot=new ParameterStartupSnapshotModel(runId,[],new Dictionary<ParameterVersionRef,ParameterSetVersion>());
         var run=new ParameterStartupRun(runId,[],[],SignalStartupPlanModel.Create(snapshot,SignalStartupPlanModel.ExistingIntradayConsumers()),DateTime.UtcNow,"test");
         var applied=new ParameterStartupChangedEvent{RunId=runId,EntityId=ParameterStartupEntityId.Registry,Revision=1,CommandId=Guid.NewGuid(),Run=run};
@@ -114,6 +133,11 @@ public sealed class ParameterSetProjectionIntegrationTests(ReferenceIntegrationI
             Assert.Equal(1L, checkpointReader.GetInt64(1));
             var activeIds = await store.GetParameterStartupRunIdsAsync(25);
             Assert.Equal(!initiallyReleased, activeIds.Contains(checkpointId));
+            var (projectedRun, projectedReport) = await store.GetActiveParameterStartupAsync(checkpointId);
+            Assert.Equal(!initiallyReleased, projectedRun?.RunId == checkpointId);
+            Assert.Equal(!initiallyReleased, projectedReport?.RunId == checkpointId);
+            var startupPage = await store.GetActiveParameterStartupPageAsync(25, null, null);
+            Assert.Equal(!initiallyReleased, startupPage.Any(item => item.RunId == checkpointId));
         }
         var legacyValue=RegimeDiscoveryParameterModel.CreateSeed(Guid.NewGuid());
         await store.InsertRegimeDiscoveryDraftAsync(legacyValue,"Explicit historical import","test");

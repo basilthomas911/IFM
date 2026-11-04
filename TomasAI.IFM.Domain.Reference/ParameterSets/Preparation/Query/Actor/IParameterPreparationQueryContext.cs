@@ -1,8 +1,5 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.State;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.State;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -13,8 +10,5 @@ public interface IParameterPreparationQueryContext : IQueryActorContext<Paramete
 {
     IParameterAccessPolicy AccessPolicy { get; }
     IConfigurationDbContext ConfigurationDb { get; }
-    IEventSourceActorStateRepository<ParameterSetCommandState> ParameterSets { get; }
-    IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments { get; }
-    IEventSourceActorStateRepository<ParameterStartupCommandState> Startups { get; }
     ILogger<ParameterPreparationQueryActor> Logger { get; }
 }

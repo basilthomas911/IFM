@@ -73,12 +73,19 @@ public static class EventSourceDbSql
         """;
 
     /// <summary>Retains creation while skipping only facts superseded by an explicit full checkpoint.</summary>
-    public const string GetEventLogFromCreationWithCheckpoint = """
-        WITH snapshot_head AS MATERIALIZED (
+    public const string GetEventLogFromCreationWithCheckpoint =
+        "WITH names AS (SELECT unnest($2::integer[]) AS EventNameId), " + CreationWithCheckpointQuery;
+
+    /// <summary>Resolves explicitly known checkpoint identities inside the same statement as the stream read.</summary>
+    public const string GetEventLogFromCreationWithCheckpointIdentities =
+        "WITH names AS (SELECT EventNameId FROM event_name_id WHERE EventTypeName = ANY($2)), " + CreationWithCheckpointQuery;
+
+    private const string CreationWithCheckpointQuery = """
+        snapshot_head AS MATERIALIZED (
             SELECT CurrentVersion FROM event_stream_id WHERE EventStreamId = $1
         ), checkpoint AS MATERIALIZED (
             SELECT coalesce(max(latest.StreamVersion),1) AS StreamVersion
-            FROM unnest($2::integer[]) AS names(EventNameId)
+            FROM names
             CROSS JOIN snapshot_head
             CROSS JOIN LATERAL (
                 SELECT el.StreamVersion FROM event_log el

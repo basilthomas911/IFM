@@ -12,34 +12,6 @@ namespace TomasAI.IFM.Domain.Reference.UnitTests.Query.Api;
 public class ActorReferenceQueryApiTests
 {
     [Fact]
-    public async Task NextSeedIdUsesDirectStorageAndReturnsTypedSuccess()
-    {
-        var (context, db) = CreateContext();
-        db.GetNextSeedIdAsync("Trade").Returns(42);
-
-        var result = await context.GetNextSeedIdAsync("Trade");
-
-        result.Success.Should().BeTrue();
-        result.Value!.Value.Should().Be(42);
-        await db.Received(1).GetNextSeedIdAsync("Trade");
-    }
-
-    [Fact]
-    public async Task StorageFailureReturnsTheQueryErrorId()
-    {
-        var (context, db) = CreateContext();
-        var exception = new InvalidOperationException("reference unavailable");
-        db.GetNextSeedIdAsync(Arg.Any<string>())
-            .Returns(_ => Task.FromException<int>(exception));
-
-        var result = await context.GetNextSeedIdAsync("Trade");
-
-        result.Success.Should().BeFalse();
-        result.ErrorCode.Should().Be(GetNextSeedIdQuery.ErrorId);
-        result.ErrorMessage.Should().Be(exception.Message);
-    }
-
-    [Fact]
     public async Task DefaultDefinitions_StartAllIndependentReadsBeforeAwaitingCompletion()
     {
         var (context, db) = CreateContext();

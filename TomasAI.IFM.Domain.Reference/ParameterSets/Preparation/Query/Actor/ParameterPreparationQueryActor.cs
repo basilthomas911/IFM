@@ -13,12 +13,26 @@ public sealed class ParameterPreparationQueryActor(IQueryActorContext<ParameterP
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
-        [PrepareParameterCommandQuery.Verb] = message => message.AsQuery<PrepareParameterCommandQuery, ParameterCommandPreparation>()!
+        [PrepareParameterCommandQuery.Verb] = message => message.AsQuery<PrepareParameterCommandQuery, ParameterCommandPreparation>()!,
+        [GetParameterCommandEvidenceQuery.Verb] = message => message.AsQuery<GetParameterCommandEvidenceQuery, ParameterCommandEvidenceReadModel>()!
     };
 
     static readonly IReadOnlyDictionary<Type, Func<IQuery, IParameterPreparationQueryContext, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQuery, IParameterPreparationQueryContext, CancellationToken, ValueTask>>
     {
-        [typeof(PrepareParameterCommandQuery)] = (query, services, token) => ((PrepareParameterCommandQuery)query).ExecuteAsync(services, services.Logger, token)
+        [typeof(PrepareParameterCommandQuery)] = static async (query, services, token) =>
+        {
+            var result = await ((PrepareParameterCommandQuery)query).ExecuteAsync(services, services.Logger, token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            await services.ReplyAsync(query.Subject.ThreadId, PrepareParameterCommandQuery.Verb,
+                new ServiceOk<ParameterCommandPreparation>(result)).ConfigureAwait(false);
+        },
+        [typeof(GetParameterCommandEvidenceQuery)] = static async (query, services, token) =>
+        {
+            var result = await ((GetParameterCommandEvidenceQuery)query).ExecuteAsync(services, services.Logger, token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            await services.ReplyAsync(query.Subject.ThreadId, GetParameterCommandEvidenceQuery.Verb,
+                new ServiceOk<ParameterCommandEvidenceReadModel>(result)).ConfigureAwait(false);
+        }
     };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);

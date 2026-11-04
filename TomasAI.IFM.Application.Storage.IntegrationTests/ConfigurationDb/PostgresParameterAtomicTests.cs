@@ -24,6 +24,43 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ConfigurationDb;
 public sealed class PostgresParameterAtomicTests(PostgresTradePlanFixture fixture)
 {
     [Fact]
+    public async Task Pending_projection_hides_the_preparation_revision_until_materialization_commits()
+    {
+        var settings = new TomasAI.IFM.Shared.Storage.DbConnectionSettings();
+        settings.Add(ConfigurationDbContext.ConfigurationDbConnection, fixture.Connection, "System.Data.Postgres");
+        await new ConfigurationSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
+        var factory = new Mock<IDbContextFactory>();
+        var context = new ConfigurationDbContext(settings, factory.Object, NullLogger<DbProvider>.Instance);
+        factory.SetupGet(value => value.ConfigurationDb).Returns(context);
+
+        var baseline = await context.GetParameterRevisionFenceAsync();
+        Assert.Equal(baseline, await context.GetProjectedParameterRevisionAsync());
+        const long eventId = long.MaxValue;
+        await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
+        {
+            await context.AdvanceParameterRevisionFenceAsync(transaction, token);
+            await context.MarkParameterProjectionPendingAsync(transaction, eventId, token);
+            return true;
+        });
+        Assert.Equal(baseline + 1, await context.GetParameterRevisionFenceAsync());
+        Assert.Null(await context.GetProjectedParameterRevisionAsync());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Transactions.ExecuteOnceAsync<bool>(async (transaction, token) =>
+        {
+            await context.CompleteParameterProjectionAsync(transaction, eventId, token);
+            throw new InvalidOperationException("Simulate a failed projection transaction.");
+        }));
+        Assert.Null(await context.GetProjectedParameterRevisionAsync());
+
+        await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
+        {
+            await context.CompleteParameterProjectionAsync(transaction, eventId, token);
+            return true;
+        });
+        Assert.Equal(baseline + 1, await context.GetProjectedParameterRevisionAsync());
+    }
+
+    [Fact]
     public async Task Accepted_parameters_audit_assignments_startup_and_cache_policy_share_source_transaction_and_rebuild()
     {
         var sourceSettings = new TomasAI.IFM.Shared.Storage.DbConnectionSettings();

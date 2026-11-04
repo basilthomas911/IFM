@@ -44,7 +44,8 @@ internal sealed class ParameterResponder {
     if(pieces[3]!="none"||Get<IActorEntityId>("EntityId").Format()!="none")throw new InvalidDataException("Incorrect parameter query entity");
     switch(verb){
      case "PrepareParameterCommand":
-      var preparation=((PrepareParameterCommandQuery)value).Preparation;
+     case "GetParameterCommandEvidence":
+      var preparation=value is GetParameterCommandEvidenceQuery evidenceQuery ? evidenceQuery.Preparation : ((PrepareParameterCommandQuery)value).Preparation;
       ParameterCommandPreparation prepared;
       if(preparation.Creation is {} createRequest){prepared=preparation with{Creation=createRequest with{Evidence=new(revisionFence,LegacyVersion:new(Legacy,1,"{}","Legacy fixture",1))}};}
       else if(preparation.Assignment is {} assignRequest){var exact=versions[assignRequest.Reference.SetId].Single(v=>v.Reference==assignRequest.Reference);prepared=preparation with{Assignment=assignRequest with{Evidence=new(revisionFence,ExactVersion:exact)}};}
@@ -52,6 +53,9 @@ internal sealed class ParameterResponder {
       else if(preparation.Publication is {} publishRequest){var exact=versions[publishRequest.EntityId.SetId].Single(v=>v.Reference.Version==publishRequest.Version);prepared=preparation with{Publication=publishRequest with{Evidence=new(revisionFence,ExactVersion:exact)}};}
       else throw new InvalidDataException("Unsupported fixture preparation");
       if(Mode=="WrongPreparedCommand"&&prepared.Publication is{} altered)prepared=prepared with{Publication=altered with{CommandId=Guid.NewGuid()}};
+      if(verb=="GetParameterCommandEvidence")
+       return Result(new ParameterCommandEvidenceReadModel(prepared.OperationId, (prepared.Creation?.Evidence ??
+        prepared.Assignment?.Evidence ?? prepared.Retirement?.Evidence ?? prepared.Publication?.Evidence)!));
       return Result(prepared);
      case "ListParameterComponents":return Result(Components);
      case "ListParameterVersions":

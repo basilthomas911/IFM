@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.Trade.Persistence;
 using Microsoft.Extensions.Logging;
@@ -12,7 +13,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Workflow.Command.State;
 public sealed class VerticalSpreadExitPositionWorkflowStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<VerticalSpreadExitPositionWorkflowCommandActor> projector, ILogger<VerticalSpreadExitPositionWorkflowStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<VerticalSpreadExitPositionWorkflowCommandState>
 {
-    public ValueTask<VerticalSpreadExitPositionWorkflowCommandState> LoadStateAsync(ICommand command) => new(LoadStateFromCreationSnapshotAsync<VerticalSpreadExitPositionWorkflowCommandState>(command));
+    public ValueTask<VerticalSpreadExitPositionWorkflowCommandState> LoadStateAsync(ICommand command) => new(LoadStateFromLatestCheckpointAsync<VerticalSpreadExitPositionWorkflowCommandState, ExitPositionWorkflowStartedEvent>(
+        command, static fact => fact.ExitPlan is not null));
     public async ValueTask SaveStateAsync(ICommandActorContext context, VerticalSpreadExitPositionWorkflowCommandState state, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(state);

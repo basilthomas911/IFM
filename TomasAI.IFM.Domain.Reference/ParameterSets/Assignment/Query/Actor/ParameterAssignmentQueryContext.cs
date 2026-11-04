@@ -1,8 +1,6 @@
-using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.State;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -18,9 +16,10 @@ public sealed class ParameterAssignmentQueryContext
       IParameterAssignmentQueryContext
 {
     readonly Lazy<IParameterAccessPolicy> accessPolicy;
+    readonly Lazy<IConfigurationDbContext> configurationDb;
     public IParameterAccessPolicy AccessPolicy => accessPolicy.Value;
+    public IConfigurationDbContext ConfigurationDb => configurationDb.Value;
 
-    readonly Lazy<IEventSourceActorStateRepository<ParameterAssignmentCommandState>> assignments;
 
     /// <summary>Initializes the Query context.</summary>
     public ParameterAssignmentQueryContext(
@@ -30,11 +29,9 @@ public sealed class ParameterAssignmentQueryContext
     {
         Logger = IsArgumentNull.Set(logger);
         accessPolicy = new(() => IsArgumentNull.Set(Container.Resolve<IParameterAccessPolicy>())!);
-        assignments = new(() => IsArgumentNull.Set(Container.Resolve<IEventSourceActorStateRepository<ParameterAssignmentCommandState>>())!);
+        configurationDb = new(() => IsArgumentNull.Set(Container.Resolve<IConfigurationDbContext>())!);
     }
 
-    /// <inheritdoc />
-    public IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments => assignments.Value;
     /// <inheritdoc />
     public ILogger<ParameterAssignmentQueryActor> Logger { get; }
 }

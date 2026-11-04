@@ -87,11 +87,11 @@ public static class PublishParameterVersion
         ///
         /// <param name="parameterChange">The accepted immutable business change.</param>
         /// <returns>The source event ready for state application.</returns>
-        internal ParameterVersionPublishedEvent CreateParameterVersionPublishedEvent(ParameterVersionChange parameterChange)
+        internal ParameterSetVersionPublishedEvent CreateParameterVersionPublishedEvent(ParameterVersionChange parameterChange)
             => new()
             {
                 CommandId = command.CommandId,
-                Subject = new ActorSubject(ActorType.Event, ParameterVersionPublishedEvent.Actor, ParameterVersionPublishedEvent.Verb, command.EntityId.Format()),
+                Subject = new ActorSubject(ActorType.Event, ParameterSetVersionPublishedEvent.Actor, ParameterSetVersionPublishedEvent.Verb, command.EntityId.Format()),
                 EntityId = command.EntityId,
                 Revision = parameterChange.CatalogRevision,
                 RequestHash = parameterChange.RequestHash,

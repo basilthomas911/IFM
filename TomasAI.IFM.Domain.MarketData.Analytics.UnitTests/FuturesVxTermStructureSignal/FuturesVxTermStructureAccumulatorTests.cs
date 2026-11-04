@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Comma
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Command;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -99,6 +100,24 @@ public sealed class FuturesVxTermStructureAccumulatorTests
         Assert.Same(checkpoint, state.FuturesVxTermStructureCheckpoint);
         Assert.Empty(state.Events);
         Assert.False(state.Updated);
+    }
+
+    [Fact]
+    public void Leg_only_update_captures_the_last_pair_without_publishing_it_again()
+    {
+        var state = new FuturesVxTermStructureSignalCommandState();
+        Assert.True(UpdateCommand(Front(20m, 1)).Execute(state).Success);
+        Assert.True(UpdateCommand(Back(21m, 1)).Execute(state).Success);
+        var paired = Assert.IsType<FuturesVxTermStructureSignalReadModel>(state.FuturesVxTermStructureSignal);
+        state.AcceptChanges();
+
+        var delayedFront = Front(20.25m, 2) with { SourceTimestampUtc = FrontTimestamp.AddSeconds(30) };
+        Assert.True(UpdateCommand(delayedFront).Execute(state).Success);
+        var fact = Assert.IsType<FuturesVxTermStructureSignalUpdatedEvent>(Assert.Single(state.Events));
+        Assert.True(fact.HasFullStateSnapshot);
+        Assert.Null(fact.FuturesVxTermStructureSignal);
+        Assert.Equal(paired, fact.RetainedSignal);
+        Assert.Equal(paired, state.FuturesVxTermStructureSignal);
     }
 
     static UpdateFuturesVxTermStructureSignalCommand UpdateCommand(

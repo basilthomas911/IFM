@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.Reference.UnitTests.ParameterSets;
 public sealed class ParameterEventProjectorDescriptorTests
 {
     [Fact]
-    public void Source_only_parameter_projections_do_not_request_terminal_events()
+    public void Parameter_projections_publish_durable_terminal_events()
     {
         var set = Substitute.For<IParameterSetCommandContext>();
         set.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
@@ -35,11 +35,11 @@ public sealed class ParameterEventProjectorDescriptorTests
         startup.Logger.Returns(Substitute.For<ILogger<ParameterStartupCommandActor>>());
 
         new ParameterSetEventProjector(set).ProjectionDescriptors
-            .Should().OnlyContain(descriptor => !descriptor.PublishTerminalEvent);
+            .Should().OnlyContain(descriptor => descriptor.UseDurableReplay && descriptor.PublishTerminalEvent);
         new ParameterAssignmentEventProjector(assignment).ProjectionDescriptors
-            .Should().OnlyContain(descriptor => !descriptor.PublishTerminalEvent);
+            .Should().OnlyContain(descriptor => descriptor.UseDurableReplay && descriptor.PublishTerminalEvent);
         new ParameterStartupEventProjector(startup).ProjectionDescriptors
-            .Should().OnlyContain(descriptor => !descriptor.PublishTerminalEvent);
+            .Should().OnlyContain(descriptor => descriptor.UseDurableReplay && descriptor.PublishTerminalEvent);
     }
 
 }

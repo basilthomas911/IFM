@@ -49,7 +49,7 @@ public sealed class ParameterAssignmentSnapshotRepositoryTests
         store.ProviderName.Returns("System.Data.Postgres");
         store.GetEventStreamIdAsync(command.StreamId, CancellationToken.None).Returns(91L);
         store.GetCommittedStreamVersionAsync(91, CancellationToken.None).Returns(2L);
-        store.MapReduceActorEventStreamFromCreationAsync<ParameterAssignmentCommandState>(91,
+        store.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<ParameterAssignmentCommandState>(91, Arg.Any<IReadOnlyList<Type>>(),
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None).Returns(call =>
         {
             call.Arg<Action<IEnumerable<EventStreamReadModel>>>()(new IEvent[] { created, changed }.Select((source, index) => new EventStreamReadModel

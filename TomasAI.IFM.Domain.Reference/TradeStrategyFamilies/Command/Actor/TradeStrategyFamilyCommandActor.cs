@@ -68,13 +68,13 @@ public sealed class TradeStrategyFamilyCommandActor(
             }
         };
 
-    static readonly IReadOnlyDictionary<Type, Func<ICommand, StrategyCatalogService?, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
-        new Dictionary<Type, Func<ICommand, StrategyCatalogService?, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, StrategyCatalogService?, ICommandActorContext, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
+        new Dictionary<Type, Func<ICommand, StrategyCatalogService?, ICommandActorContext, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
         {
-            [typeof(StrategyCatalogCommand)] = static (command, service, token) => ((StrategyCatalogCommand)command).ExecuteAsync(service, token),
-            [typeof(CreateTradeStrategyFamilyCommand)] = static (command, _, _) => ((CreateTradeStrategyFamilyCommand)command).ExecuteAsync(),
-            [typeof(ChangeTradeStrategyFamilyCommand)] = static (command, _, _) => ((ChangeTradeStrategyFamilyCommand)command).ExecuteAsync(),
-            [typeof(RemoveTradeStrategyFamilyCommand)] = static (command, _, _) => ((RemoveTradeStrategyFamilyCommand)command).ExecuteAsync()
+            [typeof(StrategyCatalogCommand)] = static (command, service, context, token) => ((StrategyCatalogCommand)command).ExecuteAsync(service, context, token),
+            [typeof(CreateTradeStrategyFamilyCommand)] = static (command, _, _, _) => ((CreateTradeStrategyFamilyCommand)command).ExecuteAsync(),
+            [typeof(ChangeTradeStrategyFamilyCommand)] = static (command, _, _, _) => ((ChangeTradeStrategyFamilyCommand)command).ExecuteAsync(),
+            [typeof(RemoveTradeStrategyFamilyCommand)] = static (command, _, _, _) => ((RemoveTradeStrategyFamilyCommand)command).ExecuteAsync()
         };
 
     protected override ICommand ParseMessage(ICommandActorContext<TradeStrategyFamilyCommandActor> context, IActorMessage message)
@@ -90,7 +90,7 @@ public sealed class TradeStrategyFamilyCommandActor(
         => ReceiveAsync(context, state, command, CancellationToken.None);
 
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TradeStrategyFamilyCommandActor> context, IActorState state, ICommand command, CancellationToken cancellationToken)
-        => ResolveMappedCommandHandler(command, _receiveMap)(command, catalog, cancellationToken);
+        => ResolveMappedCommandHandler(command, _receiveMap)(command, catalog, context, cancellationToken);
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TradeStrategyFamilyCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
         

@@ -33,7 +33,8 @@ public sealed class FuturesVxTermStructureSignalCommandState
     {
         if (updated.FuturesVxTermStructureCheckpoint is null) return false;
         FuturesVxTermStructureCheckpoint = updated.FuturesVxTermStructureCheckpoint;
-        if (updated.FuturesVxTermStructureSignal is not null) FuturesVxTermStructureSignal = updated.FuturesVxTermStructureSignal;
+        if (updated.FuturesVxTermStructureSignal is not null || updated.HasFullStateSnapshot)
+            FuturesVxTermStructureSignal = updated.FuturesVxTermStructureSignal ?? updated.RetainedSignal;
         return true;
     }
 }

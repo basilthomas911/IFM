@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Reference.Shared.Commands;
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
@@ -12,16 +13,36 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class ReferenceCommandApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IReferenceCommandApi
 {
-    public Task<ServiceResult<Guid>> ExecuteStrategyCatalogAsync(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogCommandRequest request, CancellationToken cancellationToken = default)
+    public Task<ServiceResult<Guid>> ExecuteStrategyCatalogAsync(CatalogCommandRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var command = new TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogCommand
+        var key = request.Operation == CatalogCommandOperation.SaveDraft ? request.Definition?.Key : request.Key;
+        if (key is null)
+            return Task.FromResult<ServiceResult<Guid>>(new ServiceFailed<Guid>(StrategyCatalogCommand.ErrorId, "Catalog version identity is required."));
+        var identity = StrategyCatalogLifecycleCommand.Address(key);
+        ActorSubject Subject(string verb) => new(ActorType.Command, StrategyCatalogLifecycleCommand.Actor, verb, identity.Format());
+        return request.Operation switch
         {
-            CommandId = request.OperationId,
-            RequestJson = TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogJson.Write(request),
-            Subject = new ActorSubject(ActorType.Command, "TradeStrategyFamilyCommand", "Catalog", ActorEntityId.Default.Format())
+            CatalogCommandOperation.SaveDraft when request.Definition is { } definition =>
+                RequestCommandAsync(new SaveStrategyCatalogDraftCommand
+                {
+                    CommandId = request.OperationId, EntityId = identity, Subject = Subject(SaveStrategyCatalogDraftCommand.Verb),
+                    DefinitionJson = StrategyCatalogJson.Write(definition), ExpectedPreviousVersion = request.ExpectedPreviousVersion
+                }, identity, cancellationToken).AsTask(),
+            CatalogCommandOperation.Publish when request.ExpectedHash is { } hash && request.EffectiveUtc is { } effective =>
+                RequestCommandAsync(new PublishStrategyCatalogVersionCommand
+                {
+                    CommandId = request.OperationId, EntityId = identity, Subject = Subject(PublishStrategyCatalogVersionCommand.Verb),
+                    Key = key, ExpectedHash = hash, EffectiveUtc = effective
+                }, identity, cancellationToken).AsTask(),
+            CatalogCommandOperation.Retire when request.ExpectedHash is { } hash && request.EffectiveUtc is { } effective =>
+                RequestCommandAsync(new RetireStrategyCatalogVersionCommand
+                {
+                    CommandId = request.OperationId, EntityId = identity, Subject = Subject(RetireStrategyCatalogVersionCommand.Verb),
+                    Key = key, ExpectedHash = hash, EffectiveUtc = effective
+                }, identity, cancellationToken).AsTask(),
+            _ => Task.FromResult<ServiceResult<Guid>>(new ServiceFailed<Guid>(StrategyCatalogCommand.ErrorId, "Incomplete catalog command."))
         };
-        return RequestCommandAsync(command, command.EntityId, cancellationToken).AsTask();
     }
     public Task<ServiceResult<Guid>> ChangeTradeStrategyFamilyAsync(ChangeTradeStrategyFamilyRequest request, CancellationToken cancellationToken = default)
     {

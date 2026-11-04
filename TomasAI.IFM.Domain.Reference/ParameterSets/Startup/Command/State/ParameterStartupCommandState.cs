@@ -26,8 +26,49 @@ public sealed class ParameterStartupCommandState : BaseEventSourceActorState<Par
         return applied;
     }
 
+    internal ParameterStartupStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "ParameterStartupEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        RunId = RunId,
+        Revision = Revision,
+        Released = Released,
+        ActiveRun = ActiveRuns.GetValueOrDefault(RunId),
+        Report = Reports.GetValueOrDefault(RunId)
+    };
+
+    internal static bool IsCompleteSnapshot(ParameterStartupStateSnapshottedEvent snapshot) =>
+        snapshot.RunId != Guid.Empty && snapshot.Revision > 0 &&
+        (snapshot.Released
+            ? snapshot.ActiveRun is null && snapshot.Report is null
+            : snapshot.ActiveRun is { } run && run.RunId == snapshot.RunId);
+
+    private bool RestoreSnapshot(ParameterStartupStateSnapshottedEvent snapshot)
+    {
+        if (!IsCompleteSnapshot(snapshot))
+            return false;
+        if (RunId != Guid.Empty && RunId != snapshot.RunId ||
+            !string.IsNullOrEmpty(Id.EntityId) && (!Guid.TryParse(Id.EntityId, out var owner) || owner != snapshot.RunId))
+            throw new InvalidDataException("PARAM.STARTUP_OWNER_MISMATCH");
+        ActiveRuns.Clear();
+        Reports.Clear();
+        RunId = snapshot.RunId;
+        Revision = snapshot.Revision;
+        Released = snapshot.Released;
+        if (snapshot.ActiveRun is { } run)
+            ActiveRuns.Add(RunId, run);
+        if (snapshot.Report is { } report)
+            Reports.Add(RunId, report);
+        return true;
+    }
+
     protected override bool Apply(IEvent domainEvent)
     {
+        if (domainEvent is ParameterStartupStateSnapshottedEvent snapshot)
+            return RestoreSnapshot(snapshot);
         if (domainEvent is not ParameterStartupChangedEvent fact || fact.Revision != Revision + 1 || fact.RunId == Guid.Empty) return false;
         if (!string.IsNullOrEmpty(Id.EntityId) && (!Guid.TryParse(Id.EntityId, out var owner) || owner != fact.EntityId.Id))
             throw new InvalidDataException("PARAM.STARTUP_OWNER_MISMATCH");

@@ -60,6 +60,17 @@ public sealed class DatabaseBackupConcernRepositoryTests
             }));
             return ValueTask.CompletedTask;
         });
+        store.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<DatabaseRecoveryCommandState>(20,
+            Arg.Any<IReadOnlyList<Type>>(), Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), token).Returns(call =>
+        {
+            var events = hasOwnHistory ? new[] { progress } : [];
+            call.Arg<Action<IEnumerable<EventStreamReadModel>>>()(events.Select((e, index) => new EventStreamReadModel
+            {
+                EventVersion = index + 1, StreamVersion = index + 1, EventTypeName = e.GetType().AssemblyQualifiedName!,
+                EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(e)
+            }));
+            return ValueTask.CompletedTask;
+        });
         var repository = new DatabaseRecoveryStateRepository(factory, store, Substitute.For<IActorService>(),
             Substitute.For<IEventProjector<DatabaseRecoveryCommandActor>>(), Substitute.For<IDatabaseBackupExecutionOutbox>(),
             NullLogger<DatabaseRecoveryStateRepository>.Instance);

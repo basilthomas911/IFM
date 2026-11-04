@@ -12,7 +12,13 @@ public sealed class EventTypeRegistry : IEventTypeResolver
 {
     public static EventTypeRegistry Default { get; } = new(loadCompatibilityCatalog: true);
     readonly object gate = new();
-    ImmutableDictionary<string, Type> aliases = ImmutableDictionary.Create<string, Type>(StringComparer.Ordinal);
+    sealed class RegistrySnapshot(ImmutableDictionary<string, Type> aliases)
+    {
+        public ImmutableDictionary<string, Type> Aliases { get; } = aliases;
+        public System.Collections.Concurrent.ConcurrentDictionary<Type, string[]> ReadIdentities { get; } = new();
+    }
+
+    RegistrySnapshot snapshot = new(ImmutableDictionary.Create<string, Type>(StringComparer.Ordinal));
     readonly ImmutableDictionary<string, string> compatibilityTargets = ImmutableDictionary<string, string>.Empty;
     readonly System.Collections.Concurrent.ConcurrentDictionary<string, Type> resolvedTargets = new(StringComparer.Ordinal);
     static readonly Regex StableName = new(@"\A[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+/v[1-9][0-9]*\z", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
@@ -62,7 +68,7 @@ public sealed class EventTypeRegistry : IEventTypeResolver
         }
         lock (gate)
         {
-            var current = aliases;
+            var current = snapshot.Aliases;
             foreach (var name in names)
             {
                 if (current.TryGetValue(name, out var existing) && existing != eventType)
@@ -71,15 +77,17 @@ public sealed class EventTypeRegistry : IEventTypeResolver
                     throw new InvalidOperationException($"Event identity '{name}' is frozen for '{mapped.FullName}'.");
             }
             // Publish the entire batch only after every alias has passed validation.
-            Volatile.Write(ref aliases, current.SetItems(names.Select(name => new KeyValuePair<string, Type>(name, eventType))));
+            var updated = current.SetItems(names.Select(name => new KeyValuePair<string, Type>(name, eventType)));
+            if (!ReferenceEquals(current, updated))
+                Volatile.Write(ref snapshot, new RegistrySnapshot(updated));
         }
     }
 
     public Type? Resolve(string identity)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identity);
-        var snapshot = Volatile.Read(ref aliases);
-        var type = snapshot.GetValueOrDefault(identity);
+        var current = Volatile.Read(ref snapshot);
+        var type = current.Aliases.GetValueOrDefault(identity);
         if (type is null && !resolvedTargets.TryGetValue(identity, out type))
         {
             type = ResolveClr(identity);
@@ -104,9 +112,16 @@ public sealed class EventTypeRegistry : IEventTypeResolver
     public string[] GetReadIdentities(Type eventType)
     {
         RequireEventType(eventType);
-        return Volatile.Read(ref aliases).Where(pair => pair.Value == eventType).Select(pair => pair.Key)
-            .Concat(compatibilityTargets.Where(pair => pair.Value == $"{eventType.FullName}, {eventType.Assembly.GetName().Name}").Select(pair => pair.Key))
-            .Append(eventType.AssemblyQualifiedName!).Distinct(StringComparer.Ordinal).ToArray();
+        var current = Volatile.Read(ref snapshot);
+        var identities = current.ReadIdentities.GetOrAdd(eventType, type =>
+        {
+            var compatibilityTarget = $"{type.FullName}, {type.Assembly.GetName().Name}";
+            return current.Aliases.Where(pair => pair.Value == type).Select(pair => pair.Key)
+                .Concat(compatibilityTargets.Where(pair => pair.Value == compatibilityTarget).Select(pair => pair.Key))
+                .Append(type.AssemblyQualifiedName!).Distinct(StringComparer.Ordinal).ToArray();
+        });
+        // Keep the existing mutable array return contract without exposing the cached array.
+        return (string[])identities.Clone();
     }
 
     bool TryCompatibilityTarget(string identity, out string target)

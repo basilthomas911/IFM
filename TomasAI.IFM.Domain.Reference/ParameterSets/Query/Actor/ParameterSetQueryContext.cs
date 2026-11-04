@@ -1,9 +1,6 @@
-using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.State;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -18,16 +15,12 @@ public sealed class ParameterSetQueryContext
     : QueryActorContext,
       IParameterSetQueryContext
 {
-    readonly Lazy<IEventSourceActorStateRepository<ParameterStartupCommandState>> startups;
-    public IEventSourceActorStateRepository<ParameterStartupCommandState> Startups => startups.Value;
     readonly Lazy<IRegimeDiscoveryMarketSignalSnapshotProvider> signalSnapshots;
     public IRegimeDiscoveryMarketSignalSnapshotProvider SignalSnapshots => signalSnapshots.Value;
     readonly Lazy<IParameterAccessPolicy> accessPolicy;
     public IParameterAccessPolicy AccessPolicy => accessPolicy.Value;
 
-    readonly Lazy<IEventSourceActorStateRepository<ParameterAssignmentCommandState>> assignments;
     readonly Lazy<IConfigurationDbContext> configurationDb;
-    readonly Lazy<IEventSourceActorStateRepository<ParameterSetCommandState>> repository;
 
     /// <summary>Initializes the Query context.</summary>
     public ParameterSetQueryContext(
@@ -37,17 +30,12 @@ public sealed class ParameterSetQueryContext
     {
         Logger = IsArgumentNull.Set(logger);
         signalSnapshots = new(() => IsArgumentNull.Set(Container.Resolve<IRegimeDiscoveryMarketSignalSnapshotProvider>())!);
-        startups = new(() => IsArgumentNull.Set(Container.Resolve<IEventSourceActorStateRepository<ParameterStartupCommandState>>())!);
         accessPolicy = new(() => IsArgumentNull.Set(Container.Resolve<IParameterAccessPolicy>())!);
-        assignments = new(() => IsArgumentNull.Set(Container.Resolve<IEventSourceActorStateRepository<ParameterAssignmentCommandState>>())!);
-        repository = new(() => IsArgumentNull.Set(Container.Resolve<IEventSourceActorStateRepository<ParameterSetCommandState>>())!);
         configurationDb = new(() => IsArgumentNull.Set(Container.Resolve<IConfigurationDbContext>())!);
     }
 
     /// <inheritdoc />
     public IConfigurationDbContext ConfigurationDb => configurationDb.Value;
-    public IEventSourceActorStateRepository<ParameterSetCommandState> StateRepository => repository.Value;
-    public IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments => assignments.Value;
     /// <inheritdoc />
     public ILogger<ParameterSetQueryActor> Logger { get; }
 }

@@ -81,11 +81,11 @@ public static class RetireParameterVersion
         ///
         /// <param name="parameterChange">The accepted immutable business change.</param>
         /// <returns>The source event ready for state application.</returns>
-        internal ParameterVersionRetiredEvent CreateParameterVersionRetiredEvent(ParameterVersionChange parameterChange)
+        internal ParameterSetVersionRetiredEvent CreateParameterVersionRetiredEvent(ParameterVersionChange parameterChange)
             => new()
             {
                 CommandId = command.CommandId,
-                Subject = new ActorSubject(ActorType.Event, ParameterVersionRetiredEvent.Actor, ParameterVersionRetiredEvent.Verb, command.EntityId.Format()),
+                Subject = new ActorSubject(ActorType.Event, ParameterSetVersionRetiredEvent.Actor, ParameterSetVersionRetiredEvent.Verb, command.EntityId.Format()),
                 EntityId = command.EntityId,
                 Revision = parameterChange.CatalogRevision,
                 RequestHash = parameterChange.RequestHash,

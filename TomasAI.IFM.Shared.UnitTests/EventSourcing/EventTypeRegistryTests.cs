@@ -50,6 +50,23 @@ public sealed class EventTypeRegistryTests
     }
 
     [Fact]
+    public void Cached_read_identities_refresh_after_registration_and_are_isolated_from_callers()
+    {
+        var registry = new EventTypeRegistry();
+        var initial = registry.GetReadIdentities(typeof(UnknownEvent));
+        Assert.Single(initial);
+        initial[0] = "caller mutation";
+        Assert.Equal(typeof(UnknownEvent).AssemblyQualifiedName, Assert.Single(registry.GetReadIdentities(typeof(UnknownEvent))));
+
+        registry.Register<UnknownEvent>(Stable, Removed);
+        var updated = registry.GetReadIdentities(typeof(UnknownEvent));
+        Assert.Contains(Stable, updated);
+        Assert.Contains(Removed, updated);
+        registry.RegisterHistoricalIdentity(typeof(UnknownEvent), Moved);
+        Assert.Contains(Moved, registry.GetReadIdentities(typeof(UnknownEvent)));
+    }
+
+    [Fact]
     public void Unknown_versions_and_names_remain_observable_and_non_events_are_rejected()
     {
         var registry = new EventTypeRegistry();

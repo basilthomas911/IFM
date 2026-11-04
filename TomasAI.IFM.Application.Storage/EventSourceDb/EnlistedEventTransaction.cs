@@ -21,6 +21,12 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
     readonly EventLogMessagePackCodec eventLogCodec;
     readonly EventLogSqlLayout eventLogSqlLayout;
     readonly PostgresQueryTimeoutScope timeouts;
+    internal (NpgsqlConnection Connection, NpgsqlTransaction Transaction) GetConnectionAndTransaction()
+    {
+        RequireActive();
+        return (connection, transaction);
+    }
+
     int completed;
     internal EnlistedEventTransaction(
         NpgsqlConnection connection,

@@ -29,7 +29,7 @@ public class FuturesRsiSignalStateRepositoryTests
         eventDb.ProviderName.Returns("System.Data.Postgres");
         eventDb.GetEventStreamIdAsync(command.StreamId, CancellationToken.None).Returns(42L);
         eventDb.GetCommittedStreamVersionAsync(42L, CancellationToken.None).Returns(3L);
-        eventDb.MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(42L,
+        eventDb.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesRsiSignalCommandState>(42L, Arg.Any<IReadOnlyList<Type>>(),
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None).Returns(call =>
         {
             var rows = Enumerable.Range(1, 3).Select(version => new EventStreamReadModel
@@ -67,8 +67,8 @@ public class FuturesRsiSignalStateRepositoryTests
         stateFactory.CreateState<FuturesRsiSignalCommandState>().Returns(state);
         var eventDb = Substitute.For<IEventSourceActorDbContext>();
         eventDb.GetEventStreamIdAsync(command.StreamId, CancellationToken.None).Returns(streamId);
-        eventDb.MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(
-                streamId,
+        eventDb.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesRsiSignalCommandState>(
+                streamId, Arg.Any<IReadOnlyList<Type>>(),
                 Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None)
             .Returns(call =>
             {
@@ -102,8 +102,8 @@ public class FuturesRsiSignalStateRepositoryTests
         Assert.Same(state, loadedState);
         Assert.Equal(command.Subject.ThreadId, loadedState.Id);
         Assert.Single(loadedState.FuturesRsiSignals);
-        await eventDb.Received(1).MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(
-            streamId,
+        await eventDb.Received(1).MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesRsiSignalCommandState>(
+            streamId, Arg.Any<IReadOnlyList<Type>>(),
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
         await eventDb.DidNotReceiveWithAnyArgs().MapReduceActorEventStreamFromSnapshotLastNRangeAsync<
             FuturesRsiSignalCommandState,
@@ -146,8 +146,8 @@ public class FuturesRsiSignalStateRepositoryTests
 
         Assert.Same(state, loadedState);
         Assert.Equal(command.Subject.ThreadId, loadedState.Id);
-        await eventDb.Received(1).MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(
-            streamId,
+        await eventDb.Received(1).MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesRsiSignalCommandState>(
+            streamId, Arg.Any<IReadOnlyList<Type>>(),
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
     }
 
@@ -183,8 +183,8 @@ public class FuturesRsiSignalStateRepositoryTests
         var eventDb = Substitute.For<IEventSourceActorDbContext>();
         eventDb.GetEventStreamIdAsync(command.StreamId, CancellationToken.None).Returns(streamId);
         var requiredHistory = configuration.RsiPeriod + configuration.RequiredRsiSamples;
-        eventDb.MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(
-                streamId,
+        eventDb.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesRsiSignalCommandState>(
+                streamId, Arg.Any<IReadOnlyList<Type>>(),
                 Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None)
             .Returns(call =>
             {
@@ -248,8 +248,8 @@ public class FuturesRsiSignalStateRepositoryTests
             .Should().Be(configuration.RequiredRsiSamples);
         loadedState.FuturesRsiCheckpoint.Should().NotBeNull();
         loadedState.FuturesRsiCheckpoint!.CurrentRsi.Should().Be(100d);
-        await eventDb.Received(1).MapReduceActorEventStreamFromCreationAsync<FuturesRsiSignalCommandState>(
-            streamId,
+        await eventDb.Received(1).MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesRsiSignalCommandState>(
+            streamId, Arg.Any<IReadOnlyList<Type>>(),
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
     }
 }

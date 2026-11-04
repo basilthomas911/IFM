@@ -24,6 +24,24 @@ public class FuturesMacdSignalCommandState : BaseEventSourceActorState<FuturesMa
     /// </summary>
     /// <param name = "domainEvent">The domain event to apply. Must be of a supported type.</param>
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
+    internal FuturesMacdSignalStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "FuturesMacdSignalEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        Signals = _macdSignals.ToArray()
+    };
+
+    private bool RestoreSnapshot(IReadOnlyList<FuturesMacdSignalReadModel> signals)
+    {
+        _macdSignals.Clear();
+        _macdSignals.AddRange(signals);
+        _macdSignal = _macdSignals.LastOrDefault();
+        return true;
+    }
+
     protected override bool Apply(IEvent domainEvent)
     {
         return domainEvent switch
@@ -32,6 +50,7 @@ public class FuturesMacdSignalCommandState : BaseEventSourceActorState<FuturesMa
             FuturesMacdSignalStoppedEvent => true,
             FuturesMacdSignalGeneratedEvent e => On(e.FuturesMacdSignal),
             FuturesMacdDailySignalGeneratedEvent e => On(e.FuturesMacdSignal),
+            FuturesMacdSignalStateSnapshottedEvent { Signals: { } signals } => RestoreSnapshot(signals),
             _ => false
         };
         bool Reset(bool reset)

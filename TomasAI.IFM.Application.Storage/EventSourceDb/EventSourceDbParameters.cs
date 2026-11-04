@@ -538,3 +538,9 @@ internal readonly record struct UpsertEventProjectorState(
         Text(createdTimestamp),
         Text(updatedTimestamp));
 }
+
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+internal readonly record struct GetCheckpointEventLogByIdentity(long stream, string[] identities) : IBindValue
+{
+    public object Bind() => Values(Bigint(stream), identities);
+}

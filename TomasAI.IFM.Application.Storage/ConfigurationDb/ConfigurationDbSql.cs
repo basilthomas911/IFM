@@ -8,6 +8,42 @@ internal static class ConfigurationDbSql
     internal static class TypedCatalog
     {
         internal const string ReadRevisionFence = "SELECT revision FROM reference_configuration.parameter_revision_fence WHERE singleton=true;";
+        internal const string CatalogSourceHead = """
+            SELECT el.StreamVersion, el.EventVersion, names.EventTypeName, el.EventPayload
+            FROM event_stream_id stream
+            JOIN event_log el ON el.EventStreamId=stream.EventStreamId
+            JOIN event_name_id names ON names.EventNameId=el.EventNameId
+            WHERE stream.EventStream=$1 AND (el.CommandId=$2 OR el.StreamVersion=stream.CurrentVersion)
+            ORDER BY (el.CommandId=$2) DESC, el.StreamVersion DESC LIMIT 1;
+            """;
+        internal const string CatalogVersionsWithoutSource = """
+            SELECT v.kind, v.id, v.version
+            FROM reference_configuration.strategy_catalog_version v
+            WHERE NOT EXISTS (
+                SELECT 1 FROM event_stream_id s
+                WHERE s.EventStream = 'StrategyCatalog.' || v.kind::text || '-' ||
+                    replace(v.id::text, '-', '') || '-' || v.version::text AND s.CurrentVersion > 0
+            )
+            ORDER BY v.kind, v.id, v.version;
+            """;
+        internal const string CatalogSourceHeads = """
+            SELECT el.EventVersion, names.EventTypeName, el.EventPayload
+            FROM event_stream_id stream
+            JOIN event_log el ON el.EventStreamId=stream.EventStreamId AND el.StreamVersion=stream.CurrentVersion
+            JOIN event_name_id names ON names.EventNameId=el.EventNameId
+            WHERE stream.EventStream LIKE 'StrategyCatalog.%'
+            ORDER BY el.EventVersion;
+            """;
+        internal const string ReadProjectedRevision = """
+            SELECT revision FROM reference_configuration.parameter_revision_fence WHERE singleton=true
+            AND NOT EXISTS (SELECT 1 FROM reference_configuration.parameter_projection_pending);
+            """;
+        internal const string MarkParameterProjectionPending = """
+            INSERT INTO reference_configuration.parameter_projection_pending(event_id) VALUES($1) ON CONFLICT DO NOTHING;
+            """;
+        internal const string CompleteParameterProjection = """
+            DELETE FROM reference_configuration.parameter_projection_pending WHERE event_id=$1;
+            """;
         internal const string AdvanceRevisionFence = "UPDATE reference_configuration.parameter_revision_fence SET revision=revision+1 WHERE singleton=true;";
         internal const string Header="SELECT content_sha256 FROM reference_configuration.parameter_projection_record WHERE kind=$1 AND owner_id=$2 AND owner_version=$3;";
         internal const string PutHeader="INSERT INTO reference_configuration.parameter_projection_record(kind,owner_id,owner_version,content_sha256) VALUES($1,$2,$3,$4) ON CONFLICT(kind,owner_id,owner_version) DO UPDATE SET content_sha256=EXCLUDED.content_sha256;";
@@ -22,6 +58,19 @@ internal static class ConfigurationDbSql
             ORDER BY s.name,s.set_id,m.owner_version DESC LIMIT $6;
             """;
         internal const string StartupState="INSERT INTO reference_configuration.parameter_catalog_startup_state(run_id,revision,active) VALUES($1,$2,$3) ON CONFLICT(run_id) DO UPDATE SET revision=EXCLUDED.revision,active=EXCLUDED.active;";
+        internal const string ActiveStartup = "SELECT run_id FROM reference_configuration.parameter_catalog_startup_state WHERE run_id=$1 AND active;";
+        internal const string HasStartup = "SELECT EXISTS(SELECT 1 FROM reference_configuration.parameter_catalog_startup_state WHERE run_id=$1);";
+        internal const string OwnerOperations = """
+            SELECT operation_id, revision, request_sha256, version
+            FROM reference_configuration.parameter_catalog_operation
+            WHERE kind=$1 AND entity_id=$2 ORDER BY revision;
+            """;
+        internal const string SetSnapshotVersions = """
+            SELECT m.owner_version, s.name, s.description, s.revision
+            FROM reference_configuration.parameter_catalog_version m
+            JOIN reference_configuration.parameter_set s ON s.set_id=m.owner_set_id
+            WHERE m.owner_set_id=$1 AND m.row_path='$' ORDER BY m.owner_version DESC;
+            """;
         internal const string StartupPage = """
             SELECT p.run_id FROM reference_configuration.parameter_catalog_startup p
             JOIN reference_configuration.parameter_catalog_startup_state s ON s.run_id=p.run_id

@@ -27,7 +27,8 @@ public class YieldCurveRateStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<YieldCurveRateCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<YieldCurveRateCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<YieldCurveRateCommandState, YieldCurveRateStateSnapshottedEvent>(command,
+            static snapshot => snapshot.ValueDates is not null, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Saves the yield curve rate state changes.
@@ -40,7 +41,7 @@ public class YieldCurveRateStateRepository(
         => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, YieldCurveRateCommandState state, ICommand command, CancellationToken cancellationToken)
-        => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+        => await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the yield curve rate query state

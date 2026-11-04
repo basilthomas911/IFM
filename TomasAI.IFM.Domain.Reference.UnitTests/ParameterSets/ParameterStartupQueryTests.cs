@@ -1,16 +1,15 @@
 using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.State;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Model;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Query;
 using FluentAssertions;
 using MessagePack;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Model;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Query;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Query.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Reference.UnitTests.ParameterSets;
@@ -20,12 +19,10 @@ public sealed class ParameterStartupQueryTests
     [Fact]
     public async Task Serialized_exact_query_returns_only_the_requested_run()
     {
-        var first = CreateRun(Guid.NewGuid(), new DateTime(2026, 9, 16, 12, 0, 0, DateTimeKind.Utc));
         var requested = CreateRun(Guid.NewGuid(), new DateTime(2026, 9, 16, 12, 1, 0, DateTimeKind.Utc));
-        var state = new ParameterStartupCommandState();
-        state.ActiveRuns.Add(first.RunId, first);
-        state.ActiveRuns.Add(requested.RunId, requested);
-        var context = Context(state);
+        var context = Context();
+        context.ConfigurationDb.GetActiveParameterStartupAsync(requested.RunId, CancellationToken.None)
+            .Returns(((ParameterStartupRun?)requested, (ParameterSignalStartupReport?)null));
         var query = MessagePackSerializer.Deserialize<GetParameterStartupRunQuery>(
             MessagePackSerializer.Serialize(new GetParameterStartupRunQuery
             {
@@ -37,7 +34,7 @@ public sealed class ParameterStartupQueryTests
                     ActorEntityId.Default.Format())
             }));
 
-        await query.ExecuteAsync(context, context.Logger, CancellationToken.None);
+        await ReceiveAsync(context, query);
 
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
@@ -52,13 +49,9 @@ public sealed class ParameterStartupQueryTests
         var first = CreateRun(Guid.NewGuid(), new DateTime(2026, 9, 16, 12, 0, 0, DateTimeKind.Utc));
         var second = CreateRun(Guid.NewGuid(), new DateTime(2026, 9, 16, 12, 1, 0, DateTimeKind.Utc));
         var third = CreateRun(Guid.NewGuid(), new DateTime(2026, 9, 16, 12, 2, 0, DateTimeKind.Utc));
-        var state = new ParameterStartupCommandState();
-        state.ActiveRuns.Add(first.RunId, first);
-        state.ActiveRuns.Add(second.RunId, second);
-        state.ActiveRuns.Add(third.RunId, third);
-        var context = Context(state);
-        context.ConfigurationDb.GetParameterStartupRunIdsAsync(2, first.CreatedAtUtc, first.RunId, CancellationToken.None)
-            .Returns(new[] { second.RunId, third.RunId });
+        var context = Context();
+        context.ConfigurationDb.GetActiveParameterStartupPageAsync(2, first.CreatedAtUtc, first.RunId, CancellationToken.None)
+            .Returns(new[] { second, third });
         var query = new GetParameterStartupRunsQuery
         {
             Limit = 2,
@@ -71,7 +64,7 @@ public sealed class ParameterStartupQueryTests
                 ActorEntityId.Default.Format())
         };
 
-        await query.ExecuteAsync(context, context.Logger, CancellationToken.None);
+        await ReceiveAsync(context, query);
 
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
@@ -85,7 +78,7 @@ public sealed class ParameterStartupQueryTests
     [Fact]
     public async Task Missing_exact_run_fails_without_sending_a_reply()
     {
-        var context = Context(new ParameterStartupCommandState());
+        var context = Context();
         var query = new GetParameterStartupRunQuery
         {
             RunId = Guid.NewGuid(),
@@ -96,10 +89,7 @@ public sealed class ParameterStartupQueryTests
                 ActorEntityId.Default.Format())
         };
 
-        var action = async () => await query.ExecuteAsync(
-            context,
-            context.Logger,
-            CancellationToken.None);
+        var action = async () => await ReceiveAsync(context, query);
 
         await action.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("PARAM.STARTUP_NOT_FOUND");
@@ -109,13 +99,20 @@ public sealed class ParameterStartupQueryTests
             default(ServiceResult<ParameterStartupRun>)!);
     }
 
-    static IParameterSetQueryContext Context(ParameterStartupCommandState state)
+    internal static ValueTask ReceiveAsync(IParameterSetQueryContext context, IQuery query)
+    {
+        var receive = typeof(ParameterSetQueryActor).GetMethod(
+            "ReceiveAsync",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            [typeof(IQueryActorContext<ParameterSetQueryActor>), typeof(IQuery), typeof(CancellationToken)])!;
+        return (ValueTask)receive.Invoke(new ParameterSetQueryActor(context), [context, query, CancellationToken.None])!;
+    }
+
+    static IParameterSetQueryContext Context()
     {
         var context = Substitute.For<IParameterSetQueryContext>();
         context.Logger.Returns(Substitute.For<ILogger<ParameterSetQueryActor>>());
         context.AccessPolicy.Returns(Substitute.For<IParameterAccessPolicy>());
-        context.Startups.LoadStateAsync(Arg.Any<ICommand>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<ParameterStartupCommandState>(state));
         return context;
     }
 

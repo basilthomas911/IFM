@@ -71,6 +71,32 @@ public sealed class TradeStrategyCatalogTransportTests
     }
 
     [Fact]
+    public async Task Lookup_query_canceled_after_the_read_does_not_reply()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var context = Substitute.For<IReferenceQueryContext>();
+        context.Logger.Returns(Substitute.For<ILogger<ReferenceQueryActor>>());
+        context.DbFactory.ConfigurationDb
+            .GetLookupDefinitionsAsync(LookupDefinitionGroups.AssetTypes, cancellation.Token)
+            .Returns(_ =>
+            {
+                cancellation.Cancel();
+                return Task.FromResult(Array.Empty<LookupDefinitionReadModel>());
+            });
+        var query = new GetLookupDefinitionsQuery
+        {
+            GroupName = LookupDefinitionGroups.AssetTypes,
+            Subject = new ActorSubject(ActorType.Query, GetLookupDefinitionsQuery.Actor, GetLookupDefinitionsQuery.Verb, "0")
+        };
+
+        var actor = new Probe(context);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            actor.Receive(context, query, cancellation.Token).AsTask());
+        await context.DidNotReceive().ReplyAsync(query.Subject.ThreadId, GetLookupDefinitionsQuery.Verb,
+            Arg.Any<ServiceResult<LookupDefinitionReadModel[]>>());
+    }
+
+    [Fact]
     public async Task Legacy_creation_command_remains_deserializable_but_rejects_active_writes()
     {
         var request = new CreateTradeStrategyFamilyRequest { OperationId = Guid.NewGuid(), Family = TradeStrategyFamilyType.Futures, Strategy = TradeStrategyType.Futures, TimeFrame = TimeFrameType.Daily, TradeStrategySymbolId = 10, Description = "Daily ES" };
@@ -154,6 +180,7 @@ public sealed class TradeStrategyCatalogTransportTests
     sealed class Probe(IReferenceQueryContext ctx) : ReferenceQueryActor(ctx)
     {
         public IQuery Parse(IReferenceQueryContext context, IActorMessage message) => ParseMessage(context, message);
-        public ValueTask Receive(IReferenceQueryContext context, IQuery query) => ReceiveAsync(context, query, CancellationToken.None);
+        public ValueTask Receive(IReferenceQueryContext context, IQuery query, CancellationToken cancellationToken = default)
+            => ReceiveAsync(context, query, cancellationToken);
     }
 }

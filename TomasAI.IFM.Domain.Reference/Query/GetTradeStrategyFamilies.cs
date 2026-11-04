@@ -1,6 +1,8 @@
 using TomasAI.IFM.Domain.Reference.Query.Actor;
 using TomasAI.IFM.Domain.Reference.Query.Extensions;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Reference.Query;
 
@@ -10,14 +12,14 @@ public static class GetTradeStrategyFamilies
 
     extension(GetTradeStrategyFamiliesQuery query)
     {
-        /// <summary>Reads and replies with all configured strategy families.</summary>
-        public async ValueTask ExecuteAsync(IReferenceQueryContext context, CancellationToken cancellationToken)
+        /// <summary>Reads and returns all configured strategy families.</summary>
+        public async ValueTask<ServiceResult<TradeStrategyFamilyReadModel[]>> ExecuteAsync(IReferenceQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             var result = await (context.GetTradeStrategyFamiliesAsync(cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result)).ConfigureAwait(false);
+            return result;
         }
     }
 }

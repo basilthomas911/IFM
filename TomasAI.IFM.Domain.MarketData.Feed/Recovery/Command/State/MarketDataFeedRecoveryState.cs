@@ -52,8 +52,50 @@ public sealed class MarketDataFeedRecoveryState : BaseEventSourceActorState<Mark
             Payload = command.Payload, Digest = command.Digest, ReceivedOn = command.ReceivedAtUtc==default?DateTime.UtcNow:command.ReceivedAtUtc,
             Subject = new(ActorType.Event, "MarketDataFeedRecoveryEvent", fact.Kind, command.EntityId.Format()) }, command);
     }
+    internal MarketDataFeedRecoveryStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "MarketDataFeedRecoveryEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        StartedRecordId = Started!.RecordId,
+        LatestRecordId = Latest!.RecordId,
+        Facts = new Dictionary<Guid, MarketDataFeedRecoveryFact>(facts)
+    };
+
+    internal static bool IsCompleteSnapshot(MarketDataFeedRecoveryStateSnapshottedEvent snapshot) =>
+        snapshot.Facts is { Count: > 0 } entries &&
+        entries.ContainsKey(snapshot.StartedRecordId) && entries.ContainsKey(snapshot.LatestRecordId) &&
+        entries.Values.All(fact => fact.EventId > 0);
+
+    private bool RestoreSnapshot(MarketDataFeedRecoveryStateSnapshottedEvent snapshot)
+    {
+        if (!IsCompleteSnapshot(snapshot))
+            return false;
+        var start = snapshot.Facts![snapshot.StartedRecordId];
+        var end = snapshot.Facts[snapshot.LatestRecordId];
+        var started = RecoveryRecord.Parse(start.Payload, start.Digest);
+        var latest = RecoveryRecord.Parse(end.Payload, end.Digest);
+        if (started.Sequence != 1 || latest.Sequence != snapshot.Facts.Count ||
+            latest.OperationId != started.OperationId || (Started is not null && Started.OperationId != started.OperationId))
+            throw new InvalidDataException("Invalid recovery snapshot boundary.");
+        accepted.Clear();
+        facts.Clear();
+        foreach (var entry in snapshot.Facts)
+        {
+            facts.Add(entry.Key, entry.Value);
+            accepted.Add(entry.Key, entry.Value.Digest);
+        }
+        Started = started;
+        Latest = latest;
+        return true;
+    }
+
     protected override bool Apply(IEvent source)
     {
+        if (source is MarketDataFeedRecoveryStateSnapshottedEvent snapshot)
+            return RestoreSnapshot(snapshot);
         if (source is not MarketDataFeedRecoveryFact fact) return false;
         var record = RecoveryRecord.Parse(fact.Payload, fact.Digest);
         if (accepted.TryGetValue(record.RecordId, out var prior))

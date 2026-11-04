@@ -75,11 +75,11 @@ public static class SaveParameterDraft
         ///
         /// <param name="parameterChange">The accepted immutable business change.</param>
         /// <returns>The source event ready for state application.</returns>
-        internal ParameterDraftSavedEvent CreateParameterDraftSavedEvent(ParameterVersionChange parameterChange)
+        internal ParameterSetDraftSavedEvent CreateParameterDraftSavedEvent(ParameterVersionChange parameterChange)
             => new()
             {
                 CommandId = command.CommandId,
-                Subject = new ActorSubject(ActorType.Event, ParameterDraftSavedEvent.Actor, ParameterDraftSavedEvent.Verb, command.EntityId.Format()),
+                Subject = new ActorSubject(ActorType.Event, ParameterSetDraftSavedEvent.Actor, ParameterSetDraftSavedEvent.Verb, command.EntityId.Format()),
                 EntityId = command.EntityId,
                 Revision = parameterChange.CatalogRevision,
                 RequestHash = parameterChange.RequestHash,

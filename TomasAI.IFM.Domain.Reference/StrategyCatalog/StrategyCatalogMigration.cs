@@ -1,12 +1,14 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Reference.StrategyCatalog;
 
 /// <summary>Idempotent default initialization with explicit legacy import. Never publishes or modifies Fund permissions.</summary>
-public sealed class StrategyCatalogMigration(IDbContextFactory factory, IMarketDataApi marketData)
+public sealed class StrategyCatalogMigration(IDbContextFactory factory, IMarketDataApi marketData,
+    IPostgresEventTransaction? transactions = null)
 {
     public async Task<StrategyCatalogMigrationReport> EnsureAsync(bool importLegacy = false, CancellationToken ct = default)
     {
@@ -41,6 +43,13 @@ public sealed class StrategyCatalogMigration(IDbContextFactory factory, IMarketD
         }
         var definitions = new List<StoredStrategyCatalogDefinition>();
         foreach (var key in keys) definitions.Add(await (factory.ConfigurationDb.GetStrategyCatalogAsync(key, ct)).ConfigureAwait(false) ?? throw new InvalidOperationException("Migration verification failed: missing exact catalog definition."));
+        if (transactions is not null)
+        {
+            if (PostgresDatabaseIdentity.Parse(factory.ConfigurationDb.ConnectionString) != PostgresDatabaseIdentity.Parse(factory.ActorEventSourceDb.ConnectionString))
+                throw new InvalidOperationException("Strategy catalog baseline and source events must share one PostgreSQL database/security identity.");
+            await transactions.ExecuteOnceAsync((transaction, token) =>
+                factory.ConfigurationDb.CaptureStrategyCatalogBaselineAsync(transaction, token), ct).ConfigureAwait(false);
+        }
         return new(definitions.Count(x => x.Definition.Key.Kind != StrategyCatalogKind.Deployment),
             definitions.Count(x => x.Definition.Key.Kind == StrategyCatalogKind.Deployment),
             definitions.Count(x => x.Definition.Key.Kind == StrategyCatalogKind.Deployment && x.Definition.Products.Length == 0));

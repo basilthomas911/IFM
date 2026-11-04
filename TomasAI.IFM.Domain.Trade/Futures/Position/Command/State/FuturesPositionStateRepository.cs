@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
@@ -13,7 +14,8 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Position.Command.State;
 public sealed class FuturesPositionStateRepository(IEventSourceActorStateFactory factory, IEventSourceActorDbContext source, IActorService actors, IEventProjector<FuturesTradePositionCommandActor> projector, ILogger<FuturesPositionStateRepository> logger, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(factory, source, actors, logger), IResidentEventSourceActorStateRepository<FuturesPositionCommandState>
 {
     public ValueTask<FuturesPositionCommandState> LoadStateAsync(ICommand command) => LoadStateAsync(command, CancellationToken.None);
-    public async ValueTask<FuturesPositionCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) => await LoadStateFromCreationSnapshotAsync<FuturesPositionCommandState>(command, cancellationToken).ConfigureAwait(false);
+    public async ValueTask<FuturesPositionCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) => await LoadStateFromLatestCheckpointAsync<FuturesPositionCommandState, FuturesPositionChangedEvent>(
+            command, static fact => fact.PositionSnapshot is not null, cancellationToken).ConfigureAwait(false);
     public ValueTask SaveStateAsync(ICommandActorContext context, FuturesPositionCommandState state, ICommand command) => SaveStateAsync(context, state, command, CancellationToken.None);
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesPositionCommandState state, ICommand command, CancellationToken cancellationToken)
     {

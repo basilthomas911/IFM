@@ -22,6 +22,9 @@ public sealed class ExplicitSignalSetTests
         seed.SignalRequirements.Should().OnlyContain(row => row.IsRequired);
         new RegimeDiscoveryParameterModel().Validate(JsonSerializer.Serialize(seed), ParameterSchemaRegistry.CurrentRegimeSchemaVersion).Should().BeEmpty();
         seed.SignalRequirements.Should().Contain(row => row.Enabled && row.Metric == RegimeDiscoverySignalMetric.VxFrontSecondRatio);
+        seed.SignalRequirements!.Where(row => RegimeDiscoveryEmaBaseline.IsBaseline(row.Metric))
+            .Should().HaveCount(6).And.OnlyContain(row => row.TimeFrame == TimeFrameType.Daily
+                && row.Enabled && row.IsRequired && row.MaximumAgeSeconds == RegimeDiscoveryEmaBaseline.MaximumAgeSeconds);
         var expected = horizon switch
         {
             TimeFrameType.Daily => new[] { TimeFrameType.FifteenSeconds, TimeFrameType.OneMinute, TimeFrameType.FiveMinutes },
@@ -89,6 +92,9 @@ public sealed class ExplicitSignalSetTests
     {
         var old = RegimeDiscoveryParameterModel.CreateSeed(Guid.NewGuid());
         var before = JsonSerializer.Serialize(old);
+        old.SignalRequirements.Should().Contain(row => RegimeDiscoveryEmaBaseline.IsBaseline(row.Metric)
+            && row.TimeFrame == TimeFrameType.FourHours);
+        new RegimeDiscoveryParameterModel().Validate(before, old.SchemaVersion).Should().BeEmpty();
         var upgraded = RegimeDiscoveryParameterModel.UpgradeToExplicitSet(old);
         new RegimeDiscoveryParameterModel().Validate(JsonSerializer.Serialize(upgraded), ParameterSchemaRegistry.CurrentRegimeSchemaVersion)
             .Should().BeEmpty();

@@ -13,23 +13,26 @@ public sealed class ScheduledTaskRunCommandState : BaseEventSourceActorState<Sch
     /// <summary>Gets the current business aggregate; only Apply mutates it.</summary>
     public ScheduledTaskRun? ScheduledTaskRun { get; private set; }
     /// <summary>Dispatches concrete source events to the owned aggregate.</summary>
-    protected override bool Apply(IEvent domainEvent) => domainEvent switch
+    protected override bool Apply(IEvent domainEvent) => ApplyCheckpointEvent(domainEvent, false);
+
+    /// <summary>Allows a full persisted replacement to resume at a later revision during checkpoint replay.</summary>
+    internal bool ApplyCheckpointEvent(IEvent domainEvent, bool snapshot) => domainEvent switch
     {
-        ScheduledTaskRunRequestedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun),
-        ScheduledTaskRunAdmissionRecordedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun),
-        ScheduledTaskRunStageRecordedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun),
-        ScheduledTaskRunStartedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun),
-        ScheduledTaskRunCompletedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun),
-        ScheduledTaskRunFailedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun),
-        ScheduledTaskRunUncertainRecordedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun),
+        ScheduledTaskRunRequestedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun, snapshot),
+        ScheduledTaskRunAdmissionRecordedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun, snapshot),
+        ScheduledTaskRunStageRecordedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun, snapshot),
+        ScheduledTaskRunStartedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun, snapshot),
+        ScheduledTaskRunCompletedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun, snapshot),
+        ScheduledTaskRunFailedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun, snapshot),
+        ScheduledTaskRunUncertainRecordedEvent changed => ApplyScheduledTaskRun(changed.EntityId, changed.ScheduledTaskRun, snapshot),
         _ => false
     };
-    /// <summary>Accepts only an event for this identity with the next consecutive revision.</summary>
-    private bool ApplyScheduledTaskRun(ScheduledTaskId identity, ScheduledTaskRun? change)
+    /// <summary>Requires consecutive revisions outside checkpoint restoration.</summary>
+    private bool ApplyScheduledTaskRun(ScheduledTaskId identity, ScheduledTaskRun? change, bool snapshot)
     {
         if (!identity.IsValid || change is null || change.Id != identity ||
             ScheduledTaskRun is { } current && current.Id != identity ||
-            change.Revision != (ScheduledTaskRun?.Revision ?? 0) + 1) return false;
+            change.Revision <= (ScheduledTaskRun?.Revision ?? 0) || (!snapshot && change.Revision != (ScheduledTaskRun?.Revision ?? 0) + 1)) return false;
         ScheduledTaskRun = change;
         return true;
     }

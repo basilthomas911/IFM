@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.ProjectionOutcomes;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Persistence;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Actor;
 using TomasAI.IFM.Application.Storage;
@@ -17,9 +18,10 @@ public sealed class ParameterAssignmentEventProjector : ConventionalEventProject
 {
     readonly IParameterAssignmentCommandContext context;
     readonly EventProjectionDescriptor[] descriptors;
-    public ParameterAssignmentEventProjector(ICommandActorContext<ParameterAssignmentCommandActor> value)
+    public ParameterAssignmentEventProjector(ICommandActorContext<ParameterAssignmentCommandActor> value,
+        EventProjectorReliabilityOptions? reliabilityOptions = null)
      : base(((IParameterAssignmentCommandContext)(value ?? throw new ArgumentNullException(nameof(value)))).DurableReplayQueue, ((IParameterAssignmentCommandContext)value).DbEventSource,
-       ((IParameterAssignmentCommandContext)value).BlackboardService, ((IParameterAssignmentCommandContext)value).Logger)
+       ((IParameterAssignmentCommandContext)value).BlackboardService, ((IParameterAssignmentCommandContext)value).Logger, reliabilityOptions)
     {
         ArgumentNullException.ThrowIfNull(value);
         context = (IParameterAssignmentCommandContext)value;
@@ -27,10 +29,22 @@ public sealed class ParameterAssignmentEventProjector : ConventionalEventProject
     }
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
     EventProjectionDescriptor Describe<T>() where T : class, IEvent<ParameterAssignmentEntityId> => new EventProjectionDescriptor(typeof(T), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
-     async (fact, token) => { if (!IsPostgres) {
-await context.ConfigurationDb.ProjectParameterAssignmentAsync((ParameterAssignmentChangedEvent)fact, token.CancellationToken).ConfigureAwait(false);}
-return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied); }, _ => null, (_, _) => null, false, false, false, false)
+        async (fact, execution) =>
+        {
+            await RebuildAsync(fact, execution.CancellationToken).ConfigureAwait(false);
+            return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
+        },
+        fact => Complete((ParameterAssignmentChangedEvent)fact), (fact, error) => Fail((ParameterAssignmentChangedEvent)fact, error),
+        publishProcessingEvent: false, useDurableReplay: true)
         .WithReadModelRebuild((fact, token) => RebuildAsync(fact, token));
+    static ICompleteEvent Complete(ParameterAssignmentChangedEvent fact) =>
+        fact.ReadAssignment().Enabled ? ReferenceProjectionOutcomeFactory.Complete<ParameterAssignmentEntityId, ParameterAssignmentAssignedCompleteEvent>(fact, "ParameterAssignmentEvent")
+        : ReferenceProjectionOutcomeFactory.Complete<ParameterAssignmentEntityId, ParameterAssignmentDisabledCompleteEvent>(fact, "ParameterAssignmentEvent");
+
+    static IErrorEvent Fail(ParameterAssignmentChangedEvent fact, Exception error) =>
+        fact.ReadAssignment().Enabled ? ReferenceProjectionOutcomeFactory.Fail<ParameterAssignmentEntityId, ParameterAssignmentAssignedFailEvent>(fact, "ParameterAssignmentEvent", error)
+        : ReferenceProjectionOutcomeFactory.Fail<ParameterAssignmentEntityId, ParameterAssignmentDisabledFailEvent>(fact, "ParameterAssignmentEvent", error);
+
     bool IsPostgres => string.Equals(context.ConfigurationDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
 
     Task RebuildAsync(IEvent fact, CancellationToken token)
@@ -41,6 +55,8 @@ return context.ConfigurationDb.ProjectParameterAssignmentAsync((ParameterAssignm
         return context.Container.Resolve<IPostgresEventTransaction>().ExecuteOnceAsync(async (transaction, cancellationToken) =>
         {
             await ParameterAcceptedProjection.ApplyAsync(databases, transaction, fact, cancellationToken).ConfigureAwait(false);
+            if (fact.EventId > 0)
+                await context.ConfigurationDb.CompleteParameterProjectionAsync(transaction, fact.EventId, cancellationToken).ConfigureAwait(false);
             return true;
         }, token);
     }

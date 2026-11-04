@@ -28,7 +28,9 @@ public sealed class FuturesVxTermStructureSignalStateRepository(
     /// <inheritdoc />
     public async ValueTask<FuturesVxTermStructureSignalCommandState> LoadStateAsync(
         ICommand command, CancellationToken cancellationToken) =>
-        await (LoadStateFromCreationSnapshotAsync<FuturesVxTermStructureSignalCommandState>(command, cancellationToken)).ConfigureAwait(false);
+        await LoadStateFromLatestCheckpointAsync<FuturesVxTermStructureSignalCommandState, FuturesVxTermStructureSignalUpdatedEvent>(
+            command, static fact => fact.FuturesVxTermStructureCheckpoint is not null &&
+                (fact.HasFullStateSnapshot || fact.FuturesVxTermStructureSignal is not null), cancellationToken).ConfigureAwait(false);
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context,
         FuturesVxTermStructureSignalCommandState state, ICommand command) =>

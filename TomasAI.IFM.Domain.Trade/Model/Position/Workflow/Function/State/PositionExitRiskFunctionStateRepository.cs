@@ -19,7 +19,8 @@ public sealed class PositionExitRiskFunctionStateRepository(IEventSourceActorSta
     /// <param name = "request">The current position exit-risk request.</param>
     /// <param name = "cancellationToken">Cancels state loading.</param>
     /// <returns>The rehydrated and prepared function state.</returns>
-    public async ValueTask<PositionExitRiskFunctionState> LoadStateAsync(EvaluatePositionExitRiskCommand request, CancellationToken cancellationToken = default) => (await LoadStateFromCreationSnapshotAsync<PositionExitRiskFunctionState>(request, cancellationToken).ConfigureAwait(false)).Prepare(request);
+    public async ValueTask<PositionExitRiskFunctionState> LoadStateAsync(EvaluatePositionExitRiskCommand request, CancellationToken cancellationToken = default) => (await LoadStateFromLatestCheckpointAsync<PositionExitRiskFunctionState, PositionExitRiskCompletedEvent>(
+        request, static fact => fact.EventId > 0, cancellationToken).ConfigureAwait(false)).Prepare(request);
     /// <summary>Saves the newly completed function events.</summary>
     /// <param name = "context">The function actor context.</param>
     /// <param name = "state">The completed state to persist.</param>

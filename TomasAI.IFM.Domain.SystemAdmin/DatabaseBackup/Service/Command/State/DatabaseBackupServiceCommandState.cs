@@ -6,5 +6,18 @@ public sealed class DatabaseBackupServiceCommandState : DatabaseOperationCommand
 {
     public DatabaseBackupServiceState Service { get; private set; } = new();
 
+    protected override DatabaseOperationStateSnapshottedEvent CaptureConcern(DatabaseOperationStateSnapshottedEvent snapshot)
+        => snapshot with { Service = Service };
+
+    protected override bool HasConcernSnapshot(DatabaseOperationStateSnapshottedEvent snapshot) => snapshot.Service is not null;
+
+    protected override bool RestoreConcern(DatabaseOperationStateSnapshottedEvent snapshot)
+    {
+        if (snapshot.Service is not { } value)
+            return false;
+        Service = value;
+        return true;
+    }
+
     protected override void ApplyConcern(DatabaseBackupEventContract source) { Service = Service.Apply(source); }
 }

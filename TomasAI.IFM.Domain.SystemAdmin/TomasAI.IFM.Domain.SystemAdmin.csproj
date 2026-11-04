@@ -18,4 +18,5 @@
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Contracts.MarketData/TomasAI.IFM.Application.Contracts.MarketData.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
 <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="TomasAI.IFM.Application.Storage.IntegrationTests" /></ItemGroup>
 </Project>

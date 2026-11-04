@@ -24,6 +24,10 @@ public sealed record FuturesVxTermStructureSignalUpdatedEvent
     [Key(7)] public DateTime ReceivedOn { get; init; }
     [Key(8)] public FuturesVxTermStructureCheckpoint FuturesVxTermStructureCheckpoint { get; init; } = new();
     [Key(9)] public FuturesVxTermStructureSignalReadModel? FuturesVxTermStructureSignal { get; init; }
+    /// <summary>Distinguishes a complete snapshot with no paired signal from a legacy leg-only event.</summary>
+    [Key(10)] public bool HasFullStateSnapshot { get; init; }
+    /// <summary>Retains the last paired signal when this update does not publish a new one.</summary>
+    [Key(11)] public FuturesVxTermStructureSignalReadModel? RetainedSignal { get; init; }
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesVxTermStructureSignalUpdatedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

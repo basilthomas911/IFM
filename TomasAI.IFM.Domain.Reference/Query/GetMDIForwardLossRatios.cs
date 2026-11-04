@@ -26,17 +26,4 @@ public static class GetMDIForwardLossRatios
             return [.. await (dbFactory.ReferenceDb.GetMDIForwardLossRatiosAsync(q.TrendDirection, q.TradeType, cancellationToken)).ConfigureAwait(false)];
         }
     }
-
-    extension(GetMDIForwardLossRatiosQuery query)
-    {
-        /// <summary>Reads and replies with the requested Reference result.</summary>
-        public async ValueTask ExecuteAsync(Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
-        {
-            ArgumentNullException.ThrowIfNull(context);
-            ArgumentNullException.ThrowIfNull(query);
-            var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<MDIForwardLossRatioReadModel[]>(result)).ConfigureAwait(false);
-        }
-    }
 }

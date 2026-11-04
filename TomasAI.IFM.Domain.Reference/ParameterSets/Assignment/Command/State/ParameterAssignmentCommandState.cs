@@ -23,8 +23,43 @@ public sealed class ParameterAssignmentCommandState : BaseEventSourceActorState<
         return applied;
     }
 
+    internal ParameterAssignmentStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "ParameterAssignmentEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        OwnerId = Assignment!.AssignmentId,
+        Operations = new Dictionary<Guid, string>(Operations),
+        Audit = new Dictionary<Guid, ParameterAuditEntry>(Audit),
+        Assignment = Assignment
+    };
+
+    internal static bool IsCompleteSnapshot(ParameterAssignmentStateSnapshottedEvent snapshot) =>
+        snapshot.OwnerId != Guid.Empty && snapshot.Operations is not null && snapshot.Audit is not null &&
+        snapshot.Assignment is { Revision: > 0 } assignment && assignment.AssignmentId == snapshot.OwnerId;
+
+    private bool RestoreSnapshot(ParameterAssignmentStateSnapshottedEvent snapshot)
+    {
+        if (!IsCompleteSnapshot(snapshot))
+            return false;
+        if (!string.IsNullOrEmpty(Id.EntityId) && (!Guid.TryParse(Id.EntityId, out var owner) || owner != snapshot.OwnerId))
+            throw new InvalidDataException("PARAM.ASSIGNMENT_OWNER_MISMATCH");
+        Operations.Clear();
+        Audit.Clear();
+        foreach (var entry in snapshot.Operations!)
+            Operations.Add(entry.Key, entry.Value);
+        foreach (var entry in snapshot.Audit!)
+            Audit.Add(entry.Key, entry.Value);
+        Assignment = snapshot.Assignment;
+        return true;
+    }
+
     protected override bool Apply(IEvent domainEvent)
     {
+        if (domainEvent is ParameterAssignmentStateSnapshottedEvent snapshot)
+            return RestoreSnapshot(snapshot);
         if (domainEvent is not ParameterAssignmentChangedEvent fact || fact.Revision != Revision + 1) return false;
         if (!string.IsNullOrEmpty(Id.EntityId) && (!Guid.TryParse(Id.EntityId, out var owner) || owner != fact.EntityId.AssignmentId))
             throw new InvalidDataException("PARAM.ASSIGNMENT_OWNER_MISMATCH");

@@ -209,7 +209,8 @@ public class SecuritiesOptimizationTests
             new FuturesOptionContractAddedEvent { Contract = SampleData.FuturesOptionContract2 },
             new FuturesOptionContractRemovedEvent { ContractId = SampleData.FuturesOptionContract1.ContractId }
         ];
-        eventSource.MapReduceActorEventStreamFromCreationAsync<FuturesOptionContractCommandState>(42,
+        eventSource.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesOptionContractCommandState>(42,
+            Arg.Is<IReadOnlyList<Type>>(types => types.SequenceEqual(new[] { typeof(FuturesOptionContractStateSnapshottedEvent) })),
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None).Returns(call =>
         {
             call.Arg<Action<IEnumerable<EventStreamReadModel>>>()(facts.Select((fact, index) => new EventStreamReadModel
@@ -227,8 +228,9 @@ public class SecuritiesOptimizationTests
         Assert.Empty(restored.Events);
 
         await eventSource.Received(1)
-            .MapReduceActorEventStreamFromCreationAsync<FuturesOptionContractCommandState>(
+            .MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesOptionContractCommandState>(
                 42L,
+                Arg.Is<IReadOnlyList<Type>>(types => types.SequenceEqual(new[] { typeof(FuturesOptionContractStateSnapshottedEvent) })),
                 Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
         await eventSource.DidNotReceive()
             .MapReduceActorEventStreamAsync<

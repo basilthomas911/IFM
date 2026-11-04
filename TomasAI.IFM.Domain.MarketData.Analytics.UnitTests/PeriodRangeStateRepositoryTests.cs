@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
@@ -78,9 +78,14 @@ public class PeriodRangeStateRepositoryTests
         await atrRepository.LoadStateAsync(atr);
         await atrRepository.LoadStateAsync(atrDaily);
 
-        await eventDb.Received(2).MapReduceActorEventStreamFromCreationAsync<FuturesMacdSignalCommandState>(streamId, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
-        await eventDb.Received(2).MapReduceActorEventStreamFromCreationAsync<FuturesAdxSignalCommandState>(streamId, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
-        await eventDb.Received(2).MapReduceActorEventStreamFromCreationAsync<FuturesAtrSignalCommandState>(streamId, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
+        await eventDb.Received(2).MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesMacdSignalCommandState>(streamId, Arg.Any<IReadOnlyList<Type>>(), Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
+        await eventDb.Received(2).MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesAdxSignalCommandState>(streamId, Arg.Any<IReadOnlyList<Type>>(), Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
+        await eventDb.Received(1).MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesAtrSignalCommandState>(
+            streamId, Arg.Is<IReadOnlyList<Type>>(types => types.SequenceEqual(new[] { typeof(FuturesAtrSignalGeneratedEvent) })),
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
+        await eventDb.Received(1).MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesAtrSignalCommandState>(
+            streamId, Arg.Is<IReadOnlyList<Type>>(types => types.SequenceEqual(new[] { typeof(FuturesAtrDailySignalGeneratedEvent) })),
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
     }
 
     [Fact]

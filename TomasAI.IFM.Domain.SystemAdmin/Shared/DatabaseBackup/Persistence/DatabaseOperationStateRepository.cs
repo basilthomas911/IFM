@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution;
 
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.State;
 namespace TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Persistence;
@@ -33,24 +34,69 @@ public abstract class DatabaseOperationStateRepository<TState, TActor>(
     public async ValueTask<TState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var state = (TState)_stateFactory.CreateState<TState>();
-        var legacyId = $"Command.DatabaseBackupCommand.{command.Subject.EntityId}";
-        if (!string.Equals(command.StreamId, legacyId, StringComparison.Ordinal))
-        {
-            var legacyStream = await GetStreamId(legacyId, cancellationToken).ConfigureAwait(false);
-            await EventSourceDb.MapReduceActorEventStreamFromCreationAsync<TState>(legacyStream,
-                rows => state.ReplayEvents(rows.Select(row => row.ToDomainEvent()).OfType<IEvent>()),
-                cancellationToken).ConfigureAwait(false);
-        }
+        var legacyId = LegacyStreamId(command);
+        var isLegacyStream = string.Equals(command.StreamId, legacyId, StringComparison.Ordinal);
+        var state = await LoadLegacyPrefix().ConfigureAwait(false);
         var stream = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
-        long version = 0;
-        await EventSourceDb.MapReduceActorEventStreamFromCreationAsync<TState>(stream,
-            rows => state.ReplayEvents(rows.Select(row => { version = row.StreamVersion; return row; })),
-            cancellationToken).ConfigureAwait(false);
-        state.RestoreCommittedStreamVersion(version);
-        state.Id = command.Subject.ThreadId;
+        if (isLegacyStream)
+        {
+            await EventSourceDb.MapReduceActorEventStreamFromCreationAsync<TState>(
+                stream, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
+            return state;
+        }
+
+        var incompatible = false;
+        await EventSourceDb.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<TState>(
+            stream, CheckpointTypes, rows => state.ReplayEvents(Validate(rows)), cancellationToken).ConfigureAwait(false);
+        if (incompatible)
+        {
+            state = await LoadLegacyPrefix().ConfigureAwait(false);
+            await EventSourceDb.MapReduceActorEventStreamFromCreationAsync<TState>(
+                stream, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
+        }
+
         return state;
+
+        async Task<TState> LoadLegacyPrefix()
+        {
+            var loaded = (TState)_stateFactory.CreateState<TState>();
+            loaded.Id = command.Subject.ThreadId;
+            if (!isLegacyStream)
+            {
+                var legacyStream = await GetStreamId(legacyId, cancellationToken).ConfigureAwait(false);
+                await EventSourceDb.MapReduceActorEventStreamFromCreationAsync<TState>(legacyStream,
+                    rows => loaded.ReplayEvents(ReadLegacy(rows)), cancellationToken).ConfigureAwait(false);
+            }
+            return loaded;
+
+            IEnumerable<IEvent> ReadLegacy(IEnumerable<EventStreamReadModel> rows)
+            {
+                foreach (var row in rows)
+                {
+                    loaded.LegacyStreamVersion = row.StreamVersion;
+                    yield return row.ToDomainEvent();
+                }
+            }
+        }
+
+        IEnumerable<EventStreamReadModel> Validate(IEnumerable<EventStreamReadModel> rows)
+        {
+            long previous = 0;
+            foreach (var row in rows)
+            {
+                if (previous == 1 && row.StreamVersion > 2 && !state.IsCompatibleSnapshot(row.ToDomainEvent()))
+                {
+                    incompatible = true;
+                    yield break;
+                }
+                previous = row.StreamVersion;
+                yield return row;
+            }
+        }
     }
+
+    private static readonly Type[] CheckpointTypes = [typeof(DatabaseOperationStateSnapshottedEvent)];
+    private static string LegacyStreamId(ICommand command) => $"Command.DatabaseBackupCommand.{command.Subject.EntityId}";
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, TState state, ICommand command)
         => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
@@ -61,7 +107,11 @@ public abstract class DatabaseOperationStateRepository<TState, TActor>(
         ArgumentNullException.ThrowIfNull(command);
         if (databases?.SystemAdminDb is not { ProviderName: "System.Data.Postgres" } target)
         {
-            await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+            if (string.Equals(command.StreamId, LegacyStreamId(command), StringComparison.Ordinal))
+                await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+            else
+                await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken)
+                    .ConfigureAwait(false);
             return;
         }
         if (state.Events.Count == 0) return;
@@ -70,6 +120,8 @@ public abstract class DatabaseOperationStateRepository<TState, TActor>(
             throw new InvalidOperationException("Backup source and read rows must share one PostgreSQL database/security identity.");
         var owner = transactions ?? throw new InvalidOperationException("Backup persistence requires the PostgreSQL transaction service.");
         var pending = new DomainEventCollection(state.Events);
+        var snapshot = !string.Equals(command.StreamId, LegacyStreamId(command), StringComparison.Ordinal) &&
+            ShouldCapturePeriodicSnapshot(state.CommittedStreamVersion, pending.Count) ? state.CaptureSnapshot(command) : null;
         await owner.ExecuteOnceAsync(async (transaction, token) =>
         {
             await transaction.ReserveCommandAsync(command, token).ConfigureAwait(false);
@@ -83,9 +135,13 @@ public abstract class DatabaseOperationStateRepository<TState, TActor>(
                 if (DatabaseBackupExecutionEvents.ToExecutionEvent(backup) is not null)
                     await DatabaseBackupExecutionIntentRepository.EnqueueAsync(target, transaction, backup, token).ConfigureAwait(false);
             }
+            if (snapshot is not null)
+                await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, token).ConfigureAwait(false);
             return true;
         }, cancellationToken).ConfigureAwait(false);
         state.AcceptChanges();
+        if (snapshot is not null)
+            state.RestoreCommittedStreamVersion(checked(state.CommittedStreamVersion + 1));
         await DenormalizeEventsAsync(context, pending).ConfigureAwait(false);
     }
 

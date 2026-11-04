@@ -67,7 +67,7 @@ public sealed class ParameterCreationSnapshotTests
         var second = first with { Reference = first.Reference with { Version = 2, PayloadSha256 = ParameterValueCodec.Hash(secondValues) },
             Parameters = secondValues, CatalogRevision = 2 };
         var created = new ParameterSetCreatedEvent { CommandId = Guid.NewGuid(), EntityId = new(id), Revision = 1, Version = first, RequestHash = "create" };
-        var saved = new ParameterDraftSavedEvent { CommandId = Guid.NewGuid(), EntityId = new(id), Revision = 2, Version = second, RequestHash = "save" };
+        var saved = new ParameterSetDraftSavedEvent { CommandId = Guid.NewGuid(), EntityId = new(id), Revision = 2, Version = second, RequestHash = "save" };
         using var cancellation = new CancellationTokenSource();
         var token = cancellable ? cancellation.Token : CancellationToken.None;
         var factory = Substitute.For<IEventSourceActorStateFactory>();
@@ -76,7 +76,7 @@ public sealed class ParameterCreationSnapshotTests
         store.ProviderName.Returns("System.Data.Postgres");
         store.GetEventStreamIdAsync(command.StreamId, token).Returns(91L);
         store.GetCommittedStreamVersionAsync(91, token).Returns(2L);
-        store.MapReduceActorEventStreamFromCreationAsync<ParameterSetCommandState>(91,
+        store.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<ParameterSetCommandState>(91, Arg.Any<IReadOnlyList<Type>>(),
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), token).Returns(call =>
         {
             call.Arg<Action<IEnumerable<EventStreamReadModel>>>()(Rows(created, saved));

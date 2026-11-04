@@ -47,13 +47,6 @@ public static partial class ReferenceQueryExtensions
                 GetLookupTypeShortCodesQuery.ErrorId, async () => [.. await (context.DbFactory.ReferenceDb
                 .GetLookupTypeShortCodesAsync(lookupTypeName, cancellationToken)).ConfigureAwait(false)], true, cancellationToken);
 
-        public Task<ServiceResult<ScalarReadModel<int>>> GetNextSeedIdAsync(
-            string seedType,
-            CancellationToken cancellationToken)
-            => ExecuteAsync(
-                GetNextSeedIdQuery.ErrorId, async () => new ScalarReadModel<int>(await (context.DbFactory.ReferenceDb
-                    .GetNextSeedIdAsync(seedType, cancellationToken)).ConfigureAwait(false)), false, cancellationToken);
-
         public Task<ServiceResult<ScalarReadModel<int>>> GetCurrentSeedIdAsync(
             string seedType,
             CancellationToken cancellationToken)

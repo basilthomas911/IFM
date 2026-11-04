@@ -32,7 +32,8 @@ public static class UpdateFuturesVxTermStructureSignal
             var errorMsg = "unable to apply FuturesVxTermStructureSignal event";
             var updated = futuresVxTermStructureTransition switch
             {
-                _ => state.Update(command.CreateFuturesVxTermStructureSignalUpdatedEvent(futuresVxTermStructureTransition), command)
+                _ => state.Update(command.CreateFuturesVxTermStructureSignalUpdatedEvent(
+                    futuresVxTermStructureTransition, state.FuturesVxTermStructureSignal), command)
             };
             return updated
                 ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
@@ -55,14 +56,19 @@ public static class UpdateFuturesVxTermStructureSignal
         /// <summary>Creates the Futures Vx Term Structure Signal event payload from accepted business data without changing state or publishing messages.</summary>
         ///
         /// <param name="futuresVxTermStructureTransition">The computed business decision, including accepted domain values and any no-change or rejection information.</param>
+        /// <param name="previousSignal">The last paired signal retained by a leg-only update.</param>
         /// <returns>The event or ordered event collection to apply through actor state and persist before projection.</returns>
-        internal FuturesVxTermStructureSignalUpdatedEvent CreateFuturesVxTermStructureSignalUpdatedEvent(FuturesVxTermStructureAccumulatorResult futuresVxTermStructureTransition) => new()
+        internal FuturesVxTermStructureSignalUpdatedEvent CreateFuturesVxTermStructureSignalUpdatedEvent(
+            FuturesVxTermStructureAccumulatorResult futuresVxTermStructureTransition,
+            FuturesVxTermStructureSignalReadModel? previousSignal) => new()
         {
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, FuturesVxTermStructureSignalUpdatedEvent.Actor, FuturesVxTermStructureSignalUpdatedEvent.Verb, command.EntityId.Format()),
             EntityId = command.EntityId,
             FuturesVxTermStructureSignal = futuresVxTermStructureTransition.FuturesVxTermStructureSignal,
-            FuturesVxTermStructureCheckpoint = futuresVxTermStructureTransition.FuturesVxTermStructureCheckpoint
+            FuturesVxTermStructureCheckpoint = futuresVxTermStructureTransition.FuturesVxTermStructureCheckpoint,
+            HasFullStateSnapshot = true,
+            RetainedSignal = futuresVxTermStructureTransition.FuturesVxTermStructureSignal is null ? previousSignal : null
         };
     }
 }

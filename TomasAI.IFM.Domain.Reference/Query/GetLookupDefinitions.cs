@@ -11,14 +11,13 @@ public static class GetLookupDefinitions
 
     extension(GetLookupDefinitionsQuery query)
     {
-        /// <summary>Reads and replies with lookup definitions for the requested group.</summary>
-        public async ValueTask ExecuteAsync(IReferenceQueryContext context, CancellationToken cancellationToken)
+        /// <summary>Reads and returns lookup definitions for the requested group.</summary>
+        public async ValueTask<LookupDefinitionReadModel[]> ExecuteAsync(IReferenceQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             var rows = await (context.DbFactory.ConfigurationDb.GetLookupDefinitionsAsync(query.GroupName, cancellationToken)).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<LookupDefinitionReadModel[]>(rows))).ConfigureAwait(false);
+            return rows;
         }
     }
 }

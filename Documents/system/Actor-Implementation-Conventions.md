@@ -1180,6 +1180,11 @@ The base actor saves pending state events after the mapped command extension ret
 
 ### 13.2 QueryActor convention
 
+[LookupTypeQueryActor](../../TomasAI.IFM.Domain.Reference/LookupType/Query/Actor/LookupTypeQueryActor.cs)
+is the reference implementation for query dispatch and replies. Each `_receiveMap` entry invokes
+the dedicated query extension, awaits its typed result, and sends the reply through
+`context.ReplyAsync`. The extension owns the read and returns the result to the actor.
+
 Every domain QueryActor declares three maps with one supported-query manifest:
 
 ```text
@@ -1189,6 +1194,11 @@ _parseMap query types == _receiveMap query types == _exceptionMap query types
 Queries are a side-effect-free read boundary. They consume data already admitted by a command and
 do not repeat command-domain validation. Each concrete query implements exactly one
 `IQuery<TResult>` contract so its success and failure reply types are unambiguous.
+
+Query extension handlers must read only persisted read models projected from committed command
+events. They must never read authoritative command state, call a command state repository, or
+rebuild command state from its event stream or snapshots. This rule also applies to any helper or
+service called by the extension. See [persisted read models and query ownership](Actor-Event-Modeling-Conventions.md#persisted-read-models-and-query-ownership).
 
 #### 13.2.1 `_parseMap`
 
@@ -1219,24 +1229,37 @@ domain `TResult` from an invalid payload.
 
 #### 13.2.2 `_receiveMap`
 
-`_receiveMap` is keyed by the exact concrete CLR `Type`:
+`_receiveMap` is keyed by the exact concrete CLR `Type`. The following entry uses
+the [GetLookupType extension](../../TomasAI.IFM.Domain.Reference/LookupType/Query/GetLookupType.cs).
 
 ```csharp
 static readonly IReadOnlyDictionary<Type, Func<
-    IQueryActorContext<SomeQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
-    new Dictionary<Type, Func<IQueryActorContext<SomeQueryActor>, IQuery,
+    ILookupTypeQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
+    new Dictionary<Type, Func<ILookupTypeQueryContext, IQuery,
         CancellationToken, ValueTask>>
     {
-        [typeof(GetSomethingQuery)] = static (context, query, cancellationToken) =>
-            ((GetSomethingQuery)query).ExecuteAsync(context, cancellationToken)
+        [typeof(GetLookupTypeQuery)] = async (context, message, cancellationToken) =>
+        {
+            var query = IsArgumentNull.Set(message as GetLookupTypeQuery);
+            var result = await query.ExecuteAsync(context.DbFactory, cancellationToken)
+                .ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await context.ReplyAsync(message.Subject.ThreadId, GetLookupTypeQuery.Verb,
+                new ServiceResult<LookupTypeCollection>(result)).ConfigureAwait(false);
+        }
     };
 ```
+
+Each extension takes the dependencies needed for the read and returns the query's `TResult`.
+Reply handling belongs to the mapped delegate, which wraps the result in
+`ServiceResult<TResult>` and uses the incoming thread ID and the concrete query's verb.
+Forward the cancellation token to the extension and check it before replying.
 
 `ReceiveAsync` performs common argument checks, resolves only `query.GetType()` through
 `ResolveMappedQueryHandler`, and awaits the mapped handler. String type names, assignable-type
 search, query switches, default routing, and actor-local `TryGetValue` dispatch are forbidden.
 This prevents equal simple names in different namespaces and derived queries from reaching the
-wrong handler. The mapped handler owns only that concrete query's read and typed reply behavior.
+wrong handler.
 
 #### 13.2.3 `_exceptionMap`
 
@@ -1270,6 +1293,11 @@ parity.
 - [ ] Registered parsers materialize once; malformed and null results fail consistently.
 - [ ] Parse failure never calls a derived exception handler with a null query.
 - [ ] `_receiveMap` lists every supported exact concrete query type.
+- [ ] Each entry awaits its dedicated query extension, which returns `TResult`.
+- [ ] Each query extension and its dependencies read only persisted projections of committed
+      command events. No query path loads authoritative command state.
+- [ ] Each entry checks cancellation and sends `ServiceResult<TResult>` through `context.ReplyAsync`
+      with the incoming thread ID and the registered query verb.
 - [ ] `ReceiveAsync` only resolves through `ResolveMappedQueryHandler` and awaits the handler.
 - [ ] `_exceptionMap` covers the same exact types and returns `ServiceFailed<TResult>`.
 - [ ] Parse, receive, and exception map query sets are equal.
@@ -1508,7 +1536,7 @@ The class and source filename are the concrete message name with the trailing me
 
 The handler source file resides directly in the owning actor-role folder: `Command`, `Query`, `Event`, `Realtime`, or `Function`. The actor implementation remains in that role's `Actor` child folder. Supporting calculation or domain algorithms used only by that actor role may reside in its optional `Model` child folder, but a generic `Extensions` or actor-wide `Handlers` class must not hide multiple receive-map handlers.
 
-The receive-map delegate remains a thin, exact-type dispatcher. It casts the mapped message and invokes the dedicated extension through `Execute` or `ExecuteAsync`; it does not contain domain behavior. Parsing, validation, state loading, persistence, and exception flow continue to follow the owning actor-type convention.
+The receive-map delegate remains a thin, exact-type dispatcher. It casts the mapped message and invokes the dedicated extension through `Execute` or `ExecuteAsync`. QueryActor delegates also send the extension result through `context.ReplyAsync` as described in §13.2.2. Domain behavior belongs in the extension. Parsing, validation, state loading, persistence, and exception flow continue to follow the owning actor-type convention.
 
 This rule applies immediately to new or modified receive handlers. Existing actors are migrated through explicitly scoped changes so adoption does not silently alter runtime behavior. The first scoped application is `FuturesRealtimeActor`, whose two entries map to `FuturesTickTradeDataChanged` and `OpenPositionRoutesChanged`.
 

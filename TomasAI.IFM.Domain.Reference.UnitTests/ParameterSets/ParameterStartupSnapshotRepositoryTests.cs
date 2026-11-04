@@ -124,8 +124,15 @@ public sealed class ParameterStartupSnapshotRepositoryTests
         => new(factory, store, Substitute.For<IActorService>(), Substitute.For<IEventProjector<ParameterStartupCommandActor>>(), NullLogger<ParameterStartupStateRepository>.Instance);
 
     static void Replay<TState>(IEventSourceActorDbContext store, long stream, IEvent[] events) where TState : IActorState<TState>
-        => store.MapReduceActorEventStreamFromCreationAsync<TState>(stream,
-            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None).Returns(call =>
+    {
+        if (typeof(TState) == typeof(ParameterStartupCommandState))
+            store.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<TState>(stream, Arg.Any<IReadOnlyList<Type>>(),
+                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None).Returns(ReplayRows);
+        else
+            store.MapReduceActorEventStreamFromCreationAsync<TState>(stream,
+                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None).Returns(ReplayRows);
+
+        ValueTask ReplayRows(NSubstitute.Core.CallInfo call)
         {
             call.Arg<Action<IEnumerable<EventStreamReadModel>>>()(events.Select((source, index) => new EventStreamReadModel
             {
@@ -133,5 +140,6 @@ public sealed class ParameterStartupSnapshotRepositoryTests
                 EventTypeName = source.GetType().AssemblyQualifiedName!, EventData = EventLogMessagePackCodec.Shared.Serialize(source)
             }));
             return ValueTask.CompletedTask;
-        });
+        }
+    }
 }

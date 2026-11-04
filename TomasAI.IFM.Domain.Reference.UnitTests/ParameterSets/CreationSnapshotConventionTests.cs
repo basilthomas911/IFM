@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.Reference.UnitTests.ParameterSets;
 public sealed class CreationSnapshotConventionTests
 {
     [Fact]
-    public void All_72_audited_repositories_declare_creation_loading_or_an_explicit_adapter()
+    public void All_72_audited_repositories_declare_creation_loading_checkpoint_loading_or_an_explicit_adapter()
     {
         var root = RepositoryRoot();
         Assert.Equal(72, Paths.Length);
@@ -15,6 +15,8 @@ public sealed class CreationSnapshotConventionTests
         {
             var source = File.ReadAllText(Path.Combine(root, relative));
             Assert.True(source.Contains("FromCreation", StringComparison.Ordinal)
+                || source.Contains("LoadStateFromLatestCheckpointAsync", StringComparison.Ordinal)
+                || source.Contains("LoadStateFromLatestSnapshotsAsync", StringComparison.Ordinal)
                 || source.Contains("PortfolioOperationCreationSnapshot", StringComparison.Ordinal)
                 || source.Contains("DatabaseOperationStateRepository", StringComparison.Ordinal), relative);
             Assert.DoesNotContain("LoadStateFromSnapshotAsync<", source);

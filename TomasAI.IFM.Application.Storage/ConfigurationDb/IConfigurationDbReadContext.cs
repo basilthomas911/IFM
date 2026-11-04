@@ -154,8 +154,27 @@ public interface IConfigurationDbReadContext
     /// <summary>Lists active startup run identities in stable creation order, independently of actor caches.</summary>
     Task<Guid[]> GetParameterStartupRunIdsAsync(int limit, DateTime? afterCreatedAtUtc = null, Guid? afterRunId = null, CancellationToken cancellationToken = default);
 
+    Task<(ParameterStartupRun? Run, ParameterSignalStartupReport? Report)> GetActiveParameterStartupAsync(
+        Guid runId, CancellationToken cancellationToken = default);
+
+    Task<ParameterSetSnapshot> GetParameterSetSnapshotAsync(Guid setId, CancellationToken cancellationToken = default);
+
+    Task<ParameterAssignmentSnapshot> GetParameterAssignmentSnapshotAsync(
+        ParameterAssignmentEntityId identity, ParameterAssignmentScope scope, CancellationToken cancellationToken = default);
+
+    Task<(ParameterAssignmentRevision[] Assignments, ParameterSetVersion[] Versions)> GetParameterStartupInputsAsync(
+        Guid[] assignmentIds, CancellationToken cancellationToken = default);
+
+    Task<bool> HasParameterStartupProjectionAsync(Guid runId, CancellationToken cancellationToken = default);
+
+    Task<ParameterStartupRun[]> GetActiveParameterStartupPageAsync(
+        int limit, DateTime? afterCreatedAtUtc, Guid? afterRunId, CancellationToken cancellationToken = default);
+
     /// <summary>Reads the concurrency fence for prepared parameter-command evidence.</summary>
     Task<long> GetParameterRevisionFenceAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the accepted revision when all accepted parameter facts have been projected.</summary>
+    Task<long?> GetProjectedParameterRevisionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Reads typed scalar/child rows in the caller's transaction and verifies their content fingerprint.</summary>
     Task<ParameterSetValue?> GetTypedParameterValueAsync(IEnlistedPostgresTransaction transaction, Guid setId, int version, CancellationToken cancellationToken = default);

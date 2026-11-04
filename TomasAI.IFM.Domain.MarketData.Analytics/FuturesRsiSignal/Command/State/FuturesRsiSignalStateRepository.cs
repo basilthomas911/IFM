@@ -41,8 +41,10 @@ public class FuturesRsiSignalStateRepository(
             ICommand<FuturesRsiSignalEntityId> rsi => StateWindow(rsi.EntityId),
             _ => 256
         };
-        return await LoadStateFromCreationSnapshotAsync<FuturesRsiSignalCommandState>(
-            command, cancellationToken, state => state.LimitReplayWindow(window)).ConfigureAwait(false);
+        var requestedWindow = FuturesRsiSignalCommandState.NormalizeReplayWindow(window);
+        return await LoadStateFromLatestCheckpointAsync<FuturesRsiSignalCommandState, FuturesRsiSignalStateSnapshottedEvent>(
+            command, snapshot => snapshot.RetainedWindow >= requestedWindow && snapshot.Signals is not null,
+            cancellationToken, state => state.LimitReplayWindow(requestedWindow)).ConfigureAwait(false);
     }
 
     static int StateWindow(FuturesRsiSignalEntityId entityId)
@@ -71,7 +73,7 @@ public class FuturesRsiSignalStateRepository(
         var database = dbFactory.MarketDataDb;
         if (!string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
         {
-            await SaveStateAndDenormalizeEventsAsync(context,state,command,cancellationToken).ConfigureAwait(false);
+            await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken).ConfigureAwait(false);
             return;
         }
         if (state.Events.Count == 0) return;
@@ -80,6 +82,8 @@ public class FuturesRsiSignalStateRepository(
             throw new InvalidOperationException("Analytic source events and MarketDataDb must share one PostgreSQL database/security identity.");
         var owner = context.Container.Resolve<IPostgresEventTransaction>();
         var pending = new DomainEventCollection(state.Events);
+        var snapshot = ShouldCapturePeriodicSnapshot(state.CommittedStreamVersion, pending.Count)
+            ? state.CaptureSnapshot(command) : null;
         await owner.ExecuteAsync(async (transaction,token) =>
         {
             var version = state.CommittedStreamVersion;
@@ -88,9 +92,13 @@ public class FuturesRsiSignalStateRepository(
                 await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
                 _ = await AcceptedMarketSignalProjection.TryProjectAsync(transaction,source,token).ConfigureAwait(false);
             }
+            if (snapshot is not null)
+                await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, token).ConfigureAwait(false);
             return true;
         },cancellationToken).ConfigureAwait(false);
         state.AcceptChanges();
+        if (snapshot is not null)
+            state.RestoreCommittedStreamVersion(checked(state.CommittedStreamVersion + 1));
         await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
     }
 

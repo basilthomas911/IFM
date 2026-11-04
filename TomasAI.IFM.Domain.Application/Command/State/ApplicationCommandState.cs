@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.Application.Command.State;
 /// <remarks>This class manages the state transitions for Application operations by applying domain events.
 /// It mirrors the logic of <see cref="Application.ApplicationBoundedContextState"/>.</remarks>
 public sealed class ApplicationCommandState
-    : BaseEventSourceActorState<ApplicationCommandState>, IEventSourceActorState<ApplicationCommandState>
+    : BaseEventSourceActorState<ApplicationCommandState>, IEventSourceActorState<ApplicationCommandState>, IStatelessCreationSnapshotState
 {
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.

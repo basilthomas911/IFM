@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Reference.ParameterSets.Preparation.Query.Model;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.Model;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Query.Actor;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Model;
 using Microsoft.Extensions.Logging;
@@ -13,14 +14,16 @@ public static class PreviewSignalStartupPlan
 
     extension(PreviewSignalStartupPlanQuery query)
     {
-        public async ValueTask ExecuteAsync(IParameterStartupQueryServices context, ILogger logger, CancellationToken token)
+        public async ValueTask<ParameterSignalStartupPlan> ExecuteAsync(IParameterStartupQueryServices context, ILogger logger, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
             context.AccessPolicy.Demand(ParameterCapability.Read);
-            var snapshot = await (ParameterStartupReader.ReadAsync(query.StartupRunId, context.ConfigurationDb, context.Assignments, context.StateRepository, token)).ConfigureAwait(false);
+            var ids = ParameterStartupReader.SupportedScopes().Select(ParameterAssignmentPolicyModel.AssignmentId).ToArray();
+            var (assignments, versions) = await context.ConfigurationDb.GetParameterStartupInputsAsync(ids, token).ConfigureAwait(false);
+            var snapshot = new ParameterStartupSnapshotModel(query.StartupRunId, assignments, versions.ToDictionary(item => item.Reference));
             var plan = SignalStartupPlanModel.Create(snapshot, SignalStartupPlanModel.ExistingIntradayConsumers());
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSignalStartupPlan>(plan))).ConfigureAwait(false);
+            return plan;
         }
     }
 }

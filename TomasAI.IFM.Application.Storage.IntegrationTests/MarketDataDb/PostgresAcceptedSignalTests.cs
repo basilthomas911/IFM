@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -88,21 +90,21 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
         var id = Guid.NewGuid();
         await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.ExecuteAsync("INSERT INTO market_data.strategy_option_chain_parameter_version (set_id,version,payload) VALUES ($1,1,$2)", [id,"named-schema-fixture"], token);
+            await transaction.ExecuteAsync("INSERT INTO market_data.strategy_option_chain_policy_version (set_id,version,parameter_hash) VALUES ($1,1,$2)", [id,"named-schema-fixture"], token);
             return true;
         });
         try
         {
             await schema.CreateAsync(names);
             var payload = await fixture.Transactions.ExecuteOnceAsync((transaction, token) =>
-                transaction.ScalarAsync("SELECT payload FROM market_data.strategy_option_chain_parameter_version WHERE set_id=$1 AND version=1", [id], token));
+                transaction.ScalarAsync("SELECT parameter_hash FROM market_data.strategy_option_chain_policy_version WHERE set_id=$1 AND version=1", [id], token));
             Assert.Equal("named-schema-fixture", payload);
         }
         finally
         {
             await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
             {
-                await transaction.ExecuteAsync("DELETE FROM market_data.strategy_option_chain_parameter_version WHERE set_id=$1 AND version=1", [id], token);
+                await transaction.ExecuteAsync("DELETE FROM market_data.strategy_option_chain_policy_version WHERE set_id=$1 AND version=1", [id], token);
                 return true;
             });
         }
@@ -111,7 +113,10 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
     [Fact]
     public async Task Postgres_option_chain_policy_publication_roundtrips_and_rejects_stale_revision()
     {
-        var settings = new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection, fixture.Connection, "System.Data.Postgres");
+        var settings = new DbConnectionSettings()
+            .Add(MarketDataDbContext.MarketDataDbConnection, fixture.Connection, "System.Data.Postgres");
+        settings.Add(ConfigurationDbContext.ConfigurationDbConnection, fixture.Connection, "System.Data.Postgres");
+        await new ConfigurationSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAsync(["strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current"]);
         var db = MarketDataDbContextTestFactory.Create(settings[MarketDataDbContext.MarketDataDbConnection]);
         var policy = TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterDefaults.IronCondor(Guid.NewGuid(), Guid.NewGuid(), 1) with { Enabled = true };
@@ -128,8 +133,8 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
         {
             await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
             {
-                await transaction.ExecuteAsync("DELETE FROM market_data.strategy_option_chain_parameter_current WHERE set_id=$1", [policy.ParameterSetId], token);
-                await transaction.ExecuteAsync("DELETE FROM market_data.strategy_option_chain_parameter_version WHERE set_id=$1", [policy.ParameterSetId], token);
+                await transaction.ExecuteAsync("DELETE FROM market_data.strategy_option_chain_policy_current WHERE set_id=$1", [policy.ParameterSetId], token);
+                await transaction.ExecuteAsync("DELETE FROM market_data.strategy_option_chain_policy_version WHERE set_id=$1", [policy.ParameterSetId], token);
                 return true;
             });
         }

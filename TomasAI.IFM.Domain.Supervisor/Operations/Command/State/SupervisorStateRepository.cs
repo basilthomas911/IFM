@@ -27,7 +27,8 @@ public sealed class SupervisorStateRepository(
     /// <summary>Rehydrates the last operation outcome for this command stream.</summary>
     public async ValueTask<SupervisorCommandState> LoadStateAsync(
         ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<SupervisorCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<SupervisorCommandState, SupervisorActorOperationRecordedEvent>(
+            command, static fact => fact.CommandId != Guid.Empty, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Commits pending outcome events and submits them for projection.</summary>
     public ValueTask SaveStateAsync(

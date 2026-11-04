@@ -56,7 +56,6 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
         [GetLookupDefinitionsQuery.Verb] = msg => msg.AsQuery<GetLookupDefinitionsQuery, LookupDefinitionReadModel[]>()!,
         [TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery.Verb] = msg => msg.AsQuery<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery, string>()!,
         [GetCurrentSeedIdQuery.Verb] = msg => msg.AsQuery<GetCurrentSeedIdQuery, ScalarReadModel<int>>()!,
-        [GetNextSeedIdQuery.Verb] = msg => msg.AsQuery<GetNextSeedIdQuery, ScalarReadModel<int>>()!,
         [GetDefaultFuturesContractDefinitionsQuery.Verb] = msg => msg.AsQuery<GetDefaultFuturesContractDefinitionsQuery, DefaultFuturesContractDefinitionsReadModel>()!,
         [GetFuturesOptionStrikePriceDefinitionsQuery.Verb] = msg => msg.AsQuery<GetFuturesOptionStrikePriceDefinitionsQuery, FuturesOptionStrikePriceReadModel>()!,
         [GetMDIForwardLossRatiosQuery.Verb] = msg => msg.AsQuery<GetMDIForwardLossRatiosQuery, MDIForwardLossRatioReadModel[]>()!
@@ -97,15 +96,62 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     static readonly IReadOnlyDictionary<Type, Func<IReferenceQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IReferenceQueryContext, IQuery, CancellationToken, ValueTask>>
         {
-            [typeof(GetLookupDefinitionsQuery)] = static (context, query, cancellationToken) => ((GetLookupDefinitionsQuery)query).ExecuteAsync(context, cancellationToken),
-            [typeof(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery)] = static (context, query, cancellationToken) => ((TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery)query).ExecuteAsync(context, cancellationToken),
-            [typeof(GetTradeStrategySymbolsQuery)] = static (context, query, cancellationToken) => ((GetTradeStrategySymbolsQuery)query).ExecuteAsync(context, cancellationToken),
-            [typeof(GetCurrentSeedIdQuery)] = static (context, query, cancellationToken) => ((GetCurrentSeedIdQuery)query).ExecuteAsync(context, cancellationToken),
-            [typeof(GetNextSeedIdQuery)] = static (context, query, cancellationToken) => ((GetNextSeedIdQuery)query).ExecuteAsync(context, cancellationToken),
-            [typeof(GetDefaultFuturesContractDefinitionsQuery)] = static (context, query, cancellationToken) => ((GetDefaultFuturesContractDefinitionsQuery)query).ExecuteAsync(context, cancellationToken),
-            [typeof(GetFuturesOptionStrikePriceDefinitionsQuery)] = static (context, query, cancellationToken) => ((GetFuturesOptionStrikePriceDefinitionsQuery)query).ExecuteAsync(context, cancellationToken),
-            [typeof(GetMDIForwardLossRatiosQuery)] = static (context, query, cancellationToken) => ((GetMDIForwardLossRatiosQuery)query).ExecuteAsync(context, cancellationToken),
-            [typeof(GetTradeStrategyFamiliesQuery)] = static (context, query, cancellationToken) => ((GetTradeStrategyFamiliesQuery)query).ExecuteAsync(context, cancellationToken)
+            [typeof(GetLookupDefinitionsQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetLookupDefinitionsQuery)query).ExecuteAsync(context, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, GetLookupDefinitionsQuery.Verb,
+                    new ServiceOk<LookupDefinitionReadModel[]>(result)).ConfigureAwait(false);
+            },
+            [typeof(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery)query).ExecuteAsync(context, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery.Verb,
+                    new ServiceOk<string>(result)).ConfigureAwait(false);
+            },
+            [typeof(GetTradeStrategySymbolsQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetTradeStrategySymbolsQuery)query).ExecuteAsync(context, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, GetTradeStrategySymbolsQuery.Verb,
+                    result).ConfigureAwait(false);
+            },
+            [typeof(GetCurrentSeedIdQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetCurrentSeedIdQuery)query).ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, GetCurrentSeedIdQuery.Verb,
+                    new ServiceResult<ScalarReadModel<int>>(result)).ConfigureAwait(false);
+            },
+            [typeof(GetDefaultFuturesContractDefinitionsQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetDefaultFuturesContractDefinitionsQuery)query).ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, GetDefaultFuturesContractDefinitionsQuery.Verb,
+                    new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(result)).ConfigureAwait(false);
+            },
+            [typeof(GetFuturesOptionStrikePriceDefinitionsQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetFuturesOptionStrikePriceDefinitionsQuery)query).ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, GetFuturesOptionStrikePriceDefinitionsQuery.Verb,
+                    new ServiceResult<FuturesOptionStrikePriceReadModel>(result)).ConfigureAwait(false);
+            },
+            [typeof(GetMDIForwardLossRatiosQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetMDIForwardLossRatiosQuery)query).ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, GetMDIForwardLossRatiosQuery.Verb,
+                    new ServiceResult<MDIForwardLossRatioReadModel[]>(result)).ConfigureAwait(false);
+            },
+            [typeof(GetTradeStrategyFamiliesQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetTradeStrategyFamiliesQuery)query).ExecuteAsync(context, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, GetTradeStrategyFamiliesQuery.Verb,
+                    result).ConfigureAwait(false);
+            }
         };
     /// <summary>
     /// Handles exceptions that occur during the processing of a query in the actor context.

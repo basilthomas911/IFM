@@ -5,9 +5,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
 [MessagePackObject]
-public sealed record ParameterVersionPublishedEvent : IParameterSetFact
+public sealed record ParameterSetVersionRetiredEvent : IParameterSetFact
 {
-    public const string Actor = "ParameterSet"; public const string Verb = "ParameterVersionPublished";
+    public const string Actor = "ParameterSet"; public const string Verb = "ParameterVersionRetired";
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public Guid Id { get; init; }
     [Key(2)] public ParameterSetEntityId EntityId { get; init; }
@@ -23,6 +23,6 @@ public sealed record ParameterVersionPublishedEvent : IParameterSetFact
     [Key(12)] public ParameterSetVersion? Version { get; init; }
     [Key(13)] public ParameterAuditEntry? Audit { get; init; }
     [IgnoreMember] public string UserName => string.Empty;
-    [IgnoreMember] public string EventName => nameof(ParameterVersionPublishedEvent);
+    [IgnoreMember] public string EventName => "ParameterVersionRetiredEvent";
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
 }

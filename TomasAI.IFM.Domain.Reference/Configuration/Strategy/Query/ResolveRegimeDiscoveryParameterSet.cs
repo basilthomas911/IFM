@@ -12,14 +12,13 @@ public static class ResolveRegimeDiscoveryParameterSet
     extension(ResolveRegimeDiscoveryParameterSetQuery query)
     {
         /// <summary>Resolves and returns the effective Regime Discovery parameter set.</summary>
-        public async ValueTask ExecuteAsync(IRegimeDiscoveryConfigurationQueryContext services, IQueryActorContext<RegimeDiscoveryConfigurationQueryActor> context, CancellationToken cancellationToken)
+        public async ValueTask<RegimeDiscoveryParameterSet> ExecuteAsync(IRegimeDiscoveryConfigurationQueryContext services, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(services);
             var result = (await services.ConfigurationDb.GetEffectiveRegimeDiscoveryAsync(query.EffectiveAtUtc, query.TargetHorizon, cancellationToken).ConfigureAwait(false))?.ParameterSet
                 ?? throw new KeyNotFoundException("The requested Regime Discovery parameter set was not found.");
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<RegimeDiscoveryParameterSet>(result)).ConfigureAwait(false);
+            return result;
         }
     }
 }

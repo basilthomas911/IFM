@@ -11,13 +11,13 @@ public static class ValidateTypedParameterCandidate
 {
     extension(ValidateTypedParameterCandidateQuery query)
     {
-        public async ValueTask ExecuteAsync(IParameterSetQueryContext context,
+        public async ValueTask<ParameterValidationReport> ExecuteAsync(IParameterSetQueryContext context,
             ILogger<ParameterSetQueryActor> logger, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(query); ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
             context.AccessPolicy.Demand(ParameterCapability.Read); token.ThrowIfCancellationRequested();
             var report = TypedParameterDraftModel.Validate(query.ComponentCode, query.SchemaVersion, query.Parameters);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterValidationReport>(report)).ConfigureAwait(false);
+            return report;
         }
     }
 }

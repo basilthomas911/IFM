@@ -37,6 +37,10 @@ public static class ConfigurationSchemaSql
                 singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton), revision bigint NOT NULL CHECK(revision>=0));
             INSERT INTO reference_configuration.parameter_revision_fence(singleton,revision) VALUES(true,0) ON CONFLICT(singleton) DO NOTHING;
             """;
+        internal const string PendingParameterProjection = """
+            CREATE TABLE IF NOT EXISTS reference_configuration.parameter_projection_pending(
+                event_id bigint PRIMARY KEY CHECK(event_id > 0));
+            """;
         internal const string Header = """
             CREATE TABLE IF NOT EXISTS reference_configuration.parameter_projection_record(
                 kind text NOT NULL,owner_id uuid NOT NULL,owner_version bigint NOT NULL,content_sha256 text NOT NULL,
@@ -64,6 +68,7 @@ public static class ConfigurationSchemaSql
         }
         internal static IEnumerable<SchemaObjectDefinition> Definitions=>
             new[]{new SchemaObjectDefinition("parameter_revision_fence",RevisionFence,"DROP TABLE IF EXISTS reference_configuration.parameter_revision_fence;"),
+                new SchemaObjectDefinition("parameter_projection_pending",PendingParameterProjection,"DROP TABLE IF EXISTS reference_configuration.parameter_projection_pending;"),
                 new SchemaObjectDefinition("parameter_projection_record",Header,"DROP TABLE IF EXISTS reference_configuration.parameter_catalog_startup_state; DROP TABLE IF EXISTS reference_configuration.parameter_catalog_operation; DROP TABLE IF EXISTS reference_configuration.parameter_projection_record;")}
                 .Concat(ParameterProjectionMapping.Tables.Select(table=>new SchemaObjectDefinition(table.Name,Create(table),$"DROP TABLE IF EXISTS reference_configuration.{table.Name};")));
     }

@@ -19,6 +19,10 @@ public interface IConfigurationDbWriteContext
     /// <summary>Invalidates prepared evidence in the same transaction as an accepted parameter mutation.</summary>
     Task AdvanceParameterRevisionFenceAsync(IEnlistedPostgresTransaction transaction, CancellationToken cancellationToken = default);
 
+    Task MarkParameterProjectionPendingAsync(IEnlistedPostgresTransaction transaction, long eventId, CancellationToken cancellationToken = default);
+
+    Task<bool> CompleteParameterProjectionAsync(IEnlistedPostgresTransaction transaction, long eventId, CancellationToken cancellationToken = default);
+
     /// <summary>Creates a validated immutable strategy position-risk draft; activation remains explicit.</summary>
     Task InsertStrategyPositionRiskDraftAsync(TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet policy, string description, string createdBy, CancellationToken cancellationToken = default);
     /// <summary>Inserts an immutable Regime Discovery draft.</summary>
@@ -43,6 +47,20 @@ public interface IConfigurationDbWriteContext
     /// <param name = "definition">The validated definition.</param><param name = "expectedPreviousVersion">The expected previous version.</param><param name = "createdBy">The author.</param><param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The canonical content digest.</returns>
     Task<string> InsertStrategyCatalogDraftAsync(StrategyCatalogDefinition definition, int expectedPreviousVersion, string createdBy, CancellationToken cancellationToken = default);
+
+    Task<StrategyCatalogSourceEvent?> RecordStrategyCatalogTransitionAsync(EnlistedEventTransaction enlisted, CatalogCommandRequest request,
+        string principal, CancellationToken token = default);
+
+    Task<bool> ProjectStrategyCatalogSourceAsync(EnlistedEventTransaction enlisted, StrategyCatalogSourceEvent source,
+        bool rebuild, CancellationToken token = default);
+
+    Task<int> CaptureStrategyCatalogBaselineAsync(EnlistedEventTransaction enlisted, CancellationToken token = default);
+
+    Task<IReadOnlyList<StrategyCatalogSourceEvent>> GetStrategyCatalogSourceHeadsAsync(
+        IEnlistedPostgresTransaction transaction, CancellationToken token = default);
+
+    Task RebuildStrategyCatalogAsync(EnlistedEventTransaction enlisted,
+        IReadOnlyCollection<StrategyCatalogSourceEvent> sourceHeads, CancellationToken token = default);
     /// <summary>Publishes a strategy-catalog draft.</summary>
     /// <param name = "key">The catalog key.</param><param name = "expectedContentHash">The expected content digest.</param><param name = "effectiveFromUtc">The UTC effective timestamp.</param><param name = "publishedBy">The publisher.</param><param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the publish operation.</returns>

@@ -156,9 +156,15 @@ public sealed class RegimeDiscoveryParameterModel : IParameterComponentDescripto
             rows.Add(new() { RequirementId = new Guid(bytes.AsSpan(0, 16)), Metric = metric, TimeFrame = frame, IsRequired = required, MaximumAgeSeconds = age, CalculationConfigurationId = $"{metric}.v1" });
         }
 
+        // Legacy schemas keep their persisted per-frame requirement contract.
+        var usesDailyEma = parameters.SchemaVersion >= 5;
         foreach (var frame in parameters.Horizon.TimeFrames)
             foreach (var metric in Trend)
-                Add(metric, frame.TimeFrame, frame.IsRequired, frame.MaximumAgeSeconds);
+                if (!usesDailyEma || !RegimeDiscoveryEmaBaseline.IsBaseline(metric))
+                    Add(metric, frame.TimeFrame, frame.IsRequired, frame.MaximumAgeSeconds);
+        if (usesDailyEma)
+            foreach (var metric in Trend.Where(RegimeDiscoveryEmaBaseline.IsBaseline))
+                Add(metric, TimeFrameType.Daily, true, RegimeDiscoveryEmaBaseline.MaximumAgeSeconds);
         var target = parameters.Horizon.TimeFrames.Where(x => x.IsRequired).OrderBy(x => Duration(x.TimeFrame)).LastOrDefault() ?? throw new ArgumentException("At least one required observation frame is needed.", nameof(parameters));
         foreach (var metric in Structure)
             Add(metric, target.TimeFrame, true, target.MaximumAgeSeconds);

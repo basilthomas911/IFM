@@ -345,14 +345,37 @@ pub async fn command(
         let prepared = if let Some(slot) = preparation_slot {
             let mut preparation = vec![Value::Nil; 5];
             preparation[slot] = body.clone();
-            let result = query(
-                backend, registry, "PrepareParameterCommandQuery",
-                BTreeMap::from([("Preparation".into(), Value::Array(preparation))]), deadline,
-            ).await?;
-            let candidate = result.as_array().filter(|values| values.len() == 5)
-                .and_then(|values| values.get(slot)).ok_or("Invalid parameter preparation response")?;
-            validate_prepared_command(registry, name, &body, candidate)?;
-            candidate.clone()
+            let evidence_subject = ActorSubject::query("ParameterPreparationQuery", "GetParameterCommandEvidence", "none");
+            let evidence_request = overlay(registry, "PrepareParameterCommandQuery",
+                &template("PrepareParameterCommandQuery")?, &BTreeMap::from([
+                    ("Subject".into(), evidence_subject.wire()),
+                    ("Preparation".into(), Value::Array(preparation)),
+                ]))?;
+            let result = match backend.request_until(&evidence_subject, &evidence_request, deadline, None)
+                .await.and_then(|reply| service_result(&reply).cloned()) {
+                Ok(result) => result,
+                Err(error) if attempt < 2 && (error.contains("PARAM.EVIDENCE_STALE")
+                    || error.contains("PARAM.PROJECTION_LAG")) =>
+                {
+                    let retry_at = tokio::time::Instant::now()
+                        + std::time::Duration::from_millis(100 * (attempt + 1));
+                    if retry_at >= deadline {
+                        return Err(error);
+                    }
+                    tokio::time::sleep_until(retry_at).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            let evidence = result.as_array().filter(|values| values.len() == 2)
+                .ok_or("Invalid parameter evidence response")?;
+            let returned_operation = evidence[0].as_str().and_then(|id| uuid::Uuid::parse_str(id).ok());
+            if returned_operation != Some(request) {
+                return Err("Parameter preparation changed command intent".into());
+            }
+            let candidate = overlay(registry, name, &body, &BTreeMap::from([("Evidence".into(), evidence[1].clone())]))?;
+            validate_prepared_command(registry, name, &body, &candidate)?;
+            candidate
         } else {
             body.clone()
         };

@@ -23,9 +23,9 @@ public sealed class ParameterCatalogMigrationService(IPostgresEventTransaction t
             var events=await tx.QueryAsync("""
                 WITH names AS MATERIALIZED (
                     SELECT eventnameid,eventtypename FROM public.event_name_id
-                    WHERE eventtypename LIKE '%ParameterSetCreatedEvent%' OR eventtypename LIKE '%ParameterDraftSavedEvent%'
-                       OR eventtypename LIKE '%ParameterSetRenamedEvent%' OR eventtypename LIKE '%ParameterVersionPublishedEvent%'
-                       OR eventtypename LIKE '%ParameterVersionRetiredEvent%' OR eventtypename LIKE '%ParameterAssignmentChangedEvent%'
+                    WHERE eventtypename LIKE '%ParameterSetCreatedEvent%' OR eventtypename LIKE '%ParameterSetDraftSavedEvent%'
+                       OR eventtypename LIKE '%ParameterSetRenamedEvent%' OR eventtypename LIKE '%ParameterSetVersionPublishedEvent%'
+                       OR eventtypename LIKE '%ParameterSetVersionRetiredEvent%' OR eventtypename LIKE '%ParameterAssignmentChangedEvent%'
                        OR eventtypename LIKE '%ParameterStartupChangedEvent%' OR eventtypename LIKE '%ParameterAssignmentCreatedEvent%'
                        OR eventtypename LIKE '%ParameterStartupCreatedEvent%'
                 )

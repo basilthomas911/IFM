@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.Reference.ParameterSets.Persistence;
+using TomasAI.IFM.Domain.Reference.Shared.Configuration.Strategy;
+using TomasAI.IFM.Domain.Reference.Shared.ProjectionOutcomes;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.State;
@@ -22,18 +25,19 @@ public sealed class RegimeDiscoveryConfigurationEventProjector
     readonly IRegimeDiscoveryConfigurationCommandContext context;
     readonly ImmutableArray<EventProjectionDescriptor> descriptors;
 
-    /// <summary>Initializes the non-durable configuration projector.</summary>
+    /// <summary>Initializes the durable configuration projector.</summary>
     public RegimeDiscoveryConfigurationEventProjector(
-        ICommandActorContext<RegimeDiscoveryConfigurationCommandActor> actorContext)
+        ICommandActorContext<RegimeDiscoveryConfigurationCommandActor> actorContext,
+        EventProjectorReliabilityOptions? reliabilityOptions = null)
         : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource,
-            Typed(actorContext).BlackboardService, Typed(actorContext).Logger)
+            Typed(actorContext).BlackboardService, Typed(actorContext).Logger, reliabilityOptions)
     {
         context = Typed(actorContext);
         descriptors =
         [
-            Describe<RegimeDiscoveryParameterSetCreatedEvent>(),
-            Describe<RegimeDiscoveryParameterSetPublishedEvent>(),
-            Describe<RegimeDiscoveryParameterSetRetiredEvent>()
+            Describe<RegimeDiscoveryConfigurationParameterSetCreatedEvent, RegimeDiscoveryConfigurationParameterSetCreatedCompleteEvent, RegimeDiscoveryConfigurationParameterSetCreatedFailEvent>(),
+            Describe<RegimeDiscoveryConfigurationParameterSetPublishedEvent, RegimeDiscoveryConfigurationParameterSetPublishedCompleteEvent, RegimeDiscoveryConfigurationParameterSetPublishedFailEvent>(),
+            Describe<RegimeDiscoveryConfigurationParameterSetRetiredEvent, RegimeDiscoveryConfigurationParameterSetRetiredCompleteEvent, RegimeDiscoveryConfigurationParameterSetRetiredFailEvent>()
         ];
     }
 
@@ -41,27 +45,49 @@ public sealed class RegimeDiscoveryConfigurationEventProjector
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
     /// <inheritdoc />
 
-    EventProjectionDescriptor Describe<T>() where T : class, IEvent => new EventProjectionDescriptor(
+    EventProjectionDescriptor Describe<T, TComplete, TFail>()
+        where T : class, IEvent<RegimeDiscoveryParameterSetEntityId>
+        where TComplete : ReferenceProjectionComplete<RegimeDiscoveryParameterSetEntityId>, new()
+        where TFail : ReferenceProjectionFail<RegimeDiscoveryParameterSetEntityId>, new() => new EventProjectionDescriptor(
         typeof(T), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
-        async (source, execution) => { if (!IsPostgres) {
-await ProjectAsync(source, execution.CancellationToken).ConfigureAwait(false);}
-return new(EventProjectionApplyOutcome.Applied); },
-        _ => null, (_, _) => null, false, false, false)
+        (source, execution) => ApplyCommittedAsync(source, execution.CancellationToken),
+        source => ReferenceProjectionOutcomeFactory.Complete<RegimeDiscoveryParameterSetEntityId, TComplete>((T)source, "RegimeDiscoveryConfigurationEvent"),
+        (source, error) => ReferenceProjectionOutcomeFactory.Fail<RegimeDiscoveryParameterSetEntityId, TFail>((T)source, "RegimeDiscoveryConfigurationEvent", error),
+        publishProcessingEvent: false, useDurableReplay: true)
         .WithReadModelRebuild((source, token) => RebuildAsync(source, token));
 
     // These operations change configuration rows only; PublishAsync does not launch a workflow.
     Task ProjectAsync(IEvent source, CancellationToken token) => source switch
     {
-        RegimeDiscoveryParameterSetCreatedEvent created => context.ConfigurationDb.InsertRegimeDiscoveryDraftAsync(
+        RegimeDiscoveryConfigurationParameterSetCreatedEvent created => context.ConfigurationDb.InsertRegimeDiscoveryDraftAsync(
             created.ParameterSet, created.Description, created.CreatedBy, token),
-        RegimeDiscoveryParameterSetPublishedEvent published => context.ConfigurationDb.PublishAsync(StrategyParameterSetKind.RegimeDiscovery,
+        RegimeDiscoveryConfigurationParameterSetPublishedEvent published => context.ConfigurationDb.PublishAsync(StrategyParameterSetKind.RegimeDiscovery,
             published.EntityId.ParameterSetId, published.EntityId.Version, published.EffectiveFromUtc, token),
-        RegimeDiscoveryParameterSetRetiredEvent retired => context.ConfigurationDb.RetireAsync(StrategyParameterSetKind.RegimeDiscovery,
+        RegimeDiscoveryConfigurationParameterSetRetiredEvent retired => context.ConfigurationDb.RetireAsync(StrategyParameterSetKind.RegimeDiscovery,
             retired.EntityId.ParameterSetId, retired.EntityId.Version, retired.RetiredAtUtc, token),
         _ => throw new InvalidDataException("Unsupported configuration source event.")
     };
 
     bool IsPostgres => string.Equals(context.ConfigurationDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
+
+    async ValueTask<EventProjectionApplyResult> ApplyCommittedAsync(IEvent source, CancellationToken token)
+    {
+        if (!IsPostgres)
+        {
+            await ProjectAsync(source, token).ConfigureAwait(false);
+            return new(EventProjectionApplyOutcome.Applied);
+        }
+
+        var applied = await context.Container.Resolve<IPostgresEventTransaction>().ExecuteOnceAsync(async (transaction, cancellationToken) =>
+        {
+            // Claim and apply in one transaction. A failed mutation restores the marker on rollback.
+            if (!await context.ConfigurationDb.CompleteParameterProjectionAsync(transaction, source.EventId, cancellationToken).ConfigureAwait(false))
+                return false;
+            await RegimeDiscoveryAcceptedProjection.ApplyAsync(context.ConfigurationDb, transaction, source, cancellationToken).ConfigureAwait(false);
+            return true;
+        }, token).ConfigureAwait(false);
+        return new(applied ? EventProjectionApplyOutcome.Applied : EventProjectionApplyOutcome.AlreadyApplied);
+    }
 
     Task RebuildAsync(IEvent source, CancellationToken token)
     {

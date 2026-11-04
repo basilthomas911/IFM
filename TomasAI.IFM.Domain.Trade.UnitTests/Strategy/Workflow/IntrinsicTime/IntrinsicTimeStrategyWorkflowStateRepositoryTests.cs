@@ -202,9 +202,9 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepositoryTests
             var eventSource = Substitute.For<IEventSourceActorDbContext>();
             eventSource.GetEventStreamIdFromDbAsync(Arg.Any<string>())
                 .Returns(new EventStreamIdReadModel(91, "workflow-stream"));
-            eventSource.MapReduceActorEventStreamFromCreationAsync<IntrinsicTimeStrategyWorkflowCommandState>(91,
+            eventSource.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<IntrinsicTimeStrategyWorkflowCommandState>(91, Arg.Any<IReadOnlyList<Type>>(),
                     Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>())
-                .Returns(call => { call.ArgAt<Action<IEnumerable<EventStreamReadModel>>>(1)(events); return ValueTask.CompletedTask; });
+                .Returns(call => { call.Arg<Action<IEnumerable<EventStreamReadModel>>>()(events); return ValueTask.CompletedTask; });
             var projector = Substitute.For<IEventProjector<IntrinsicTimeStrategyWorkflowCommandActor>>();
             var repository = new IntrinsicTimeStrategyWorkflowStateRepository(
                 factory,

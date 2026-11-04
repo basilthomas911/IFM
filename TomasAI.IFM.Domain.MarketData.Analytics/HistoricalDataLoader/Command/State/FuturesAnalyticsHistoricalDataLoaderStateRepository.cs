@@ -44,8 +44,8 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderStateRepository(
     public async ValueTask<FuturesAnalyticsHistoricalDataLoaderCommandState> LoadStateAsync(
         ICommand command,
         CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<
-                FuturesAnalyticsHistoricalDataLoaderCommandState>(command, cancellationToken)
+        => await LoadStateFromLatestCheckpointAsync<FuturesAnalyticsHistoricalDataLoaderCommandState, FuturesAnalyticsHistoricalDataLoaderRequestedEvent>(
+            command, static fact => fact.FuturesAnalyticsHistoricalDataLoaderParameters is not null, cancellationToken)
             .ConfigureAwait(false);
 
     /// <summary>Commits pending data load-request events and dispatches them after persistence.</summary>

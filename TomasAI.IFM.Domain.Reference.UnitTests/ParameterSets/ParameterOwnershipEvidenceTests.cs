@@ -63,7 +63,7 @@ public sealed class ParameterOwnershipEvidenceTests
     public void Replay_rejects_missing_creation_history_instead_of_silently_returning_partial_state()
     {
         Assert.Throws<InvalidDataException>(() => new ParameterSetCommandState().ReplayEvents(new TomasAI.IFM.Shared.EventSourcing.IEvent[]
-            { new ParameterDraftSavedEvent { Revision = 2 } }));
+            { new ParameterSetDraftSavedEvent { Revision = 2 } }));
         Assert.Throws<InvalidDataException>(() => new ParameterAssignmentCommandState().ReplayEvents(new TomasAI.IFM.Shared.EventSourcing.IEvent[]
             { new ParameterAssignmentChangedEvent { Revision = 2 } }));
         Assert.Throws<InvalidDataException>(() => new ParameterStartupCommandState().ReplayEvents(new TomasAI.IFM.Shared.EventSourcing.IEvent[]

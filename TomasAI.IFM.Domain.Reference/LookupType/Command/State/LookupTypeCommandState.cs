@@ -20,6 +20,25 @@ public class LookupTypeCommandState : BaseEventSourceActorState<LookupTypeComman
     readonly Dictionary<LookupTypeId, LookupTypeReadModel> _lookupTypes = [];
     public override ActorThreadId Id { get; set; } = default!;
 
+    internal LookupTypeStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "LookupTypeEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        Entries = new Dictionary<LookupTypeId, LookupTypeReadModel>(_lookupTypes)
+    };
+
+    private bool RestoreSnapshot(IReadOnlyDictionary<LookupTypeId, LookupTypeReadModel> ids)
+    {
+        _lookupTypes.Clear();
+        foreach (var entry in ids)
+            _lookupTypes.Add(entry.Key, entry.Value);
+        return true;
+    }
+
+
     /// <summary>
     /// Applies state change events to the current lookup type state.
     /// </summary>
@@ -35,7 +54,8 @@ public class LookupTypeCommandState : BaseEventSourceActorState<LookupTypeComman
             LookupTypeAddedEvent e => On(e),
             LookupTypeChangedEvent e => On(e),
             LookupTypeRemovedEvent e => On(e),
-            _ => false
+            LookupTypeStateSnapshottedEvent snapshot when snapshot.Entries is { } entries => RestoreSnapshot(entries),
+        _ => false
         };
     }
 

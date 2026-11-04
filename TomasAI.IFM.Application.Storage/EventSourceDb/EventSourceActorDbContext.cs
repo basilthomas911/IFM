@@ -1494,6 +1494,21 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             cancellationToken, components: true).ConfigureAwait(false);
     }
 
+    /// <summary>Uses known persisted identities in the checkpoint read itself.</summary>
+    public async ValueTask MapReduceActorEventStreamFromCreationWithCheckpointsAsync<TState>(
+        long eventStreamId, IReadOnlyList<Type> checkpointTypes,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction, CancellationToken cancellationToken = default)
+        where TState : IActorState<TState>
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var identities = checkpointTypes.SelectMany(EventTypeRegistry.Default.GetReadIdentities)
+            .Distinct(StringComparer.Ordinal).ToArray();
+        // A resolvable older spelling outside the registered identities is replayed in the tail
+        // until a known checkpoint supersedes it.
+        await ReadCreationSnapshotAsync(eventStreamId, reducerAction, null, cancellationToken,
+            checkpointIdentities: identities).ConfigureAwait(false);
+    }
+
     /// <summary>Uses a full checkpoint only when its owning repository explicitly declares that optimization.</summary>
     public async ValueTask MapReduceActorEventStreamFromCreationWithCheckpointAsync<TState, TCheckpoint>(
         long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,
@@ -1514,7 +1529,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
 
     async ValueTask ReadCreationSnapshotAsync(long eventStreamId,
         Action<IEnumerable<EventStreamReadModel>> reducerAction, int[]? checkpointNames,
-        CancellationToken cancellationToken, bool stateless = false, bool components = false)
+        CancellationToken cancellationToken, bool stateless = false, bool components = false,
+        string[]? checkpointIdentities = null)
     {
         ArgumentNullException.ThrowIfNull(reducerAction);
         cancellationToken.ThrowIfCancellationRequested();
@@ -1522,13 +1538,17 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         long replayedVersion = 0;
         var sql = components ? EventSourceDbSql.GetEventLogFromLatestComponentSnapshots
             : stateless ? EventSourceDbSql.GetStatelessEventLogFromCreationSnapshot
+            : checkpointIdentities is not null ? EventSourceDbSql.GetEventLogFromCreationWithCheckpointIdentities
             : checkpointNames is null ? EventSourceDbSql.GetEventLogFromCreationSnapshot : EventSourceDbSql.GetEventLogFromCreationWithCheckpoint;
         var statementName = components ? nameof(EventSourceDbSql.GetEventLogFromLatestComponentSnapshots)
             : stateless ? nameof(EventSourceDbSql.GetStatelessEventLogFromCreationSnapshot)
+            : checkpointIdentities is not null ? nameof(EventSourceDbSql.GetEventLogFromCreationWithCheckpointIdentities)
             : checkpointNames is null ? nameof(EventSourceDbSql.GetEventLogFromCreationSnapshot)
             : nameof(EventSourceDbSql.GetEventLogFromCreationWithCheckpoint);
         var query = _dbFactory.ActorEventSourceDb.Use($"{nameof(EventSourceDbSql)}.{statementName}", this.EventLogSql(sql));
-        if (checkpointNames is null)
+        if (checkpointIdentities is not null)
+            query.SetParameters(new GetCheckpointEventLogByIdentity(eventStreamId, checkpointIdentities));
+        else if (checkpointNames is null)
             query.SetParameters(new GetEventLogByEventStreamId(eventStreamId));
         else
             query.SetParameters(new GetMaxEventVersion(eventStreamId, checkpointNames));
@@ -1565,7 +1585,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             var version = record.GetLong(7);
             var isCheckpoint = components
                 ? replayedVersion >= 1 && version > replayedVersion && version == record.GetLong(9)
-                : (stateless || checkpointNames is not null) && replayedVersion == 1 && version == record.GetLong(9);
+                : (stateless || checkpointNames is not null || checkpointIdentities is not null) && replayedVersion == 1 && version == record.GetLong(9);
             if (version != replayedVersion + 1 && !isCheckpoint)
                 throw new InvalidDataException($"Creation snapshot replay gap in stream {eventStreamId}: {replayedVersion} -> {version}.");
             replayedVersion = version;

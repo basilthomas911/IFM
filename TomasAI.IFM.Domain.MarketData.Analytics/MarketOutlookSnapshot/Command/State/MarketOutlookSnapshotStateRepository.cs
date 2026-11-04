@@ -27,8 +27,8 @@ public sealed class MarketOutlookSnapshotStateRepository(
     public async ValueTask<MarketOutlookSnapshotCommandState> LoadStateAsync(
         ICommand command,
         CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<
-                MarketOutlookSnapshotCommandState>(command, cancellationToken)
+        => await LoadStateFromLatestCheckpointAsync<MarketOutlookSnapshotCommandState, MarketOutlookSnapshotInsertedEvent>(
+            command, static fact => fact.MarketOutlook is not null, cancellationToken)
             .ConfigureAwait(false);
 
     public ValueTask SaveStateAsync(

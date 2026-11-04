@@ -15,7 +15,31 @@ public class FuturesAdxSignalCommandState : BaseEventSourceActorState<FuturesAdx
     readonly List<FuturesAdxSignalReadModel> _adxSignals = new(32);
     int replayWindow;
     /// <summary>Preserves the repository's configured computation window while replaying from creation.</summary>
-    internal void LimitReplayWindow(int count) => replayWindow = Math.Max(1, count);
+    internal void LimitReplayWindow(int count) => replayWindow = NormalizeReplayWindow(count);
+    internal static int NormalizeReplayWindow(int count) => Math.Max(1, count);
+
+    internal FuturesAdxSignalStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "FuturesAdxSignalEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        RetainedWindow = replayWindow,
+        Signals = _adxSignals.ToArray(),
+    };
+
+    private bool RestoreSnapshot(FuturesAdxSignalStateSnapshottedEvent snapshot)
+    {
+        // Full replay may encounter snapshots written with a smaller request window.
+        // Keep the already reconstructed wider history in that case.
+        if (replayWindow <= 0 || snapshot.RetainedWindow < replayWindow || snapshot.Signals is null)
+            return false;
+        _adxSignals.Clear();
+        _adxSignals.AddRange(snapshot.Signals.TakeLast(replayWindow));
+        _adxSignal = _adxSignals.LastOrDefault();
+        return true;
+    }
     FuturesAdxSignalReadModel? _adxSignal;
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.
@@ -35,6 +59,7 @@ public class FuturesAdxSignalCommandState : BaseEventSourceActorState<FuturesAdx
             FuturesAdxSignalStoppedEvent => true,
             FuturesAdxSignalGeneratedEvent e => On(e.FuturesAdxSignal),
             FuturesAdxDailySignalGeneratedEvent e => On(e.FuturesAdxSignal),
+            FuturesAdxSignalStateSnapshottedEvent snapshot => RestoreSnapshot(snapshot),
             _ => false
         };
         bool OnStarted(FuturesAdxSignalReadModel? restored, bool reset)

@@ -6,12 +6,70 @@ using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.Lookups;
 using TomasAI.IFM.Domain.Reference.Shared.Configuration.Strategy;
 using TomasAI.IFM.Domain.Reference.Shared.Commands;
+using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
+using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Events;
+using TomasAI.IFM.Shared.EventSourcing;
+using NSubstitute;
+using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Actor;
+using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.EventProjector;
+using TomasAI.IFM.Domain.Reference.Shared.ProjectionOutcomes;
+using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.Reference.UnitTests.Architecture;
 
 /// <summary>Guards the published wire layouts of mapped Reference contracts outside ParameterSets.</summary>
 public sealed class ReferenceMessageWireConventionTests
 {
+    [Fact]
+    public void Projection_terminal_events_preserve_source_correlation_through_messagepack()
+    {
+        var context = Substitute.For<IRegimeDiscoveryConfigurationCommandContext>();
+        var projector = new RegimeDiscoveryConfigurationEventProjector(context);
+        var entityId = new RegimeDiscoveryParameterSetEntityId(Guid.NewGuid(), 1);
+        var source = new RegimeDiscoveryConfigurationParameterSetPublishedEvent
+        {
+            Subject = new(ActorType.Event, "RegimeDiscoveryConfiguration", "Published", entityId.Format()),
+            Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), EventId = 42, EntityId = entityId
+        };
+        var descriptor = Assert.Single(projector.ProjectionDescriptors,
+            item => item.SourceEventType == source.GetType());
+        var complete = Assert.IsType<RegimeDiscoveryConfigurationParameterSetPublishedCompleteEvent>(
+            descriptor.CompletedEventFactory(source));
+        var fail = Assert.IsType<RegimeDiscoveryConfigurationParameterSetPublishedFailEvent>(
+            descriptor.FailedEventFactory(source, new InvalidOperationException("Projection failed.")));
+
+        var completedCopy = MessagePackSerializer.Deserialize<RegimeDiscoveryConfigurationParameterSetPublishedCompleteEvent>(
+            MessagePackSerializer.Serialize(complete));
+        var failedCopy = MessagePackSerializer.Deserialize<RegimeDiscoveryConfigurationParameterSetPublishedFailEvent>(
+            MessagePackSerializer.Serialize(fail));
+        Assert.Equal(source.CommandId, completedCopy.CommandId);
+        Assert.Equal(source.EventId, completedCopy.EventId);
+        Assert.Equal(entityId, completedCopy.EntityId);
+        Assert.Equal(source.CommandId, failedCopy.CommandId);
+        Assert.Equal(ErrorType.Denormalizer, failedCopy.ErrorType);
+        Assert.Equal("Projection failed.", failedCopy.ErrorMessage);
+    }
+
+    [Theory]
+    [InlineData(typeof(ParameterSetDraftSavedEvent), "ParameterDraftSavedEvent")]
+    [InlineData(typeof(ParameterSetVersionPublishedEvent), "ParameterVersionPublishedEvent")]
+    [InlineData(typeof(ParameterSetVersionRetiredEvent), "ParameterVersionRetiredEvent")]
+    [InlineData(typeof(RegimeDiscoveryConfigurationParameterSetCreatedEvent), "RegimeDiscoveryParameterSetCreatedEvent")]
+    [InlineData(typeof(RegimeDiscoveryConfigurationParameterSetPublishedEvent), "RegimeDiscoveryParameterSetPublishedEvent")]
+    [InlineData(typeof(RegimeDiscoveryConfigurationParameterSetRetiredEvent), "RegimeDiscoveryParameterSetRetiredEvent")]
+    public void Renamed_events_preserve_their_persisted_identity_and_snapshot_aliases(Type eventType, string historicalName)
+    {
+        var reader = EventTypeRegistry.CreateCompatibilityRegistry();
+        var writer = new EventWriteIdentityRegistry(reader);
+        var identity = writer.GetIdentity(eventType);
+        Assert.Equal(historicalName, identity.EventName);
+        Assert.Equal(eventType, reader.Resolve(identity.EventTypeName));
+        Assert.Contains(identity.EventTypeName, reader.GetReadIdentities(eventType));
+        var currentAssemblyAlias = $"{eventType.Namespace}.{historicalName}, {eventType.Assembly.GetName().Name}";
+        Assert.Equal(eventType, reader.Resolve(currentAssemblyAlias));
+        Assert.Equal(historicalName, ((IEvent)Activator.CreateInstance(eventType)!).EventName);
+    }
+
     public static TheoryData<Type> MessageTypes => new()
     {
         typeof(StrategyCatalogQuery),

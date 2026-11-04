@@ -43,16 +43,10 @@ public class FuturesMacdSignalStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<FuturesMacdSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => command switch
-        {
-            ICommand<FuturesMacdDailySignalEntityId>
-                => await (LoadStateFromCreationSnapshotAsync<
-                    FuturesMacdSignalCommandState>(command, cancellationToken)).ConfigureAwait(false),
-            ICommand<FuturesMacdSignalEntityId>
-                => await (LoadStateFromCreationSnapshotAsync<
-                    FuturesMacdSignalCommandState>(command, cancellationToken)).ConfigureAwait(false),
-            _ => throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command))
-        };
+        => command is ICommand<FuturesMacdDailySignalEntityId> or ICommand<FuturesMacdSignalEntityId>
+            ? await LoadStateFromLatestCheckpointAsync<FuturesMacdSignalCommandState, FuturesMacdSignalStateSnapshottedEvent>(
+                command, static fact => fact.Signals is not null, cancellationToken).ConfigureAwait(false)
+            : throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command));
 
     /// <summary>
     /// Saves futures MACD signal state changes and denormalizes the associated domain events.
@@ -80,6 +74,10 @@ public class FuturesMacdSignalStateRepository(
             throw new InvalidOperationException("Analytic source events and MarketDataDb must share one PostgreSQL database/security identity.");
         var owner = context.Container.Resolve<IPostgresEventTransaction>();
         var pending = new DomainEventCollection(state.Events);
+        // The public state exposes every accepted signal. Bound checkpoint payload growth while
+        // continuing to load an earlier checkpoint and its tail on longer streams.
+        var snapshot = state.MacdSignals.Count <= 4096 && ShouldCapturePeriodicSnapshot(state.CommittedStreamVersion, pending.Count)
+            ? state.CaptureSnapshot(command) : null;
         await owner.ExecuteAsync(async (transaction,token) =>
         {
             var version = state.CommittedStreamVersion;
@@ -88,9 +86,13 @@ public class FuturesMacdSignalStateRepository(
                 await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
                 _ = await AcceptedMarketSignalProjection.TryProjectAsync(transaction,source,token).ConfigureAwait(false);
             }
+            if (snapshot is not null)
+                await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, token).ConfigureAwait(false);
             return true;
         },cancellationToken).ConfigureAwait(false);
         state.AcceptChanges();
+        if (snapshot is not null)
+            state.RestoreCommittedStreamVersion(checked(state.CommittedStreamVersion + 1));
         await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
     }
 

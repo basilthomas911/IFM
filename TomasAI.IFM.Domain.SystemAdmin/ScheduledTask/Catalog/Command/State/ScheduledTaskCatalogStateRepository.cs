@@ -21,9 +21,17 @@ public sealed class ScheduledTaskCatalogStateRepository(IEventSourceActorStateFa
     /// <inheritdoc />
     public ValueTask<ScheduledTaskCatalogCommandState> LoadStateAsync(ICommand command)
         => LoadStateAsync(command, CancellationToken.None);
-    /// <summary>Restores the latest registration snapshot and replays subsequent source events.</summary>
+    /// <summary>Restores the latest complete aggregate event and replays any subsequent events.</summary>
     public async ValueTask<ScheduledTaskCatalogCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<ScheduledTaskCatalogCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<ScheduledTaskCatalogCommandState>(
+            command, CheckpointTypes, static (state, fact, snapshot) => state.ApplyCheckpointEvent(fact, snapshot),
+            cancellationToken).ConfigureAwait(false);
+
+    private static readonly Type[] CheckpointTypes =
+    [
+        typeof(ScheduledTaskCatalogProjectRegisteredEvent),
+        typeof(ScheduledTaskCatalogHostCapabilityRecordedEvent),
+    ];
 
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context, ScheduledTaskCatalogCommandState state, ICommand command) => SaveStateAsync(context, state, command, CancellationToken.None);

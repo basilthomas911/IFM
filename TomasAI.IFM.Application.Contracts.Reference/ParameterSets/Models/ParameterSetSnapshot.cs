@@ -1,7 +1,7 @@
 using MessagePack;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
-/// <summary>Authoritative event-stream state, independent of list projection visibility.</summary>
+/// <summary>Projected parameter set detail, including version, operation, and audit history.</summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "The published serialization contract uses arrays; preserve its wire shape.")]
 [MessagePackObject]
 public sealed record ParameterSetSnapshot(

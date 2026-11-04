@@ -17,11 +17,41 @@ public sealed class ParameterStartupQueryActor(IQueryActorContext<ParameterStart
     };
     static readonly IReadOnlyDictionary<Type, Func<IQuery, IParameterStartupQueryContext, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQuery, IParameterStartupQueryContext, CancellationToken, ValueTask>>
     {
-        [typeof(PreviewSignalStartupPlanQuery)] = (q, ctx, ct) => ((PreviewSignalStartupPlanQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
-        [typeof(GetParameterStartupRunQuery)] = (q, ctx, ct) => ((GetParameterStartupRunQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
-        [typeof(GetParameterStartupRunsQuery)] = (q, ctx, ct) => ((GetParameterStartupRunsQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
-        [typeof(GetParameterStartupReportQuery)] = (q, ctx, ct) => ((GetParameterStartupReportQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
-        [typeof(GetParameterSignalMonitoringQuery)] = (q, ctx, ct) => ((GetParameterSignalMonitoringQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
+        [typeof(PreviewSignalStartupPlanQuery)] = static async (q, ctx, ct) =>
+        {
+            var result = await ((PreviewSignalStartupPlanQuery)q).ExecuteAsync(ctx, ctx.Logger, ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, PreviewSignalStartupPlanQuery.Verb,
+                new ServiceOk<ParameterSignalStartupPlan>(result)).ConfigureAwait(false);
+        },
+        [typeof(GetParameterStartupRunQuery)] = static async (q, ctx, ct) =>
+        {
+            var result = await ((GetParameterStartupRunQuery)q).ExecuteAsync(ctx, ctx.Logger, ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetParameterStartupRunQuery.Verb,
+                new ServiceOk<ParameterStartupRun>(result)).ConfigureAwait(false);
+        },
+        [typeof(GetParameterStartupRunsQuery)] = static async (q, ctx, ct) =>
+        {
+            var result = await ((GetParameterStartupRunsQuery)q).ExecuteAsync(ctx, ctx.Logger, ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetParameterStartupRunsQuery.Verb,
+                new ServiceOk<ParameterStartupRun[]>(result)).ConfigureAwait(false);
+        },
+        [typeof(GetParameterStartupReportQuery)] = static async (q, ctx, ct) =>
+        {
+            var result = await ((GetParameterStartupReportQuery)q).ExecuteAsync(ctx, ctx.Logger, ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetParameterStartupReportQuery.Verb,
+                new ServiceOk<ParameterSignalStartupReport>(result)).ConfigureAwait(false);
+        },
+        [typeof(GetParameterSignalMonitoringQuery)] = static async (q, ctx, ct) =>
+        {
+            var result = await ((GetParameterSignalMonitoringQuery)q).ExecuteAsync(ctx, ctx.Logger, ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetParameterSignalMonitoringQuery.Verb,
+                new ServiceOk<ParameterSignalMonitoringSnapshot>(result)).ConfigureAwait(false);
+        },
     };
     protected override IQuery ParseMessage(IQueryActorContext<ParameterStartupQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IQueryActorContext<ParameterStartupQueryActor> context, IQuery query) => ReceiveAsync(context, query, CancellationToken.None);

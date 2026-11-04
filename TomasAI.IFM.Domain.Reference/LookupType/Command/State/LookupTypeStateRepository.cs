@@ -44,7 +44,8 @@ public class LookupTypeStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<LookupTypeCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<LookupTypeCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<LookupTypeCommandState, LookupTypeStateSnapshottedEvent>(command,
+            static snapshot => snapshot.Entries is not null, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously saves the current state of the lookup type actor by persisting the pending events from the state
@@ -65,7 +66,7 @@ public class LookupTypeStateRepository(
         var database = actorContext.DbFactory.ReferenceDb;
         if (!string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
         {
-            await SaveStateAndDenormalizeEventsAsync(context,state,command,cancellationToken).ConfigureAwait(false);
+            await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken).ConfigureAwait(false);
             return;
         }
         if (state.Events.Count == 0) return;
@@ -74,6 +75,8 @@ public class LookupTypeStateRepository(
             throw new InvalidOperationException("Lookup source events and ReferenceDb must share one PostgreSQL database/security identity.");
         var owner = transactions ?? throw new InvalidOperationException("Lookup persistence requires the PostgreSQL event transaction service.");
         var pending = new DomainEventCollection(state.Events);
+        var snapshot = ShouldCapturePeriodicSnapshot(state.CommittedStreamVersion, pending.Count)
+            ? state.CaptureSnapshot(command) : null;
         await owner.ExecuteAsync(async (transaction,token) =>
         {
             var version = state.CommittedStreamVersion;
@@ -88,9 +91,13 @@ public class LookupTypeStateRepository(
                     _ => throw new InvalidOperationException("Unexpected lookup source event.")
                 }).ConfigureAwait(false);
             }
+            if (snapshot is not null)
+                await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, token).ConfigureAwait(false);
             return true;
         },cancellationToken).ConfigureAwait(false);
         state.AcceptChanges();
+        if (snapshot is not null)
+            state.RestoreCommittedStreamVersion(checked(state.CommittedStreamVersion + 1));
         await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
     }
 

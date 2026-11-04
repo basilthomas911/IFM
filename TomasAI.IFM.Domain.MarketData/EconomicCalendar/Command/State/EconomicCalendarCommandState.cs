@@ -22,6 +22,17 @@ public class EconomicCalendarCommandState
 
     public override ActorThreadId Id { get; set; } = default!;
 
+    internal EconomicCalendarStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "EconomicCalendarEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        Entries = new Dictionary<EconomicCalendarId, EconomicCalendarReadModel>(_economicCalendars)
+    };
+
+
     /// <summary>
     /// Applies state change events to the current economic calendar state.
     /// </summary>
@@ -34,6 +45,11 @@ public class EconomicCalendarCommandState
     {
         switch (domainEvent)
         {
+            case EconomicCalendarStateSnapshottedEvent snapshot when snapshot.Entries is not null:
+                _economicCalendars.Clear();
+                foreach (var entry in snapshot.Entries)
+                    _economicCalendars.Add(entry.Key, entry.Value);
+                return true;
             case EconomicCalendarAddedEvent added when added.EconomicCalendar is not null:
                 return _economicCalendars.TryAdd(added.EntityId, added.EconomicCalendar);
             case EconomicCalendarChangedEvent changed when changed.EconomicCalendar is not null:

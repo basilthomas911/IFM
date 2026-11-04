@@ -45,15 +45,19 @@ public class MarketDataFeedStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask<MarketDataFeedCommandState> LoadStateAsync(ICommand command)
-        => command switch
-        {
-            _ when command is TurnTradeLiveFeedOnCommand => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false),
-            _ when command is TurnTradeLiveFeedOffCommand => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false),
-            _ when command is AddTradeLiveFeedCommand => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false),
-            _ when command is RemoveTradeLiveFeedCommand => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false),
-            _ when command is HaltTradeLiveFeedCommand => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false),
-            _ => await (LoadStateFromCreationSnapshotAsync<MarketDataFeedCommandState>(command)).ConfigureAwait(false)
-        };
+        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask<MarketDataFeedCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+        => await LoadStateFromLatestCheckpointAsync<MarketDataFeedCommandState>(
+            command, CheckpointTypes, static fact => fact is TradeLiveFeedAddedEvent or TradeLiveFeedRemovedEvent
+                or TradeLiveFeedHaltedEvent or TradeLiveFeedTurnedOnEvent or TradeLiveFeedTurnedOffEvent,
+            cancellationToken).ConfigureAwait(false);
+
+    private static readonly Type[] CheckpointTypes =
+    [
+        typeof(TradeLiveFeedAddedEvent), typeof(TradeLiveFeedRemovedEvent), typeof(TradeLiveFeedHaltedEvent),
+        typeof(TradeLiveFeedTurnedOnEvent), typeof(TradeLiveFeedTurnedOffEvent)
+    ];
 
     /// <summary>
     /// save market data feed state changes

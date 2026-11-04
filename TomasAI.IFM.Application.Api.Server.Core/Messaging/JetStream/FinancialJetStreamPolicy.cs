@@ -1,6 +1,6 @@
 namespace TomasAI.IFM.Application.Api.Server.Core.Messaging.JetStream;
 
-/// <summary>Projectors whose committed effects can place trades or change financial state.</summary>
+/// <summary>Projectors whose committed effects require durable delivery.</summary>
 internal static class FinancialJetStreamPolicy
 {
     internal static readonly string[] DurableProjectors =
@@ -21,9 +21,14 @@ internal static class FinancialJetStreamPolicy
         "LedgerConfigurationProjector",
         "OptionTradeEventProjector",
         "OrderExecutionEventProjector",
+        "ParameterAssignmentEventProjector",
+        "ParameterSetEventProjector",
+        "ParameterStartupEventProjector",
         "PortfolioEventProjector",
         "PortfolioFinancialPolicyEventProjector",
         "PortfolioFundEventProjector",
+        "RegimeDiscoveryConfigurationEventProjector",
+        "StrategyCatalogEventProjector",
         "TradeOrderEventProjector",
         "VerticalSpreadExitPositionWorkflowEventProjector",
         "VerticalSpreadPositionEventProjector"

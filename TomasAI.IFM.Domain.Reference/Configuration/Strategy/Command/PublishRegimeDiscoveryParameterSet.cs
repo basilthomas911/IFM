@@ -56,11 +56,11 @@ public static class PublishRegimeDiscoveryParameterSet
         ///
         /// <param name="configurationChange">The accepted immutable business change.</param>
         /// <returns>The source event ready for state application.</returns>
-        internal RegimeDiscoveryParameterSetPublishedEvent CreateRegimeDiscoveryParameterSetPublishedEvent(RegimeDiscoveryConfigurationChange configurationChange)
+        internal RegimeDiscoveryConfigurationParameterSetPublishedEvent CreateRegimeDiscoveryParameterSetPublishedEvent(RegimeDiscoveryConfigurationChange configurationChange)
             => new()
             {
                 CommandId = command.CommandId,
-                Subject = new ActorSubject(ActorType.Event, RegimeDiscoveryParameterSetPublishedEvent.Actor, RegimeDiscoveryParameterSetPublishedEvent.Verb, command.EntityId.Format()),
+                Subject = new ActorSubject(ActorType.Event, RegimeDiscoveryConfigurationParameterSetPublishedEvent.Actor, RegimeDiscoveryConfigurationParameterSetPublishedEvent.Verb, command.EntityId.Format()),
                 EntityId = command.EntityId,
                 EffectiveFromUtc = configurationChange.EffectiveFromUtc,
             };

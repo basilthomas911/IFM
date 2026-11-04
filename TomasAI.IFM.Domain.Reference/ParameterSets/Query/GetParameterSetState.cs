@@ -10,7 +10,7 @@ public static class GetParameterSetState
 
     extension(GetParameterSetStateQuery query)
     {
-        public async ValueTask ExecuteAsync(IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
+        public async ValueTask<ParameterSetSnapshot> ExecuteAsync(IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
@@ -18,13 +18,7 @@ public static class GetParameterSetState
 #pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
             if (query.SetId == Guid.Empty) throw new ArgumentException("PARAM.IDENTITY_INVALID");
 #pragma warning restore MA0015
-            var identity = new ParameterSetEntityId(query.SetId);
-            // This command is only a stream-address envelope for the existing state repository; it is never dispatched.
-            var address = new CreateParameterSetCommand { EntityId = identity, Subject = new ActorSubject(ActorType.Command, CreateParameterSetCommand.Actor, CreateParameterSetCommand.Verb, identity.Format()) };
-            var state = await (context.StateRepository.LoadStateAsync(address, token)).ConfigureAwait(false);
-            token.ThrowIfCancellationRequested();
-            var result = new ParameterSetSnapshot(query.SetId, state.CatalogRevision, state.Versions.Values.OrderByDescending(x => x.Reference.Version).ToArray(), state.Receipts.Values.OrderBy(x => x.Revision).ToArray(), state.Audit.Values.OrderBy(x => x.Revision).ToArray());
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSetSnapshot>(result))).ConfigureAwait(false);
+            return await context.ConfigurationDb.GetParameterSetSnapshotAsync(query.SetId, token).ConfigureAwait(false);
         }
     }
 }

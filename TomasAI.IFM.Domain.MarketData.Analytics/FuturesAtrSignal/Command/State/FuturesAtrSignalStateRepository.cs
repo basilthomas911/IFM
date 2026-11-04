@@ -45,11 +45,13 @@ public class FuturesAtrSignalStateRepository(
         => command switch
         {
             ICommand<FuturesAtrDailySignalEntityId>
-                => await (LoadStateFromCreationSnapshotAsync<
-                    FuturesAtrSignalCommandState>(command, cancellationToken)).ConfigureAwait(false),
+                => await LoadStateFromLatestCheckpointAsync<FuturesAtrSignalCommandState, FuturesAtrDailySignalGeneratedEvent>(
+                    command, static fact => fact.FuturesAtrCheckpoint is not null && fact.FuturesAtrSignal is not null,
+                    cancellationToken).ConfigureAwait(false),
             ICommand<FuturesAtrSignalEntityId>
-                => await (LoadStateFromCreationSnapshotAsync<
-                    FuturesAtrSignalCommandState>(command, cancellationToken)).ConfigureAwait(false),
+                => await LoadStateFromLatestCheckpointAsync<FuturesAtrSignalCommandState, FuturesAtrSignalGeneratedEvent>(
+                    command, static fact => fact.FuturesAtrCheckpoint is not null && fact.FuturesAtrSignal is not null,
+                    cancellationToken).ConfigureAwait(false),
             _ => throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command))
         };
 

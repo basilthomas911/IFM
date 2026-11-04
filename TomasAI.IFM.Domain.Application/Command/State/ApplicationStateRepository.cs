@@ -41,7 +41,7 @@ public sealed class ApplicationStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<ApplicationCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<ApplicationCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStatelessStateFromCreationSnapshotAsync<ApplicationCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Save application state changes.

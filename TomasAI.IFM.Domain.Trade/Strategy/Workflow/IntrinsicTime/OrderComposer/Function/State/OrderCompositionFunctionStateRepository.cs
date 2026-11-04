@@ -14,7 +14,8 @@ public sealed class OrderCompositionFunctionStateRepository(IEventSourceActorSta
     public bool UsesAtomicPersistence => string.Equals(databases?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
 
     public ValueTask<OrderCompositionFunctionCompletedEvent> CommitAsync(IFunctionActorContext context, ExecuteOrderCompositionPipelineCommand request, OrderCompositionFunctionCompletedEvent candidate, CancellationToken cancellationToken = default) => TradePipelineAtomicPersistence.CommitAsync(request, candidate, EventSourceDb, databases, transactions, cancellationToken);
-    public async ValueTask<OrderCompositionFunctionState> LoadStateAsync(ExecuteOrderCompositionPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateFromCreationSnapshotAsync<OrderCompositionFunctionState>(request, cancellationToken).ConfigureAwait(false);
+    public async ValueTask<OrderCompositionFunctionState> LoadStateAsync(ExecuteOrderCompositionPipelineCommand request, CancellationToken cancellationToken = default) => await LoadStateFromLatestCheckpointAsync<OrderCompositionFunctionState, OrderCompositionFunctionCompletedEvent>(
+        request, static fact => fact.EventId > 0, cancellationToken).ConfigureAwait(false);
     public async ValueTask SaveCompletedStateAsync(IFunctionActorContext context, OrderCompositionFunctionState state, ExecuteOrderCompositionPipelineCommand request, CancellationToken cancellationToken = default)
     {
         await SaveStateEventsAsync(state, request, expectedStreamVersion: 0, cancellationToken).ConfigureAwait(false);

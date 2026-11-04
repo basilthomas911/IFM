@@ -12,7 +12,7 @@ public sealed class StatelessCreationSnapshotConventionTests
     {
         var assembly = typeof(TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State.FuturesTickDataCommandState).Assembly;
         var states = assembly.GetTypes().Where(type => !type.IsAbstract && typeof(IStatelessCreationSnapshotState).IsAssignableFrom(type)).ToArray();
-        Assert.Equal(3, states.Length);
+        Assert.Equal(4, states.Length);
         foreach (var state in states)
         {
             var fields = state.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);

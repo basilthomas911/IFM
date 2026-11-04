@@ -1,7 +1,8 @@
 //! Retained writes stay in their owner across awaits. Cancelling a read or
 //! closing an editor cannot discard an uncertain command identity or payload.
 use super::*;
-use crate::services::{actor_requests, manual_orders};
+use crate::backend::contracts::{ActorKind, ActorSubject, service_result};
+use crate::services::manual_orders;
 
 /// Checks the supplied value against the required positive-value constraint.
 fn positive(row: &Json, key: &str) -> Result<i32, String> {
@@ -105,25 +106,38 @@ impl TradeController {
             if order.is_none() {
                 return Err("Select an order before adding a trade".into());
             }
-            // This legacy query reconstructs its entity from SeedType on the
-            // backend. Allocation is never automatically retried after failure.
-            let wire = actor_requests::query(
-                backend,
-                registry,
-                "TomasAI.IFM.Domain.Reference.Shared.Queries.GetNextSeedIdQuery",
-                "TradeId",
-                BTreeMap::from([
-                    ("EntityId".into(), Value::Nil),
-                    ("SeedType".into(), "TradeId".into()),
-                ]),
-            )
-            .await
-            .map_err(|error| {
+            let operation = uuid::Uuid::new_v4();
+            let subject = ActorSubject {
+                kind: ActorKind::Function,
+                name: "SeedAllocationFunction".into(),
+                verb: "AllocateSeedId".into(),
+                entity: operation.simple().to_string(),
+            };
+            const LOOKUP_TYPE_BOUNDED_CONTEXT: u8 = 15;
+            let request = Value::Array(vec![
+                operation.to_string().into(),
+                subject.wire(),
+                false.into(),
+                Value::Array(vec![subject.entity.clone().into()]),
+                1023.into(),
+                LOOKUP_TYPE_BOUNDED_CONTEXT.into(),
+                "TradeId".into(),
+            ]);
+            let reply = backend.request(&subject, &request, None, None).await.map_err(|error| {
                 format!("Trade identity allocation failed and was not retried: {error}")
             })?;
+            let completed = service_result(&reply)?
+                .as_array()
+                .and_then(|terminal| terminal.first())
+                .and_then(Value::as_array)
+                .ok_or("Missing seed allocation completion")?;
+            let returned_operation = completed.get(4).and_then(Value::as_str)
+                .and_then(|id| uuid::Uuid::parse_str(id).ok());
+            if returned_operation != Some(operation) {
+                return Err("Seed allocation reply belongs to another operation".into());
+            }
             self.prepared_trade = Some(
-                wire.as_array()
-                    .and_then(|v| v.first())
+                completed.get(9)
                     .and_then(Value::as_i64)
                     .and_then(|v| i32::try_from(v).ok())
                     .filter(|v| *v > 0)

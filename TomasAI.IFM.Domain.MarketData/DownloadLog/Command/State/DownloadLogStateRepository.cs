@@ -39,7 +39,8 @@ public sealed class DownloadLogStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<DownloadLogCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<DownloadLogCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<DownloadLogCommandState, MarketDataDownloadLogInsertedEvent>(
+            command, static fact => fact.Outcome is not null && !string.IsNullOrEmpty(fact.PayloadSha256), cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// save download state changes

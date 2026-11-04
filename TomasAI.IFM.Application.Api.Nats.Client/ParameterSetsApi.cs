@@ -132,14 +132,23 @@ public sealed class ParameterSetsApi(IActorProducer producer) : NatsClientApi(pr
         for (var attempt = 0; attempt < 3; attempt++)
         {
             token.ThrowIfCancellationRequested();
-            var query = new PrepareParameterCommandQuery
+            var query = new GetParameterCommandEvidenceQuery
             {
                 Preparation = request,
-                Subject = new(ActorType.Query, PrepareParameterCommandQuery.Actor, PrepareParameterCommandQuery.Verb, ActorEntityId.Default.Format())
+                Subject = new(ActorType.Query, GetParameterCommandEvidenceQuery.Actor, GetParameterCommandEvidenceQuery.Verb, ActorEntityId.Default.Format())
             };
-            var prepared = await RequestAsync<PrepareParameterCommandQuery, ParameterCommandPreparation>(query.Subject, query, token).ConfigureAwait(false);
-            if (!prepared.Success || prepared.Value is null) return new ServiceFailed<GuidResult>(prepared.ErrorCode, prepared.ErrorMessage);
-            last = prepared.Value switch
+            var prepared = await RequestAsync<GetParameterCommandEvidenceQuery, ParameterCommandEvidenceReadModel>(query.Subject, query, token).ConfigureAwait(false);
+            if (!prepared.Success || prepared.Value is null)
+            {
+                last = new ServiceFailed<GuidResult>(prepared.ErrorCode, prepared.ErrorMessage);
+                if (attempt == 2 || !IsPreparationRetryable(prepared.ErrorMessage))
+                    return last;
+                await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), token).ConfigureAwait(false);
+                continue;
+            }
+            if (prepared.Value.OperationId != request.OperationId)
+                return new ServiceFailed<GuidResult>(33101, "PARAM.PREPARATION_IDENTITY_MISMATCH");
+            last = request.WithEvidence(prepared.Value) switch
             {
                 { Assignment: { } command } => await RequestCommandResultAsync<AssignParameterVersionCommand, ParameterAssignmentEntityId, GuidResult>(command, command.EntityId, token).ConfigureAwait(false),
                 { Retirement: { } command } => await RequestCommandResultAsync<RetireParameterVersionCommand, ParameterSetEntityId, GuidResult>(command, command.EntityId, token).ConfigureAwait(false),
@@ -152,5 +161,9 @@ public sealed class ParameterSetsApi(IActorProducer producer) : NatsClientApi(pr
         }
         return last!;
     }
+
+    static bool IsPreparationRetryable(string message) =>
+        message.Contains("PARAM.EVIDENCE_STALE", StringComparison.Ordinal) ||
+        message.Contains("PARAM.PROJECTION_LAG", StringComparison.Ordinal);
 
 }

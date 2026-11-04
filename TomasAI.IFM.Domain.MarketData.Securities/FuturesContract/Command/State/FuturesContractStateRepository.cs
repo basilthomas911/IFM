@@ -41,7 +41,8 @@ public class FuturesContractStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<FuturesContractCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<FuturesContractCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<FuturesContractCommandState, FuturesContractStateSnapshottedEvent>(command,
+            static snapshot => snapshot.ContractIds is not null, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// save futures contract state changes
@@ -59,7 +60,7 @@ public class FuturesContractStateRepository(
         var database = actorContext.DbFactory.SecuritiesDb;
         if (!string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
         {
-            await SaveStateAndDenormalizeEventsAsync(context,state,command,cancellationToken).ConfigureAwait(false);
+            await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken).ConfigureAwait(false);
             return;
         }
         if (state.Events.Count == 0) return;
@@ -68,8 +69,12 @@ public class FuturesContractStateRepository(
             throw new InvalidOperationException("Securities source events and projections must share one PostgreSQL database/security identity.");
         var owner = transactions ?? throw new InvalidOperationException("Securities persistence requires the PostgreSQL event transaction service.");
         var pending = new DomainEventCollection(state.Events);
-        await SecuritiesContractAtomicPersistence.SaveAsync(database,owner,pending,command,state.CommittedStreamVersion,cancellationToken).ConfigureAwait(false);
+        var snapshot = ShouldCapturePeriodicSnapshot(state.CommittedStreamVersion, pending.Count)
+            ? state.CaptureSnapshot(command) : null;
+        await SecuritiesContractAtomicPersistence.SaveAsync(database,owner,pending,command,state.CommittedStreamVersion,cancellationToken,snapshot).ConfigureAwait(false);
         state.AcceptChanges();
+        if (snapshot is not null)
+            state.RestoreCommittedStreamVersion(checked(state.CommittedStreamVersion + 1));
         await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
     }
 

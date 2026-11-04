@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -13,8 +14,34 @@ public sealed class BrokerOrderCommandState : BaseEventSourceActorState<BrokerOr
     /// <summary>Mutates authoritative broker-order data only from a committed source-event definition.</summary>
     /// <param name = "domainEvent">The event to apply during command execution or reconstruction.</param>
     /// <returns>True when the event and its revision/observation fences are accepted.</returns>
+    internal BrokerOrderStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "BrokerOrderEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        Definition = BrokerOrderDefinition,
+        ObservationHashes = new Dictionary<Guid, string>(_observationHashes)
+    };
+
+    private bool RestoreSnapshot(BrokerOrderStateSnapshottedEvent snapshot)
+    {
+        if (snapshot.Definition is not { } definition || !definition.Id.IsValid || snapshot.ObservationHashes is null)
+            return false;
+        if (BrokerOrderDefinition is { } current && current.Id != definition.Id)
+            throw new InvalidDataException("Broker order snapshot owner differs from the stream owner.");
+        BrokerOrderDefinition = definition;
+        _observationHashes.Clear();
+        foreach (var entry in snapshot.ObservationHashes)
+            _observationHashes.Add(entry.Key, entry.Value);
+        return true;
+    }
+
     protected override bool Apply(IEvent domainEvent)
     {
+        if (domainEvent is BrokerOrderStateSnapshottedEvent snapshot)
+            return RestoreSnapshot(snapshot);
         switch (domainEvent)
         {
             case BrokerOrderChangedEvent changed:

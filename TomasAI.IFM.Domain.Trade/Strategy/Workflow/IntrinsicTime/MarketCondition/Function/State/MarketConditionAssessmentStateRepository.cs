@@ -15,7 +15,8 @@ public sealed class MarketConditionAssessmentStateRepository(IEventSourceActorSt
     public bool UsesAtomicPersistence => string.Equals(databases?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
 
     public ValueTask<MarketConditionAssessmentCompletedEvent> CommitAsync(IFunctionActorContext context, ExecuteMarketConditionAssessmentCommand request, MarketConditionAssessmentCompletedEvent candidate, CancellationToken cancellationToken = default) => TradePipelineAtomicPersistence.CommitAsync(request, candidate, EventSourceDb, databases, transactions, cancellationToken);
-    public async ValueTask<MarketConditionAssessmentState> LoadStateAsync(ExecuteMarketConditionAssessmentCommand request, CancellationToken cancellationToken = default) => await LoadStateFromCreationSnapshotAsync<MarketConditionAssessmentState>(request, cancellationToken).ConfigureAwait(false);
+    public async ValueTask<MarketConditionAssessmentState> LoadStateAsync(ExecuteMarketConditionAssessmentCommand request, CancellationToken cancellationToken = default) => await LoadStateFromLatestCheckpointAsync<MarketConditionAssessmentState, MarketConditionAssessmentCompletedEvent>(
+        request, static fact => fact.EventId > 0, cancellationToken).ConfigureAwait(false);
     public async ValueTask SaveCompletedStateAsync(IFunctionActorContext context, MarketConditionAssessmentState state, ExecuteMarketConditionAssessmentCommand request, CancellationToken cancellationToken = default)
     {
         using var activity = MarketConditionTelemetry.Start("market-condition.completed-state-append");

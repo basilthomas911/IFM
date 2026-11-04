@@ -41,7 +41,7 @@ public sealed class ScheduledTaskCatalogStateRepositoryTests
         var token = cancellable ? deadline.Token : CancellationToken.None;
         store.GetEventStreamIdAsync(command.StreamId, token).Returns(91L);
         store.GetCommittedStreamVersionAsync(91, token).Returns(14L);
-        store.MapReduceActorEventStreamFromCreationAsync<ScheduledTaskCatalogCommandState>(91,
+        store.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<ScheduledTaskCatalogCommandState>(91, Arg.Any<IReadOnlyList<Type>>(),
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), token).Returns(call =>
         {
             var rows = events.Select((source, index) => new EventStreamReadModel
@@ -62,7 +62,7 @@ public sealed class ScheduledTaskCatalogStateRepositoryTests
         Assert.Equal(command.Subject.ThreadId, loaded.Id);
         Assert.Equal(3, loaded.CommittedStreamVersion);
         Assert.Empty(loaded.Events); Assert.False(loaded.Updated);
-        await store.Received(1).MapReduceActorEventStreamFromCreationAsync<ScheduledTaskCatalogCommandState>(91,
+        await store.Received(1).MapReduceActorEventStreamFromCreationWithCheckpointsAsync<ScheduledTaskCatalogCommandState>(91, Arg.Any<IReadOnlyList<Type>>(),
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), token);
         await store.DidNotReceiveWithAnyArgs().MapReduceActorEventStreamAsync<ScheduledTaskCatalogCommandState>(default, default!, default);
     }

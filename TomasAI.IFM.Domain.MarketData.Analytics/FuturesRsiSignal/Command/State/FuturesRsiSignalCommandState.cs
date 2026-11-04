@@ -16,7 +16,32 @@ public class FuturesRsiSignalCommandState : BaseEventSourceActorState<FuturesRsi
     const int MaxSignalHistory = 256;
     int replayWindow = MaxSignalHistory;
     /// <summary>Retains the same calculation sample window when restoring all lifecycle facts.</summary>
-    internal void LimitReplayWindow(int count) => replayWindow = Math.Clamp(count, 1, MaxSignalHistory);
+    internal void LimitReplayWindow(int count) => replayWindow = NormalizeReplayWindow(count);
+    internal static int NormalizeReplayWindow(int count) => Math.Clamp(count, 1, MaxSignalHistory);
+
+    internal FuturesRsiSignalStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "FuturesRsiSignalEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        RetainedWindow = replayWindow,
+        Signals = _futuresRsiSignals.ToArray(),
+        Accumulator = FuturesRsiCheckpoint
+    };
+
+    private bool RestoreSnapshot(FuturesRsiSignalStateSnapshottedEvent snapshot)
+    {
+        // Full replay may encounter snapshots written with a smaller request window.
+        // Keep the already reconstructed wider history in that case.
+        if (replayWindow <= 0 || snapshot.RetainedWindow < replayWindow || snapshot.Signals is null)
+            return false;
+        _futuresRsiSignals.Clear();
+        _futuresRsiSignals.AddRange(snapshot.Signals.TakeLast(replayWindow));
+        FuturesRsiCheckpoint = snapshot.Accumulator;
+        return true;
+    }
     readonly List<FuturesRsiSignalReadModel> _futuresRsiSignals = [];
     /// <summary>Gets the current event-sourced Wilder RSI accumulator state.</summary>
     public FuturesRsiAccumulatorCheckpoint? FuturesRsiCheckpoint { get; private set; }
@@ -40,6 +65,7 @@ public class FuturesRsiSignalCommandState : BaseEventSourceActorState<FuturesRsi
             FuturesRsiDailySignalGeneratedEvent e => OnDaily(e),
             FuturesRsiSignalsGeneratedEvent => true,
             FuturesRsiDailySignalsGeneratedEvent => true,
+            FuturesRsiSignalStateSnapshottedEvent snapshot => RestoreSnapshot(snapshot),
             _ => false
         };
         bool OnStarted(FuturesRsiSignalStartedEvent e)

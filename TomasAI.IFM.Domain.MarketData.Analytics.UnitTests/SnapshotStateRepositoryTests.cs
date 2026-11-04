@@ -26,7 +26,7 @@ public sealed class SnapshotStateRepositoryTests
 {
     /// <summary>Ensures checkpoint-based analytics repositories retain creation and replay their accumulator history.</summary>
     [Fact]
-    public async Task AccumulatorRepositoriesReplayFromCreation()
+    public async Task AccumulatorRepositoriesUseCompleteCheckpointsWhereAvailable()
     {
         const long streamId = 91;
         var stateFactory = Substitute.For<IEventSourceActorStateFactory>();
@@ -68,9 +68,7 @@ public sealed class SnapshotStateRepositoryTests
         await ReceivedSnapshot<FuturesBbSignalCommandState, FuturesBbSignalGeneratedEvent>(eventSource, streamId);
         await ReceivedSnapshot<FuturesEmaSignalCommandState, FuturesEmaSignalGeneratedEvent>(eventSource, streamId);
         await ReceivedSnapshot<FuturesVwapSignalCommandState, FuturesVwapSignalUpdatedEvent>(eventSource, streamId);
-        await ReceivedSnapshot<FuturesVxTermStructureSignalCommandState, FuturesVxTermStructureSignalUpdatedEvent>(
-            eventSource,
-            streamId);
+        await ReceivedSnapshot<FuturesVxTermStructureSignalCommandState, FuturesVxTermStructureSignalUpdatedEvent>(eventSource, streamId);
         await eventSource.DidNotReceiveWithAnyArgs()
             .MapReduceActorEventStreamFromSnapshotLastNRangeAsync<
                 FuturesBbSignalCommandState,
@@ -118,7 +116,7 @@ public sealed class SnapshotStateRepositoryTests
         long streamId)
         where TState : IActorState<TState>
         where TEvent : IEvent
-        => await eventSource.Received(1).MapReduceActorEventStreamFromCreationAsync<TState>(
-            streamId,
+        => await eventSource.Received(1).MapReduceActorEventStreamFromCreationWithCheckpointsAsync<TState>(
+            streamId, Arg.Is<IReadOnlyList<Type>>(types => types.SequenceEqual(new[] { typeof(TEvent) })),
             Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
 }

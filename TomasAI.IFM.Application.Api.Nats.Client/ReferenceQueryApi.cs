@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.Lookups;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
+using TomasAI.IFM.Domain.Reference.Shared.SeedAllocation;
 using TomasAI.IFM.Domain.Reference.Shared.QueryParameters;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
@@ -157,12 +158,21 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
     /// </summary>
     public async Task<ServiceResult<ScalarReadModel<int>>> GetNextSeedIdAsync(string seedType)
     {
-        var entityId = new GetNextSeedIdParameter(seedType);
-        GetNextSeedIdQuery query = new(seedType)
+        var operation = Guid.NewGuid();
+        var entityId = new ActorEntityId(operation.ToString("N"));
+        var request = new AllocateSeedIdCommand
         {
-            Subject = new ActorSubject(ActorType.Query, GetNextSeedIdQuery.Actor, GetNextSeedIdQuery.Verb, entityId.Format()),
+            CommandId = operation,
+            EntityId = entityId,
+            SeedType = seedType,
+            Subject = new(ActorType.Function, AllocateSeedIdCommand.Actor, AllocateSeedIdCommand.Verb, entityId.Format()),
         };
-        return await (RequestAsync<GetNextSeedIdQuery, ScalarReadModel<int>>(query.Subject, query)).ConfigureAwait(false);
+        var reply = await RequestFunctionAsync<AllocateSeedIdCommand, ActorEntityId,
+            FunctionResult<SeedAllocationCompletedEvent, SeedAllocationFailedEvent>>(request, entityId, CancellationToken.None).ConfigureAwait(false);
+        return reply is { Success: true, Value.Completed: { } allocated } && allocated.CommandId == operation
+            ? new ServiceOk<ScalarReadModel<int>>(new(allocated.Value))
+            : new ServiceFailed<ScalarReadModel<int>>(AllocateSeedIdCommand.ErrorId,
+                reply.Value?.Failed?.ErrorMessage ?? reply.ErrorMessage);
     }
 
     /// <summary>

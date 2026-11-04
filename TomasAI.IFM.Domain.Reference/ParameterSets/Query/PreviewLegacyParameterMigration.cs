@@ -12,7 +12,7 @@ public static class PreviewLegacyParameterMigration
 
     extension(PreviewLegacyParameterMigrationQuery query)
     {
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<CreateParameterSetCommand> ExecuteAsync(
             IParameterSetQueryContext context,
             ILogger<ParameterSetQueryActor> logger,
             CancellationToken token)
@@ -40,7 +40,7 @@ public static class PreviewLegacyParameterMigration
                 Parameters = values,
                 LegacySource = row.Reference
             };
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<CreateParameterSetCommand>(command))).ConfigureAwait(false);
+            return command;
         }
     }
 }

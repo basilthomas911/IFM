@@ -51,10 +51,20 @@ public sealed class RegimeDiscoveryConfigurationQueryActor(
         new Dictionary<Type, Func<IRegimeDiscoveryConfigurationQueryContext,
             IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
-            [typeof(GetRegimeDiscoveryParameterSetQuery)] = static (services, context, query, cancellationToken) =>
-                ((GetRegimeDiscoveryParameterSetQuery)query).ExecuteAsync(services, context, cancellationToken),
-            [typeof(ResolveRegimeDiscoveryParameterSetQuery)] = static (services, context, query, cancellationToken) =>
-                ((ResolveRegimeDiscoveryParameterSetQuery)query).ExecuteAsync(services, context, cancellationToken)
+            [typeof(GetRegimeDiscoveryParameterSetQuery)] = static async (services, context, query, cancellationToken) =>
+            {
+                var result = await ((GetRegimeDiscoveryParameterSetQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, GetRegimeDiscoveryParameterSetQuery.Verb,
+                    new ServiceResult<RegimeDiscoveryParameterSet>(result)).ConfigureAwait(false);
+            },
+            [typeof(ResolveRegimeDiscoveryParameterSetQuery)] = static async (services, context, query, cancellationToken) =>
+            {
+                var result = await ((ResolveRegimeDiscoveryParameterSetQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, ResolveRegimeDiscoveryParameterSetQuery.Verb,
+                    new ServiceResult<RegimeDiscoveryParameterSet>(result)).ConfigureAwait(false);
+            }
         };
     /// <inheritdoc />
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

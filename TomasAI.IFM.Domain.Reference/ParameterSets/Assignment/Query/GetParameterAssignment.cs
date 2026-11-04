@@ -14,16 +14,14 @@ public static class GetParameterAssignment
 
     extension(GetParameterAssignmentQuery query)
     {
-        public async ValueTask ExecuteAsync(IParameterAssignmentQueryServices context, ILogger logger, CancellationToken token)
+        public async ValueTask<ParameterAssignmentSnapshot> ExecuteAsync(IParameterAssignmentQueryServices context, ILogger logger, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
             context.AccessPolicy.Demand(ParameterCapability.Read); token.ThrowIfCancellationRequested();
             var scope = query.Scope ?? WorkflowParameterScopeModel.Create(query.WorkflowDefinitionId, (TimeFrameType)query.TargetHorizon);
             var identity = new ParameterAssignmentEntityId(ParameterAssignmentPolicyModel.AssignmentId(scope));
-            var address = new AssignParameterVersionCommand { EntityId = identity, Scope = scope, Subject = new ActorSubject(ActorType.Command, AssignParameterVersionCommand.Actor, AssignParameterVersionCommand.Verb, identity.Format()) };
-            var state = await (context.Assignments.LoadStateAsync(address, token)).ConfigureAwait(false); token.ThrowIfCancellationRequested();
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterAssignmentSnapshot>(new(identity, scope, state.Revision, state.Assignment, state.Audit.Values.OrderBy(x => x.Revision).ToArray())))).ConfigureAwait(false);
+            return await context.ConfigurationDb.GetParameterAssignmentSnapshotAsync(identity, scope, token).ConfigureAwait(false);
         }
     }
 }

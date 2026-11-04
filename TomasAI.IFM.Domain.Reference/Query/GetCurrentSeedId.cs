@@ -29,17 +29,4 @@ public static class GetCurrentSeedId
             return new(await (dbFactory.ReferenceDb.GetCurrentSeedIdAsync(q.SeedType, cancellationToken)).ConfigureAwait(false));
         }
     }
-
-    extension(GetCurrentSeedIdQuery query)
-    {
-        /// <summary>Reads and replies with the requested Reference result.</summary>
-        public async ValueTask ExecuteAsync(Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
-        {
-            ArgumentNullException.ThrowIfNull(context);
-            ArgumentNullException.ThrowIfNull(query);
-            var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<ScalarReadModel<int>>(result)).ConfigureAwait(false);
-        }
-    }
 }

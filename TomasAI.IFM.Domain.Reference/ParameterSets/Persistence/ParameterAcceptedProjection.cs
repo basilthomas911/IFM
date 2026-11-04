@@ -21,7 +21,7 @@ internal static class ParameterAcceptedProjection
                 if (fact.Version is null)
                     ParameterLegacyUpcaster.Verify(JsonSerializer.Deserialize<ParameterSetVersion>(fact.VersionJson) ?? throw new InvalidDataException("PARAM.LEGACY_VERSION_MISSING"));
                 await databases.ConfigurationDb.ProjectParameterSetAsync(transaction, fact, token).ConfigureAwait(false);
-                if (fact is not (ParameterVersionPublishedEvent or ParameterVersionRetiredEvent)) return;
+                if (fact is not (ParameterSetVersionPublishedEvent or ParameterSetVersionRetiredEvent)) return;
                 var version = fact.ReadVersion();
                 if (!string.Equals(version.Reference.ComponentCode, ParameterSchemaRegistry.StrategyOptionChainCacheComponent, StringComparison.Ordinal)) return;
                 var parameters = version.Values().Get<StrategyOptionChainParameterSet>();

@@ -26,8 +26,51 @@ public sealed class ParameterSetCommandState : BaseEventSourceActorState<Paramet
         return applied;
     }
 
+    internal ParameterSetStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "ParameterSetEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        OwnerId = Versions.Values.First().Reference.SetId,
+        Operations = new Dictionary<Guid, string>(Operations),
+        Audit = new Dictionary<Guid, ParameterAuditEntry>(Audit),
+        CatalogRevision = CatalogRevision,
+        Versions = new Dictionary<int, ParameterSetVersion>(Versions),
+        Receipts = new Dictionary<Guid, ParameterOperationReceipt>(Receipts)
+    };
+
+    internal static bool IsCompleteSnapshot(ParameterSetStateSnapshottedEvent snapshot) =>
+        snapshot.OwnerId != Guid.Empty && snapshot.Operations is not null && snapshot.Audit is not null &&
+        snapshot.CatalogRevision > 0 && snapshot.Versions is { Count: > 0 } && snapshot.Receipts is not null;
+
+    private bool RestoreSnapshot(ParameterSetStateSnapshottedEvent snapshot)
+    {
+        if (!IsCompleteSnapshot(snapshot))
+            return false;
+        if (!string.IsNullOrEmpty(Id.EntityId) && (!Guid.TryParse(Id.EntityId, out var owner) || owner != snapshot.OwnerId))
+            throw new InvalidDataException("PARAM.SET_OWNER_MISMATCH");
+        Operations.Clear();
+        Audit.Clear();
+        Versions.Clear();
+        Receipts.Clear();
+        foreach (var entry in snapshot.Operations!)
+            Operations.Add(entry.Key, entry.Value);
+        foreach (var entry in snapshot.Audit!)
+            Audit.Add(entry.Key, entry.Value);
+        foreach (var entry in snapshot.Versions!)
+            Versions.Add(entry.Key, entry.Value);
+        foreach (var entry in snapshot.Receipts!)
+            Receipts.Add(entry.Key, entry.Value);
+        CatalogRevision = snapshot.CatalogRevision;
+        return true;
+    }
+
     protected override bool Apply(IEvent domainEvent)
     {
+        if (domainEvent is ParameterSetStateSnapshottedEvent snapshot)
+            return RestoreSnapshot(snapshot);
         if (domainEvent is not IParameterSetFact fact || fact.Revision != CatalogRevision + 1) return false;
         if (!string.IsNullOrEmpty(Id.EntityId) && (!Guid.TryParse(Id.EntityId, out var owner) || owner != fact.EntityId.SetId))
             throw new InvalidDataException("PARAM.SET_OWNER_MISMATCH");

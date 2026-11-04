@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.ProjectionOutcomes;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Persistence;
 using TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache;
 using TomasAI.IFM.Application.Storage;
@@ -17,27 +18,35 @@ public sealed class ParameterSetEventProjector : ConventionalEventProjector<Para
 {
     readonly IParameterSetCommandContext context;
     readonly EventProjectionDescriptor[] descriptors;
-    public ParameterSetEventProjector(ICommandActorContext<ParameterSetCommandActor> value)
+    public ParameterSetEventProjector(ICommandActorContext<ParameterSetCommandActor> value,
+        EventProjectorReliabilityOptions? reliabilityOptions = null)
      : base(((IParameterSetCommandContext)(value ?? throw new ArgumentNullException(nameof(value)))).DurableReplayQueue, ((IParameterSetCommandContext)value).DbEventSource,
-       ((IParameterSetCommandContext)value).BlackboardService, ((IParameterSetCommandContext)value).Logger)
+       ((IParameterSetCommandContext)value).BlackboardService, ((IParameterSetCommandContext)value).Logger, reliabilityOptions)
     {
         ArgumentNullException.ThrowIfNull(value);
         context = (IParameterSetCommandContext)value;
-        descriptors = [Describe<ParameterSetCreatedEvent>(), Describe<ParameterDraftSavedEvent>(), Describe<ParameterSetRenamedEvent>(), Describe<ParameterVersionPublishedEvent>(), Describe<ParameterVersionRetiredEvent>()];
+        descriptors = [Describe<ParameterSetCreatedEvent, ParameterSetCreatedCompleteEvent, ParameterSetCreatedFailEvent>(), Describe<ParameterSetDraftSavedEvent, ParameterSetDraftSavedCompleteEvent, ParameterSetDraftSavedFailEvent>(), Describe<ParameterSetRenamedEvent, ParameterSetRenamedCompleteEvent, ParameterSetRenamedFailEvent>(), Describe<ParameterSetVersionPublishedEvent, ParameterSetVersionPublishedCompleteEvent, ParameterSetVersionPublishedFailEvent>(), Describe<ParameterSetVersionRetiredEvent, ParameterSetVersionRetiredCompleteEvent, ParameterSetVersionRetiredFailEvent>()];
     }
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
-    EventProjectionDescriptor Describe<T>() where T : class, IParameterSetFact => new EventProjectionDescriptor(typeof(T), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
-        async (fact, execution) => { if (!IsPostgres) {
-await ProjectAsync((IParameterSetFact)fact, execution.CancellationToken).ConfigureAwait(false);}
-return new(EventProjectionApplyOutcome.Applied); },
-        _ => null, (_, _) => null, false, typeof(T) == typeof(ParameterVersionPublishedEvent) || typeof(T) == typeof(ParameterVersionRetiredEvent), false, false)
+    EventProjectionDescriptor Describe<T, TComplete, TFail>()
+        where T : class, IEvent<ParameterSetEntityId>
+        where TComplete : ReferenceProjectionComplete<ParameterSetEntityId>, new()
+        where TFail : ReferenceProjectionFail<ParameterSetEntityId>, new() => new EventProjectionDescriptor(typeof(T), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+        async (fact, execution) =>
+        {
+            await RebuildAsync(fact, execution.CancellationToken).ConfigureAwait(false);
+            return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
+        },
+        source => ReferenceProjectionOutcomeFactory.Complete<ParameterSetEntityId, TComplete>((T)source, "ParameterSetEvent"),
+        (source, error) => ReferenceProjectionOutcomeFactory.Fail<ParameterSetEntityId, TFail>((T)source, "ParameterSetEvent", error),
+        publishProcessingEvent: false, useDurableReplay: true)
         .WithReadModelRebuild((fact, token) => RebuildAsync(fact, token));
 
     // Materialization only: records accepted configuration and its derived cache-parameter read model. No provider subscriptions.
     async Task ProjectAsync(IParameterSetFact parameterFact, CancellationToken token)
     {
         await (context.ConfigurationDb.ProjectParameterSetAsync(parameterFact, token)).ConfigureAwait(false);
-        if (parameterFact is not (ParameterVersionPublishedEvent or ParameterVersionRetiredEvent)) {
+        if (parameterFact is not (ParameterSetVersionPublishedEvent or ParameterSetVersionRetiredEvent)) {
 return;}
         var version = parameterFact.ReadVersion();
         if (!string.Equals(version.Reference.ComponentCode,ParameterSchemaRegistry.StrategyOptionChainCacheComponent,StringComparison.Ordinal)) {
@@ -59,6 +68,8 @@ return ProjectAsync((IParameterSetFact)fact, token);}
         return context.Container.Resolve<IPostgresEventTransaction>().ExecuteOnceAsync(async (transaction, cancellationToken) =>
         {
             await ParameterAcceptedProjection.ApplyAsync(databases, transaction, fact, cancellationToken).ConfigureAwait(false);
+            if (fact.EventId > 0)
+                await context.ConfigurationDb.CompleteParameterProjectionAsync(transaction, fact.EventId, cancellationToken).ConfigureAwait(false);
             return true;
         }, token);
     }

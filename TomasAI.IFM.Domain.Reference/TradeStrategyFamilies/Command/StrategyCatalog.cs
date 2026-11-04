@@ -1,6 +1,9 @@
 using TomasAI.IFM.Domain.Reference.StrategyCatalog;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.Reference.StrategyCatalog.Command.Actor;
 
 namespace TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.Command;
 
@@ -21,7 +24,8 @@ public static class StrategyCatalog
         /// <returns>Acceptance after the catalog transaction completes.</returns>
         /// <exception cref="InvalidOperationException">The catalog service is unavailable or rejects the transition.</exception>
         /// <exception cref="ArgumentException">The operation and command identities differ.</exception>
-        public async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(StrategyCatalogService? service, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(StrategyCatalogService? service,
+            ICommandActorContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(command);
             if (service is null)
@@ -29,7 +33,12 @@ public static class StrategyCatalog
             var request = StrategyCatalogJson.Read<CatalogCommandRequest>(command.RequestJson);
             if (request.OperationId != command.CommandId)
                 throw new ArgumentException("Catalog OperationId must match CommandId.", nameof(command));
-            await service.ExecuteAsync(request, command.OriginatedBy, cancellationToken).ConfigureAwait(false);
+            var key = request.Operation == CatalogCommandOperation.SaveDraft ? request.Definition?.Key : request.Key;
+            if (key is null)
+                throw new InvalidOperationException("Catalog version identity is required.");
+            var projector = context.Container.Resolve<IEventProjector<StrategyCatalogCommandActor>>();
+            await service.ExecuteEventSourcedAsync(request, command.OriginatedBy, projector,
+                StrategyCatalogLifecycleCommand.Address(key), cancellationToken).ConfigureAwait(false);
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
         }
     }

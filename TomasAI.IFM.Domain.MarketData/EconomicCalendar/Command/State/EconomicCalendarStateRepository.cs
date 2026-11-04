@@ -32,9 +32,8 @@ public class EconomicCalendarStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<EconomicCalendarCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => command is ImportEconomicCalendarsCommand
-            ? await LoadStateFromCreationSnapshotAsync<EconomicCalendarCommandState>(command, cancellationToken).ConfigureAwait(false)
-            : await LoadStateFromCreationSnapshotAsync<EconomicCalendarCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<EconomicCalendarCommandState, EconomicCalendarStateSnapshottedEvent>(command,
+            static snapshot => snapshot.Entries is not null, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously saves the current state of the economic calendar actor by persisting the pending events from the state
@@ -51,7 +50,7 @@ public class EconomicCalendarStateRepository(
         => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, EconomicCalendarCommandState state, ICommand command, CancellationToken cancellationToken)
-        => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+        => await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the economic calendar query state

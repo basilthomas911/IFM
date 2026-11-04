@@ -153,24 +153,6 @@ public static partial class ReferenceQueryExtensions
         }
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
-        /// Gets next seed ID.
-        /// </summary>
-        /// <param name="seedType">The seed category.</param>
-        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-        public async Task<ServiceResult<ScalarReadModel<int>>> GetNextSeedIdAsync(string seedType)
-        {
-            try
-            {
-                var result = new ScalarReadModel<int>(await (context.DbFactory.ReferenceDb.GetNextSeedIdAsync(seedType)).ConfigureAwait(false));
-                return new ServiceOk<ScalarReadModel<int>>(result);
-            }
-            catch (Exception ex)
-            {
-                return new ServiceFailed<ScalarReadModel<int>>(GetNextSeedIdQuery.ErrorId, ex.Message);
-            }
-        }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
-        /// <summary>
         /// Gets the highest seed ID currently reserved by PostgreSQL.
         /// </summary>
         /// <param name="seedType">The seed category.</param>

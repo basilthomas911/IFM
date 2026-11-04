@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -19,7 +20,8 @@ public sealed class MarketDataFeedRecoveryStateRepository(IEventSourceActorState
     public async ValueTask<MarketDataFeedRecoveryState> LoadStateAsync(ICommand command, CancellationToken token)
     {
         using var budget = Budget((AppendMarketDataFeedRecoveryCommand)command,token);
-        return await LoadStateFromCreationSnapshotAsync<MarketDataFeedRecoveryState>(command,budget.Token).ConfigureAwait(false);
+        return await LoadStateFromLatestCheckpointAsync<MarketDataFeedRecoveryState, MarketDataFeedRecoveryStateSnapshottedEvent>(
+            command, MarketDataFeedRecoveryState.IsCompleteSnapshot, budget.Token).ConfigureAwait(false);
     }
     public ValueTask SaveStateAsync(ICommandActorContext context, MarketDataFeedRecoveryState state, ICommand command) => SaveStateAsync(context,state,command,CancellationToken.None);
     public async ValueTask SaveStateAsync(ICommandActorContext context, MarketDataFeedRecoveryState state, ICommand command, CancellationToken token)
@@ -28,8 +30,30 @@ public sealed class MarketDataFeedRecoveryStateRepository(IEventSourceActorState
         DomainEventCollection committed;
         if (state.Events.Count>0)
         {
-            committed=await SaveStateEventsAsync(state,command,state.CommittedStreamVersion,budget.Token).ConfigureAwait(false);
+            var head = state.CommittedStreamVersion;
+            var capture = string.Equals(EventSourceDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
+                && ShouldCapturePeriodicSnapshot(head, state.Events.Count);
+            if (capture)
+            {
+                committed = new DomainEventCollection(state.Events);
+                await context.Container.Resolve<IPostgresEventTransaction>().ExecuteOnceAsync(async (transaction, cancellationToken) =>
+                {
+                    var version = head;
+                    foreach (var fact in committed)
+                        await transaction.AppendAsync(command.StreamId, command.CommandId, fact, version++, cancellationToken).ConfigureAwait(false);
+                    // The event IDs assigned above are required if a duplicate later repairs projection delivery.
+                    var snapshot = state.CaptureSnapshot(command);
+                    await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, cancellationToken).ConfigureAwait(false);
+                    return true;
+                }, budget.Token).ConfigureAwait(false);
+            }
+            else
+            {
+                committed = await SaveStateEventsAsync(state, command, head, budget.Token).ConfigureAwait(false);
+            }
             state.AcceptChanges();
+            if (capture)
+                state.RestoreCommittedStreamVersion(checked(state.CommittedStreamVersion + 1));
             foreach(var fact in committed.OfType<MarketDataFeedRecoveryFact>())
             {
                 var record=RecoveryRecord.Parse(fact.Payload,fact.Digest);

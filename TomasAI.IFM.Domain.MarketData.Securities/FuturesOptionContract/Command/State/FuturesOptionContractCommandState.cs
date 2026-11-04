@@ -19,6 +19,24 @@ public class FuturesOptionContractCommandState
 
     public override ActorThreadId Id { get; set; }
 
+    internal FuturesOptionContractStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "FuturesOptionContractEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        ContractIds = futuresOptionContractIds.Order(StringComparer.Ordinal).ToArray()
+    };
+
+    private bool RestoreSnapshot(IReadOnlyList<string> ids)
+    {
+        futuresOptionContractIds.Clear();
+        futuresOptionContractIds.UnionWith(ids);
+        return true;
+    }
+
+
     /// <summary>
     /// apply state change event
     /// </summary>
@@ -30,6 +48,7 @@ public class FuturesOptionContractCommandState
         FuturesOptionContractsAddedEvent e => On(e),
         FuturesOptionContractChangedEvent e => On(e),
         FuturesOptionContractRemovedEvent e => On(e),
+        FuturesOptionContractStateSnapshottedEvent snapshot when snapshot.ContractIds is { } entries => RestoreSnapshot(entries),
         _ => false
     };
 

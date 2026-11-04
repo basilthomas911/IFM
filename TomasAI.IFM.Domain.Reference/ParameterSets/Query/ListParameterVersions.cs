@@ -10,7 +10,7 @@ public static class ListParameterVersions
 
     extension(ListParameterVersionsQuery query)
     {
-        public async ValueTask ExecuteAsync(IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
+        public async ValueTask<ParameterSetVersion[]> ExecuteAsync(IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
@@ -20,7 +20,7 @@ public static class ListParameterVersions
             if (!components.Any(x => string.Equals(x.ComponentCode, query.ComponentCode, StringComparison.Ordinal))) throw new ArgumentException("PARAM.COMPONENT_UNSUPPORTED");
 #pragma warning restore MA0015
             var result = await (context.ConfigurationDb.GetParameterSetsAsync(query.ComponentCode, query.SetId == Guid.Empty ? null : query.SetId, token, query.Limit, query.AfterName, query.AfterSetId, query.AfterVersion)).ConfigureAwait(false);
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSetVersion[]>(result))).ConfigureAwait(false);
+            return result;
         }
     }
 }

@@ -5,9 +5,12 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
 [MessagePackObject]
-public record ParameterStartupChangedEvent : IEvent<ParameterStartupEntityId>
+public record ParameterStartupChangedEvent : IEvent<ParameterStartupEntityId>, IRequireDurableProjection
 {
     public const string Actor = "ParameterStartup"; public const string Verb = "ParameterStartupChanged";
+    DurableProjectionRequirement IRequireDurableProjection.RequiredProjection =>
+        new("ParameterStartupCommandActor", "ParameterStartupEventProjector", TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.ApplyProjection);
+
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public Guid Id { get; init; }
     [Key(2)] public ParameterStartupEntityId EntityId { get; init; }

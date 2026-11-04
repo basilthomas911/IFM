@@ -10,13 +10,13 @@ public static class ListParameterComponents
 
     extension(ListParameterComponentsQuery query)
     {
-        public async ValueTask ExecuteAsync(IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
+        public async ValueTask<ParameterComponentSummary[]> ExecuteAsync(IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
             context.AccessPolicy.Demand(ParameterCapability.Read); token.ThrowIfCancellationRequested();
             var result = await (context.ConfigurationDb.GetParameterComponentsAsync(token)).ConfigureAwait(false);
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterComponentSummary[]>(result))).ConfigureAwait(false);
+            return result;
         }
     }
 }

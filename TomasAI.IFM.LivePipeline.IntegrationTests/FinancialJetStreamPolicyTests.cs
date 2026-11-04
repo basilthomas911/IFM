@@ -14,8 +14,11 @@ public sealed class FinancialJetStreamPolicyTests
     [InlineData("IFM_EmulatorExecutionProjector_REPLAY", false)]
     [InlineData("IFM_GeneralLedgerProjector_REPLAY", false)]
     [InlineData("IFM_PortfolioFundEventProjector_PROCESS", false)]
+    [InlineData("IFM_ParameterSetEventProjector_PROCESS", false)]
+    [InlineData("IFM_ParameterAssignmentEventProjector_REPLAY", false)]
+    [InlineData("IFM_ParameterStartupEventProjector_REPLAY", false)]
     [InlineData("IFM_integration_probe_PROCESS", false)]
-    public void Startup_purge_targets_only_nonfinancial_projector_streams(
+    public void Startup_purge_preserves_allowlisted_durable_projector_streams(
         string streamName, bool expected)
         => Assert.Equal(expected, FinancialJetStreamPolicy.ShouldPurgeProjectorStream(streamName));
 }

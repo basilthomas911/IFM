@@ -5,9 +5,12 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
 [MessagePackObject]
-public record ParameterAssignmentChangedEvent : IEvent<ParameterAssignmentEntityId>
+public record ParameterAssignmentChangedEvent : IEvent<ParameterAssignmentEntityId>, IRequireDurableProjection
 {
     public const string Actor = "ParameterAssignment"; public const string Verb = "ParameterAssignmentChanged";
+    DurableProjectionRequirement IRequireDurableProjection.RequiredProjection =>
+        new("ParameterAssignmentCommandActor", "ParameterAssignmentEventProjector", TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.ApplyProjection);
+
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public Guid Id { get; init; }
     [Key(2)] public ParameterAssignmentEntityId EntityId { get; init; }

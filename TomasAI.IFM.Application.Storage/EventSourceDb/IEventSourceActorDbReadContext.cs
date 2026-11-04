@@ -37,6 +37,12 @@ public interface IEventSourceActorDbReadContext
         CancellationToken cancellationToken = default)
         where TState : IActorState<TState>;
 
+    /// <summary>Reads creation and the newest complete checkpoint across the declared event types, followed by its tail.</summary>
+    ValueTask MapReduceActorEventStreamFromCreationWithCheckpointsAsync<TState>(
+        long eventStreamId, IReadOnlyList<Type> checkpointTypes,
+        Action<IEnumerable<EventStreamReadModel>> reducerAction, CancellationToken cancellationToken = default)
+        where TState : IActorState<TState>;
+
     /// <summary>Reads creation plus an explicitly declared complete checkpoint and its remaining tail.</summary>
     ValueTask MapReduceActorEventStreamFromCreationWithCheckpointAsync<TState, TCheckpoint>(
         long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,

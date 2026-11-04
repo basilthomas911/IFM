@@ -1,9 +1,11 @@
 ﻿
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.EventSourcing;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Extensions;
 
@@ -88,6 +90,91 @@ public abstract class BaseEventSourceActorRepository
         await _dbEventSource.MapReduceActorEventStreamFromLatestSnapshotsAsync<TState, TFirst, TSecond>(
             stream, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
         return state;
+    }
+
+    /// <summary>Restores a complete checkpoint only across a gap validated by the event store.</summary>
+    protected async Task<TState> LoadStateFromLatestCheckpointAsync<TState>(
+        ICommand command, IReadOnlyList<Type> checkpointTypes,
+        Func<TState, IEvent, bool, bool> apply, CancellationToken cancellationToken)
+        where TState : IEventSourceActorState<TState>
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        cancellationToken.ThrowIfCancellationRequested();
+        var stream = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
+        var state = (TState)_stateFactory.CreateState<TState>();
+        state.Id = command.Subject.ThreadId;
+        await _dbEventSource.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<TState>(
+            stream, checkpointTypes, rows =>
+            {
+                long version = 0;
+                foreach (var row in rows)
+                {
+                    var snapshot = version == 1 && row.StreamVersion > 2;
+                    if (row.ToDomainEvent() is not IEvent fact || !apply(state, fact, snapshot))
+                        throw new InvalidDataException($"Invalid event in stream {stream} at version {row.StreamVersion}.");
+                    version = row.StreamVersion;
+                }
+                state.RestoreCommittedStreamVersion(version);
+            }, cancellationToken).ConfigureAwait(false);
+        return state;
+    }
+
+    /// <summary>Reuses a persisted replacement event as a checkpoint, with full replay for incomplete legacy payloads.</summary>
+    protected Task<TState> LoadStateFromLatestCheckpointAsync<TState, TCheckpoint>(
+        ICommand command, Func<TCheckpoint, bool> isComplete, CancellationToken cancellationToken = default,
+        Action<TState>? initialize = null)
+        where TState : IEventSourceActorState<TState>
+        where TCheckpoint : IEvent
+        => LoadStateFromLatestCheckpointAsync<TState>(command, [typeof(TCheckpoint)],
+            fact => fact is TCheckpoint checkpoint && isComplete(checkpoint), cancellationToken, initialize);
+
+    /// <summary>Restores the newest complete replacement event across several event types.</summary>
+    protected async Task<TState> LoadStateFromLatestCheckpointAsync<TState>(
+        ICommand command, IReadOnlyList<Type> checkpointTypes, Func<IEvent, bool> isComplete,
+        CancellationToken cancellationToken = default, Action<TState>? initialize = null)
+        where TState : IEventSourceActorState<TState>
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        cancellationToken.ThrowIfCancellationRequested();
+        var stream = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
+        var state = CreateState();
+        var incomplete = false;
+        await _dbEventSource.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<TState>(
+            stream, checkpointTypes, rows => state.ReplayEvents(Validate(rows)), cancellationToken).ConfigureAwait(false);
+        if (incomplete)
+        {
+            state = CreateState();
+            await _dbEventSource.MapReduceActorEventStreamFromCreationAsync<TState>(
+                stream, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
+        }
+
+        return state;
+
+        TState CreateState()
+        {
+            var created = (TState)_stateFactory.CreateState<TState>();
+            created.Id = command.Subject.ThreadId;
+            initialize?.Invoke(created);
+            return created;
+        }
+
+        IEnumerable<EventStreamReadModel> Validate(
+            IEnumerable<EventStreamReadModel> rows)
+        {
+            long previous = 0;
+            foreach (var row in rows)
+            {
+                if (previous == 1 && row.StreamVersion > 2 &&
+                    !isComplete(row.ToDomainEvent()))
+                {
+                    incomplete = true;
+                    yield break;
+                }
+
+                previous = row.StreamVersion;
+                yield return row;
+            }
+        }
     }
 
     /// <summary>Loads the stream creation event and its complete tail through one committed source head.</summary>
@@ -460,6 +547,38 @@ public abstract class BaseEventSourceActorRepository
             var errorMsg = $"{_serviceId}.SaveStateAndDenormalizeEventsAsync failed for {stateName} ";
             throw new StorageException(errorMsg, ex);
         }
+    }
+
+    /// <summary>Indicates whether the pending business facts cross a periodic snapshot boundary.</summary>
+    protected static bool ShouldCapturePeriodicSnapshot(long committedVersion, int pendingCount)
+    {
+        const int interval = 128;
+        return committedVersion / interval != checked(committedVersion + pendingCount) / interval;
+    }
+
+    /// <summary>Commits a periodic full-state snapshot in the same batch as the business events.</summary>
+    protected async Task SaveStateWithPeriodicSnapshotAsync<TState, TSnapshot>(
+        ICommandActorContext context, TState state, ICommand command,
+        Func<TSnapshot> capture, CancellationToken cancellationToken)
+        where TState : IEventSourceActorState<TState>
+        where TSnapshot : IEvent
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.Events.Count == 0)
+            return;
+        var head = state.CommittedStreamVersion;
+        if (!ShouldCapturePeriodicSnapshot(head, state.Events.Count))
+        {
+            await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var pending = new DomainEventCollection(state.Events) { capture() };
+        var committed = await _dbEventSource.SaveEventsAsync(command.StreamId, command.CommandId,
+            pending, head, cancellationToken).ConfigureAwait(false);
+        // Snapshots are persisted source records, but only business facts produce projections and notifications.
+        await DenormalizeEventsAsync(context, new DomainEventCollection(committed.Where(fact => fact is not TSnapshot)))
+            .ConfigureAwait(false);
     }
 
     /// <summary>

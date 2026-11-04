@@ -1,12 +1,40 @@
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.Reference.StrategyCatalog.Command.Actor;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Reference.StrategyCatalog;
 
-/// <summary>Reference-facing catalog application service. ConfigurationDb is the sole write authority.</summary>
-public sealed class StrategyCatalogService(IDbContextFactory factory)
+/// <summary>Coordinates catalog source-event acceptance, durable projection, and projected reads.</summary>
+public sealed class StrategyCatalogService(IDbContextFactory factory, IPostgresEventTransaction? transactions = null)
 {
+    public async Task ExecuteEventSourcedAsync(CatalogCommandRequest request, string principal,
+        IEventProjector<StrategyCatalogCommandActor> projector, ActorEntityId entityId, CancellationToken token)
+    {
+        var key = request.Operation == CatalogCommandOperation.SaveDraft ? request.Definition?.Key : request.Key;
+        if (key is null || StrategyCatalogLifecycleCommand.Address(key) != entityId)
+            throw new InvalidOperationException("Catalog command route does not match its version identity.");
+        var unitOfWork = transactions ?? throw new InvalidOperationException("Catalog event persistence is unavailable.");
+        var database = factory.ConfigurationDb;
+        if (PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(factory.ActorEventSourceDb.ConnectionString))
+            throw new InvalidOperationException("Strategy catalog and source events must share one PostgreSQL database/security identity.");
+        var fact = await unitOfWork.ExecuteOnceAsync((transaction, cancellationToken) =>
+            database.RecordStrategyCatalogTransitionAsync(transaction, request, principal, cancellationToken), token).ConfigureAwait(false);
+        if (fact is null)
+            return;
+        await projector.ProcessDomainEventAsync(fact).ConfigureAwait(false);
+        await projector.DomainEventsProjectionAsync(new DomainEventCollection([fact])).ConfigureAwait(false);
+    }
+
+    public Task<bool> ProjectAsync(StrategyCatalogSourceEvent fact, bool rebuild, CancellationToken token)
+        => (transactions ?? throw new InvalidOperationException("Catalog event persistence is unavailable."))
+            .ExecuteOnceAsync((transaction, cancellationToken) =>
+                factory.ConfigurationDb.ProjectStrategyCatalogSourceAsync(transaction, fact, rebuild, cancellationToken), token);
+
     public async Task<string> QueryAsync(CatalogQueryRequest request, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -50,37 +78,5 @@ public sealed class StrategyCatalogService(IDbContextFactory factory)
         }
         if (next is null && rows.Count == Math.Min(64, request.Limit)) next = result.LastOrDefault()?.Code;
         return new(result.ToArray(), next);
-    }
-
-    public async Task ExecuteAsync(CatalogCommandRequest request, string principal, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        if (request.OperationId == Guid.Empty) throw new ArgumentException("Catalog operation identity and principal are required.", nameof(request));
-        if (string.IsNullOrWhiteSpace(principal)) throw new ArgumentException("Catalog operation identity and principal are required.", nameof(principal));
-        var db = factory.ConfigurationDb;
-        switch (request.Operation)
-        {
-            case CatalogCommandOperation.SaveDraft when request.Definition is not null:
-                var draft = StrategyCatalogValidation.Freeze(request.Definition);
-                var previous = await (db.GetStrategyCatalogAsync(draft.Key, ct)).ConfigureAwait(false);
-                if (previous is not null)
-                {
-                    if (string.Equals(previous.ContentHash,StrategyCatalogValidation.ContentHash(draft),StringComparison.Ordinal) && string.Equals(previous.CreatedBy,principal,StringComparison.Ordinal) && draft.Key.Version == request.ExpectedPreviousVersion + 1) return;
-                    throw new InvalidOperationException("This catalog version already exists with different content. Reload before editing.");
-                }
-                await (db.InsertStrategyCatalogDraftAsync(draft, request.ExpectedPreviousVersion, principal, ct)).ConfigureAwait(false);
-                break;
-            case CatalogCommandOperation.Publish when request.Key is not null && request.ExpectedHash is not null && request.EffectiveUtc is not null:
-                var published = await (db.GetStrategyCatalogAsync(request.Key, ct)).ConfigureAwait(false);
-                if (published is { Status: CatalogLifecycleStatus.Published } && string.Equals(published.ContentHash,request.ExpectedHash,StringComparison.Ordinal) && published.EffectiveFromUtc == request.EffectiveUtc && string.Equals(published.PublishedBy,principal,StringComparison.Ordinal)) return;
-                await (db.PublishStrategyCatalogAsync(request.Key, request.ExpectedHash, request.EffectiveUtc.Value, principal, ct)).ConfigureAwait(false);
-                break;
-            case CatalogCommandOperation.Retire when request.Key is not null && request.ExpectedHash is not null && request.EffectiveUtc is not null:
-                var retired = await (db.GetStrategyCatalogAsync(request.Key, ct)).ConfigureAwait(false);
-                if (retired is { Status: CatalogLifecycleStatus.Retired } && string.Equals(retired.ContentHash,request.ExpectedHash,StringComparison.Ordinal) && retired.RetiredAtUtc == request.EffectiveUtc && string.Equals(retired.RetiredBy,principal,StringComparison.Ordinal)) return;
-                await (db.RetireStrategyCatalogAsync(request.Key, request.ExpectedHash, request.EffectiveUtc.Value, principal, ct)).ConfigureAwait(false);
-                break;
-            default: throw new ArgumentException("Incomplete or unsupported catalog command.",nameof(request));
-        }
     }
 }

@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.State;
 /// <remarks>This class manages the state transitions for futures EOD data operations by applying domain events
 /// such as <see cref="FuturesEodDataInsertedEvent"/> and <see cref="VixFuturesEodDataInsertedEvent"/>.</remarks>
 public class FuturesEodDataCommandState
-    : BaseEventSourceActorState<FuturesEodDataCommandState>, IEventSourceActorState<FuturesEodDataCommandState>
+    : BaseEventSourceActorState<FuturesEodDataCommandState>, IEventSourceActorState<FuturesEodDataCommandState>, IStatelessCreationSnapshotState
 {
     public override ActorThreadId Id { get; set; } = default!;
 

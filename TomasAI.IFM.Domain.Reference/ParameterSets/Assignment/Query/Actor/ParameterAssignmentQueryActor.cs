@@ -13,7 +13,13 @@ public sealed class ParameterAssignmentQueryActor(IQueryActorContext<ParameterAs
     };
     static readonly IReadOnlyDictionary<Type, Func<IQuery, IParameterAssignmentQueryContext, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQuery, IParameterAssignmentQueryContext, CancellationToken, ValueTask>>
     {
-        [typeof(GetParameterAssignmentQuery)] = (q, ctx, ct) => ((GetParameterAssignmentQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
+        [typeof(GetParameterAssignmentQuery)] = static async (q, ctx, ct) =>
+        {
+            var result = await ((GetParameterAssignmentQuery)q).ExecuteAsync(ctx, ctx.Logger, ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetParameterAssignmentQuery.Verb,
+                new ServiceOk<ParameterAssignmentSnapshot>(result)).ConfigureAwait(false);
+        },
     };
     protected override IQuery ParseMessage(IQueryActorContext<ParameterAssignmentQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IQueryActorContext<ParameterAssignmentQueryActor> context, IQuery query) => ReceiveAsync(context, query, CancellationToken.None);

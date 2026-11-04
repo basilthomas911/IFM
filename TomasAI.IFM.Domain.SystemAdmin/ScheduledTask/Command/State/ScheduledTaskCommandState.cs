@@ -11,25 +11,28 @@ public sealed class ScheduledTaskCommandState : BaseEventSourceActorState<Schedu
     /// <summary>Gets the current business aggregate; only Apply mutates it.</summary>
     public ScheduledTaskDefinition? ScheduledTaskDefinition { get; private set; }
     /// <summary>Dispatches concrete source events to the owned aggregate.</summary>
-    protected override bool Apply(IEvent domainEvent) => domainEvent switch
+    protected override bool Apply(IEvent domainEvent) => ApplyCheckpointEvent(domainEvent, false);
+
+    /// <summary>Allows a full persisted replacement to resume at a later revision during checkpoint replay.</summary>
+    internal bool ApplyCheckpointEvent(IEvent domainEvent, bool snapshot) => domainEvent switch
     {
-        ScheduledTaskCreatedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition),
-        ScheduledTaskScheduleChangedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition),
-        ScheduledTaskEnabledEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition),
-        ScheduledTaskDisabledEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition),
-        ScheduledTaskRemovedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition),
-        ScheduledTaskInstallationRecordedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition),
-        ScheduledTaskInstallationFailureRecordedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition),
-        ScheduledTaskRunAdmittedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition),
-        ScheduledTaskRunReleasedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition),
+        ScheduledTaskCreatedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition, snapshot),
+        ScheduledTaskScheduleChangedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition, snapshot),
+        ScheduledTaskEnabledEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition, snapshot),
+        ScheduledTaskDisabledEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition, snapshot),
+        ScheduledTaskRemovedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition, snapshot),
+        ScheduledTaskInstallationRecordedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition, snapshot),
+        ScheduledTaskInstallationFailureRecordedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition, snapshot),
+        ScheduledTaskRunAdmittedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition, snapshot),
+        ScheduledTaskRunReleasedEvent changed => ApplyScheduledTask(changed.EntityId, changed.ScheduledTaskDefinition, snapshot),
         _ => false
     };
-    /// <summary>Accepts only an event for this identity with the next consecutive revision.</summary>
-    private bool ApplyScheduledTask(ScheduledTaskId identity, ScheduledTaskDefinition? change)
+    /// <summary>Requires consecutive revisions outside checkpoint restoration.</summary>
+    private bool ApplyScheduledTask(ScheduledTaskId identity, ScheduledTaskDefinition? change, bool snapshot)
     {
         if (!identity.IsValid || change is null || change.Id != identity ||
             ScheduledTaskDefinition is { } current && current.Id != identity ||
-            change.Revision != (ScheduledTaskDefinition?.Revision ?? 0) + 1) return false;
+            change.Revision <= (ScheduledTaskDefinition?.Revision ?? 0) || (!snapshot && change.Revision != (ScheduledTaskDefinition?.Revision ?? 0) + 1)) return false;
         ScheduledTaskDefinition = change;
         return true;
     }

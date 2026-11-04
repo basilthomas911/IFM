@@ -4,6 +4,7 @@ using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Actor;
+using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -27,14 +28,15 @@ public sealed class RegimeDiscoveryConfigurationStateRepository(
 
     /// <summary>Loads configuration source facts with cancellation.</summary>
     public async ValueTask<RegimeDiscoveryConfigurationCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<RegimeDiscoveryConfigurationCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<RegimeDiscoveryConfigurationCommandState, RegimeDiscoveryConfigurationParameterSetRetiredEvent>(
+            command, static fact => fact.ParameterSet is not null && fact.EffectiveFromUtc is not null, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Saves pending lifecycle events atomically.</summary>
     public async ValueTask SaveStateAsync(ICommandActorContext context,
         RegimeDiscoveryConfigurationCommandState state, ICommand command)
         => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
-    /// <summary>Commits the source event, accepted configuration, audit and applicable cache policy together.</summary>
+    /// <summary>Commits the source events and durable projection markers before projecting the configuration.</summary>
     public async ValueTask SaveStateAsync(ICommandActorContext context, RegimeDiscoveryConfigurationCommandState state,
         ICommand command, CancellationToken cancellationToken)
     {
@@ -58,12 +60,15 @@ public sealed class RegimeDiscoveryConfigurationStateRepository(
             var version = state.CommittedStreamVersion;
             foreach (var source in pending)
             {
-                await transaction.AppendAsync(command.StreamId, command.CommandId, source, version++, token).ConfigureAwait(false);
-                await RegimeDiscoveryAcceptedProjection.ApplyAsync(database, transaction, source, token).ConfigureAwait(false);
+                var eventId = await transaction.AppendAsync(command.StreamId, command.CommandId, source, version++, token).ConfigureAwait(false);
+                await database.MarkParameterProjectionPendingAsync(transaction, eventId, token).ConfigureAwait(false);
             }
+            await database.AdvanceParameterRevisionFenceAsync(transaction, token).ConfigureAwait(false);
             return true;
         }, cancellationToken).ConfigureAwait(false);
         state.AcceptChanges();
+        foreach (var source in pending)
+            await projector.ProcessDomainEventAsync(source).ConfigureAwait(false);
         await DenormalizeEventsAsync(context, pending).ConfigureAwait(false);
     }
 

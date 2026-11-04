@@ -27,7 +27,8 @@ public sealed class RecoveryCanaryStateRepository(
     /// <summary>Rehydrates the command stream from its last recorded source event.</summary>
     public async ValueTask<RecoveryCanaryCommandState> LoadStateAsync(
         ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<RecoveryCanaryCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<RecoveryCanaryCommandState, RecoveryCanaryRecordedEvent>(
+            command, static fact => fact.CorrelationId != Guid.Empty, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Commits and projects the pending canary source event.</summary>
     public ValueTask SaveStateAsync(

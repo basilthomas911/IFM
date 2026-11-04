@@ -32,7 +32,11 @@ public static class RetireRegimeDiscoveryParameterSet
             {
                 _ when configurationChange.RejectionReason is not null
                     => command.UpdateFailed(ref errorMsg, configurationChange.RejectionReason),
-                _ => state.Update(command.CreateRegimeDiscoveryParameterSetRetiredEvent(configurationChange), command)
+                _ => state.Update(command.CreateRegimeDiscoveryParameterSetRetiredEvent(configurationChange) with
+                {
+                    ParameterSet = state.ParameterSet,
+                    EffectiveFromUtc = state.EffectiveFromUtc
+                }, command)
             };
             return Task.FromResult(updated
                 ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
@@ -56,11 +60,11 @@ public static class RetireRegimeDiscoveryParameterSet
         ///
         /// <param name="configurationChange">The accepted immutable business change.</param>
         /// <returns>The source event ready for state application.</returns>
-        internal RegimeDiscoveryParameterSetRetiredEvent CreateRegimeDiscoveryParameterSetRetiredEvent(RegimeDiscoveryConfigurationChange configurationChange)
+        internal RegimeDiscoveryConfigurationParameterSetRetiredEvent CreateRegimeDiscoveryParameterSetRetiredEvent(RegimeDiscoveryConfigurationChange configurationChange)
             => new()
             {
                 CommandId = command.CommandId,
-                Subject = new ActorSubject(ActorType.Event, RegimeDiscoveryParameterSetRetiredEvent.Actor, RegimeDiscoveryParameterSetRetiredEvent.Verb, command.EntityId.Format()),
+                Subject = new ActorSubject(ActorType.Event, RegimeDiscoveryConfigurationParameterSetRetiredEvent.Actor, RegimeDiscoveryConfigurationParameterSetRetiredEvent.Verb, command.EntityId.Format()),
                 EntityId = command.EntityId,
                 RetiredAtUtc = configurationChange.RetiredAtUtc,
             };

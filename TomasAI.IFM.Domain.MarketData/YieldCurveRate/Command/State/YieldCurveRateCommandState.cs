@@ -22,6 +22,17 @@ public class YieldCurveRateCommandState
 
     public override ActorThreadId Id { get; set; }
 
+    internal YieldCurveRateStateSnapshottedEvent CaptureSnapshot(ICommand command) => new()
+    {
+        Subject = new(ActorType.Event, "YieldCurveRateEvent", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        ValueDates = _yieldCurveRateDates.Order().ToArray()
+    };
+
+
     /// <summary>
     /// Apply state change event
     /// </summary>
@@ -31,6 +42,10 @@ public class YieldCurveRateCommandState
     {
         switch (domainEvent)
         {
+            case YieldCurveRateStateSnapshottedEvent snapshot when snapshot.ValueDates is not null:
+                _yieldCurveRateDates.Clear();
+                _yieldCurveRateDates.UnionWith(snapshot.ValueDates);
+                return true;
             case YieldCurveRateAddedEvent added when added.YieldCurveRate is not null:
                 _yieldCurveRateDates.Add(added.YieldCurveRate.ValueDate);
                 return true;

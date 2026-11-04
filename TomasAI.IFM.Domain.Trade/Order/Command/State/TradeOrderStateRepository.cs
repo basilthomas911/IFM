@@ -13,7 +13,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Order.Command.State;
 public sealed class TradeOrderStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<TradeOrderCommandActor> eventProjector, ILogger<TradeOrderStateRepository> logger, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<TradeOrderCommandState>
 {
-    public ValueTask<TradeOrderCommandState> LoadStateAsync(ICommand command) => new(LoadStateFromCreationSnapshotAsync<TradeOrderCommandState>(command));
+    public ValueTask<TradeOrderCommandState> LoadStateAsync(ICommand command) => new(LoadStateFromLatestCheckpointAsync<TradeOrderCommandState, TradeOrderChangedEvent>(
+        command, static fact => fact.TradeOrderDefinition is not null));
     public async ValueTask SaveStateAsync(ICommandActorContext context, TradeOrderCommandState state, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(state);

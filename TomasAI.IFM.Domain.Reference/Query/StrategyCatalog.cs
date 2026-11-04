@@ -12,13 +12,13 @@ public static class StrategyCatalog
     extension(StrategyCatalogQuery query)
     {
         /// <summary>Executes a typed Strategy Catalog request and returns its JSON result.</summary>
-        public async ValueTask ExecuteAsync(IReferenceQueryContext context, CancellationToken cancellationToken)
+        public async ValueTask<string> ExecuteAsync(IReferenceQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             var request = StrategyCatalogJson.Read<CatalogQueryRequest>(query.RequestJson);
             var value = await (new TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService(context.DbFactory).QueryAsync(request, cancellationToken)).ConfigureAwait(false);
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<string>(value))).ConfigureAwait(false);
+            return value;
         }
     }
 }

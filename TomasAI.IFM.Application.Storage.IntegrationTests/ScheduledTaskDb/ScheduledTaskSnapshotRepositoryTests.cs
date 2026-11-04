@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,12 +33,13 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ScheduledTaskDb;
 
 [Collection("PostgreSQL plan atomicity")]
 [Trait("Category", "SelfContained")]
-public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTradePlanFixture fixture)
+public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTradePlanFixture fixture, ITestOutputHelper output)
 {
     [Fact]
     public async Task Definition_repository_restores_creation_and_later_changes_after_restart()
@@ -46,19 +48,44 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
         var command = new EnableScheduledTaskCommand { CommandId = Guid.NewGuid(), EntityId = id,
             Subject = new(ActorType.Command, EnableScheduledTaskCommand.Actor, EnableScheduledTaskCommand.Verb, id.Format()) };
         var initial = new ScheduledTaskDefinition { Id = id, Revision = 1, DesiredRevision = 1 };
-        var enabled = initial with { Revision = 2, DesiredRevision = 2, Enabled = true };
-        await Append(command, new ScheduledTaskCreatedEvent { EntityId = id, ScheduledTaskDefinition = initial },
-            new ScheduledTaskEnabledEvent { EntityId = id, ScheduledTaskDefinition = enabled });
+        const int head = 512;
+        var enabled = initial with { Revision = head, DesiredRevision = head, Enabled = true };
+        IEvent[] history =
+        [
+            new ScheduledTaskCreatedEvent { EntityId = id, ScheduledTaskDefinition = initial },
+            .. Enumerable.Range(2, head - 2).Select(revision => new ScheduledTaskScheduleChangedEvent
+            {
+                EntityId = id,
+                ScheduledTaskDefinition = initial with { Revision = revision, DesiredRevision = revision }
+            }),
+            new ScheduledTaskEnabledEvent { EntityId = id, ScheduledTaskDefinition = enabled }
+        ];
+        await Append(command, history);
 
         await using var source = Source();
         var factory = Substitute.For<IEventSourceActorStateFactory>();
         factory.CreateState<ScheduledTaskCommandState>().Returns(_ => new ScheduledTaskCommandState());
         var repository = new ScheduledTaskStateRepository(factory, source, Substitute.For<IActorService>(),
             Substitute.For<IEventProjector<ScheduledTaskCommandActor>>(), NullLogger<ScheduledTaskStateRepository>.Instance);
+        var baseline = await CompareReadWindows(source, command, () => new ScheduledTaskCommandState(),
+            [typeof(ScheduledTaskCreatedEvent), typeof(ScheduledTaskScheduleChangedEvent), typeof(ScheduledTaskEnabledEvent)], head, () => repository.LoadStateAsync(command));
         var restored = await repository.LoadStateAsync(command);
         Assert.Equivalent(enabled, restored.ScheduledTaskDefinition);
-        Assert.Equal(2, restored.CommittedStreamVersion);
+        Assert.Equivalent(baseline.ScheduledTaskDefinition, restored.ScheduledTaskDefinition);
+        Assert.Equal(head, restored.CommittedStreamVersion);
         Assert.Empty(restored.Events); Assert.False(restored.Updated);
+
+        var disabled = enabled with { Revision = head + 1, DesiredRevision = head + 1, Enabled = false };
+        await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
+        {
+            await transaction.AppendAsync(command.StreamId, Guid.NewGuid(),
+                new ScheduledTaskDisabledEvent { EntityId = id, ScheduledTaskDefinition = disabled },
+                restored.CommittedStreamVersion, token);
+            return true;
+        });
+        var reloaded = await repository.LoadStateAsync(command);
+        Assert.Equivalent(disabled, reloaded.ScheduledTaskDefinition);
+        Assert.Equal(head + 1, reloaded.CommittedStreamVersion);
     }
 
     [Fact]
@@ -82,9 +109,12 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
         factory.CreateState<ScheduledTaskRunCommandState>().Returns(_ => new ScheduledTaskRunCommandState());
         var repository = new ScheduledTaskRunStateRepository(factory, source, Substitute.For<IActorService>(),
             Substitute.For<IEventProjector<ScheduledTaskRunCommandActor>>(), NullLogger<ScheduledTaskRunStateRepository>.Instance);
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        var baseline = await CompareReadWindows(source, command, () => new ScheduledTaskRunCommandState(), [typeof(ScheduledTaskRunRequestedEvent),
+            typeof(ScheduledTaskRunStartedEvent), typeof(ScheduledTaskRunCompletedEvent)], 4, () => repository.LoadStateAsync(command, deadline.Token));
         var restored = await repository.LoadStateAsync(command, deadline.Token);
         Assert.Equivalent(completed, restored.ScheduledTaskRun);
+        Assert.Equivalent(baseline.ScheduledTaskRun, restored.ScheduledTaskRun);
         Assert.Equal(4, restored.CommittedStreamVersion);
         Assert.Empty(restored.Events); Assert.False(restored.Updated);
     }
@@ -111,15 +141,105 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
             page => rows.AddRange(page.Select(row => new EventStreamReadModel { EventVersion = row.EventVersion,
                 EventTypeName = row.EventTypeName, EventData = row.EventData, StreamVersion = row.StreamVersion })), CancellationToken.None);
         Assert.Equal(4, rows.Count);
+        var registrationWindow = new List<long>();
+        await source.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<ScheduledTaskCatalogCommandState>(
+            streamId, [typeof(ScheduledTaskCatalogProjectRegisteredEvent)],
+            page => registrationWindow.AddRange(page.Select(row => row.StreamVersion)));
+        Assert.Equal(new long[] { 1, 3, 4 }, registrationWindow);
         Assert.Equal(EventWriteIdentityRegistry.Default.GetIdentity(typeof(ScheduledTaskCatalogProjectRegisteredEvent)).EventTypeName, rows[0].EventTypeName);
         var factory = Substitute.For<IEventSourceActorStateFactory>();
         factory.CreateState<ScheduledTaskCatalogCommandState>().Returns(_ => new ScheduledTaskCatalogCommandState());
         var repository = new ScheduledTaskCatalogStateRepository(factory, source, Substitute.For<IActorService>(),
             Substitute.For<IEventProjector<ScheduledTaskCatalogCommandActor>>(), NullLogger<ScheduledTaskCatalogStateRepository>.Instance);
+        var baseline = await CompareReadWindows(source, command, () => new ScheduledTaskCatalogCommandState(),
+            [typeof(ScheduledTaskCatalogProjectRegisteredEvent), typeof(ScheduledTaskCatalogHostCapabilityRecordedEvent)], 4, () => repository.LoadStateAsync(command));
         var restored = await repository.LoadStateAsync(command);
         Assert.Equivalent(ready, restored.ScheduledTaskCatalog);
+        Assert.Equivalent(baseline.ScheduledTaskCatalog, restored.ScheduledTaskCatalog);
         Assert.Equal(4, restored.CommittedStreamVersion);
         Assert.Empty(restored.Events); Assert.False(restored.Updated);
+    }
+
+    private async Task<TState> CompareReadWindows<TState>(EventSourceActorDbContext source, ICommand command,
+        Func<TState> create, IReadOnlyList<Type> eligibleTypes, int head, Func<ValueTask<TState>> load)
+        where TState : IEventSourceActorState<TState>
+    {
+        var fullCount = 0;
+        long stream = 0;
+        var coldFullStart = Stopwatch.GetTimestamp();
+        var baseline = await FullReplay();
+        var firstFull = Stopwatch.GetElapsedTime(coldFullStart).TotalMilliseconds;
+        var coldCheckpointStart = Stopwatch.GetTimestamp();
+        var loaded = await load();
+        var firstCheckpoint = Stopwatch.GetElapsedTime(coldCheckpointStart).TotalMilliseconds;
+
+        const int samples = 20;
+        var full = new double[samples];
+        var checkpoint = new double[samples];
+        for (var sample = 0; sample < samples; sample++)
+        {
+            // Alternate which path goes first to reduce ordering and cache bias.
+            if (sample % 2 == 0)
+            {
+                full[sample] = await MeasureFull();
+                checkpoint[sample] = await MeasureCheckpoint();
+            }
+            else
+            {
+                checkpoint[sample] = await MeasureCheckpoint();
+                full[sample] = await MeasureFull();
+            }
+        }
+
+        var versions = new List<long>();
+        await source.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<TState>(
+            stream, eligibleTypes, page => versions.AddRange(page.Select(row => row.StreamVersion)));
+        Array.Sort(full);
+        Array.Sort(checkpoint);
+        output.WriteLine($"{typeof(TState).Name}: {fullCount} -> {versions.Count} rows. " +
+            $"First load {firstFull:F2} -> {firstCheckpoint:F2} ms. " +
+            $"Warm median {Median(full):F2} -> {Median(checkpoint):F2} ms. " +
+            $"Warm p95 {full[18]:F2} -> {checkpoint[18]:F2} ms.");
+        Assert.Equal(head, loaded.CommittedStreamVersion);
+        Assert.Equal(head, fullCount);
+        Assert.Equal(new long[] { 1, head }, versions);
+        Assert.Equal(head, baseline.CommittedStreamVersion);
+        return baseline;
+
+        async Task<TState> FullReplay()
+        {
+            fullCount = 0;
+            stream = await source.GetEventStreamIdAsync(command.StreamId, CancellationToken.None);
+            var state = create();
+            state.Id = command.Subject.ThreadId;
+            await source.MapReduceActorEventStreamFromCreationAsync<TState>(stream, page => state.ReplayEvents(Count(page)));
+            return state;
+        }
+
+        async Task<double> MeasureFull()
+        {
+            var start = Stopwatch.GetTimestamp();
+            await FullReplay();
+            return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        }
+
+        async Task<double> MeasureCheckpoint()
+        {
+            var start = Stopwatch.GetTimestamp();
+            await load();
+            return Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        }
+
+        static double Median(double[] sorted) => (sorted[9] + sorted[10]) / 2;
+
+        IEnumerable<EventStreamReadModel> Count(IEnumerable<EventStreamReadModel> page)
+        {
+            foreach (var row in page)
+            {
+                fullCount++;
+                yield return row;
+            }
+        }
     }
 
     private async Task Append(ICommand command, params IEvent[] events) => await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>

@@ -8,16 +8,57 @@ using TomasAI.IFM.Domain.Reference.ParameterSets.Persistence;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.Actor;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.State;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
+using TomasAI.IFM.Domain.Reference.Shared.Configuration.Strategy;
+using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventProjector;
 
 namespace TomasAI.IFM.Domain.Reference.IntegrationTests.ParameterSets;
 
 [Collection(ReferenceIntegrationInfrastructureCollection.Name)]
 public sealed class ParameterOwnershipRuntimeTests(ReferenceIntegrationInfrastructureFixture infrastructure)
 {
+    [Fact]
+    public async Task Regime_configuration_projects_committed_lifecycle_events_through_the_durable_projector()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var token = deadline.Token;
+        var parameters = TomasAI.IFM.Domain.Reference.ParameterSets.Model.RegimeDiscoveryParameterModel.CreateSeed(Guid.NewGuid());
+        var identity = new RegimeDiscoveryParameterSetEntityId(parameters.ParameterSetId, parameters.Version);
+        var create = new CreateRegimeDiscoveryParameterSetCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = identity, ParameterSet = parameters, CreatedBy = "integration",
+            Subject = new(ActorType.Command, CreateRegimeDiscoveryParameterSetCommand.Actor, CreateRegimeDiscoveryParameterSetCommand.Verb, identity.Format())
+        };
+        var client = new RawParameters(infrastructure.ActorProducer);
+        var created = await client.SendRegimeCommand(create, identity, token);
+        Assert.True(created.Success, created.ErrorMessage);
+        Assert.NotNull(await infrastructure.ConfigurationDb.GetRegimeDiscoveryAsync(identity.ParameterSetId, identity.Version, token));
+
+        var publish = new PublishRegimeDiscoveryParameterSetCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = identity, EffectiveFromUtc = DateTime.UtcNow,
+            Subject = new(ActorType.Command, PublishRegimeDiscoveryParameterSetCommand.Actor, PublishRegimeDiscoveryParameterSetCommand.Verb, identity.Format())
+        };
+        var published = await client.SendRegimeCommand(publish, identity, token);
+        Assert.True(published.Success, published.ErrorMessage);
+        var stream = await infrastructure.ActorEventSourceDb.GetEventStreamIdAsync(create.StreamId, token);
+        var events = await infrastructure.ActorEventSourceDb.GetEventsFromSnapshotAsync<RegimeDiscoveryConfigurationParameterSetCreatedEvent>(stream);
+        Assert.Equal(2, events.Count());
+        foreach (var source in events)
+        {
+            var execution = await infrastructure.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(
+                source.EventVersion, "RegimeDiscoveryConfigurationEventProjector", token);
+            Assert.NotNull(execution);
+            Assert.Equal(EventProjectorOutcomeType.Completed, execution.Outcome);
+            Assert.Equal(EventProjectorStageType.PublishCompletedEvent, execution.LastCompletedStage);
+        }
+        Assert.NotNull(await infrastructure.ConfigurationDb.GetProjectedParameterRevisionAsync(token));
+    }
+
     [Fact]
     public async Task Explicit_legacy_import_uses_prepared_evidence_without_changing_the_source_configuration()
     {
@@ -33,6 +74,7 @@ public sealed class ParameterOwnershipRuntimeTests(ReferenceIntegrationInfrastru
         Assert.True(imported.Success, imported.ErrorMessage);
         var repeated = await api.CreateAsync(preview.Value!, token);
         Assert.True(repeated.Success, repeated.ErrorMessage);
+        await WaitForParameterProjectionsAsync(token);
         var own = await api.StateAsync(preview.Value!.EntityId.SetId, token);
         Assert.True(own.Success, own.ErrorMessage);
         Assert.Equal(1, own.Value!.Revision);
@@ -55,6 +97,7 @@ public sealed class ParameterOwnershipRuntimeTests(ReferenceIntegrationInfrastru
             SchemaVersion = ParameterSchemaRegistry.CurrentRegimeSchemaVersion, Parameters = draft.Value! }, token)).Success);
         var published = await api.PublishAsync(new() { CommandId = Guid.NewGuid(), EntityId = new(id), Version = 1, ExpectedRevision = 1 }, token);
         Assert.True(published.Success, published.ErrorMessage);
+        await WaitForParameterProjectionsAsync(token);
         var selected = (await api.StateAsync(id, token)).Value!.Versions.Single();
         var retirement = new RetireParameterVersionCommand { CommandId = Guid.NewGuid(), EntityId = new(id), Version = 1, ExpectedRevision = 2,
             Subject = new(ActorType.Command, RetireParameterVersionCommand.Actor, RetireParameterVersionCommand.Verb, id.ToString("N")) };
@@ -68,6 +111,7 @@ public sealed class ParameterOwnershipRuntimeTests(ReferenceIntegrationInfrastru
         var assigned = await api.AssignAsync(new() { CommandId = Guid.NewGuid(), EntityId = identity, Scope = scope,
             Reference = selected.Reference, ExpectedRevision = before.Value!.Revision }, token);
         Assert.True(assigned.Success, assigned.ErrorMessage);
+        await WaitForParameterProjectionsAsync(token);
         try
         {
             var stale = await raw.Retire(prepared.Value.Retirement, token);
@@ -90,6 +134,7 @@ public sealed class ParameterOwnershipRuntimeTests(ReferenceIntegrationInfrastru
         }
         var retried = await api.RetireAsync(retirement, token);
         Assert.True(retried.Success, retried.ErrorMessage);
+        await WaitForParameterProjectionsAsync(token);
         Assert.Equal(3, (await api.StateAsync(id, token)).Value!.Revision);
     }
 
@@ -108,6 +153,7 @@ public sealed class ParameterOwnershipRuntimeTests(ReferenceIntegrationInfrastru
         }
         try
         {
+            await WaitForParameterProjectionsAsync(token);
             var legacy = await new RawParameters(infrastructure.ActorProducer).LegacyRun(second, token);
             Assert.True(legacy.Success, legacy.ErrorMessage);
             Assert.Equal(second, legacy.Value!.RunId);
@@ -198,6 +244,14 @@ public sealed class ParameterOwnershipRuntimeTests(ReferenceIntegrationInfrastru
         }
     }
 
+    async Task WaitForParameterProjectionsAsync(CancellationToken token)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        while (await infrastructure.ConfigurationDb.GetProjectedParameterRevisionAsync(deadline.Token) is null)
+            await Task.Delay(TimeSpan.FromMilliseconds(25), deadline.Token);
+    }
+
     ParameterStartupStateRepository Repository()
     {
         var factory = Substitute.For<IEventSourceActorStateFactory>();
@@ -212,6 +266,11 @@ public sealed class ParameterOwnershipRuntimeTests(ReferenceIntegrationInfrastru
 
     sealed class RawParameters(IActorProducer producer) : NatsClientApi(producer)
     {
+        public async Task<ServiceResult<GuidResult>> SendRegimeCommand<TCommand>(
+            TCommand command, RegimeDiscoveryParameterSetEntityId identity, CancellationToken token)
+            where TCommand : class, ICommand<RegimeDiscoveryParameterSetEntityId>
+            => await RequestCommandResultAsync<TCommand, RegimeDiscoveryParameterSetEntityId, GuidResult>(command, identity, token);
+
         public async Task<ServiceResult<ParameterCommandPreparation>> Prepare(ParameterCommandPreparation preparation, CancellationToken token)
         {
             var query = new PrepareParameterCommandQuery { Preparation = preparation,

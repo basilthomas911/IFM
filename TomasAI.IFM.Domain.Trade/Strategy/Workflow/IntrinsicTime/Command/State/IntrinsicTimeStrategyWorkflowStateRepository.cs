@@ -7,6 +7,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Snapshots;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -55,8 +56,8 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
             return state;
         using var snapshotRead = WorkflowTrace.Start("workflow.state.snapshot_read", null);
         var events = new List<global::TomasAI.IFM.Shared.EventSourcing.ViewModels.EventStreamReadModel>();
-        await _eventSource.MapReduceActorEventStreamFromCreationAsync<IntrinsicTimeStrategyWorkflowCommandState>(
-            stream.EventStreamId, rows => events.AddRange(rows), cancellationToken).ConfigureAwait(false);
+        await _eventSource.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<IntrinsicTimeStrategyWorkflowCommandState>(
+            stream.EventStreamId, CheckpointTypes, rows => events.AddRange(rows), cancellationToken).ConfigureAwait(false);
         snapshotRead?.SetTag("ifm.workflow.snapshot_count", events.Count);
         snapshotRead?.Stop();
         if (events.Count == 0)
@@ -76,21 +77,31 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
             throw new LegacyWorkflowStreamException(command.StreamId, events.Count);
         }
 
-        if (converted.Any(value => value.Event is not WorkflowStrategyStateUpdatedEvent))
+        if (converted.Any(value => value.Event is not (WorkflowStrategyStateUpdatedEvent or IntrinsicTimeStrategyWorkflowStateSnapshottedEvent)))
         {
             if (_logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
                 global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write30(_logger, nameof(IntrinsicTimeStrategyWorkflowStateRepository), nameof(LoadStateAsync), command.StreamId, events.Count);
             throw new LegacyWorkflowStreamException(command.StreamId, events.Count, "The stream contains events after its latest authoritative snapshot.");
         }
 
-        foreach (var entry in snapshots.OrderBy(static value => value.Stream.StreamVersion))
-            if (entry.Event is not WorkflowStrategyStateUpdatedEvent snapshot || !state.Apply(snapshot, addEvent: false))
+        foreach (var entry in converted)
+        {
+            var restored = entry.Event switch
+            {
+                WorkflowStrategyStateUpdatedEvent source => state.Apply(source, addEvent: false),
+                IntrinsicTimeStrategyWorkflowStateSnapshottedEvent snapshot => state.RestoreSnapshot(snapshot),
+                _ => false
+            };
+            if (!restored)
                 throw new InvalidOperationException($"The workflow creation snapshot or tail in {command.StreamId} is invalid or cannot be applied.");
-        var latest = snapshots.MaxBy(static value => value.Stream.StreamVersion);
-        state.RestoreCommittedStreamVersion(latest.Stream.StreamVersion);
-        state.SetPersistedStreamVersion(latest.Stream.StreamVersion);
+        }
+        var head = events[^1].StreamVersion;
+        state.RestoreCommittedStreamVersion(head);
+        state.SetPersistedStreamVersion(head);
         return state;
     }
+
+    private static readonly Type[] CheckpointTypes = [typeof(IntrinsicTimeStrategyWorkflowStateSnapshottedEvent)];
 
     /// <summary>Persists pending workflow events as one ACID event batch.</summary>
     /// <param name = "context">Command actor context associated with the save operation.</param>
@@ -119,6 +130,7 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
             var owner = transactions ?? throw new InvalidOperationException("Atomic workflow persistence requires the PostgreSQL transaction service.");
             var writer = dbFactory.TradeDb as IEnlistedTradeDbWriter ?? throw new InvalidOperationException("TradeDb requires an enlisted workflow writer.");
             var pending = new DomainEventCollection(state.Events);
+            var capture = ShouldCapturePeriodicSnapshot(state.PersistedStreamVersion, pending.Count);
             await owner.ExecuteOnceAsync(async (transaction, token) =>
             {
                 await transaction.ReserveCommandAsync(command, token).ConfigureAwait(false);
@@ -130,10 +142,18 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
                     await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version++, token).ConfigureAwait(false);
                     await writer.ProjectWorkflowAsync(transaction, snapshot, token).ConfigureAwait(false);
                 }
+                if (capture)
+                {
+                    var latest = (WorkflowStrategyStateUpdatedEvent)pending[^1];
+                    await transaction.AppendAsync(command.StreamId, command.CommandId, state.CaptureSnapshot(command, latest),
+                        version, token).ConfigureAwait(false);
+                }
                 return true;
             }, cancellationToken).ConfigureAwait(false);
-            state.SetPersistedStreamVersion(state.PersistedStreamVersion + pending.Count);
+            state.SetPersistedStreamVersion(checked(state.PersistedStreamVersion + pending.Count + (capture ? 1 : 0)));
             state.AcceptChanges();
+            if (capture)
+                state.RestoreCommittedStreamVersion(state.PersistedStreamVersion);
             await _eventProjector.DomainEventsProjectionAsync(pending).ConfigureAwait(false);
             return;
         }

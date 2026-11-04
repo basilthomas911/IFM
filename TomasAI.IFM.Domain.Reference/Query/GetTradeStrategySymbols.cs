@@ -11,8 +11,8 @@ public static class GetTradeStrategySymbols
 
     extension(GetTradeStrategySymbolsQuery query)
     {
-        /// <summary>Reads and replies with symbols for the requested strategy family.</summary>
-        public async ValueTask ExecuteAsync(IReferenceQueryContext context, CancellationToken cancellationToken)
+        /// <summary>Reads and returns symbols for the requested strategy family.</summary>
+        public async ValueTask<ServiceResult<TradeStrategySymbolReadModel[]>> ExecuteAsync(IReferenceQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
@@ -21,7 +21,7 @@ public static class GetTradeStrategySymbols
             ServiceResult<TradeStrategySymbolReadModel[]> result = snapshot is null
                 ? new ServiceFailed<TradeStrategySymbolReadModel[]>(GetTradeStrategySymbolsQuery.ErrorId, "No published instrument-definition snapshot is available.")
                 : new ServiceOk<TradeStrategySymbolReadModel[]>(await database.GetInstrumentDefinitionSymbolsAsync(snapshot.Id, query.Family, cancellationToken).ConfigureAwait(false));
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result)).ConfigureAwait(false);
+            return result;
         }
     }
 }

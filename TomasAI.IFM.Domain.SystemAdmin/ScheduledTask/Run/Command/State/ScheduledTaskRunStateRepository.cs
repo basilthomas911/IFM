@@ -22,9 +22,22 @@ public sealed class ScheduledTaskRunStateRepository(IEventSourceActorStateFactor
     public ValueTask<ScheduledTaskRunCommandState> LoadStateAsync(ICommand command)
         => LoadStateAsync(command, CancellationToken.None);
 
-    /// <summary>Restores the requested-run snapshot and replays subsequent lifecycle events.</summary>
+    /// <summary>Restores the latest complete aggregate event and replays any subsequent events.</summary>
     public async ValueTask<ScheduledTaskRunCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStateFromCreationSnapshotAsync<ScheduledTaskRunCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<ScheduledTaskRunCommandState>(
+            command, CheckpointTypes, static (state, fact, snapshot) => state.ApplyCheckpointEvent(fact, snapshot),
+            cancellationToken).ConfigureAwait(false);
+
+    private static readonly Type[] CheckpointTypes =
+    [
+        typeof(ScheduledTaskRunRequestedEvent),
+        typeof(ScheduledTaskRunAdmissionRecordedEvent),
+        typeof(ScheduledTaskRunStageRecordedEvent),
+        typeof(ScheduledTaskRunStartedEvent),
+        typeof(ScheduledTaskRunCompletedEvent),
+        typeof(ScheduledTaskRunFailedEvent),
+        typeof(ScheduledTaskRunUncertainRecordedEvent),
+    ];
 
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context, ScheduledTaskRunCommandState state, ICommand command) => SaveStateAsync(context, state, command, CancellationToken.None);

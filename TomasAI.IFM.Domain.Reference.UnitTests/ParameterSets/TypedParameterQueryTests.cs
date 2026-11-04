@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Model;
-using TomasAI.IFM.Domain.Reference.ParameterSets.Query;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Query.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
@@ -24,14 +23,14 @@ public sealed class TypedParameterQueryTests
         var query=MessagePackSerializer.Deserialize<PreviewTypedParameterDraftQuery>(MessagePackSerializer.Serialize(
             new PreviewTypedParameterDraftQuery { SetId=id,ComponentCode=component,Subject=new(ActorType.Query,
                 PreviewTypedParameterDraftQuery.Actor,PreviewTypedParameterDraftQuery.Verb,ActorEntityId.Default.Format()) }));
-        await query.ExecuteAsync(context,context.Logger,CancellationToken.None);
+        await ParameterStartupQueryTests.ReceiveAsync(context, query);
         await context.Received(1).ReplyAsync(query.Subject.ThreadId,query.Subject.Verb,
             Arg.Is<ServiceResult<ParameterSetValue>>(result=>result.Success&&result.Value!.SetId==id&&result.Value.ComponentCode==component));
         var value=TypedParameterDraftModel.Preview(id,component,TimeFrameType.Daily);
         var validation=MessagePackSerializer.Deserialize<ValidateTypedParameterCandidateQuery>(MessagePackSerializer.Serialize(
             new ValidateTypedParameterCandidateQuery { Parameters=value,ComponentCode=component,SchemaVersion=value.SchemaVersion,
                 Subject=new(ActorType.Query,ValidateTypedParameterCandidateQuery.Actor,ValidateTypedParameterCandidateQuery.Verb,ActorEntityId.Default.Format()) }));
-        await validation.ExecuteAsync(context,context.Logger,CancellationToken.None);
+        await ParameterStartupQueryTests.ReceiveAsync(context, validation);
         await context.Received(1).ReplyAsync(validation.Subject.ThreadId,validation.Subject.Verb,
             Arg.Is<ServiceResult<ParameterValidationReport>>(result=>result.Success&&result.Value!.CandidateSha256==ParameterValueCodec.Hash(value)));
     }

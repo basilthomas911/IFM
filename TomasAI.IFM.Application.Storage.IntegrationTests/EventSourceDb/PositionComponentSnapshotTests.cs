@@ -1,3 +1,11 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Actor;
+using TomasAI.IFM.Domain.Trade.Futures.Position.Command.State;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using System.Diagnostics;
 using System.Text.Json;
 using Npgsql;
@@ -102,6 +110,86 @@ public sealed class PositionComponentSnapshotTests(EventSourceActorSnapshotRange
         output.WriteLine(json);
         if (Environment.GetEnvironmentVariable("IFM_POSITION_REPLAY_TIMINGS") is { } path)
             await File.AppendAllTextAsync(path, json + Environment.NewLine);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Futures_position_repository_matches_full_replay_with_complete_or_legacy_snapshot(bool incomplete)
+    {
+        const int head = 512;
+        var command = new OpenFuturesPositionCommand
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, "FuturesPositionSnapshotTest", "Open", Guid.NewGuid().ToString("N"))
+        };
+        var facts = Enumerable.Range(1, head).Select(sequence => new FuturesPositionChangedEvent
+        {
+            Id = Guid.NewGuid(), CommandId = Guid.NewGuid(),
+            PositionSnapshot = incomplete && sequence == head ? null! : new() { PositionSequence = sequence }
+        });
+        var database = fixture.ActorEventDb;
+        await database.SaveEventsAsync(command.StreamId, Guid.NewGuid(), new DomainEventCollection(facts), 0, CancellationToken.None);
+        var factory = Substitute.For<IEventSourceActorStateFactory>();
+        factory.CreateState<FuturesPositionCommandState>().Returns(_ => new FuturesPositionCommandState());
+        var repository = new FuturesPositionStateRepository(factory, database, Substitute.For<IActorService>(),
+            Substitute.For<IEventProjector<FuturesTradePositionCommandActor>>(), NullLogger<FuturesPositionStateRepository>.Instance);
+
+        var full = new List<double>();
+        var optimized = new List<double>();
+        var samples = incomplete ? 1 : 20;
+        for (var sample = 0; sample < samples; sample++)
+        {
+            FuturesPositionCommandState baseline;
+            FuturesPositionCommandState restored;
+            if (sample % 2 == 0)
+            {
+                baseline = await FullReplay();
+                restored = await SnapshotReplay();
+            }
+            else
+            {
+                restored = await SnapshotReplay();
+                baseline = await FullReplay();
+            }
+
+            Assert.Equivalent(baseline.PositionSnapshot, restored.PositionSnapshot);
+            Assert.Equal(head, restored.CommittedStreamVersion);
+            Assert.Empty(restored.Events);
+        }
+
+        if (!incomplete)
+        {
+            var stream = await database.GetEventStreamIdAsync(command.StreamId, CancellationToken.None);
+            var versions = new List<long>();
+            await database.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<FuturesPositionCommandState>(
+                stream, [typeof(FuturesPositionChangedEvent)], rows => versions.AddRange(rows.Select(row => row.StreamVersion)));
+            Assert.Equal(new long[] { 1, head }, versions);
+            full.Sort();
+            optimized.Sort();
+            output.WriteLine($"Futures position {head} -> {versions.Count} rows. Warm median {Median(full):F2} -> {Median(optimized):F2} ms. " +
+                $"Warm p95 {full[18]:F2} -> {optimized[18]:F2} ms.");
+        }
+
+        async Task<FuturesPositionCommandState> FullReplay()
+        {
+            var start = Stopwatch.GetTimestamp();
+            var stream = await database.GetEventStreamIdAsync(command.StreamId, CancellationToken.None);
+            var state = new FuturesPositionCommandState { Id = command.Subject.ThreadId };
+            await database.MapReduceActorEventStreamFromCreationAsync<FuturesPositionCommandState>(stream, state.ReplayEvents);
+            full.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+            return state;
+        }
+
+        async Task<FuturesPositionCommandState> SnapshotReplay()
+        {
+            var start = Stopwatch.GetTimestamp();
+            var state = await repository.LoadStateAsync(command);
+            optimized.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+            return state;
+        }
+
+        static double Median(List<double> values) => (values[9] + values[10]) / 2;
     }
 
     async Task<long> Save(IEvent[] facts)

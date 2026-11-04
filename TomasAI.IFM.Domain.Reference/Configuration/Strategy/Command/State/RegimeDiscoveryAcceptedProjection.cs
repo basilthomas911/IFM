@@ -11,12 +11,12 @@ internal static class RegimeDiscoveryAcceptedProjection
     internal static Task ApplyAsync(IConfigurationDbContext database, IEnlistedPostgresTransaction transaction, IEvent source, CancellationToken token)
         => source switch
         {
-            RegimeDiscoveryParameterSetCreatedEvent created => database.InsertRegimeDiscoveryDraftAsync(transaction,
+            RegimeDiscoveryConfigurationParameterSetCreatedEvent created => database.InsertRegimeDiscoveryDraftAsync(transaction,
                 created.ParameterSet, created.Description, created.CreatedBy, created.CreatedAtUtc == default
                     ? DateTime.SpecifyKind(created.ReceivedOn, DateTimeKind.Utc) : created.CreatedAtUtc, token),
-            RegimeDiscoveryParameterSetPublishedEvent published => database.PublishRegimeDiscoveryAsync(transaction,
+            RegimeDiscoveryConfigurationParameterSetPublishedEvent published => database.PublishRegimeDiscoveryAsync(transaction,
                 published.EntityId.ParameterSetId, published.EntityId.Version, published.EffectiveFromUtc, token),
-            RegimeDiscoveryParameterSetRetiredEvent retired => database.RetireRegimeDiscoveryAsync(transaction,
+            RegimeDiscoveryConfigurationParameterSetRetiredEvent retired => database.RetireRegimeDiscoveryAsync(transaction,
                 retired.EntityId.ParameterSetId, retired.EntityId.Version, retired.RetiredAtUtc, token),
             _ => throw new InvalidDataException("Unsupported configuration source event.")
         };

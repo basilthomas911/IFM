@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Snapshots;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -135,6 +136,29 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
     /// <summary>Applies one supported workflow event to the immutable workflow graph.</summary>
     /// <param name = "domainEvent">Workflow event being applied or replayed.</param>
     /// <returns><see langword="true"/> when the event is supported and was applied.</returns>
+    internal IntrinsicTimeStrategyWorkflowStateSnapshottedEvent CaptureSnapshot(
+        ICommand command, WorkflowStrategyStateUpdatedEvent latest) => new()
+    {
+        Subject = new(ActorType.Event, "IntrinsicTimeStrategyWorkflow", "StateSnapshotted", command.Subject.EntityId),
+        Id = Guid.NewGuid(),
+        CommandId = command.CommandId,
+        EventSource = command.EventSource,
+        ReceivedOn = DateTime.UtcNow,
+        Latest = latest,
+        AppliedEventCount = AppliedEntityEventCount,
+        LastStartDecision = LastStartDecision
+    };
+
+    internal bool RestoreSnapshot(IntrinsicTimeStrategyWorkflowStateSnapshottedEvent snapshot)
+    {
+        if (snapshot.Latest is not { EventId: > 0 } latest || snapshot.AppliedEventCount <= 0 ||
+            HasAuthoritativeSnapshot && latest.EntityId != EntityId || !Apply(latest, addEvent: false))
+            return false;
+        AppliedEntityEventCount = snapshot.AppliedEventCount;
+        LastStartDecision = snapshot.LastStartDecision;
+        return true;
+    }
+
     protected override bool Apply(IEvent domainEvent)
     {
         var applied = domainEvent switch

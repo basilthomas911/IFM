@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 internal static class SecuritiesContractAtomicPersistence
 {
     internal static async Task SaveAsync(ISecuritiesDbContext database, IPostgresEventTransaction transactions,
-        DomainEventCollection pending, ICommand command, long committedVersion, CancellationToken token)
+        DomainEventCollection pending, ICommand command, long committedVersion, CancellationToken token, IEvent? snapshot = null)
     {
         await transactions.ExecuteAsync(async (transaction,cancellation) =>
         {
@@ -18,6 +18,8 @@ internal static class SecuritiesContractAtomicPersistence
                 await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,cancellation).ConfigureAwait(false);
                 await MaterializeAsync(database,transaction,source,cancellation).ConfigureAwait(false);
             }
+            if (snapshot is not null)
+                await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, cancellation).ConfigureAwait(false);
             return true;
         },token).ConfigureAwait(false);
     }

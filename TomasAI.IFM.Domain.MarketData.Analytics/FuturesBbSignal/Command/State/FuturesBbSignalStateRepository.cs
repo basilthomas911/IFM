@@ -24,9 +24,8 @@ public sealed class FuturesBbSignalStateRepository(IEventSourceActorStateFactory
     public ValueTask<FuturesBbSignalCommandState> LoadStateAsync(ICommand command) => LoadStateAsync(command, CancellationToken.None);
     /// <inheritdoc />
     public async ValueTask<FuturesBbSignalCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) =>
-        await (LoadStateFromCreationSnapshotAsync<FuturesBbSignalCommandState>(
-            command,
-            cancellationToken)).ConfigureAwait(false);
+        await (LoadStateFromLatestCheckpointAsync<FuturesBbSignalCommandState, FuturesBbSignalGeneratedEvent>(
+            command, static fact => fact.FuturesBbCheckpoint is not null && fact.FuturesBbSignal is not null, cancellationToken)).ConfigureAwait(false);
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context, FuturesBbSignalCommandState state, ICommand command) =>
         SaveStateAsync(context, state, command, CancellationToken.None);

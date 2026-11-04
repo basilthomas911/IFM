@@ -4,8 +4,11 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 
-public interface IParameterSetFact : IEvent<ParameterSetEntityId>
+public interface IParameterSetFact : IEvent<ParameterSetEntityId>, IRequireDurableProjection
 {
+    DurableProjectionRequirement IRequireDurableProjection.RequiredProjection =>
+        new("ParameterSetCommandActor", "ParameterSetEventProjector", TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.ApplyProjection);
+
     long Revision { get; }
     string RequestHash { get; }
     string VersionJson { get; }

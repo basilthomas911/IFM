@@ -25,21 +25,37 @@ public sealed class RegimeDiscoveryConfigurationCommandState
     /// <summary>Gets the retirement UTC timestamp.</summary>
     public DateTime? RetiredAtUtc { get; private set; }
 
+    /// <summary>Restores a complete retirement fact after the retained creation event.</summary>
+    protected override bool ApplyReplayEvent(IEvent domainEvent)
+    {
+        if (domainEvent is RegimeDiscoveryConfigurationParameterSetRetiredEvent { ParameterSet: { } parameters, EffectiveFromUtc: { } published } retired
+            && string.Equals(Status, "Draft", StringComparison.Ordinal) && retired.EntityId == EntityId)
+        {
+            ParameterSet = parameters;
+            EffectiveFromUtc = published;
+            RetiredAtUtc = retired.RetiredAtUtc;
+            Status = "Retired";
+            return true;
+        }
+
+        return base.ApplyReplayEvent(domainEvent);
+    }
+
     /// <inheritdoc />
     protected override bool Apply(IEvent domainEvent)
     {
         switch (domainEvent)
         {
-            case RegimeDiscoveryParameterSetCreatedEvent created:
+            case RegimeDiscoveryConfigurationParameterSetCreatedEvent created:
                 EntityId = created.EntityId;
                 ParameterSet = created.ParameterSet;
                 Status = "Draft";
                 return true;
-            case RegimeDiscoveryParameterSetPublishedEvent published when string.Equals(Status,"Draft",StringComparison.Ordinal):
+            case RegimeDiscoveryConfigurationParameterSetPublishedEvent published when string.Equals(Status,"Draft",StringComparison.Ordinal):
                 EffectiveFromUtc = published.EffectiveFromUtc;
                 Status = "Published";
                 return true;
-            case RegimeDiscoveryParameterSetRetiredEvent retired when string.Equals(Status,"Published",StringComparison.Ordinal):
+            case RegimeDiscoveryConfigurationParameterSetRetiredEvent retired when string.Equals(Status,"Published",StringComparison.Ordinal):
                 RetiredAtUtc = retired.RetiredAtUtc;
                 Status = "Retired";
                 return true;

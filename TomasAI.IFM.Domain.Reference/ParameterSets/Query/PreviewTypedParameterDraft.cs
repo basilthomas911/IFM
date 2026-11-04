@@ -12,13 +12,13 @@ public static class PreviewTypedParameterDraft
 
     extension(PreviewTypedParameterDraftQuery query)
     {
-        public async ValueTask ExecuteAsync(IParameterSetQueryContext context,
+        public async ValueTask<ParameterSetValue> ExecuteAsync(IParameterSetQueryContext context,
             ILogger<ParameterSetQueryActor> logger, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(query); ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
             context.AccessPolicy.Demand(ParameterCapability.Read); token.ThrowIfCancellationRequested();
             var value = TypedParameterDraftModel.Preview(query.SetId, query.ComponentCode, (TimeFrameType)query.TargetHorizon, query.Source, query.RebuildIntervals);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSetValue>(value)).ConfigureAwait(false);
+            return value;
         }
     }
 

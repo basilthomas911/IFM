@@ -19,7 +19,8 @@ public sealed class ExitOrderCompositionFunctionStateRepository(IEventSourceActo
     /// <param name = "request">The current composition request.</param>
     /// <param name = "cancellationToken">Cancels state loading.</param>
     /// <returns>The rehydrated and prepared function state.</returns>
-    public async ValueTask<ExitOrderCompositionFunctionState> LoadStateAsync(ComposeExitOrderCommand request, CancellationToken cancellationToken = default) => (await LoadStateFromCreationSnapshotAsync<ExitOrderCompositionFunctionState>(request, cancellationToken).ConfigureAwait(false)).Prepare(request);
+    public async ValueTask<ExitOrderCompositionFunctionState> LoadStateAsync(ComposeExitOrderCommand request, CancellationToken cancellationToken = default) => (await LoadStateFromLatestCheckpointAsync<ExitOrderCompositionFunctionState, ExitOrderCompositionCompletedEvent>(
+        request, static fact => fact.EventId > 0, cancellationToken).ConfigureAwait(false)).Prepare(request);
     /// <summary>Saves the newly completed function events.</summary>
     /// <param name = "context">The function actor context.</param>
     /// <param name = "state">The completed state to persist.</param>
