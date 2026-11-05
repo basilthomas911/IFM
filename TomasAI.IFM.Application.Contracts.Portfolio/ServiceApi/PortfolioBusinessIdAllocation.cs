@@ -12,4 +12,5 @@ public sealed record PortfolioBusinessIdAllocation
     [Key(0)] public PortfolioBusinessIdentityKind Kind { get; init; }
     [Key(1)] public int Value { get; init; }
     [Key(2)] public Guid CorrelationId { get; init; }
+    [Key(3)] public Guid? OperationId { get; init; }
 }

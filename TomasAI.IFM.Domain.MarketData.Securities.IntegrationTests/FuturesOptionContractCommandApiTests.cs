@@ -15,6 +15,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 
@@ -55,14 +56,12 @@ public class FuturesOptionContractCommandApiTests(TomasAI.IFM.IntegrationTesting
             EventHandlerAsync
         );
 
-        var futuresOptionContract = SampleData.NewFuturesOptionContract;
-        var entityId = new FuturesOptionContractEntityId(futuresOptionContract.ContractId, futuresOptionContract.ContractMonth.Year);
-        var subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, entityId.Format());
-        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
-        await dbFixture.Db.DeleteFuturesOptionContractAsync(futuresOptionContract.ContractId);
+        var sample = SampleData.NewFuturesOptionContract;
+        var futuresOptionContract = new FuturesOptionContractReadModel(
+            $"{sample.Symbol}{sample.ContractMonth:yyyyMMdd}C5005", sample.Description, sample.Symbol,
+            FuturesOptionContractReadModel.GetContractLocalSymbol(
+                FuturesOptionContractReadModel.GetLocalSymbol(sample.Symbol, sample.ContractMonth), "Call", 5005),
+            sample.SecurityType, sample.Currency, sample.Exchange, sample.Multiplier, sample.ContractMonth, 5005, "Call");
 
         // act...
         var marketDataApi = new MarketDataCommandApi(_actorProducer);
@@ -72,6 +71,9 @@ public class FuturesOptionContractCommandApiTests(TomasAI.IFM.IntegrationTesting
         response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
         await addCompleted.Task.WaitAsync(EventTimeout);
+        var preparationStream = await dbFixture.ActorEventSourceDb.GetEventStreamIdFromDbAsync(
+            $"Function.OptionContractPreparationFunction.{response.Value:N}");
+        preparationStream.Should().NotBeNull();
 
         // assert...
 
@@ -192,6 +194,12 @@ public class FuturesOptionContractCommandApiTests(TomasAI.IFM.IntegrationTesting
             savedContract.OptionType.Should().Be(expectedContract.OptionType);
         }
 
+        // The singular route must load membership written by the bulk route.
+        var removed = await marketDataApi.RemoveFuturesOptionContractAsync(futuresOptionContracts[0].ContractId, overwrite: false);
+        removed.Success.Should().BeTrue(removed.ErrorMessage);
+        (await dbFixture.Db.GetFuturesOptionContractAsync(futuresOptionContracts[0].ContractId)).Should().BeNull();
+        (await dbFixture.Db.GetFuturesOptionContractAsync(futuresOptionContracts[1].ContractId)).Should().NotBeNull();
+
         await eventListener.StopAsync();
 
         async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
@@ -259,15 +267,6 @@ public class FuturesOptionContractCommandApiTests(TomasAI.IFM.IntegrationTesting
 
         var futuresOptionContract = SampleData.NewFuturesOptionContract;
         var changedContract = SampleData.ChangedFuturesOptionContract;
-
-        // Clean up any existing data
-        var entityId = new FuturesOptionContractEntityId(futuresOptionContract.ContractId, futuresOptionContract.ContractMonth.Year);
-        var addSubject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, entityId.Format());
-        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
-        var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
-        if (addEventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(addEventStreamId);
-        await dbFixture.Db.DeleteFuturesOptionContractAsync(futuresOptionContract.ContractId);
 
         // act - add futures option contract first...
         var marketDataApi = new MarketDataCommandApi(_actorProducer);
@@ -390,15 +389,15 @@ public class FuturesOptionContractCommandApiTests(TomasAI.IFM.IntegrationTesting
         );
 
         var futuresOptionContract = SampleData.NewFuturesOptionContract;
-
-        // Clean up any existing data
-        var entityId = new FuturesOptionContractEntityId(futuresOptionContract.ContractId, futuresOptionContract.ContractMonth.Year);
-        var addSubject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, entityId.Format());
-        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
-        var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
-        if (addEventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(addEventStreamId);
-        await dbFixture.Db.DeleteFuturesOptionContractAsync(futuresOptionContract.ContractId);
+        futuresOptionContract = futuresOptionContract with
+        {
+            ContractId = $"{futuresOptionContract.Symbol}{futuresOptionContract.ContractMonth:yyyyMMdd}C5010",
+            InstrumentId = 5010,
+            StrikePrice = 5010,
+            LocalSymbol = FuturesOptionContractReadModel.GetContractLocalSymbol(
+                FuturesOptionContractReadModel.GetLocalSymbol(futuresOptionContract.Symbol, futuresOptionContract.ContractMonth),
+                "Call", 5010)
+        };
 
         // act - add futures option contract first...
         var marketDataApi = new MarketDataCommandApi(_actorProducer);

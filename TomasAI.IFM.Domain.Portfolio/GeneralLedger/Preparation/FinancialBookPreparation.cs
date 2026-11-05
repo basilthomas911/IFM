@@ -3,7 +3,7 @@ using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 
-namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query;
+namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Preparation;
 
 /// <summary>Prepares development book configuration from committed membership, with sequence-generated keys and no money effects.</summary>
 public sealed class FinancialBookPreparation(IPortfolioEventStore sources, IPortfolioDbReadContext database,

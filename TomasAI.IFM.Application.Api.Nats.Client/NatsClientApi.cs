@@ -2,12 +2,26 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.Portfolio.Shared.Preparation;
+using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 public class NatsClientApi(IActorProducer actorProducer)
 {
     readonly IActorProducer _actorProducer = IsArgumentNull.Set(actorProducer);
+
+    protected async ValueTask<ServiceResult<Guid>> ValidatePortfolioReferenceAsync(ValidatePortfolioReferenceCommand request, CancellationToken token)
+    {
+        var result = await RequestFunctionAsync<ValidatePortfolioReferenceCommand, ActorEntityId,
+            FunctionResult<PortfolioReferenceValidationCompletedEvent, PortfolioReferenceValidationFailedEvent>>(
+                request, request.EntityId, token).ConfigureAwait(false);
+        if (result is { Success: true, Value.Completed: { } receipt } && receipt.CommandId == request.CommandId
+            && string.Equals(receipt.InputHash, request.ComputeInputHash(), StringComparison.Ordinal))
+            return new ServiceOk<Guid>(receipt.CommandId);
+        return new ServiceFailed<Guid>(result.Value?.Failed?.ErrorCode ?? PortfolioErrorCodes.ValidationFailed,
+            result.Value?.Failed?.ErrorMessage ?? result.ErrorMessage);
+    }
 
     /// <summary>Sends a standard typed Function request without changing its financial operation identity.</summary>
     protected ValueTask<ServiceResult<TResult>> RequestFunctionAsync<TCommand, TEntityId, TResult>(TCommand command, TEntityId entityId, CancellationToken token)

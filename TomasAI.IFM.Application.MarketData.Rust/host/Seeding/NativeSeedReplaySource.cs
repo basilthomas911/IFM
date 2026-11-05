@@ -3,9 +3,15 @@ using TomasAI.IFM.Application.MarketData.Rust.Api;
 using TomasAI.IFM.Application.MarketData.Rust.Delivery;
 using TomasAI.IFM.Shared.MarketData.Contracts.Historical;
 namespace TomasAI.IFM.Application.MarketData.Rust.Host.Seeding;
+/// <summary>Opens a read-only replay for an explicitly registered futures contract.</summary>
+public interface INativeSeedReplaySource
+{
+    IHistoricalRecordReader Open(DatabentoContractRegistration registration, DateTimeOffset start, TimeSpan budget, CancellationToken token);
+}
+
 /// <summary>Owns cold replay endpoint configuration without generated credential
 /// formatting. Read-only replay owns an independent Tokio socket and reader slot.</summary>
-public sealed class NativeSeedReplaySource
+public sealed class NativeSeedReplaySource : INativeSeedReplaySource
 {
     readonly NativeMarketDataRuntime runtime;readonly string key;readonly string[] dns;
     readonly IReadOnlyDictionary<string,NativeDatasetEndpoint> endpoints;

@@ -10,6 +10,10 @@ public sealed record PortfolioAggregateSnapshot(
     int[] FundIds,
     FundAllocationReadModel[] Allocations,
     FundRiskEnvelopeReadModel[] RiskEnvelopes,
-    Guid[] AppliedCommandIds);
+    Guid[] AppliedCommandIds)
+{
+    /// <summary>Restores the terminal deletion flag. Historical checkpoints omit this field.</summary>
+    public bool? IsDeleted { get; init; }
+}
 
 #pragma warning restore CA1819

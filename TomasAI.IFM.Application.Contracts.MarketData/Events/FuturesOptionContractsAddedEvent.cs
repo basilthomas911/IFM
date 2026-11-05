@@ -3,6 +3,7 @@ using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.Events;
@@ -12,8 +13,12 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Events;
 /// and emit completed/failed events derived from this event.
 /// </summary>
 [MessagePackObject(AllowPrivate = true)]
-public record FuturesOptionContractsAddedEvent : IEvent<FuturesOptionContractsEntityId>
+public record FuturesOptionContractsAddedEvent : IEvent<FuturesOptionContractsEntityId>, IRequireDurableProjection
 {
+    [IgnoreMember]
+    DurableProjectionRequirement IRequireDurableProjection.RequiredProjection =>
+        new("FuturesOptionContractCommandActor", "FuturesOptionContractEventProjector", EventProjectorStageType.PublishProcessingEvent);
+
     [IgnoreMember] public const string Actor = "FuturesOptionContractEvent";
     [IgnoreMember] public const string Verb = "AddedContracts";
     [IgnoreMember] public const int ErrorCode = 2004;

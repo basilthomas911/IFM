@@ -3,7 +3,6 @@ using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
-using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
@@ -22,20 +21,11 @@ public static class ReserveFundOrderComposition
         /// <summary>Computes and guards the business change, then applies one source event.</summary>
         ///
         /// <param name="state">The owning authoritative command state.</param>
-        /// <param name="allocator">The durable business identity allocator.</param>
         /// <param name="now">The authoritative UTC decision time.</param>
         /// <param name="principal">The authenticated and authorized operator.</param>
-        /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
         /// <returns>Command acceptance or its classified failure; durable completion remains tied to commit.</returns>
-        /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
-        public async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(
-            PortfolioFundAggregate state,
-            IPortfolioBusinessIdAllocator allocator,
-            DateTime now,
-            string principal,
-            CancellationToken cancellationToken)
+        public ServiceResult<GuidResult> Execute(PortfolioFundAggregate state, DateTime now, string principal)
         {
-            ArgumentNullException.ThrowIfNull(allocator);
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(state);
 
@@ -49,10 +39,10 @@ public static class ReserveFundOrderComposition
                 return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
             }
 
-            var orderId = await allocator.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
-            var tradeIds = new int[command.Request.TradeInstructions.Length];
-            for (var i = 0; i < tradeIds.Length; i++)
-                tradeIds[i] = await allocator.AllocateTradeIdAsync(cancellationToken).ConfigureAwait(false);
+            var preparation = command.Preparation
+                ?? throw new InvalidOperationException("Fund reservation requires prepared order and trade identities.");
+            var orderId = preparation.OrderId;
+            var tradeIds = preparation.TradeIds;
             var errorMsg = $"{command.CommandName}: unable to apply FundCompositionReserved event";
             var updated = command.Compute(state, now, principal, orderId, tradeIds, out var fundChange) switch
             {

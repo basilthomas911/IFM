@@ -6,6 +6,47 @@ public static class PortfolioDbSql
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1724", Justification = "Preserve the established public storage/serialized schema contract and identifiers consumed by callers.")]
     public static class Financial
     {
+        public const string ReadPreparedIdentifierReceipts = """
+            SELECT s.eventstream,e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,
+                   e.eventpayload,e.commandid,e.eventtimestamp::text,e.streamversion
+            FROM event_stream_id s
+            JOIN event_log e ON e.eventstreamid=s.eventstreamid AND e.streamversion=1
+            JOIN event_name_id n ON n.eventnameid=e.eventnameid
+            WHERE s.eventstream=ANY($1);
+            """;
+
+        public const string CheckPolicyUnreferenced = """
+            SELECT CASE WHEN s.currentversion IS NULL THEN true
+                WHEN current_projection.aggregate_version=s.currentversion
+                    THEN coalesce((current_projection.payload_json->>'ActivePolicyId')::integer,0)<>$3
+                WHEN tombstone.source_event_id=head.eventversion THEN true
+                ELSE false END
+            FROM (SELECT $1::integer AS portfolio_id) p
+            LEFT JOIN event_stream_id s ON s.eventstream=$2
+            LEFT JOIN event_log head ON head.eventstreamid=s.eventstreamid AND head.streamversion=s.currentversion
+            LEFT JOIN portfolio.projection_tombstone tombstone ON tombstone.entity_kind='portfolio'
+                AND tombstone.entity_key=p.portfolio_id::text
+            LEFT JOIN LATERAL (
+                SELECT aggregate_version,payload_json
+                FROM portfolio.portfolio_by_id
+                WHERE portfolio_id=p.portfolio_id ORDER BY portfolio_version DESC LIMIT 1
+            ) current_projection ON true;
+            """;
+
+        public const string CheckDraftPortfolioDeletion = """
+            SELECT NOT EXISTS (SELECT 1 FROM portfolio.fund_order WHERE portfolio_id=$1)
+               AND NOT EXISTS (
+                   SELECT 1 FROM unnest($2::integer[]) f(fund_id)
+                   JOIN event_stream_id s ON s.eventstream='PortfolioFund.' || $1::text || '.' || f.fund_id::text
+                   LEFT JOIN LATERAL (
+                       SELECT aggregate_version FROM portfolio.fund_by_portfolio
+                       WHERE portfolio_id=$1 AND fund_id=f.fund_id
+                       ORDER BY fund_mandate_version DESC LIMIT 1
+                   ) projection ON true
+                   WHERE s.currentversion>0 AND projection.aggregate_version IS DISTINCT FROM s.currentversion
+               );
+            """;
+
         public const string ReadBook = "SELECT policy_source_versions::text FROM portfolio_financial.financial_authority WHERE portfolio_id=$1;";
         public const string ReadActiveBookByExecutionAccount = """
         SELECT a.policy_source_versions::text
@@ -114,6 +155,23 @@ public static class PortfolioDbSql
             SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
             FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid WHERE e.commandid=$1 ORDER BY e.eventversion LIMIT 65;
             """;
+            public const string SelectReservationSnapshotEvents = """
+            SELECT r.version,
+              c.eventstreamid, cn.eventname, cn.eventtypename, c.eventversion, c.eventpayload, c.commandid, c.eventtimestamp::text, c.streamversion,
+              e.eventstreamid, en.eventname, en.eventtypename, e.eventversion, e.eventpayload, e.commandid, e.eventtimestamp::text, e.streamversion
+            FROM portfolio_financial.capacity_reservation r
+            LEFT JOIN portfolio_financial.capacity_lifecycle l
+              ON l.reservation_id=r.reservation_id AND l.version=r.version
+            LEFT JOIN portfolio_financial.financial_operation_receipt co
+              ON co.portfolio_id=r.portfolio_id AND co.operation_id=r.operation_id
+            LEFT JOIN event_log c ON c.eventversion=co.event_version
+            LEFT JOIN event_name_id cn ON cn.eventnameid=c.eventnameid
+            LEFT JOIN portfolio_financial.financial_operation_receipt lo
+              ON lo.portfolio_id=r.portfolio_id AND lo.operation_id=l.operation_id
+            LEFT JOIN event_log e ON e.eventversion=lo.event_version
+            LEFT JOIN event_name_id en ON en.eventnameid=e.eventnameid
+            WHERE r.portfolio_id=$1 AND r.reservation_id=$2;
+            """;
             public const string Insert03 = """
         INSERT INTO portfolio_financial.capacity_usage(portfolio_id,scope_kind,scope_key,measure,unit,held,working,position,revision)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(portfolio_id,scope_kind,scope_key,measure,unit)
@@ -126,10 +184,6 @@ public static class PortfolioDbSql
         public static class EmulatorExecutionStore
         {
             public const string Select01 = "SELECT operation_id FROM portfolio_financial.emulator_order WHERE execution_id=$1;";
-            public const string Select02 = """
-            SELECT status,version,execution_id,request::text FROM portfolio_financial.capacity_reservation
-            WHERE portfolio_id=$1 AND reservation_id=$2;
-            """;
             public const string Insert01 = """
             INSERT INTO portfolio_financial.emulator_order(execution_id,portfolio_id,fund_id,order_id,reservation_id,operation_id,
               request,receipt,input_hash,submitted_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10);
@@ -148,12 +202,21 @@ public static class PortfolioDbSql
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class FinancialHistoryJournal
         {
+            public const string ReadPendingFundAuthorizations = """
+            SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
+            FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
+            WHERE n.eventname=$1 AND ($2::uuid IS NULL OR e.commandid=$2)
+              AND NOT EXISTS(SELECT 1 FROM portfolio_financial.fund_risk_authorization_projection_receipt r WHERE r.event_version=e.eventversion)
+            ORDER BY e.eventversion LIMIT 32;
+            """;
             public const string Select01 = """
             SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
             FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
             JOIN portfolio_financial.financial_operation_receipt o ON o.event_version=e.eventversion
             WHERE n.eventname=ANY($1) AND ($2::int IS NULL OR o.portfolio_id=$2)
-              AND NOT EXISTS(SELECT 1 FROM portfolio_financial.financial_history_receipt r WHERE r.event_version=e.eventversion)
+              AND (NOT EXISTS(SELECT 1 FROM portfolio_financial.financial_history_receipt r WHERE r.event_version=e.eventversion)
+                   OR NOT EXISTS(SELECT 1 FROM portfolio.financial_operation_by_portfolio_month h
+                                 WHERE h.portfolio_id=o.portfolio_id AND h.operation_id=o.operation_id))
             ORDER BY e.eventversion LIMIT 32;
             """;
             public const string Insert01 = """
@@ -177,6 +240,23 @@ public static class PortfolioDbSql
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class FinancialQueryStore
         {
+            public const string ReadFundRiskAuthorization = """
+            SELECT source_event_id,"authorization"::text FROM portfolio_financial.fund_risk_authorization_read
+            WHERE command_id=$1 LIMIT 2;
+            """;
+            public const string ReadOutcome = """
+            SELECT event_type,payload_json::text FROM portfolio.financial_operation_by_portfolio_month
+            WHERE portfolio_id=$1 AND operation_id=$2 LIMIT 2;
+            """;
+            public const string MatchFundSources = """
+            SELECT $4>0 AND $5>0 AND $6>0
+              AND COALESCE((SELECT aggregate_version FROM portfolio.portfolio_by_id
+                           WHERE portfolio_id=$1 ORDER BY portfolio_version DESC LIMIT 1)=$4,false)
+              AND COALESCE((SELECT aggregate_version FROM portfolio.fund_by_portfolio
+                           WHERE portfolio_id=$1 AND fund_id=$2 ORDER BY fund_mandate_version DESC LIMIT 1)=$5,false)
+              AND COALESCE((SELECT aggregate_version FROM portfolio.portfolio_policy
+                           WHERE portfolio_id=$1 AND policy_id=$3 ORDER BY policy_version DESC LIMIT 1)=$6,false);
+            """;
             public const string Select01 = "SELECT operating_state FROM portfolio_financial.financial_authority WHERE portfolio_id=$1;";
             public const string Select02 = """
             SELECT period_id,start_date,end_date,revision,state FROM portfolio_financial.ledger_period
@@ -296,6 +376,13 @@ public static class PortfolioDbSql
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class FundRiskAuthorizationStore
         {
+            public const string AcknowledgeProjection = """
+            INSERT INTO portfolio_financial.fund_risk_authorization_projection_receipt(event_version) VALUES($1) ON CONFLICT DO NOTHING;
+            """;
+            public const string Project = """
+            INSERT INTO portfolio_financial.fund_risk_authorization_read(portfolio_id,fund_id,command_id,source_event_id,"authorization")
+            VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING;
+            """;
             public const string Select01 = """
             SELECT status,version,request::text,receipt::text FROM portfolio_financial.capacity_reservation
             WHERE portfolio_id=$1 AND reservation_id=$2;
@@ -332,8 +419,12 @@ public static class PortfolioDbSql
                 """;
 
             public const string Select01 = """
-                    SELECT source_content_hash,operation_id FROM portfolio_financial.financial_source_receipt
-                    WHERE book_id=$1 AND source_system=$2 AND source_event_key=$3 AND posting_purpose=$4;
+                    SELECT input.ordinality,receipt.source_content_hash,receipt.operation_id
+                    FROM unnest($2::text[],$3::text[],$4::text[]) WITH ORDINALITY
+                        AS input(source_system,source_event_key,posting_purpose,ordinality)
+                    JOIN portfolio_financial.financial_source_receipt receipt
+                        ON receipt.book_id=$1 AND receipt.source_system=input.source_system
+                        AND receipt.source_event_key=input.source_event_key AND receipt.posting_purpose=input.posting_purpose;
                     """;
             public const string Select02 = """
                     SELECT state FROM portfolio_financial.ledger_period WHERE book_id=$1 AND start_date<=$2 AND end_date>=$2;
@@ -519,6 +610,12 @@ public static class PortfolioDbSql
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class PortfolioAuthorityFence
         {
+            public const string MatchPreparedPortfolio = """
+                SELECT EXISTS (
+                    SELECT FROM portfolio.portfolio_by_id
+                    WHERE portfolio_id=$1 AND aggregate_version=$2 AND portfolio_version=$3 AND operating_state=$4
+                );
+                """;
             public const string Select01 = "SELECT pg_advisory_xact_lock(34100,$1);";
             public const string Select02 = """
             SELECT policy_source_versions::text,authority_epoch,financial_revision,operating_state FROM portfolio_financial.financial_authority
@@ -593,6 +690,7 @@ public static class PortfolioDbSql
         public const string Get = "SELECT payload_json::text FROM portfolio.portfolio_by_id WHERE portfolio_id=$1 ORDER BY portfolio_version DESC LIMIT 1;";
         public const string Revision = "SELECT aggregate_version,source_event_id FROM portfolio.portfolio_by_id WHERE portfolio_id=$1 ORDER BY portfolio_version DESC LIMIT 1;";
         public const string ByState = "SELECT payload_json::text FROM portfolio.portfolio_by_state WHERE operating_state=$1 AND state_bucket=$2 AND portfolio_id>$3 ORDER BY portfolio_id LIMIT $4;";
+        public const string ByOperatingState = "SELECT payload_json::text FROM portfolio.portfolio_by_state WHERE operating_state=$1 AND portfolio_id>$2 ORDER BY portfolio_id LIMIT $3;";
         public const string Upsert = """
             WITH saved_portfolio AS (
               INSERT INTO portfolio.portfolio_by_id(portfolio_id,portfolio_version,operating_state,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash)

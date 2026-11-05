@@ -20003,6 +20003,12 @@
         "index": 0,
         "mapKey": null,
         "type": "System.DateOnly"
+      },
+      {
+        "name": "SeriesKey",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.String"
       }
     ],
     "actor": null,
@@ -56367,6 +56373,18 @@
         "index": 11,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "ReferencePreparationId",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.Nullable`1[System.Guid]"
+      },
+      {
+        "name": "ParentPortfolio",
+        "index": 13,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioReadModel"
       }
     ],
     "actor": "PortfolioFinancialPolicyCommand",
@@ -56446,6 +56464,18 @@
         "index": 10,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "ReferencePreparationId",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Guid]"
+      },
+      {
+        "name": "ActivationPreparation",
+        "index": 12,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundActivationPreparation"
       }
     ],
     "actor": "PortfolioFundCommand",
@@ -56677,6 +56707,12 @@
         "index": 10,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "ReferencePreparationId",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Guid]"
       }
     ],
     "actor": "PortfolioFinancialPolicyCommand",
@@ -56835,6 +56871,12 @@
         "index": 10,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "ReferencePreparationId",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Guid]"
       }
     ],
     "actor": "PortfolioFundCommand",
@@ -57090,6 +57132,18 @@
         "index": 11,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "ReferencePreparationId",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Guid]"
+      },
+      {
+        "name": "ActivationPreparation",
+        "index": 13,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundActivationPreparation"
       }
     ],
     "actor": "PortfolioFundCommand",
@@ -57254,6 +57308,12 @@
         "index": 10,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "ReferencePreparationId",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Guid]"
       }
     ],
     "actor": "PortfolioFundCommand",
@@ -57327,6 +57387,12 @@
         "index": 9,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "Preparation",
+        "index": 10,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundOrderPreparation"
       }
     ],
     "actor": "PortfolioFundCommand",
@@ -57485,6 +57551,12 @@
         "index": 10,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "ReferencePreparationId",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Guid]"
       }
     ],
     "actor": "PortfolioFinancialPolicyCommand",
@@ -58658,6 +58730,12 @@
         "index": 10,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "Preparation",
+        "index": 11,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundOrderPreparation"
       }
     ],
     "actor": "PortfolioFundCommand",
@@ -59131,6 +59209,31 @@
     "verb": null
   },
   {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundActivationPreparation",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "ParentSourceRevision",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "ParentPortfolioVersion",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Int64"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
     "type": "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCapacityState",
     "isEnum": true,
     "errorId": null,
@@ -59323,6 +59426,43 @@
       }
     ],
     "members": [],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundOrderPreparation",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "OrderId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "TradeIds",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Int32[]"
+      },
+      {
+        "name": "Parent",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioReadModel"
+      },
+      {
+        "name": "ParentSourceRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Int64]"
+      }
+    ],
     "actor": null,
     "verb": null
   },
@@ -62762,6 +62902,12 @@
         "index": 5,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.AcceptedCapacityUsage[]"
+      },
+      {
+        "name": "Reservation",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.ReservationSnapshot"
       }
     ],
     "actor": null,
@@ -74005,6 +74151,954 @@
     "verb": null
   },
   {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.AllocatePortfolioBusinessIdCommand",
+    "isEnum": false,
+    "errorId": 34012,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "RouteTo",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.BoundedContextName"
+      },
+      {
+        "name": "Kind",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioBusinessIdentityKind"
+      },
+      {
+        "name": "Access",
+        "index": 7,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      }
+    ],
+    "actor": "PortfolioBusinessIdAllocationFunction",
+    "verb": "AllocatePortfolioBusinessId"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.FinancialAuthorityPreparationCompletedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Value",
+        "index": 8,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialRead\u00601[TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialAuthorityDraft]"
+      },
+      {
+        "name": "InputHash",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.FinancialAuthorityPreparationFailedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "ErrorCode",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ErrorMessage",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ErrorType",
+        "index": 10,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
+      },
+      {
+        "name": "ErrorData",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandName",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandData",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.FinancialBookPreparationCompletedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Value",
+        "index": 8,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialRead\u00601[TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialBookSetup]"
+      },
+      {
+        "name": "InputHash",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.FinancialBookPreparationFailedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "ErrorCode",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ErrorMessage",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ErrorType",
+        "index": 10,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
+      },
+      {
+        "name": "ErrorData",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandName",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandData",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.PortfolioBusinessIdAllocationCompletedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Value",
+        "index": 8,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.PortfolioBusinessIdAllocation"
+      },
+      {
+        "name": "InputHash",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.PortfolioBusinessIdAllocationFailedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "ErrorCode",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ErrorMessage",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ErrorType",
+        "index": 10,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
+      },
+      {
+        "name": "ErrorData",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandName",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandData",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.PortfolioReferenceValidationCompletedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "InputHash",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.PortfolioReferenceValidationFailedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "ErrorCode",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ErrorMessage",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ErrorType",
+        "index": 10,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
+      },
+      {
+        "name": "ErrorData",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandName",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandData",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.PrepareFinancialAuthorityCommand",
+    "isEnum": false,
+    "errorId": 34118,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "RouteTo",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.BoundedContextName"
+      },
+      {
+        "name": "Parameters",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.PrepareFinancialAuthorityRequest"
+      },
+      {
+        "name": "Scope",
+        "index": 7,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialReadScope"
+      }
+    ],
+    "actor": "FinancialAuthorityPreparationFunction",
+    "verb": "PrepareFinancialAuthority"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.PrepareFinancialBookCommand",
+    "isEnum": false,
+    "errorId": 34118,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "RouteTo",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.BoundedContextName"
+      },
+      {
+        "name": "Parameters",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.PrepareFinancialBookRequest"
+      },
+      {
+        "name": "Scope",
+        "index": 7,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialReadScope"
+      }
+    ],
+    "actor": "FinancialBookPreparationFunction",
+    "verb": "PrepareFinancialBook"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Preparation.ValidatePortfolioReferenceCommand",
+    "isEnum": false,
+    "errorId": 34000,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "RouteTo",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.BoundedContextName"
+      },
+      {
+        "name": "Access",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "Mandate",
+        "index": 7,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel"
+      },
+      {
+        "name": "Assignment",
+        "index": 8,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundTradeTemplateAssignmentReadModel"
+      },
+      {
+        "name": "Policy",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioFinancialPolicyReadModel"
+      },
+      {
+        "name": "ActivatesPolicy",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "ActivationAssignments",
+        "index": 11,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundTradeTemplateAssignmentReadModel[]"
+      },
+      {
+        "name": "OwnerCommandId",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.Guid"
+      }
+    ],
+    "actor": "PortfolioReferenceValidationFunction",
+    "verb": "ValidatePortfolioReference"
+  },
+  {
     "type": "TomasAI.IFM.Domain.Portfolio.Shared.Queries.AllocatePortfolioBusinessIdQuery",
     "isEnum": false,
     "errorId": 34100,
@@ -75330,6 +76424,12 @@
         "index": 2,
         "mapKey": null,
         "type": "System.Guid"
+      },
+      {
+        "name": "OperationId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Guid]"
       }
     ],
     "actor": null,
@@ -192264,5 +193364,242 @@
     ],
     "actor": null,
     "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations.OptionContractPreparationCompletedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Contracts",
+        "index": 8,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel[]"
+      },
+      {
+        "name": "OriginalContractId",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "RequestFingerprint",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations.OptionContractPreparationFailedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "ErrorCode",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ErrorMessage",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ErrorType",
+        "index": 10,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.ErrorType"
+      },
+      {
+        "name": "ErrorData",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandName",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CommandData",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations.PrepareOptionContractsCommand",
+    "isEnum": false,
+    "errorId": 6011,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "RouteTo",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.BoundedContextName"
+      },
+      {
+        "name": "Contracts",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel[]"
+      },
+      {
+        "name": "OriginalContractId",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "OptionContractPreparationFunction",
+    "verb": "PrepareOptionContracts"
   }
 ]

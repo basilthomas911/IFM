@@ -8,12 +8,14 @@ using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations;
 
 /// <summary>Versioned in-memory catalog for native option paging/command tests.</summary>
 internal sealed class OptionContractResponder
 {
     readonly Dictionary<string,FuturesOptionContractReadModel> rows=[];
     readonly HashSet<Guid> commands=[];
+    readonly Dictionary<Guid, OptionContractPreparationCompletedEvent> preparations = [];
     int version=1;
     public string Mode {get;set;}="Normal";
     public OptionContractResponder(FuturesOptionContractReadModel provider)
@@ -30,6 +32,29 @@ internal sealed class OptionContractResponder
     public async Task<byte[]?> Handle(NatsConnection connection,string subject,byte[] payload,CancellationToken token)
     {
         var options=MessagePackBinarySerializer.Options;
+        if (subject.StartsWith("Function.OptionContractPreparationFunction.PrepareOptionContracts.", StringComparison.Ordinal))
+        {
+            var request = MessagePackSerializer.Deserialize<PrepareOptionContractsCommand>(payload, options);
+            var entity = request.CommandId.ToString("N");
+            if (request.Subject.ToString() != subject || request.EntityId != new ActorEntityId(entity)
+                || request.Contracts is not [var contract] || request.RouteTo != BoundedContextName.FuturesOptionContractBoundedContext)
+                throw new InvalidDataException("Invalid option preparation request");
+            var prepared = contract with
+            {
+                LocalSymbol = FuturesOptionContractReadModel.GetExactContractLocalSymbol(
+                    FuturesOptionContractReadModel.GetLocalSymbol(contract.Symbol, contract.ContractMonth),
+                    contract.OptionType, contract.GetExactStrikePrice())
+            };
+            var result = new OptionContractPreparationCompletedEvent
+            {
+                CommandId = request.CommandId, EntityId = request.EntityId, Contracts = [prepared],
+                OriginalContractId = request.OriginalContractId
+            };
+            preparations[request.CommandId] = result;
+            return MessagePackSerializer.Serialize(
+                new ServiceResult<FunctionResult<OptionContractPreparationCompletedEvent, OptionContractPreparationFailedEvent>>(
+                    FunctionResult<OptionContractPreparationCompletedEvent, OptionContractPreparationFailedEvent>.Complete(result)), options);
+        }
         if(subject.StartsWith("Query.FuturesOptionContractQuery.GetFuturesOptionContract.",StringComparison.Ordinal)){
             var query=MessagePackSerializer.Deserialize<GetFuturesOptionContractQuery>(payload,options);
             if(query.Subject.ToString()!=subject||subject!=$"Query.FuturesOptionContractQuery.GetFuturesOptionContract.{query.ContractId}")throw new InvalidDataException("Invalid option identity lookup");
@@ -63,6 +88,9 @@ internal sealed class OptionContractResponder
             if(command.Subject.ToString()!=subject||subject!=$"Command.FuturesOptionContractCommand.{verb}.{command.EntityId.Format()}"||command.RouteTo!=BoundedContextName.FuturesOptionContractBoundedContext||!overwrite||(bool)command.GetType().GetProperty("PostEvents")!.GetValue(command)!)throw new InvalidDataException("Invalid option command identity/metadata");
             if(verb!="Add"&&!rows.ContainsKey(original))throw new InvalidDataException("Option contract no longer exists");
             if(value is not null){
+                if (value.SchemaVersion == 0 && (!preparations.Remove(command.CommandId, out var prepared)
+                    || prepared.Contracts.Single() != value || prepared.OriginalContractId != (verb == "Add" ? null : original)))
+                    throw new InvalidDataException("Legacy option command did not forward its prepared contract");
                 if(!value.IsValid||command.EntityId.ContractId!=value.ContractId||command.EntityId.Year!=value.ContractMonth.Year)throw new InvalidDataException("Option route must use instrument expiry year");
                 _=value.GetExactStrikePrice();
                 if(value.Description=="Reject")throw new InvalidDataException("Option fixture rejected mutation");

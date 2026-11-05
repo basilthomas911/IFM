@@ -7,6 +7,7 @@ using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.Events;
@@ -22,8 +23,12 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Events;
 /// should not be shared between threads without external synchronization.</remarks>
 [MessagePackObject(AllowPrivate = true)]
 public record FuturesContractChangedEvent :
-    IEvent<FuturesContractId>
+    IEvent<FuturesContractId>, IRequireDurableProjection
 {
+    [IgnoreMember]
+    DurableProjectionRequirement IRequireDurableProjection.RequiredProjection =>
+        new("FuturesContractCommandActor", "FuturesContractEventProjector", EventProjectorStageType.PublishProcessingEvent);
+
     [IgnoreMember] public const string Actor = "FuturesContractEvent";
     [IgnoreMember] public const string Verb = "Changed";
     [IgnoreMember] public const string Complete = "ChangedComplete";

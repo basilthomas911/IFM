@@ -192,6 +192,6 @@ public sealed class GeneralLedgerPostingIntegrationTests(PortfolioEventStoreFixt
             ObligationId = info.Items[0].ObligationId
         }
     };
-    static async Task<decimal> Cash(FinancialBookConfiguration book) => Convert.ToDecimal(await Transactions().ExecuteAsync((db, ct) => db.ScalarAsync(
+    internal static async Task<decimal> Cash(FinancialBookConfiguration book) => Convert.ToDecimal(await Transactions().ExecuteAsync((db, ct) => db.ScalarAsync(
         "SELECT coalesce(sum(balance),0) FROM portfolio_financial.ledger_account_balance WHERE book_id=$1 AND account_id=101;", [book.BookId], ct)));
 }

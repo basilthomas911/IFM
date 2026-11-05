@@ -4,6 +4,7 @@ using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
+using TomasAI.IFM.Domain.Portfolio.Shared.Preparation;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -13,8 +14,10 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
-public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortfolioQueryApi? queries = null) : NatsClientApi(actorProducer), IPortfolioFundCommandApi
+public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortfolioQueryApi? queries = null,
+    IPortfolioIdentityApi? identity = null) : NatsClientApi(actorProducer), IPortfolioFundCommandApi
 {
+    readonly IPortfolioIdentityApi _identity = identity ?? new PortfolioIdentityApi(actorProducer);
     static PortfolioAccessContext AdministratorAccess => PortfolioAccessScope.Current
         ?? PortfolioAccessContext.Administrator($"interactive:{Environment.UserName}");
     static PortfolioAccessContext WorkflowAccess => PortfolioAccessScope.Current
@@ -44,9 +47,27 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
     {
         ArgumentNullException.ThrowIfNull(request);
         var alreadyProjected = queries is not null && await FindManualOrderAsync(request, cancellationToken).ConfigureAwait(false) is not null;
-        var acknowledged = await Send(new(request.PortfolioId, request.FundId), CreateManualFundOrderCommand.Verb,
-            new CreateManualFundOrderCommand(request), PortfolioErrorCodes.ValidationFailed, cancellationToken,
-            IdempotentCommandId.Create(request.IdempotencyKey, request), AdministratorAccess).ConfigureAwait(false);
+        var command = new CreateManualFundOrderCommand(request);
+        var fund = new PortfolioFundId(request.PortfolioId, request.FundId);
+        var commandId = IdempotentCommandId.Create(request.IdempotencyKey, request);
+        if (!alreadyProjected)
+        {
+            if (queries is null)
+                return new ServiceFailed<FundCompositionReservationResult>(PortfolioErrorCodes.Unavailable, "Manual Fund orders require the Portfolio query API.");
+            using var scope = PortfolioAccessScope.Push(AdministratorAccess);
+            var parent = await ReadActiveParentAsync(queries, request.PortfolioId, cancellationToken).ConfigureAwait(false);
+            if (parent is not { Portfolio: { } portfolio, Revision: var revision } || portfolio.PortfolioVersion != request.PortfolioVersion)
+                return new ServiceFailed<FundCompositionReservationResult>(PortfolioErrorCodes.VersionConflict,
+                    "Manual draft Portfolio version is stale, its projection changed during preparation, or the Portfolio is not active.");
+            var operationId = FundOrderPreparation.AllocationOperationId(fund, commandId, PortfolioBusinessIdentityKind.Order, 0);
+            var order = await _identity.AllocateForOperationAsync(PortfolioBusinessIdentityKind.Order, operationId, cancellationToken).ConfigureAwait(false);
+            if (!order.Success || order.Value is not { Value: > 0 } allocated)
+                return new ServiceFailed<FundCompositionReservationResult>(PortfolioErrorCodes.SequenceAllocationFailed, order.ErrorMessage);
+            command = command with { Preparation = new() { OrderId = allocated.Value, Parent = portfolio, ParentSourceRevision = revision } };
+        }
+        var acknowledged = await Send(fund, CreateManualFundOrderCommand.Verb,
+            command, PortfolioErrorCodes.ValidationFailed, cancellationToken,
+            commandId, AdministratorAccess).ConfigureAwait(false);
         if (!acknowledged.Success)
             return new ServiceFailed<FundCompositionReservationResult>(acknowledged.ErrorCode, acknowledged.ErrorMessage);
         if (queries is null)
@@ -62,6 +83,17 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
             await Task.Delay(50, cancellationToken).ConfigureAwait(false);
         }
         return new ServiceFailed<FundCompositionReservationResult>(PortfolioErrorCodes.Unavailable, "Manual order committed but its projection was not visible before the bounded query timeout.");
+    }
+
+    static async Task<(PortfolioReadModel Portfolio, long Revision)?> ReadActiveParentAsync(
+        IPortfolioQueryApi queries, int portfolioId, CancellationToken cancellationToken)
+    {
+        var before = await queries.GetPortfolioRevisionAsync(portfolioId, cancellationToken).ConfigureAwait(false);
+        var parent = await queries.GetPortfolioAsync(portfolioId, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var after = await queries.GetPortfolioRevisionAsync(portfolioId, cancellationToken).ConfigureAwait(false);
+        return before.Success && after.Success && before.Value is { Revision: > 0 } revision && revision == after.Value
+            && parent.Success && parent.Value is { OperatingState: PortfolioOperatingState.Active } portfolio
+            ? (portfolio, revision.Revision) : null;
     }
 
     async Task<FundCompositionReservationResult?> FindManualOrderAsync(CreateManualFundOrderRequest request, CancellationToken cancellationToken)
@@ -239,7 +271,28 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
     {
         ArgumentNullException.ThrowIfNull(request);
         var wasAlreadyProjected = queries is not null && await FindReservationAsync(request, cancellationToken).ConfigureAwait(false) is not null;
-        var acknowledged = await Send(new(request.PortfolioId, request.FundId), ReserveFundOrderCompositionCommand.Verb, new ReserveFundOrderCompositionCommand(request, snapshot), PortfolioErrorCodes.IdempotencyConflict, cancellationToken, access: WorkflowAccess).ConfigureAwait(false);
+        var command = new ReserveFundOrderCompositionCommand(request, snapshot);
+        var fund = new PortfolioFundId(request.PortfolioId, request.FundId);
+        var commandId = IdempotentCommandId.Create(request.IdempotencyKey, request);
+        if (!wasAlreadyProjected)
+        {
+            using var scope = PortfolioAccessScope.Push(WorkflowAccess);
+            var orderOperation = FundOrderPreparation.AllocationOperationId(fund, commandId, PortfolioBusinessIdentityKind.Order, 0);
+            var order = await _identity.AllocateForOperationAsync(PortfolioBusinessIdentityKind.Order, orderOperation, cancellationToken).ConfigureAwait(false);
+            if (!order.Success || order.Value is not { Value: > 0 } allocated)
+                return new ServiceFailed<FundCompositionReservationResult>(PortfolioErrorCodes.SequenceAllocationFailed, order.ErrorMessage);
+            var trades = new int[request.TradeInstructions.Length];
+            for (var index = 0; index < trades.Length; index++)
+            {
+                var tradeOperation = FundOrderPreparation.AllocationOperationId(fund, commandId, PortfolioBusinessIdentityKind.Trade, index);
+                var trade = await _identity.AllocateForOperationAsync(PortfolioBusinessIdentityKind.Trade, tradeOperation, cancellationToken).ConfigureAwait(false);
+                if (!trade.Success || trade.Value is not { Value: > 0 } tradeId)
+                    return new ServiceFailed<FundCompositionReservationResult>(PortfolioErrorCodes.SequenceAllocationFailed, trade.ErrorMessage);
+                trades[index] = tradeId.Value;
+            }
+            command = command with { Preparation = new() { OrderId = allocated.Value, TradeIds = trades } };
+        }
+        var acknowledged = await Send(fund, ReserveFundOrderCompositionCommand.Verb, command, PortfolioErrorCodes.IdempotencyConflict, cancellationToken, commandId, WorkflowAccess).ConfigureAwait(false);
         if (!acknowledged.Success) return new ServiceFailed<FundCompositionReservationResult>(acknowledged.ErrorCode, acknowledged.ErrorMessage);
         if (queries is null) return new ServiceFailed<FundCompositionReservationResult>(PortfolioErrorCodes.Unavailable, "Portfolio query API is required to observe the committed reservation.");
         for (var attempt = 0; attempt < 40; attempt++)
@@ -343,7 +396,54 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
             ExpireFundOrderCompositionCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
             _ => throw new InvalidOperationException($"Unsupported Portfolio Fund command message {typeof(TCommand).FullName}."),
         };
-        try { return await RequestCommandAsync((dynamic)command, id, cancellationToken).ConfigureAwait(false); }
+        try
+        {
+            if (command is CreateFundMandateCommand or AddFundMandateVersionCommand or AssignTradeTemplateCommand
+                or ChangeFundOperatingStateCommand { State: FundOperatingState.Active })
+            {
+                var reference = ValidatePortfolioReferenceCommand.ForOwnerCommand(actualCommandId) with { Access = actualAccess };
+                FundActivationPreparation? activation = null;
+                if (command is ChangeFundOperatingStateCommand { State: FundOperatingState.Active } ||
+                    command is AddFundMandateVersionCommand { Mandate.OperatingState: FundOperatingState.Active })
+                {
+                    if (queries is null)
+                        return new ServiceFailed<Guid>(PortfolioErrorCodes.Unavailable, "Fund activation requires the Portfolio query API.");
+                    var parent = await ReadActiveParentAsync(queries, id.PortfolioId, cancellationToken).ConfigureAwait(false);
+                    if (parent is not { Portfolio: { } portfolio, Revision: var revision })
+                        return new ServiceFailed<Guid>(PortfolioErrorCodes.VersionConflict, "The active parent Portfolio changed or is unavailable.");
+                    var fund = await queries.GetFundAsync(id.PortfolioId, id.FundId, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    if (!fund.Success || fund.Value is not { } current)
+                        return new ServiceFailed<Guid>(PortfolioErrorCodes.VersionConflict, "The current Fund mandate is unavailable for activation.");
+                    var assignments = await queries.GetAssignmentsAsync(id.PortfolioId, id.FundId, current.FundMandateVersion, cancellationToken).ConfigureAwait(false);
+                    if (!assignments.Success || assignments.Value is null)
+                        return new ServiceFailed<Guid>(PortfolioErrorCodes.VersionConflict, "Fund assignments are unavailable for activation.");
+                    activation = new() { ParentSourceRevision = revision, ParentPortfolioVersion = portfolio.PortfolioVersion };
+                    reference = reference with { ActivationAssignments = assignments.Value.Where(assignment => assignment.Enabled).ToArray() };
+                }
+                var preparation = command switch
+                {
+                    CreateFundMandateCommand value => reference with { Mandate = value.Mandate },
+                    AddFundMandateVersionCommand value => reference with { Mandate = value.Mandate },
+                    AssignTradeTemplateCommand value => reference with { Assignment = value.Assignment },
+                    ChangeFundOperatingStateCommand when activation is not null => reference,
+                    _ => null
+                };
+                if (preparation is not null)
+                {
+                    var receipt = await ValidatePortfolioReferenceAsync(preparation, cancellationToken).ConfigureAwait(false);
+                    if (!receipt.Success) return receipt;
+                    command = command switch
+                    {
+                        CreateFundMandateCommand value => value with { ReferencePreparationId = receipt.Value },
+                        AddFundMandateVersionCommand value => value with { ReferencePreparationId = receipt.Value, ActivationPreparation = activation },
+                        AssignTradeTemplateCommand value => value with { ReferencePreparationId = receipt.Value },
+                        ChangeFundOperatingStateCommand value => value with { ReferencePreparationId = receipt.Value, ActivationPreparation = activation },
+                        _ => command
+                    };
+                }
+            }
+            return await RequestCommandAsync((dynamic)command, id, cancellationToken).ConfigureAwait(false);
+        }
         catch (Exception ex) when (ex is not OperationCanceledException) { return new ServiceFailed<Guid>(errorCode, ex.Message); }
     }
 

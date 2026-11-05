@@ -46,7 +46,7 @@ public class FuturesOptionContractStateRepository(
 
     public async ValueTask<FuturesOptionContractCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
         => await LoadStateFromLatestCheckpointAsync<FuturesOptionContractCommandState, FuturesOptionContractStateSnapshottedEvent>(command,
-            static snapshot => snapshot.ContractIds is not null, cancellationToken).ConfigureAwait(false);
+            FuturesOptionContractCommandState.IsCompleteSnapshot, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Saves the specified state asynchronously, associating it with the provided command.
@@ -79,7 +79,8 @@ public class FuturesOptionContractStateRepository(
         state.AcceptChanges();
         if (snapshot is not null)
             state.RestoreCommittedStreamVersion(checked(state.CommittedStreamVersion + 1));
-        await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
+        await SecuritiesContractAtomicPersistence.SubmitCommittedAsync(_eventProjector, pending, command, actorContext.Logger)
+            .ConfigureAwait(false);
     }
 
     /// <summary>

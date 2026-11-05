@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -21,6 +22,48 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapsho
 public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
 {
     static readonly MarketOutlookEntityId Id = new("ESZ26", new DateOnly(2026, 9, 1));
+
+    [Fact]
+    public async Task Live_trades_refresh_market_direction_and_volatility_from_the_committed_daily_baseline()
+    {
+        const string contract = "ESOUTLOOK99";
+        MarketOutlookDailyPreviewCalculatorTests.SeedBaseline(contract);
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var trade = MarketOutlookDailyPreviewCalculatorTests.Trade(contract, 7_000m, 1);
+        var entity = new MarketOutlookEntityId(contract, trade.Price.ValueDate);
+        var eod = Eod(trade.ReceivedOn);
+        runtime.Channel.Submit(eod with
+        {
+            EntityId = entity,
+            Eod = eod.Eod with { ContractId = contract, ValueDate = entity.ValueDate }
+        });
+        await runtime.DrainAsync();
+
+        await PublishTrade(trade);
+        runtime.Cache.TryGetCurrent(entity, out var first).Should().BeTrue();
+        first.FuturesEodData.MarketDirection.Should().Be(MarketDirectionType.Up);
+        first.FuturesEodData.MarketVolatility.Should().Be(MarketVolatilityType.Rising);
+
+        await PublishTrade(MarketOutlookDailyPreviewCalculatorTests.Trade(contract, 4_000m, 2));
+        runtime.Cache.TryGetCurrent(entity, out var second).Should().BeTrue();
+        second.FuturesEodData.MarketDirection.Should().Be(MarketDirectionType.Down);
+        second.FuturesEodData.MarketVolatility.Should().Be(MarketVolatilityType.Rising);
+        await runtime.Publisher.Received(1).PublishAsync(
+            Arg.Any<EsTradeMarketOutlookUpdate>(),
+            Arg.Is<MarketOutlookReadModel>(snapshot => snapshot.FuturesEodData.MarketDirection == MarketDirectionType.Down
+                && snapshot.FuturesEodData.MarketVolatility == MarketVolatilityType.Rising),
+            Arg.Any<CancellationToken>());
+
+        async Task PublishTrade(FuturesMarketPriceUpdatedRealtimeEvent source)
+        {
+            runtime.Channel.Submit(new EsTradeMarketOutlookUpdate
+            {
+                UpdateId = source.Id, EntityId = entity, ReceivedAtUtc = source.ReceivedOn,
+                MarketDataAsOfUtc = source.ReceivedOn, PriceUpdate = source
+            });
+            await runtime.DrainAsync();
+        }
+    }
 
     [Theory]
     [InlineData(IntrinsicTimeModeType.TrendOvershootExtended)]

@@ -149,6 +149,10 @@ internal static class SecuritiesDbContextExtensions
         internal async Task InsertFuturesContractAsyncCoreBinding(FuturesContractV3ReadModel futuresContract)
         {
             ArgumentNullException.ThrowIfNull(futuresContract);
+            if (string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
+                && await SecuritiesFuturesCatalog.TryImportDefinitionAsync(context, futuresContract)
+                    .ConfigureAwait(false))
+                return;
             var reference = await (context.StageReferenceAsync(futuresContract))
                 .ConfigureAwait(false);
             var db = context.DbFactory.SecuritiesDb;
@@ -1825,6 +1829,12 @@ internal static class SecuritiesDbContextExtensions
                     "The rollover row must identify the one on-the-run contract in a distinct rollover set for the same symbol.",
                     nameof(contracts));
             }
+
+            if (string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
+                && await SecuritiesFuturesCatalog.TryReplaceAsync(context, rollover, orderedReplacements, symbol,
+                    cancellationToken)
+                    .ConfigureAwait(false))
+                return;
 
             var existing = await (context.GetFuturesRolloverSetAsync(symbol, cancellationToken))
                 .ConfigureAwait(false);

@@ -108,6 +108,39 @@ public sealed class PortfolioFinancialPolicyAggregate
         foreach (var domainEvent in events.OrderBy(x => x.Revision)) Apply(domainEvent, true);
     }
 
+    internal PortfolioFinancialPolicyAggregateSnapshot CaptureSnapshot()
+    {
+        if (FinancialPolicy is null)
+            throw new InvalidOperationException("A missing policy cannot be snapshotted.");
+        return new PortfolioFinancialPolicyAggregateSnapshot(Revision, FinancialPolicy.PolicyVersion,
+            [.. Versions.Select(policy => policy.DefensiveCopy())], _everActive, IsDeleted, [.. _commandIds.Order()]);
+    }
+
+    internal void RestoreSnapshot(PortfolioFinancialPolicyAggregateSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (FinancialPolicy is not null || Revision != 0 || snapshot.Revision <= 0)
+            throw new InvalidOperationException("A valid checkpoint can only restore an empty policy.");
+        if (snapshot.Versions is null || snapshot.AppliedCommandIds is null)
+            throw new InvalidOperationException("Checkpoint is missing policy state.");
+        foreach (var policy in snapshot.Versions)
+        {
+            ThrowIfInvalid(policy.Validate());
+            if (!_financialPolicyVersions.TryAdd(policy.PolicyVersion, policy.DefensiveCopy()))
+                throw new InvalidOperationException("Policy checkpoint contains a duplicate version.");
+        }
+        if (!_financialPolicyVersions.TryGetValue(snapshot.CurrentPolicyVersion, out var current)
+            || _financialPolicyVersions.Values.Any(policy => policy.PortfolioId != current.PortfolioId || policy.PolicyId != current.PolicyId))
+            throw new InvalidOperationException("Policy checkpoint has inconsistent version ownership.");
+        foreach (var id in snapshot.AppliedCommandIds)
+            if (id == Guid.Empty || !_commandIds.Add(id))
+                throw new InvalidOperationException("Policy checkpoint contains invalid command history.");
+        FinancialPolicy = current;
+        Revision = snapshot.Revision;
+        _everActive = snapshot.EverActive;
+        IsDeleted = snapshot.IsDeleted;
+    }
+
     /// <summary>Gets the event accepted by the current command for its existing durable append boundary.</summary>
     internal IPortfolioFinancialPolicyDomainEvent? PendingEvent { get; private set; }
 

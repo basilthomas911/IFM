@@ -5,7 +5,6 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
-using TomasAI.IFM.Domain.Portfolio.Identity;
 
 namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Query;
 
@@ -31,7 +30,7 @@ public sealed class PortfolioQueryServiceTests
     [Trait("Category", "Portfolio")]
     public async Task Concurrency_queries_return_projection_aggregate_revisions_not_business_versions()
     {
-        var service = new PortfolioQueryService(ProjectionCatalog.Valid(), new PortfolioFundStrategyResolver(), new FixedPortfolioHighWatermark(101));
+        var service = new PortfolioQueryService(ProjectionCatalog.Valid(), new PortfolioFundStrategyResolver());
 
         var portfolio = await service.GetPortfolioRevisionAsync(101);
         var fund = await service.GetFundRevisionAsync(101, 201);
@@ -47,7 +46,7 @@ public sealed class PortfolioQueryServiceTests
     public async Task Strategy_query_resolves_from_projection_context_only_and_maps_configuration_errors()
     {
         var db = ProjectionCatalog.Valid();
-        var service = new PortfolioQueryService(db, new PortfolioFundStrategyResolver(), new FixedPortfolioHighWatermark(101));
+        var service = new PortfolioQueryService(db, new PortfolioFundStrategyResolver());
         var now = db.Now;
 
         var result = await service.GetStrategySnapshotAsync(101, 2026, "Daily", "ES", "Futures", now, Guid.NewGuid(), 1, Guid.NewGuid());
@@ -65,7 +64,7 @@ public sealed class PortfolioQueryServiceTests
     [Fact]
     [Trait("Gate", "PF-30")]
     [Trait("Category", "Portfolio")]
-    public async Task Portfolio_page_traverses_sequence_buckets_and_returns_id_1001()
+    public async Task Portfolio_page_uses_one_indexed_projection_read_across_buckets()
     {
         var portfolio = ProjectionCatalog.Valid().Portfolio with
         {
@@ -73,13 +72,13 @@ public sealed class PortfolioQueryServiceTests
             OperatingState = PortfolioOperatingState.Draft,
         };
         var db = new ProjectionCatalog { Portfolio = portfolio };
-        var service = new PortfolioQueryService(db, new PortfolioFundStrategyResolver(), new FixedPortfolioHighWatermark(1001));
+        var service = new PortfolioQueryService(db, new PortfolioFundStrategyResolver());
 
         var result = await service.GetPortfoliosAsync(PortfolioOperatingState.Draft, 100);
 
         result.Success.Should().BeTrue();
         result.Value!.Items.Should().ContainSingle().Which.PortfolioId.Should().Be(1001);
-        db.RequestedBuckets.Should().Equal(0, 1);
+        db.RequestedBuckets.Should().Equal(new int?[] { null });
     }
 
     [Fact]
@@ -93,7 +92,7 @@ public sealed class PortfolioQueryServiceTests
             Portfolio = template with { PortfolioId = 999 },
             PortfolioPage = [template with { PortfolioId = 999 }, template with { PortfolioId = 1001 }],
         };
-        var service = new PortfolioQueryService(db, new PortfolioFundStrategyResolver(), new FixedPortfolioHighWatermark(1100));
+        var service = new PortfolioQueryService(db, new PortfolioFundStrategyResolver());
 
         var first = await service.GetPortfoliosAsync(PortfolioOperatingState.Draft, 1);
         var second = await service.GetPortfoliosAsync(PortfolioOperatingState.Draft, 1, first.Value!.NextPageToken);
@@ -101,12 +100,8 @@ public sealed class PortfolioQueryServiceTests
         first.Value.Items.Should().ContainSingle().Which.PortfolioId.Should().Be(999);
         first.Value.NextPageToken.Should().NotBeNull();
         second.Value!.Items.Should().ContainSingle().Which.PortfolioId.Should().Be(1001);
-        db.RequestedBuckets.Should().Equal(0, 0, 1);
-    }
-
-    sealed record FixedPortfolioHighWatermark(int Value) : IPortfolioBusinessIdHighWatermark
-    {
-        public ValueTask<int> GetPortfolioHighWatermarkAsync(CancellationToken cancellationToken = default) => ValueTask.FromResult(Value);
+        second.Value.NextPageToken.Should().BeNull();
+        db.RequestedBuckets.Should().Equal(new int?[] { null, null });
     }
 
     sealed class ProjectionCatalog : IPortfolioDbReadContext
@@ -121,7 +116,7 @@ public sealed class PortfolioQueryServiceTests
         public FundTradeTemplateAssignmentReadModel Assignment { get; init; } = new();
         public PortfolioFinancialPolicyReadModel Policy { get; init; } = new();
         public PortfolioReadModel[] PortfolioPage { get; init; } = [];
-        public List<int> RequestedBuckets { get; } = [];
+        public List<int?> RequestedBuckets { get; } = [];
 
         public static ProjectionCatalog Valid()
         {
@@ -140,12 +135,12 @@ public sealed class PortfolioQueryServiceTests
 
         public Task<PortfolioReadModel?> GetPortfolioAsync(int portfolioId, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioReadModel?>(portfolioId == Portfolio.PortfolioId ? Portfolio : null);
         public Task<PortfolioProjectionRevision?> GetPortfolioRevisionAsync(int portfolioId, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioProjectionRevision?>(portfolioId == Portfolio.PortfolioId ? new(portfolioId, null, 7, 70) : null);
-        public Task<IReadOnlyList<PortfolioReadModel>> GetPortfoliosByStateAsync(PortfolioOperatingState state, int bucket, int afterPortfolioId, int pageSize, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<PortfolioReadModel>> GetPortfoliosByStateAsync(PortfolioOperatingState state, int? bucket, int afterPortfolioId, int pageSize, CancellationToken cancellationToken = default)
         {
             RequestedBuckets.Add(bucket);
             var source = PortfolioPage.Length == 0 ? [Portfolio] : PortfolioPage;
             return Task.FromResult<IReadOnlyList<PortfolioReadModel>>(
-                [.. source.Where(x => (x.PortfolioId - 1) / 1000 == bucket && x.OperatingState == state && x.PortfolioId > afterPortfolioId)
+                [.. source.Where(x => (bucket is null || (x.PortfolioId - 1) / 1000 == bucket) && x.OperatingState == state && x.PortfolioId > afterPortfolioId)
                     .OrderBy(x => x.PortfolioId).Take(pageSize)]);
         }
         public Task<IReadOnlyList<FundMandateReadModel>> GetFundsByPortfolioAsync(int portfolioId, int afterFundId, int pageSize, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<FundMandateReadModel>>([Fund]);

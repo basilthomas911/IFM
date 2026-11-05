@@ -69,6 +69,31 @@ public sealed class StoredSessionIndicatorSeedTests
         await market.DidNotReceive().ReadIndicatorSeedBarsAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Complete_four_hour_coverage_restores_on_api_restart_without_a_host_call()
+    {
+        const string contract = "ES20261218";
+        const TimeFrameType frame = TimeFrameType.FourHours;
+        var now = new DateTimeOffset(2026, 11, 5, 15, 30, 0, TimeSpan.Zero);
+        var calendar = new CmeFuturesMarketSessionCalendar();
+        var db = Substitute.For<IDbContextFactory>();
+        var market = Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>();
+        var windows = RsiHistoricalSeedWindowModel.Create(frame, 48, now, calendar);
+        foreach (var window in windows)
+        {
+            var saved = StoredSessionIndicatorSeedReader.Aggregate(contract, frame, window, now,
+                [Row(100m, 1, 1, window.StartUtc.AddMinutes(1)) with { ValueDate = window.ValueDate }])!;
+            db.MarketDataDb.GetStoredTradeSessionBarAsync(contract, frame, window.ValueDate, window.EndUtc, Arg.Any<CancellationToken>())
+                .Returns(Task.FromResult<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel?>(saved));
+        }
+
+        var restarted = new StoredSessionIndicatorSeedReader(db, calendar, new Clock(now), NullLogger<StoredSessionIndicatorSeedReader>.Instance, market);
+        var restored = await restarted.ReadAsync(contract, frame, 48, default);
+
+        Assert.Equal(windows.Select(window => window.EndUtc), restored.Select(bar => bar.IntervalEndUtc));
+        await market.DidNotReceive().ReadIndicatorSeedBarsAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<CancellationToken>());
+    }
+
     [Theory]
     [InlineData(TimeFrameType.FifteenMinutes)]
     [InlineData(TimeFrameType.OneHour)]

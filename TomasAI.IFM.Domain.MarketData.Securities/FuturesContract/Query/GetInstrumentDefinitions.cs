@@ -14,12 +14,12 @@ public static class GetInstrumentDefinitions
     /// </param>
     extension(GetInstrumentDefinitionsQuery query)
     {
-        /// <summary>Reads the requested selection page and replies on the query thread.</summary>
+        /// <summary>Reads the requested selection page from the published definition catalog.</summary>
         ///
         /// <param name="context">The owning query actor context.</param>
-        /// <param name="cancellationToken">Cancels the storage read before a reply is sent.</param>
-        /// <returns>The asynchronous query and reply operation.</returns>
-        public async ValueTask ExecuteAsync(
+        /// <param name="cancellationToken">Cancels the storage read.</param>
+        /// <returns>The typed selection page result.</returns>
+        public async ValueTask<ServiceResult<InstrumentDefinitionPage>> ExecuteAsync(
             IFuturesContractQueryContext context,
             CancellationToken cancellationToken)
         {
@@ -27,9 +27,7 @@ public static class GetInstrumentDefinitions
             ArgumentNullException.ThrowIfNull(query);
             var result = await (context.InstrumentDefinitions.GetSelectionPageAsync(
                 query.Request, DateTimeOffset.UtcNow, cancellationToken)).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            await (context.ReplyAsync(query.Subject.ThreadId, GetInstrumentDefinitionsQuery.Verb,
-                new ServiceResult<InstrumentDefinitionPage>(result))).ConfigureAwait(false);
+            return new ServiceResult<InstrumentDefinitionPage>(result);
         }
     }
 }

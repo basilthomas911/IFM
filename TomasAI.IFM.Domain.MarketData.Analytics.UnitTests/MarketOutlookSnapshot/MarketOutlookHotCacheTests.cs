@@ -4,7 +4,10 @@ using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using CacheComponentType = TomasAI.IFM.Application.MarketData.MarketOutlook.MarketOutlookComponentType;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapshot;
@@ -12,6 +15,58 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapsho
 public sealed class MarketOutlookHotCacheTests
 {
     static readonly MarketOutlookEntityId Id = new("ESZ26", new DateOnly(2026, 9, 1));
+
+    [Theory]
+    [InlineData(79, 11, MarketDirectionType.Down, MarketVolatilityType.Rising)]
+    [InlineData(80, 10, MarketDirectionType.NeutralDown, MarketVolatilityType.Falling)]
+    [InlineData(99, 9, MarketDirectionType.NeutralDown, MarketVolatilityType.Falling)]
+    [InlineData(100, 11, MarketDirectionType.NeutralUp, MarketVolatilityType.Rising)]
+    [InlineData(120, 11, MarketDirectionType.Up, MarketVolatilityType.Rising)]
+    public void QualifiedDailyBands_ClassifyDirectionAndCompareVolatilityToPriorSession(
+        int price, int standardDeviation, MarketDirectionType direction, MarketVolatilityType volatility)
+    {
+        var result = MarketOutlookComposer.Compose(new MarketOutlookInputState
+        {
+            EntityId = Id,
+            CurrentEsPrice = price,
+            PriorDailyBbStandardDeviation = 10m,
+            FuturesBbSignal = new FuturesBbSignalReadModel
+            {
+                Metadata = new() { ValueDate = Id.ValueDate, IsValid = true },
+                IsWarm = true, IsProvisional = true, Price = price,
+                Ema20Center = 100m, Lower20 = 80m, Upper20 = 120m, StandardDeviation20 = standardDeviation
+            }
+        }, MarketOutlookRefreshTrigger.EsTrade, DateTime.UtcNow);
+
+        result.FuturesEodData.MarketDirection.Should().Be(direction);
+        result.FuturesEodData.MarketVolatility.Should().Be(volatility);
+    }
+
+    [Theory]
+    [InlineData(false, 121)]
+    [InlineData(true, 120)]
+    public void UnqualifiedDailyBands_KeepSourceClassifications(bool warm, int bandPrice)
+    {
+        var result = MarketOutlookComposer.Compose(new MarketOutlookInputState
+        {
+            EntityId = Id,
+            CurrentEsPrice = 121m,
+            PriorDailyBbStandardDeviation = 10m,
+            FuturesEodData = new FuturesEodDataV2ReadModel
+            {
+                MarketDirection = MarketDirectionType.NeutralDown, MarketVolatility = MarketVolatilityType.High
+            },
+            FuturesBbSignal = new FuturesBbSignalReadModel
+            {
+                Metadata = new() { ValueDate = Id.ValueDate, IsValid = true },
+                IsWarm = warm, IsProvisional = true, Price = bandPrice,
+                Ema20Center = 100m, Lower20 = 80m, Upper20 = 120m, StandardDeviation20 = 11m
+            }
+        }, MarketOutlookRefreshTrigger.EsTrade, DateTime.UtcNow);
+
+        result.FuturesEodData.MarketDirection.Should().Be(MarketDirectionType.NeutralDown);
+        result.FuturesEodData.MarketVolatility.Should().Be(MarketVolatilityType.High);
+    }
 
     [Fact]
     public void VersionlessContract_RoundTripsWithoutRevisionOrLifecycleState()

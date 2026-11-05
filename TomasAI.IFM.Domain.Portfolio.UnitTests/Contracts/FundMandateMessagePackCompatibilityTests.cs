@@ -1,13 +1,44 @@
+using System.Buffers;
 using FluentAssertions;
 using MessagePack;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
+using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Contracts;
 
 public sealed class FundMandateMessagePackCompatibilityTests
 {
+    [Fact]
+    public void Command_audit_accepts_the_pre_preparation_array_for_a_committed_manual_order_retry()
+    {
+        var codec = new CommandAuditMessagePackCodec();
+        var command = new CreateManualFundOrderCommand(new CreateManualFundOrderRequest { IdempotencyKey = Guid.NewGuid() })
+        {
+            CommandId = Guid.NewGuid()
+        };
+        var payload = codec.Serialize(command);
+        var current = new MessagePackReader(payload.Bytes);
+        current.ReadArrayHeader().Should().Be(11);
+        var buffer = new ArrayBufferWriter<byte>();
+        var legacyWriter = new MessagePackWriter(buffer);
+        legacyWriter.WriteArrayHeader(10);
+        for (var index = 0; index < 10; index++)
+            legacyWriter.WriteRaw(current.ReadRaw());
+        legacyWriter.Flush();
+        var legacy = buffer.WrittenMemory;
+        var restored = (CreateManualFundOrderCommand)codec.Deserialize(command.GetType(), legacy, (short)payload.Format, payload.Version);
+        var prepared = command with { Preparation = new() { OrderId = 123 } };
+
+        codec.MatchesStoredEncoding(restored, legacy).Should().BeTrue();
+        restored.Preparation.Should().BeNull();
+        codec.Serialize(((ICommandRetryIdentity)restored).ForRetryIdentity()).Sha256.Should()
+            .Equal(codec.Serialize(((ICommandRetryIdentity)prepared).ForRetryIdentity()).Sha256);
+    }
+
     [Fact]
     public void Current_contract_deserializes_pre_cleanup_wire_shape()
     {

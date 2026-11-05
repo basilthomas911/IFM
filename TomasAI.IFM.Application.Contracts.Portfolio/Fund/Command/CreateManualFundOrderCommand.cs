@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 
 /// <summary>Represents the CreateManualFundOrderCommand actor message.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record CreateManualFundOrderCommand : ICommand<PortfolioFundId>, ICommandRetryIdentity
+public sealed record CreateManualFundOrderCommand : ICommand<PortfolioFundId>, IPortfolioLifecycleCommand, IAppendOnlyCommandRetryIdentity
 {
 
     /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
@@ -25,8 +25,9 @@ public sealed record CreateManualFundOrderCommand : ICommand<PortfolioFundId>, I
     /// <param name="correlationId">The CorrelationId field.</param>
     /// <param name="requestedOnUtc">The RequestedOnUtc field.</param>
     /// <param name="access">The Access field.</param>
+    /// <param name="preparation">The optional producer preparation.</param>
     [SerializationConstructor]
-    public CreateManualFundOrderCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioFundId entityId, int errorCode, BoundedContextName routeTo, CreateManualFundOrderRequest request, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access)
+    public CreateManualFundOrderCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioFundId entityId, int errorCode, BoundedContextName routeTo, CreateManualFundOrderRequest request, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access, FundOrderPreparation? preparation = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -38,6 +39,7 @@ public sealed record CreateManualFundOrderCommand : ICommand<PortfolioFundId>, I
         CorrelationId = correlationId;
         RequestedOnUtc = requestedOnUtc;
         Access = access;
+        Preparation = preparation;
     }
 
     /// <summary>Initializes an empty message for serialization.</summary>
@@ -64,9 +66,11 @@ public sealed record CreateManualFundOrderCommand : ICommand<PortfolioFundId>, I
     [Key(8)] public DateTime RequestedOnUtc { get; init; }
     [Key(9)] public PortfolioAccessContext Access { get; init; } = new();
 
+    [Key(10)] public FundOrderPreparation? Preparation { get; init; }
+
     [IgnoreMember] public string CommandName => nameof(CreateManualFundOrderCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
 
-    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
+    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default, Preparation = null };
 }

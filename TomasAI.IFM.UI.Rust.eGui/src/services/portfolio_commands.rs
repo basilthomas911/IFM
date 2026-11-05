@@ -5,6 +5,8 @@ use crate::services::{business_context::BusinessContext, portfolio};
 use rmpv::Value;
 use std::collections::BTreeMap;
 
+pub(super) mod preparation;
+
 /// Prepared used by the portfolio commands component.
 #[derive(Clone)]
 pub struct Prepared {
@@ -156,4 +158,16 @@ pub async fn submit(
         .ok()
         .filter(|v| !v.is_nil() && *v == prepared.command_id)
         .ok_or("OutcomeUnknown: invalid Portfolio command receipt".into())
+}
+
+/// Prepares cross-owner inputs before submitting a Portfolio command to its owner.
+pub async fn submit_portfolio(
+    backend: &Backend,
+    registry: &Registry,
+    context: &BusinessContext,
+    prepared: &Prepared,
+    deadline: tokio::time::Instant,
+) -> Result<uuid::Uuid, String> {
+    let prepared = preparation::qualify(backend, registry, context, prepared, deadline).await?;
+    submit(backend, &prepared, deadline).await
 }

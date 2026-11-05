@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
+using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventSourcing;
 using System.Collections.Immutable;
@@ -40,7 +40,7 @@ public sealed class FuturesContractEventProjector(
         var transactions = context.Container.Resolve<IPostgresEventTransaction>();
         await transactions.ExecuteOnceAsync(async (transaction,cancellation) =>
         {
-            await SecuritiesContractAtomicPersistence.MaterializeAsync(context.DbFactory.SecuritiesDb,transaction,source,cancellation).ConfigureAwait(false);
+            await SecuritiesCatalogProjection.ApplyAsync(context.DbFactory.SecuritiesDb,transaction,source,cancellation).ConfigureAwait(false);
             return true;
         },token).ConfigureAwait(false);
     }

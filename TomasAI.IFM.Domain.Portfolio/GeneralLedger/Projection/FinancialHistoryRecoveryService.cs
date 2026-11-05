@@ -27,7 +27,8 @@ public sealed class FinancialHistoryRecoveryService(FinancialHistoryJournal jour
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
                     catch (Exception error) { global::TomasAI.IFM.Domain.Portfolio.ActorLifecycleDiagnosticLog.Write1(logger, error, nameof(FinancialHistoryRecoveryService), nameof(ExecuteAsync), completed.EventId); }
                 }
-                if (pending.Count == 32 && applied == 32) continue;
+                var recoveredAuthorizations = await journal.ProjectPendingFundAuthorizationsAsync(token: stoppingToken).ConfigureAwait(false);
+                if (recoveredAuthorizations == 32 || pending.Count == 32 && applied == 32) continue;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
             catch (Exception error) { global::TomasAI.IFM.Domain.Portfolio.ActorLifecycleDiagnosticLog.Write2(logger, error, nameof(FinancialHistoryRecoveryService), nameof(ExecuteAsync)); }

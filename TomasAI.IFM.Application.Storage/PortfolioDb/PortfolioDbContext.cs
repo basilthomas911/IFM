@@ -86,8 +86,10 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
     /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public Task<IReadOnlyList<PortfolioReadModel>> GetPortfoliosByStateAsync(PortfolioOperatingState state, int bucket, int afterId, int size, CancellationToken ct = default) =>
-        this.ReadManyAsync<PortfolioReadModel>(nameof(PortfolioDbSql.Portfolio.ByState), PortfolioDbSql.Portfolio.ByState, this.ToParameters(state.ToString(), bucket, afterId, size), ct);
+    public Task<IReadOnlyList<PortfolioReadModel>> GetPortfoliosByStateAsync(PortfolioOperatingState state, int? bucket, int afterId, int size, CancellationToken ct = default) =>
+        bucket is { } partition
+            ? this.ReadManyAsync<PortfolioReadModel>(nameof(PortfolioDbSql.Portfolio.ByState), PortfolioDbSql.Portfolio.ByState, this.ToParameters(state.ToString(), partition, afterId, size), ct)
+            : this.ReadManyAsync<PortfolioReadModel>(nameof(PortfolioDbSql.Portfolio.ByOperatingState), PortfolioDbSql.Portfolio.ByOperatingState, this.ToParameters(state.ToString(), afterId, size), ct);
     /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]

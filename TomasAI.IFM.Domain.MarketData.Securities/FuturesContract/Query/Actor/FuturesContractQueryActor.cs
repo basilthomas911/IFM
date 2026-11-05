@@ -91,7 +91,10 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
     {
         [typeof(GetInstrumentDefinitionsQuery)] = async (ctx, q, cancellationToken) =>
         {
-            await (((GetInstrumentDefinitionsQuery)q).ExecuteAsync(ctx, cancellationToken)).ConfigureAwait(false);
+            var query = (GetInstrumentDefinitionsQuery)q;
+            var result = await query.ExecuteAsync(ctx, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(query.Subject.ThreadId, GetInstrumentDefinitionsQuery.Verb, result).ConfigureAwait(false);
         },
         [typeof(GetOnTheRunFuturesContractQuery)] = async (ctx, q, cancellationToken) =>
         {

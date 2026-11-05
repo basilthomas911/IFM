@@ -12,6 +12,8 @@ public static class PortfolioSchemaSql
           event_type text NOT NULL, committed_at_utc timestamptz NOT NULL,
           payload_json jsonb NOT NULL,
           PRIMARY KEY(portfolio_id,month,financial_revision,operation_id));
+        CREATE INDEX IF NOT EXISTS financial_operation_history_by_operation
+          ON portfolio.financial_operation_by_portfolio_month(portfolio_id,operation_id);
         """;
 
     /// <summary>Creates the financial persistence tables.</summary>
@@ -40,6 +42,14 @@ public static class PortfolioSchemaSql
           portfolio_id int NOT NULL, operation_id uuid NOT NULL, actor_name text NOT NULL, input_hash text NOT NULL,
           event_version bigint NOT NULL UNIQUE REFERENCES event_log(eventVersion), financial_revision bigint NOT NULL,
           PRIMARY KEY(portfolio_id,operation_id));
+        CREATE TABLE IF NOT EXISTS portfolio_financial.fund_risk_authorization_read(
+          portfolio_id int NOT NULL, fund_id int NOT NULL, command_id uuid NOT NULL,
+          source_event_id uuid NOT NULL, "authorization" jsonb NOT NULL,
+          PRIMARY KEY(portfolio_id,fund_id,command_id));
+        CREATE INDEX IF NOT EXISTS fund_risk_authorization_by_command
+          ON portfolio_financial.fund_risk_authorization_read(command_id);
+        CREATE TABLE IF NOT EXISTS portfolio_financial.fund_risk_authorization_projection_receipt(
+          event_version bigint PRIMARY KEY REFERENCES event_log(eventVersion));
         CREATE TABLE IF NOT EXISTS portfolio_financial.ledger_book(
           book_id int PRIMARY KEY CHECK(book_id>0), accounting_entity_id uuid NOT NULL,
           portfolio_id int NOT NULL CHECK(portfolio_id>0), base_currency text NOT NULL CHECK(base_currency='USD'),
@@ -287,6 +297,7 @@ public static class PortfolioSchemaSql
             CREATE TABLE IF NOT EXISTS portfolio.projection_tombstone(entity_kind text NOT NULL,entity_key text NOT NULL,source_event_id bigint NOT NULL,PRIMARY KEY(entity_kind,entity_key));
             CREATE TABLE IF NOT EXISTS portfolio.portfolio_by_id(portfolio_id int NOT NULL,portfolio_version bigint NOT NULL,operating_state text NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL,PRIMARY KEY(portfolio_id,portfolio_version));
             CREATE TABLE IF NOT EXISTS portfolio.portfolio_by_state(operating_state text NOT NULL,state_bucket int NOT NULL,portfolio_id int NOT NULL,portfolio_version bigint NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL,PRIMARY KEY(operating_state,state_bucket,portfolio_id));
+            CREATE INDEX IF NOT EXISTS portfolio_by_state_page ON portfolio.portfolio_by_state(operating_state,portfolio_id);
             CREATE TABLE IF NOT EXISTS portfolio.fund_by_portfolio(portfolio_id int NOT NULL,fund_id int NOT NULL,fund_mandate_version bigint NOT NULL,operating_state text NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL,PRIMARY KEY(portfolio_id,fund_id,fund_mandate_version));
             CREATE INDEX IF NOT EXISTS fund_by_id ON portfolio.fund_by_portfolio(fund_id,fund_mandate_version DESC);
             CREATE TABLE IF NOT EXISTS portfolio.active_fund_by_portfolio_horizon(portfolio_id int NOT NULL,trading_year int NOT NULL,decision_horizon text NOT NULL,effective_from_utc timestamptz NOT NULL,fund_id int NOT NULL,fund_mandate_version bigint NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL,PRIMARY KEY(portfolio_id,trading_year,decision_horizon,effective_from_utc,fund_id));

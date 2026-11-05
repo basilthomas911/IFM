@@ -16,6 +16,7 @@ using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.CapacityR
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 
 [Collection("PortfolioFinancialDatabase"), Trait("Category", "PortfolioFinancialLoad"), Trait("Gate", "PF-FIN-07")]
+[Trait("Infrastructure", "SelfContained")]
 public sealed class FinancialLoadQualificationTests(PortfolioEventStoreFixture fixture, ITestOutputHelper output) : IClassFixture<PortfolioEventStoreFixture>
 {
     [Theory]
@@ -109,29 +110,52 @@ public sealed class FinancialLoadQualificationTests(PortfolioEventStoreFixture f
             totals.Single().Debit.Should().Be(shared ? 1000 : independent ? 8 : batch ? 500 : 40);
         }
     }
+    [Fact]
+    public async Task Previously_posted_source_late_in_batch_rolls_back_the_preceding_posting()
+    {
+        var book = await CreateBook();
+        var first = Request(book, LedgerTransactionKind.DepositConfirmed, 10, 0);
+        await Post(first);
+        var second = Request(book, LedgerTransactionKind.DepositConfirmed, 5, 1);
+        var attempt = () => PostBatch(second, [second.Body, first.Body], CancellationToken.None);
+
+        var error = await FluentActions.Awaiting(attempt).Should().ThrowAsync<FinancialOperationException>();
+
+        error.Which.Code.Should().Be(FinancialReasons.AlreadyPosted);
+        error.Which.ExistingOperationId.Should().Be(first.OperationId);
+        await Post(second);
+        (await Cash(book)).Should().Be(15);
+    }
+
     static async Task Batch(FinancialBookConfiguration book, int revision)
     {
         var template = Request(book, LedgerTransactionKind.DepositConfirmed, 1, revision);
         var items = Enumerable.Range(0, 100).Select(_ => template.Body with { Source = template.Body.Source with { SourceEventId = Guid.NewGuid() } }).ToArray();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await PostBatch(template, items, deadline.Token);
+    }
+
+    static Task<LedgerPostingBatchCompletedEvent> PostBatch(PostFundTransactionCommand template,
+        LedgerPostingRequest[] items, CancellationToken token)
+    {
         var command = new PostFundTransactionsCommand
         {
             CommandId = template.CommandId,
             OperationId = template.OperationId,
-            PortfolioId = book.PortfolioId,
+            PortfolioId = template.PortfolioId,
             EntityId = template.EntityId,
             Subject = new(ActorType.Command, PostFundTransactionsCommand.Actor, PostFundTransactionsCommand.Verb, template.EntityId.Format()),
             CorrelationId = template.CorrelationId,
             CausationId = template.CausationId,
             RequestedAtUtc = template.RequestedAtUtc,
             ExpiresAtUtc = template.ExpiresAtUtc,
-            ExpectedFinancialRevision = revision,
+            ExpectedFinancialRevision = template.ExpectedFinancialRevision,
             Access = template.Access,
-            Body = new() { BookId = book.BookId, Items = items, ManifestHash = FinancialCanonicalHash.Compute(items) }
+            Body = new() { BookId = template.Body.BookId, Items = items, ManifestHash = FinancialCanonicalHash.Compute(items) }
         };
         command = command with { InputSha256 = FinancialCanonicalHash.Request(command) };
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await new GeneralLedgerStore(Transactions()).PostAsync(command,
+        return new GeneralLedgerStore(Transactions()).PostAsync(command,
             items.Select(x => new PreparedLedgerPosting(Random.Shared.NextInt64(100000, long.MaxValue), Random.Shared.NextInt64(100000, long.MaxValue), x)).ToArray(),
-            (body, rule, prior, original, remaining) => LedgerPostingModel.Calculate(body, rule, prior, original, remaining), command.Complete, deadline.Token);
+            (body, rule, prior, original, remaining) => LedgerPostingModel.Calculate(body, rule, prior, original, remaining), command.Complete, token);
     }
 }

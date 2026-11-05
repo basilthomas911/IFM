@@ -11,4 +11,6 @@ public sealed record CapacityLifecycleProjectionFacts
     [Key(4)] public CapacityTransition Transition { get; init; } = new(ReservationStatus.Reserved,0,0,0,0,0,0,0);
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public financial model contract.")]
     [Key(5)] public AcceptedCapacityUsage[] Usage { get; init; } = [];
+    /// <summary>Full reservation state after this accepted transition.</summary>
+    [Key(6)] public ReservationSnapshot? Reservation { get; init; }
 }

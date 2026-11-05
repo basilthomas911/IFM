@@ -27,6 +27,7 @@ public sealed record NativeEvidenceReceipt(
 /// cannot prevent Rust cancelling and joining its independent dataset resources.</summary>
 public sealed class NativeEvidenceStorage(IOptionTradeEvidenceWriter writer)
 {
+    const string AlreadySeen = "OPTION_EVIDENCE_ALREADY_SEEN";
     /// <summary>Validates the exact existing evidence/idempotency contract and
     /// acknowledges only the completed durable write. The token belongs to this
     /// external consumer, never to a native resource or dataset control gate.</summary>
@@ -42,8 +43,8 @@ public sealed class NativeEvidenceStorage(IOptionTradeEvidenceWriter writer)
         if (!string.Equals(evidence.Source.Identity, request.Identity, StringComparison.Ordinal)
             || !string.Equals(evidence.Source.SourceDigest, request.Digest, StringComparison.Ordinal))
             throw new InvalidDataException("Native evidence receipt differs from its immutable source.");
-        await writer.WriteAsync(evidence, stoppingToken).ConfigureAwait(false);
-        return new(request.Receipt, request.Identity, request.Digest, true, null);
+        var accepted = await writer.WriteFirstAsync(evidence, stoppingToken).ConfigureAwait(false);
+        return new(request.Receipt, request.Identity, request.Digest, accepted, accepted ? null : AlreadySeen);
     }
 
     static bool Hash(string value) => value is { Length: 64 } && value.All(char.IsAsciiHexDigit);

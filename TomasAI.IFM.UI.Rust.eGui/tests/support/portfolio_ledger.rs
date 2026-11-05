@@ -285,3 +285,57 @@ async fn portfolio_ledger_controls_match_managed_preparation() {
     mode(&backend, "FinancialMode", "Normal").await;
     mode(&backend, "FinancialOperationMode", "Normal").await;
 }
+
+
+/// Verifies that book and authority preparation resolve through their typed Function receipts.
+#[tokio::test]
+#[ignore = "Requires isolated C# compatibility responder"]
+async fn portfolio_ledger_preparation_round_trips_function_receipts() {
+    use ifm_ui_egui::services::financial;
+    use std::collections::BTreeMap;
+
+    let backend = backend().await;
+    let registry = Registry::compiled().unwrap();
+    mode(&backend, "FinancialMode", "Normal").await;
+    let contract = |name| format!("{}.{name}", financial::ROOT);
+
+    let request = registry
+        .encode(&contract("PrepareFinancialBookRequest"), &BTreeMap::new())
+        .unwrap();
+    let book = financial::prepare(
+        &backend,
+        &registry,
+        "PrepareFinancialBook",
+        1,
+        request,
+        tokio::time::Instant::now() + backend.default_timeout(),
+    )
+    .await
+    .unwrap();
+    let setup = registry
+        .project(&contract("FinancialBookSetup"), book.found().unwrap())
+        .unwrap();
+    assert_eq!(setup["ExecutionAccounts"], json!(["paper:fixture"]));
+    assert!(setup["Draft"].is_null());
+
+    let request = registry
+        .encode(
+            &contract("PrepareFinancialAuthorityRequest"),
+            &BTreeMap::from([("PermitNewSpending".into(), true.into())]),
+        )
+        .unwrap();
+    let authority = financial::prepare(
+        &backend,
+        &registry,
+        "PrepareFinancialAuthority",
+        1,
+        request,
+        tokio::time::Instant::now() + backend.default_timeout(),
+    )
+    .await
+    .unwrap();
+    let draft = registry
+        .project(&contract("FinancialAuthorityDraft"), authority.found().unwrap())
+        .unwrap();
+    assert_eq!(draft["Draft"]["Book"]["Funds"][0]["CanSpend"], true);
+}

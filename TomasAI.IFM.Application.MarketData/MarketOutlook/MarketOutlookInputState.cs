@@ -24,6 +24,8 @@ public sealed record MarketOutlookInputState
     public decimal? VixFuturesPrice { get; init; }
     public FuturesEmaSignalReadModel? FuturesEmaSignal { get; init; }
     public FuturesBbSignalReadModel? FuturesBbSignal { get; init; }
+    /// <summary>Gets the prior committed Daily standard deviation used to compare today's BB20.</summary>
+    public decimal? PriorDailyBbStandardDeviation { get; init; }
     public FuturesVwapSignalReadModel? FuturesVwapSignal { get; init; }
     public FuturesAdxSignalReadModel? FuturesAdxSignal { get; init; }
     public FuturesAtrSignalReadModel? FuturesAtrSignal { get; init; }

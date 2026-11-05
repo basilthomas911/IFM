@@ -1,43 +1,18 @@
 using TomasAI.IFM.Domain.Portfolio.Command.State;
-using TomasAI.IFM.Domain.Portfolio.Persistence;
-using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
-using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
-using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Portfolio.Fund.Command;
 
 /// <summary>Qualifies Fund activation against current Portfolio and catalog authority.</summary>
 internal static class FundActivationQualification
 {
-    /// <summary>Returns the current parent-Portfolio and assignment evidence for one Fund transition.</summary>
-    /// <param name="id">The id business input.</param>
-    /// <param name="aggregate">The current authoritative business state.</param>
-    /// <param name="events">The authoritative event store used for lookup and commit.</param>
-    /// <param name="referenceQueries">The reference catalog used to qualify exact business selections.</param>
-    /// <param name="qualifyCatalog">The qualify catalog business input.</param>
-    /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
-    /// <returns>The operation result.</returns>
-    /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
-    internal static async ValueTask<FundActivationContext> EvaluateAsync(
-        PortfolioFundId id,
-        PortfolioFundAggregate aggregate,
-        IPortfolioEventStore events,
-        IReferenceQueryApi? referenceQueries,
-        bool qualifyCatalog,
-        CancellationToken cancellationToken)
-    {
-        var currentAssignments = aggregate.Assignments.Where(x => x.FundMandateVersion == aggregate.Current?.FundMandateVersion).ToArray();
-        if (qualifyCatalog && referenceQueries is not null)
-            foreach (var assignment in currentAssignments.Where(x => x.Enabled))
-            {
-                var deployment = assignment.TradeStrategyFamily?.CatalogDeployment ?? throw new InvalidOperationException("Legacy assignments must be replaced before activating a Fund.");
-                await (TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(referenceQueries, deployment, true, cancellationToken)).ConfigureAwait(false);
-            }
+    internal static FundTradeTemplateAssignmentReadModel[] EnabledAssignments(PortfolioFundAggregate aggregate)
+        => aggregate.Assignments.Where(assignment => assignment.Enabled &&
+            assignment.FundMandateVersion == aggregate.Current?.FundMandateVersion).ToArray();
 
-        var portfolio = await events.LoadPortfolioAsync(new PortfolioId(id.PortfolioId), cancellationToken).ConfigureAwait(false);
-        var enabled = currentAssignments.Count(x => x.Enabled);
-        return new(portfolio.Current?.OperatingState == PortfolioOperatingState.Active, enabled,
-            currentAssignments.Any(x => x.Enabled && x.TradeSelectionHintProfileId != Guid.Empty),
-            currentAssignments.Any(x => x.Enabled && x.OrderCompositionProfileId != Guid.Empty));
-    }
+    internal static FundActivationContext ActiveParentContext(PortfolioFundAggregate aggregate) => BuildContext(true, EnabledAssignments(aggregate));
+
+    static FundActivationContext BuildContext(bool parentActive, FundTradeTemplateAssignmentReadModel[] assignments)
+        => new(parentActive, assignments.Length, assignments.Any(x => x.TradeSelectionHintProfileId != Guid.Empty),
+            assignments.Any(x => x.OrderCompositionProfileId != Guid.Empty));
 }

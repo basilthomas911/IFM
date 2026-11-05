@@ -3757,20 +3757,38 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     /// <returns>The completion of the persistence operation.</returns>
     public async ValueTask WriteAsync(OptionTradeEvidence evidence, CancellationToken cancellationToken)
     {
+        if (await TryInsertOptionTradeEvidenceAsync(evidence, cancellationToken).ConfigureAwait(false)) return;
+        var stored = await ReadAcceptedOptionTradeEvidenceAsync(evidence.Source, cancellationToken).ConfigureAwait(false);
+        if (!string.Equals(stored.Source.SourceDigest, evidence.Source.SourceDigest, StringComparison.Ordinal))
+            throw new InvalidOperationException("Trade source identity collision or durable write not confirmed.");
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> WriteFirstAsync(OptionTradeEvidence evidence, CancellationToken cancellationToken)
+    {
+        if (await TryInsertOptionTradeEvidenceAsync(evidence, cancellationToken).ConfigureAwait(false)) return true;
+        var stored = await ReadAcceptedOptionTradeEvidenceAsync(evidence.Source, cancellationToken).ConfigureAwait(false);
+        // An exact retry still needs its persistence acknowledgment if the first reply was lost.
+        var serializer = MessagePackBinarySerializer.Shared;
+        return serializer.Serialize(stored)!.AsSpan().SequenceEqual(serializer.Serialize(evidence));
+    }
+
+    async ValueTask<bool> TryInsertOptionTradeEvidenceAsync(OptionTradeEvidence evidence, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(evidence);
         evidence.Validate();
         if (MessagePackBinarySerializer.MeasureContent(evidence) > 131072)
             throw new ArgumentException("Trade evidence exceeds its bounded payload.",nameof(evidence));
         var source = evidence.Source;
-        await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertOptionTradeEvidence)}", MarketDataDbSql.InsertOptionTradeEvidence)
+        return await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertOptionTradeEvidence)}", MarketDataDbSql.InsertOptionTradeEvidence)
             .SetParameters(new NativeOptionEvidenceWriteParameters(source.ContractId, source.ValueDate, source.Identity, source.SourceDigest, MessagePackBinarySerializer.Shared.Serialize(evidence)!))
-            .ExecuteCommandAsync(cancellationToken)
+            .ExecuteSingleAsync(static row => row.GetBool(0), cancellationToken)
             .ConfigureAwait(false);
-        var stored = await ReadAsync(source.ContractId, source.ValueDate, source.Identity, cancellationToken)
-            .ConfigureAwait(false);
-        if (stored is null || !string.Equals(stored.Source.SourceDigest,source.SourceDigest,StringComparison.Ordinal))
-            throw new InvalidOperationException("Trade source identity collision or durable write not confirmed.");
     }
+
+    async ValueTask<OptionTradeEvidence> ReadAcceptedOptionTradeEvidenceAsync(OptionTradeSource source, CancellationToken cancellationToken)
+        => await ReadAsync(source.ContractId, source.ValueDate, source.Identity, cancellationToken)
+            .ConfigureAwait(false) ?? throw new InvalidOperationException("Durable option trade evidence write not confirmed.");
 
     internal const int MaximumPayloadBytes = 1_048_576;
     /// <summary>Append Observation using the MarketDataDb persistence.</summary>

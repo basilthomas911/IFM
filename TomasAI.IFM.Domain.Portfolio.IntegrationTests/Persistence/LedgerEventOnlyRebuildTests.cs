@@ -267,6 +267,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
         var sourceDatabase="ifm_ledger_rebuild_"+Guid.NewGuid().ToString("N");
         var builder=new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")!);
         if(!OwnedPortfolioTestDatabase.IsOwned(builder)) throw new InvalidOperationException("Isolated database required.");
+        builder.Pooling = false;
         builder.Database="postgres";await using var admin=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(builder.ConnectionString);await admin.OpenAsync();
         await using(var create=new NpgsqlCommand($"CREATE DATABASE {database}",admin)) await create.ExecuteNonQueryAsync();
         await using(var create=new NpgsqlCommand($"CREATE DATABASE {sourceDatabase}",admin)) await create.ExecuteNonQueryAsync();
@@ -316,7 +317,15 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
             await new LedgerFinancialProjection(target).ReplayAsync((LedgerPostingCompletedEvent)later.Single());
             (await LedgerState(book.BookId,target)).Should().Be(after);
         }
-        finally { NpgsqlConnection.ClearAllPools();foreach(var owned in new[]{database,sourceDatabase}) { await using var drop=new NpgsqlCommand($"DROP DATABASE {owned} WITH (FORCE)",admin);await drop.ExecuteNonQueryAsync(); } }
+        finally
+        {
+            foreach (var owned in new[] { database, sourceDatabase })
+            {
+                // PostgreSQL may wait for a checkpoint before unlinking a test database.
+                await using var drop = new NpgsqlCommand($"DROP DATABASE {owned} WITH (FORCE)", admin) { CommandTimeout = 120 };
+                await drop.ExecuteNonQueryAsync();
+            }
+        }
     }
 
     [Fact]

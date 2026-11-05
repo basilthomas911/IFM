@@ -1,8 +1,9 @@
 using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
-using TomasAI.IFM.Application.Storage.PortfolioDb;
+using TomasAI.IFM.Domain.Portfolio.Command.Actor;
 using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command.Actor;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Operations;
@@ -34,8 +35,9 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
         /// <param name="aggregate">The current authoritative business state.</param>
         /// <param name="policyId">The exact Portfolio financial-policy identity.</param>
         /// <param name="events">The authoritative event store used for lookup and commit.</param>
-        /// <param name="projections">The committed-event read-model projection writer.</param>
+        /// <param name="portfolioProjector">The Portfolio owner's committed-event projector.</param>
         /// <param name="projector">The command-owned committed-event projector.</param>
+        /// <param name="logger">Reports submission failures recoverable from committed projection markers.</param>
         /// <param name="principal">The authenticated and authorized operator.</param>
         /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
         /// <returns>Command acceptance or its classified failure; durable completion remains tied to commit.</returns>
@@ -44,8 +46,9 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
             PortfolioFinancialPolicyAggregate aggregate,
             PortfolioFinancialPolicyId policyId,
             IPortfolioEventStore events,
-            IPortfolioDbWriteContext projections,
+            IEventProjector<PortfolioCommandActor> portfolioProjector,
             IEventProjector<PortfolioFinancialPolicyCommandActor> projector,
+            ILogger logger,
             string principal,
             CancellationToken cancellationToken)
         {
@@ -53,13 +56,13 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(events);
             ArgumentNullException.ThrowIfNull(policyId);
-            ArgumentNullException.ThrowIfNull(projections);
+            ArgumentNullException.ThrowIfNull(portfolioProjector);
             ArgumentNullException.ThrowIfNull(projector);
             var assignmentLock = PortfolioAssignmentLocks.GetOrAdd(policyId.PortfolioId, static _ => new SemaphoreSlim(1, 1));
             await assignmentLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                return await ActivateAndAssignAsync(command, aggregate, policyId, events, projections, projector, principal, cancellationToken).ConfigureAwait(false);
+                return await ActivateAndAssignAsync(command, aggregate, policyId, events, portfolioProjector, projector, logger, principal, cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -73,8 +76,9 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
     /// <param name="aggregate">The current authoritative business state.</param>
     /// <param name="policyId">The exact Portfolio financial-policy identity.</param>
     /// <param name="events">The authoritative event store used for lookup and commit.</param>
-    /// <param name="projections">The committed-event read-model projection writer.</param>
+    /// <param name="portfolioProjector">The Portfolio owner's committed-event projector.</param>
     /// <param name="projector">The command-owned committed-event projector.</param>
+    /// <param name="logger">Reports recoverable post-commit submission failures.</param>
     /// <param name="principal">The authenticated and authorized operator.</param>
     /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
     /// <returns>Command acceptance or its classified failure; durable completion remains tied to commit.</returns>
@@ -84,54 +88,43 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
         PortfolioFinancialPolicyAggregate aggregate,
         PortfolioFinancialPolicyId policyId,
         IPortfolioEventStore events,
-        IPortfolioDbWriteContext projections,
+        IEventProjector<PortfolioCommandActor> portfolioProjector,
         IEventProjector<PortfolioFinancialPolicyCommandActor> projector,
+        ILogger logger,
         string principal,
         CancellationToken cancellationToken)
     {
         var committed = await events.FindCommittedPolicyCommandAsync(policyId, command.CommandId, cancellationToken).ConfigureAwait(false);
         var portfolioId = new PortfolioId(policyId.PortfolioId);
-        var portfolio = await events.LoadPortfolioAsync(portfolioId, cancellationToken).ConfigureAwait(false);
         if (committed is PortfolioFinancialPolicyActivatedEvent activated)
-            return await CompleteAcceptedAssignmentAsync(command, aggregate, policyId, portfolioId, portfolio, activated, events, projections, projector, principal, cancellationToken).ConfigureAwait(false);
+            return await CompleteAcceptedAssignmentAsync(command, aggregate, portfolioId, activated, events, portfolioProjector, projector, logger, principal, cancellationToken).ConfigureAwait(false);
         if (committed is not null)
             return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the command was committed for a different policy operation.");
 
         var now = DateTime.UtcNow;
-        // Validate the Portfolio assignment before committing either stream. The
-        // per-Portfolio coordinator prevents distinct policy actors in this host from
-        // both passing this expected-revision check.
-        if (portfolio.Revision != command.ExpectedPortfolioRevision)
-            throw new InvalidOperationException($"Expected Portfolio revision {command.ExpectedPortfolioRevision}, actual {portfolio.Revision}.");
         if (!command.Compute(aggregate, now, principal, out var financialPolicyChange))
             return command.UpdateFailed($"{financialPolicyChange.RejectionCode};{financialPolicyChange.RejectionReason}");
         var candidate = aggregate.Versions.Single(policy => policy.PolicyVersion == command.PolicyVersion)
             with
         { OperatingState = TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFinancialPolicyState.Active };
-        if (!command.ComputeAssignment(portfolio, candidate, now, principal, out var portfolioAssignment))
-            return command.UpdateFailed($"{portfolioAssignment.RejectionCode};{portfolioAssignment.RejectionReason}");
         var policyEvent = command.CreatePortfolioFinancialPolicyActivatedEvent(financialPolicyChange);
-        var portfolioEvent = command.CreatePortfolioFinancialPolicyAssignedEvent(portfolioAssignment);
         var errorMsg = $"{command.CommandName}: unable to apply policy activation and assignment events";
         var updated = true switch
         {
-            _ when financialPolicyChange.Revision != aggregate.Revision + 1 || portfolioAssignment.Revision != portfolio.Revision + 1
-                => command.UpdateFailed(ref errorMsg, "Computed policy or Portfolio revision is invalid"),
+            _ when financialPolicyChange.Revision != aggregate.Revision + 1
+                => command.UpdateFailed(ref errorMsg, "Computed policy revision is invalid"),
             _ when !financialPolicyChange.Accepted
                 => command.UpdateFailed(ref errorMsg, $"{financialPolicyChange.RejectionCode};{financialPolicyChange.RejectionReason}"),
-            _ when financialPolicyChange.CommandId != command.CommandId || portfolioAssignment.CommandId != command.CommandId
+            _ when financialPolicyChange.CommandId != command.CommandId
                 => command.UpdateFailed(ref errorMsg, "Computed originating command identity is invalid"),
-            _ => aggregate.Update(policyEvent, command) && portfolio.Update(portfolioEvent, command)
+            _ => aggregate.Update(policyEvent, command)
         };
         if (!updated) return command.UpdateFailed(errorMsg);
         TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(policyEvent, aggregate);
-        TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(portfolioEvent, portfolio);
-        await events.AppendPolicyAndPortfolioAsync(policyId, policyEvent, portfolioId, portfolioEvent, cancellationToken).ConfigureAwait(false);
-        await projector.DomainEventsProjectionAsync(new DomainEventCollection([policyEvent])).ConfigureAwait(false);
-        await ProjectAllAsync(aggregate, policyEvent, projections, cancellationToken).ConfigureAwait(false);
-        if (portfolioEvent.ProjectionFacts is null) await projections.UpsertPortfolioAsync(
-            PortfolioProjection<PortfolioReadModel>.Create(portfolio.Current!, portfolio.Revision, Math.Max(1, portfolioEvent.EventId == 0 ? portfolioEvent.Revision : portfolioEvent.EventId), portfolioEvent.OccurredOnUtc),
-            TomasAI.IFM.Domain.Portfolio.Projection.PortfolioProjectionHandler.StateBucket(portfolioId.Id), cancellationToken).ConfigureAwait(false);
+        var portfolioEvent = await events.CommitPolicyAssignmentAsync(command, candidate, now, principal,
+            policyEvent, aggregate, cancellationToken).ConfigureAwait(false);
+        await Projection.PortfolioProjectionSubmission.SubmitAsync(projector, policyEvent, logger).ConfigureAwait(false);
+        await Projection.PortfolioProjectionSubmission.SubmitAsync(portfolioProjector, portfolioEvent, logger).ConfigureAwait(false);
         PortfolioTelemetry.CommandOutcomes.Add(1,
             new KeyValuePair<string, object?>("portfolio.operation", command.Subject.Verb),
             new KeyValuePair<string, object?>("portfolio.outcome", "committed"));
@@ -140,47 +133,26 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
     /// <summary>Completes an older accepted activation whose assignment was not part of an atomic batch.</summary>
     static async ValueTask<ServiceResult<GuidResult>> CompleteAcceptedAssignmentAsync(
         ActivateAndAssignPortfolioFinancialPolicyCommand command, PortfolioFinancialPolicyAggregate aggregate,
-        PortfolioFinancialPolicyId policyId, PortfolioId portfolioId, PortfolioAggregate portfolio,
-        PortfolioFinancialPolicyActivatedEvent activated, IPortfolioEventStore events, IPortfolioDbWriteContext projections,
-        IEventProjector<PortfolioFinancialPolicyCommandActor> projector, string principal, CancellationToken cancellationToken)
+        PortfolioId portfolioId,
+        PortfolioFinancialPolicyActivatedEvent activated, IPortfolioEventStore events, IEventProjector<PortfolioCommandActor> portfolioProjector,
+        IEventProjector<PortfolioFinancialPolicyCommandActor> projector, ILogger logger, string principal, CancellationToken cancellationToken)
     {
-        if (portfolio.Current?.ActivePolicyId != policyId.PolicyId || portfolio.Current.ActivePolicyVersion != activated.PolicyVersion)
+        var assignmentEvent = await events.FindCommittedPortfolioCommandAsync(portfolioId, command.CommandId, cancellationToken).ConfigureAwait(false);
+        if (assignmentEvent is null)
         {
             var replayCandidate = aggregate.Versions.Single(x => x.PolicyVersion == activated.PolicyVersion);
-            if (!command.ComputeAssignment(portfolio, replayCandidate, DateTime.UtcNow, principal, out var portfolioChange))
-                return command.UpdateFailed($"{portfolioChange.RejectionCode};{portfolioChange.RejectionReason}");
-            var assignment = command.CreatePortfolioFinancialPolicyAssignedEvent(portfolioChange);
-            if (!portfolio.Update(assignment, command))
-                return command.UpdateFailed("Portfolio policy assignment event could not be applied during repair");
-            TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(assignment, portfolio);
-            await events.AppendPortfolioAsync(portfolioId, assignment, assignment.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
-            if (assignment.ProjectionFacts is null) await projections.UpsertPortfolioAsync(
-                PortfolioProjection<PortfolioReadModel>.Create(portfolio.Current!, portfolio.Revision, Math.Max(1, assignment.EventId == 0 ? assignment.Revision : assignment.EventId), assignment.OccurredOnUtc),
-                TomasAI.IFM.Domain.Portfolio.Projection.PortfolioProjectionHandler.StateBucket(portfolioId.Id), cancellationToken).ConfigureAwait(false);
+            assignmentEvent = await events.RepairPolicyAssignmentAsync(command, replayCandidate,
+                DateTime.UtcNow, principal, cancellationToken).ConfigureAwait(false);
         }
         // A prior attempt may have committed the policy event and failed before
         // projection/assignment. Both operations are idempotent, so replay heals
         // every derived surface as well as the authoritative Portfolio reference.
-        await projector.DomainEventsProjectionAsync(new DomainEventCollection([activated])).ConfigureAwait(false);
-        await ProjectAllAsync(aggregate, activated, projections, cancellationToken).ConfigureAwait(false);
+        await Projection.PortfolioProjectionSubmission.SubmitAsync(projector, activated, logger).ConfigureAwait(false);
+        if (assignmentEvent is PortfolioFinancialPolicyAssignedEvent assignmentSource)
+            await Projection.PortfolioProjectionSubmission.SubmitAsync(portfolioProjector, assignmentSource, logger).ConfigureAwait(false);
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 
-
-    /// <summary>Refreshes all materialized policy versions after the authoritative event commits.</summary>
-    /// <param name="aggregate">The current authoritative business state.</param>
-    /// <param name="domainEvent">The domain event business input.</param>
-    /// <param name="projections">The committed-event read-model projection writer.</param>
-    /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
-    /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
-    static async Task ProjectAllAsync(PortfolioFinancialPolicyAggregate aggregate, IPortfolioFinancialPolicyDomainEvent domainEvent,
-        IPortfolioDbWriteContext projections, CancellationToken cancellationToken)
-    {
-        if (domainEvent.ProjectionFacts is not null) return;
-        foreach (var policy in aggregate.Versions)
-            await projections.UpsertPolicyAsync(PortfolioProjection<PortfolioFinancialPolicyReadModel>.Create(
-                policy.DefensiveCopy() with { AggregateRevision = aggregate.Revision }, domainEvent.Revision, Math.Max(1, domainEvent.EventId == 0 ? domainEvent.Revision : domainEvent.EventId), domainEvent.OccurredOnUtc), cancellationToken).ConfigureAwait(false);
-    }
 
     /// <param name="command">
     /// The concrete business command and originating identity.

@@ -17,4 +17,7 @@ public interface IPortfolioIdentityApi
     Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateOrderIdAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateTradeIdAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocatePolicyIdAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    /// <summary>Returns the durable allocation for a stable producer operation, including retries.</summary>
+    Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateForOperationAsync(PortfolioBusinessIdentityKind kind, Guid operationId, CancellationToken cancellationToken = default);
 }

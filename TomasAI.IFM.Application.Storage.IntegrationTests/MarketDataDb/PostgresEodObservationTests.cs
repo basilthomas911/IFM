@@ -925,8 +925,12 @@ public sealed class PostgresEodObservationTests
         var source = new OptionTradeSource("GLBX.MDP3", 1, 100, "OPTION", date, 12.125m, 1, 7, 1000, 1001, Guid.NewGuid(), "raw-option");
         var evidence = new OptionTradeEvidence(source, null, null, DateTimeOffset.UtcNow, null,
             new OptionPricingFailure("FixtureFailure", "Quote", source.ContractId, "Isolated persistence test"));
-        await db.WriteAsync(evidence, CancellationToken.None);
-        await db.WriteAsync(evidence, CancellationToken.None);
+        Assert.True(await db.WriteFirstAsync(evidence, CancellationToken.None));
+        Assert.True(await db.WriteFirstAsync(evidence, CancellationToken.None));
+        Assert.False(await db.WriteFirstAsync(evidence with
+        { Source = source with { Price = 13m } }, CancellationToken.None));
+        Assert.False(await db.WriteFirstAsync(evidence with
+        { Source = source with { ReceiveNanoseconds = source.ReceiveNanoseconds + 10 } }, CancellationToken.None));
         (await db.ReadAsync(source.ContractId, date, source.Identity, CancellationToken.None)).Should().BeEquivalentTo(evidence);
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await db.WriteAsync(evidence with { Source = source with { Price = 13m } }, CancellationToken.None));

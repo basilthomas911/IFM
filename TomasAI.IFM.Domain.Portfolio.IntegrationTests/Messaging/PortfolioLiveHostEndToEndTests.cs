@@ -247,9 +247,9 @@ public sealed class PortfolioLiveHostEndToEndTests
                 CreatedBy = "portfolio-live-pipeline-test",
             };
             var portfolioCommands = new PortfolioCommandApi(producer);
-            var policyCommands = new PortfolioFinancialPolicyCommandApi(producer);
             var queries = new PortfolioQueryApi(producer);
-            var fundCommands = new PortfolioFundCommandApi(producer, queries);
+            var policyCommands = new PortfolioFinancialPolicyCommandApi(producer, queries);
+            var fundCommands = new PortfolioFundCommandApi(producer, queries, identities);
 
             var portfolioCreateKey = Guid.NewGuid();
             await RequireSuccess(portfolioCommands.CreatePortfolioAsync(portfolio, portfolioCreateKey, timeout.Token));

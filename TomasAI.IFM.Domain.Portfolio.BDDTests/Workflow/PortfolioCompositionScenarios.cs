@@ -1,4 +1,7 @@
 using FluentAssertions;
+using TomasAI.IFM.Domain.Portfolio.Command.State;
+using TomasAI.IFM.Domain.Portfolio.Fund.Command;
+using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
@@ -8,6 +11,49 @@ namespace TomasAI.IFM.Domain.Portfolio.BDDTests.Workflow;
 public sealed class PortfolioCompositionScenarios
 {
     static readonly DateTime Now = new(2026, 8, 30, 15, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public void Given_prepared_order_ids_when_Fund_is_restored_then_a_retry_keeps_the_original_ids()
+    {
+        var (_, request, evidence) = Reservation();
+        var fund = new PortfolioFundAggregate();
+        fund.RestoreSnapshot(new PortfolioFundAggregateSnapshot(3, evidence.Fund, evidence.Assignments, [], []));
+        var command = new ReserveFundOrderCompositionCommand(request, evidence)
+        {
+            CommandId = Guid.NewGuid(),
+            Preparation = new() { OrderId = 9001, TradeIds = [9101, 9102] }
+        };
+
+        var accepted = command.Execute(fund, Now, "workflow");
+        accepted.Success.Should().BeTrue();
+        var checkpoint = fund.CaptureSnapshot();
+        var restored = new PortfolioFundAggregate();
+        restored.RestoreSnapshot(checkpoint);
+        var retry = command with { CommandId = Guid.NewGuid(), Preparation = new() { OrderId = 9999, TradeIds = [9991, 9992] } };
+
+        var replay = retry.Execute(restored, Now.AddSeconds(1), "workflow");
+
+        replay.Success.Should().BeTrue();
+        restored.Revision.Should().Be(checkpoint.Revision);
+        var order = restored.CaptureSnapshot().Compositions.Should().ContainSingle().Which;
+        order.Order.OrderId.Should().Be(9001);
+        order.Trades.Select(trade => trade.TradeId).Should().Equal(9101, 9102);
+    }
+
+    [Fact]
+    public void Given_no_prepared_order_ids_when_a_new_reservation_arrives_then_Fund_state_is_unchanged()
+    {
+        var (_, request, evidence) = Reservation();
+        var fund = new PortfolioFundAggregate();
+        fund.RestoreSnapshot(new PortfolioFundAggregateSnapshot(3, evidence.Fund, evidence.Assignments, [], []));
+        var command = new ReserveFundOrderCompositionCommand(request, evidence) { CommandId = Guid.NewGuid() };
+
+        var reserve = () => command.Execute(fund, Now, "workflow");
+
+        reserve.Should().Throw<InvalidOperationException>().WithMessage("*prepared order and trade identities*");
+        fund.Revision.Should().Be(3);
+        fund.Orders.Should().BeEmpty();
+    }
 
     [Fact]
     [Trait("Gate", "PF-11")]

@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 
 /// <summary>Represents the AddFundMandateVersionCommand actor message.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record AddFundMandateVersionCommand : ICommand<PortfolioFundId>, ICommandRetryIdentity
+public sealed record AddFundMandateVersionCommand : ICommand<PortfolioFundId>, IPortfolioLifecycleCommand, IAppendOnlyCommandRetryIdentity
 {
 
     /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
@@ -26,8 +26,10 @@ public sealed record AddFundMandateVersionCommand : ICommand<PortfolioFundId>, I
     /// <param name="correlationId">The CorrelationId field.</param>
     /// <param name="requestedOnUtc">The RequestedOnUtc field.</param>
     /// <param name="access">The Access field.</param>
+    /// <param name="referencePreparationId">The optional durable Reference validation receipt.</param>
+    /// <param name="activationPreparation">The optional parent Portfolio activation evidence.</param>
     [SerializationConstructor]
-    public AddFundMandateVersionCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioFundId entityId, int errorCode, BoundedContextName routeTo, FundMandateReadModel mandate, long expectedVersion, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access)
+    public AddFundMandateVersionCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioFundId entityId, int errorCode, BoundedContextName routeTo, FundMandateReadModel mandate, long expectedVersion, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access, Guid? referencePreparationId = null, FundActivationPreparation? activationPreparation = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -40,6 +42,8 @@ public sealed record AddFundMandateVersionCommand : ICommand<PortfolioFundId>, I
         CorrelationId = correlationId;
         RequestedOnUtc = requestedOnUtc;
         Access = access;
+        ReferencePreparationId = referencePreparationId;
+        ActivationPreparation = activationPreparation;
     }
 
     /// <summary>Initializes an empty message for serialization.</summary>
@@ -69,9 +73,13 @@ public sealed record AddFundMandateVersionCommand : ICommand<PortfolioFundId>, I
     [Key(9)] public DateTime RequestedOnUtc { get; init; }
     [Key(10)] public PortfolioAccessContext Access { get; init; } = new();
 
+    [Key(11)] public Guid? ReferencePreparationId { get; init; }
+
+    [Key(12)] public FundActivationPreparation? ActivationPreparation { get; init; }
+
     [IgnoreMember] public string CommandName => nameof(AddFundMandateVersionCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
 
-    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
+    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default, ReferencePreparationId = null, ActivationPreparation = null };
 }

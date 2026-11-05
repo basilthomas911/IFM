@@ -7,6 +7,8 @@ using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
+using TomasAI.IFM.Domain.Portfolio.Shared.Preparation;
+using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -189,19 +191,24 @@ public sealed class PortfolioNatsClientTests
     }
 
     [Fact]
-    public async Task Identity_allocation_uses_the_versioned_Portfolio_query_and_entity_key()
+    public async Task Identity_allocation_uses_the_Portfolio_Function_and_a_correlated_durable_receipt()
     {
         var producer = new CapturingProducer();
         var api = new PortfolioIdentityApi(producer);
 
-        await api.AllocateFundIdAsync();
+        var id = Guid.NewGuid();
+        var result = await api.AllocateForOperationAsync(PortfolioBusinessIdentityKind.Fund, id);
 
-        producer.Subject.Name.Should().Be(PortfolioQueryRoutes.Portfolio);
-        producer.Subject.Verb.Should().Be(AllocatePortfolioBusinessIdQuery.Verb);
-        producer.Subject.EntityId.Should().Be("Fund");
-        var query = producer.Query.Should().BeOfType<AllocatePortfolioBusinessIdQuery>().Subject;
-        query.EntityId.Should().Be(new ActorEntityId("Fund"));
-        query.Subject.Should().Be(producer.Subject);
+        producer.Subject.ActorType.Should().Be(ActorType.Function);
+        producer.Subject.Name.Should().Be(AllocatePortfolioBusinessIdCommand.Actor);
+        producer.Subject.Verb.Should().Be(AllocatePortfolioBusinessIdCommand.Verb);
+        producer.Subject.EntityId.Should().Be(id.ToString("N"));
+        var request = producer.Query.Should().BeOfType<AllocatePortfolioBusinessIdCommand>().Subject;
+        request.EntityId.Should().Be(new ActorEntityId(id.ToString("N")));
+        request.Kind.Should().Be(PortfolioBusinessIdentityKind.Fund);
+        request.Subject.Should().Be(producer.Subject);
+        result.Success.Should().BeTrue();
+        result.Value!.OperationId.Should().Be(id);
     }
 
     [Fact]
@@ -266,7 +273,14 @@ public sealed class PortfolioNatsClientTests
             where TCommand : class, ICommand<TEntityId> where TEntityId : IActorEntityId where TResult : class
         {
             Subject = subject; Query = command;
-            object value = typeof(TResult) == typeof(GuidResult) ? new GuidResult(command.CommandId) : Activator.CreateInstance<TResult>();
+            object value = command switch
+            {
+                AllocatePortfolioBusinessIdCommand allocate =>
+                    FunctionResult<PortfolioBusinessIdAllocationCompletedEvent, PortfolioBusinessIdAllocationFailedEvent>.Complete(
+                        new() { CommandId = allocate.CommandId, Value = new() { Kind = allocate.Kind, Value = 123 } }),
+                _ when typeof(TResult) == typeof(GuidResult) => new GuidResult(command.CommandId),
+                _ => Activator.CreateInstance<TResult>()
+            };
             return ValueTask.FromResult<ServiceResult<TResult>>(new ServiceOk<TResult>((TResult)value));
         }
     }

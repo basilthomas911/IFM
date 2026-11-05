@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -15,8 +14,6 @@ public interface IFuturesTradeSessionBarSignalRealtimeContext
     IActorSupervisor Supervisor { get; }
     /// <summary>Gets the actor-centric model that builds ephemeral open bars.</summary>
     FuturesTradeSessionBarAccumulatorRegistry Accumulators { get; }
-    /// <summary>Gets the authoritative futures session calendar.</summary>
-    IMarketSessionCalendar Calendar { get; }
     /// <summary>Gets the server clock.</summary>
     TimeProvider TimeProvider { get; }
     /// <summary>Gets the typed logger.</summary>

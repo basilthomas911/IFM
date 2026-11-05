@@ -40,7 +40,8 @@ public sealed class PortfolioFundCompositionCommandHandler(
             tradeIds[i] = await _allocator.AllocateTradeIdAsync(cancellationToken).ConfigureAwait(false);
         var domainEvent = aggregate.ReserveComposition(commandId, aggregate.Revision, request, snapshot, orderId, tradeIds, nowUtc, principal);
         TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(domainEvent, aggregate);
-        await _eventStore.AppendFundAsync(fundId, domainEvent, domainEvent.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await _eventStore.AppendFundWithStateAsync(fundId, domainEvent, domainEvent.Revision - 1, aggregate,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
         return ((FundCompositionReservedEvent)domainEvent).Reservation;
     }
 
@@ -87,7 +88,8 @@ public sealed class PortfolioFundCompositionCommandHandler(
             return committed.Order;
         var domainEvent = transition(aggregate);
         TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(domainEvent, aggregate);
-        await _eventStore.AppendFundAsync(fundId, domainEvent, domainEvent.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await _eventStore.AppendFundWithStateAsync(fundId, domainEvent, domainEvent.Revision - 1, aggregate,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
         return ((FundCompositionStateChangedEvent)domainEvent).Order;
     }
 }

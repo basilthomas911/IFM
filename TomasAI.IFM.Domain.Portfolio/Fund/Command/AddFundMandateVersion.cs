@@ -3,12 +3,10 @@ using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
-using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
-using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.Portfolio.Fund.Command;
 
@@ -23,30 +21,21 @@ public static class AddFundMandateVersion
     {
         /// <summary>Computes and guards the business change, then applies one source event.</summary>
         ///
-        /// <param name="id">The id business input.</param>
         /// <param name="state">The owning authoritative command state.</param>
-        /// <param name="events">The authoritative event store used for lookup and commit.</param>
-        /// <param name="referenceQueries">The reference catalog used to qualify exact business selections.</param>
         /// <param name="now">The authoritative UTC decision time.</param>
         /// <param name="principal">The authenticated and authorized operator.</param>
-        /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
         /// <returns>Command acceptance or its classified failure; durable completion remains tied to commit.</returns>
-        /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
-        public async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(
-            PortfolioFundId id,
-            PortfolioFundAggregate state,
-            IPortfolioEventStore events,
-            IReferenceQueryApi? referenceQueries,
-            DateTime now,
-            string principal,
-            CancellationToken cancellationToken)
+        public ServiceResult<GuidResult> Execute(PortfolioFundAggregate state, DateTime now, string principal)
         {
             ArgumentNullException.ThrowIfNull(command);
-            ArgumentNullException.ThrowIfNull(events);
-            ArgumentNullException.ThrowIfNull(id);
             ArgumentNullException.ThrowIfNull(state);
-            var activation = await FundActivationQualification.EvaluateAsync(id, state, events, referenceQueries,
-                    command.Mandate.OperatingState == FundOperatingState.Active, cancellationToken).ConfigureAwait(false);
+            FundActivationContext activation = default;
+            if (command.Mandate.OperatingState == FundOperatingState.Active)
+            {
+                if (command.ActivationPreparation is null)
+                    throw new InvalidOperationException("Fund activation requires prepared Portfolio and deployment evidence.");
+                activation = FundActivationQualification.ActiveParentContext(state);
+            }
             var errorMsg = $"{command.CommandName}: unable to apply FundMandateVersionAdded event";
             var updated = command.Compute(state, now, principal, activation, out var fundChange) switch
             {

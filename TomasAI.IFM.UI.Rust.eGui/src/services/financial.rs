@@ -59,9 +59,7 @@ pub async fn query(
         return Err("Select a valid financial Portfolio/Fund scope".into());
     }
     let actor = match name {
-        "PrepareFinancialAuthorityQuery"
-        | "PrepareFinancialBookQuery"
-        | "GetFinancialLedgerConfigurationQuery"
+        "GetFinancialLedgerConfigurationQuery"
         | "GetFinancialPostingConfigurationQuery"
         | "GetFundRiskAuthorizationQuery"
         | "GetPostingReceiptQuery"
@@ -83,31 +81,10 @@ pub async fn query(
         return Err("Financial query route differs from compiled contract".into());
     }
     let subject = ActorSubject::query(actor, verb, &portfolio.to_string());
-    let roles: &[&str] = match permissions {
-        AccessScope::MetricsReader => &["LedgerRead"],
-        AccessScope::LedgerEditor => &[
-            "LedgerRead",
-            "LedgerPost",
-            "LedgerReverse",
-            "LedgerConfigure",
-            "LedgerPeriodReopen",
-            "LedgerImport",
-        ],
-    };
-    let access = Value::Array(vec![
-        std::env::var("USERNAME").unwrap_or_default().into(),
-        Value::Array(roles.iter().map(|v| (*v).into()).collect()),
-        Value::Array(vec![portfolio.into()]),
-    ]);
-    let scope = Value::Array(vec![
-        portfolio.into(),
-        fund.map(Value::from).unwrap_or(Value::Nil),
-        access,
-    ]);
     let mut fields = BTreeMap::from([
         ("Subject".into(), subject.wire()),
         ("EntityId".into(), Value::Array(vec![portfolio.into()])),
-        ("Scope".into(), scope),
+        ("Scope".into(), read_scope(portfolio, fund, permissions)),
         (
             "CorrelationId".into(),
             uuid::Uuid::new_v4().to_string().into(),
@@ -145,7 +122,77 @@ pub async fn query(
     let reply = backend
         .request_until(&subject, &body, deadline, None)
         .await?;
-    let read = service_result(&reply)?
+    decode_read(service_result(&reply)?)
+}
+
+
+/// Prepares an editor operation through the producer's durable Function.
+pub async fn prepare(
+    backend: &Backend,
+    registry: &Registry,
+    name: &str,
+    portfolio: i32,
+    parameters: Value,
+    deadline: tokio::time::Instant,
+) -> Result<Read, String> {
+    if portfolio <= 0 {
+        return Err("Select a valid financial Portfolio scope".into());
+    }
+    let (command, outcome) = match name {
+        "PrepareFinancialBook" => ("PrepareFinancialBookCommand", "FinancialBookPreparation"),
+        "PrepareFinancialAuthority" => (
+            "PrepareFinancialAuthorityCommand",
+            "FinancialAuthorityPreparation",
+        ),
+        _ => return Err("Unsupported Portfolio financial preparation".into()),
+    };
+    let completed = super::portfolio::request_preparation(
+        backend,
+        registry,
+        command,
+        outcome,
+        uuid::Uuid::new_v4(),
+        BTreeMap::from([
+            ("Parameters".into(), parameters),
+            ("Scope".into(), read_scope(portfolio, None, AccessScope::LedgerEditor)),
+        ]),
+        deadline,
+    )
+    .await?;
+    let kind = format!("{}.Preparation.{outcome}CompletedEvent", super::portfolio::ROOT);
+    decode_read(registry.wire_field(&kind, "Value", &completed)?)
+}
+
+
+/// Builds the access scope shared by ledger reads and producer preparation.
+fn read_scope(portfolio: i32, fund: Option<i32>, permissions: AccessScope) -> Value {
+    let roles: &[&str] = match permissions {
+        AccessScope::MetricsReader => &["LedgerRead"],
+        AccessScope::LedgerEditor => &[
+            "LedgerRead",
+            "LedgerPost",
+            "LedgerReverse",
+            "LedgerConfigure",
+            "LedgerPeriodReopen",
+            "LedgerImport",
+        ],
+    };
+    let access = Value::Array(vec![
+        std::env::var("USERNAME").unwrap_or_default().into(),
+        Value::Array(roles.iter().map(|v| (*v).into()).collect()),
+        Value::Array(vec![portfolio.into()]),
+    ]);
+    Value::Array(vec![
+        portfolio.into(),
+        fund.map(Value::from).unwrap_or(Value::Nil),
+        access,
+    ])
+}
+
+
+/// Validates the FinancialRead envelope shared by reads and preparation receipts.
+fn decode_read(value: &Value) -> Result<Read, String> {
+    let read = value
         .as_array()
         .filter(|v| v.len() >= 4)
         .ok_or("Invalid FinancialRead envelope")?;

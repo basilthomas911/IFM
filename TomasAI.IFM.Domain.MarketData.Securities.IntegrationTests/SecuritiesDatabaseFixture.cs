@@ -32,7 +32,7 @@ public class SecuritiesDatabaseFixture : IDisposable
         var dbConn = new DbConnectionSettings()
                          .Add("SecuritiesDbConnection",
                              Environment.GetEnvironmentVariable("IFM_TEST_SECURITIES_CONNECTION") ?? throw new InvalidOperationException("The assembly integration fixture did not set IFM_TEST_SECURITIES_CONNECTION."),
-                             "System.Data.ScyllaDb");
+                             "System.Data.Postgres");
 
         var diContainer = new Dictionary<Type, SecuritiesDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);

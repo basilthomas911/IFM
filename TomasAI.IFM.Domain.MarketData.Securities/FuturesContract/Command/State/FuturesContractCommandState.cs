@@ -35,6 +35,11 @@ public class FuturesContractCommandState
         ContractIds = futuresContractIds.OrderBy(id => id.ContractId, StringComparer.Ordinal).ToArray()
     };
 
+    internal static bool IsCompleteSnapshot(FuturesContractStateSnapshottedEvent snapshot) =>
+        snapshot.ContractIds is { } ids && ids.All(static id =>
+            id is not null && !string.IsNullOrWhiteSpace(id.ContractId)
+            && !string.IsNullOrWhiteSpace(id.Symbol) && id.MaturityDate != default);
+
     private bool RestoreSnapshot(IReadOnlyList<FuturesContractId> ids)
     {
         futuresContractIds.Clear();
@@ -50,20 +55,29 @@ public class FuturesContractCommandState
     /// <returns></returns>
     protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        FuturesContractAddedEvent e => On(e),
+        FuturesContractAddedEvent e => AddContract(e.Contract.Id),
+        FuturesContractDefinitionImportedEvent e => AddContract(e.Contract.Id),
         FuturesContractChangedEvent e => On(e),
         FuturesContractRemovedEvent e => On(e),
-        FuturesContractStateSnapshottedEvent snapshot when snapshot.ContractIds is { } entries => RestoreSnapshot(entries),
+        FuturesContractRolloverSetReplacedEvent e => On(e),
+        FuturesContractStateSnapshottedEvent snapshot when IsCompleteSnapshot(snapshot) => RestoreSnapshot(snapshot.ContractIds!),
         _ => false
     };
+
+    bool On(FuturesContractRolloverSetReplacedEvent e)
+    {
+        foreach (var contract in e.ChangedContracts)
+            futuresContractIds.Add(contract.Id);
+        return true;
+    }
 
     /// <summary>
     /// create futures contract
     /// </summary>
-    /// <param name="e"></param>
-    bool On(FuturesContractAddedEvent e)
+    /// <param name="id">The accepted catalog identity.</param>
+    bool AddContract(FuturesContractId id)
     {
-        futuresContractIds.Add(e.Contract.Id);
+        futuresContractIds.Add(id);
         return true;
     }
 

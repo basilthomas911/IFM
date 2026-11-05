@@ -1,5 +1,5 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Common;
-using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
+using TomasAI.IFM.Domain.Portfolio.Shared.Preparation;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
@@ -26,26 +26,35 @@ public sealed class PortfolioIdentityApi(IActorProducer actorProducer) : NatsCli
     public Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocatePolicyIdAsync(CancellationToken cancellationToken = default) =>
         AllocateAsync(PortfolioBusinessIdentityKind.Policy, cancellationToken);
 
+    Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateAsync(PortfolioBusinessIdentityKind kind, CancellationToken cancellationToken) =>
+        AllocateForOperationAsync(kind, Guid.NewGuid(), cancellationToken);
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
-    async Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateAsync(
+    public async Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateForOperationAsync(
         PortfolioBusinessIdentityKind kind,
-        CancellationToken cancellationToken)
+        Guid operationId,
+        CancellationToken cancellationToken = default)
     {
         var correlationId = PortfolioRequestCorrelation.CurrentOrNew();
-        var subject = new ActorSubject(ActorType.Query, AllocatePortfolioBusinessIdQuery.Actor, AllocatePortfolioBusinessIdQuery.Verb, kind.ToString());
-        var query = new AllocatePortfolioBusinessIdQuery
+        var request = AllocatePortfolioBusinessIdCommand.ForOperation(operationId) with
         {
-            Subject = subject,
-            EntityId = new ActorEntityId(kind.ToString()),
             Kind = kind,
-            CorrelationId = correlationId,
-            RequestedOnUtc = DateTime.UtcNow,
             Access = PortfolioAccessScope.Current ?? PortfolioAccessContext.Administrator($"interactive:{Environment.UserName}"),
         };
         try
         {
-            return await RequestAsync<AllocatePortfolioBusinessIdQuery, PortfolioBusinessIdAllocation>(
-                subject, query, cancellationToken).ConfigureAwait(false);
+            var result = await RequestFunctionAsync<AllocatePortfolioBusinessIdCommand, ActorEntityId,
+                FunctionResult<PortfolioBusinessIdAllocationCompletedEvent, PortfolioBusinessIdAllocationFailedEvent>>(
+                    request, request.EntityId, cancellationToken).ConfigureAwait(false);
+            if (result is { Success: true, Value: { IsCompleted: true, Completed: { } allocation } }
+                && allocation.CommandId == operationId && allocation.Value is { Value: > 0 } && allocation.Value.Kind == kind)
+                return new ServiceOk<PortfolioBusinessIdAllocation>(allocation.Value with
+                {
+                    CorrelationId = correlationId, OperationId = operationId
+                });
+            return new ServiceFailed<PortfolioBusinessIdAllocation>(
+                result.Value?.Failed?.ErrorCode ?? (result.ErrorCode != 0 ? result.ErrorCode : PortfolioErrorCodes.SequenceAllocationFailed),
+                result.Value?.Failed?.ErrorMessage ?? result.ErrorMessage);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

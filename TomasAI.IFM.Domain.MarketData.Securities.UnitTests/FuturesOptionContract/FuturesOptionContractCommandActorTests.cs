@@ -93,4 +93,27 @@ public class FuturesOptionContractCommandActorTests : IClassFixture<SecuritiesFi
         pendingAudit.SetResult();
     }
 
+    [Fact]
+    public async Task Invalid_bulk_add_publishes_the_correlated_bulk_failure()
+    {
+        var actor = _fixture.CreateActor(
+            Substitute.For<IEventSourceActorDbContext>(),
+            Substitute.For<ILogger<FuturesOptionContractCommandActor>>());
+        var context = Substitute.For<ICommandActorContext<FuturesOptionContractCommandActor>>();
+        var command = new AddFuturesOptionContractsCommand([SampleData.FuturesOptionContract1])
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, AddFuturesOptionContractsCommand.Actor,
+                AddFuturesOptionContractsCommand.Verb, "2026")
+        };
+
+        var result = await actor.InvokeOnExceptionAsync(context, command.Subject.ThreadId, command,
+            new CommandValidationException(command.ErrorCode, "Duplicate futures option contract"));
+
+        result.Success.Should().BeFalse();
+        await context.Received(1).SendAsync<FuturesOptionContractsAddedFailEvent, FuturesOptionContractsEntityId>(
+            Arg.Is<FuturesOptionContractsAddedFailEvent>(failure => failure.CommandId == command.CommandId
+                && failure.Subject.Verb == FuturesOptionContractsAddedFailEvent.Verb));
+    }
+
 }

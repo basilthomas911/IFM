@@ -9,8 +9,7 @@ namespace TomasAI.IFM.Application.Api.Server.Core.HostedServices;
 public sealed class SessionAnalyticsStartupService(IMarketSessionAnalyticsInitializer initializer,
     IFuturesMarketSessionAuthority sessions, IMarketDataApi market, IActorSupervisor supervisor,
     ILogger<SessionAnalyticsStartupService> logger,
-    TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorWarmup? warmup = null,
-    TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.StrategyIndicatorWarmup? readiness = null) : BackgroundService
+    TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorWarmup? warmup = null) : BackgroundService
 {
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -24,7 +23,7 @@ public sealed class SessionAnalyticsStartupService(IMarketSessionAnalyticsInitia
             do
             {
                 var date = sessions.Current.ActiveValueDate;
-                if (date is null) { initialized = null; warmed = null; readiness?.Reset(); continue; }
+                if (date is null) { initialized = null; warmed = null; continue; }
                 if (!supervisor.IsReady || !market.IsDatabentoFeedUp()) continue;
                 try
                 {
@@ -40,7 +39,6 @@ public sealed class SessionAnalyticsStartupService(IMarketSessionAnalyticsInitia
                         if (await warmup.WarmAsync(date.Value, stoppingToken).ConfigureAwait(false))
                         {
                             warmed = date;
-                            readiness?.Complete(date.Value);
                             logger.LogInformation("Strategy indicator warm-up completed for {ValueDate}.", date);
                         }
                     }

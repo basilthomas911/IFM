@@ -12,6 +12,24 @@ public sealed class FinancialQueryIntegrationTests(PortfolioEventStoreFixture fi
     static FinancialQueryStore Store() => new(Transactions());
     static FinancialReadScope Scope(FinancialBookConfiguration book) => new() { PortfolioId = book.PortfolioId, FundId = book.Funds[0].FundId, Access = new("integration", ["PortfolioAdministrator"]) };
 
+    static Task SeedAdmissionProjection(FinancialBookConfiguration book) => Transactions().ExecuteAsync(async (db, ct) =>
+    {
+        var fund = book.Funds[0];
+        await db.ExecuteAsync("""
+            INSERT INTO portfolio.portfolio_by_id(portfolio_id,portfolio_version,operating_state,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash)
+            VALUES($1,1,'Active',1,$2,1,now(),'{}','test');
+            """, [book.PortfolioId, fund.PortfolioStreamVersion], ct);
+        await db.ExecuteAsync("""
+            INSERT INTO portfolio.fund_by_portfolio(portfolio_id,fund_id,fund_mandate_version,operating_state,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash)
+            VALUES($1,$2,1,'Active',1,$3,1,now(),'{}','test');
+            """, [book.PortfolioId, fund.FundId, fund.FundStreamVersion], ct);
+        await db.ExecuteAsync("""
+            INSERT INTO portfolio.portfolio_policy(portfolio_id,policy_id,policy_version,operating_state,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash)
+            VALUES($1,$2,1,'Active',1,$3,1,now(),'{}','test');
+            """, [book.PortfolioId, fund.Reference.PolicyId, fund.PolicyStreamVersion], ct);
+        return true;
+    });
+
     [Fact]
     public async Task Metrics_query_uses_scoped_accounting_range_and_committed_revision()
     {
@@ -121,6 +139,7 @@ public sealed class FinancialQueryIntegrationTests(PortfolioEventStoreFixture fi
                     """, [book.PortfolioId, underlying], ct);
             return true;
         });
+        await SeedAdmissionProjection(book);
         var read = await Store().ReadAsync(Scope(book), new GetFinancialAdmissionSnapshotRequest(key, "ES"));
         read.FinancialRevision.Should().Be(1); read.Value!.CanPrepareAdmission.Should().BeTrue(); read.Value.AvailableCash.Should().Be(1000);
         read.Value.Authority.DeploymentKey.Should().Be(key); read.Value.Usage.Should().ContainSingle(x => x.ScopeKey == "ES");
@@ -133,14 +152,15 @@ public sealed class FinancialQueryIntegrationTests(PortfolioEventStoreFixture fi
     }
 
     [Fact]
-    public async Task Admission_snapshot_refuses_stale_committed_source_versions()
+    public async Task Admission_snapshot_refuses_stale_projected_source_versions()
     {
         var key = new CatalogKey(StrategyCatalogKind.Deployment, Guid.NewGuid(), 1);
         var book = await CreateBook(b => b with { Funds = [b.Funds[0] with { Deployments = [new(b.Funds[0].Reference with { DeploymentKey = key }, [], 100)] }] });
+        await SeedAdmissionProjection(book);
         await Transactions().ExecuteAsync(async (db, ct) =>
         {
-            await db.ExecuteAsync("UPDATE event_stream_id SET currentversion=currentversion+1 WHERE eventstream=$1;",
-                [$"PortfolioFund.{book.PortfolioId}.{book.Funds[0].FundId}"], ct);
+            await db.ExecuteAsync("UPDATE portfolio.fund_by_portfolio SET aggregate_version=aggregate_version+1 WHERE portfolio_id=$1 AND fund_id=$2;",
+                [book.PortfolioId, book.Funds[0].FundId], ct);
             return true;
         });
         (await FluentActions.Awaiting(() => Store().ReadAsync(Scope(book), new GetFinancialAdmissionSnapshotRequest(key, "ES")))

@@ -10,6 +10,7 @@ using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.GeneralLe
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 
 [Collection("PortfolioFinancialDatabase"), Trait("Category", "PortfolioFinancial"), Trait("Gate", "PF-FIN-02")]
+[Trait("Infrastructure", "SelfContained")]
 public sealed class FinancialWriteFaultMatrixTests(PortfolioEventStoreFixture fixture) : IClassFixture<PortfolioEventStoreFixture>
 {
     public static IEnumerable<object[]> WritePoints() => new[] {

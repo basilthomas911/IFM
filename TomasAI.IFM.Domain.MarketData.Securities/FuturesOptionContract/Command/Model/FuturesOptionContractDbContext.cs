@@ -33,13 +33,16 @@ internal static class FuturesOptionContractDbContext
     }
 
     /// <summary>Resolves broker facts before accepted source event creation.</summary>
-    internal static async Task<FuturesOptionContractReadModel[]> EnrichContractsAsync(FuturesOptionContractReadModel[] contracts, IActorService actorService)
+    internal static async Task<FuturesOptionContractReadModel[]> EnrichContractsAsync(
+        FuturesOptionContractReadModel[] contracts, IActorService actorService, CancellationToken token = default)
     {
         var enriched = new FuturesOptionContractReadModel[contracts.Length];
         for (var offset = 0; offset < contracts.Length; offset += EnrichmentConcurrency)
         {
             var count = Math.Min(EnrichmentConcurrency, contracts.Length - offset);
-            var work = Enumerable.Range(offset, count).Select(index => EnrichFuturesOptionContractAsync(contracts[index], contracts[index].ContractId, actorService).AsTask());
+            token.ThrowIfCancellationRequested();
+            var work = Enumerable.Range(offset, count).Select(index => EnrichFuturesOptionContractAsync(
+                contracts[index], contracts[index].ContractId, actorService, token).AsTask());
             var results = await Task.WhenAll(work).ConfigureAwait(false);
             Array.Copy(results, 0, enriched, offset, count);
         }
@@ -47,46 +50,9 @@ internal static class FuturesOptionContractDbContext
         return enriched;
     }
 
-    extension(IDbContextFactory dbFactory)
-    {
-        internal async ValueTask InsertFuturesOptionContractAsync(FuturesOptionContractReadModel qfOptionContract, IActorService actorService)
-        {
-            var oc = await (EnrichFuturesOptionContractAsync(qfOptionContract, qfOptionContract.ContractId, actorService)).ConfigureAwait(false);
-            await (dbFactory.SecuritiesDb.InsertFuturesOptionContractAsync(oc)).ConfigureAwait(false);
-        }
-
-        internal async ValueTask InsertFuturesOptionContractsAsync(FuturesOptionContractReadModel[] qfOptionContracts, IActorService actorService)
-        {
-            if (qfOptionContracts.Length == 0)
-                return;
-            var enrichedContracts = new FuturesOptionContractReadModel[qfOptionContracts.Length];
-            for (var offset = 0; offset < qfOptionContracts.Length; offset += EnrichmentConcurrency)
-            {
-                var count = Math.Min(EnrichmentConcurrency, qfOptionContracts.Length - offset);
-                var enrichments = new Task<FuturesOptionContractReadModel>[count];
-                for (var index = 0; index < count; index++)
-                {
-                    var contract = qfOptionContracts[offset + index];
-                    enrichments[index] = EnrichFuturesOptionContractAsync(contract, contract.ContractId, actorService).AsTask();
-                }
-
-                var results = await (Task.WhenAll(enrichments)).ConfigureAwait(false);
-                Array.Copy(results, 0, enrichedContracts, offset, results.Length);
-            }
-
-            await (dbFactory.SecuritiesDb.InsertFuturesOptionContractsAsync(enrichedContracts)).ConfigureAwait(false);
-        }
-
-        internal async ValueTask UpdateFuturesOptionContractAsync(string originalContractId, FuturesOptionContractReadModel qfOptionContract, IActorService actorService)
-        {
-            var oc = await (EnrichFuturesOptionContractAsync(qfOptionContract, originalContractId, actorService)).ConfigureAwait(false);
-            await (dbFactory.SecuritiesDb.UpdateFuturesOptionContractAsync(originalContractId, oc)).ConfigureAwait(false);
-        }
-
-        internal ValueTask DeleteFuturesOptionContractAsync(string contractId) => new(dbFactory.SecuritiesDb.DeleteFuturesOptionContractAsync(contractId));
-    }
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality is required for persisted observation deduplication, exact contract strikes and defined zero/uninitialized sentinels; an epsilon would change these decisions.")]
-    internal static async ValueTask<FuturesOptionContractReadModel> EnrichFuturesOptionContractAsync(FuturesOptionContractReadModel optionContract, string routeContractId, IActorService actorService)
+    internal static async ValueTask<FuturesOptionContractReadModel> EnrichFuturesOptionContractAsync(
+        FuturesOptionContractReadModel optionContract, string routeContractId, IActorService actorService, CancellationToken token = default)
     {
         // Imported reference facts must not be replaced by the legacy broker lookup.
         if (optionContract.SchemaVersion > 0)
@@ -105,12 +71,20 @@ internal static class FuturesOptionContractDbContext
             Subject = new ActorSubject(ActorType.Query, GetFuturesOptionContractQuery.Actor, GetFuturesOptionContractQuery.Verb, routeContractId),
             EntityId = new FuturesOptionContractId(routeContractId)
         };
-        var serviceResult = await (actorService.RequestAsync<FuturesOptionContractReadModel, GetFuturesOptionContractQuery>(query)).ConfigureAwait(false);
+        var serviceResult = token.CanBeCanceled
+            ? await actorService.RequestAsync<FuturesOptionContractReadModel, GetFuturesOptionContractQuery>(query, token).ConfigureAwait(false)
+            : await actorService.RequestAsync<FuturesOptionContractReadModel, GetFuturesOptionContractQuery>(query).ConfigureAwait(false);
         if (!serviceResult.Success || serviceResult.Value is null)
             return normalizedContract;
         var enriched = serviceResult.Value;
         if (!string.Equals(enriched.ContractId, optionContract.ContractId, StringComparison.Ordinal) || enriched.StrikePrice != optionContract.StrikePrice)
             throw new InvalidOperationException("Broker enrichment changed option contract identity or strike.");
+        if (!enriched.IsValid)
+            return normalizedContract;
+        if (enriched.ContractMonth != optionContract.ContractMonth
+            || !string.Equals(enriched.OptionType, optionContract.OptionType, StringComparison.OrdinalIgnoreCase)
+            || (enriched.StrikePriceDecimal is { } strike && strike != optionContract.GetExactStrikePrice()))
+            throw new InvalidOperationException("Broker enrichment changed the expiry, option right, or exact strike.");
         return enriched with
         {
             StrikePriceDecimal = optionContract.StrikePriceDecimal

@@ -10,9 +10,9 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.Model;
 internal static class FinancialQueryReply
 {
     /// <summary>Executes a financial read after validating its contract and response-size limits.</summary>
-    internal static async ValueTask ExecuteAsync<TRequest, TResult, TActor>(IFinancialQueryMessage<TRequest, TResult> query,
-        IQueryActorContext<TActor> context, string actor, string verb, Func<Task<FinancialRead<TResult>>> read, CancellationToken cancellationToken)
-        where TResult : class where TActor : IActor
+    internal static async ValueTask<FinancialRead<TResult>> ReadAsync<TRequest, TResult>(IFinancialQueryMessage<TRequest, TResult> query,
+        string actor, string verb, Func<Task<FinancialRead<TResult>>> read, CancellationToken cancellationToken)
+        where TResult : class
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (query.SchemaVersion != 2 || query.Parameters is null || query.Scope is null || query.Scope.Access is null || query.Scope.PortfolioId <= 0 ||
@@ -23,6 +23,15 @@ internal static class FinancialQueryReply
         var result = await (read()).ConfigureAwait(false);
         if (MessagePackBinarySerializer.MeasureContent(result) > 524288)
             throw new FinancialOperationException(FinancialReasons.InvalidContract, "Financial result exceeds 512 KiB; use a smaller page.");
-        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<FinancialRead<TResult>>(result))).ConfigureAwait(false);
+        return result;
+    }
+
+    internal static async ValueTask ReplyAsync<TActor, TResult>(IQueryActorContext<TActor> context, IQuery query,
+        ValueTask<FinancialRead<TResult>> pendingResult, CancellationToken cancellationToken)
+        where TResult : class where TActor : IActor
+    {
+        var result = await pendingResult.ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<FinancialRead<TResult>>(result)).ConfigureAwait(false);
     }
 }

@@ -62,7 +62,9 @@ fn first_attempt_and_durable_ack_are_independent_of_transport_and_replay() {
             .is_err()
     );
     replay.source.price = decimal::parse("11").unwrap();
-    assert!(box_.retain(&replay).is_err());
+    replay.source.size += 1;
+    replay.source.symbol = "different-raw-symbol".into();
+    assert!(Arc::ptr_eq(&retained, &box_.retain(&replay).unwrap()));
     assert_eq!(box_.retained_bytes().unwrap(), retained.bytes.len());
     box_.acknowledge(&retained.identity, &retained.digest, retained.receipt)
         .unwrap();
@@ -80,6 +82,32 @@ fn first_attempt_and_durable_ack_are_independent_of_transport_and_replay() {
     );
     assert!(box_.complete(&retained.identity, retained.receipt).is_err());
     assert_eq!(retained.bytes.as_ref(), first.encode().unwrap());
+}
+
+#[test]
+fn a_confirmed_duplicate_is_discarded_without_acknowledging_or_disturbing_other_trades() {
+    let outbox = Outbox::new(2, 1024 * 1024).unwrap();
+    let duplicate = outbox.retain(&evidence(1)).unwrap();
+    let next = outbox.retain(&evidence(2)).unwrap();
+    assert!(
+        outbox
+            .discard_duplicate(
+                &duplicate.identity,
+                &duplicate.digest,
+                duplicate.receipt + 1
+            )
+            .is_err()
+    );
+    assert!(
+        outbox
+            .discard_duplicate(&duplicate.identity, &next.digest, duplicate.receipt)
+            .is_err()
+    );
+    outbox
+        .discard_duplicate(&duplicate.identity, &duplicate.digest, duplicate.receipt)
+        .unwrap();
+    assert!(outbox.capture(true, 2).unwrap().is_empty());
+    assert!(Arc::ptr_eq(&outbox.capture(false, 2).unwrap()[0], &next));
 }
 #[test]
 fn bounded_storage_and_detached_consumers_do_not_block_native_owner_disposal() {

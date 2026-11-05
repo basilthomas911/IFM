@@ -3,8 +3,6 @@ using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
-using TomasAI.IFM.Domain.Portfolio.Identity;
-using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -26,24 +24,12 @@ public static class CreateManualFundOrder
         /// <summary>Computes and guards the business change, then applies one source event.</summary>
         ///
         /// <param name="state">The owning authoritative command state.</param>
-        /// <param name="events">The authoritative event store used for lookup and commit.</param>
-        /// <param name="allocator">The durable business identity allocator.</param>
         /// <param name="now">The authoritative UTC decision time.</param>
         /// <param name="principal">The authenticated and authorized operator.</param>
-        /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
         /// <returns>Command acceptance or its classified failure; durable completion remains tied to commit.</returns>
-        /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
-        public async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(
-            PortfolioFundAggregate state,
-            IPortfolioEventStore events,
-            IPortfolioBusinessIdAllocator allocator,
-            DateTime now,
-            string principal,
-            CancellationToken cancellationToken)
+        public ServiceResult<GuidResult> Execute(PortfolioFundAggregate state, DateTime now, string principal)
         {
-            ArgumentNullException.ThrowIfNull(allocator);
             ArgumentNullException.ThrowIfNull(command);
-            ArgumentNullException.ThrowIfNull(events);
             ArgumentNullException.ThrowIfNull(state);
 
             if (state.TryComposition(command.Request.IdempotencyKey, out var prior))
@@ -54,11 +40,14 @@ public static class CreateManualFundOrder
                 return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
             }
 
-            var portfolio = await events.LoadPortfolioAsync(new PortfolioId(command.Request.PortfolioId), cancellationToken).ConfigureAwait(false);
-            if (portfolio.Current is null || portfolio.Current.PortfolioVersion != command.Request.PortfolioVersion ||
-                portfolio.Current.OperatingState != PortfolioOperatingState.Active)
+            var preparation = command.Preparation
+                ?? throw new InvalidOperationException("Manual Fund order creation requires prepared identity and Portfolio evidence.");
+            var parent = preparation.Parent;
+            if (parent is null || parent.PortfolioId != command.Request.PortfolioId ||
+                parent.PortfolioVersion != command.Request.PortfolioVersion || parent.OperatingState != PortfolioOperatingState.Active ||
+                preparation.ParentSourceRevision is not > 0)
                 throw new InvalidOperationException("Manual draft Portfolio version is stale or the Portfolio is not active.");
-            var orderId = await allocator.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
+            var orderId = preparation.OrderId;
             var errorMsg = $"{command.CommandName}: unable to apply FundCompositionReserved event";
             var updated = command.Compute(state, now, principal, orderId, out var fundChange) switch
             {

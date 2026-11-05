@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 
 /// <summary>Represents the RetirePortfolioCommand actor message.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record RetirePortfolioCommand : ICommand<PortfolioId>, ICommandRetryIdentity
+public sealed record RetirePortfolioCommand : ICommand<PortfolioId>, IPortfolioLifecycleCommand
 {
 
     /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>

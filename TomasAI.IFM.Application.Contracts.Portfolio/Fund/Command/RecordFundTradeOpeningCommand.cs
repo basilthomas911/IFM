@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 
 /// <summary>Represents the RecordFundTradeOpeningCommand actor message.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record RecordFundTradeOpeningCommand : ICommand<PortfolioFundId>, ICommandRetryIdentity
+public sealed record RecordFundTradeOpeningCommand : ICommand<PortfolioFundId>, IPortfolioLifecycleCommand
 {
 
     /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>

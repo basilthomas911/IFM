@@ -68,7 +68,7 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
     }
 
     [Fact]
-    public void TradeSessionBarRoute_UsesOneMailboxPerValueDate()
+    public void TradeSessionBarRoute_IsolatesMarketSeriesAndValueDates()
     {
         var routes = factory.Services.GetRequiredService<IActorSupervisor>()
             .GetRealtimeRoutes(new ActorTypeId(ActorType.Realtime,
@@ -81,16 +81,17 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
         var sameDateSecond = Resolve("NQU6", ValueDate);
         var nextDate = Resolve("ESU6", ValueDate.AddDays(1));
 
-        sameDateFirst.EntityId.Should().Be(
-            new FuturesTradeSessionBarAccumulatorEntityId(ValueDate).Format());
-        sameDateFirst.ThreadId.Should().Be(sameDateSecond.ThreadId);
+        var partition = FuturesTradeSessionBarAccumulatorEntityId.Parse(sameDateFirst.EntityId);
+        partition.ValueDate.Should().Be(ValueDate);
+        partition.SeriesKey.Should().NotBeNullOrEmpty();
+        sameDateFirst.ThreadId.Should().NotBe(sameDateSecond.ThreadId);
         nextDate.ThreadId.Should().NotBe(sameDateFirst.ThreadId);
 
         var barrier = new ActorSubject(
             ActorType.Realtime,
             FuturesTradeSessionBarSignalRealtimeActor.ActorName,
             "Barrier",
-            new FuturesTradeSessionBarAccumulatorEntityId(ValueDate).Format());
+            partition.Format());
         barrier.ThreadId.Should().Be(sameDateFirst.ThreadId);
 
         ActorSubject Resolve(string contractId, DateOnly valueDate)

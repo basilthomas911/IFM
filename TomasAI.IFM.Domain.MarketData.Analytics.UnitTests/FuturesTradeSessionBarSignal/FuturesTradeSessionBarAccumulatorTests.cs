@@ -17,20 +17,20 @@ public sealed class FuturesTradeSessionBarAccumulatorTests
         new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
 
     [Fact]
-    public void RegistrySharesOneAccumulatorWithinValueDateAndIsolatesDifferentDates()
+    public void RegistryIsolatesDatesAndSeriesAndKeepsContinuationContractsTogether()
     {
         var clock = new FixedTimeProvider(new DateTimeOffset(2026, 8, 25, 12, 0, 0, TimeSpan.Zero));
         var registry = CreateRegistry(clock);
-        var firstDate = new FuturesTradeSessionBarAccumulatorEntityId(new DateOnly(2026, 8, 25));
-        var nextDate = new FuturesTradeSessionBarAccumulatorEntityId(new DateOnly(2026, 8, 26));
+        var date = new DateOnly(2026, 8, 25);
+        var first = registry.Get(registry.Resolve("ESU6", date));
+        var sameSeries = registry.Get(registry.Resolve("ESZ6", date));
+        var otherSeries = registry.Get(registry.Resolve("VXU6", date));
+        var next = registry.Get(registry.Resolve("ESU6", date.AddDays(1)));
 
-        var first = registry.Get(firstDate);
-        var sameDate = registry.Get(firstDate);
-        var next = registry.Get(nextDate);
-
-        Assert.Same(first, sameDate);
+        Assert.Same(first, sameSeries);
+        Assert.NotSame(first, otherSeries);
         Assert.NotSame(first, next);
-        Assert.Equal(2, registry.Count);
+        Assert.Equal(3, registry.Count);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class FuturesTradeSessionBarAccumulatorTests
 
         Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(1), epoch, 1, 100)));
         Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(1), epoch, 1, 100)));
-        var closed = state.CloseThrough(session.EndUtc);
+        var closed = state.CloseThrough(session.EndUtc.AddSeconds(2));
 
         Assert.Equal(7, closed.Count);
         Assert.Equal(7, closed.Select(x => x.TimeFrame).Distinct().Count());
@@ -72,7 +72,7 @@ public sealed class FuturesTradeSessionBarAccumulatorTests
         var state = CreateAccumulator(new FixedTimeProvider(clockTime));
         Assert.Empty(state.Accept(Trade("ESU6", valueDate, marketTime, Guid.NewGuid(), 1, 100)));
 
-        var bar = Assert.Single(state.CloseThrough(start.AddSeconds(15)),
+        var bar = Assert.Single(state.CloseThrough(start.AddSeconds(17)),
             value => value.TimeFrame == TimeFrameType.FifteenSeconds);
         Assert.True(bar.CalculatedAtUtc < bar.LastMarketEventUtc);
         Assert.Empty(new FuturesTradeSessionBarReadModelValidationRules().Execute(bar));
@@ -88,7 +88,7 @@ public sealed class FuturesTradeSessionBarAccumulatorTests
         Assert.Empty(state.Accept(Trade("ESU6", valueDate, start.AddSeconds(2), epoch, 1, 100)));
         Assert.Empty(state.Accept(Trade("ESU6", valueDate, start.AddSeconds(1), epoch, 2, 101)));
 
-        var bar = Assert.Single(state.CloseThrough(start.AddSeconds(15)),
+        var bar = Assert.Single(state.CloseThrough(start.AddSeconds(17)),
             value => value.TimeFrame == TimeFrameType.FifteenSeconds);
         Assert.Equal(start.AddSeconds(1), bar.FirstMarketEventUtc);
         Assert.Equal(start.AddSeconds(2), bar.LastMarketEventUtc);
@@ -108,37 +108,65 @@ public sealed class FuturesTradeSessionBarAccumulatorTests
 
         Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(1), epoch, 1, 100)));
         Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(17), epoch, 3, 101)));
-        Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(2), epoch, 2, 99)));
+        var recovered = Assert.Single(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(2), epoch, 2, 99)));
+        Assert.Equal(2, recovered.TradeCount);
+        Assert.Equal(99m, recovered.Close);
         Assert.Empty(state.Accept(Trade("ESZ6", valueDate, session.StartUtc.AddSeconds(20), Guid.NewGuid(), 1, 102)));
 
-        var closed = state.CloseThrough(session.EndUtc);
+        var closed = state.CloseThrough(session.EndUtc.AddSeconds(2));
         Assert.Equal(7, closed.Count);
         Assert.All(closed, x => Assert.Equal("ESZ6", x.ContractId));
     }
 
     [Fact]
-    public void SourceGapInvalidatesTheEpochUntilAnExplicitEpochRecoveryBarrier()
+    public void ExpiredGapSuppressesAffectedIntervalsAndResumesWithinTheSameEpoch()
     {
         var valueDate = new DateOnly(2026, 8, 25);
         var session = Calendar.GetSession(valueDate);
-        var invalidEpoch = Guid.NewGuid();
-        var clock = new FixedTimeProvider(session.EndUtc.AddMinutes(1));
+        var epoch = Guid.NewGuid();
+        var clock = new FixedTimeProvider(session.StartUtc.AddSeconds(17));
         var state = CreateAccumulator(clock);
 
-        Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(1), invalidEpoch, 1, 100)));
-        Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(17), invalidEpoch, 3, 101)));
-        Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(32), invalidEpoch, 4, 102)));
-        Assert.Empty(state.CloseThrough(session.EndUtc));
+        Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(1), epoch, 1, 100)));
+        Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(17), epoch, 3, 101)));
+        Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(32), epoch, 4, 102)));
+        Assert.Empty(state.CloseThrough(session.StartUtc.AddSeconds(18)));
+        Assert.Empty(state.CloseThrough(session.StartUtc.AddSeconds(19)));
+        Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(2), epoch, 2, 99)));
+        Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(33), epoch, 4, 999)));
 
-        var recoveredEpoch = Guid.NewGuid();
-        Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(47), recoveredEpoch, 1, 103)));
-        var recovered = state.CloseThrough(session.EndUtc);
-        Assert.Equal(7, recovered.Count);
-        Assert.All(recovered, value =>
+        var recovered = Assert.Single(state.CloseThrough(session.StartUtc.AddSeconds(47)));
+        Assert.Equal(TimeFrameType.FifteenSeconds, recovered.TimeFrame);
+        Assert.Equal(1, recovered.TradeCount);
+        Assert.Equal(102m, recovered.Close);
+        Assert.Equal(epoch, recovered.StreamEpochId);
+    }
+
+    [Fact]
+    public void FiveAndFifteenMinuteBarsResumeAfterAnUnfilledGap()
+    {
+        var valueDate = new DateOnly(2026, 8, 25);
+        var start = Calendar.GetSession(valueDate).StartUtc;
+        var epoch = Guid.NewGuid();
+        var state = CreateAccumulator(new FixedTimeProvider(start.AddMinutes(3)));
+
+        state.Accept(Trade("ESU6", valueDate, start.AddMinutes(1), epoch, 1, 100));
+        state.Accept(Trade("ESU6", valueDate, start.AddMinutes(3), epoch, 3, 103));
+        Assert.Empty(state.CloseThrough(start.AddMinutes(3).AddSeconds(2)));
+
+        Assert.Empty(state.Accept(Trade("ESU6", valueDate, start.AddMinutes(16), epoch, 4, 104)));
+        Assert.Empty(state.Accept(Trade("ESU6", valueDate, start.AddMinutes(17), epoch, 4, 999)));
+        var bars = state.CloseThrough(start.AddMinutes(30).AddSeconds(2));
+
+        foreach (var timeFrame in new[] { TimeFrameType.FiveMinutes, TimeFrameType.FifteenMinutes })
         {
-            Assert.Equal(103m, value.Close);
-            Assert.Equal(recoveredEpoch, value.StreamEpochId);
-        });
+            var bar = Assert.Single(bars, value => value.TimeFrame == timeFrame);
+            Assert.Equal(start.AddMinutes(15), bar.IntervalStartUtc);
+            Assert.Equal(1, bar.TradeCount);
+            Assert.Equal(104m, bar.Close);
+            Assert.True(bar.IsComplete && bar.IsValid);
+            Assert.Equal(epoch, bar.StreamEpochId);
+        }
     }
 
     static FuturesMarketPriceUpdatedRealtimeEvent Trade(

@@ -7,17 +7,24 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.Common;
+using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 /// <summary>In-memory command/projection fault injection. All requests are
 /// decoded with production contracts; no production command handler is run.</summary>
 internal sealed partial class TradeWorkspaceResponder {
  readonly Dictionary<int,FundOrderProjectionReadModel> orders=new(){{123,Order}};
  readonly Dictionary<int,FundOrderTradeProjectionReadModel> tradeRows=new(){{456,Trade}};
  readonly Dictionary<Guid,byte[]> commands=[];
+ readonly Dictionary<Guid,int> allocatedOrders=[];
  Action? deferred;
  int nextOrder=700,nextTrade=200;
  public int Dispatches{get;private set;}
  bool ManualMode=>Mode is "Commands" or "LostAck" or "NoProjection" or "RejectCommand" or "ReadUnavailable";
- void ResetCommands(){orders.Clear();orders[123]=Order;tradeRows.Clear();tradeRows[456]=Trade with{TradeState="Open",MaturityDate=new(2026,10,28),RequestedMaturityDate=new(2026,10,28)};commands.Clear();deferred=null;nextOrder=700;nextTrade=200;Dispatches=0;}
+ void ResetCommands(){orders.Clear();orders[123]=Order;tradeRows.Clear();tradeRows[456]=Trade with{TradeState="Open",MaturityDate=new(2026,10,28),RequestedMaturityDate=new(2026,10,28)};commands.Clear();allocatedOrders.Clear();deferred=null;nextOrder=700;nextTrade=200;Dispatches=0;}
+ public int AllocateOrder(Guid operation){
+  if(!ManualMode)throw new InvalidDataException("Order preparation requires the manual workspace fixture");
+  if(allocatedOrders.TryGetValue(operation,out var prior))return prior;
+  var id=++nextOrder;allocatedOrders.Add(operation,id);return id;
+ }
  static void Same<T>(T actual,T expected){if(!MessagePackSerializer.Serialize(actual,MessagePackBinarySerializer.ContentOptions).SequenceEqual(MessagePackSerializer.Serialize(expected,MessagePackBinarySerializer.ContentOptions)))throw new InvalidDataException("Native manual request differs from the managed DTO: "+typeof(T).Name);}
  byte[]? Command(string subject,byte[] bytes){
   var options=MessagePackBinarySerializer.Options;
@@ -32,7 +39,11 @@ internal sealed partial class TradeWorkspaceResponder {
     var type=typeof(TomasAI.IFM.Application.Api.Nats.Client.PortfolioCommandApi).Assembly.GetType("TomasAI.IFM.Application.Api.Nats.Client.IdempotentCommandId")!;
     var expected=(Guid)type.GetMethod("Create",BindingFlags.Public|BindingFlags.Static)!.MakeGenericMethod(typeof(CreateManualFundOrderRequest)).Invoke(null,[r.IdempotencyKey,r])!;
     if(r.IdempotencyKey==Guid.Empty||commandId!=expected||error!=34002)throw new InvalidDataException("Manual create idempotency/retry identity differs");
-    apply=()=>{if(!orders.Values.Any(order=>order.IdempotencyKey==r.IdempotencyKey)){var id=++nextOrder;orders[id]=Order with{OrderId=id,AggregateVersion=1,IdempotencyKey=r.IdempotencyKey,OperatorReference=r.Reference};}};
+    var operation=FundOrderPreparation.AllocationOperationId(c.EntityId,c.CommandId,PortfolioBusinessIdentityKind.Order,0);
+    if(c.Preparation is not {ParentSourceRevision:3,Parent:{PortfolioId:1,PortfolioVersion:1,OperatingState:PortfolioOperatingState.Active},TradeIds:[]} preparation
+        || !allocatedOrders.TryGetValue(operation,out var id)||id!=preparation.OrderId)
+        throw new InvalidDataException("Manual create is missing the matching producer identity and parent evidence");
+    apply=()=>{if(!orders.Values.Any(order=>order.IdempotencyKey==r.IdempotencyKey)){orders[id]=Order with{OrderId=id,AggregateVersion=1,IdempotencyKey=r.IdempotencyKey,OperatorReference=r.Reference};}};
    }else if(subject=="Command.PortfolioFundCommand.AddManualFundOrderTrade.1.2"){
     var c=MessagePackSerializer.Deserialize<AddManualFundOrderTradeCommand>(bytes,options);var r=c.Request;
     commandId=c.CommandId;correlation=c.CorrelationId;requested=c.RequestedOnUtc;entity=c.EntityId;access=c.Access;error=c.ErrorCode;

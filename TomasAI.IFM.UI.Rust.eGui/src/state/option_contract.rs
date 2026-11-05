@@ -237,6 +237,69 @@ pub fn draft(
     Ok(next)
 }
 
+/// Obtains an API-owned preparation receipt before sending a legacy option write.
+async fn prepare_legacy_option(
+    backend: &Backend,
+    registry: &Registry,
+    contract: Value,
+    original_id: Option<&str>,
+    id: &str,
+    deadline: tokio::time::Instant,
+) -> Result<Value, String> {
+    const ROOT: &str = "TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations.";
+    let kind = format!("{ROOT}PrepareOptionContractsCommand");
+    let (actor, verb) = registry.route(&kind)?;
+    let entity = uuid::Uuid::parse_str(id).map_err(|_| "Invalid preparation ID")?.simple().to_string();
+    let subject = ActorSubject {
+        kind: ActorKind::Function,
+        name: actor.into(),
+        verb: verb.into(),
+        entity: entity.clone(),
+    };
+    let route_to = registry.enum_value(
+        "TomasAI.IFM.Shared.EventSourcing.BoundedContextName",
+        "FuturesOptionContractBoundedContext",
+    )?;
+    let fields = BTreeMap::from([
+        ("CommandId".into(), id.into()),
+        ("Subject".into(), subject.wire()),
+        ("EntityId".into(), Value::Array(vec![entity.into()])),
+        ("ErrorCode".into(), registry.error_id(&kind)?.into()),
+        ("RouteTo".into(), route_to.into()),
+        ("Contracts".into(), Value::Array(vec![contract])),
+        ("OriginalContractId".into(), original_id.map(Value::from).unwrap_or(Value::Nil)),
+    ]);
+    let reply = backend
+        .request_until(&subject, &registry.encode(&kind, &fields)?, deadline, None)
+        .await?;
+    let [completed, failed] = service_result(&reply)?
+        .as_array()
+        .map(Vec::as_slice)
+        .ok_or("Invalid option preparation result")?
+    else {
+        return Err("Invalid option preparation result".into());
+    };
+    if completed.is_nil() && !failed.is_nil() {
+        let kind = format!("{ROOT}OptionContractPreparationFailedEvent");
+        let message = registry.wire_field(&kind, "ErrorMessage", failed)?;
+        return Err(message.as_str().unwrap_or("Option preparation failed").into());
+    }
+    let kind = format!("{ROOT}OptionContractPreparationCompletedEvent");
+    if !failed.is_nil() || registry.wire_field(&kind, "CommandId", completed)?.as_str() != Some(id) {
+        return Err("Option preparation result does not match this command".into());
+    }
+    let [prepared] = registry
+        .wire_field(&kind, "Contracts", completed)?
+        .as_array()
+        .map(Vec::as_slice)
+        .ok_or("Option preparation returned no contract")?
+    else {
+        return Err("Option preparation did not return exactly one contract".into());
+    };
+    Ok(prepared.clone())
+}
+
+
 /// Option Contract Controller used by the option contract component.
 #[derive(Default)]
 pub struct OptionContractController {
@@ -529,6 +592,12 @@ impl OptionContractController {
             fields.insert("ContractId".into(), original_id.into());
         }
         if action != "remove" {
+            let next = if value["SchemaVersion"].as_i64().unwrap_or(0) == 0 {
+                prepare_legacy_option(backend, registry, next, (action != "add").then_some(original_id), id, deadline)
+                    .await?
+            } else {
+                next
+            };
             fields.insert("Contract".into(), next);
         }
         let body = registry.encode(&kind, &fields)?;

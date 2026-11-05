@@ -52,11 +52,42 @@ Both `FuturesContract/` and `FuturesOptionContract/` use the same vertical desig
 
 ## Implemented actors
 
-The futures-contract pipeline consists of `FuturesContractCommandActor`, `FuturesContractEventActor`, and `FuturesContractQueryActor`. The futures-option-contract pipeline consists of `FuturesOptionContractCommandActor`, `FuturesOptionContractEventActor`, and `FuturesOptionContractQueryActor`.
+The futures and futures-option catalogs each have a command actor, a query actor,
+and a command-owned event projector. `OptionContractPreparationFunctionActor`
+captures prepared legacy option inputs for the command producers.
 
 ## Processing model
 
-Command actors validate typed NATS messages, rebuild event-sourced state, apply changes, save new events, and publish them. Event actors route those events to side effects. Query actors use storage contexts to return contract read models. The shared domain actor framework supplies mailbox execution, supervision, standardized results, and exception events.
+Command actors validate typed NATS messages, restore state, apply changes, and
+commit the source events with their PostgreSQL projections. The event projectors
+publish correlated outcomes. Query actors return the persisted read models.
+
+## PostgreSQL catalog cutover
+
+Futures commands share `Command.FuturesContractCommand.catalog`. Single and bulk
+option commands share `Command.FuturesOptionContractCommand.catalog`, including
+batches that cross an expiry year. Existing command subjects and entity payloads
+continue to identify the requested operation. The repositories load complete
+membership snapshots and replay the facts that follow each snapshot.
+
+Drain the API, scheduler, Server Manager, and Rust Market Data Host before
+capturing the Development baseline. Set `IFM_SECURITIES_BASELINE_CONNECTION` to
+the local PostgreSQL database and run the projection migration tool with
+`--capture-securities-baseline --confirm-writers-drained`. The transaction
+compares legacy replay with PostgreSQL, creates both catalog snapshots, and
+records full reference data for contracts without history. Development capture
+expects 41 futures and six options without history.
+
+The isolated qualification command `--rebuild-empty-securities-qualification`
+requires an `ifm_securities_qualification_` database with empty canonical and
+symbol projection tables. It replays the original events, explicit baseline, and
+catalog tail in event order and rejects any legacy write made after cutover.
+
+Legacy option producers request a durable preparation receipt before submitting
+the write. The accepted event carries the exact prepared option data. Rollover,
+futures imports from published definitions, and instrument-definition publication
+commit their source facts and read models in PostgreSQL so the Rust host can
+publish before the API starts.
 
 ## Extension points
 

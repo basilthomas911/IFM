@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
@@ -125,6 +126,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
         ServiceResult<Guid> serviceResult;
         try
         {
+            futuresOptionContract = (await PrepareOptionContractsAsync(cmdId, [futuresOptionContract]).ConfigureAwait(false))[0];
             var entityId = new FuturesOptionContractEntityId(futuresOptionContract.ContractId, futuresOptionContract.ContractMonth.Year);
             var cmd = new AddFuturesOptionContractCommand(futuresOptionContract, overwrite)
             {
@@ -153,10 +155,12 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
         ServiceResult<Guid> serviceResult;
         try
         {
+            futuresOptionContracts = await PrepareOptionContractsAsync(cmdId, futuresOptionContracts).ConfigureAwait(false);
             var entityId = new FuturesOptionContractsEntityId(year);
             var cmd = new AddFuturesOptionContractsCommand(futuresOptionContracts)
             {
                 CommandId = cmdId,
+                EntityId = entityId,
                 Subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractsCommand.Actor, AddFuturesOptionContractsCommand.Verb, entityId.Format()),
                 ErrorCode = AddFuturesOptionContractsCommand.ErrorId
             };
@@ -184,6 +188,8 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
         ServiceResult<Guid> serviceResult;
         try
         {
+            futuresOptionContract = (await PrepareOptionContractsAsync(cmdId, [futuresOptionContract], contractId)
+                .ConfigureAwait(false))[0];
             var entityId = new FuturesOptionContractEntityId(contractId, futuresOptionContract.ContractMonth.Year);
             var cmd = new ChangeFuturesOptionContractCommand(contractId, futuresOptionContract, overwrite)
             {
@@ -228,6 +234,27 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
             serviceResult = OnError(ex, cmdId, RemoveFuturesOptionContractCommand.ErrorId);
         }
         return serviceResult;
+    }
+
+    async ValueTask<FuturesOptionContractReadModel[]> PrepareOptionContractsAsync(Guid operationId,
+        FuturesOptionContractReadModel[] contracts, string? originalContractId = null)
+    {
+        ArgumentNullException.ThrowIfNull(contracts);
+        if (contracts.All(static contract => contract is { SchemaVersion: > 0 }))
+            return contracts;
+
+        var request = PrepareOptionContractsCommand.ForOperation(operationId) with
+        {
+            Contracts = contracts,
+            OriginalContractId = originalContractId
+        };
+        var result = await RequestFunctionAsync<PrepareOptionContractsCommand, ActorEntityId,
+            FunctionResult<OptionContractPreparationCompletedEvent, OptionContractPreparationFailedEvent>>(
+            request, request.EntityId, CancellationToken.None).ConfigureAwait(false);
+        if (result is { Success: true, Value.Completed: { } prepared }
+            && prepared.CommandId == operationId && prepared.Contracts.Length == contracts.Length)
+            return prepared.Contracts;
+        throw new InvalidOperationException(result.Value?.Failed?.ErrorMessage ?? result.ErrorMessage);
     }
 
     /// <summary>

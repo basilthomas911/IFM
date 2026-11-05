@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 
 /// <summary>Represents the ReserveFundOrderCompositionCommand actor message.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record ReserveFundOrderCompositionCommand : ICommand<PortfolioFundId>, ICommandRetryIdentity
+public sealed record ReserveFundOrderCompositionCommand : ICommand<PortfolioFundId>, IPortfolioLifecycleCommand, IAppendOnlyCommandRetryIdentity
 {
 
     /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
@@ -26,8 +26,9 @@ public sealed record ReserveFundOrderCompositionCommand : ICommand<PortfolioFund
     /// <param name="correlationId">The CorrelationId field.</param>
     /// <param name="requestedOnUtc">The RequestedOnUtc field.</param>
     /// <param name="access">The Access field.</param>
+    /// <param name="preparation">The optional producer preparation.</param>
     [SerializationConstructor]
-    public ReserveFundOrderCompositionCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioFundId entityId, int errorCode, BoundedContextName routeTo, ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access)
+    public ReserveFundOrderCompositionCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioFundId entityId, int errorCode, BoundedContextName routeTo, ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access, FundOrderPreparation? preparation = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -40,6 +41,7 @@ public sealed record ReserveFundOrderCompositionCommand : ICommand<PortfolioFund
         CorrelationId = correlationId;
         RequestedOnUtc = requestedOnUtc;
         Access = access;
+        Preparation = preparation;
     }
 
     /// <summary>Initializes an empty message for serialization.</summary>
@@ -69,9 +71,11 @@ public sealed record ReserveFundOrderCompositionCommand : ICommand<PortfolioFund
     [Key(9)] public DateTime RequestedOnUtc { get; init; }
     [Key(10)] public PortfolioAccessContext Access { get; init; } = new();
 
+    [Key(11)] public FundOrderPreparation? Preparation { get; init; }
+
     [IgnoreMember] public string CommandName => nameof(ReserveFundOrderCompositionCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
 
-    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
+    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default, Preparation = null };
 }

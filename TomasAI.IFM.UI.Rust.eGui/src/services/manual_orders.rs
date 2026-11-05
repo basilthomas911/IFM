@@ -439,6 +439,7 @@ impl Operation {
         deadline: tokio::time::Instant,
     ) -> Result<i32, String> {
         if !self.attempted {
+            self.prepared = commands::preparation::qualify(backend, registry, context, &self.prepared, deadline).await?;
             self.attempted = true;
             let acknowledgement = commands::submit(backend, &self.prepared, deadline).await?;
             if acknowledgement != self.prepared.command_id {

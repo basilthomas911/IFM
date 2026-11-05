@@ -6,7 +6,7 @@ using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 
-namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query;
+namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Preparation;
 /// <summary>Reads committed authority sources outside the financial transaction and prepares a revision-bound review draft.</summary>
 public sealed class FinancialAuthorityPreparation(FinancialAuthorityPreparationStore financial, IPortfolioEventStore sources, IConfigurationDbContext catalog)
 {

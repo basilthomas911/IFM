@@ -52,11 +52,15 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         return Read(scope, async (db, book, revision, ct) =>
     {
         Require(request.CommandId != Guid.Empty && scope.FundId is > 0, FinancialReasons.InvalidContract, "Fund scope and command identity are required.");
-        var result = await (CapacityReservationStore.ReadEvidenceAsync<IFundRiskAuthorizedEvent>(db, request.CommandId, ct)).ConfigureAwait(false);
-        if (result?.FinancialAuthorization is not { } authorization) return null;
-        Require(authorization.PortfolioId == scope.PortfolioId && authorization.FundId == scope.FundId,
+        var rows = await db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.ReadFundRiskAuthorization,
+            [request.CommandId],
+            reader => new FundRiskAuthorizationEvidence(request.CommandId, reader.GetGuid(0),
+                Decode<FundRiskAuthorizationReference>(reader.GetString(1))), ct).ConfigureAwait(false);
+        Require(rows.Count <= 1, FinancialReasons.AuthorityDenied, "Conflicting committed Fund authorizations.");
+        var evidence = rows.SingleOrDefault();
+        Require(evidence is null || evidence.Authorization.PortfolioId == scope.PortfolioId && evidence.Authorization.FundId == scope.FundId,
             FinancialReasons.AuthorityDenied, "Authorization belongs to a different scope.");
-        return new FundRiskAuthorizationEvidence(result.CommandId, result.Id, authorization);
+        return evidence;
     }, token);
     }
     public Task<FinancialRead<FinancialAdmissionSnapshot>> ReadAsync(FinancialReadScope scope, GetFinancialAdmissionSnapshotRequest request, CancellationToken token = default)
@@ -74,7 +78,14 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         Require(deployment is not null, FinancialReasons.AuthorityDenied, "Fund does not authorize this exact deployment.");
         var state = (string)(await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select09, [scope.PortfolioId], ct)).ConfigureAwait(false))!;
         bool ready = (book.DevelopmentQualificationsExempt || string.Equals(state,"Active",StringComparison.Ordinal)) && book.MigrationQualified && fund.CanSpend && deployment!.MaximumRiskPerTrade > 0 && deployment.Reference.ValidUntilUtc > DateTime.UtcNow;
-        if (ready) await (ValidateFundSourcesAsync(db, book, fund.FundId, true, ct)).ConfigureAwait(false);
+        if (ready && !book.DevelopmentQualificationsExempt)
+        {
+            var matches = await db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.MatchFundSources,
+                [book.PortfolioId, fund.FundId, fund.Reference.PolicyId, fund.PortfolioStreamVersion, fund.FundStreamVersion, fund.PolicyStreamVersion],
+                ct).ConfigureAwait(false);
+            Require(matches is true && fund.Reference.ValidUntilUtc > DateTime.UtcNow, FinancialReasons.AuthorityRevoked,
+                "Portfolio/Fund/policy changed since financial authority was prepared.");
+        }
         bool Relevant(CapacityScopeKind kind, string key) => kind switch
         {
             CapacityScopeKind.Portfolio => string.Equals(key,FinancialScopeKeys.Portfolio(scope.PortfolioId),StringComparison.Ordinal),
@@ -100,8 +111,22 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         return Read(scope, async (db, book, revision, ct) =>
     {
         Require(request.OperationId != Guid.Empty, FinancialReasons.InvalidContract, "OperationId is required.");
-        var result = await (ReadOperationAsync<IFinancialCompletedEvent>(db, scope.PortfolioId, request.OperationId, null, ct)).ConfigureAwait(false);
-        if (result is null) return null;
+        var rows = await db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.ReadOutcome,
+            [scope.PortfolioId, request.OperationId], reader => (Type: reader.GetString(0), Payload: reader.GetString(1)), ct)
+            .ConfigureAwait(false);
+        if (rows.Count == 0) return null;
+        var (type, payload) = rows.Single();
+        IFinancialCompletedEvent result = type switch
+        {
+            string x when x == typeof(EmulatorOrderSubmittedEvent).FullName => Decode<EmulatorOrderSubmittedEvent>(payload),
+            string x when x == typeof(LedgerPostingCompletedEvent).FullName => Decode<LedgerPostingCompletedEvent>(payload),
+            string x when x == typeof(LedgerPostingBatchCompletedEvent).FullName => Decode<LedgerPostingBatchCompletedEvent>(payload),
+            string x when x == typeof(CapacityReservationCompletedEvent).FullName => Decode<CapacityReservationCompletedEvent>(payload),
+            string x when x == typeof(CapacityConsumptionCompletedEvent).FullName => Decode<CapacityConsumptionCompletedEvent>(payload),
+            string x when x == typeof(CapacityLifecycleCompletedEvent).FullName => Decode<CapacityLifecycleCompletedEvent>(payload),
+            string x when x == typeof(LedgerConfigurationCompletedEvent).FullName => Decode<LedgerConfigurationCompletedEvent>(payload),
+            _ => throw new FinancialOperationException(FinancialReasons.InvalidContract, "Unknown financial operation type.")
+        };
         if (scope.FundId is { } fund)
         {
             var permitted = result switch

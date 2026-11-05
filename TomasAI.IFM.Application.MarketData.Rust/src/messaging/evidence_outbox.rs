@@ -68,25 +68,22 @@ impl Outbox {
         })
     }
     /// Admits validated copied bytes, preserving the first complete pricing attempt
-    /// for duplicate source keys. Economic conflict never silently overwrites it.
+    /// for duplicate source keys, including copies with different content.
     ///
     /// # Errors
-    /// Invalid evidence, content conflict, interrupted writer or exhausted bounded
+    /// Invalid evidence, interrupted writer or exhausted bounded
     /// storage fail without partial mutation or waiting for external I/O.
     pub fn retain(&self, evidence: &Evidence) -> Result<Arc<Record>, &'static str> {
         let identity = evidence.source.identity()?;
-        let digest = evidence.source.source_digest()?;
-        let bytes = evidence.encode()?;
         let mut state = self
             .state
             .lock()
             .map_err(|_| "Evidence outbox writer interrupted")?;
         if let Some(existing) = state.items.get(&identity) {
-            if existing.record.digest != digest {
-                return Err("Conflicting option trade economic content");
-            }
             return Ok(existing.record.clone());
         }
+        let digest = evidence.source.source_digest()?;
+        let bytes = evidence.encode()?;
         if state.items.len() >= self.maximum || bytes.len() > self.bytes.saturating_sub(state.bytes)
         {
             return Err("Native evidence outbox capacity exhausted");
@@ -176,6 +173,28 @@ impl Outbox {
     /// # Errors
     /// Missing, unpersisted or replaced attempts cannot be completed.
     pub fn complete(&self, identity: &str, receipt: u64) -> Result<(), &'static str> {
+        self.remove(identity, receipt, None)
+    }
+
+    /// Releases a pending copy when storage confirms it already owns a different attempt.
+    ///
+    /// # Errors
+    /// Stale, mismatched or already acknowledged copies cannot be discarded.
+    pub fn discard_duplicate(
+        &self,
+        identity: &str,
+        digest: &str,
+        receipt: u64,
+    ) -> Result<(), &'static str> {
+        self.remove(identity, receipt, Some(digest))
+    }
+
+    fn remove(
+        &self,
+        identity: &str,
+        receipt: u64,
+        duplicate_digest: Option<&str>,
+    ) -> Result<(), &'static str> {
         let mut state = self
             .state
             .lock()
@@ -184,7 +203,11 @@ impl Outbox {
             .items
             .get(identity)
             .ok_or("Unknown evidence completion")?;
-        if !item.persisted || item.record.receipt != receipt {
+        let settled = match duplicate_digest {
+            Some(digest) => !item.persisted && item.record.digest == digest,
+            None => item.persisted,
+        };
+        if !settled || item.record.receipt != receipt {
             return Err("Unacknowledged or stale evidence completion");
         }
         let size = item.record.bytes.len();

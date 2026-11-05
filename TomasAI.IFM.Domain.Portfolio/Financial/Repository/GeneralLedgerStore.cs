@@ -40,6 +40,13 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
             var periods = new Dictionary<(int Book, DateOnly Date), bool>();
             var rules = new Dictionary<(int Book, Guid Rule, long Version, DateOnly Date), LedgerPostingRule>();
             var accounts = new Dictionary<(int Book, int Account, long Version, bool Reversal), bool>();
+            // The authority fence serializes receipt writers, and this batch rejects duplicate source identities above.
+            var existingSources = (await db.QueryAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select01,
+                [authority.Book.BookId, items.Select(x => x.Request.Source.System).ToArray(),
+                 items.Select(x => x.Request.Source.SourceEventId.ToString("N")).ToArray(),
+                 items.Select(x => x.Request.TransactionKind.ToString()).ToArray()],
+                row => (Ordinal: row.GetInt64(0), Hash: row.GetString(1), Operation: row.GetGuid(2)),
+                cancellation).ConfigureAwait(false)).ToDictionary(x => x.Ordinal);
             foreach (var prepared in items)
             {
                 var item = prepared.Request;
@@ -47,9 +54,10 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
                 Require(item.Source.SourceEventId != Guid.Empty && !string.IsNullOrWhiteSpace(item.Source.System) &&
                     !string.IsNullOrWhiteSpace(item.Source.SourceContentHash), FinancialReasons.InvalidContract, "Qualified source identity/hash is required.");
                 await (ValidateFundSourcesAsync(db, authority.Book, item.FundId, false, cancellation)).ConfigureAwait(false);
-                var previous = await (db.QueryAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select01, [item.BookId, item.Source.System, item.Source.SourceEventId.ToString("N"), item.TransactionKind.ToString()], r => (Hash: r.GetString(0), Operation: r.GetGuid(1)), cancellation)).ConfigureAwait(false);
-                if (previous.Count > 0) throw new FinancialOperationException(string.Equals(previous[0].Hash,item.Source.SourceContentHash,StringComparison.Ordinal) ? FinancialReasons.AlreadyPosted : FinancialReasons.SourceConflict,
-                    "Source has already been committed.", FinancialCommitDisposition.NoNewMutation, previous[0].Operation);
+                if (existingSources.TryGetValue(receipts.Count + 1L, out var previous))
+                    throw new FinancialOperationException(string.Equals(previous.Hash, item.Source.SourceContentHash, StringComparison.Ordinal)
+                        ? FinancialReasons.AlreadyPosted : FinancialReasons.SourceConflict,
+                        "Source has already been committed.", FinancialCommitDisposition.NoNewMutation, previous.Operation);
                 var periodKey = (item.BookId, item.AccountingDate);
                 if (!periods.ContainsKey(periodKey))
                 {
@@ -104,28 +112,43 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
                 var obligation = await (ApplyObligation(db, request, item, revision, cancellation)).ConfigureAwait(false);
                 var journalId = plan.Lines.Count == 0 ? null : prepared.JournalId;
                 Require(plan.Lines.Count == 0 || journalId is > 0, FinancialReasons.InvalidContract, "Generated journal identity is missing.");
-                await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert01, [prepared.TransactionId,item.BookId,request.PortfolioId,item.FundId,request.OperationId,receipts.Count+1,(int)item.TransactionKind,
+                var writes = new List<(string Sql, object?[] Parameters)>(plan.Lines.Count + 3)
+                {
+                    (PortfolioDbSql.Financial.GeneralLedgerStore.Insert01, [prepared.TransactionId,item.BookId,request.PortfolioId,item.FundId,request.OperationId,receipts.Count+1,(int)item.TransactionKind,
                         item.Source.System,item.Source.SourceEventId.ToString("N"),item.Source.SourceContentHash,item.Amount,item.AccountingDate,item.ValueDate,
-                        item.SettlementDate,obligation,item.RelatedJournalId,LedgerFinancialProjection.PayloadJson(item)], cancellation)).ConfigureAwait(false);
+                        item.SettlementDate,obligation,item.RelatedJournalId,LedgerFinancialProjection.PayloadJson(item)])
+                };
                 // Hash is supplied by the canonical domain model through the immutable request/rule/line plan.
                 var journalHash = journalId is null ? null : plan.ContentHash;
                 Require(journalId is null || journalHash?.Length == 64, FinancialReasons.InvalidContract, "Canonical journal hash is required.");
                 if (journalId is not null)
                 {
-                    await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert02, [journalId,prepared.TransactionId,item.BookId,request.PortfolioId,item.FundId,request.OperationId,item.AccountingDate,item.ValueDate,item.SettlementDate,
+                    writes.Add((PortfolioDbSql.Financial.GeneralLedgerStore.Insert02, [journalId,prepared.TransactionId,item.BookId,request.PortfolioId,item.FundId,request.OperationId,item.AccountingDate,item.ValueDate,item.SettlementDate,
                             (int)item.TransactionKind,item.Source.SourceContentHash,rule.RuleId,(long)rule.Version,
-                            item.TransactionKind==LedgerTransactionKind.Reversal?item.RelatedJournalId:null,now,revision,journalHash], cancellation)).ConfigureAwait(false);
+                            item.TransactionKind==LedgerTransactionKind.Reversal?item.RelatedJournalId:null,now,revision,journalHash]));
                     foreach (var line in plan.Lines.OrderBy(x => x.Account.AccountId).ThenBy(x => x.FundId).ThenBy(x => x.Ordinal))
                     {
                         if (line.FundId is { } lineFund)
                             await (ValidateFundSourcesAsync(db, authority.Book, lineFund, false, cancellation)).ConfigureAwait(false);
-                        await (InsertLine(db, item.BookId, journalId.Value, line, revision, item.TransactionKind == LedgerTransactionKind.Reversal, accounts, cancellation)).ConfigureAwait(false);
+                        await ValidateLineAccountAsync(db, item.BookId, line, item.TransactionKind == LedgerTransactionKind.Reversal, accounts, cancellation).ConfigureAwait(false);
+                        writes.Add((PortfolioDbSql.Financial.GeneralLedgerStore.InsertLineAndBalance,
+                            LedgerFinancialProjection.LineParameters(item.BookId, journalId.Value,
+                                new(line.Ordinal, line.Account, line.FundId, line.Debit, line.Credit, line.OrderId, line.TradeId, line.SourceLineReference), revision)));
                     }
                 }
+                var sourceReceipt = (Sql: PortfolioDbSql.Financial.GeneralLedgerStore.Insert03, Parameters: new object?[]
+                    { item.BookId, item.Source.System, item.Source.SourceEventId.ToString("N"), item.TransactionKind.ToString(),
+                      item.Source.SourceContentHash, request.OperationId, journalId });
+                if (item.CapacityReservationId is null)
+                    writes.Add(sourceReceipt);
+                // Statements execute in order so ledger triggers can see the preceding journal insert.
+                await db.ExecuteBatchAsync(writes, cancellation).ConfigureAwait(false);
                 decimal? fundingCashPaid = null;
                 if (item.CapacityReservationId is not null)
+                {
                     fundingCashPaid = await (RecordFundingSettlement(db, item, prepared.TransactionId, journalId, cancellation)).ConfigureAwait(false);
-                await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert03, [item.BookId, item.Source.System, item.Source.SourceEventId.ToString("N"), item.TransactionKind.ToString(), item.Source.SourceContentHash, request.OperationId, journalId], cancellation)).ConfigureAwait(false);
+                    await db.ExecuteAsync(sourceReceipt.Sql, sourceReceipt.Parameters, cancellation).ConfigureAwait(false);
+                }
                 if (item.TransactionKind is LedgerTransactionKind.Valuation or LedgerTransactionKind.RealizedPnl)
                     await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert04, [item.BookId, item.FundId, PositionKey(item), item.TransactionKind == LedgerTransactionKind.RealizedPnl ? 0m : item.Amount, item.Source.SourceSequence, revision], cancellation)).ConfigureAwait(false);
                 var becameOverdrawn = plan.IsActualFinancialFact && await (AvailableCash(db, item.BookId, item.FundId, cancellation)).ConfigureAwait(false) < 0;
@@ -207,7 +230,8 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
         return null;
     }
 
-    static async Task InsertLine(EnlistedEventTransaction db, int bookId, long journalId, PlannedLedgerLine line, long revision, bool reversal, Dictionary<(int Book, int Account, long Version, bool Reversal), bool> accounts, CancellationToken token)
+    static async Task ValidateLineAccountAsync(EnlistedEventTransaction db, int bookId, PlannedLedgerLine line, bool reversal,
+        Dictionary<(int Book, int Account, long Version, bool Reversal), bool> accounts, CancellationToken token)
     {
         var key = (bookId, line.Account.AccountId, line.Account.Version, reversal);
         if (!accounts.TryGetValue(key, out var fundRequired))
@@ -218,8 +242,6 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
             accounts.Add(key, fundRequired);
         }
         Require(!fundRequired || line.FundId is > 0, FinancialReasons.InvalidAccount, "Account is missing its required Fund dimension.");
-        await (LedgerFinancialProjection.ApplyLineAsync(db, bookId, journalId,
-            new(line.Ordinal, line.Account, line.FundId, line.Debit, line.Credit, line.OrderId, line.TradeId, line.SourceLineReference), revision, token)).ConfigureAwait(false);
     }
     static string PositionKey(LedgerPostingRequest item) => $"{item.Source.OrderId}:{item.Source.TradeId}";
     static Task<IReadOnlyList<PlannedLedgerLine>> ReadJournalLines(EnlistedEventTransaction db, long journalId, CancellationToken token) => db.QueryAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Select12, [journalId], r => new PlannedLedgerLine(r.GetInt32(0), new(r.GetInt32(1), r.GetInt64(2)), r.IsDBNull(3) ? null : r.GetInt32(3), r.GetDecimal(4), r.GetDecimal(5),

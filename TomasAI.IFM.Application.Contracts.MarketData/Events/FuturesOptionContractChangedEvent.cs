@@ -3,6 +3,7 @@ using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.Events;
@@ -15,8 +16,12 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Events;
 /// and denormalization workflows to propagate contract changes throughout the system. Consumers can use this event to
 /// update projections or trigger downstream processes that depend on contract state changes.</remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record FuturesOptionContractChangedEvent : IEvent<FuturesOptionContractEntityId>
+public record FuturesOptionContractChangedEvent : IEvent<FuturesOptionContractEntityId>, IRequireDurableProjection
 {
+    [IgnoreMember]
+    DurableProjectionRequirement IRequireDurableProjection.RequiredProjection =>
+        new("FuturesOptionContractCommandActor", "FuturesOptionContractEventProjector", EventProjectorStageType.PublishProcessingEvent);
+
     [IgnoreMember] public const string Actor = "FuturesOptionContractEvent";
     [IgnoreMember] public const string Verb = "Changed";
     [IgnoreMember] public const int ErrorCode = 2005;

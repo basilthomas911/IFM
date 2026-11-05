@@ -431,8 +431,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl)
             .ConfigureServices(services => services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
             {
-                Enabled = true,
-                RequireWarmRegimeDiscoverySignals = false
+                Enabled = true
             })));
         _ = factory.CreateClient();
         var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
@@ -475,8 +474,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             {
                 services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
                 {
-                    Enabled = true,
-                    RequireWarmRegimeDiscoverySignals = false
+                    Enabled = true
                 });
                 services.RemoveAll<RegimeDiscoveryExecutionOptions>();
                 services.AddSingleton(new RegimeDiscoveryExecutionOptions

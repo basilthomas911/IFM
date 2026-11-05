@@ -462,7 +462,8 @@ public sealed class MarketOutlookUpdateProcessor(
         DateTime now)
     {
         var trade = update.PriceUpdate.Price.Trade!.Value;
-        MarketOutlookDailyPreviewCalculator.TryCalculate(update.PriceUpdate, out var liveEma, out var liveBb);
+        MarketOutlookDailyPreviewCalculator.TryCalculate(update.PriceUpdate, out var liveEma, out var liveBb,
+            out var priorStandardDeviation);
         return Write(
             update,
             [new(CacheComponentType.EsTrade, position)],
@@ -470,7 +471,8 @@ public sealed class MarketOutlookUpdateProcessor(
             {
                 CurrentEsPrice = trade.LastPrice,
                 FuturesEmaSignal = liveEma ?? state.FuturesEmaSignal,
-                FuturesBbSignal = liveBb ?? state.FuturesBbSignal
+                FuturesBbSignal = liveBb ?? state.FuturesBbSignal,
+                PriorDailyBbStandardDeviation = priorStandardDeviation ?? state.PriorDailyBbStandardDeviation
             },
             MarketOutlookRefreshTrigger.EsTrade,
             now);

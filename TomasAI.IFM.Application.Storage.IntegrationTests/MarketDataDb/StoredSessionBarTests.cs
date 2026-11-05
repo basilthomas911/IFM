@@ -18,8 +18,10 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 /// <summary>Checks durable restart lookup using the original trading-date month and exact interval identity.</summary>
 public sealed class StoredSessionBarTests(EventSourceActorSnapshotRangeFixture fixture) : IClassFixture<EventSourceActorSnapshotRangeFixture>
 {
-    [Fact]
-    public async Task Immutable_bar_round_trips_across_a_trading_month_boundary_and_rejects_other_intervals()
+    [Theory]
+    [InlineData(TimeFrameType.FifteenMinutes, 15)]
+    [InlineData(TimeFrameType.FourHours, 240)]
+    public async Task Immutable_bar_round_trips_across_a_trading_month_boundary_and_rejects_other_intervals(TimeFrameType frame, int minutes)
     {
         var baseConnection = new NpgsqlConnectionStringBuilder(fixture.ConnectionString) { Username = "", Password = "" }.ConnectionString;
         var settings = new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection, baseConnection, "System.Data.Postgres");
@@ -32,16 +34,17 @@ public sealed class StoredSessionBarTests(EventSourceActorSnapshotRangeFixture f
         var series = MarketSeriesIdentity.ForContract(contract);
         var bar = new FuturesTradeSessionBarReadModel
         {
-            MarketSeriesIdentity = series, ContractId = contract, TimeFrame = TimeFrameType.FifteenMinutes, ValueDate = date,
-            ObservationId = FuturesTradeSessionBarId.Create(series, TimeFrameType.FifteenMinutes, end, 9),
-            IntervalStartUtc = end.AddMinutes(-15), IntervalEndUtc = end, Open = 100, High = 102, Low = 99, Close = 101,
+            MarketSeriesIdentity = series, ContractId = contract, TimeFrame = frame, ValueDate = date,
+            ObservationId = FuturesTradeSessionBarId.Create(series, frame, end, 9),
+            IntervalStartUtc = end.AddMinutes(-minutes), IntervalEndUtc = end, Open = 100, High = 102, Low = 99, Close = 101,
             Volume = 20, FirstSourceSequence = 1, LastSourceSequence = 9,
-            FirstMarketEventUtc = end.AddMinutes(-14), LastMarketEventUtc = end.AddSeconds(-1), CalculatedAtUtc = end,
+            FirstMarketEventUtc = end.AddMinutes(1 - minutes), LastMarketEventUtc = end.AddSeconds(-1), CalculatedAtUtc = end,
             SchemaVersion = 1, CalculationVersion = "original-minute-test-v1", IsComplete = true, IsValid = true
         };
         Assert.True(await db.TryWriteObservationAsync(bar, default));
         Assert.False(await db.TryWriteObservationAsync(bar, default));
-        var restored = await db.GetStoredTradeSessionBarAsync(contract, bar.TimeFrame, date, end);
+        var restarted = new MarketDataDbContext(settings, factory, Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+        var restored = await restarted.GetStoredTradeSessionBarAsync(contract, bar.TimeFrame, date, end);
         Assert.Equal(bar.ObservationId, restored!.ObservationId);
         Assert.Equal(bar.High, restored.High); Assert.Equal(bar.Volume, restored.Volume);
         Assert.Equal(bar.ValueDate, restored.ValueDate); Assert.Equal(bar.LastMarketEventUtc, restored.LastMarketEventUtc);

@@ -15,6 +15,7 @@ using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
+using TomasAI.IFM.Domain.Portfolio.Shared.Preparation;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -34,8 +35,9 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
         store.SeedPortfolio(Portfolio(701));
         store.SeedPolicy(policyId, Policy(701, 8101));
         store.FailNextPortfolioAppend = true;
-        var (actor, context, projections, projector) = CreateActor(store);
-        var command = Activation(policyId, Guid.NewGuid(), expectedPolicyRevision: 1, expectedPortfolioRevision: 1);
+        var (actor, context, portfolioProjector, projector) = CreateActor(store);
+        var parent = (await store.LoadPortfolioAsync(new(701))).Current!;
+        var command = Activation(policyId, Guid.NewGuid(), 1, 1, parent);
         var typed = (ICommandActor<PortfolioFinancialPolicyCommandActor>)actor;
         var firstState = await typed.OnLoadStateAsync(context, command.Subject.ThreadId, command);
 
@@ -53,8 +55,7 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
         healed.Current!.ActivePolicyId.Should().Be(8101);
         healed.Current.ActivePolicyVersion.Should().Be(1);
         await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Single() is PortfolioFinancialPolicyActivatedEvent));
-        await projections.DidNotReceive().UpsertPortfolioAsync(Arg.Any<PortfolioProjection<PortfolioReadModel>>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
-        await projections.DidNotReceive().UpsertPolicyAsync(Arg.Any<PortfolioProjection<PortfolioFinancialPolicyReadModel>>(), Arg.Any<CancellationToken>());
+        await portfolioProjector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Single() is PortfolioFinancialPolicyAssignedEvent));
     }
 
     [Fact]
@@ -70,8 +71,9 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
         store.SeedPolicy(secondId, Policy(702, 8202));
         var firstActor = CreateActor(store);
         var secondActor = CreateActor(store);
-        var firstCommand = Activation(firstId, Guid.NewGuid(), 1, 1);
-        var secondCommand = Activation(secondId, Guid.NewGuid(), 1, 1);
+        var parent = (await store.LoadPortfolioAsync(new(702))).Current!;
+        var firstCommand = Activation(firstId, Guid.NewGuid(), 1, 1, parent);
+        var secondCommand = Activation(secondId, Guid.NewGuid(), 1, 1, parent);
         var firstTyped = (ICommandActor<PortfolioFinancialPolicyCommandActor>)firstActor.Actor;
         var secondTyped = (ICommandActor<PortfolioFinancialPolicyCommandActor>)secondActor.Actor;
         var firstState = await firstTyped.OnLoadStateAsync(firstActor.Context, firstCommand.Subject.ThreadId, firstCommand);
@@ -89,6 +91,44 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
         portfolio.Current!.ActivePolicyId.Should().BeOneOf(8201, 8202);
     }
 
+    [Fact]
+    [Trait("Category", "Portfolio")]
+    public async Task Committed_activation_survives_projection_submission_failure_and_retries_without_reassigning()
+    {
+        var store = new InMemoryPolicyStore();
+        var firstId = new PortfolioFinancialPolicyId(703, 8301);
+        var secondId = new PortfolioFinancialPolicyId(703, 8302);
+        store.SeedPortfolio(Portfolio(703));
+        store.SeedPolicy(firstId, Policy(703, 8301));
+        store.SeedPolicy(secondId, Policy(703, 8302));
+        var (actor, context, portfolioProjector, projector) = CreateActor(store);
+        projector.DomainEventsProjectionAsync(Arg.Any<DomainEventCollection>())
+            .Returns(_ => ValueTask.FromException(new InvalidOperationException("Projector submission failed.")));
+        var typed = (ICommandActor<PortfolioFinancialPolicyCommandActor>)actor;
+        var first = Activation(firstId, Guid.NewGuid(), 1, 1, (await store.LoadPortfolioAsync(new(703))).Current!);
+        var forged = first with { ParentPortfolio = first.ParentPortfolio! with { Name = "Different Portfolio facts" } };
+        var rejected = async () => await ReceiveAsync(forged);
+        await rejected.Should().ThrowAsync<InvalidOperationException>().WithMessage("*disagrees*committed revision*");
+        store.PolicyHistory(firstId).Should().HaveCount(1);
+
+        await ReceiveAsync(first);
+        var second = Activation(secondId, Guid.NewGuid(), 1, 2, (await store.LoadPortfolioAsync(new(703))).Current!);
+        await ReceiveAsync(second);
+        await ReceiveAsync(first);
+
+        store.PolicyHistory(firstId).OfType<PortfolioFinancialPolicyActivatedEvent>().Should().ContainSingle();
+        var portfolio = await store.LoadPortfolioAsync(new(703));
+        portfolio.Revision.Should().Be(3);
+        portfolio.Current!.ActivePolicyId.Should().Be(8302);
+        await portfolioProjector.Received(3).DomainEventsProjectionAsync(Arg.Any<DomainEventCollection>());
+
+        async Task ReceiveAsync(ActivateAndAssignPortfolioFinancialPolicyCommand command)
+        {
+            var state = await typed.OnLoadStateAsync(context, command.Subject.ThreadId, command);
+            (await typed.ReceiveAsync(context, state, command)).Success.Should().BeTrue();
+        }
+    }
+
     static async Task<(bool Success, Exception? Error)> CaptureAsync(Func<Task<ServiceResult<GuidResult>>> operation)
     {
         try { return ((await operation()).Success, null); }
@@ -97,20 +137,20 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
 
     static (PortfolioFinancialPolicyCommandActor Actor,
         ICommandActorContext<PortfolioFinancialPolicyCommandActor> Context,
-        IPortfolioDbWriteContext Projections,
+        IEventProjector<PortfolioCommandActor> PortfolioProjector,
         IEventProjector<PortfolioFinancialPolicyCommandActor> Projector) CreateActor(IPortfolioEventStore store)
     {
         var context = Substitute.For<ICommandActorContext<PortfolioFinancialPolicyCommandActor>>();
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, PortfolioFinancialPolicyCommandActor.ActorName));
-        var projections = Substitute.For<IPortfolioDbWriteContext>();
+        var portfolioProjector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
         var projector = Substitute.For<IEventProjector<PortfolioFinancialPolicyCommandActor>>();
-        return (new(context, store, projections, projector,
+        return (new(context, store, portfolioProjector, projector,
             new PortfolioOperationalGuard(new PortfolioOperationalOptions()),
-            Substitute.For<ILogger<PortfolioFinancialPolicyCommandActor>>()), context, projections, projector);
+            Substitute.For<ILogger<PortfolioFinancialPolicyCommandActor>>()), context, portfolioProjector, projector);
     }
 
     static ActivateAndAssignPortfolioFinancialPolicyCommand Activation(
-        PortfolioFinancialPolicyId id, Guid commandId, long expectedPolicyRevision, long expectedPortfolioRevision) => new()
+        PortfolioFinancialPolicyId id, Guid commandId, long expectedPolicyRevision, long expectedPortfolioRevision, PortfolioReadModel parent) => new()
         {
             CommandId = commandId,
             EntityId = id,
@@ -119,6 +159,8 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
             PolicyVersion = 1,
             ExpectedPolicyRevision = expectedPolicyRevision,
             ExpectedPortfolioRevision = expectedPortfolioRevision,
+            ParentPortfolio = parent,
+            ReferencePreparationId = Guid.NewGuid(),
             Access = PortfolioAccessContext.Administrator("integration-admin"),
         };
 
@@ -157,6 +199,13 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
 
     sealed class InMemoryPolicyStore : IPortfolioEventStore
     {
+        public Task VerifyReferencePreparationAsync(ValidatePortfolioReferenceCommand request, CancellationToken cancellationToken = default)
+        {
+            request.ActivatesPolicy.Should().BeTrue();
+            request.Policy.Should().NotBeNull();
+            return Task.CompletedTask;
+        }
+
         readonly object sync = new();
         readonly Dictionary<int, List<IPortfolioDomainEvent>> portfolios = [];
         readonly Dictionary<PortfolioFinancialPolicyId, List<IPortfolioFinancialPolicyDomainEvent>> policies = [];
@@ -247,7 +296,8 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
         public Task<PortfolioFundAggregate> LoadFundAsync(PortfolioFundId fundId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task SavePortfolioSnapshotAsync(PortfolioId portfolioId, PortfolioAggregate aggregate, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SaveFundSnapshotAsync(PortfolioFundId fundId, PortfolioFundAggregate aggregate, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<IPortfolioDomainEvent?> FindCommittedPortfolioCommandAsync(PortfolioId portfolioId, Guid commandId, CancellationToken cancellationToken = default) => Task.FromResult<IPortfolioDomainEvent?>(null);
+        public Task<IPortfolioDomainEvent?> FindCommittedPortfolioCommandAsync(PortfolioId portfolioId, Guid commandId, CancellationToken cancellationToken = default)
+        { lock (sync) return Task.FromResult(portfolios[portfolioId.Id].SingleOrDefault(x => x.CommandId == commandId)); }
         public Task<IPortfolioFundDomainEvent?> FindCommittedFundCommandAsync(PortfolioFundId fundId, Guid commandId, CancellationToken cancellationToken = default) => Task.FromResult<IPortfolioFundDomainEvent?>(null);
         public Task<PortfolioCreatedEvent?> FindPortfolioCreateByIdempotencyKeyAsync(PortfolioId portfolioId, Guid idempotencyKey, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioCreatedEvent?>(null);
         public Task<FundMandateCreatedEvent?> FindFundCreateByIdempotencyKeyAsync(PortfolioFundId fundId, Guid idempotencyKey, CancellationToken cancellationToken = default) => Task.FromResult<FundMandateCreatedEvent?>(null);

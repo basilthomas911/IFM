@@ -24,7 +24,9 @@ public sealed class InstrumentDefinitionQueryTests
         var query=new GetInstrumentDefinitionsQuery {
             Request=request,
             Subject=new ActorSubject(ActorType.Query,GetInstrumentDefinitionsQuery.Actor,GetInstrumentDefinitionsQuery.Verb,"fixture")};
-        await query.ExecuteAsync(context,deadline.Token);
+        var result = await query.ExecuteAsync(context, deadline.Token);
+        Assert.True(result.Success);
+        Assert.Same(page, result.Value);
         await store.Received(1).GetSelectionPageAsync(request,Arg.Any<DateTimeOffset>(),deadline.Token);
         _=context.DidNotReceive().DbFactory;
     }

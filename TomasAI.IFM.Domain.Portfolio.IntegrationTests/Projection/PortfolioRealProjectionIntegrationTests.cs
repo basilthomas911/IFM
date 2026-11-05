@@ -25,7 +25,7 @@ public sealed class PortfolioRealProjectionIntegrationTests(
     [Fact]
     [Trait("Gate", "PF-09")]
     [Trait("Category", "Portfolio")]
-    public async Task PostgreSQL_history_rebuilds_into_empty_Scylla_projection_and_duplicate_delivery_is_idempotent()
+    public async Task PostgreSQL_history_rebuilds_into_empty_projection_and_duplicate_delivery_is_idempotent()
     {
         var value = Math.Abs(Guid.NewGuid().GetHashCode()) + 1000;
         var id = new PortfolioId(value);
@@ -71,7 +71,7 @@ public sealed class PortfolioRealProjectionIntegrationTests(
     [Trait("Gate", "PF-25")]
     [Trait("Gate", "PF-30")]
     [Trait("Category", "Portfolio")]
-    public async Task Representative_authority_catalog_rebuilds_from_empty_Scylla_with_identical_query_hash()
+    public async Task Representative_authority_catalog_rebuilds_empty_PostgreSQL_projection_with_identical_query_hash()
     {
         var value = Math.Abs(Guid.NewGuid().GetHashCode()) + 100_000;
         var portfolioId = new PortfolioId(value);

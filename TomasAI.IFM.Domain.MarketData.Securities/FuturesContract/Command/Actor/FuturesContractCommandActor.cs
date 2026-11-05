@@ -63,6 +63,23 @@ public class FuturesContractCommandActor(
     protected override async ValueTask OnShutdown(ICommandActorContext<FuturesContractCommandActor> context)
         => await _eventProjector.StopAsync().ConfigureAwait(false);
 
+    static readonly SemaphoreSlim CatalogAdmission = new(1, 1);
+
+    /// <summary>Serializes legacy per-contract routes against the shared catalog stream.</summary>
+    public override async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId,
+        CancellationToken cancellationToken)
+    {
+        await CatalogAdmission.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await base.HandleMessageAsync(message, threadId, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            CatalogAdmission.Release();
+        }
+    }
+
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
     /// </summary>

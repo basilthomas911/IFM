@@ -21,6 +21,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Messaging;
 
+[Trait("Infrastructure", "SelfContained")]
 public sealed class PortfolioCommandActorTests
 {
     [Fact]
@@ -79,7 +80,8 @@ public sealed class PortfolioCommandActorTests
         replay.Value!.Guid.Should().Be(commandId);
         conflict.Success.Should().BeFalse();
         conflict.ErrorCode.Should().Be(PortfolioErrorCodes.IdempotencyConflict);
-        await events.DidNotReceive().AppendPortfolioAsync(Arg.Any<PortfolioId>(), Arg.Any<IPortfolioDomainEvent>(), Arg.Any<long>(), Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
+        await events.DidNotReceive().AppendPortfolioWithStateAsync(Arg.Any<PortfolioId>(), Arg.Any<IPortfolioDomainEvent>(),
+            Arg.Any<long>(), Arg.Any<PortfolioAggregate>(), Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
         await projector.DidNotReceive().DomainEventsProjectionAsync(Arg.Any<DomainEventCollection>());
     }
 
@@ -125,12 +127,13 @@ public sealed class PortfolioCommandActorTests
 
         result.Success.Should().BeTrue();
         var append = Assert.Single(events.ReceivedCalls(), call =>
-            call.GetMethodInfo().Name == nameof(IPortfolioEventStore.AppendPortfolioAsync));
+            call.GetMethodInfo().Name == nameof(IPortfolioEventStore.AppendPortfolioWithStateAsync));
         var arguments = append.GetArguments();
         Assert.Equal(id, arguments[0]);
         Assert.IsType<PortfolioCreatedEvent>(arguments[1]);
         Assert.Equal(0L, arguments[2]);
-        var metadata = Assert.IsType<PortfolioEventMetadata>(arguments[3]);
+        Assert.Equal(1L, Assert.IsType<PortfolioAggregate>(arguments[3]).Revision);
+        var metadata = Assert.IsType<PortfolioEventMetadata>(arguments[4]);
         Assert.Equal(command.CommandId, metadata.CorrelationId);
         Assert.Equal(command.CommandId, metadata.CausationId);
         await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Count == 1 && x.Single() is PortfolioCreatedEvent));
@@ -179,8 +182,10 @@ public sealed class PortfolioCommandActorTests
         var result = await typed.ReceiveAsync(context, state, command);
 
         result.Success.Should().BeTrue();
-        await events.Received(1).AppendPortfolioAsync(id, Arg.Is<IPortfolioDomainEvent>(x => x is DraftPortfolioDeletedEvent), 1,
-            Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
+        await events.Received(1).AppendPortfolioWithStateAsync(id,
+            Arg.Is<IPortfolioDomainEvent>(x => x is DraftPortfolioDeletedEvent), 1,
+            Arg.Is<PortfolioAggregate>(x => x.IsDeleted && x.Revision == 2), Arg.Any<PortfolioEventMetadata?>(),
+            Arg.Any<CancellationToken>());
         await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Single() is DraftPortfolioDeletedEvent));
     }
 
@@ -224,8 +229,8 @@ public sealed class PortfolioCommandActorTests
         var act = async () => await typed.ReceiveAsync(context, state, command);
 
         await act.Should().ThrowAsync<PortfolioAuthorizationException>();
-        await events.DidNotReceive().AppendPortfolioAsync(Arg.Any<PortfolioId>(), Arg.Any<IPortfolioDomainEvent>(),
-            Arg.Any<long>(), Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
+        await events.DidNotReceive().AppendPortfolioWithStateAsync(Arg.Any<PortfolioId>(), Arg.Any<IPortfolioDomainEvent>(),
+            Arg.Any<long>(), Arg.Any<PortfolioAggregate>(), Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
     }
 
     static IPortfolioOperationalGuard Guard() => new PortfolioOperationalGuard(new PortfolioOperationalOptions());

@@ -49,13 +49,12 @@ public sealed class EmulatorExecutionStore(IPostgresEventTransaction transaction
         var existing = await (db.ScalarAsync(PortfolioDbSql.Financial.EmulatorExecutionStore.Select01, [order.ExecutionId], ct)).ConfigureAwait(false);
         if (existing is Guid prior) throw new FinancialOperationException(FinancialReasons.SourceConflict,
             "This execution already has an emulator order; reconcile its original operation.", FinancialCommitDisposition.NoNewMutation, prior);
-        var rows = await (db.QueryAsync(PortfolioDbSql.Financial.EmulatorExecutionStore.Select02, [request.PortfolioId, order.ReservationId], r => (Status: (ReservationStatus)r.GetInt32(0), Version: r.GetInt64(1),
-                Execution: r.IsDBNull(2) ? Guid.Empty : r.GetGuid(2), Request: Decode<CapacityReservationRequest>(r.GetString(3))), ct)).ConfigureAwait(false);
-        Require(rows.Count == 1, FinancialReasons.AuthorityDenied, "Consumed reservation is required.");
-        var row = rows[0]; var original = row.Request;
+        var reservation = await CapacityReservationStore.ReadReservationAsync(db, request.PortfolioId, order.ReservationId, ct).ConfigureAwait(false);
+        Require(reservation is not null, FinancialReasons.AuthorityDenied, "Consumed reservation is required.");
+        var (state, original) = reservation.GetValueOrDefault();
         var fund = authority.Book.Funds.Single(x => x.FundId == order.FundId);
         var reference = fund.Deployments.Length == 0 ? fund.Reference : fund.Deployments.SingleOrDefault(x => x.Reference.DeploymentKey == original.Authority.DeploymentKey)?.Reference;
-        Require(row.Status == ReservationStatus.Consumed && row.Version == 2 && row.Execution == order.ExecutionId &&
+        Require(state.Status == ReservationStatus.Consumed && state.Version == 2 && state.ExecutionId == order.ExecutionId &&
             original.Authority == reference && original.FundId == order.FundId && original.BookId == order.BookId && original.OrderId == order.OrderId &&
             original.StrategyUnits == order.StrategyUnits && string.Equals(original.SizedOrderHash,order.SizedOrderHash,StringComparison.Ordinal) &&
             original.ValidUntilUtc == order.ValidUntilUtc && original.TradeIds.Order().SequenceEqual(order.Legs.Select(x => x.TradeId).Distinct().Order()),

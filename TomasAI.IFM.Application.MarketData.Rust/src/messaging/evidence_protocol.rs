@@ -49,18 +49,27 @@ fn text(reader: &mut Cursor<&[u8]>, maximum: usize) -> Result<String, &'static s
         .map_err(|_| "Truncated evidence receipt")?;
     String::from_utf8(bytes).map_err(|_| "Invalid evidence receipt UTF-8")
 }
-/// Applies only a fully validated durable acknowledgment. A transport PONG,
-/// no-responder status, malformed body or negative reply cannot authorize trading.
+/// Applies a validated durable acknowledgment or a confirmed duplicate rejection.
+/// A duplicate rejection removes only its pending copy and cannot authorize publication.
 ///
 /// # Errors
 /// Invalid/truncated/trailing data, storage failure and stale receipt are explicit
-/// native recovery inputs. No failure consumes or replaces the original attempt.
+/// native recovery inputs. An unqualified reply cannot consume an attempt.
 pub fn acknowledge(bytes: &[u8], outbox: &Outbox) -> Result<(), &'static str> {
     let receipt = decode_receipt(bytes)?;
-    if !receipt.persisted {
-        return Err("External durable evidence persistence failed");
+    apply_receipt(&receipt, outbox).map(|_| ())
+}
+
+pub(super) fn apply_receipt(receipt: &Receipt, outbox: &Outbox) -> Result<bool, &'static str> {
+    if receipt.persisted {
+        outbox.acknowledge(&receipt.identity, &receipt.digest, receipt.receipt)?;
+        Ok(true)
+    } else if receipt.error.as_deref() == Some("OPTION_EVIDENCE_ALREADY_SEEN") {
+        outbox.discard_duplicate(&receipt.identity, &receipt.digest, receipt.receipt)?;
+        Ok(false)
+    } else {
+        Err("External durable evidence persistence failed")
     }
-    outbox.acknowledge(&receipt.identity, &receipt.digest, receipt.receipt)
 }
 /// Validated copied storage receipt, with no resource ownership.
 #[derive(Debug, PartialEq, Eq)]

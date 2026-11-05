@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
+using TomasAI.IFM.Domain.Portfolio.Shared.Preparation;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -14,18 +15,37 @@ namespace TomasAI.IFM.Domain.Portfolio.Persistence;
 
 public interface IPortfolioEventStore : TomasAI.IFM.Application.Contracts.Portfolio.IPortfolioFundOrderReader
 {
+    Task VerifyReferencePreparationAsync(ValidatePortfolioReferenceCommand request, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Reference preparation requires the durable Portfolio event store.");
+
     async Task<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel> TomasAI.IFM.Application.Contracts.Portfolio.IPortfolioFundOrderReader.ReadOrderAsync(PortfolioFundId fund, int orderId, CancellationToken cancellationToken)
         => (await LoadFundAsync(fund, cancellationToken).ConfigureAwait(false)).Composition(orderId).Order;
     /// <summary>Atomically commits an accepted policy activation and its Portfolio assignment.</summary>
     Task AppendPolicyAndPortfolioAsync(PortfolioFinancialPolicyId policyId,IPortfolioFinancialPolicyDomainEvent policyEvent,
         PortfolioId portfolioId,IPortfolioDomainEvent portfolioEvent,CancellationToken cancellationToken = default)
         => throw new NotSupportedException("Compound policy writes require a transactional Portfolio event store.");
+    Task AppendPolicyAndPortfolioWithStateAsync(PortfolioFinancialPolicyId policyId, IPortfolioFinancialPolicyDomainEvent policyEvent,
+        PortfolioFinancialPolicyAggregate policy, PortfolioId portfolioId, IPortfolioDomainEvent portfolioEvent,
+        PortfolioAggregate portfolio, CancellationToken cancellationToken = default)
+        => AppendPolicyAndPortfolioAsync(policyId, policyEvent, portfolioId, portfolioEvent, cancellationToken);
     Task AppendPortfolioAsync(PortfolioId portfolioId, IPortfolioDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default);
     Task AppendFundAsync(PortfolioFundId fundId, IPortfolioFundDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default);
+    Task AppendPortfolioWithStateAsync(PortfolioId portfolioId, IPortfolioDomainEvent domainEvent, long expectedRevision,
+        PortfolioAggregate aggregate, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default)
+        => AppendPortfolioAsync(portfolioId, domainEvent, expectedRevision, metadata, cancellationToken);
+    Task AppendFundWithStateAsync(PortfolioFundId fundId, IPortfolioFundDomainEvent domainEvent, long expectedRevision,
+        PortfolioFundAggregate aggregate, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default)
+        => AppendFundAsync(fundId, domainEvent, expectedRevision, metadata, cancellationToken);
+    Task AppendPolicyWithStateAsync(PortfolioFinancialPolicyId policyId, IPortfolioFinancialPolicyDomainEvent domainEvent,
+        long expectedRevision, PortfolioFinancialPolicyAggregate aggregate, PortfolioEventMetadata? metadata = null,
+        CancellationToken cancellationToken = default)
+        => AppendPolicyAsync(policyId, domainEvent, expectedRevision, metadata, cancellationToken);
     Task<PortfolioAggregate> LoadPortfolioAsync(PortfolioId portfolioId, CancellationToken cancellationToken = default);
     Task<PortfolioFundAggregate> LoadFundAsync(PortfolioFundId fundId, CancellationToken cancellationToken = default);
     Task SavePortfolioSnapshotAsync(PortfolioId portfolioId, PortfolioAggregate aggregate, DateTime nowUtc, string principal, CancellationToken cancellationToken = default);
     Task SaveFundSnapshotAsync(PortfolioFundId fundId, PortfolioFundAggregate aggregate, DateTime nowUtc, string principal, CancellationToken cancellationToken = default);
+    Task SavePolicySnapshotAsync(PortfolioFinancialPolicyId policyId, PortfolioFinancialPolicyAggregate aggregate, DateTime nowUtc,
+        string principal, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     Task<IPortfolioDomainEvent?> FindCommittedPortfolioCommandAsync(PortfolioId portfolioId, Guid commandId, CancellationToken cancellationToken = default);
     Task<IPortfolioFundDomainEvent?> FindCommittedFundCommandAsync(PortfolioFundId fundId, Guid commandId, CancellationToken cancellationToken = default);
     Task<PortfolioCreatedEvent?> FindPortfolioCreateByIdempotencyKeyAsync(PortfolioId portfolioId, Guid idempotencyKey, CancellationToken cancellationToken = default);

@@ -2,6 +2,7 @@
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
 namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
@@ -25,4 +26,21 @@ public sealed class FinancialHistoryJournal(IPostgresEventTransaction transactio
         await (db.ExecuteAsync(PortfolioDbSql.Financial.FinancialHistoryJournal.Insert01, [eventId, DateTime.UtcNow], ct)).ConfigureAwait(false);
         return true;
     }, token);
+
+    /// <summary>Backfills authorization read evidence from the event source outside Query actors.</summary>
+    public Task<int> ProjectPendingFundAuthorizationsAsync(Guid? commandId = null, CancellationToken token = default)
+        => transactions.ExecuteAsync(async (db, ct) =>
+        {
+            var rows = await db.QueryAsync(PortfolioDbSql.Financial.FinancialHistoryJournal.ReadPendingFundAuthorizations,
+                [nameof(FundCompositionStateChangedEvent), commandId],
+                r => new EventLogReadModel(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetInt64(3),
+                    r.GetFieldValue<byte[]>(4), r.GetGuid(5), r.GetString(6), r.GetInt64(7)), ct).ConfigureAwait(false);
+            foreach (var row in rows)
+            {
+                var source = row.ToDomainEvent() as FundCompositionStateChangedEvent
+                    ?? throw new InvalidDataException($"Unsupported Fund composition history event {row.EventVersion}.");
+                await PortfolioDbContextExtensions.ProjectFundRiskAuthorizationAsync(db, source, ct).ConfigureAwait(false);
+            }
+            return rows.Count;
+        }, token);
 }

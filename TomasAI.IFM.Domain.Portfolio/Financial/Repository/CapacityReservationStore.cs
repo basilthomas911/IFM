@@ -162,7 +162,18 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
         await (db.ExecuteAsync(PortfolioDbSql.Financial.CapacityReservationStore.Insert02, [body.ReservationId,receipt.ReservationVersion,source,request.OperationId,(int)current.Status,(int)next.Status,Json(next),
                 next.FilledUnits,next.CancelledUnits,next.RemainingUnits,body.ExecutionId==Guid.Empty?null:body.ExecutionId,
                 body.ExecutionRevision,now,receipt.CompletedEventId,request.InputSha256,LedgerFinancialProjection.PayloadJson(receipt)], cancellation)).ConfigureAwait(false);
-        var facts = new CapacityLifecycleProjectionFacts { ActorName=request.Subject.Name,Request=body,PreviousStatus=current.Status,Transition=next,Usage=usage };
+        var snapshot = current with
+        {
+            Version = receipt.ReservationVersion, Status = next.Status, FilledUnits = next.FilledUnits,
+            CancelledUnits = next.CancelledUnits, RemainingUnits = next.RemainingUnits, ClosedUnits = next.ClosedUnits,
+            ExecutionId = body.ExecutionId == Guid.Empty ? null : body.ExecutionId,
+            ExecutionRevision = Math.Max(current.ExecutionRevision, body.ExecutionRevision)
+        };
+        var facts = new CapacityLifecycleProjectionFacts
+        {
+            ActorName = request.Subject.Name, Request = body, PreviousStatus = current.Status,
+            Transition = next, Usage = usage, Reservation = snapshot
+        };
         var completed = (T)(IFinancialCompletedEvent)(complete(receipt) switch
         {
             CapacityConsumptionCompletedEvent value => value with { SchemaVersion=2,ProjectionFacts=facts },
@@ -212,13 +223,51 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
         }
     }
 
-    static async Task<(ReservationSnapshot State, CapacityReservationRequest Request)?> ReadReservationAsync(
+    internal static async Task<(ReservationSnapshot State, CapacityReservationRequest Request)?> ReadReservationAsync(
         EnlistedEventTransaction db, int portfolioId, Guid reservationId, CancellationToken token)
     {
+        var snapshots = await db.QueryAsync(PortfolioDbSql.Financial.CapacityReservationStore.SelectReservationSnapshotEvents,
+            [portfolioId, reservationId], row => (Version: row.GetInt64(0), Creation: ReadEvent(row, 1),
+                Latest: ReadEvent(row, 9)), token).ConfigureAwait(false);
+        if (snapshots.Count == 0)
+            return null;
+        var (version, creation, latest) = snapshots.Single();
+        if (creation?.ToDomainEvent() is CapacityReservationCompletedEvent { ProjectionFacts.Request: var original } created)
+        {
+            Require(created.Receipt.ReservationId == reservationId && original.ReservationId == reservationId,
+                FinancialReasons.PersistenceFailed, "Reservation creation evidence does not match its identity.");
+            if (version == 1)
+                return (new(reservationId, 1, ReservationStatus.Reserved, original.StrategyUnits, 0, 0,
+                    original.StrategyUnits, original.Requirements.ContentHash, original.ValidUntilUtc, null, 0), original);
+            if (latest is not null)
+            {
+                var snapshot = latest.ToDomainEvent() switch
+                {
+                    CapacityLifecycleCompletedEvent lifecycle => lifecycle.ProjectionFacts?.Reservation,
+                    CapacityConsumptionCompletedEvent consumption => consumption.ProjectionFacts?.Reservation,
+                    _ => null
+                };
+                if (snapshot is not null)
+                {
+                    Require(snapshot.ReservationId == reservationId && snapshot.Version == version
+                        && string.Equals(snapshot.RequirementsHash, original.Requirements.ContentHash, StringComparison.Ordinal)
+                        && snapshot.StrategyUnits == original.StrategyUnits && snapshot.ValidUntilUtc == original.ValidUntilUtc,
+                        FinancialReasons.PersistenceFailed, "Reservation checkpoint does not match committed creation and revision evidence.");
+                    return (snapshot, original);
+                }
+            }
+        }
+
+        // Older lifecycle facts did not capture the full execution watermark.
         var rows = await (db.QueryAsync(PortfolioDbSql.Financial.CapacityReservationStore.Select04, [portfolioId, reservationId], r => (new ReservationSnapshot(reservationId, r.GetInt64(0), (ReservationStatus)r.GetInt32(1),
                 r.GetInt32(2), r.GetInt32(3), r.GetInt32(4), r.GetInt32(5), r.GetString(6), r.GetDateTime(7), r.IsDBNull(8) ? null : r.GetGuid(8), r.GetInt64(9), r.GetInt32(11)),
                 Decode<CapacityReservationRequest>(r.GetString(10))), token)).ConfigureAwait(false);
         return rows.Count == 0 ? null : rows.Single();
+
+        static EventLogReadModel? ReadEvent(System.Data.Common.DbDataReader row, int offset) => row.IsDBNull(offset)
+            ? null
+            : new(row.GetInt64(offset), row.GetString(offset + 1), row.GetString(offset + 2), row.GetInt64(offset + 3),
+                row.GetFieldValue<byte[]>(offset + 4), row.GetGuid(offset + 5), row.GetString(offset + 6), row.GetInt64(offset + 7));
     }
 
     internal static async Task<T?> ReadEvidenceAsync<T>(EnlistedEventTransaction db, Guid invocationId, CancellationToken token) where T : class, IEvent

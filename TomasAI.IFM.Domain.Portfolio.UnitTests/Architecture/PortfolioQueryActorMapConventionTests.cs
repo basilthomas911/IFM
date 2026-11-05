@@ -4,6 +4,8 @@ using FluentAssertions;
 using TomasAI.IFM.Domain.Portfolio.Query.Actor;
 using TomasAI.IFM.Domain.Portfolio.Fund.Query.Actor;
 using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Query.Actor;
+using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.Actor;
+using TomasAI.IFM.Domain.Portfolio.CapacityReservation.Query.Actor;
 using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
 
 namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Architecture;
@@ -21,7 +23,6 @@ public sealed class PortfolioQueryActorMapConventionTests
             GetPortfolioQuery.Verb,
             GetPortfolioRevisionQuery.Verb,
             GetPortfoliosQuery.Verb,
-            AllocatePortfolioBusinessIdQuery.Verb,
         ];
 
         parseMap.Keys.Cast<string>().Should().BeEquivalentTo(expectedVerbs);
@@ -32,6 +33,8 @@ public sealed class PortfolioQueryActorMapConventionTests
     [Theory]
     [InlineData(typeof(PortfolioFundQueryActor), 14)]
     [InlineData(typeof(PortfolioFinancialPolicyQueryActor), 3)]
+    [InlineData(typeof(GeneralLedgerQueryActor), 10)]
+    [InlineData(typeof(CapacityReservationQueryActor), 4)]
     public void Split_query_actors_have_parse_receive_and_exception_map_parity(Type actorType, int expectedMessages)
     {
         var parse = GetMap(actorType, "_parseMap");

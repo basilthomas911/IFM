@@ -7,6 +7,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
+using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 
@@ -87,6 +88,10 @@ internal static class FinancialRepositorySupport
         var expected = function ? 0 : Convert.ToInt64(await (db.ScalarAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Select05, [stream], token)).ConfigureAwait(false) ?? 0L,System.Globalization.CultureInfo.InvariantCulture);
         var eventVersion = await (db.AppendAsync(stream, request.CommandId, completed, expected, token)).ConfigureAwait(false);
         await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Insert06, [request.PortfolioId, request.OperationId, request.Subject.Name, request.InputSha256, eventVersion, revision], token)).ConfigureAwait(false);
+        await db.ExecuteAsync(PortfolioDbSql.Financial.FinancialHistoryProjection.Insert01,
+            [completed.PortfolioId, completed.CommittedAtUtc.Year * 100 + completed.CommittedAtUtc.Month, revision,
+             completed.OperationId, eventVersion, completed.GetType().FullName!, completed.CommittedAtUtc, TomasAI.IFM.Shared.Storage.BindValues.Json(completed.ToEventData())],
+            token).ConfigureAwait(false);
         await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Update01, [request.PortfolioId, revision], token)).ConfigureAwait(false);
         return eventVersion;
     }

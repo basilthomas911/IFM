@@ -468,7 +468,7 @@ impl PortfolioController {
             registry, context, name, portfolio, child, command_id, request, payload,
         )?;
         self.write_in_flight = true;
-        let result = commands::submit(backend, &prepared, deadline).await;
+        let result = commands::submit_portfolio(backend, registry, context, &prepared, deadline).await;
         self.write_in_flight = false;
         result.map_err(|error| {
             if error.starts_with("OutcomeUnknown:") {
@@ -573,27 +573,7 @@ impl PortfolioController {
                     ("EffectiveUntilUtc".into(), Value::Nil),
                 ]);
                 let original = if view == "new-fund" {
-                    let wire = api::query(
-                        backend,
-                        registry,
-                        context,
-                        "AllocatePortfolioBusinessIdQuery",
-                        "Fund",
-                        BTreeMap::from([(
-                            "Kind".into(),
-                            registry
-                                .enum_value(
-                                    &format!(
-                                        "{}.ServiceApi.PortfolioBusinessIdentityKind",
-                                        api::ROOT
-                                    ),
-                                    "Fund",
-                                )?
-                                .into(),
-                        )]),
-                        deadline,
-                    )
-                    .await?;
+                    let wire = api::allocate_identity(backend, registry, "Fund", deadline).await?;
                     let allocated = registry.project(
                         &format!("{}.ServiceApi.PortfolioBusinessIdAllocation", api::ROOT),
                         &wire,
@@ -1560,7 +1540,7 @@ impl PortfolioController {
             ]),
         )?;
         self.write_in_flight = true;
-        let result = commands::submit(backend, &prepared, deadline).await;
+        let result = commands::submit_portfolio(backend, registry, &context, &prepared, deadline).await;
         self.write_in_flight = false;
         result.map_err(|error| {
             if error.starts_with("OutcomeUnknown:") {

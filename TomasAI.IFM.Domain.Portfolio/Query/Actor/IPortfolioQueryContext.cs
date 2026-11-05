@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Query;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
@@ -40,6 +39,5 @@ namespace TomasAI.IFM.Domain.Portfolio.Query.Actor;
 public interface IPortfolioQueryContext : IQueryActorContext<PortfolioQueryActor>
 {
     IDbContextFactory DbFactory { get; }
-    IPortfolioBusinessIdAllocator IdentityAllocator { get; }
     ILogger<PortfolioQueryActor> Logger { get; }
 }

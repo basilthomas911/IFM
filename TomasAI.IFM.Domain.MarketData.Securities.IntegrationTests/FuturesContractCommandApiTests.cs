@@ -57,12 +57,8 @@ public class FuturesContractFuturesContractCommandApiTests(TomasAI.IFM.Integrati
         );
 
         var futuresContract = SampleData.NewFuturesContract;
-        var subject = new ActorSubject(ActorType.Command, AddFuturesContractCommand.Actor, AddFuturesContractCommand.Verb, futuresContract.Id.Format());
-        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
-        await dbFixture.Db.DeleteFuturesContractAsync(futuresContract.Id);
+        var maturity = futuresContract.LastTradeDate.AddDays(1);
+        futuresContract = futuresContract with { ContractId = $"{futuresContract.Symbol}{maturity:yyyyMMdd}", LastTradeDate = maturity };
 
         // act...
         var marketDataApi = new MarketDataCommandApi(_actorProducer);
@@ -158,14 +154,6 @@ public class FuturesContractFuturesContractCommandApiTests(TomasAI.IFM.Integrati
 
         var futuresContract = SampleData.NewFuturesContract;
         var changedContract = SampleData.ChangedFuturesContract;
-
-        // Clean up any existing data
-        var addSubject = new ActorSubject(ActorType.Command, AddFuturesContractCommand.Actor, AddFuturesContractCommand.Verb, $"{futuresContract.Id.Format()}");
-        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
-        var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
-        if (addEventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(addEventStreamId);
-        await dbFixture.Db.DeleteFuturesContractAsync(futuresContract.Id);
 
         // act - add futures contract first...
         var marketDataApi = new MarketDataCommandApi(_actorProducer);
@@ -293,14 +281,8 @@ public class FuturesContractFuturesContractCommandApiTests(TomasAI.IFM.Integrati
         );
 
         var futuresContract = SampleData.NewFuturesContract;
-
-        // Clean up any existing data
-        var addSubject = new ActorSubject(ActorType.Command, AddFuturesContractCommand.Actor, AddFuturesContractCommand.Verb, $"{futuresContract.Id.Format()}");
-        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{addSubject.ThreadId}");
-        var addEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{addSubject.ThreadId}");
-        if (addEventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(addEventStreamId);
-        await dbFixture.Db.DeleteFuturesContractAsync(futuresContract.Id);
+        var maturity = futuresContract.LastTradeDate.AddDays(2);
+        futuresContract = futuresContract with { ContractId = $"{futuresContract.Symbol}{maturity:yyyyMMdd}", LastTradeDate = maturity };
 
         // act - add futures contract first...
         var marketDataApi = new MarketDataCommandApi(_actorProducer);

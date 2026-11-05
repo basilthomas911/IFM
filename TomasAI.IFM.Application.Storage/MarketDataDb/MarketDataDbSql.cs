@@ -281,7 +281,12 @@ public static class MarketDataDbSql
         """;
 
     public const string GetOptionTradeEvidence = "SELECT source_digest,payload FROM market_data.option_trade_evidence WHERE contract_id=$1 AND value_date=$2 AND source_id=$3;";
-    public const string InsertOptionTradeEvidence = "INSERT INTO market_data.option_trade_evidence(contract_id,value_date,source_id,source_digest,payload) VALUES($1,$2,$3,$4,$5) ON CONFLICT (contract_id,value_date,source_id) DO NOTHING;";
+    public const string InsertOptionTradeEvidence = """
+        WITH accepted AS (
+            INSERT INTO market_data.option_trade_evidence(contract_id,value_date,source_id,source_digest,payload)
+            VALUES($1,$2,$3,$4,$5) ON CONFLICT (contract_id,value_date,source_id) DO NOTHING RETURNING 1
+        ) SELECT EXISTS(SELECT 1 FROM accepted);
+        """;
     public const string GetCompositionPreparation = "SELECT payload FROM market_data.composition_preparation WHERE workflow_id=$1 AND input_revision=$2;";
     public const string InsertCompositionPreparation = "INSERT INTO market_data.composition_preparation(workflow_id,input_revision,payload) VALUES($1,$2,$3) ON CONFLICT (workflow_id,input_revision) DO NOTHING;";
 

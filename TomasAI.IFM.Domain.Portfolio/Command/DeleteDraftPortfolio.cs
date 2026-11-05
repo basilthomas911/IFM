@@ -2,10 +2,8 @@ using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
-using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
-using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 
 namespace TomasAI.IFM.Domain.Portfolio.Command;
 
@@ -21,32 +19,13 @@ public static class DeleteDraftPortfolio
         /// <summary>Computes and guards the business change, then applies one source event.</summary>
         ///
         /// <param name="state">The owning authoritative command state.</param>
-        /// <param name="portfolioId">The parent Portfolio identity.</param>
-        /// <param name="events">The authoritative event store used for lookup and commit.</param>
         /// <param name="now">The authoritative UTC decision time.</param>
         /// <param name="principal">The authenticated and authorized operator.</param>
-        /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
         /// <returns>Command acceptance or its classified failure; durable completion remains tied to commit.</returns>
-        /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
-        public async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(
-            PortfolioAggregate state,
-            PortfolioId portfolioId,
-            IPortfolioEventStore events,
-            DateTime now,
-            string principal,
-            CancellationToken cancellationToken)
+        public ServiceResult<GuidResult> Execute(PortfolioAggregate state, DateTime now, string principal)
         {
             ArgumentNullException.ThrowIfNull(command);
-            ArgumentNullException.ThrowIfNull(events);
-            ArgumentNullException.ThrowIfNull(portfolioId);
             ArgumentNullException.ThrowIfNull(state);
-
-            foreach (var fundId in state.FundIds)
-            {
-                var fund = await events.LoadFundAsync(new PortfolioFundId(portfolioId.Id, fundId), cancellationToken).ConfigureAwait(false);
-                if (fund.Orders.Count != 0)
-                    throw new InvalidOperationException("A Draft Portfolio with composition history cannot be deleted.");
-            }
             var errorMsg = $"{command.CommandName}: unable to apply DraftPortfolioDeleted event";
             var updated = command.Compute(state, now, principal, out var portfolioChange) switch
             {

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Query.Model;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Portfolio.Identity;
@@ -13,7 +14,6 @@ using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using AllocatePortfolioBusinessIdQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.AllocatePortfolioBusinessIdQuery;
 using GetActivePortfolioFinancialPolicyQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetActivePortfolioFinancialPolicyQuery;
 using GetFundAllocationQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundAllocationQuery;
 using GetFundCompositionByWorkflowQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundCompositionByWorkflowQuery;
@@ -57,20 +57,17 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
             [GetPortfolioQuery.Verb] = static message => message.AsQuery<GetPortfolioQuery, PortfolioReadModel>()!,
             [GetPortfolioRevisionQuery.Verb] = static message => message.AsQuery<GetPortfolioRevisionQuery, PortfolioAggregateRevision>()!,
             [GetPortfoliosQuery.Verb] = static message => message.AsQuery<GetPortfoliosQuery, PortfolioPage<PortfolioReadModel>>()!,
-            [AllocatePortfolioBusinessIdQuery.Verb] = static message => message.AsQuery<AllocatePortfolioBusinessIdQuery, PortfolioBusinessIdAllocation>()!,
         };
 
     static readonly IReadOnlyDictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
             [typeof(GetPortfolioQuery)] = static (parameters, context, query, cancellationToken) =>
-                ((GetPortfolioQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+                PortfolioQueryHandlerModel.ReplyAsync(context, query, ((GetPortfolioQuery)query).ExecuteAsync(parameters, cancellationToken), cancellationToken),
             [typeof(GetPortfolioRevisionQuery)] = static (parameters, context, query, cancellationToken) =>
-                ((GetPortfolioRevisionQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+                PortfolioQueryHandlerModel.ReplyAsync(context, query, ((GetPortfolioRevisionQuery)query).ExecuteAsync(parameters, cancellationToken), cancellationToken),
             [typeof(GetPortfoliosQuery)] = static (parameters, context, query, cancellationToken) =>
-                ((GetPortfoliosQuery)query).ExecuteAsync(context, parameters, cancellationToken),
-            [typeof(AllocatePortfolioBusinessIdQuery)] = static (parameters, context, query, cancellationToken) =>
-                ((AllocatePortfolioBusinessIdQuery)query).ExecuteAsync(context, parameters, cancellationToken),
+                PortfolioQueryHandlerModel.ReplyAsync(context, query, ((GetPortfoliosQuery)query).ExecuteAsync(parameters, cancellationToken), cancellationToken),
         };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
@@ -78,7 +75,6 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         {
             PortfolioAuthorizationException => PortfolioErrorCodes.Unauthorized,
             PortfolioOperationalException => PortfolioErrorCodes.OperationallyDisabled,
-            _ when query is AllocatePortfolioBusinessIdQuery => PortfolioErrorCodes.SequenceAllocationFailed,
             _ => PortfolioErrorCodes.ValidationFailed,
         });
 
@@ -90,9 +86,7 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         ArgumentNullException.ThrowIfNull(query);
         dynamic request = query;
         using var activity = PortfolioTelemetry.StartRequest("query", query.Subject.Verb, request.CorrelationId);
-        var allocatesIdentity = query is AllocatePortfolioBusinessIdQuery;
-        operationalGuard.Demand(allocatesIdentity ? PortfolioOperation.AdministerPortfolio : PortfolioOperation.Read,
-            request.Access, mutation: allocatesIdentity);
+        operationalGuard.Demand(PortfolioOperation.Read, request.Access, mutation: false);
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         try
         {

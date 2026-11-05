@@ -1,8 +1,6 @@
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query;
 
@@ -12,13 +10,12 @@ public static class GetPostingReceipt
 
     extension(GetPostingReceiptQuery query)
     {
-        /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
-        public ValueTask ExecuteAsync<TActor>(IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
+        /// <summary>Returns the bounded typed financial read result.</summary>
+        public ValueTask<FinancialRead<FinancialOperationOutcome>> ExecuteAsync(IFinancialQueryStore dependency, CancellationToken cancellationToken)
 
         {
-            ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
-            return FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "GetPostingReceipt", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+            return FinancialQueryReply.ReadAsync(query, "GeneralLedgerQuery", "GetPostingReceipt", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
         }
     }
 }

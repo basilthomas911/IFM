@@ -59,8 +59,9 @@ public sealed class Stage2DefinitionRuntimeTests
             await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
             await new ReferenceSchemaDb(settings, logger).CreateAllAsync();
             await new SecuritiesSchemaDb(settings, logger).CreateAllAsync();
-            var db = new Db(settings["ReferenceDbConnection"], logger);
-            var store = new InstrumentDefinitionStore(new ReferenceDbContext(settings, Substitute.For<TomasAI.IFM.Application.Storage.IDbContextFactory>(), Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(), logger), Substitute.For<ITradeStrategySymbolStore>());
+            var reference = new ReferenceDbContext(settings, Substitute.For<TomasAI.IFM.Application.Storage.IDbContextFactory>(),
+                Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(), logger);
+            var store = new InstrumentDefinitionStore(reference, Substitute.For<ITradeStrategySymbolStore>());
             var snapshot = Guid.NewGuid();
             for (uint id = 1; id <= 3; id++)
                 await store.IndexSelectionAsync(new()
@@ -76,8 +77,19 @@ public sealed class Stage2DefinitionRuntimeTests
                     ExpirationUtc = DateTimeOffset.UtcNow.AddDays(10),
                     DefinitionDigest = new('a', 64)
                 }, token);
-            await db.Use("Stage2.Snapshot", $"INSERT INTO reference.instrument_definition_snapshot(catalog,snapshot_id,completed_utc,record_count,datasets_json) VALUES('current',{snapshot},'2026-09-19T00:00:00Z',3,'[\"GLBX.MDP3\"]');").ExecuteCommandAsync(token);
-            await db.Use("Stage2.Complete", $"INSERT INTO reference.instrument_definition_selection_status(snapshot_id,complete) VALUES({snapshot},true);").ExecuteCommandAsync(token);
+            var publication = new InstrumentDefinitionSnapshot(snapshot, new DateTime(2026, 9, 19, 0, 0, 0, DateTimeKind.Utc),
+                3, ["GLBX.MDP3"]);
+            Assert.Null(await reference.GetInstrumentDefinitionSnapshotAsync(token));
+            await reference.PublishInstrumentDefinitionSnapshotAsync(publication, token);
+            await reference.PublishInstrumentDefinitionSnapshotAsync(publication, token);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => reference.PublishInstrumentDefinitionSnapshotAsync(
+                publication with { RecordCount = 4 }, token));
+            var db = new Db(settings["ReferenceDbConnection"], logger);
+            var eventCount = await db.Use("Stage2.PublicationEvents", """
+                SELECT count(*) FROM public.event_log l JOIN public.event_stream_id s USING(eventstreamid)
+                WHERE s.eventstream='Command.InstrumentDefinitionCatalog.Publish';
+                """).ExecuteQueryAsync(static row => row.GetLong(0), token);
+            Assert.Equal(1L, Assert.Single(eventCount));
             await using var source = new TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>();
             await using var host = source.WithWebHostBuilder(builder =>
             {
@@ -193,6 +205,7 @@ public sealed class Stage2DefinitionRuntimeTests
     }
     sealed class Db(IDbConnectionSetting setting, ILogger<DbProvider> logger) : ObjectDataRepository<Db>(setting, logger)
     { public override IObjectRepository Database => this; }
+
     static async Task Until(Func<Task<bool>> condition, CancellationToken token)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);

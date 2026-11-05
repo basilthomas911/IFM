@@ -355,6 +355,15 @@ public static class EventSourceSchemaSql
         definitions.AddRange([
             new("event_log_snapshot_lookup_v4", CreateSnapshotLookupIndex,
                 "DROP INDEX IF EXISTS public.ix_event_log_stream_name_version;"),
+            new("event_aggregate_checkpoint_v1", """
+                CREATE TABLE IF NOT EXISTS public.event_aggregate_checkpoint (
+                    source_stream_id bigint NOT NULL REFERENCES public.event_stream_id(EventStreamId) ON DELETE CASCADE,
+                    source_revision bigint NOT NULL CHECK (source_revision > 0),
+                    checkpoint_event_version bigint NOT NULL REFERENCES public.event_log(EventVersion) ON DELETE CASCADE,
+                    PRIMARY KEY (source_stream_id, source_revision),
+                    UNIQUE (checkpoint_event_version)
+                );
+                """, "DROP TABLE IF EXISTS public.event_aggregate_checkpoint;"),
             new("command_log", CreateCommandLog, "DROP TABLE IF EXISTS public.command_log;"),
             new("command_log_messagepack_v1", AddCommandLogMessagePackPayload,
                 DropCommandLogMessagePackPayload),

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
+using TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Shared.MarketData.Contracts;
@@ -24,7 +25,8 @@ using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb;
 
-public sealed class FuturesReferenceMetadataStorageTests
+[Collection("PostgreSQL plan atomicity")]
+public sealed class FuturesReferenceMetadataStorageTests(PostgresTradePlanFixture postgres)
 {
     [Fact]
     public async Task Additive_migration_preserves_legacy_and_exact_decimal_metadata_across_restart_and_pages()
@@ -180,15 +182,13 @@ public sealed class FuturesReferenceMetadataStorageTests
                     priced.TimeToExpiryYears!.Value, priced.PricingContextDigest!), null);
             var marketDataSettings = new DbConnectionSettings().Add(
                 MarketDataDbContext.MarketDataDbConnection,
-                settings[SecuritiesDbContext.SecuritiesDbConnection].ConnectionString,
-                settings[SecuritiesDbContext.SecuritiesDbConnection].ProviderName);
+                postgres.Connection, "System.Data.Postgres");
             await new MarketDataSchemaDb(marketDataSettings, logger)
-                .CreateAsync(["option_trade_evidence"], token);
-            var evidenceStore = MarketDataDbContextTestFactory.Create(
-                settings[SecuritiesDbContext.SecuritiesDbConnection]);
+                .CreateAsync(["market_data"], token);
+            var evidenceConnection = marketDataSettings[MarketDataDbContext.MarketDataDbConnection];
+            var evidenceStore = MarketDataDbContextTestFactory.Create(evidenceConnection);
             await evidenceStore.WriteAsync(evidence, token);
-            var tradeCopy = await MarketDataDbContextTestFactory.Create(
-                    settings[SecuritiesDbContext.SecuritiesDbConnection])
+            var tradeCopy = await MarketDataDbContextTestFactory.Create(evidenceConnection)
                 .ReadAsync(option.ContractId, trade.ValueDate, evidence.Source.Identity, token);
             Assert.Equal(evidence.Greeks, tradeCopy!.Greeks);
             Assert.Equal(nanos, tradeCopy.Source.EventNanoseconds);

@@ -1,6 +1,6 @@
+using TomasAI.IFM.Domain.Portfolio.Query.Model;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Query;
 using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Query;
@@ -23,19 +23,17 @@ namespace TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Query.Actor;
 /// <summary>Owns financial-policy projection queries on the PortfolioFinancialPolicyQuery route.</summary>
 /// <param name="actorContext">The Financial Policy query mailbox context.</param>
 /// <param name="dbFactory">The Portfolio projection database factory.</param>
-/// <param name="identityAllocator">The durable business-identity allocator.</param>
 /// <param name="operationalGuard">The Portfolio read policy guard.</param>
 /// <param name="logger">The typed actor logger.</param>
 public sealed class PortfolioFinancialPolicyQueryActor(
     IQueryActorContext<PortfolioFinancialPolicyQueryActor> actorContext,
     IDbContextFactory dbFactory,
-    IPortfolioBusinessIdAllocator identityAllocator,
     IPortfolioOperationalGuard operationalGuard,
     ILogger<PortfolioFinancialPolicyQueryActor> logger)
     : BaseQueryActor<PortfolioFinancialPolicyQueryActor>(actorContext, logger)
 {
     public const string ActorName = PortfolioQueryRoutes.FinancialPolicy;
-    readonly PortfolioQueryParameters _parameters = new(dbFactory, identityAllocator);
+    readonly PortfolioQueryParameters _parameters = new(dbFactory);
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
@@ -49,11 +47,11 @@ public sealed class PortfolioFinancialPolicyQueryActor(
         new Dictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioFinancialPolicyQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
             [typeof(GetPortfolioFinancialPolicyQuery)] = static (parameters, context, query, token) =>
-                ((GetPortfolioFinancialPolicyQuery)query).ExecuteAsync(context, parameters, token),
+                PortfolioQueryHandlerModel.ReplyAsync(context, query, ((GetPortfolioFinancialPolicyQuery)query).ExecuteAsync(parameters, token), token),
             [typeof(GetPortfolioFinancialPoliciesQuery)] = static (parameters, context, query, token) =>
-                ((GetPortfolioFinancialPoliciesQuery)query).ExecuteAsync(context, parameters, token),
+                PortfolioQueryHandlerModel.ReplyAsync(context, query, ((GetPortfolioFinancialPoliciesQuery)query).ExecuteAsync(parameters, token), token),
             [typeof(GetActivePortfolioFinancialPolicyQuery)] = static (parameters, context, query, token) =>
-                ((GetActivePortfolioFinancialPolicyQuery)query).ExecuteAsync(context, parameters, token),
+                PortfolioQueryHandlerModel.ReplyAsync(context, query, ((GetActivePortfolioFinancialPolicyQuery)query).ExecuteAsync(parameters, token), token),
         };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

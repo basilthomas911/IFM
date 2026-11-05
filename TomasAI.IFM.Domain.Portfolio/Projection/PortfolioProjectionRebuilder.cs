@@ -68,6 +68,14 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
                 },cancellationToken).ConfigureAwait(false);
                 continue;
             }
+            if (item is TomasAI.IFM.Domain.Portfolio.Shared.Financial.IFundRiskAuthorizedEvent { FinancialAuthorization: not null } authorization)
+            {
+                await (transactions ?? throw new InvalidOperationException("Portfolio rebuild transaction is not registered.")).ExecuteOnceAsync(async (db, ct) =>
+                {
+                    await PortfolioDbContextExtensions.ProjectFundRiskAuthorizationAsync(db, authorization, ct).ConfigureAwait(false);
+                    return true;
+                }, cancellationToken).ConfigureAwait(false);
+            }
             switch (item)
             {
                 case IPortfolioFinancialPolicyDomainEvent policy: await handler.ApplyAsync(policy, cancellationToken).ConfigureAwait(false); break;

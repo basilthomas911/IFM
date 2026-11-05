@@ -7,8 +7,7 @@ using TomasAI.IFM.Shared.Validation;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 
 /// <summary>
-/// Identifies the single ephemeral trade-session bar accumulator for one futures value date.
-/// Every contract and the server-clock barrier for the same value date share this identity.
+/// Identifies a trade-session bar mailbox by value date and resolved market series.
 /// </summary>
 [MessagePackObject]
 public readonly record struct FuturesTradeSessionBarAccumulatorEntityId : IActorEntityId
@@ -16,13 +15,20 @@ public readonly record struct FuturesTradeSessionBarAccumulatorEntityId : IActor
     /// <summary>Gets the futures trading value date owned by the accumulator.</summary>
     [Key(0)] public DateOnly ValueDate { get; init; }
 
-    /// <summary>Initializes the accumulator identity for one futures trading value date.</summary>
+    /// <summary>Gets the canonical series key. Empty identifies a legacy date-only route.</summary>
+    [Key(1)] public string? SeriesKey { get; init; }
+
+    /// <summary>Initializes the accumulator identity for a trading date and series.</summary>
     [SerializationConstructor]
-    public FuturesTradeSessionBarAccumulatorEntityId(DateOnly valueDate)
-        => ValueDate = valueDate;
+    public FuturesTradeSessionBarAccumulatorEntityId(DateOnly valueDate, string? seriesKey = null)
+        => (ValueDate, SeriesKey) = (valueDate, seriesKey);
 
     /// <summary>Formats the stable actor scheduling identity.</summary>
-    public string Format() => ValueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    public string Format()
+    {
+        var date = ValueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return SeriesKey is null ? date : $"{date}|{Uri.EscapeDataString(SeriesKey)}";
+    }
 
     /// <summary>Parses a formatted accumulator identity.</summary>
     public static FuturesTradeSessionBarAccumulatorEntityId Parse(string value) =>
@@ -36,14 +42,18 @@ public readonly record struct FuturesTradeSessionBarAccumulatorEntityId : IActor
         out FuturesTradeSessionBarAccumulatorEntityId entityId)
     {
         entityId = default;
-        if (!DateOnly.TryParseExact(
-                value,
+        var parts = value?.Split('|', 2);
+        if (parts is null || !DateOnly.TryParseExact(
+                parts[0],
                 "yyyy-MM-dd",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
                 out var valueDate))
             return false;
-        entityId = new(valueDate);
+        var seriesKey = parts.Length == 2 ? Uri.UnescapeDataString(parts[1]) : null;
+        if (seriesKey is not null && !Common.MarketSeriesIdentity.TryParse(seriesKey, out _))
+            return false;
+        entityId = new(valueDate, seriesKey);
         return new FuturesTradeSessionBarAccumulatorEntityIdValidationRules().Execute(entityId).Length == 0;
     }
 

@@ -35,12 +35,10 @@ public sealed class PortfolioPf30LiveQualificationTests(ITestOutputHelper output
             else
             {
                 var identities = new PortfolioIdentityApi(producer);
-                do
-                {
-                    var allocated = await identities.AllocatePortfolioIdAsync(timeout.Token);
-                    allocated.Success.Should().BeTrue(allocated.ErrorMessage);
-                    expectedId = allocated.Value!.Value;
-                } while (expectedId <= 1000);
+                var allocated = await identities.AllocatePortfolioIdAsync(timeout.Token);
+                allocated.Success.Should().BeTrue(allocated.ErrorMessage);
+                expectedId = allocated.Value!.Value;
+                expectedId.Should().BeGreaterThan(1000);
                 var now = DateTime.UtcNow;
                 var created = await new PortfolioCommandApi(producer).CreatePortfolioAsync(new()
                 {

@@ -218,7 +218,7 @@ impl Delivery {
         sequence: &mut i64,
         submitted: &mut u64,
     ) -> Result<(), &'static str> {
-        loop {
+        'delivery: loop {
             let broker = progress.borrow_and_update().clone();
             if broker.failure.is_some() || broker.stopped {
                 return Err("Native evidence broker unavailable");
@@ -264,10 +264,10 @@ impl Delivery {
                     {
                         continue;
                     }
-                    if !ack.persisted {
-                        return Err("External durable evidence persistence failed");
+                    if !evidence_protocol::apply_receipt(&ack, outbox)? {
+                        *episode = None;
+                        continue 'delivery;
                     }
-                    outbox.acknowledge(&ack.identity, &ack.digest, ack.receipt)?;
                     break;
                 }
             }

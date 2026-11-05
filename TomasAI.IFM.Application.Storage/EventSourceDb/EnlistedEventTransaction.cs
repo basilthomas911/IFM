@@ -50,6 +50,23 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Sends ordered SQL statements in one round trip on the enlisted transaction.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "Batch SQL comes from application storage contracts and values are bound separately.")]
+    public async Task ExecuteBatchAsync(IReadOnlyList<(string Sql, object?[] Parameters)> statements, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(statements);
+        await ConfigureTimeoutAsync(null, cancellationToken).ConfigureAwait(false);
+        var batch = new NpgsqlBatch(connection, transaction) { Timeout = 0 };
+        await using var disposal = batch.ConfigureAwait(false);
+        foreach (var (sql, parameters) in statements)
+        {
+            var command = new NpgsqlBatchCommand(eventLogSqlLayout.Resolve(sql));
+            command.Parameters.AddRange(PostgresValueBinding.CreateMany(parameters));
+            batch.BatchCommands.Add(command);
+        }
+        await batch.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Reads a scalar on the same transaction; null remains explicit.</summary>
     public async Task<object?> ScalarAsync(string sql, object?[] parameters, CancellationToken cancellationToken, PostgresQueryTimeout? timeout = null)
     {
@@ -77,6 +94,27 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
         var values = new List<T>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) values.Add(map(reader));
         return values;
+    }
+
+    /// <summary>Commits a full sidecar checkpoint at a known source revision without changing the source stream.</summary>
+    public async Task<bool> AppendAggregateCheckpointAsync(string stream, string sidecar, long sourceRevision,
+        IEvent snapshot, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceRevision);
+        var head = await ScalarAsync(EventSourceDbSql.LockAggregateCheckpointSource, [stream], cancellationToken)
+            .ConfigureAwait(false);
+        if (head is not long committed || sourceRevision > committed)
+            throw new InvalidOperationException("A checkpoint must identify a committed source revision.");
+        if (await ScalarAsync(EventSourceDbSql.ReadAggregateCheckpointVersion, [stream, sourceRevision], cancellationToken)
+            .ConfigureAwait(false) is not null)
+            return false;
+        var current = await ScalarAsync(EventSourceDbSql.ReadAggregateCheckpointHead, [sidecar], cancellationToken)
+            .ConfigureAwait(false);
+        var checkpoint = await AppendAsync(sidecar, snapshot.CommandId, snapshot, current is long version ? version : 0,
+            cancellationToken).ConfigureAwait(false);
+        await ExecuteAsync(EventSourceDbSql.RegisterAggregateCheckpoint, [stream, sourceRevision, checkpoint], cancellationToken)
+            .ConfigureAwait(false);
+        return true;
     }
 
     /// <summary>Appends to the existing event schema using its optimistic stream version and standard serialization.</summary>

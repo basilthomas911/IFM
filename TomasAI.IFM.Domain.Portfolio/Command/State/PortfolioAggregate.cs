@@ -197,9 +197,8 @@ public sealed class PortfolioAggregate
     {
         if (PortfolioDefinition is null)
             throw new InvalidOperationException("A missing Portfolio cannot be snapshotted.");
-        if (IsDeleted)
-            throw new InvalidOperationException("A deleted Portfolio cannot be snapshotted.");
-        return new PortfolioAggregateSnapshot(Revision, PortfolioDefinition.DefensiveCopy(), [.._fundIds.Order()], [.._fundAllocations.Values.SelectMany(x => x).OrderBy(x => x.FundId).ThenBy(x => x.AllocationVersion)], [.._fundRiskEnvelopes.Values.SelectMany(x => x).OrderBy(x => x.FundId).ThenBy(x => x.EnvelopeVersion)], [.._commandIds.Order()]);
+        return new PortfolioAggregateSnapshot(Revision, PortfolioDefinition.DefensiveCopy(), [.._fundIds.Order()], [.._fundAllocations.Values.SelectMany(x => x).OrderBy(x => x.FundId).ThenBy(x => x.AllocationVersion)], [.._fundRiskEnvelopes.Values.SelectMany(x => x).OrderBy(x => x.FundId).ThenBy(x => x.EnvelopeVersion)], [.._commandIds.Order()])
+        { IsDeleted = IsDeleted };
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S3267", Justification = "Apply accepted facts in order and stop at the first rejection; state mutation must remain explicit rather than becoming a filtering predicate.")]
@@ -210,6 +209,9 @@ public sealed class PortfolioAggregate
             throw new InvalidOperationException("A snapshot can only restore an empty Portfolio aggregate.");
         if (snapshot.Revision <= 0)
             throw new InvalidOperationException("Snapshot revision must be positive.");
+        if (snapshot.Current is null || snapshot.FundIds is null || snapshot.Allocations is null
+            || snapshot.RiskEnvelopes is null || snapshot.AppliedCommandIds is null)
+            throw new InvalidOperationException("Snapshot is missing Portfolio state.");
         ThrowIfInvalid(snapshot.Current.Validate());
         PortfolioDefinition = snapshot.Current.DefensiveCopy();
         foreach (var fundId in snapshot.FundIds)
@@ -236,6 +238,7 @@ public sealed class PortfolioAggregate
         }
 
         Revision = snapshot.Revision;
+        IsDeleted = snapshot.IsDeleted == true;
     }
 
     public static bool CanTransition(PortfolioOperatingState from, PortfolioOperatingState to, bool throughNewVersion) => (from, to) switch

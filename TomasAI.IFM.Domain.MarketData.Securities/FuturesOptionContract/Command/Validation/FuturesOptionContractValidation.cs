@@ -71,8 +71,18 @@ internal static class FuturesOptionContractValidation
             else
             {
                 var validationRules = new FuturesOptionContractReadModelValidationRules(refLookupService);
+                var contractIds = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var contract in contracts)
                 {
+                    if (contract is null)
+                    {
+                        validationErrors.Add(new ValidationError("Futures option batch contains a null contract"));
+                        continue;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(contract.ContractId) && !contractIds.Add(contract.ContractId))
+                        validationErrors.Add(new ValidationError($"Duplicate futures option contract '{contract.ContractId}'"));
+
                     var ruleErrors = validationRules.Execute(contract);
                     if (ruleErrors is not null && ruleErrors.Length > 0)
                         validationErrors.AddRange(ruleErrors);

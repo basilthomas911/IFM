@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 
 /// <summary>Represents the ActivateAndAssignPortfolioFinancialPolicyCommand actor message.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record ActivateAndAssignPortfolioFinancialPolicyCommand : ICommand<PortfolioFinancialPolicyId>, ICommandRetryIdentity
+public sealed record ActivateAndAssignPortfolioFinancialPolicyCommand : ICommand<PortfolioFinancialPolicyId>, IPortfolioLifecycleCommand, IAppendOnlyCommandRetryIdentity
 {
 
     /// <summary>Rehydrates every published command field in permanent numeric-key order.</summary>
@@ -27,8 +27,10 @@ public sealed record ActivateAndAssignPortfolioFinancialPolicyCommand : ICommand
     /// <param name="correlationId">The CorrelationId field.</param>
     /// <param name="requestedOnUtc">The RequestedOnUtc field.</param>
     /// <param name="access">The Access field.</param>
+    /// <param name="referencePreparationId">The optional durable Reference validation receipt.</param>
+    /// <param name="parentPortfolio">The projected parent at the expected source revision.</param>
     [SerializationConstructor]
-    public ActivateAndAssignPortfolioFinancialPolicyCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioFinancialPolicyId entityId, int errorCode, BoundedContextName routeTo, long policyVersion, long expectedPolicyRevision, long expectedPortfolioRevision, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access)
+    public ActivateAndAssignPortfolioFinancialPolicyCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioFinancialPolicyId entityId, int errorCode, BoundedContextName routeTo, long policyVersion, long expectedPolicyRevision, long expectedPortfolioRevision, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access, Guid? referencePreparationId = null, PortfolioReadModel? parentPortfolio = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -42,6 +44,8 @@ public sealed record ActivateAndAssignPortfolioFinancialPolicyCommand : ICommand
         CorrelationId = correlationId;
         RequestedOnUtc = requestedOnUtc;
         Access = access;
+        ReferencePreparationId = referencePreparationId;
+        ParentPortfolio = parentPortfolio;
     }
 
     /// <summary>Initializes an empty message for serialization.</summary>
@@ -74,9 +78,13 @@ public sealed record ActivateAndAssignPortfolioFinancialPolicyCommand : ICommand
     [Key(10)] public DateTime RequestedOnUtc { get; init; }
     [Key(11)] public PortfolioAccessContext Access { get; init; } = new();
 
+    [Key(12)] public Guid? ReferencePreparationId { get; init; }
+    [Key(13)] public PortfolioReadModel? ParentPortfolio { get; init; }
+
     [IgnoreMember] public string CommandName => nameof(ActivateAndAssignPortfolioFinancialPolicyCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
 
-    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
+    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with
+        { CorrelationId = Guid.Empty, RequestedOnUtc = default, ReferencePreparationId = null, ParentPortfolio = null };
 }

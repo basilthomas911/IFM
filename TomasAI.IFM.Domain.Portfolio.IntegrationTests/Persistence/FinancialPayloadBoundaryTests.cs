@@ -11,6 +11,7 @@ using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.GeneralLe
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 
 [Collection("PortfolioFinancialDatabase"), Trait("Category", "PortfolioFinancial"), Trait("Gate", "PF-FIN-07")]
+[Trait("Infrastructure", "SelfContained")]
 public sealed class FinancialPayloadBoundaryTests(PortfolioEventStoreFixture fixture) : IClassFixture<PortfolioEventStoreFixture>
 {
     [Fact]

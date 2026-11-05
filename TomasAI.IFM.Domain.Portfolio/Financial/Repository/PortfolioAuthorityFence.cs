@@ -11,7 +11,11 @@ namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null) : IPortfolioAuthorityFence
 {
     public Task AppendAsync(int portfolioId, int? fundId, string stream, IEvent domainEvent, long expectedRevision, bool changesAuthority, CancellationToken token = default)
-        => transactions.ExecuteAsync((db,ct) => AppendEnlistedAsync(db,portfolioId,fundId,stream,domainEvent,expectedRevision,changesAuthority,ct),token);
+        => AppendAsync(portfolioId, new(fundId, stream, domainEvent, expectedRevision, changesAuthority), token);
+
+    /// <inheritdoc />
+    public Task AppendAsync(int portfolioId, PortfolioAuthorityAppend operation, CancellationToken token = default)
+        => transactions.ExecuteAsync((db, ct) => AppendEnlistedAsync(db, portfolioId, operation, ct), token);
 
     /// <summary>Commits the supplied related source transitions and projections as one atomic operation.</summary>
     public Task AppendBatchAsync(int portfolioId, IReadOnlyList<PortfolioAuthorityAppend> operations, CancellationToken token = default)
@@ -22,17 +26,50 @@ public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactio
             throw new ArgumentException("A compound operation requires one CommandId.",nameof(operations));
         return transactions.ExecuteAsync(async(db,ct) => {
             foreach (var operation in operations)
-                await AppendEnlistedAsync(db,portfolioId,operation.FundId,operation.Stream,operation.Source,operation.ExpectedRevision,operation.ChangesAuthority,ct).ConfigureAwait(false);
+                await AppendEnlistedAsync(db, portfolioId, operation, ct).ConfigureAwait(false);
             return true;
         },token);
     }
 
-    async Task<bool> AppendEnlistedAsync(EnlistedEventTransaction db,int portfolioId,int? fundId,string stream,IEvent domainEvent,long expectedRevision,bool changesAuthority,CancellationToken ct)
+    async Task<bool> AppendEnlistedAsync(EnlistedEventTransaction db, int portfolioId,
+        PortfolioAuthorityAppend operation, CancellationToken ct)
     {
+        var (fundId, stream, domainEvent, expectedRevision, changesAuthority) = operation;
         using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.portfolio_fence.append");
         // Also serializes first-time book creation with configuration writes before an authority row exists.
         using (FinancialTelemetry.ActivitySource.StartActivity("financial.portfolio_fence.advisory_lock"))
             await (db.ScalarAsync(PortfolioDbSql.Financial.PortfolioAuthorityFence.Select01, [portfolioId], ct)).ConfigureAwait(false);
+        if (operation.ExpectedPortfolioRevision is { } expectedPortfolioRevision)
+        {
+            var portfolioRevision = await db.ScalarAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Select04,
+                [$"Portfolio.{portfolioId}"], ct).ConfigureAwait(false);
+            Require(portfolioRevision is long currentRevision && currentRevision == expectedPortfolioRevision,
+                FinancialReasons.RevisionConflict, "Portfolio changed since the Fund command was prepared.");
+            if (operation.ExpectedPortfolioVersion is { } expectedVersion
+                && operation.ExpectedPortfolioOperatingState is { } expectedState)
+            {
+                var matches = await db.ScalarAsync(PortfolioDbSql.Financial.PortfolioAuthorityFence.MatchPreparedPortfolio,
+                    [portfolioId, expectedPortfolioRevision, expectedVersion, expectedState.ToString()], ct).ConfigureAwait(false);
+                Require(matches is true, FinancialReasons.AuthorityRevoked,
+                    "Prepared Portfolio version or operating state disagrees with the committed Portfolio.");
+            }
+        }
+        if (operation.PreparedIdentifiers is { } identifiers)
+            await PortfolioPreparedIdentifierFence.VerifyAsync(db, identifiers, ct).ConfigureAwait(false);
+        if (operation.RequiredUnreferencedPolicyId is { } policyId)
+        {
+            var unreferenced = await db.ScalarAsync(PortfolioDbSql.Financial.CheckPolicyUnreferenced,
+                [portfolioId, $"Portfolio.{portfolioId}", policyId], ct).ConfigureAwait(false);
+            Require(unreferenced is true, FinancialReasons.AuthorityDenied,
+                "The current Portfolio references this policy or its projection is behind the committed revision.");
+        }
+        if (operation.DraftPortfolioFundIds is { } fundIds)
+        {
+            var canDelete = await db.ScalarAsync(PortfolioDbSql.Financial.CheckDraftPortfolioDeletion,
+                [portfolioId, fundIds.ToArray()], ct).ConfigureAwait(false);
+            Require(canDelete is true, FinancialReasons.AuthorityDenied,
+                "A Draft Portfolio with composition history or stale Fund projections cannot be deleted.");
+        }
         using var lockTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.portfolio_fence.lock_authority");
         var rows = await (db.QueryAsync(PortfolioDbSql.Financial.PortfolioAuthorityFence.Select02, [portfolioId], r => (Book: Decode<FinancialBookConfiguration>(r.GetString(0)), Epoch: r.GetInt64(1), Revision: r.GetInt64(2), State: r.GetString(3)), ct)).ConfigureAwait(false);
         lockTrace?.Stop();
@@ -53,6 +90,9 @@ public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactio
             Require(live is null, FinancialReasons.InvalidLifecycle, "Capacity remains reserved or consumed; terminal Fund synchronization awaits reconciliation.");
         }
         await (db.AppendAsync(stream, domainEvent.CommandId, domainEvent, expectedRevision, ct)).ConfigureAwait(false);
+        if (operation.Checkpoint is { } checkpoint)
+            await db.AppendAggregateCheckpointAsync(stream, $"{stream}.Snapshot", checked(expectedRevision + 1), checkpoint, ct)
+                .ConfigureAwait(false);
         await ProjectAcceptedAsync(db,domainEvent,ct).ConfigureAwait(false);
         if (rows.Count == 0) return true;
         if (domainEvent is IFundRiskTerminalEvent { TerminalRisk: not null })
@@ -94,5 +134,7 @@ public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactio
             _ => null };
         if (projectionFacts is not null)
             await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,domainEvent,projectionFacts,ct).ConfigureAwait(false);
+        else
+            await PortfolioDbContextExtensions.ProjectFundRiskAuthorizationAsync(db, domainEvent, ct).ConfigureAwait(false);
     }
 }

@@ -230,7 +230,7 @@ async fn durable_receipt_is_separate_and_silent_writer_cannot_block_join() {
 
 async fn spool_integration(production: bool) {
     use ifm_market_data_native::messaging::evidence_delivery::{Configuration, Delivery};
-    for mode in if production { 2..3 } else { 0..4 } {
+    for mode in if production { 2..3 } else { 0..5 } {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = format!("nats://{}", listener.local_addr().unwrap());
         let (published, observed) = oneshot::channel();
@@ -276,13 +276,17 @@ async fn spool_integration(production: bool) {
                             tokio::time::sleep(Duration::from_millis(250)).await;
                         }
                         if mode != 1 {
+                            let duplicate = mode == 4 && request[0].as_u64() == Some(1);
+                            let accepted = mode == 0 || mode == 3 || (mode == 4 && !duplicate);
                             let response = rmpv::Value::Array(vec![
                                 request[0].clone(),
                                 request[1].clone(),
                                 request[2].clone(),
-                                (mode == 0 || mode == 3).into(),
-                                if mode == 0 || mode == 3 {
+                                accepted.into(),
+                                if accepted {
                                     rmpv::Value::Nil
+                                } else if duplicate {
+                                    "OPTION_EVIDENCE_ALREADY_SEEN".into()
                                 } else {
                                     "Durable option evidence persistence failed.".into()
                                 },
@@ -299,7 +303,7 @@ async fn spool_integration(production: bool) {
                                 .unwrap();
                             write.write_all(&response).await.unwrap();
                             write.write_all(b"\r\n").await.unwrap();
-                            acknowledged = mode == 0 || mode == 3;
+                            acknowledged = accepted;
                         }
                     } else {
                         assert!(
@@ -321,11 +325,13 @@ async fn spool_integration(production: bool) {
         let parent = Arc::new(owner.child().unwrap());
         let outbox = Arc::new(Outbox::new(2, 1024 * 1024).unwrap());
         let retained = outbox.retain(&evidence()).unwrap();
-        if mode == 3 {
+        let following = if mode == 3 || mode == 4 {
             let mut next = evidence();
             next.source.sequence = 8;
-            outbox.retain(&next).unwrap();
-        }
+            Some(outbox.retain(&next).unwrap())
+        } else {
+            None
+        };
 
         let mut changes = outbox.changes();
         let config = Configuration {
@@ -350,7 +356,7 @@ async fn spool_integration(production: bool) {
         let mut delivery =
             Delivery::start(outbox.clone(), config, parent.clone(), deadline).unwrap();
         let mut status = delivery.changes();
-        if mode == 0 || mode == 3 {
+        if mode == 0 || mode == 3 || mode == 4 {
             let bytes = tokio::time::timeout(Duration::from_secs(5), observed)
                 .await
                 .unwrap()
@@ -368,7 +374,12 @@ async fn spool_integration(production: bool) {
             let frame = rmpv::decode::read_value(&mut content.as_slice()).unwrap();
             let frame = frame.as_array().unwrap();
             assert_eq!(frame[6].as_i64(), Some(6));
-            assert_eq!(frame[7].as_slice().unwrap(), retained.bytes.as_ref());
+            let expected = if mode == 4 {
+                following.as_ref().unwrap()
+            } else {
+                &retained
+            };
+            assert_eq!(frame[7].as_slice().unwrap(), expected.bytes.as_ref());
             while outbox.retained_bytes().unwrap() != 0 {
                 tokio::time::timeout(Duration::from_secs(5), changes.changed())
                     .await
@@ -376,6 +387,17 @@ async fn spool_integration(production: bool) {
                     .unwrap();
             }
             assert_eq!(retained.bytes.as_ref(), evidence().encode().unwrap());
+            if mode == 4 {
+                while !status.borrow().running {
+                    assert!(!status.borrow().recovering && !status.borrow().terminal);
+                    tokio::time::timeout(Duration::from_secs(5), status.changed())
+                        .await
+                        .unwrap()
+                        .unwrap();
+                }
+                assert!(!status.borrow().recovering);
+                assert!(status.borrow().error.is_none());
+            }
         } else if mode == 2 {
             while !status.borrow().terminal {
                 tokio::time::timeout(

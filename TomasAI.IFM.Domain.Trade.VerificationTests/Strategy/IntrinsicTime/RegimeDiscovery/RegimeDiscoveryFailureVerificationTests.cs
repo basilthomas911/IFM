@@ -80,8 +80,7 @@ public sealed class RegimeDiscoveryFailureVerificationTests(TomasAI.IFM.Integrat
         await using var fixture = await RegimeDiscoveryVerificationFixture.StartAsync(sourceFactory, services =>
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
             {
-                Enabled = true,
-                RequireWarmRegimeDiscoverySignals = false
+                Enabled = true
             }));
         var scenario = RegimeDiscoveryScenarioCatalog.TrendingUp with
         {
@@ -113,8 +112,7 @@ public sealed class RegimeDiscoveryFailureVerificationTests(TomasAI.IFM.Integrat
         {
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
             {
-                Enabled = true,
-                RequireWarmRegimeDiscoverySignals = false
+                Enabled = true
             });
             services.RemoveAll<RegimeDiscoveryExecutionOptions>();
             services.AddSingleton(new RegimeDiscoveryExecutionOptions
@@ -144,8 +142,7 @@ public sealed class RegimeDiscoveryFailureVerificationTests(TomasAI.IFM.Integrat
         {
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
             {
-                Enabled = true,
-                RequireWarmRegimeDiscoverySignals = false
+                Enabled = true
             });
             services.RemoveAll<IFunctionProjector<RegimeDiscoveryPipelineCompletedEvent>>();
             services.AddSingleton<IFunctionProjector<RegimeDiscoveryPipelineCompletedEvent>, ThrowingProjector>();

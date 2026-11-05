@@ -28,6 +28,22 @@ public sealed class PortfolioSnapshotTests
             .Should().Throw<InvalidOperationException>().WithMessage("*already applied*");
     }
 
+    [Fact]
+    public void Snapshot_restores_the_terminal_Portfolio_tombstone()
+    {
+        var now = new DateTime(2026, 8, 29, 17, 0, 0, DateTimeKind.Utc);
+        var source = new PortfolioAggregate();
+        source.Create(Guid.NewGuid(), Portfolio(now), now, "unit");
+        source.DeleteDraft(Guid.NewGuid(), 1, "duplicate", now.AddSeconds(1), "unit");
+        var restored = new PortfolioAggregate();
+
+        restored.RestoreSnapshot(source.CaptureSnapshot());
+
+        restored.IsDeleted.Should().BeTrue();
+        restored.Revision.Should().Be(2);
+        restored.Current.Should().BeEquivalentTo(source.Current);
+    }
+
     static PortfolioReadModel Portfolio(DateTime now) => new()
     {
         PortfolioId = 101,

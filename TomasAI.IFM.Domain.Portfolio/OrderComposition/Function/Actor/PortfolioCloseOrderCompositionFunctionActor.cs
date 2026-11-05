@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.State;
@@ -22,7 +22,7 @@ public sealed class PortfolioCloseOrderCompositionFunctionActor(
     public const string ActorName = EvaluatePortfolioCloseOrderCompositionCommand.Actor;
 
     static readonly IReadOnlyDictionary<string,
-        Func<IActorMessage, EvaluatePortfolioCloseOrderCompositionCommand>> ParseMap =
+        Func<IActorMessage, EvaluatePortfolioCloseOrderCompositionCommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, EvaluatePortfolioCloseOrderCompositionCommand>>(
             StringComparer.Ordinal)
         {
@@ -30,7 +30,7 @@ public sealed class PortfolioCloseOrderCompositionFunctionActor(
                 message.AsCommand<EvaluatePortfolioCloseOrderCompositionCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> ValidationMap =
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
             [typeof(EvaluatePortfolioCloseOrderCompositionCommand)] = static command =>
@@ -47,7 +47,7 @@ public sealed class PortfolioCloseOrderCompositionFunctionActor(
             FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
                 PortfolioCloseOrderCompositionFailedEvent>>, CancellationToken,
         ValueTask<FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
-            PortfolioCloseOrderCompositionFailedEvent>>>> ReceiveMap =
+            PortfolioCloseOrderCompositionFailedEvent>>>> _receiveMap =
         new Dictionary<Type, Func<EvaluatePortfolioCloseOrderCompositionCommand,
             IPortfolioCloseOrderCompositionFunctionContext,
             Func<FunctionEventContext<EvaluatePortfolioCloseOrderCompositionCommand>,
@@ -63,7 +63,7 @@ public sealed class PortfolioCloseOrderCompositionFunctionActor(
     static readonly IReadOnlyDictionary<Type, Func<FunctionEventContext<
         EvaluatePortfolioCloseOrderCompositionCommand>, TimeProvider,
         FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
-            PortfolioCloseOrderCompositionFailedEvent>>> EventMap =
+            PortfolioCloseOrderCompositionFailedEvent>>> _eventMap =
         new Dictionary<Type, Func<FunctionEventContext<EvaluatePortfolioCloseOrderCompositionCommand>,
             TimeProvider, FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
                 PortfolioCloseOrderCompositionFailedEvent>>>
@@ -74,7 +74,7 @@ public sealed class PortfolioCloseOrderCompositionFunctionActor(
 
     static readonly IReadOnlyDictionary<Type, Func<EvaluatePortfolioCloseOrderCompositionCommand,
         FunctionFailureStage, IPortfolioCloseOrderCompositionFunctionContext,
-        FunctionExecutionPolicy>> PolicyMap =
+        FunctionExecutionPolicy>> _executionPolicyMap =
         new Dictionary<Type, Func<EvaluatePortfolioCloseOrderCompositionCommand,
             FunctionFailureStage, IPortfolioCloseOrderCompositionFunctionContext,
             FunctionExecutionPolicy>>
@@ -85,7 +85,7 @@ public sealed class PortfolioCloseOrderCompositionFunctionActor(
 
     protected override EvaluatePortfolioCloseOrderCompositionCommand ParseMessage(
         IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor> context,
-        IActorMessage message) => ParseMappedFunction(context, message, ParseMap);
+        IActorMessage message) => ParseMappedFunction(context, message, _parseMap);
 
     protected override ValueTask ValidateAsync(
         IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor> context,
@@ -94,13 +94,13 @@ public sealed class PortfolioCloseOrderCompositionFunctionActor(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ValidateMappedCommand(request, ValidationMap);
+        ValidateMappedCommand(request, _validationMap);
         return ValueTask.CompletedTask;
     }
 
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(
         EvaluatePortfolioCloseOrderCompositionCommand request, FunctionFailureStage stage) =>
-        DispatchMappedExecutionPolicy(request, stage, services, PolicyMap);
+        DispatchMappedExecutionPolicy(request, stage, services, _executionPolicyMap);
 
     protected override ValueTask<FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
         PortfolioCloseOrderCompositionFailedEvent>> ExecuteFunctionAsync(
@@ -108,12 +108,12 @@ public sealed class PortfolioCloseOrderCompositionFunctionActor(
         PortfolioCloseOrderCompositionFunctionState state,
         EvaluatePortfolioCloseOrderCompositionCommand request,
         CancellationToken cancellationToken) =>
-        ResolveMappedFunctionHandler(request, ReceiveMap)(request, services,
+        ResolveMappedFunctionHandler(request, _receiveMap)(request, services,
             input => HandleFunctionEvent(context, input), cancellationToken);
 
     protected override FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
         PortfolioCloseOrderCompositionFailedEvent> HandleFunctionEvent(
         IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor> context,
         FunctionEventContext<EvaluatePortfolioCloseOrderCompositionCommand> input) =>
-        DispatchMappedFunctionEvent(input, services.TimeProvider, EventMap);
+        DispatchMappedFunctionEvent(input, services.TimeProvider, _eventMap);
 }

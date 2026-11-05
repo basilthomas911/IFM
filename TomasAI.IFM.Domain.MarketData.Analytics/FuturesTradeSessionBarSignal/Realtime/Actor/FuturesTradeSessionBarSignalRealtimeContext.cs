@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -17,14 +16,12 @@ public sealed class FuturesTradeSessionBarSignalRealtimeContext
     public FuturesTradeSessionBarSignalRealtimeContext(
         IActorSupervisor supervisor,
         FuturesTradeSessionBarAccumulatorRegistry accumulators,
-        IMarketSessionCalendar calendar,
         TimeProvider timeProvider,
         ILogger<FuturesTradeSessionBarSignalRealtimeActor> logger)
         : base(supervisor, new(ActorType.Realtime, FuturesTradeSessionBarSignalRealtimeActor.ActorName))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
         Accumulators = IsArgumentNull.Set(accumulators);
-        Calendar = IsArgumentNull.Set(calendar);
         TimeProvider = IsArgumentNull.Set(timeProvider);
         Logger = IsArgumentNull.Set(logger);
     }
@@ -33,8 +30,6 @@ public sealed class FuturesTradeSessionBarSignalRealtimeContext
     public IActorSupervisor Supervisor { get; }
     /// <inheritdoc />
     public FuturesTradeSessionBarAccumulatorRegistry Accumulators { get; }
-    /// <inheritdoc />
-    public IMarketSessionCalendar Calendar { get; }
     /// <inheritdoc />
     public TimeProvider TimeProvider { get; }
     /// <inheritdoc />

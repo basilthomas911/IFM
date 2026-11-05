@@ -8337,7 +8337,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 29,
+    "line": 30,
     "client": "PortfolioFinancialApi",
     "method": "PrepareFinancialAuthorityAsync",
     "parameters": [
@@ -8360,18 +8360,22 @@
     "result": "Task\u003CServiceResult\u003CFinancialRead\u003CFinancialAuthorityDraft\u003E\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
-      "Read\u003CPrepareFinancialAuthorityRequest, FinancialAuthorityDraft\u003E"
+      "PrepareFinancialAuthorityCommand.ForOperation",
+      "Guid.NewGuid",
+      "RequestFunctionAsync\u003CPrepareFinancialAuthorityCommand, ActorEntityId,\r\n            FunctionResult\u003CFinancialAuthorityPreparationCompletedEvent, FinancialAuthorityPreparationFailedEvent\u003E\u003E(\r\n                command, command.EntityId, token).ConfigureAwait",
+      "RequestFunctionAsync\u003CPrepareFinancialAuthorityCommand, ActorEntityId,\r\n            FunctionResult\u003CFinancialAuthorityPreparationCompletedEvent, FinancialAuthorityPreparationFailedEvent\u003E\u003E",
+      "PreparationResult"
     ],
     "subjects": [],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Rust.Bridge.Net/PortfolioSession.Financial.cs:174"
     ],
-    "nativeOwner": "services/financial.rs; services/financial_operations.rs; state/portfolio/financial_ui.rs",
+    "nativeOwner": "services/financial.rs; services/portfolio.rs; state/portfolio/ledger_ui.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 35,
+    "line": 40,
     "client": "PortfolioFinancialApi",
     "method": "PrepareFinancialBookAsync",
     "parameters": [
@@ -8394,14 +8398,18 @@
     "result": "Task\u003CServiceResult\u003CFinancialRead\u003CFinancialBookSetup\u003E\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
-      "Read\u003CPrepareFinancialBookRequest, FinancialBookSetup\u003E"
+      "PrepareFinancialBookCommand.ForOperation",
+      "Guid.NewGuid",
+      "RequestFunctionAsync\u003CPrepareFinancialBookCommand, ActorEntityId,\r\n            FunctionResult\u003CFinancialBookPreparationCompletedEvent, FinancialBookPreparationFailedEvent\u003E\u003E(\r\n                command, command.EntityId, token).ConfigureAwait",
+      "RequestFunctionAsync\u003CPrepareFinancialBookCommand, ActorEntityId,\r\n            FunctionResult\u003CFinancialBookPreparationCompletedEvent, FinancialBookPreparationFailedEvent\u003E\u003E",
+      "PreparationResult"
     ],
     "subjects": [],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Rust.Bridge.Net/PortfolioSession.Financial.cs:113",
       "TomasAI.IFM.UI.Rust.Bridge.Net/PortfolioSession.Financial.cs:170"
     ],
-    "nativeOwner": "services/financial.rs; services/financial_operations.rs; state/portfolio/financial_ui.rs",
+    "nativeOwner": "services/financial.rs; services/portfolio.rs; state/portfolio/ledger_ui.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
@@ -9838,8 +9846,8 @@
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.ViewModels/Portfolio/PortfolioAdministrationViewModel.cs:140"
     ],
-    "nativeOwner": null,
-    "status": "Pending reachability review or native port"
+    "nativeOwner": "services/portfolio.rs; state/portfolio/editors.rs",
+    "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioIdentityApi.cs",
@@ -9861,8 +9869,8 @@
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.ViewModels/Portfolio/PortfolioAdministrationViewModel.cs:152"
     ],
-    "nativeOwner": null,
-    "status": "Pending reachability review or native port"
+    "nativeOwner": "services/portfolio.rs; state/portfolio/fund_editors.rs",
+    "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioIdentityApi.cs",
@@ -9928,6 +9936,41 @@
     ],
     "nativeOwner": "services/portfolio.rs; state/portfolio/policy.rs",
     "status": "Implemented; see native contract/controller tests"
+  },
+  {
+    "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioIdentityApi.cs",
+    "line": 32,
+    "client": "PortfolioIdentityApi",
+    "method": "AllocateForOperationAsync",
+    "parameters": [
+      {
+        "name": "kind",
+        "type": "PortfolioBusinessIdentityKind",
+        "optional": null
+      },
+      {
+        "name": "operationId",
+        "type": "Guid",
+        "optional": null
+      },
+      {
+        "name": "cancellationToken",
+        "type": "CancellationToken",
+        "optional": "default"
+      }
+    ],
+    "result": "Task\u003CServiceResult\u003CPortfolioBusinessIdAllocation\u003E\u003E",
+    "calls": [
+      "PortfolioRequestCorrelation.CurrentOrNew",
+      "AllocatePortfolioBusinessIdCommand.ForOperation",
+      "PortfolioAccessContext.Administrator",
+      "RequestFunctionAsync\u003CAllocatePortfolioBusinessIdCommand, ActorEntityId,\r\n                FunctionResult\u003CPortfolioBusinessIdAllocationCompletedEvent, PortfolioBusinessIdAllocationFailedEvent\u003E\u003E(\r\n                    request, request.EntityId, cancellationToken).ConfigureAwait",
+      "RequestFunctionAsync\u003CAllocatePortfolioBusinessIdCommand, ActorEntityId,\r\n                FunctionResult\u003CPortfolioBusinessIdAllocationCompletedEvent, PortfolioBusinessIdAllocationFailedEvent\u003E\u003E"
+    ],
+    "subjects": [],
+    "resolvedUiCallSites": [],
+    "nativeOwner": null,
+    "status": "Pending reachability review or native port"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioQueryApi.cs",

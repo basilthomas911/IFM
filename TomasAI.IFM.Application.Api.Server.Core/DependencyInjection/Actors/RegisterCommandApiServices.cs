@@ -169,7 +169,9 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioCommandApi>(provider =>
         new TomasAI.IFM.Application.Api.Nats.Client.PortfolioCommandApi(provider.GetRequiredService<IActorProducer>()));
         services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioFinancialPolicyCommandApi>(provider =>
-        new TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialPolicyCommandApi(provider.GetRequiredService<IActorProducer>()));
+        new TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialPolicyCommandApi(
+            provider.GetRequiredService<IActorProducer>(),
+            provider.GetRequiredService<TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi>()));
         services.AddSingleton<IStrategyPositionCommandApi>(provider =>
         new TomasAI.IFM.Application.Api.Nats.Client.StrategyPositionCommandApi(
         provider.GetRequiredService<IActorProducer>()));

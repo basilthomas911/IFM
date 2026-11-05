@@ -7,6 +7,19 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Reg
 
 public sealed class RegimeConfiguredRequirementsTests
 {
+    [Theory]
+    [InlineData(TimeFrameType.Daily, false)]
+    [InlineData(TimeFrameType.Weekly, true)]
+    [InlineData(TimeFrameType.Monthly, true)]
+    public void Default_horizons_qualify_four_hour_history_only_where_required(TimeFrameType horizon, bool required)
+    {
+        var profile = RegimeDiscoveryParameterSet.CreateDefault(Guid.NewGuid(), Guid.NewGuid(), horizon);
+        var request = RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract("ES20260918"), profile);
+
+        request.Requirements.Any(row => row.TimeFrame == TimeFrameType.FourHours && row.IsRequired)
+            .Should().Be(required);
+    }
+
     [Fact]
     public void Every_ema_level_and_slope_uses_the_initialized_daily_baseline()
     {

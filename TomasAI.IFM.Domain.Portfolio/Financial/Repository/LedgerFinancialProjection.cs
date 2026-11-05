@@ -91,9 +91,12 @@ public sealed class LedgerFinancialProjection(IPostgresEventTransaction transact
         long revision, CancellationToken ct)
     {
         await db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.InsertLineAndBalance,
-            [journalId, line.Ordinal, bookId, line.Account.AccountId, line.Account.Version, line.FundId, line.Debit, line.Credit,
-             line.SourceLineReference, line.OrderId, line.TradeId, revision], ct).ConfigureAwait(false);
+            LineParameters(bookId, journalId, line, revision), ct).ConfigureAwait(false);
     }
+
+    internal static object?[] LineParameters(int bookId, long journalId, AcceptedLedgerLine line, long revision) =>
+        [journalId, line.Ordinal, bookId, line.Account.AccountId, line.Account.Version, line.FundId, line.Debit, line.Credit,
+         line.SourceLineReference, line.OrderId, line.TradeId, revision];
 
     /// <summary>Canonical UTC JSON prevents event-codec timestamp normalization from changing reconstructed payloads.</summary>
     internal static object PayloadJson<T>(T value) => TomasAI.IFM.Shared.Storage.BindValues.Json(JsonConvert.SerializeObject(value, new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.Utc }));

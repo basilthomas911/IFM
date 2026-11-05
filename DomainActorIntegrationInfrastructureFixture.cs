@@ -196,6 +196,16 @@ public static class DomainActorIntegrationInfrastructureFixture
         await new ConfigurationSchemaDb(settings, logger).CreateAllAsync();
         await new EventSourceSchemaDb(settings, logger).CreateAllAsync();
         await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
+        if (backtestConnection is null && testAssemblyName.Contains("Portfolio.IntegrationTests", StringComparison.Ordinal))
+        {
+            // Exercise a higher Portfolio ID without reserving hundreds of identities through NATS.
+            await using var connection = new Npgsql.NpgsqlConnection(
+                TomasAI.IFM.Framework.Storage.Postgres.PostgresObjectDataRepositoryConnection.ResolveHostConnectionString(infrastructure.PostgresConnectionString));
+            await connection.OpenAsync();
+            await using var command = new Npgsql.NpgsqlCommand(
+                "ALTER SEQUENCE public.Portfolio_PortfolioId RESTART WITH 1001;", connection);
+            await command.ExecuteNonQueryAsync();
+        }
         await new MarketDataSchemaDb(settings, logger).CreateAllAsync();
         await new MarketDataServiceSchemaDb(settings, logger).CreateAllAsync();
         await new PortfolioSchemaDb(settings, logger).CreateAllAsync();
@@ -204,6 +214,24 @@ public static class DomainActorIntegrationInfrastructureFixture
         await new SystemAdminSchemaDb(settings, logger).CreateAllAsync();
         await new TradeSchemaDb(settings, logger).CreateAllAsync();
         await new TradePlanSchemaDb(settings, logger).CreateAllAsync();
+
+        if (testAssemblyName.Contains("MarketData.Securities.IntegrationTests", StringComparison.Ordinal))
+        {
+            // The legacy option path validates its submitted fields against the real lookup projection.
+            await using var connection = new Npgsql.NpgsqlConnection(
+                TomasAI.IFM.Framework.Storage.Postgres.PostgresObjectDataRepositoryConnection.ResolveHostConnectionString(postgresConnection));
+            await connection.OpenAsync();
+            await using var command = new Npgsql.NpgsqlCommand("""
+                INSERT INTO reference.lookup_type (LookupTypeName, ShortCode, OrderId, Description, CreatedOn, CreatedBy)
+                VALUES ('Symbol', 'ES', 1, 'E-mini S&P 500', now(), 'qualification'),
+                       ('Currency', 'USD', 1, 'US Dollar', now(), 'qualification'),
+                       ('Exchange', 'CME', 1, 'Chicago Mercantile Exchange', now(), 'qualification'),
+                       ('Multiplier', '50', 1, '50', now(), 'qualification'),
+                       ('SecurityType', 'FOP', 1, 'Futures option', now(), 'qualification')
+                ON CONFLICT DO NOTHING
+                """, connection);
+            await command.ExecuteNonQueryAsync();
+        }
 
         // Keep the normal runtime, but let cleanup await its actor/container shutdown.
         // Compose this with feed and trade test configuration below.

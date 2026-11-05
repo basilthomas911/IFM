@@ -24,6 +24,21 @@ public sealed class FundRiskAuthorizationIntegrationTests(PortfolioEventStoreFix
         actual.Value.EventId.Should().Be(changed.Id);
         actual.FinancialRevision.Should().Be(grant.FinancialRevision);
         (await new PortfolioFinancialStore(Transactions()).ReadBookAsync(book.PortfolioId))!.Funds[0].FundStreamVersion.Should().Be(2);
+
+        await Transactions().ExecuteAsync(async (db, ct) =>
+        {
+            await db.ExecuteAsync("DELETE FROM portfolio_financial.fund_risk_authorization_read WHERE command_id=$1;",
+                [changed.CommandId], ct);
+            await db.ExecuteAsync("DELETE FROM portfolio_financial.fund_risk_authorization_projection_receipt WHERE event_version=$1;",
+                [changed.EventId], ct);
+            return true;
+        });
+        var queries = new FinancialQueryStore(Transactions());
+        (await queries.ReadAsync(Scope(grant), new GetFundRiskAuthorizationRequest(changed.CommandId)))
+            .Status.Should().Be(FinancialReadStatus.NotFound);
+        (await new FinancialHistoryJournal(Transactions()).ProjectPendingFundAuthorizationsAsync(changed.CommandId)).Should().Be(1);
+        (await queries.ReadAsync(Scope(grant), new GetFundRiskAuthorizationRequest(changed.CommandId)))
+            .Value.Should().Be(actual.Value);
     }
 
     [Theory]

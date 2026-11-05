@@ -61,13 +61,13 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
                 return Ok(command);
             // A disabled host may replay established authority, but must not admit
             // a new ITI-triggered workflow through direct or event-bridged commands.
-            var valueDate = command.TriggerEvent.FuturesItiSignal?.ValueDate ?? default;
-            if (context is IntrinsicTimeStrategyWorkflowCommandContext live &&
-                live.GetWorkflowStartBlockReason(valueDate) is { } reason)
+            // Regime Discovery qualifies the required signals for the selected horizon after admission.
+            if (context is IntrinsicTimeStrategyWorkflowCommandContext { WorkflowStartsEnabled: false })
             {
                 context.Logger.LogWarning(
                     "Strategy workflow start blocked. Reason={ReasonCode}; EntityId={EntityId}; ValueDate={ValueDate}; TriggerEventId={TriggerEventId}; CommandId={CommandId}; ProposedWorkflowId={ProposedWorkflowId}.",
-                    reason, command.EntityId.Format(), valueDate, command.TriggerEventId, command.CommandId, command.ProposedWorkflowId);
+                    "WORKFLOW.START.DISABLED", command.EntityId.Format(), command.TriggerEvent.FuturesItiSignal?.ValueDate ?? default,
+                    command.TriggerEventId, command.CommandId, command.ProposedWorkflowId);
                 return Ok(command);
             }
             if (current is { Status: WorkflowStrategyMachineStatus.Started } && now < current.ExpiresAtUtc)

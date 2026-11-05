@@ -18,10 +18,18 @@ public static class MarketOutlookDailyPreviewCalculator
         FuturesMarketPriceUpdatedRealtimeEvent source,
         out FuturesEmaSignalReadModel ema,
         out FuturesBbSignalReadModel bb)
+        => TryCalculate(source, out ema, out bb, out _);
+
+    internal static bool TryCalculate(
+        FuturesMarketPriceUpdatedRealtimeEvent source,
+        out FuturesEmaSignalReadModel ema,
+        out FuturesBbSignalReadModel bb,
+        out decimal? priorStandardDeviation)
     {
         ArgumentNullException.ThrowIfNull(source);
         ema = default!;
         bb = default!;
+        priorStandardDeviation = null;
         if (source.UpdateSource != FuturesMarketPriceUpdateSource.Trade
             || source.Price.Trade is not { } trade
             || !source.Price.ContractId.StartsWith("ES", StringComparison.OrdinalIgnoreCase)
@@ -33,7 +41,7 @@ public static class MarketOutlookDailyPreviewCalculator
                 out var emaBaseline,
                 out var bbBaseline,
                 out var committedEma,
-                out _))
+                out var committedBb))
             return false;
 
         var marketTime = trade.EventTimestamp.ToUniversalTime();
@@ -59,6 +67,8 @@ public static class MarketOutlookDailyPreviewCalculator
             BaselineValueDate = committedEma.Metadata.ValueDate,
             LivePriceAsOfUtc = marketTime
         };
+        if (committedBb.IsWarm && committedBb.Metadata.IsValid && committedBb.Metadata.ValueDate < source.Price.ValueDate)
+            priorStandardDeviation = committedBb.StandardDeviation20;
         return true;
     }
     /// <summary>Creates one provisional daily bar from the current trade without changing committed daily state.</summary>

@@ -51,6 +51,10 @@ internal static class Program
     {
         if (args is ["--capture-marketdata-development-baseline"])
             return await CaptureMarketDataDevelopmentBaselineAsync().ConfigureAwait(false);
+        if (args is ["--capture-securities-baseline", "--confirm-writers-drained"])
+            return await CaptureSecuritiesBaselineAsync().ConfigureAwait(false);
+        if (args is ["--rebuild-empty-securities-qualification"])
+            return await CaptureSecuritiesBaselineAsync(rebuildQualification: true).ConfigureAwait(false);
 
         if (!ProjectionMigrationCommandLine.TryParse(
             args,
@@ -107,6 +111,60 @@ internal static class Program
         finally
         {
             Console.CancelKeyPress -= cancelHandler;
+        }
+    }
+
+    static async Task<int> CaptureSecuritiesBaselineAsync(bool rebuildQualification = false)
+    {
+        try
+        {
+            var connection = Environment.GetEnvironmentVariable("IFM_SECURITIES_BASELINE_CONNECTION")
+                ?? throw new InvalidOperationException("Set IFM_SECURITIES_BASELINE_CONNECTION to the isolated or Development PostgreSQL database.");
+            var identity = new Npgsql.NpgsqlConnectionStringBuilder(connection);
+            var qualification = identity.Database?.StartsWith("ifm_securities_qualification_", StringComparison.Ordinal) == true;
+            if (identity.Host is not ("localhost" or "127.0.0.1")
+                || (identity.Database != "ifm_application_development" && !qualification)
+                || (rebuildQualification && !qualification))
+                throw new InvalidOperationException("Securities baseline capture requires local Development or a named Securities qualification database.");
+            if (identity.Database == "ifm_application_development")
+            {
+                foreach (var writer in new[] { "IFMServerManager", "TomasAI.IFM.Application.ServerManager",
+                    "TomasAI.IFM.Application.ServerManager.SchedulerHost", "TomasAI.IFM.Application.Api.Server",
+                    "TomasAI.IFM.Application.MarketData.Host" })
+                {
+                    var processes = System.Diagnostics.Process.GetProcessesByName(writer);
+                    foreach (var process in processes)
+                        process.Dispose();
+                    if (processes.Length != 0)
+                        throw new InvalidOperationException($"Drain and stop {writer} before capturing the Securities baseline.");
+                }
+            }
+            var settings = new DbConnectionSettings()
+                .Add(EventSourceActorDbContext.EventSourceActorDbConnection, connection, "System.Data.Postgres")
+                .Add(SecuritiesDbContext.SecuritiesDbConnection, connection, "System.Data.Postgres");
+            var transactions = new PostgresEventTransaction(settings);
+            if (rebuildQualification)
+            {
+                var repositories = new Dictionary<Type, object>();
+                var database = new SecuritiesDbContext(settings, CreateFactory(repositories), Logger);
+                repositories.Add(typeof(IObjectRepository<SecuritiesDbContext>), database);
+                var replayed = await SecuritiesCatalogProjection.RebuildEmptyAsync(database, transactions).ConfigureAwait(false);
+                Console.WriteLine($"Rebuilt the isolated Securities projections from {replayed} source events.");
+                return SuccessExitCode;
+            }
+
+            var captured = await new SecuritiesCatalogBaseline(transactions)
+                .CaptureAsync(writersDrained: true,
+                    expectedMissing: qualification ? null : (41, 6)).ConfigureAwait(false);
+            Console.WriteLine(captured is { } result
+                ? $"Securities baseline committed with {result.Futures} futures and {result.Options} options without source history."
+                : "Securities baseline already exists.");
+            return SuccessExitCode;
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine($"Securities baseline capture failed ({exception.GetType().Name}): {exception.Message}");
+            return FailureExitCode;
         }
     }
 

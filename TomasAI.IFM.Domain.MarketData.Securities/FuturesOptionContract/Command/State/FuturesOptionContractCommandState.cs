@@ -29,6 +29,9 @@ public class FuturesOptionContractCommandState
         ContractIds = futuresOptionContractIds.Order(StringComparer.Ordinal).ToArray()
     };
 
+    internal static bool IsCompleteSnapshot(FuturesOptionContractStateSnapshottedEvent snapshot) =>
+        snapshot.ContractIds is { } ids && ids.All(static id => !string.IsNullOrWhiteSpace(id));
+
     private bool RestoreSnapshot(IReadOnlyList<string> ids)
     {
         futuresOptionContractIds.Clear();
@@ -48,7 +51,7 @@ public class FuturesOptionContractCommandState
         FuturesOptionContractsAddedEvent e => On(e),
         FuturesOptionContractChangedEvent e => On(e),
         FuturesOptionContractRemovedEvent e => On(e),
-        FuturesOptionContractStateSnapshottedEvent snapshot when snapshot.ContractIds is { } entries => RestoreSnapshot(entries),
+        FuturesOptionContractStateSnapshottedEvent snapshot when IsCompleteSnapshot(snapshot) => RestoreSnapshot(snapshot.ContractIds!),
         _ => false
     };
 

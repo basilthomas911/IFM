@@ -3,6 +3,7 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Portfolio.Shared.Preparation;
 using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
@@ -16,10 +17,11 @@ internal sealed partial class PortfolioResponder {
  public string Mode{get;set;}="Normal";
  readonly List<PortfolioFinancialPolicyReadModel> saved=[];
  readonly Dictionary<Guid,byte[]> completed=[];
+ readonly Dictionary<Guid,(Guid OwnerCommandId,string InputHash)> preparedReferences=[];
  PortfolioReadModel parent=PortfolioFixtures.Portfolio;
  long parentRevision=3;
  int nextPolicy=100;
- public void Reset(){saved.Clear();completed.Clear();parent=PortfolioFixtures.Portfolio;parentRevision=3;nextPolicy=100;adminParent=PortfolioFixtures.Portfolio;adminRevision=3;ResetFunds();Mode="Normal";}
+ public void Reset(){saved.Clear();completed.Clear();preparedReferences.Clear();parent=PortfolioFixtures.Portfolio;parentRevision=3;nextPolicy=100;adminParent=PortfolioFixtures.Portfolio;adminRevision=3;ResetFunds();Mode="Normal";}
  public bool HasDeployments=>Mode is "Commands" or "CommandReject" or "LostAck" or "RefreshReject" || HasFundState;
  public static readonly StrategyDeploymentChoice Deployment=new(new(StrategyCatalogKind.Deployment,Guid.Parse("284155cd-5703-4fcf-a2bf-1efef055218d"),3),"FIXTURE-ES","Fixture ES deployment",CatalogLifecycleStatus.Published,TimeFrameType.Daily,[new(1,"ES","CME","USD")],["FuturesOption"],[],["IronCondor"]);
  // A typed, process-local state machine exercises commands without touching an account.
@@ -37,13 +39,19 @@ internal sealed partial class PortfolioResponder {
    var prior=saved.LastOrDefault();
    switch(command){
     case CreatePortfolioFinancialPolicyCommand c:
+     DemandReferenceReceipt(c.CommandId,c.ReferencePreparationId);
      if(c.IdempotencyKey==Guid.Empty||c.Policy.PolicyId<100||c.Policy.PolicyVersion!=1||c.Policy.PortfolioId!=1||c.EntityId.Format()!=$"1.{c.Policy.PolicyId}"||c.Policy.OperatingState!=PortfolioFinancialPolicyState.Draft)throw new InvalidDataException("Incorrect new policy identity");
      Validate(c.Policy);saved.Add(c.Policy with{AggregateRevision=1});break;
     case AddPortfolioFinancialPolicyVersionCommand c:
+     DemandReferenceReceipt(c.CommandId,c.ReferencePreparationId);
      prior=saved.LastOrDefault(p=>p.PolicyId==c.Policy.PolicyId)??throw new InvalidDataException("Missing policy");
      if(c.ExpectedVersion!=prior.AggregateRevision||c.Policy.PolicyVersion!=prior.PolicyVersion+1)throw new InvalidDataException("Incorrect policy revision");
      Validate(c.Policy);saved.Add(c.Policy with{AggregateRevision=prior.AggregateRevision+1});break;
     case ActivateAndAssignPortfolioFinancialPolicyCommand c:
+     DemandReferenceReceipt(c.CommandId,c.ReferencePreparationId);
+     if(c.ParentPortfolio is not { } preparedParent || preparedParent.PortfolioId!=parent.PortfolioId
+         || preparedParent.PortfolioVersion!=parent.PortfolioVersion || preparedParent.ActivePolicyId!=parent.ActivePolicyId)
+         throw new InvalidDataException("Incorrect prepared Portfolio for policy activation");
      prior=saved.Single(p=>$"1.{p.PolicyId}"==c.EntityId.Format()&&p.PolicyVersion==c.PolicyVersion);
      if(c.ExpectedPolicyRevision!=prior.AggregateRevision||c.ExpectedPortfolioRevision!=parentRevision)throw new InvalidDataException("Incorrect activation revisions");
      saved.Remove(prior);saved.Add(prior with{OperatingState=PortfolioFinancialPolicyState.Active,AggregateRevision=prior.AggregateRevision+1});parent=parent with{ActivePolicyId=prior.PolicyId,ActivePolicyVersion=prior.PolicyVersion};parentRevision++;break;
@@ -65,6 +73,48 @@ internal sealed partial class PortfolioResponder {
  static void Validate(PortfolioFinancialPolicyReadModel policy){
   if(policy.Name!="Native edited policy"||policy.CapitalBase!=50000m||policy.MaximumRiskPerTrade!=1000m||policy.MaximumOpenPositions!=5||!DesktopFixtureMode.Clock(policy.CreatedOnUtc,StrategyFixtures.At)||policy.BaseCurrency!=PortfolioFixtures.Portfolio.BaseCurrency||policy.TradeFamilyLimits is not [var limit]||limit.CatalogDeployment!=Deployment.Key||!limit.Enabled||limit.MaximumRiskPerTrade!=750m)throw new InvalidDataException("Policy inputs differ from exact expected DTO");
  }
+ void DemandReferenceReceipt(Guid commandId,Guid? receipt){
+  if(receipt is not { } id || !preparedReferences.TryGetValue(id,out var prepared) || prepared.OwnerCommandId!=commandId)
+   throw new InvalidDataException("Missing matching Reference preparation receipt");
+ }
+ public byte[] PrepareReference(string subject,byte[] bytes){
+  var options=MessagePackBinarySerializer.Options;
+  try {
+   var request=MessagePackSerializer.Deserialize<ValidatePortfolioReferenceCommand>(bytes,options);
+   var expected=ValidatePortfolioReferenceCommand.ForOperation(request.CommandId);
+   var definitions=(request.Mandate is null?0:1)+(request.Assignment is null?0:1)+(request.Policy is null?0:1);
+   if(request.CommandId==Guid.Empty||request.OwnerCommandId==Guid.Empty||request.Subject.ToString()!=subject||request.Subject!=expected.Subject||request.EntityId!=expected.EntityId
+       || request.Access.Roles is not ["PortfolioAdministrator"]||definitions>1||(definitions==0&&request.ActivationAssignments is null)
+       || (request.ActivatesPolicy&&request.Policy is null))
+    throw new InvalidDataException("Incorrect Reference preparation request");
+   var hash=request.ComputeInputHash();
+   var receipt=(request.OwnerCommandId,hash);
+   if(preparedReferences.TryGetValue(request.CommandId,out var previous)&&previous!=receipt)throw new InvalidDataException("Changed Reference preparation input");
+   preparedReferences[request.CommandId]=receipt;
+   return MessagePackSerializer.Serialize(new ServiceOk<FunctionResult<PortfolioReferenceValidationCompletedEvent,PortfolioReferenceValidationFailedEvent>>(
+       new(new(){CommandId=request.CommandId,Id=request.CommandId,EntityId=request.EntityId,InputHash=hash},null)),options);
+  }catch(Exception error){return MessagePackSerializer.Serialize(new ServiceFailed<GuidResult>(34014,error.Message),options);}
+ }
+ public byte[] Allocate(string subject,byte[] bytes,Func<Guid,int> allocateOrder){
+  var options=MessagePackBinarySerializer.Options;
+  try {
+   var request=MessagePackSerializer.Deserialize<AllocatePortfolioBusinessIdCommand>(bytes,options);
+   var expected=AllocatePortfolioBusinessIdCommand.ForOperation(request.CommandId);
+   if((request.Kind!=PortfolioBusinessIdentityKind.Order && Mode is ("Reject" or "ReadReject")) || request.CommandId==Guid.Empty || request.Subject.ToString()!=subject
+       || request.Subject!=expected.Subject || request.EntityId!=expected.EntityId
+       || request.Access.Roles is not ["PortfolioAdministrator"])throw new InvalidDataException("Incorrect allocation command envelope");
+   var value=request.Kind switch {
+    PortfolioBusinessIdentityKind.Policy=>nextPolicy++,
+    PortfolioBusinessIdentityKind.Portfolio=>200,
+    PortfolioBusinessIdentityKind.Fund=>300,
+    PortfolioBusinessIdentityKind.Order=>allocateOrder(request.CommandId),
+    _=>throw new InvalidDataException("Incorrect identity kind")
+   };
+   var allocation=new PortfolioBusinessIdAllocation{Kind=request.Kind,Value=value,CorrelationId=request.CommandId,OperationId=request.CommandId};
+   return MessagePackSerializer.Serialize(new ServiceOk<FunctionResult<PortfolioBusinessIdAllocationCompletedEvent,PortfolioBusinessIdAllocationFailedEvent>>(
+       new(new(){CommandId=request.CommandId,Value=allocation},null)),options);
+  }catch(Exception error){return MessagePackSerializer.Serialize(new ServiceFailed<GuidResult>(34014,error.Message),options);}
+ }
  public byte[] Handle(string subject,byte[] bytes){
   var options=MessagePackBinarySerializer.Options;var pieces=subject.Split('.');
   byte[] Result<T>(T value)=>MessagePackSerializer.Serialize(new ServiceResult<T>{Success=true,ErrorMessage="",Value=value},options);
@@ -74,12 +124,10 @@ internal sealed partial class PortfolioResponder {
    var query=MessagePackSerializer.Deserialize(type,bytes,options)!;
    object? Get(string name)=>type.GetProperty(name)?.GetValue(query);
    if(Get("Subject") is not ActorSubject route||route.ToString()!=subject||Get("EntityId") is not IActorEntityId id||id.Format()!=string.Join('.',pieces.Skip(3)))throw new InvalidDataException("Incorrect Portfolio request route/identity");
-   var allocating=query is AllocatePortfolioBusinessIdQuery;
-   if(Get("RequestedOnUtc") is not DateTime at||!DesktopFixtureMode.Clock(at,StrategyFixtures.At)||at.Kind!=DateTimeKind.Utc||Get("CorrelationId") is not Guid correlation||correlation==Guid.Empty||Get("Access") is not PortfolioAccessContext access||!access.Roles.SequenceEqual([allocating?"PortfolioAdministrator":"PortfolioReader"]))throw new InvalidDataException("Incorrect Portfolio API-clock/caller metadata");
+   if(Get("RequestedOnUtc") is not DateTime at||!DesktopFixtureMode.Clock(at,StrategyFixtures.At)||at.Kind!=DateTimeKind.Utc||Get("CorrelationId") is not Guid correlation||correlation==Guid.Empty||Get("Access") is not PortfolioAccessContext access||access.Roles is not ["PortfolioReader"])throw new InvalidDataException("Incorrect Portfolio API-clock/caller metadata");
    if(Get("PortfolioId") is int portfolio&&portfolio!=(HasAdminState?adminParent.PortfolioId:1))throw new InvalidDataException("Incorrect Portfolio scope");
    if(Get("FundId") is int fund&&fund!=2&&!(HasFundState&&fund==300))throw new InvalidDataException("Incorrect Fund scope");
    switch(pieces[2]){
-    case "AllocatePortfolioBusinessId":if(Get("Kind") is not PortfolioBusinessIdentityKind allocatedKind||allocatedKind is not (PortfolioBusinessIdentityKind.Policy or PortfolioBusinessIdentityKind.Portfolio or PortfolioBusinessIdentityKind.Fund))throw new InvalidDataException("Incorrect identity kind");return Result(new PortfolioBusinessIdAllocation{Kind=allocatedKind,Value=allocatedKind==PortfolioBusinessIdentityKind.Policy?nextPolicy++:allocatedKind==PortfolioBusinessIdentityKind.Portfolio?200:300,CorrelationId=correlation});
     case "GetPortfolios":var selectedParent=HasAdminState?adminParent:parent;return Result(new PortfolioPage<PortfolioReadModel>{Items=Get("State") is int state&&state!=(int)selectedParent.OperatingState?[]:[selectedParent],PageSize=100});
     case "GetPortfolio":return Result(HasAdminState?adminParent:parent);
     case "GetFunds":return Result(new PortfolioPage<FundMandateReadModel>{Items=HasFundState?FundRows():HasAdminState&&adminParent.PortfolioId!=1?[]:[Mode=="WrongFund"?PortfolioFixtures.Fund with{PortfolioId=999}:PortfolioFixtures.Fund],PageSize=100});
@@ -90,7 +138,8 @@ internal sealed partial class PortfolioResponder {
     case "GetFundRiskEnvelope":return Result<FundRiskEnvelopeReadModel?>(HasFundState?fundEnvelope:null);
     case "GetFundTemplateAssignments":return Result(HasFundState?fundAssignments.ToArray():Array.Empty<FundTradeTemplateAssignmentReadModel>());
     case "GetPortfolioFinancialPolicies":return Result(new PortfolioPage<PortfolioFinancialPolicyReadModel>{Items=Mode=="Policy"?[PortfolioFixtures.Policy]:saved.ToArray(),PageSize=200});
-    case "GetPortfolioFinancialPolicy":case "GetActivePortfolioFinancialPolicy":return Result<PortfolioFinancialPolicyReadModel?>(null);
+    case "GetPortfolioFinancialPolicy":return Result(saved.LastOrDefault(p=>p.PolicyId==(int)Get("PolicyId")!&&((long?)Get("PolicyVersion") is not { } version||p.PolicyVersion==version)));
+    case "GetActivePortfolioFinancialPolicy":return Result<PortfolioFinancialPolicyReadModel?>(null);
     default:throw new InvalidDataException("Unknown fixture Portfolio query "+pieces[2]);
    }
   }catch(Exception error){return MessagePackSerializer.Serialize(new ServiceResult<GuidResult>{Success=false,ErrorCode=34014,ErrorMessage=error.Message},options);}

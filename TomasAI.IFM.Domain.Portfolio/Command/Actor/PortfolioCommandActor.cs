@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Domain.Portfolio.Command.Validation;
+﻿using TomasAI.IFM.Domain.Portfolio.Shared.Common;
+using TomasAI.IFM.Domain.Portfolio.Command.Validation;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -139,8 +140,8 @@ public sealed class PortfolioCommandActor(
                 ValueTask.FromResult(((DelegateFundRiskEnvelopeCommand)command).Execute(state.Aggregate, now, principal)),
             [typeof(RetirePortfolioCommand)] = static (_, command, state, now, principal, _) =>
                 ValueTask.FromResult(((RetirePortfolioCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(DeleteDraftPortfolioCommand)] = static (actor, command, state, now, principal, cancellationToken) =>
-                ((DeleteDraftPortfolioCommand)command).ExecuteAsync(state.Aggregate, state.PortfolioId, actor._events, now, principal, cancellationToken),
+            [typeof(DeleteDraftPortfolioCommand)] = static (_, command, state, now, principal, _) =>
+                ValueTask.FromResult(((DeleteDraftPortfolioCommand)command).Execute(state.Aggregate, now, principal)),
         };
 
     protected override ICommand ParseMessage(ICommandActorContext<PortfolioCommandActor> context, IActorMessage message) =>
@@ -175,7 +176,7 @@ public sealed class PortfolioCommandActor(
 
     async ValueTask<ServiceResult<GuidResult>> ReceiveCoreAsync(PortfolioActorState state, ICommand command, CancellationToken cancellationToken)
     {
-        dynamic request = command;
+        var request = (IPortfolioLifecycleCommand)command;
         using var activity = PortfolioTelemetry.StartRequest("command", command.Subject.Verb, request.CorrelationId, command);
         var principal = _guard.Demand(Operation(command.Subject.Verb), request.Access, mutation: true).Principal;
         var committed = await _events.FindCommittedPortfolioCommandAsync(state.PortfolioId, command.CommandId, cancellationToken).ConfigureAwait(false);
@@ -198,13 +199,14 @@ public sealed class PortfolioCommandActor(
         if (!acceptance.Success) return acceptance;
         var domainEvent = state.Aggregate.PendingEvent ?? throw new InvalidOperationException("Portfolio handler accepted without applying a source event.");
         TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(domainEvent, state.Aggregate);
-        await _events.AppendPortfolioAsync(
+        await _events.AppendPortfolioWithStateAsync(
             state.PortfolioId,
             domainEvent,
             domainEvent.Revision - 1,
+            state.Aggregate,
             Metadata(command, now),
             cancellationToken).ConfigureAwait(false);
-        await _projector.DomainEventsProjectionAsync(new DomainEventCollection(new IEvent[] { domainEvent })).ConfigureAwait(false);
+        await Projection.PortfolioProjectionSubmission.SubmitAsync(_projector, domainEvent, Logger).ConfigureAwait(false);
         PortfolioTelemetry.CommandOutcomes.Add(1,
             new KeyValuePair<string, object?>("portfolio.operation", command.Subject.Verb),
             new KeyValuePair<string, object?>("portfolio.outcome", "committed"));
@@ -240,7 +242,7 @@ public sealed class PortfolioCommandActor(
 
     static PortfolioEventMetadata Metadata(ICommand command, DateTime nowUtc)
     {
-        dynamic metadata = command;
+        var metadata = (IPortfolioLifecycleCommand)command;
         Guid correlationId = metadata.CorrelationId;
         DateTime requestedOnUtc = metadata.RequestedOnUtc;
         return new(correlationId != Guid.Empty ? correlationId : command.CommandId, command.CommandId,

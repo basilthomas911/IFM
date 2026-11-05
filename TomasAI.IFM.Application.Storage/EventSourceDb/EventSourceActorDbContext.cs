@@ -25,7 +25,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// Utility mapping methods convert data records to strongly-typed view models, and transactional save operations
 /// ensure consistency.
 /// </remarks>
-public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDbContext>,
+public sealed partial class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDbContext>,
       IEventSourceActorDbContext,
       IDisposable,
       IAsyncDisposable
@@ -38,6 +38,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     internal readonly CommandAuditMessagePackCodec _commandAuditCodec = new();
     internal readonly Lazy<ICommandAuditWriter> _commandAuditWriter;
     readonly Lazy<IEventLogAppender> _eventLogAppender;
+    readonly Lazy<IPostgresEventTransaction> _aggregateCheckpointTransactions;
     internal readonly Lazy<IEventLogAppender> _atomicCommandEventAppender;
     internal readonly EventLogSqlLayout _eventLogSqlLayout;
 
@@ -62,6 +63,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         _dbFactory = dbFactory;
         var eventOptions = (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate();
         _eventLogSqlLayout = EventLogSqlLayout.ForProduction(eventOptions);
+        _aggregateCheckpointTransactions = new(() => new PostgresEventTransaction(connectionSettings, eventOptions));
         _commandAuditOptions = (commandAuditPersistenceOptions ?? new CommandAuditPersistenceOptions()).Validate();
         var connectionString = connectionSettings[EventSourceActorDbConnection].ConnectionString;
         _commandAuditWriter = new(

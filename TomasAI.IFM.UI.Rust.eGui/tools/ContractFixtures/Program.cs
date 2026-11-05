@@ -331,6 +331,10 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
         else if(request.Subject.StartsWith("Query.GeneralLedgerQuery.",StringComparison.Ordinal)||request.Subject.StartsWith("Query.CapacityReservationQuery.",StringComparison.Ordinal)){
             response=financial.Handle(request.Subject,request.Data!);
         }
+        else if(request.Subject.StartsWith("Function.FinancialBookPreparationFunction.",StringComparison.Ordinal)
+            || request.Subject.StartsWith("Function.FinancialAuthorityPreparationFunction.",StringComparison.Ordinal)){
+            response=financial.Prepare(request.Subject,request.Data!);
+        }
         else if(request.Subject=="Query.NativeCompatibility.FinancialMode.none"){
             financial.Mode=MessagePackSerializer.Deserialize<string>(request.Data!,MessagePackBinarySerializer.Options);
             financialOperations.LedgerMode=financial.Mode;
@@ -344,6 +348,12 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
         }
         else if(request.Subject.StartsWith("Query.PortfolioQuery.",StringComparison.Ordinal)||request.Subject.StartsWith("Query.PortfolioFundQuery.",StringComparison.Ordinal)||request.Subject.StartsWith("Query.PortfolioFinancialPolicyQuery.",StringComparison.Ordinal)){
             response=portfolios.Handle(request.Subject,request.Data!);
+        }
+        else if(request.Subject.StartsWith("Function.PortfolioBusinessIdAllocationFunction.",StringComparison.Ordinal)){
+            response=portfolios.Allocate(request.Subject,request.Data!,tradeWorkspace.AllocateOrder);
+        }
+        else if(request.Subject.StartsWith("Function.PortfolioReferenceValidationFunction.",StringComparison.Ordinal)){
+            response=portfolios.PrepareReference(request.Subject,request.Data!);
         }
         else if(request.Subject=="Query.NativeCompatibility.PortfolioMode.none"){
             portfolios.Mode=MessagePackSerializer.Deserialize<string>(request.Data!,MessagePackBinarySerializer.Options);
@@ -385,7 +395,8 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
             scheduledTasks.Mode=MessagePackSerializer.Deserialize<string>(request.Data!,MessagePackBinarySerializer.Options);
             response=MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<bool>>{Success=true,ErrorMessage="",Value=new(true)},MessagePackBinarySerializer.Options);
         }
-        else if(request.Subject.StartsWith("Query.FuturesOptionContractQuery.GetFuturesOptionContract",StringComparison.Ordinal)||request.Subject.StartsWith("Command.FuturesOptionContractCommand.",StringComparison.Ordinal)){
+        else if(request.Subject.StartsWith("Query.FuturesOptionContractQuery.GetFuturesOptionContract",StringComparison.Ordinal)||request.Subject.StartsWith("Command.FuturesOptionContractCommand.",StringComparison.Ordinal)
+            ||request.Subject.StartsWith("Function.OptionContractPreparationFunction.PrepareOptionContracts.",StringComparison.Ordinal)){
             response=await optionContracts.Handle(connection,request.Subject,request.Data!,timeout.Token);
         }
         else if(request.Subject=="Query.FuturesContractQuery.GetInstrumentDefinitions.definitions"){

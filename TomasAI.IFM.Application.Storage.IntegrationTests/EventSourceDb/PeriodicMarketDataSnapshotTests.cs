@@ -153,6 +153,9 @@ public sealed class PeriodicMarketDataSnapshotTests(EventSourceActorSnapshotRang
         var actors = Substitute.For<IActorService>();
         var projector = Substitute.For<IEventProjector<FuturesContractCommandActor>>();
         var databases = SecuritiesFactory();
+        projector.DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(
+                facts => facts.Count == 1 && facts[0] is FuturesContractRemovedEvent))
+            .Returns(_ => ValueTask.FromException(new IOException("Simulated post-commit projector outage.")));
         context.DbEventSource.Returns(fixture.ActorEventDb);
         context.StateFactory.Returns(factory);
         context.ActorService.Returns(actors);
@@ -169,7 +172,9 @@ public sealed class PeriodicMarketDataSnapshotTests(EventSourceActorSnapshotRang
                         EntityId = row.Id, ContractId = new("ES-1", "ES", FirstDate) }
                     : new FuturesContractAddedEvent { Id = Guid.NewGuid(), CommandId = commandId, EntityId = row.Id, Contract = row };
             },
-            (full, snapshot, command) => Assert.Equal(full.CaptureSnapshot(command).ContractIds, snapshot.CaptureSnapshot(command).ContractIds));
+            (full, snapshot, command) => Assert.Equal(full.CaptureSnapshot(command).ContractIds, snapshot.CaptureSnapshot(command).ContractIds),
+            (state, command) => (state.CaptureSnapshot(command), state.CaptureSnapshot(command) with { ContractIds = [null!] }),
+            "FuturesContractEventProjector");
         await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(
             facts => facts.Count == 1 && facts[0] is FuturesContractRemovedEvent));
     }
@@ -182,6 +187,9 @@ public sealed class PeriodicMarketDataSnapshotTests(EventSourceActorSnapshotRang
         var actors = Substitute.For<IActorService>();
         var projector = Substitute.For<IEventProjector<FuturesOptionContractCommandActor>>();
         var databases = SecuritiesFactory();
+        projector.DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(
+                facts => facts.Count == 1 && facts[0] is FuturesOptionContractRemovedEvent))
+            .Returns(_ => ValueTask.FromException(new IOException("Simulated post-commit projector outage.")));
         context.DbEventSource.Returns(fixture.ActorEventDb);
         context.StateFactory.Returns(factory);
         context.ActorService.Returns(actors);
@@ -199,7 +207,9 @@ public sealed class PeriodicMarketDataSnapshotTests(EventSourceActorSnapshotRang
                     : new FuturesOptionContractAddedEvent { Id = Guid.NewGuid(), CommandId = commandId, EntityId = id,
                         Contract = new() { ContractId = $"ES-option-{i}", ContractMonth = FirstDate } };
             },
-            (full, snapshot, command) => Assert.Equal(full.CaptureSnapshot(command).ContractIds, snapshot.CaptureSnapshot(command).ContractIds));
+            (full, snapshot, command) => Assert.Equal(full.CaptureSnapshot(command).ContractIds, snapshot.CaptureSnapshot(command).ContractIds),
+            (state, command) => (state.CaptureSnapshot(command), state.CaptureSnapshot(command) with { ContractIds = [""] }),
+            "FuturesOptionContractEventProjector");
         await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(
             facts => facts.Count == 1 && facts[0] is FuturesOptionContractRemovedEvent));
     }
@@ -256,7 +266,9 @@ public sealed class PeriodicMarketDataSnapshotTests(EventSourceActorSnapshotRang
     }
 
     private async Task Verify<TState, TSnapshot>(IEventSourceActorStateRepository<TState> repository,
-        ICommandActorContext context, Func<int, Guid, IEvent> source, Action<TState, TState, ICommand> assertState)
+        ICommandActorContext context, Func<int, Guid, IEvent> source, Action<TState, TState, ICommand> assertState,
+        Func<TState, ICommand, (TSnapshot Valid, TSnapshot Invalid)>? createCheckpoints = null,
+        string? durableProjector = null)
         where TState : BaseEventSourceActorState<TState>, new()
         where TSnapshot : IEvent
     {
@@ -272,8 +284,16 @@ public sealed class PeriodicMarketDataSnapshotTests(EventSourceActorSnapshotRang
             new DomainEventCollection(Enumerable.Range(0, 127).Select(i => source(i, Guid.NewGuid()))), 0, CancellationToken.None);
         var state = await repository.LoadStateAsync(command);
         Assert.Equal(127, state.CommittedStreamVersion);
-        Assert.True(state.Update(source(127, commandId), command));
+        var accepted = source(127, commandId);
+        Assert.True(state.Update(accepted, command));
         await repository.SaveStateAsync(context, state, command);
+        if (durableProjector is not null)
+        {
+            var marker = await database.GetEventProjectorExecutionStateAsync(
+                accepted.EventId, durableProjector, CancellationToken.None);
+            Assert.NotNull(marker);
+            Assert.Equal(TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.PublishProcessingEvent, marker.Stage);
+        }
 
         var stream = await database.GetEventStreamIdAsync(command.StreamId, CancellationToken.None);
         var versions = new List<long>();
@@ -312,6 +332,32 @@ public sealed class PeriodicMarketDataSnapshotTests(EventSourceActorSnapshotRang
         output.WriteLine($"{typeof(TState).Name}: 130 -> 3 rows, " +
             $"median {(full[9] + full[10]) / 2:F2} -> {(checkpoint[9] + checkpoint[10]) / 2:F2} ms, " +
             $"p95 {full[18]:F2} -> {checkpoint[18]:F2} ms.");
+
+        if (createCheckpoints is not null)
+        {
+            var (valid, invalid) = createCheckpoints(await repository.LoadStateAsync(command), command);
+            await database.SaveEventsAsync(command.StreamId, Guid.NewGuid(),
+                new DomainEventCollection([valid, source(129, Guid.NewGuid())]), 130, CancellationToken.None);
+            versions.Clear();
+            await database.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<TState>(
+                stream, [typeof(TSnapshot)], rows => versions.AddRange(rows.Select(row => row.StreamVersion)));
+            Assert.Equal(new long[] { 1, 131, 132 }, versions);
+            var latest = await repository.LoadStateAsync(command);
+            Assert.Equal(132, latest.CommittedStreamVersion);
+            assertState(await ReplayFull(), latest, command);
+
+            await database.SaveEventsAsync(command.StreamId, Guid.NewGuid(),
+                new DomainEventCollection([invalid]), 132, CancellationToken.None);
+            var recovered = await repository.LoadStateAsync(command);
+            Assert.Equal(133, recovered.CommittedStreamVersion);
+            assertState(latest, recovered, command);
+
+            var nextId = Guid.NewGuid();
+            command.CommandId.Returns(nextId);
+            Assert.True(recovered.Update(source(130, nextId), command));
+            await repository.SaveStateAsync(context, recovered, command);
+            Assert.Equal(134, (await repository.LoadStateAsync(command)).CommittedStreamVersion);
+        }
 
         TState ReferenceState()
         {

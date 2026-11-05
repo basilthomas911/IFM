@@ -43,4 +43,23 @@ public class FuturesOptionContractCommandHandlerTests
         changed.Success.Should().BeTrue();
         state.Events.Should().HaveCount(2);
     }
+
+    [Fact]
+    public void GivenSnapshottedOptionMembership_WhenRemovingAfterRestart_ThenRemovalNeedsNoOverwrite()
+    {
+        var contractId = SampleData.FuturesOptionContract.ContractId;
+        var state = new FuturesOptionContractCommandState();
+        state.ReplayEvents(new IEvent[]
+        {
+            new FuturesOptionContractStateSnapshottedEvent { ContractIds = [contractId] }
+        });
+
+        var result = new RemoveFuturesOptionContractCommand(contractId)
+        {
+            CommandId = Guid.NewGuid()
+        }.Execute(state);
+
+        result.Success.Should().BeTrue();
+        state.Events.Should().ContainSingle().Which.Should().BeOfType<FuturesOptionContractRemovedEvent>();
+    }
 }

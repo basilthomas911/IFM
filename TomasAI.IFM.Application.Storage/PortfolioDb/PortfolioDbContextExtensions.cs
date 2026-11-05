@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using System.Text.Json;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Framework.Storage;
@@ -243,6 +244,7 @@ public static class PortfolioDbContextExtensions
                 .ConfigureAwait(false);
             await transaction.WriteCompositionAsync(source,facts,token)
                 .ConfigureAwait(false);
+            await transaction.ProjectFundRiskAuthorizationAsync(source, token).ConfigureAwait(false);
             foreach (var value in facts.Policies)
             {
                 var row = facts.ToAcceptedRow(value,source);
@@ -261,6 +263,19 @@ public static class PortfolioDbContextExtensions
             if (facts.DeletedPortfolioId > 0)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Portfolio.DeleteDraft,token,facts.DeletedPortfolioId,source.EventId)
                 .ConfigureAwait(false);
+        }
+
+        /// <summary>Projects immutable authorization evidence for reads keyed by Fund and command.</summary>
+        public async Task ProjectFundRiskAuthorizationAsync(IEvent source, CancellationToken token = default)
+        {
+            if (source is not FundCompositionStateChangedEvent changed)
+                return;
+            if (changed.FinancialAuthorization is { } authorization)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Financial.FundRiskAuthorizationStore.Project, token,
+                    authorization.PortfolioId, authorization.FundId, source.CommandId, source.Id, BindValues.Json(JsonSerializer.Serialize(authorization)))
+                    .ConfigureAwait(false);
+            await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Financial.FundRiskAuthorizationStore.AcknowledgeProjection, token,
+                source.EventId).ConfigureAwait(false);
         }
 
         private async Task WritePortfolioAsync(IEvent source,PortfolioProjectionFacts facts,CancellationToken token)

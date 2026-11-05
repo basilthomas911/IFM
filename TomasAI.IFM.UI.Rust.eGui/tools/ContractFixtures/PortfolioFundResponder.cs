@@ -22,6 +22,7 @@ internal sealed partial class PortfolioResponder {
  string? ApplyFund(object command){
   switch(command){
    case CreateFundMandateCommand c:
+    DemandReferenceReceipt(c.CommandId,c.ReferencePreparationId);
     if(createdFund is not null)return "Duplicate mandate creation";
     if(c.Mandate.PortfolioId!=1||c.Mandate.FundId!=300||c.Mandate.FundMandateVersion!=1||c.Mandate.OperatingState!=FundOperatingState.Draft||c.Mandate.SchemaVersion!=3||c.Mandate.TradingYear!=2026||!DesktopFixtureMode.Clock(c.Mandate.CreatedOnUtc,StrategyFixtures.At)||c.IdempotencyKey==Guid.Empty||c.Mandate.PermittedTradeStrategyFamilies is not [var family]||family.CatalogDeployment!=Deployment.Key)return "Incorrect Fund draft DTO";
     createdFund=c.Mandate;return null;
@@ -29,6 +30,7 @@ internal sealed partial class PortfolioResponder {
     if(Mode=="FundAttachReject"){Mode="FundCommands";return "Fixture attachment rejected";}
     if(createdFund is null||c.FundId.FundId!=300||c.ExpectedPortfolioVersion!=adminRevision)return "Incorrect Fund attachment";fundAttached=true;adminRevision++;return null;
    case AddFundMandateVersionCommand c:
+    DemandReferenceReceipt(c.CommandId,c.ReferencePreparationId);
     var prior=FundRows().Last(p=>p.FundId==c.Mandate.FundId);
     if(c.ExpectedVersion!=fundRevision||c.Mandate.FundMandateVersion!=prior.FundMandateVersion+1||c.Mandate.SchemaVersion!=3)return "Incorrect Fund version/revision";
     if(fundVersions.Count==0)fundVersions.Add(EditableFund);fundVersions.Add(c.Mandate);fundRevision++;return null;
@@ -39,9 +41,11 @@ internal sealed partial class PortfolioResponder {
     if(c.ExpectedPortfolioVersion!=adminRevision||c.Envelope.PortfolioId!=1||c.Envelope.FundId!=2||c.Envelope.EnvelopeVersion!=(fundEnvelope?.EnvelopeVersion??0)+1||c.Envelope.SourcePolicyVersion!=1||c.Envelope.SourcePolicyId!=11||c.Envelope.ExpiresAtUtc!=StrategyFixtures.At.AddDays(30)||c.Envelope.MaximumContracts!=5)return "Incorrect delegated envelope";
     fundEnvelope=c.Envelope;adminRevision++;return null;
    case AssignTradeTemplateCommand c:
+    DemandReferenceReceipt(c.CommandId,c.ReferencePreparationId);
     if(c.ExpectedVersion!=fundRevision||c.Assignment.AssignmentVersion!=fundRevision+1||c.Assignment.TradeTemplateId!=Deployment.Key.Id||c.Assignment.TradeTemplateVersion!=3||c.Assignment.TradeStrategyFamily?.CatalogDeployment!=Deployment.Key||c.Assignment.Enabled||c.Assignment.Priority!=2)return "Incorrect deployment assignment";
     fundAssignments.Add(c.Assignment);fundRevision++;return null;
    case ChangeFundOperatingStateCommand c:
+    if(c.State==FundOperatingState.Active){DemandReferenceReceipt(c.CommandId,c.ReferencePreparationId);if(c.ActivationPreparation?.ParentSourceRevision!=adminRevision||c.ActivationPreparation.ParentPortfolioVersion!=adminParent.PortfolioVersion)return "Incorrect Fund activation preparation";}
     if(c.ExpectedVersion!=fundRevision||string.IsNullOrWhiteSpace(c.Reason))return "Incorrect Fund state revision";
     var current=FundRows().Last(p=>p.FundId==c.EntityId.FundId);if(fundVersions.Count==0)fundVersions.Add(EditableFund);fundVersions.RemoveAll(p=>p.FundId==current.FundId&&p.FundMandateVersion==current.FundMandateVersion);fundVersions.Add(current with{OperatingState=c.State});fundRevision++;return null;
    default:return "Unsupported Fund command";

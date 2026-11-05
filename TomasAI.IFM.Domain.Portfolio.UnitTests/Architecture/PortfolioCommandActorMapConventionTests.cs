@@ -2,10 +2,14 @@ using System.Collections;
 using System.Reflection;
 using FluentAssertions;
 using MessagePack;
+using TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command.Actor;
+using TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator.Command.Actor;
 using TomasAI.IFM.Domain.Portfolio.Command.Actor;
 using TomasAI.IFM.Domain.Portfolio.Fund.Command.Actor;
 using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command.Actor;
+using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.Actor;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Shared.Validation;
 
@@ -64,6 +68,10 @@ public sealed class PortfolioCommandActorMapConventionTests
                 ExpireFundOrderCompositionCommand.Verb,
             ]
         },
+        { typeof(CapacityReservationCommandActor), [ChangeCapacityReservationCommand.Verb] },
+        { typeof(EmulatorExecutionCommandActor), [SubmitEmulatorOrderCommand.Verb] },
+        { typeof(LedgerConfigurationCommandActor), [ConfigureLedgerCommand.Verb] },
+        { typeof(GeneralLedgerCommandActor), [PostFundTransactionCommand.Verb, PostFundTransactionsCommand.Verb] },
     };
 
     [Theory]

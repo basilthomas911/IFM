@@ -352,6 +352,11 @@ public static class PortfolioFundCommandValidation
         if (snapshot.ResolvedAtUtc.Kind != DateTimeKind.Utc || snapshot.ValidUntilUtc.Kind != DateTimeKind.Utc ||
             snapshot.ValidUntilUtc <= snapshot.ResolvedAtUtc || string.IsNullOrWhiteSpace(snapshot.PayloadSha256))
             errors.Add(new($"{command.CommandName}.Snapshot validity is invalid"));
+        if (command.Preparation is { } preparation && (preparation.OrderId <= 0 || preparation.TradeIds is null ||
+            preparation.TradeIds.Length != request.TradeInstructions?.Length || preparation.TradeIds.Any(id => id <= 0) ||
+            preparation.TradeIds.Distinct().Count() != preparation.TradeIds.Length || preparation.Parent is not null ||
+            preparation.ParentSourceRevision is not null))
+            errors.Add(new($"{command.CommandName}.Prepared order and trade identities are invalid"));
     }
 
     /// <summary>Checks ValidateManualOrder without changing state.</summary>
@@ -367,6 +372,9 @@ public static class PortfolioFundCommandValidation
             errors.Add(new($"{command.CommandName}.Request identity does not match EntityId"));
         if (request.PortfolioVersion <= 0 || request.FundMandateVersion <= 0 || request.IdempotencyKey == Guid.Empty)
             errors.Add(new($"{command.CommandName}.Request version and idempotency values are invalid"));
+        if (command.Preparation is { } preparation && (preparation.OrderId <= 0 || preparation.TradeIds is not { Length: 0 } ||
+            preparation.Parent is null || preparation.ParentSourceRevision is not > 0))
+            errors.Add(new($"{command.CommandName}.Prepared order identity or Portfolio evidence is invalid"));
         ValidateUtcWindow(errors, request.RequestedAtUtc, request.ExpiresAtUtc, command.CommandName);
     }
 

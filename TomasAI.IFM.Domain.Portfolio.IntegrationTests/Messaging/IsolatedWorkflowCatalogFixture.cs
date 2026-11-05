@@ -59,6 +59,7 @@ internal sealed record IsolatedWorkflowCatalogFixture(CatalogKey Deployment, str
                 {"hd":{"rtype":19,"publisher_id":1,"instrument_id":900000001,"ts_event":"0"},"raw_symbol":"ESZ6","asset":"ES","instrument_class":"F","currency":"USD","exchange":"XCME","underlying_id":"0","ts_recv":"0","maturity_year":"2026","maturity_month":"12","maturity_day":"18"}
                 """);
             await instruments.InsertAsync(snapshot.Id, 0, definition, token);
+            await instruments.IndexSelectionAsync(InstrumentDefinitionSelectionMapper.Map(snapshot.Id, 0, definition), token);
             await instruments.PublishAsync(snapshot, [new TradeStrategyProduct(TradeStrategyFamilyType.Futures, "ES", "USD", "XCME")], token);
         }
         var product = (await instruments.GetSymbolsAsync(snapshot.Id, TradeStrategyFamilyType.Futures, token))

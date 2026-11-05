@@ -36,7 +36,9 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         async Task<bool> TryWarmFrameAsync(TimeFrameType frame)
         {
             using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
-            budget.CancelAfter(TimeSpan.FromMinutes(2));
+            // Four-hour recovery can use the host's full three-minute RPC budget,
+            // with time left to restore the indicators after the bars arrive.
+            budget.CancelAfter(TimeSpan.FromMinutes(frame == TimeFrameType.FourHours ? 4 : 2));
             try
             {
                 if (await WarmFrameAsync(contract.ContractId, date, frame, budget.Token).ConfigureAwait(false))
@@ -62,6 +64,7 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
             if (vx is { IsWarm: true, IsValid: true })
                 RegimeDiscoverySignalCacheAdapter.Publish(vx);
         }
+        FuturesTradeSessionBarReadModel[]? acquiredSeed = null;
         if (await RestoreCommittedIndicatorsAsync(databases, contractId, date, frame, token).ConfigureAwait(false) is { } oldestObservation)
         {
             // Market structure needs the current bar and the preceding 20 completed bars.
@@ -71,8 +74,10 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
                 RegimeDiscoverySignalCacheAdapter.RestoreBars(structure);
                 return true;
             }
+            if (structure.Length == 48)
+                acquiredSeed = structure;
         }
-        var bars = await reader.ReadAsync(contractId, frame, 48, token).ConfigureAwait(false);
+        var bars = acquiredSeed ?? await reader.ReadAsync(contractId, frame, 48, token).ConfigureAwait(false);
         if (bars.Length != 48) return false;
         var activation = new FuturesIntradaySignalActivation(frame, new(contractId, date, frame, 13),
             new(contractId, date, frame, 14), new(contractId, date, frame, 14), new(contractId, date, frame));

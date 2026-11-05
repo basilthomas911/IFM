@@ -147,27 +147,7 @@ impl PortfolioController {
             }
             "new-portfolio" | "version-portfolio" => {
                 let original = if view == "new-portfolio" {
-                    let allocated = api::query(
-                        backend,
-                        registry,
-                        &context,
-                        "AllocatePortfolioBusinessIdQuery",
-                        "Portfolio",
-                        BTreeMap::from([(
-                            "Kind".into(),
-                            registry
-                                .enum_value(
-                                    &format!(
-                                        "{}.ServiceApi.PortfolioBusinessIdentityKind",
-                                        api::ROOT
-                                    ),
-                                    "Portfolio",
-                                )?
-                                .into(),
-                        )]),
-                        deadline,
-                    )
-                    .await?;
+                    let allocated = api::allocate_identity(backend, registry, "Portfolio", deadline).await?;
                     let row = registry.project(
                         &format!("{}.ServiceApi.PortfolioBusinessIdAllocation", api::ROOT),
                         &allocated,

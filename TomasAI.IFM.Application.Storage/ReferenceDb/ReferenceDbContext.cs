@@ -1,5 +1,6 @@
 using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Text.Json;
 using static TomasAI.IFM.Shared.Storage.BindValues;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -459,17 +460,10 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
             .SetParameters(new ReferenceParameters(Values(Uuid(snapshot), Integer((int)family), Text(symbol.Symbol), Text(symbol.Exchange), Text(symbol.Currency), Integer(symbol.Id))))
             .ExecuteCommandAsync(cancellationToken);
     /// <inheritdoc/>
-    public async Task PublishInstrumentDefinitionSnapshotAsync(InstrumentDefinitionSnapshot snapshot, CancellationToken cancellationToken = default)
-    {
-        await this.Use("InstrumentDefinition.SelectionComplete", ReferenceDbSql.CompleteInstrumentDefinitionSelection)
-            .SetParameters(new ReferenceParameters(Values(Uuid(snapshot.Id))))
-            .ExecuteCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
-        await this.Use("InstrumentDefinition.Publish", ReferenceDbSql.PublishInstrumentDefinitionSnapshot)
-            .SetParameters(new ReferenceParameters(Values(Uuid(snapshot.Id), TimestampTz(snapshot.CompletedUtc), Bigint(snapshot.RecordCount), Text(JsonSerializer.Serialize(snapshot.Datasets)))))
-            .ExecuteCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
-    }
+    public Task PublishInstrumentDefinitionSnapshotAsync(InstrumentDefinitionSnapshot snapshot, CancellationToken cancellationToken = default)
+        => new InstrumentDefinitionCatalogPublisher(new PostgresEventTransaction(new DbConnectionSettings()
+            .Add(EventSourceActorDbContext.EventSourceActorDbConnection, ConnectionString, ProviderName)))
+            .PublishAsync(snapshot, cancellationToken);
 
     /// <inheritdoc/>
     public async Task<bool> IsInstrumentDefinitionSelectionCompleteAsync(Guid snapshot, CancellationToken cancellationToken = default) => (await this.Use("InstrumentDefinition.SelectionStatus", ReferenceDbSql.GetInstrumentDefinitionSelectionStatus)

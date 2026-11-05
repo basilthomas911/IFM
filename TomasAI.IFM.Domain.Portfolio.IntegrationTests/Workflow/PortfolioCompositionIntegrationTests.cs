@@ -80,9 +80,9 @@ public sealed class PortfolioCompositionIntegrationTests
         replay.Order.OrderId.Should().Be(first.Order.OrderId);
         allocator.OrderAllocations.Should().Be(1);
         allocator.TradeAllocations.Should().Be(4);
-        await eventStore.Received(1).AppendFundAsync(
+        await eventStore.Received(1).AppendFundWithStateAsync(
             new PortfolioFundId(101, 203), Arg.Is<IPortfolioFundDomainEvent>(e => e is FundCompositionReservedEvent), 1,
-            null, Arg.Any<CancellationToken>());
+            aggregate, null, Arg.Any<CancellationToken>());
     }
 
     static (ReserveFundOrderCompositionRequest, PortfolioFundStrategySnapshot) ValidRequest()

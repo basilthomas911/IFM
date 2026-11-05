@@ -11,7 +11,8 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 internal sealed partial class TradeWorkspaceResponder {
  string mode="Disabled";
  public string Mode{get=>mode;set{if(value is "ResetCommands" or "ResetEmptyCommands"){ResetCommands();if(value=="ResetEmptyCommands")tradeRows.Clear();mode="Commands";}else if(value=="CommitPending"){deferred?.Invoke();deferred=null;mode="Commands";}else mode=value;}}
- public bool Handles(string subject)=>Mode!="Disabled"&&(subject.StartsWith("Query.PortfolioQuery.GetPortfolios.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFunds.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrdersPage.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrderTradesPage.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrderByOrderId.",StringComparison.Ordinal)||subject.StartsWith("Function.SeedAllocationFunction.AllocateSeedId.",StringComparison.Ordinal)||subject.StartsWith("Command.PortfolioFundCommand.",StringComparison.Ordinal));
+ public bool Handles(string subject)=>Mode!="Disabled"&&(subject.StartsWith("Query.PortfolioQuery.GetPortfolios.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFunds.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrdersPage.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrderTradesPage.",StringComparison.Ordinal)||subject.StartsWith("Query.PortfolioFundQuery.GetFundOrderByOrderId.",StringComparison.Ordinal)||subject.StartsWith("Function.SeedAllocationFunction.AllocateSeedId.",StringComparison.Ordinal)||subject.StartsWith("Command.PortfolioFundCommand.",StringComparison.Ordinal)
+     || ManualMode && subject is ("Query.PortfolioQuery.GetPortfolio.1" or "Query.PortfolioQuery.GetPortfolioRevision.1"));
  public static readonly FundOrderProjectionReadModel Order=new(){PortfolioId=1,FundId=2,OrderId=123,Status="Draft",CreatedOnUtc=StrategyFixtures.At,CreatedBy="Fixture",AggregateVersion=7,Origin=CompositionOrigin.ManualUi,OperatorReference="Native workspace fixture"};
  public static readonly FundOrderTradeProjectionReadModel Trade=new(){PortfolioId=1,FundId=2,OrderId=123,TradeId=456,TradeFamily="ShortIronCondor",TradeType="ShortIronCondor",TradeState="NewTrade",TradeAction="Sell",PrimaryTrade=true,BaseContractSymbol="ES",BaseContractId="ESZ6",UnderlyingRoot="ES",RequestedTradeDate=new(2026,10,26),CreatedOnUtc=StrategyFixtures.At,CreatedBy="Fixture",AggregateVersion=8};
  public byte[] Handle(string subject,byte[] bytes){
@@ -37,6 +38,16 @@ internal sealed partial class TradeWorkspaceResponder {
     var q=MessagePackSerializer.Deserialize<GetPortfoliosQuery>(bytes,options);Check(q);
     if(q.PageSize!=200||q.State!=(int)PortfolioOperatingState.Active)throw new InvalidDataException("Incorrect active Portfolio query");
     return Result(new PortfolioPage<PortfolioReadModel>{Items=[PortfolioFixtures.Portfolio],PageSize=200});
+   }
+   if(subject=="Query.PortfolioQuery.GetPortfolio.1"){
+    var query=MessagePackSerializer.Deserialize<GetPortfolioQuery>(bytes,options);Check(query);
+    if(query.PortfolioId!=1)throw new InvalidDataException("Incorrect prepared parent Portfolio");
+    return Result(PortfolioFixtures.Portfolio);
+   }
+   if(subject=="Query.PortfolioQuery.GetPortfolioRevision.1"){
+    var query=MessagePackSerializer.Deserialize<GetPortfolioRevisionQuery>(bytes,options);Check(query);
+    if(query.PortfolioId!=1)throw new InvalidDataException("Incorrect prepared parent revision");
+    return Result(new PortfolioAggregateRevision{PortfolioId=1,Revision=3,SourceEventId=30});
    }
    if(subject.StartsWith("Query.PortfolioFundQuery.GetFunds.",StringComparison.Ordinal)){
     var q=MessagePackSerializer.Deserialize<GetFundsQuery>(bytes,options);Check(q);

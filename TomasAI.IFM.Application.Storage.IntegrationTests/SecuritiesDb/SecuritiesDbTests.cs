@@ -34,11 +34,12 @@ public sealed class SecuritiesDatabaseNonParallelCollection
 
 public class SecuritiesDatabaseFixture : IDisposable
 {
+    readonly string _keyspace = $"ifm_storage_legacy_sec_{Guid.NewGuid().ToString("N")[..16]}";
 
     public SecuritiesDatabaseFixture()
     {
         var dbConn = new DbConnectionSettings()
-                         .Add("SecuritiesDbConnection", LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_securities"), "System.Data.ScyllaDb");
+                         .Add("SecuritiesDbConnection", LegacyStorageFixtureIsolation.Scylla(_keyspace), "System.Data.ScyllaDb");
 
         var diContainer = new Dictionary<Type, SecuritiesDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
@@ -56,16 +57,6 @@ public class SecuritiesDatabaseFixture : IDisposable
         DbFactory = dbFactory;
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), new SecuritiesDbContext(dbConn, DbFactory, logger));
         Db = DbFactory.SecuritiesDb as SecuritiesDbContext;
-        foreach (var table in new[]
-        {
-            "securities_projection_operation_scope",
-            "securities_projection_operation",
-            "securities_symbol_projection_state",
-            "securities_projection_state"
-        })
-        {
-            Db.UseTest($"TRUNCATE {table};").ExecuteCommandAsync().GetAwaiter().GetResult();
-        }
     }
 
     public SecuritiesDbContext Db { get; }
@@ -74,6 +65,9 @@ public class SecuritiesDatabaseFixture : IDisposable
 
     public void Dispose()
     {
+        using var cluster = Cassandra.Cluster.Builder().AddContactPoint("127.0.0.1").WithPort(9042).Build();
+        using var session = cluster.Connect();
+        session.Execute($"DROP KEYSPACE IF EXISTS {_keyspace};");
     }
 }
 

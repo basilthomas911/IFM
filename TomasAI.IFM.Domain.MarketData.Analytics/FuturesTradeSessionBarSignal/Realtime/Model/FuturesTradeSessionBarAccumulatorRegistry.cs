@@ -5,8 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSigna
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Model;
 
 /// <summary>
-/// Owns one ephemeral, single-writer trade-session bar accumulator per futures value date.
-/// The actor mailbox provides serialization within a date; this registry isolates independent dates.
+/// Owns a single-writer trade-session bar accumulator per market series and trading date.
 /// </summary>
 public sealed class FuturesTradeSessionBarAccumulatorRegistry(
     IMarketSessionCalendar calendar,
@@ -17,10 +16,28 @@ public sealed class FuturesTradeSessionBarAccumulatorRegistry(
         FuturesTradeSessionBarAccumulatorEntityId,
         FuturesTradeSessionBarAccumulator> accumulators = [];
 
-    /// <summary>Gets the accumulator owned by the supplied value-date identity.</summary>
+    /// <summary>Resolves the same partition for routing and for trade processing.</summary>
+    public FuturesTradeSessionBarAccumulatorEntityId Resolve(string contractId, DateOnly valueDate) =>
+        new(valueDate, seriesResolver.Resolve(contractId).Format());
+
+    /// <summary>Gets live series and recently ended sessions awaiting their final barrier.</summary>
+    public IEnumerable<FuturesTradeSessionBarAccumulatorEntityId> ActivePartitions(DateTimeOffset barrierUtc)
+    {
+        var currentDate = calendar.GetValueDate(barrierUtc);
+        foreach (var partition in accumulators.Keys)
+        {
+            if (partition.ValueDate == currentDate
+                || (partition.ValueDate < currentDate
+                    && calendar.GetSession(partition.ValueDate).EndUtc > barrierUtc.AddMinutes(-1)))
+                yield return partition;
+        }
+    }
+
+    /// <summary>Gets the accumulator owned by the supplied partition.</summary>
     public FuturesTradeSessionBarAccumulator Get(
         FuturesTradeSessionBarAccumulatorEntityId entityId)
     {
+        if (accumulators.TryGetValue(entityId, out var active)) return active;
         var errors = new FuturesTradeSessionBarAccumulatorEntityIdValidationRules().Execute(entityId);
         if (errors.Length != 0)
             throw new ArgumentException(
@@ -31,6 +48,6 @@ public sealed class FuturesTradeSessionBarAccumulatorRegistry(
             _ => new FuturesTradeSessionBarAccumulator(calendar, seriesResolver, timeProvider));
     }
 
-    /// <summary>Gets the number of value-date accumulators currently materialized.</summary>
+    /// <summary>Gets the number of materialized accumulators.</summary>
     public int Count => accumulators.Count;
 }

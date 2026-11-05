@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Shared.Exceptions;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
@@ -30,7 +31,10 @@ public sealed class FinancialAtomicPersistenceTests(PortfolioEventStoreFixture f
         await new PortfolioFinancialSchema(transactions).InitializeAsync();
         var id = Random.Shared.Next(100000, int.MaxValue); var source = Guid.NewGuid().ToString("N");
         var stream = $"FinancialAtomicTest.{source}"; var commandId = Guid.NewGuid();
-        var domainEvent = new PortfolioCreatedEvent(Guid.NewGuid(), commandId, 1, DateTime.UtcNow, "integration", new());
+        var domainEvent = new PortfolioCreatedEvent(Guid.NewGuid(), commandId, 1, DateTime.UtcNow, "integration", new())
+        {
+            ProjectionFacts = new()
+        };
         async Task Commit() => await transactions.ExecuteAsync(async (db, token) =>
         {
             await InsertBook(db, id, source, token);
@@ -50,6 +54,15 @@ public sealed class FinancialAtomicPersistenceTests(PortfolioEventStoreFixture f
         {
             var restored = await fixture.EventSourceDb.GetEventLogByEventIdAsync(domainEvent.EventId);
             restored.Should().NotBeNull();
+        }
+        if (failAt != 1)
+        {
+            var marker = await fixture.EventSourceDb.GetEventProjectorExecutionStateAsync(
+                domainEvent.EventId, "PortfolioEventProjector", CancellationToken.None);
+            if (failAt == 0)
+                marker!.Stage.Should().Be(EventProjectorStageType.PublishProcessingEvent);
+            else
+                marker.Should().BeNull();
         }
     }
 

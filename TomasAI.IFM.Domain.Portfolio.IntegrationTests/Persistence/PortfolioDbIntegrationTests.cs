@@ -153,6 +153,8 @@ public sealed class PortfolioDbIntegrationTests(PortfolioDbFixture fixture) : IC
         (await fixture.Db.GetPortfolioAsync(id)).Should().BeEquivalentTo(portfolio);
         (await fixture.Db.GetPortfolioRevisionAsync(id)).Should().BeEquivalentTo(new PortfolioProjectionRevision(id, null, 1, 1));
         (await fixture.Db.GetPortfoliosByStateAsync(PortfolioOperatingState.Active, 0, 0, 10)).Should().ContainEquivalentOf(portfolio);
+        (await fixture.Db.GetPortfoliosByStateAsync(PortfolioOperatingState.Active, null, id - 1, 1)).Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(portfolio);
         (await fixture.Db.GetFundsByPortfolioAsync(id, 0, 10)).Should().ContainEquivalentOf(fund);
         (await fixture.Db.GetFundAsync(id + 1)).Should().BeEquivalentTo(fund);
         (await fixture.Db.GetFundRevisionAsync(id + 1)).Should().BeEquivalentTo(new PortfolioProjectionRevision(id, id + 1, 1, 2));

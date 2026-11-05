@@ -134,6 +134,9 @@ public sealed class PortfolioFundAggregate
         ArgumentNullException.ThrowIfNull(snapshot);
         if (Exists || Revision != 0) throw new InvalidOperationException("A snapshot can only restore an empty Fund aggregate.");
         if (snapshot.Revision <= 0) throw new InvalidOperationException("Snapshot revision must be positive.");
+        if (snapshot.Current is null || snapshot.Assignments is null || snapshot.Compositions is null
+            || snapshot.AppliedCommandIds is null)
+            throw new InvalidOperationException("Snapshot is missing Fund state.");
         ThrowIfInvalid(snapshot.Current.Validate());
         FundMandate = snapshot.Current.DefensiveCopy();
         _tradeTemplateAssignments.AddRange(snapshot.Assignments.Select(x => x.DefensiveCopy()));

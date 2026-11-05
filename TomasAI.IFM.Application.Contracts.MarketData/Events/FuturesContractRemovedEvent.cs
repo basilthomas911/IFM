@@ -4,6 +4,7 @@ using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventProjector;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.Events;
 
@@ -17,8 +18,12 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Events;
 /// Instances are not guaranteed to be thread-safe; do not share between threads without external synchronization.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record FuturesContractRemovedEvent : IEvent<FuturesContractId>
+public record FuturesContractRemovedEvent : IEvent<FuturesContractId>, IRequireDurableProjection
 {
+    [IgnoreMember]
+    DurableProjectionRequirement IRequireDurableProjection.RequiredProjection =>
+        new("FuturesContractCommandActor", "FuturesContractEventProjector", EventProjectorStageType.PublishProcessingEvent);
+
     [IgnoreMember] public const string Actor = "FuturesContractEvent";
     [IgnoreMember] public const string Verb = "Removed";
     [IgnoreMember] public const int ErrorCode = 2003;

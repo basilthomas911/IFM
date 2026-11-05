@@ -36,6 +36,7 @@ public static class MarketOutlookComposer
             entityId,
             state.CurrentEsPrice,
             bb,
+            state.PriorDailyBbStandardDeviation,
             priceVolatility);
         var missing = MissingInputs(eod, state, ema, bb);
         var tradeSignal = ComputeTradeSignal(eod, state) ?? state.FuturesTradeSignal;
@@ -185,6 +186,7 @@ public static class MarketOutlookComposer
         MarketOutlookEntityId entityId,
         decimal? currentPrice,
         FuturesBbSignalReadModel? bb,
+        decimal? priorStandardDeviation,
         PriceVolatilityType priceVolatility)
     {
         var eod = source ?? new FuturesEodDataV2ReadModel
@@ -201,12 +203,35 @@ public static class MarketOutlookComposer
         var mdi = bb?.Position20 is { } position
             ? (double)Math.Clamp(position * 100m, 0m, 100m)
             : eod.MarketDirectionIndicator;
+        var direction = eod.MarketDirection;
+        var volatility = eod.MarketVolatility;
+        if (bb is { IsWarm: true, Metadata.IsValid: true }
+            && bb.Metadata.ValueDate == entityId.ValueDate && bb.Price == price)
+        {
+            if (bb is { Ema20Center: { } center, Upper20: { } upper, Lower20: { } lower }
+                && lower < center && center < upper)
+            {
+                direction = price switch
+                {
+                    _ when price >= upper => MarketDirectionType.Up,
+                    _ when price >= center => MarketDirectionType.NeutralUp,
+                    _ when price < lower => MarketDirectionType.Down,
+                    _ => MarketDirectionType.NeutralDown
+                };
+            }
+            if (bb.StandardDeviation20 is >= 0m && priorStandardDeviation is >= 0m)
+                volatility = bb.StandardDeviation20 > priorStandardDeviation
+                    ? MarketVolatilityType.Rising
+                    : MarketVolatilityType.Falling;
+        }
         return eod with
         {
             ClosePrice = price,
             HighPrice = eod.HighPrice <= 0 ? price : Math.Max(eod.HighPrice, price),
             LowPrice = eod.LowPrice <= 0 ? price : Math.Min(eod.LowPrice, price),
             DailyPercentChange = change,
+            MarketDirection = direction,
+            MarketVolatility = volatility,
             MarketDirectionIndicator = mdi,
             PriceVolatility = priceVolatility
         };

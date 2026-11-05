@@ -1,5 +1,8 @@
 ﻿using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Validation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Preparation.Function.State;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.CommandPipeline;
@@ -57,6 +60,23 @@ public class FuturesOptionContractCommandActor(
     protected override async ValueTask OnShutdown(ICommandActorContext<FuturesOptionContractCommandActor> context)
         => await _eventProjector.StopAsync().ConfigureAwait(false);
 
+    static readonly SemaphoreSlim CatalogAdmission = new(1, 1);
+
+    /// <summary>Serializes legacy per-contract routes against the shared catalog stream.</summary>
+    public override async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId,
+        CancellationToken cancellationToken)
+    {
+        await CatalogAdmission.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await base.HandleMessageAsync(message, threadId, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            CatalogAdmission.Release();
+        }
+    }
+
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
     /// </summary>
@@ -99,25 +119,15 @@ public class FuturesOptionContractCommandActor(
     /// <returns>A ValueTask that represents the asynchronous operation. The result contains a ServiceResult wrapping a
     /// GuidResult with the command's unique identifier.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<FuturesOptionContractCommandActor> context, IActorState state, ICommand command)
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<FuturesOptionContractCommandActor> context, IActorState state, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(command);
         var futuresOptionContractState = IsArgumentNull.Set((state as FuturesOptionContractCommandState)!);
-        if (string.Equals(context.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
-        {
-            command = command switch
-            {
-                AddFuturesOptionContractCommand added => added with { Contract = await FuturesOptionContractDbContext.EnrichFuturesOptionContractAsync(added.Contract,added.Contract.ContractId,context.ActorService).ConfigureAwait(false) },
-                AddFuturesOptionContractsCommand added => added with { Contracts = await FuturesOptionContractDbContext.EnrichContractsAsync(added.Contracts,context.ActorService).ConfigureAwait(false) },
-                ChangeFuturesOptionContractCommand changed => changed with { Contract = await FuturesOptionContractDbContext.EnrichFuturesOptionContractAsync(changed.Contract,changed.ContractId,context.ActorService).ConfigureAwait(false) },
-                _ => command
-            };
-        }
         var receiveFunc = ResolveMappedCommandHandler(command, _receiveMap);
-        return receiveFunc.Invoke(command, context, futuresOptionContractState);
+        return ValueTask.FromResult(receiveFunc.Invoke(command, context, futuresOptionContractState));
     }
 
     /// <summary>
@@ -160,6 +170,31 @@ public class FuturesOptionContractCommandActor(
         await refLookupService.EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
         command.ValidateReferenceData(refLookupService)
             .ThrowCommandValidationExceptionOnAnyError(command.ErrorCode);
+        await ValidatePreparationAsync(context, command, cancellationToken).ConfigureAwait(false);
+    }
+
+    static async ValueTask ValidatePreparationAsync(ICommandActorContext<FuturesOptionContractCommandActor> context,
+        ICommand command, CancellationToken cancellationToken)
+    {
+        (FuturesOptionContractReadModel[] Contracts, string? OriginalId) input = command switch
+        {
+            AddFuturesOptionContractCommand add => ([add.Contract], null),
+            AddFuturesOptionContractsCommand add => (add.Contracts, null),
+            ChangeFuturesOptionContractCommand change => ([change.Contract], change.ContractId),
+            _ => ([], null)
+        };
+        if (input.Contracts.All(static contract => contract.SchemaVersion > 0))
+            return;
+
+        var repository = context.Container.Resolve<IEventSourceFunctionStateRepository<
+            OptionContractPreparationFunctionState, PrepareOptionContractsCommand>>();
+        var prepared = await repository.LoadStateAsync(PrepareOptionContractsCommand.ForOperation(command.CommandId),
+            cancellationToken).ConfigureAwait(false);
+        if (prepared.CompletedEvent is not { } receipt || receipt.CommandId != command.CommandId
+            || !string.Equals(receipt.OriginalContractId, input.OriginalId, StringComparison.Ordinal)
+            || !receipt.Contracts.SequenceEqual(input.Contracts))
+            throw new global::TomasAI.IFM.Shared.Exceptions.CommandValidationException(
+                command.ErrorCode, "Legacy option writes require matching committed producer preparation.");
     }
 
     /// <summary>
@@ -271,6 +306,15 @@ public class FuturesOptionContractCommandActor(
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(command);
+            if (command is AddFuturesOptionContractsCommand batch
+                && ex is global::TomasAI.IFM.Shared.Exceptions.CommandValidationException)
+            {
+                await ex.SendErrorEventAsync<FuturesOptionContractsAddedFailEvent, FuturesOptionContractsEntityId>(
+                    context, batch, FuturesOptionContractsAddedFailEvent.Actor, FuturesOptionContractsAddedFailEvent.Verb)
+                    .ConfigureAwait(false);
+                return CommandFailed(ex, command);
+            }
+
             IErrorEvent<FuturesOptionContractEntityId> errorEvent = ex switch
             {
                 AddFuturesOptionContractException

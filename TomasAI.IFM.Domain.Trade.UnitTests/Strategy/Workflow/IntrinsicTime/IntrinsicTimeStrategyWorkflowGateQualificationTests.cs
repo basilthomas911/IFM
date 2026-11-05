@@ -12,6 +12,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.EventProjector;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Model;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Projection;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
@@ -67,25 +69,36 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
     public void Live_workflow_feature_defaults_to_disabled()
         => new IntrinsicTimeStrategyWorkflowOptions().Enabled.Should().BeFalse();
 
-    [Fact]
-    public void Live_workflow_admission_waits_for_the_same_session_to_warm()
+    [Theory]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Live_workflow_admits_each_horizon_before_indicator_restoration(TimeFrameType horizon)
     {
-        var warmup = new StrategyIndicatorWarmup();
         var context = new IntrinsicTimeStrategyWorkflowCommandContext(
             Substitute.For<IActorSupervisor>(), Substitute.For<TomasAI.IFM.Application.Storage.IDbContextFactory>(),
             Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>(),
             new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options.RegimeDiscoveryExecutionOptions(),
-            new IntrinsicTimeStrategyWorkflowOptions { Enabled = true, IndicatorWarmup = warmup },
+            new IntrinsicTimeStrategyWorkflowOptions { Enabled = true },
             Microsoft.Extensions.Logging.Abstractions.NullLogger<IntrinsicTimeStrategyWorkflowCommandActor>.Instance);
-        var date = new DateOnly(2026, 11, 4);
-        context.CanStartWorkflow(date).Should().BeFalse();
-        context.GetWorkflowStartBlockReason(date).Should().Be("WORKFLOW.START.INDICATORS_NOT_READY");
-        warmup.Complete(date);
-        context.CanStartWorkflow(date).Should().BeTrue();
-        context.GetWorkflowStartBlockReason(date).Should().BeNull();
-        context.CanStartWorkflow(date.AddDays(1)).Should().BeFalse();
-        warmup.Reset();
-        context.CanStartWorkflow(date).Should().BeFalse();
+        var snapshot = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification().State;
+        var entity = snapshot.EntityId with { ItiSignalEntityId = snapshot.EntityId.ItiSignalEntityId with { TimePeriod = horizon } };
+        var command = new ExecuteIntrinsicTimeStrategyWorkflowCommand
+        {
+            CommandId = Guid.NewGuid(),
+            EntityId = entity,
+            ProposedWorkflowId = snapshot.WorkflowId,
+            TriggerEventId = snapshot.TriggerEventId,
+            TriggerEvent = snapshot.TriggerEvent with { EntityId = entity.ItiSignalEntityId },
+            WorkflowDefinitionVersion = snapshot.WorkflowDefinitionVersion,
+        };
+        var preparation = new WorkflowSnapshotPreparation(null);
+
+        command.PrepareWorkflow(context, preparation).Success.Should().BeTrue();
+
+        var started = preparation.Freeze().Should().ContainSingle().Which.WorkflowDefinition;
+        started.EntityId.ItiSignalEntityId.TimePeriod.Should().Be(horizon);
+        started.CurrentStage.Should().Be(StrategyWorkflowStage.RegimeDiscovery);
     }
 
     /// <summary>Confirms ITSW-9 introduces no durable workflow Event actor.</summary>

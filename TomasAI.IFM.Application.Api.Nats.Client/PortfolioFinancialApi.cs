@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
+using TomasAI.IFM.Domain.Portfolio.Shared.Preparation;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -26,18 +27,36 @@ public sealed class PortfolioFinancialApi(IActorProducer producer) : NatsClientA
             FunctionResult<PortfolioCloseOrderCompositionCompletedEvent, PortfolioCloseOrderCompositionFailedEvent>>(
                 request, request.EntityId, cancellationToken);
     }
-    public Task<ServiceResult<FinancialRead<FinancialAuthorityDraft>>> PrepareFinancialAuthorityAsync(FinancialReadScope scope, PrepareFinancialAuthorityRequest request, CancellationToken token = default)
+    public async Task<ServiceResult<FinancialRead<FinancialAuthorityDraft>>> PrepareFinancialAuthorityAsync(FinancialReadScope scope, PrepareFinancialAuthorityRequest request, CancellationToken token = default)
         
     {
         ArgumentNullException.ThrowIfNull(scope);
-        return Read<PrepareFinancialAuthorityRequest, FinancialAuthorityDraft>(scope, request, "GeneralLedgerQuery", "PrepareFinancialAuthority", token);
+        var command = PrepareFinancialAuthorityCommand.ForOperation(Guid.NewGuid()) with { Scope = scope, Parameters = request };
+        var result = await RequestFunctionAsync<PrepareFinancialAuthorityCommand, ActorEntityId,
+            FunctionResult<FinancialAuthorityPreparationCompletedEvent, FinancialAuthorityPreparationFailedEvent>>(
+                command, command.EntityId, token).ConfigureAwait(false);
+        return PreparationResult(result, command.CommandId, static completed => completed.Value);
     }
-    public Task<ServiceResult<FinancialRead<FinancialBookSetup>>> PrepareFinancialBookAsync(FinancialReadScope scope, PrepareFinancialBookRequest request, CancellationToken token = default)
+    public async Task<ServiceResult<FinancialRead<FinancialBookSetup>>> PrepareFinancialBookAsync(FinancialReadScope scope, PrepareFinancialBookRequest request, CancellationToken token = default)
         
     {
         ArgumentNullException.ThrowIfNull(scope);
-        return Read<PrepareFinancialBookRequest, FinancialBookSetup>(scope, request, "GeneralLedgerQuery", "PrepareFinancialBook", token);
+        var command = PrepareFinancialBookCommand.ForOperation(Guid.NewGuid()) with { Scope = scope, Parameters = request };
+        var result = await RequestFunctionAsync<PrepareFinancialBookCommand, ActorEntityId,
+            FunctionResult<FinancialBookPreparationCompletedEvent, FinancialBookPreparationFailedEvent>>(
+                command, command.EntityId, token).ConfigureAwait(false);
+        return PreparationResult(result, command.CommandId, static completed => completed.Value);
     }
+
+    static ServiceResult<T> PreparationResult<TCompleted, TFailed, T>(
+        ServiceResult<FunctionResult<TCompleted, TFailed>> reply, Guid commandId, Func<TCompleted, T> value)
+        where TCompleted : PortfolioPreparationComplete<ActorEntityId>
+        where TFailed : PortfolioPreparationFail<ActorEntityId>
+        where T : class
+        => reply is { Success: true, Value: { IsCompleted: true, Completed: { } completed } } && completed.CommandId == commandId
+            ? new ServiceOk<T>(value(completed))
+            : new ServiceFailed<T>(reply.Value?.Failed?.ErrorCode ?? (reply.ErrorCode != 0 ? reply.ErrorCode : FinancialReasons.PersistenceFailed),
+                reply.Value?.Failed?.ErrorMessage ?? reply.ErrorMessage);
     public Task<ServiceResult<FinancialRead<FinancialLedgerConfiguration>>> GetFinancialLedgerConfigurationAsync(FinancialReadScope scope, GetFinancialLedgerConfigurationRequest request, CancellationToken token = default)
         
     {
@@ -169,8 +188,6 @@ public sealed class PortfolioFinancialApi(IActorProducer producer) : NatsClientA
         var requestedAtUtc = DateTime.UtcNow;
         object query = parameters switch
         {
-            PrepareFinancialAuthorityRequest value => new PrepareFinancialAuthorityQuery(value) { Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
-            PrepareFinancialBookRequest value => new PrepareFinancialBookQuery(value) { Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
             GetFinancialLedgerConfigurationRequest value => new GetFinancialLedgerConfigurationQuery(value) { Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
             GetFinancialPostingConfigurationRequest value => new GetFinancialPostingConfigurationQuery(value) { Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
             GetFundRiskAuthorizationRequest value => new GetFundRiskAuthorizationQuery(value) { Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
@@ -189,8 +206,6 @@ public sealed class PortfolioFinancialApi(IActorProducer producer) : NatsClientA
         };
         var result = query switch
         {
-            PrepareFinancialAuthorityQuery value => (object)await RequestAsync<PrepareFinancialAuthorityQuery, FinancialRead<FinancialAuthorityDraft>>(subject, value, token).ConfigureAwait(false),
-            PrepareFinancialBookQuery value => (object)await RequestAsync<PrepareFinancialBookQuery, FinancialRead<FinancialBookSetup>>(subject, value, token).ConfigureAwait(false),
             GetFinancialLedgerConfigurationQuery value => (object)await RequestAsync<GetFinancialLedgerConfigurationQuery, FinancialRead<FinancialLedgerConfiguration>>(subject, value, token).ConfigureAwait(false),
             GetFinancialPostingConfigurationQuery value => (object)await RequestAsync<GetFinancialPostingConfigurationQuery, FinancialRead<FinancialPostingConfiguration>>(subject, value, token).ConfigureAwait(false),
             GetFundRiskAuthorizationQuery value => (object)await RequestAsync<GetFundRiskAuthorizationQuery, FinancialRead<FundRiskAuthorizationEvidence>>(subject, value, token).ConfigureAwait(false),

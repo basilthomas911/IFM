@@ -1,28 +1,16 @@
-using TomasAI.IFM.Domain.Portfolio.Query.Actor;
 using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.Query;
 
-/// <summary>Compatibility handler for the published PortfolioQuery route; Fund owns new traffic.</summary>
+/// <summary>Compatibility extension for the Portfolio query contract.</summary>
 public static class GetFundOrderByOrderId
 {
-
-    /// <param name="query">
-    /// The published legacy query message.
-    /// </param>
     extension(GetFundOrderByOrderIdQuery query)
     {
-        /// <summary>Forwards the legacy query to the Fund-owned implementation.</summary>
-        ///
-        /// <param name="context">The legacy Portfolio query actor context.</param>
-        /// <param name="parameters">The query services shared with the owning child actor.</param>
-        /// <param name="cancellationToken">Cancellation for the projection read.</param>
-        /// <returns>The asynchronous reply operation.</returns>
-        public ValueTask ExecuteAsync(
-            IQueryActorContext<PortfolioQueryActor> context,
-            PortfolioQueryParameters parameters,
-            CancellationToken cancellationToken) =>
-            TomasAI.IFM.Domain.Portfolio.Fund.Query.GetFundOrderByOrderId.ExecuteAsync(query, context, parameters, cancellationToken);
+        /// <summary>Returns the projection result through the owning query extension.</summary>
+        public Task<ServiceResult<FundOrderProjectionReadModel>> ExecuteAsync(PortfolioQueryParameters parameters, CancellationToken cancellationToken)
+            => TomasAI.IFM.Domain.Portfolio.Fund.Query.GetFundOrderByOrderId.ExecuteAsync(query, parameters, cancellationToken);
     }
 }

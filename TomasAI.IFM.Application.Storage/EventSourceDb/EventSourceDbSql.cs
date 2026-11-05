@@ -7,6 +7,74 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// </summary>
 public static class EventSourceDbSql
 {
+    internal const string ReadAggregateCheckpointWindow = """
+        WITH source AS MATERIALIZED (
+            SELECT EventStreamId, LEAST(CurrentVersion, $3) AS Head
+            FROM event_stream_id WHERE EventStream=$1
+        ), sidecar AS MATERIALIZED (
+            SELECT EventStreamId FROM event_stream_id WHERE EventStream=$2
+        ), checkpoint AS MATERIALIZED (
+            SELECT c.source_revision, el.*
+            FROM source s
+            JOIN event_aggregate_checkpoint c ON c.source_stream_id=s.EventStreamId
+            JOIN event_log el ON el.EventVersion=c.checkpoint_event_version
+            JOIN sidecar a ON a.EventStreamId=el.EventStreamId
+            WHERE $5 < 0 AND c.source_revision<=LEAST(s.Head,$4)
+            ORDER BY c.source_revision DESC LIMIT 1
+        ), legacy AS MATERIALIZED (
+            SELECT el.*
+            FROM sidecar a JOIN event_log el ON el.EventStreamId=a.EventStreamId
+            WHERE $5 < 0
+              AND NOT EXISTS (SELECT FROM event_aggregate_checkpoint c WHERE c.checkpoint_event_version=el.EventVersion)
+        ), selected AS (
+            SELECT 1 AS Kind, source_revision, EventVersion, EventNameId, StreamVersion, EventPayload FROM checkpoint
+            UNION ALL
+            SELECT 2, 0, EventVersion, EventNameId, StreamVersion, EventPayload FROM legacy
+            UNION ALL
+            SELECT 3, 0, el.EventVersion, el.EventNameId, el.StreamVersion, el.EventPayload
+            FROM source s JOIN event_log el ON el.EventStreamId=s.EventStreamId
+            WHERE (EXISTS (SELECT FROM checkpoint) OR NOT EXISTS (SELECT FROM legacy))
+              AND el.StreamVersion>COALESCE((SELECT source_revision FROM checkpoint),GREATEST($5,0))
+              AND el.StreamVersion<=s.Head
+        )
+        SELECT s.Head, chosen.Kind, chosen.source_revision, chosen.EventVersion,
+               n.EventTypeName, chosen.StreamVersion, chosen.EventPayload
+        FROM source s LEFT JOIN selected chosen ON true
+        LEFT JOIN event_name_id n ON n.EventNameId=chosen.EventNameId
+        ORDER BY chosen.Kind, chosen.StreamVersion;
+        """;
+
+    internal const string ReadAggregateEventByCommand = """
+        SELECT el.EventVersion, n.EventTypeName, el.StreamVersion, el.EventPayload
+        FROM event_log el JOIN event_stream_id s USING(EventStreamId) JOIN event_name_id n USING(EventNameId)
+        WHERE el.CommandId=$2 AND s.EventStream=$1
+        LIMIT 2;
+        """;
+
+    internal const string ReadAggregateCreation = """
+        SELECT el.EventVersion, n.EventTypeName, el.StreamVersion, el.EventPayload
+        FROM event_stream_id s JOIN event_log el USING(EventStreamId) JOIN event_name_id n USING(EventNameId)
+        WHERE s.EventStream=$1 AND el.StreamVersion=1;
+        """;
+
+    internal const string LockAggregateCheckpointSource = """
+        SELECT CurrentVersion FROM event_stream_id WHERE EventStream=$1 FOR UPDATE;
+        """;
+
+    internal const string ReadAggregateCheckpointHead = """
+        SELECT CurrentVersion FROM event_stream_id WHERE EventStream=$1;
+        """;
+
+    internal const string ReadAggregateCheckpointVersion = """
+        SELECT c.checkpoint_event_version
+        FROM event_stream_id s JOIN event_aggregate_checkpoint c ON c.source_stream_id=s.EventStreamId
+        WHERE s.EventStream=$1 AND c.source_revision=$2;
+        """;
+
+    internal const string RegisterAggregateCheckpoint = """
+        INSERT INTO event_aggregate_checkpoint(source_stream_id,source_revision,checkpoint_event_version)
+        SELECT EventStreamId,$2,$3 FROM event_stream_id WHERE EventStream=$1;
+        """;
     /// <summary>Reads creation, the latest replacement for each declared component, and the captured head without scanning superseded payloads.</summary>
     public const string GetEventLogFromLatestComponentSnapshots = """
         WITH snapshot_head AS MATERIALIZED (

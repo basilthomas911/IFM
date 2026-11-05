@@ -53,14 +53,14 @@ public interface IPortfolioDbReadContext
 
     /// <summary>Gets portfolio projections in an operating-state bucket.</summary>
     /// <param name="state">The operating state.</param>
-    /// <param name="bucket">The persisted state bucket.</param>
+    /// <param name="bucket">The persisted state bucket, or null to query the operating-state index across buckets.</param>
     /// <param name="afterPortfolioId">The exclusive portfolio identifier cursor.</param>
     /// <param name="pageSize">The maximum result count.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The matching portfolio projections.</returns>
     Task<IReadOnlyList<PortfolioReadModel>> GetPortfoliosByStateAsync(
         PortfolioOperatingState state,
-        int bucket,
+        int? bucket,
         int afterPortfolioId,
         int pageSize,
         CancellationToken cancellationToken = default);

@@ -524,17 +524,7 @@ impl PortfolioController {
                 let portfolio = self.ledger_portfolio(registry)?;
                 let parameters =
                     registry.encode(&fk("PrepareFinancialBookRequest"), &BTreeMap::new())?;
-                let response = financial::query(
-                    backend,
-                    registry,
-                    &context,
-                    "PrepareFinancialBookQuery",
-                    portfolio,
-                    None,
-                    parameters,
-                    financial::AccessScope::LedgerEditor,
-                    deadline,
-                )
+                let response = financial::prepare(backend, registry, "PrepareFinancialBook", portfolio, parameters, deadline)
                 .await?;
                 let setup = registry.project(&fk("FinancialBookSetup"), response.found()?)?;
                 let today =
@@ -742,17 +732,7 @@ impl PortfolioController {
                     ("PeriodEnd".into(), date_only_wire(end)),
                 ]),
             )?;
-            let read = financial::query(
-                backend,
-                registry,
-                &context,
-                "PrepareFinancialBookQuery",
-                portfolio,
-                None,
-                request,
-                financial::AccessScope::LedgerEditor,
-                deadline,
-            )
+            let read = financial::prepare(backend, registry, "PrepareFinancialBook", portfolio, request, deadline)
             .await?;
             let draft = member(registry, "FinancialBookSetup", read.found()?, "Draft")?;
             if draft.is_nil() {
@@ -799,17 +779,7 @@ impl PortfolioController {
                 &fk("PrepareFinancialAuthorityRequest"),
                 &BTreeMap::from([("PermitNewSpending".into(), permit.into())]),
             )?;
-            let read = financial::query(
-                backend,
-                registry,
-                &context,
-                "PrepareFinancialAuthorityQuery",
-                portfolio,
-                None,
-                parameters,
-                financial::AccessScope::LedgerEditor,
-                deadline,
-            )
+            let read = financial::prepare(backend, registry, "PrepareFinancialAuthority", portfolio, parameters, deadline)
             .await?;
             let row = registry.project(&fk("FinancialAuthorityDraft"), read.found()?)?;
             let mut lines = vec![

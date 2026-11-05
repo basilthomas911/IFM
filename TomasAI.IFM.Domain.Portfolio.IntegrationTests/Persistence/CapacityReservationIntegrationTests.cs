@@ -207,13 +207,18 @@ public sealed class CapacityReservationIntegrationTests(PortfolioEventStoreFixtu
     public async Task Consumption_requires_committed_matching_acceptance_then_retains_capacity_when_submission_unknown()
     {
         var book = await FundedBook(); var reserve = await ReserveRequest(book, 700); await Reserve(reserve);
+        var initial = await Store().ReadCurrentAsync(book.PortfolioId, reserve.Body.ReservationId);
+        initial!.Version.Should().Be(1);
+        initial.Status.Should().Be(ReservationStatus.Reserved);
         var consume = ConsumeRequest(reserve, 2); var refused = await FluentActions.Awaiting(() => Consume(consume)).Should().ThrowAsync<FinancialOperationException>();
         refused.Which.Code.Should().Be(FinancialReasons.AuthorityDenied);
         await Accept(reserve, consume); var result = await Consume(consume);
         result.Receipt.Status.Should().Be(ReservationStatus.Consumed);
         var unknown = ChangeRequest(consume, CapacityChangeKind.MarkSubmissionUnknown, 3, 2, 0, 0, 10);
-        await Change(unknown);
+        var completed = await Change(unknown);
         var current = await Store().ReadCurrentAsync(book.PortfolioId, reserve.Body.ReservationId);
+        current.Should().Be(completed.ProjectionFacts!.Reservation);
+        current!.Version.Should().Be(3);
         current!.Status.Should().Be(ReservationStatus.SubmissionUnknown);
         (await Usage(book)).Should().Be((0m, 700m, 0m));
         var replay = await Consume(consume); replay.Id.Should().Be(result.Id);

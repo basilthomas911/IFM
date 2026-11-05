@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query.Model;
 using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
@@ -24,10 +25,10 @@ public sealed class CapacityReservationQueryActor(IQueryActorContext<CapacityRes
     static readonly IReadOnlyDictionary<Type, Func<IQuery, IFinancialQueryStore, IQueryActorContext<CapacityReservationQueryActor>, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IQuery, IFinancialQueryStore, IQueryActorContext<CapacityReservationQueryActor>, CancellationToken, ValueTask>>
         {
-            [typeof(GetFinancialAdmissionSnapshotQuery)] = (query, database, owner, token) => ((GetFinancialAdmissionSnapshotQuery)query).ExecuteAsync(database, owner, token),
-            [typeof(GetCapacityReservationQuery)] = (query, database, owner, token) => ((GetCapacityReservationQuery)query).ExecuteAsync(database, owner, token),
-            [typeof(GetCapacityUsageQuery)] = (query, database, owner, token) => ((GetCapacityUsageQuery)query).ExecuteAsync(database, owner, token),
-            [typeof(GetFundReservationsPageQuery)] = (query, database, owner, token) => ((GetFundReservationsPageQuery)query).ExecuteAsync(database, owner, token),
+            [typeof(GetFinancialAdmissionSnapshotQuery)] = (query, database, owner, token) => FinancialQueryReply.ReplyAsync(owner, query, ((GetFinancialAdmissionSnapshotQuery)query).ExecuteAsync(database, token), token),
+            [typeof(GetCapacityReservationQuery)] = (query, database, owner, token) => FinancialQueryReply.ReplyAsync(owner, query, ((GetCapacityReservationQuery)query).ExecuteAsync(database, token), token),
+            [typeof(GetCapacityUsageQuery)] = (query, database, owner, token) => FinancialQueryReply.ReplyAsync(owner, query, ((GetCapacityUsageQuery)query).ExecuteAsync(database, token), token),
+            [typeof(GetFundReservationsPageQuery)] = (query, database, owner, token) => FinancialQueryReply.ReplyAsync(owner, query, ((GetFundReservationsPageQuery)query).ExecuteAsync(database, token), token),
         }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys,
         (query, error) => error is FinancialOperationException financial ? financial.Code : FinancialReasons.PersistenceFailed);

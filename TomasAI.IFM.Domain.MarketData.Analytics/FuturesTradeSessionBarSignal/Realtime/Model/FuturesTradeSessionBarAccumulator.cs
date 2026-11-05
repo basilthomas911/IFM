@@ -14,11 +14,13 @@ public sealed class FuturesTradeSessionBarAccumulator(
     IFuturesTradeSessionBarSeriesResolver seriesResolver,
     TimeProvider timeProvider)
 {
+    internal static readonly TimeSpan RecoveryWindow = TimeSpan.FromSeconds(2);
+    const int MaximumPendingTrades = 4096;
     private static readonly TimeFrameType[] TimeFrames =
         [.. FuturesIntradaySignalActivationProfile.TimeFrames, TimeFrameType.Daily];
     private readonly Dictionary<BucketKey, ObservationBucket> buckets = [];
-    private readonly Dictionary<string, StreamPosition> positions = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Guid> invalidEpochs = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TradeStream> streams = new(StringComparer.Ordinal);
+    private readonly Dictionary<BucketKey, DateTimeOffset> finalizedThrough = [];
     private readonly Dictionary<MarketSeriesIdentity, string> contracts = [];
     private readonly IMarketSessionCalendar calendar =
         calendar ?? throw new ArgumentNullException(nameof(calendar));
@@ -35,96 +37,135 @@ public sealed class FuturesTradeSessionBarAccumulator(
         if (source.UpdateSource != FuturesMarketPriceUpdateSource.Trade
             || source.Price.Trade is not { } trade
             || trade.StreamEpochId == Guid.Empty
-            || trade.TradeOrdinal <= 0
-            || trade.LastPrice <= 0
-            || trade.LastSize == 0
-            || trade.NormalizedTradeAction != NormalizedTradeAction.New)
+            || trade.TradeOrdinal <= 0)
         {
             return [];
         }
 
         var contractId = source.Price.ContractId;
         var seriesIdentity = seriesResolver.Resolve(contractId);
-        if (!AdmitStreamPosition(contractId, seriesIdentity, trade)) return [];
-
         if (contracts.TryGetValue(seriesIdentity, out var priorContract)
             && !string.Equals(priorContract, contractId, StringComparison.Ordinal))
         {
             RemoveSeries(seriesIdentity);
+            streams.Remove(priorContract);
         }
         contracts[seriesIdentity] = contractId;
 
-        var timestamp = trade.EventTimestamp.ToUniversalTime();
-        var valueDate = calendar.GetValueDate(timestamp);
-        if (!calendar.IsTradingDate(valueDate)) return [];
-        var session = calendar.GetSession(valueDate);
-        if (timestamp < session.StartUtc || timestamp >= session.EndUtc) return [];
+        if (!streams.TryGetValue(contractId, out var stream))
+        {
+            stream = new TradeStream(seriesIdentity);
+            streams.Add(contractId, stream);
+        }
+        if (stream.EpochId != trade.StreamEpochId)
+        {
+            if (stream.RetiredEpochs.Contains(trade.StreamEpochId)) return [];
+            if (stream.EpochId != Guid.Empty)
+            {
+                stream.RetiredEpochs.Add(stream.EpochId);
+                RemoveSeries(seriesIdentity);
+                contracts[seriesIdentity] = contractId;
+            }
+            stream.EpochId = trade.StreamEpochId;
+            stream.Ordinal = trade.TradeOrdinal - 1;
+            stream.Pending.Clear();
+            stream.GapDeadline = null;
+        }
+        if (trade.TradeOrdinal <= stream.Ordinal) return [];
 
         var closed = new List<FuturesTradeSessionBarReadModel>();
+        if (stream.Pending.Count == 0 && trade.TradeOrdinal == stream.Ordinal + 1)
+        {
+            Apply(contractId, stream, trade, closed);
+            return closed;
+        }
+        if (!stream.Pending.TryAdd(trade.TradeOrdinal, trade)) return [];
+        Drain(contractId, stream, timeProvider.GetUtcNow(), closed);
+        return closed;
+    }
+
+    void Apply(string contractId, TradeStream stream, FuturesMarketTradeSnapshot trade,
+        List<FuturesTradeSessionBarReadModel> closed)
+    {
+        stream.Ordinal = trade.TradeOrdinal;
+        var timestamp = trade.EventTimestamp.ToUniversalTime();
+        if (timestamp > stream.LatestTradeUtc) stream.LatestTradeUtc = timestamp;
+        if (trade.LastPrice <= 0 || trade.LastSize == 0
+            || trade.NormalizedTradeAction != NormalizedTradeAction.New) return;
+        var valueDate = calendar.GetValueDate(timestamp);
+        if (!calendar.IsTradingDate(valueDate)) return;
+        var session = calendar.GetSession(valueDate);
+        if (timestamp < session.StartUtc || timestamp >= session.EndUtc) return;
+
         foreach (var timeFrame in TimeFrames)
         {
             var interval = GetInterval(timeFrame, timestamp, session);
-            var key = new BucketKey(seriesIdentity, timeFrame);
+            var key = new BucketKey(stream.Series, timeFrame);
+            if (interval.StartUtc <= stream.IncompleteThrough
+                || (finalizedThrough.TryGetValue(key, out var endUtc) && interval.StartUtc < endUtc))
+                continue;
             if (buckets.TryGetValue(key, out var bucket))
             {
                 if (timestamp < bucket.StartUtc) continue;
                 if (timestamp >= bucket.EndUtc)
                 {
                     closed.Add(bucket.Close(timeProvider));
+                    finalizedThrough[key] = bucket.EndUtc;
                     buckets.Remove(key);
                 }
             }
             if (!buckets.TryGetValue(key, out bucket))
             {
                 bucket = new ObservationBucket(
-                    seriesIdentity, contractId, valueDate, timeFrame, interval.StartUtc, interval.EndUtc,
+                    stream.Series, contractId, valueDate, timeFrame, interval.StartUtc, interval.EndUtc,
                     trade.StreamEpochId);
                 buckets.Add(key, bucket);
             }
             bucket.Add(trade);
         }
-        return closed;
     }
 
-    /// <summary>Rejects duplicate or discontinuous trade ordinals and resets buckets when a fresh stream epoch arrives.</summary>
-    bool AdmitStreamPosition(string contractId, MarketSeriesIdentity seriesIdentity, FuturesMarketTradeSnapshot trade)
+    void Drain(string contractId, TradeStream stream, DateTimeOffset now,
+        List<FuturesTradeSessionBarReadModel> closed)
     {
-        if (invalidEpochs.TryGetValue(contractId, out var invalidEpoch))
+        while (stream.Pending.Count != 0)
         {
-            if (invalidEpoch == trade.StreamEpochId)
+            var next = stream.Pending.First();
+            if (next.Key != stream.Ordinal + 1)
             {
-                positions[contractId] = new(trade.StreamEpochId, trade.TradeOrdinal);
-                return false;
+                stream.GapDeadline ??= now + RecoveryWindow;
+                if (now < stream.GapDeadline && stream.Pending.Count < MaximumPendingTrades) return;
+
+                // A missing trade can belong to either side of an interval boundary.
+                // Suppress the affected intervals and resume within the same generation.
+                RemoveSeries(stream.Series);
+                contracts[stream.Series] = contractId;
+                var nextTime = next.Value.EventTimestamp.ToUniversalTime();
+                var gapEnd = nextTime > stream.LatestTradeUtc ? nextTime : stream.LatestTradeUtc;
+                if (gapEnd > stream.IncompleteThrough) stream.IncompleteThrough = gapEnd;
             }
-            invalidEpochs.Remove(contractId);
+            stream.Pending.Remove(next.Key);
+            Apply(contractId, stream, next.Value, closed);
+            stream.GapDeadline = null;
         }
-        if (positions.TryGetValue(contractId, out var position))
-        {
-            if (position.EpochId == trade.StreamEpochId && trade.TradeOrdinal <= position.Ordinal)
-                return false;
-            if (position.EpochId == trade.StreamEpochId && trade.TradeOrdinal != position.Ordinal + 1)
-            {
-                RemoveSeries(seriesIdentity);
-                positions[contractId] = new(trade.StreamEpochId, trade.TradeOrdinal);
-                invalidEpochs[contractId] = trade.StreamEpochId;
-                return false;
-            }
-            if (position.EpochId != trade.StreamEpochId) RemoveSeries(seriesIdentity);
-        }
-        positions[contractId] = new(trade.StreamEpochId, trade.TradeOrdinal);
-        return true;
     }
 
-    /// <summary>Closes all intervals whose exclusive end is at or before a server-owned UTC barrier.</summary>
+    /// <summary>Expires gaps and closes elapsed intervals after allowing for late delivery.</summary>
     public IReadOnlyList<FuturesTradeSessionBarReadModel> CloseThrough(
         DateTimeOffset barrierUtc)
     {
-        var closed = buckets
-            .Where(x => x.Value.EndUtc <= barrierUtc)
-            .Select(x => x.Value.Close(timeProvider))
-            .ToArray();
-        foreach (var observation in closed)
-            buckets.Remove(new(observation.MarketSeriesIdentity, observation.TimeFrame));
+        var closed = new List<FuturesTradeSessionBarReadModel>();
+        foreach (var (contract, stream) in streams)
+            Drain(contract, stream, barrierUtc, closed);
+        foreach (var (key, bucket) in buckets.ToArray())
+        {
+            if (bucket.EndUtc + RecoveryWindow > barrierUtc
+                || (contracts.TryGetValue(key.SeriesIdentity, out var contract)
+                    && streams[contract].Pending.Count != 0)) continue;
+            closed.Add(bucket.Close(timeProvider));
+            finalizedThrough[key] = bucket.EndUtc;
+            buckets.Remove(key);
+        }
         return closed;
     }
 
@@ -160,8 +201,17 @@ public sealed class FuturesTradeSessionBarAccumulator(
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     readonly record struct BucketKey(MarketSeriesIdentity SeriesIdentity, TimeFrameType TimeFrame);
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    readonly record struct StreamPosition(Guid EpochId, long Ordinal);
+    sealed class TradeStream(MarketSeriesIdentity series)
+    {
+        internal MarketSeriesIdentity Series { get; } = series;
+        internal Guid EpochId { get; set; }
+        internal long Ordinal { get; set; }
+        internal DateTimeOffset LatestTradeUtc { get; set; }
+        internal DateTimeOffset IncompleteThrough { get; set; }
+        internal DateTimeOffset? GapDeadline { get; set; }
+        internal SortedDictionary<long, FuturesMarketTradeSnapshot> Pending { get; } = [];
+        internal HashSet<Guid> RetiredEpochs { get; } = [];
+    }
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     readonly record struct Interval(DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 

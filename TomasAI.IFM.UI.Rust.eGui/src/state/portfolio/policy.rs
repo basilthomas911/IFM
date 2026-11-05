@@ -192,7 +192,7 @@ impl PortfolioController {
             fields,
         )?;
         self.write_in_flight = true;
-        let submitted = commands::submit(backend, &prepared, deadline).await;
+        let submitted = commands::submit_portfolio(backend, registry, context, &prepared, deadline).await;
         self.write_in_flight = false;
         match submitted {
             Err(error) => {
@@ -281,24 +281,7 @@ impl PortfolioController {
                 if self.editing_policy.is_some() {
                     return Err("Save or cancel the policy working copy first".into());
                 }
-                let value = api::query(
-                    backend,
-                    registry,
-                    &context,
-                    "AllocatePortfolioBusinessIdQuery",
-                    "Policy",
-                    BTreeMap::from([(
-                        "Kind".into(),
-                        registry
-                            .enum_value(
-                                &format!("{}.ServiceApi.PortfolioBusinessIdentityKind", api::ROOT),
-                                "Policy",
-                            )?
-                            .into(),
-                    )]),
-                    deadline,
-                )
-                .await?;
+                let value = api::allocate_identity(backend, registry, "Policy", deadline).await?;
                 let allocation = registry.project(
                     &format!("{}.ServiceApi.PortfolioBusinessIdAllocation", api::ROOT),
                     &value,

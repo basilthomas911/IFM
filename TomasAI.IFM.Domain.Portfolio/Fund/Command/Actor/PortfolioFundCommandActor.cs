@@ -1,5 +1,8 @@
-﻿using TomasAI.IFM.Domain.Portfolio.Fund.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
+using TomasAI.IFM.Domain.Portfolio.Shared.Preparation;
+using TomasAI.IFM.Domain.Portfolio.Fund.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Fund.Command.Validation;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -7,7 +10,6 @@ using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Command;
 using TomasAI.IFM.Domain.Portfolio.Fund.Command;
-using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
@@ -30,19 +32,15 @@ namespace TomasAI.IFM.Domain.Portfolio.Fund.Command.Actor;
 public sealed class PortfolioFundCommandActor(
     ICommandActorContext<PortfolioFundCommandActor> context,
     IPortfolioEventStore eventStore,
-    IPortfolioBusinessIdAllocator allocator,
     IEventProjector<PortfolioFundCommandActor> projector,
     IPortfolioOperationalGuard operationalGuard,
-    ILogger<PortfolioFundCommandActor> logger,
-    TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi? referenceQueries = null)
+    ILogger<PortfolioFundCommandActor> logger)
     : BaseEventSourceCommandActor<PortfolioFundCommandActor>(context, logger)
 {
     public const string ActorName = CreateFundMandateCommand.Actor;
     readonly IPortfolioEventStore _events = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
-    readonly IPortfolioBusinessIdAllocator _allocator = allocator ?? throw new ArgumentNullException(nameof(allocator));
     readonly IEventProjector<PortfolioFundCommandActor> _projector = projector ?? throw new ArgumentNullException(nameof(projector));
     readonly IPortfolioOperationalGuard _guard = operationalGuard ?? throw new ArgumentNullException(nameof(operationalGuard));
-    readonly TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi? _referenceQueries = referenceQueries;
 
     protected override ValueTask OnStartup(ICommandActorContext<PortfolioFundCommandActor> context, CancellationToken cancellationToken) =>
         _projector.StartAsync(context, cancellationToken);
@@ -232,51 +230,49 @@ public sealed class PortfolioFundCommandActor(
             },
         };
 
-    static readonly IReadOnlyDictionary<Type, Func<PortfolioFundCommandActor, ICommand, PortfolioFundActorState,
-        DateTime, string, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
-        new Dictionary<Type, Func<PortfolioFundCommandActor, ICommand, PortfolioFundActorState,
-            DateTime, string, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, PortfolioFundActorState, DateTime, string, ServiceResult<GuidResult>>> _receiveMap =
+        new Dictionary<Type, Func<ICommand, PortfolioFundActorState, DateTime, string, ServiceResult<GuidResult>>>
         {
-            [typeof(AuthorizeFundOrderRiskCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult<ServiceResult<GuidResult>>(((AuthorizeFundOrderRiskCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(CreateFundMandateCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((CreateFundMandateCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(AddFundMandateVersionCommand)] = static (actor, command, state, now, principal, cancellationToken) =>
-                ((AddFundMandateVersionCommand)command).ExecuteAsync(state.IdValue, state.Aggregate, actor._events, actor._referenceQueries, now, principal, cancellationToken),
-            [typeof(ChangeFundOperatingStateCommand)] = static (actor, command, state, now, principal, cancellationToken) =>
-                ((ChangeFundOperatingStateCommand)command).ExecuteAsync(state.IdValue, state.Aggregate, actor._events, actor._referenceQueries, now, principal, cancellationToken),
-            [typeof(AssignTradeTemplateCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((AssignTradeTemplateCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(ReserveFundOrderCompositionCommand)] = static (actor, command, state, now, principal, cancellationToken) =>
-                ((ReserveFundOrderCompositionCommand)command).ExecuteAsync(state.Aggregate, actor._allocator, now, principal, cancellationToken),
-            [typeof(CreateManualFundOrderCommand)] = static (actor, command, state, now, principal, cancellationToken) =>
-                ((CreateManualFundOrderCommand)command).ExecuteAsync(state.Aggregate, actor._events, actor._allocator, now, principal, cancellationToken),
-            [typeof(AddManualFundOrderTradeCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((AddManualFundOrderTradeCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(RemoveManualFundOrderTradeCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((RemoveManualFundOrderTradeCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(RecordFundTradeSubmissionCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((RecordFundTradeSubmissionCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(RecordFundTradeOpeningCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((RecordFundTradeOpeningCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(RecordFundTradeClosingCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((RecordFundTradeClosingCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(ReleaseFundTradeSubmissionCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((ReleaseFundTradeSubmissionCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(DeleteManualFundOrderCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((DeleteManualFundOrderCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(MarkFundOrderComposingCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((MarkFundOrderComposingCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(RecordFundOrderComposedCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((RecordFundOrderComposedCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(SynchronizeFundRiskOutcomeCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((SynchronizeFundRiskOutcomeCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(RecordFundOrderRiskOutcomeCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((RecordFundOrderRiskOutcomeCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(CancelFundOrderCompositionCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((CancelFundOrderCompositionCommand)command).Execute(state.Aggregate, now, principal)),
-            [typeof(ExpireFundOrderCompositionCommand)] = static (_, command, state, now, principal, _) =>
-                ValueTask.FromResult(((ExpireFundOrderCompositionCommand)command).Execute(state.Aggregate, now, principal)),
+            [typeof(AuthorizeFundOrderRiskCommand)] = static (command, state, now, principal) =>
+                ((AuthorizeFundOrderRiskCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(CreateFundMandateCommand)] = static (command, state, now, principal) =>
+                ((CreateFundMandateCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(AddFundMandateVersionCommand)] = static (command, state, now, principal) =>
+                ((AddFundMandateVersionCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(ChangeFundOperatingStateCommand)] = static (command, state, now, principal) =>
+                ((ChangeFundOperatingStateCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(AssignTradeTemplateCommand)] = static (command, state, now, principal) =>
+                ((AssignTradeTemplateCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(ReserveFundOrderCompositionCommand)] = static (command, state, now, principal) =>
+                ((ReserveFundOrderCompositionCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(CreateManualFundOrderCommand)] = static (command, state, now, principal) =>
+                ((CreateManualFundOrderCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(AddManualFundOrderTradeCommand)] = static (command, state, now, principal) =>
+                ((AddManualFundOrderTradeCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(RemoveManualFundOrderTradeCommand)] = static (command, state, now, principal) =>
+                ((RemoveManualFundOrderTradeCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(RecordFundTradeSubmissionCommand)] = static (command, state, now, principal) =>
+                ((RecordFundTradeSubmissionCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(RecordFundTradeOpeningCommand)] = static (command, state, now, principal) =>
+                ((RecordFundTradeOpeningCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(RecordFundTradeClosingCommand)] = static (command, state, now, principal) =>
+                ((RecordFundTradeClosingCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(ReleaseFundTradeSubmissionCommand)] = static (command, state, now, principal) =>
+                ((ReleaseFundTradeSubmissionCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(DeleteManualFundOrderCommand)] = static (command, state, now, principal) =>
+                ((DeleteManualFundOrderCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(MarkFundOrderComposingCommand)] = static (command, state, now, principal) =>
+                ((MarkFundOrderComposingCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(RecordFundOrderComposedCommand)] = static (command, state, now, principal) =>
+                ((RecordFundOrderComposedCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(SynchronizeFundRiskOutcomeCommand)] = static (command, state, now, principal) =>
+                ((SynchronizeFundRiskOutcomeCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(RecordFundOrderRiskOutcomeCommand)] = static (command, state, now, principal) =>
+                ((RecordFundOrderRiskOutcomeCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(CancelFundOrderCompositionCommand)] = static (command, state, now, principal) =>
+                ((CancelFundOrderCompositionCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(ExpireFundOrderCompositionCommand)] = static (command, state, now, principal) =>
+                ((ExpireFundOrderCompositionCommand)command).Execute(state.Aggregate, now, principal),
         };
 
     protected override ICommand ParseMessage(ICommandActorContext<PortfolioFundCommandActor> context, IActorMessage message) =>
@@ -312,7 +308,7 @@ public sealed class PortfolioFundCommandActor(
 
     async ValueTask<ServiceResult<GuidResult>> ReceiveCoreAsync(PortfolioFundActorState state, ICommand command, CancellationToken cancellationToken)
     {
-        dynamic request = command;
+        var request = (IPortfolioLifecycleCommand)command;
         using var activity = PortfolioTelemetry.StartRequest("command", command.Subject.Verb, request.CorrelationId, command);
         var principal = _guard.Demand(Operation(command.Subject.Verb), request.Access, mutation: true).Principal;
         var committed = await _events.FindCommittedFundCommandAsync(state.IdValue, command.CommandId, cancellationToken).ConfigureAwait(false);
@@ -329,7 +325,7 @@ public sealed class PortfolioFundCommandActor(
                 !string.Equals(PortfolioCanonicalHash.Compute(create.Mandate.DefensiveCopy()), PortfolioCanonicalHash.Compute(prior.Mandate.DefensiveCopy()), StringComparison.Ordinal))
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the key was already committed for a different Fund mandate payload.");
             using (PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.project"))
-                await _projector.DomainEventsProjectionAsync(new DomainEventCollection([committed])).ConfigureAwait(false);
+                await Projection.PortfolioProjectionSubmission.SubmitAsync(_projector, committed, Logger).ConfigureAwait(false);
             return new ServiceOk<GuidResult>(new(command.CommandId));
         }
         if (command is CreateFundMandateCommand requestedCreate)
@@ -340,24 +336,25 @@ public sealed class PortfolioFundCommandActor(
         }
         var now = DateTime.UtcNow;
         _=state.Aggregate;
-        await ValidateFamilyReferencesAsync(command, cancellationToken).ConfigureAwait(false);
+        await VerifyReferencePreparationAsync(command, state.Aggregate, cancellationToken).ConfigureAwait(false);
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
         using var transitionTrace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.transition");
-        var acceptance = await receive(this, command, state, now, principal, cancellationToken).ConfigureAwait(false);
+        var acceptance = receive(command, state, now, principal);
         if (!acceptance.Success) return acceptance;
         var domainEvent = state.Aggregate.PendingEvent;
         transitionTrace?.Stop();
         if (domainEvent is not null)
         {
             TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(domainEvent, state.Aggregate);
-            await _events.AppendFundAsync(
+            await _events.AppendFundWithStateAsync(
                 state.IdValue,
                 domainEvent,
                 domainEvent.Revision - 1,
+                state.Aggregate,
                 Metadata(command, now),
                 cancellationToken).ConfigureAwait(false);
             using (PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.project"))
-                await _projector.DomainEventsProjectionAsync(new DomainEventCollection(new IEvent[] { domainEvent })).ConfigureAwait(false);
+                await Projection.PortfolioProjectionSubmission.SubmitAsync(_projector, domainEvent, Logger).ConfigureAwait(false);
         }
         PortfolioTelemetry.CommandOutcomes.Add(1,
             new KeyValuePair<string, object?>("portfolio.operation", command.Subject.Verb),
@@ -365,47 +362,44 @@ public sealed class PortfolioFundCommandActor(
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 
-    async Task ValidateFamilyReferencesAsync(ICommand command, CancellationToken cancellationToken)
+    async Task VerifyReferencePreparationAsync(ICommand command, PortfolioFundAggregate aggregate, CancellationToken cancellationToken)
     {
-        var mandate = command switch
+        var request = ValidatePortfolioReferenceCommand.ForOwnerCommand(command.CommandId) with { Access = ((IPortfolioLifecycleCommand)command).Access };
+        if (ActivationPreparation(command) is { } activation)
         {
-            CreateFundMandateCommand create => create.Mandate,
-            AddFundMandateVersionCommand change => change.Mandate,
-            _ => null
+            if (activation.ParentPortfolioVersion <= 0 || activation.ParentSourceRevision <= 0 ||
+                command is not (ChangeFundOperatingStateCommand { State: FundOperatingState.Active } or
+                    AddFundMandateVersionCommand { Mandate.OperatingState: FundOperatingState.Active }))
+                throw new InvalidOperationException("Invalid parent Portfolio activation preparation.");
+            request = request with { ActivationAssignments = FundActivationQualification.EnabledAssignments(aggregate) };
+        }
+        (ValidatePortfolioReferenceCommand? Input, Guid? Receipt) prepared = command switch
+        {
+            CreateFundMandateCommand create => (request with { Mandate = create.Mandate }, create.ReferencePreparationId),
+            AddFundMandateVersionCommand change => (request with { Mandate = change.Mandate }, change.ReferencePreparationId),
+            AssignTradeTemplateCommand assign => (request with { Assignment = assign.Assignment }, assign.ReferencePreparationId),
+            ChangeFundOperatingStateCommand change when change.ActivationPreparation is not null || change.ReferencePreparationId is not null
+                => (request, change.ReferencePreparationId),
+            _ => (null, null)
         };
-        var assignment = command is AssignTradeTemplateCommand assign ? assign.Assignment : null;
-        if (mandate is { SchemaVersion: >= 3 })
+        if (prepared.Input is null) return;
+        if (prepared.Receipt is null)
         {
-            if (_referenceQueries is null) throw new InvalidOperationException("Fund selection lookup validation is unavailable.");
-            var selections = await (TomasAI.IFM.Domain.Reference.Shared.Lookups.FundSelectionCatalog.LoadAsync(_referenceQueries, cancellationToken)).ConfigureAwait(false);
-            selections.ValidateSelections(mandate.UnderlyingUniverse, mandate.EligibleAssetTypes, mandate.PermittedDirections, mandate.PermittedConditions);
+            if (prepared.Input.RequiresEvidence)
+                throw new InvalidOperationException("The Fund command requires a committed Reference validation receipt.");
+            return;
         }
-        var references = mandate?.PermittedTradeStrategyFamilies ?? (assignment?.TradeStrategyFamily is { } family ? [family] : []);
-        if (references.Length == 0) return; // Read/replay compatibility for pre-v2 clients; never resolve ambiguous names here.
-        if (_referenceQueries is null) throw new InvalidOperationException("Reference catalog validation is unavailable.");
-        foreach (var reference in references)
-        {
-            if (reference.CatalogDeployment is not { } key)
-                throw new ArgumentException("Legacy family permissions are read-only. Select an exact ConfigurationDb deployment.", nameof(command));
-            var row = await (TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(_referenceQueries, key,
-                assignment?.Enabled == true || mandate?.OperatingState == FundOperatingState.Active, cancellationToken)).ConfigureAwait(false);
-            if (mandate is not null && (!mandate.PermittedTradeFamilies.Contains(row.Definition.Code, StringComparer.Ordinal) || !string.Equals(mandate.DecisionHorizon,row.Definition.Horizon.ToString(),StringComparison.Ordinal)))
-                throw new ArgumentException("Fund deployment classification or horizon does not match its exact reference.", nameof(command));
-            if (assignment is not null && (!string.Equals(assignment.TradeFamily,row.Definition.Code,StringComparison.Ordinal) || !string.Equals(assignment.DecisionHorizon,row.Definition.Horizon.ToString(),StringComparison.Ordinal) || assignment.UnderlyingUniverse.Except(row.Definition.Products.Select(p => p.Symbol), StringComparer.Ordinal).Any()))
-                throw new ArgumentException("Assignment classification, horizon or product universe does not match the exact deployment.", nameof(command));
-            if (assignment is not null)
-            {
-                if (assignment.TradeTemplateId != key.Id || assignment.TradeTemplateVersion != key.Version)
-                    throw new ArgumentException("Assignment template identity must equal its ConfigurationDb deployment identity.", nameof(command));
-                var selection = row.Definition.PipelineParameters.Where(x => x.Kind == TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.TradeSelection).ToArray();
-                var composition = row.Definition.PipelineParameters.Where(x => x.Kind == TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.OrderComposition).ToArray();
-                if (selection.Length > 1 || composition.Length > 1) throw new ArgumentException("Assignment requires one unambiguous profile per pipeline stage.", nameof(command));
-                if (assignment.TradeSelectionHintProfileId != (selection.SingleOrDefault()?.Id ?? Guid.Empty) || assignment.TradeSelectionHintProfileVersion != (selection.SingleOrDefault()?.Version ?? 0)
-                    || assignment.OrderCompositionProfileId != (composition.SingleOrDefault()?.Id ?? Guid.Empty) || assignment.OrderCompositionProfileVersion != (composition.SingleOrDefault()?.Version ?? 0))
-                    throw new ArgumentException("Assignment profiles must match the exact deployment bindings.", nameof(command));
-            }
-        }
+        var receipt = ValidatePortfolioReferenceCommand.ForOwnerCommand(command.CommandId, prepared.Receipt);
+        await _events.VerifyReferencePreparationAsync(prepared.Input with
+            { CommandId = receipt.CommandId, Subject = receipt.Subject, EntityId = receipt.EntityId }, cancellationToken).ConfigureAwait(false);
     }
+
+    static FundActivationPreparation? ActivationPreparation(ICommand command) => command switch
+    {
+        AddFundMandateVersionCommand change => change.ActivationPreparation,
+        ChangeFundOperatingStateCommand change => change.ActivationPreparation,
+        _ => null
+    };
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<PortfolioFundCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) 
     {
@@ -434,11 +428,20 @@ public sealed class PortfolioFundCommandActor(
 
     static PortfolioEventMetadata Metadata(ICommand command, DateTime nowUtc)
     {
-        dynamic metadata = command;
+        var metadata = (IPortfolioLifecycleCommand)command;
+        var manual = command as CreateManualFundOrderCommand;
+        var prepared = manual?.Preparation ?? (command as ReserveFundOrderCompositionCommand)?.Preparation;
+        var activation = ActivationPreparation(command);
         Guid correlationId = metadata.CorrelationId;
         DateTime requestedOnUtc = metadata.RequestedOnUtc;
         return new(correlationId != Guid.Empty ? correlationId : command.CommandId, command.CommandId,
-            requestedOnUtc.Kind == DateTimeKind.Utc ? requestedOnUtc : nowUtc);
+            requestedOnUtc.Kind == DateTimeKind.Utc ? requestedOnUtc : nowUtc)
+        {
+            ExpectedPortfolioRevision = manual?.Preparation?.ParentSourceRevision ?? activation?.ParentSourceRevision,
+            ExpectedPortfolioVersion = manual?.Preparation?.Parent?.PortfolioVersion ?? activation?.ParentPortfolioVersion,
+            ExpectedPortfolioOperatingState = manual?.Preparation is null && activation is null ? null : PortfolioOperatingState.Active,
+            PreparedIdentifiers = prepared is null ? null : new(ParseId(command), command.CommandId, metadata.Access, prepared.OrderId, prepared.TradeIds)
+        };
     }
 
     static PortfolioFundId ParseId(ICommand command)

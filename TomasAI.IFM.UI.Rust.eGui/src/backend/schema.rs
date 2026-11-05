@@ -5,6 +5,7 @@ use super::contracts::{date_only, timestamp};
 use rmpv::Value;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+use std::sync::OnceLock;
 
 /// Schema used by the schema component.
 #[derive(Deserialize)]
@@ -73,8 +74,8 @@ struct Member {
 
 /// Registry used by the schema component.
 pub struct Registry {
-    /// Keyed schemas retained by Registry.
-    schemas: BTreeMap<String, Schema>,
+    /// Shares the immutable compiled contracts with every request and journal reader.
+    schemas: &'static BTreeMap<String, Schema>,
 }
 
 /// Read-only compiled wire shape used by typed configuration editors. Numeric
@@ -524,12 +525,17 @@ impl Registry {
 
     /// Loads the schema registry embedded at build time.
     pub fn compiled() -> Result<Self, String> {
-        let schemas: Vec<Schema> =
-            serde_json::from_str(include_str!("../../tests/fixtures/backend/contracts.json"))
-                .map_err(|e| e.to_string())?;
-        Ok(Self {
-            schemas: schemas.into_iter().map(|s| (s.name.clone(), s)).collect(),
-        })
+        static COMPILED: OnceLock<Result<BTreeMap<String, Schema>, String>> = OnceLock::new();
+        COMPILED
+            .get_or_init(|| {
+                let schemas: Vec<Schema> =
+                    serde_json::from_str(include_str!("../../tests/fixtures/backend/contracts.json"))
+                        .map_err(|error| error.to_string())?;
+                Ok(schemas.into_iter().map(|schema| (schema.name.clone(), schema)).collect())
+            })
+            .as_ref()
+            .map(|schemas| Self { schemas })
+            .map_err(Clone::clone)
     }
 
 
