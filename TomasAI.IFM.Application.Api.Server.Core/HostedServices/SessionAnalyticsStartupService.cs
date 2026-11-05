@@ -9,7 +9,8 @@ namespace TomasAI.IFM.Application.Api.Server.Core.HostedServices;
 public sealed class SessionAnalyticsStartupService(IMarketSessionAnalyticsInitializer initializer,
     IFuturesMarketSessionAuthority sessions, IMarketDataApi market, IActorSupervisor supervisor,
     ILogger<SessionAnalyticsStartupService> logger,
-    TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorWarmup? warmup = null) : BackgroundService
+    TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorWarmup? warmup = null,
+    TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.StrategyIndicatorWarmup? readiness = null) : BackgroundService
 {
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -23,7 +24,7 @@ public sealed class SessionAnalyticsStartupService(IMarketSessionAnalyticsInitia
             do
             {
                 var date = sessions.Current.ActiveValueDate;
-                if (date is null) { initialized = null; warmed = null; continue; }
+                if (date is null) { initialized = null; warmed = null; readiness?.Reset(); continue; }
                 if (!supervisor.IsReady || !market.IsDatabentoFeedUp()) continue;
                 try
                 {
@@ -36,9 +37,12 @@ public sealed class SessionAnalyticsStartupService(IMarketSessionAnalyticsInitia
                     if (warmed != date && warmup is not null && DateTimeOffset.UtcNow >= nextWarmupAttempt)
                     {
                         nextWarmupAttempt = DateTimeOffset.UtcNow.AddMinutes(1);
-                        using var budget = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-                        budget.CancelAfter(TimeSpan.FromMinutes(5));
-                        if (await warmup.WarmAsync(date.Value, budget.Token).ConfigureAwait(false)) warmed = date;
+                        if (await warmup.WarmAsync(date.Value, stoppingToken).ConfigureAwait(false))
+                        {
+                            warmed = date;
+                            readiness?.Complete(date.Value);
+                            logger.LogInformation("Strategy indicator warm-up completed for {ValueDate}.", date);
+                        }
                     }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }

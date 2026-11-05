@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using TomasAI.IFM.Domain.BrokerAccount.Command.State;
 using TomasAI.IFM.Domain.BrokerAccount.Command.Validation;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
@@ -107,8 +107,8 @@ public sealed class BrokerAccountCommandActor(ICommandActorContext<BrokerAccount
                 ValueTask.FromResult(((SetManualTradingHoldCommand)command).Execute(state)),
             [typeof(ReleaseManualTradingHoldCommand)] = static (command, _, state) =>
                 ValueTask.FromResult(((ReleaseManualTradingHoldCommand)command).Execute(state)),
-            [typeof(RequestBrokerAccountResynchronizationCommand)] = static (command, owner, state) =>
-                ((RequestBrokerAccountResynchronizationCommand)command).ExecuteAsync(owner, state)
+            [typeof(RequestBrokerAccountResynchronizationCommand)] = static (command, _, state) =>
+                ValueTask.FromResult(((RequestBrokerAccountResynchronizationCommand)command).Execute(state))
         }.ToFrozenDictionary();
 
     protected override async ValueTask OnStartup(ICommandActorContext<BrokerAccountCommandActor> context)
@@ -142,10 +142,31 @@ public sealed class BrokerAccountCommandActor(ICommandActorContext<BrokerAccount
         await _services.StateRepository.SaveStateAsync(context, (BrokerAccountCommandState)state, command)
             .ConfigureAwait(false);
 
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
-        ICommandActorContext<BrokerAccountCommandActor> context, IActorState state, ICommand command) =>
-        ResolveMappedCommandHandler(command, _receiveMap)(
-            command, _services, (BrokerAccountCommandState)state);
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
+        ICommandActorContext<BrokerAccountCommandActor> context, IActorState state, ICommand command)
+    {
+        var account = (BrokerAccountCommandState)state;
+        var result = await ResolveMappedCommandHandler(command, _receiveMap)(command, _services, account)
+            .ConfigureAwait(false);
+        if (account.Events.Count == 0)
+        {
+            var operation = Enum.Parse<BrokerAccountOperation>(command.Subject.Verb);
+            var accountId = ((BrokerAccountCommand)command).EntityId;
+            var decision = new BrokerAccountOperationDecidedEvent
+            {
+                Subject = new(ActorType.Event, BrokerAccountActorNames.Event, BrokerAccountOperationDecidedEvent.Verb, accountId.Format()),
+                CommandId = command.CommandId,
+                EntityId = accountId,
+                Operation = operation,
+                Accepted = result.Success,
+                RejectionCode = result.ErrorCode,
+                RejectionReason = result.ErrorMessage ?? string.Empty
+            };
+            if (!account.Update(decision, command))
+                throw new InvalidDataException("Broker account operation decision did not match the account stream.");
+        }
+        return result;
+    }
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<BrokerAccountCommandActor> context, ActorThreadId threadId,

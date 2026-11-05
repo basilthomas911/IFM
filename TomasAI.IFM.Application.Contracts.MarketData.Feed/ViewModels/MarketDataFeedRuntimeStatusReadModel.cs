@@ -25,6 +25,8 @@ public sealed record MarketDataFeedRuntimeStatusReadModel
 
     [Key(12)] public DateTimeOffset? OptionRecoveryDeadlineUtc { get; init; }
 
+    [Key(13)] public bool OptionSubscriptionsVerified { get; init; }
+
     [IgnoreMember]
     public bool IsValid => ObservedAtUtc != default
         && (IsRunning ? ActiveValueDate.HasValue : !ActiveValueDate.HasValue);

@@ -7,7 +7,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
@@ -19,8 +18,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query.Extensions;
 /// </summary>
 /// <remarks>
 /// Storage queries use <see cref="IDbContextFactory.MarketDataDb"/>; provider contract and hot-price queries use
-/// the application market-data API; sequence identifiers
-/// are allocated through <see cref="ISequenceIdApi"/>. Every public method returns a typed service result
+/// the application market-data API. Every public method returns a typed service result
 /// with its query-specific error identifier. The implementation may be registered as a singleton.
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
@@ -507,24 +505,6 @@ public static class MarketDataFeedQueryApiExtensions
             }
         }
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
-        /// <summary>
-        /// Gets streaming request ID.
-        /// </summary>
-        /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-        public async Task<ServiceResult<ScalarValue<int>>> GetStreamingRequestIdAsync()
-        {
-            try
-            {
-                var result = new ScalarValue<int>(checked((int)await context.SequenceIdGenerator
-                    .GetSequenceIdAsync(SequenceName.StreamingRequest_RequestId)
-                    .ConfigureAwait(false)));
-                return new ServiceOk<ScalarValue<int>>(result);
-            }
-            catch (Exception ex)
-            {
-                return new ServiceFailed<ScalarValue<int>>(GetStreamingRequestIdQuery.ErrorId, ex.Message);
-            }
-        }
         [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "S1144", Justification = "Invoked by the C# extension-block query above; this analyzer does not resolve the extension-block member reference.")]
         static int GetShortIronCondorRiskPosition(FuturesEodDataV2ReadModel data)
         {

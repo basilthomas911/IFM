@@ -14,6 +14,10 @@ public static class GetLastFuturesBarData
     /// </param>
     extension(GetLastFuturesBarDataQuery q)
     {
+        /// <summary>Returns the typed query result from the projected read store.</summary>
+        internal async ValueTask<ServiceResult<FuturesBarDataReadModel>> ReadAsync(IDbContextFactory databases)
+            => new(await q.ExecuteAsync(databases).ConfigureAwait(false));
+
         /// <summary>
         ///
         /// </summary>

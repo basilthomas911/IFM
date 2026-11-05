@@ -45,8 +45,8 @@ public static class GetIronCondorMarketDataFeed
 
     extension(GetIronCondorMarketDataFeedQuery query)
     {
-        /// <summary>Reads and replies with the requested market-data feed result.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Returns the typed market-data feed result.</summary>
+        public async ValueTask<ServiceResult<IronCondorMarketDataFeedReadModel>> ExecuteAsync(
             TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
             MarketDataFeedQueryParameters parameters)
         {
@@ -54,8 +54,7 @@ public static class GetIronCondorMarketDataFeed
             ArgumentNullException.ThrowIfNull(parameters);
             ArgumentNullException.ThrowIfNull(query);
             var result = await query.ExecuteAsync(parameters.DbFactory).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-                new TomasAI.IFM.Shared.EventSourcing.ServiceResult<IronCondorMarketDataFeedReadModel>(result)).ConfigureAwait(false);
+            return new TomasAI.IFM.Shared.EventSourcing.ServiceResult<IronCondorMarketDataFeedReadModel>(result);
         }
     }
 }

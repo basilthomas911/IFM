@@ -9,7 +9,7 @@ using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
-using TomasAI.IFM.Application.MarketData.Databento;
+
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
@@ -49,20 +49,6 @@ public sealed class FuturesTradeSessionBarSignalIntegrationTests(
         var timestamp = calendar.GetSession(valueDate).StartUtc.AddHours(1).AddSeconds(1);
         var epoch = Guid.NewGuid();
         var sourceSequence = Random.Shared.NextInt64(10_000, long.MaxValue - 10);
-        factory.Services.GetRequiredService<IDatabentoContractRegistrationRegistry>()
-            .ReplaceFuturesRolloverSet("ES", [
-                new FuturesContractV3ReadModel(
-                    contractId,
-                    "ES trade-session bar integration future",
-                    "ES",
-                    "ESZ5",
-                    "FUT",
-                    "USD",
-                    "CME",
-                    "50",
-                    new DateOnly(2025, 10, 10),
-                    true)
-            ]);
         var terminal = new TaskCompletionSource<FuturesTradeSessionBarPublishedCompleteEvent>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var listener = new NatsActorEventListener(

@@ -37,11 +37,23 @@ public static class StrategyPositionLegOptionData
         && value.CalculatedAtUtc != default && value.CalculatedAtUtc.Offset == TimeSpan.Zero
         && value.TheoreticalPrice is { } price && double.IsFinite(price) && price >= 0 && price < (double)decimal.MaxValue;
 
+    /// <summary>Retains qualified risk independently of a later mark, within the current source generation.</summary>
+    public static FuturesOptionTickDataV2ReadModel? RetainRisk(FuturesOptionTickDataV2ReadModel? previous,
+        FuturesOptionTickDataV2ReadModel value) =>
+        HasValidRisk(value) && (previous is null || value.CalculatedAtUtc >= previous.CalculatedAtUtc)
+            ? value : previous;
+
+    /// <summary>Identifies a pricing completion that cannot replace the current market mark.</summary>
+    public static bool IsBehindMark(FuturesOptionTickDataV2ReadModel? mark, FuturesOptionTickDataV2ReadModel value)
+        => value.IsPricingUpdate && mark is not null
+            && (mark.ObservedAtUtc > value.ObservedAtUtc || mark.SourceGeneration != value.SourceGeneration
+                && mark.ObservedAtUtc >= value.ObservedAtUtc);
     public static StrategyPositionLeg Apply(StrategyPositionLeg leg, FuturesOptionTickDataV2ReadModel value) =>
         value.IsTradeObservation ? leg : leg with
         {
-            OptionTick = value,
-            OptionRisk = HasValidRisk(value) ? value : leg.OptionRisk,
+            OptionTick = IsBehindMark(leg.OptionTick, value) ? leg.OptionTick : value,
+            OptionRisk = IsBehindMark(leg.OptionTick, value) && leg.OptionTick!.SourceGeneration != value.SourceGeneration
+                ? leg.OptionRisk : RetainRisk(leg.OptionRisk, value),
             CashMultiplier = value.PricingInputs is null ? leg.CashMultiplier
                 : value.ContractId == leg.ContractId && value.PricingInputs.Multiplier is > 0 ? value.PricingInputs.Multiplier : null,
             Scenario = null

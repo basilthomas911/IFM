@@ -97,6 +97,11 @@ foreach ($actorFile in $actorFiles) {
             $handlerSource,
             "public\s+static\s+(?:async\s+)?[\w<>?,\s]+?\s+ExecuteAsync\s*\((?<parameters>[^)]*\bthis\s+$([regex]::Escape($eventType))\b[^)]*)\)")
         if (-not $signature.Success) {
+            $signature = [regex]::Match(
+                $handlerSource,
+                "extension\s*\(\s*$([regex]::Escape($eventType))\s+@?\w+\s*\)\s*\{[^{}]*?public\s+(?:async\s+)?[\w<>?,\s]+?\s+ExecuteAsync\s*\((?<parameters>[^)]*)\)")
+        }
+        if (-not $signature.Success) {
             $violations.Add("$relativePath has no mapped ExecuteAsync extension for $eventType.")
             continue
         }
@@ -116,7 +121,9 @@ foreach ($actorFile in $actorFiles) {
 
             $precedingLines = @($handlerSource.Substring(0, $method.Index) -split '\r?\n')
             $lineIndex = $precedingLines.Count - 1
-            while ($lineIndex -ge 0 -and [string]::IsNullOrWhiteSpace($precedingLines[$lineIndex])) {
+            while ($lineIndex -ge 0 -and (
+                [string]::IsNullOrWhiteSpace($precedingLines[$lineIndex]) -or
+                $precedingLines[$lineIndex] -match '^\s*\[.*\]\s*$')) {
                 $lineIndex--
             }
             $documentation = [System.Collections.Generic.List[string]]::new()

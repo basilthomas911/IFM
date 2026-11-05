@@ -33,7 +33,7 @@ public sealed class ApplicationStateRepository(
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<ApplicationCommandState>
 {
     /// <summary>
-    /// Load application state from snapshot event.
+    /// Restore the latest accepted lifecycle request from its complete event.
     /// </summary>
     /// <param name="command">The command for which state is required.</param>
     /// <returns>The reconstructed <see cref="ApplicationCommandState"/>.</returns>
@@ -41,7 +41,9 @@ public sealed class ApplicationStateRepository(
         => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask<ApplicationCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
-        => await LoadStatelessStateFromCreationSnapshotAsync<ApplicationCommandState>(command, cancellationToken).ConfigureAwait(false);
+        => await LoadStateFromLatestCheckpointAsync<ApplicationCommandState>(
+            command, [typeof(ApplicationStartupEvent), typeof(ApplicationShutdownEvent)],
+            static fact => fact is ApplicationStartupEvent or ApplicationShutdownEvent, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Save application state changes.

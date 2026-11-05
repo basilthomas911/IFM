@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
@@ -16,6 +16,7 @@ public sealed partial class MarketDataReadMirror
     readonly DatasetWorkerCurrentValues values = new();
     MarketDataBackendStatus status = new(false, null, []);
     bool ownershipKnown;
+    bool optionSubscriptionsVerified;
     /// <summary>Ownership received with the backend snapshot, without a control RPC.</summary>
     public MarketDataRecoveryOwnership DatasetRecoveryOwnership { get { lock (gate) return ownershipKnown ? status.RecoveryOwnership : MarketDataRecoveryOwnership.Unknown; } }
     Guid optionGeneration;
@@ -59,6 +60,10 @@ public sealed partial class MarketDataReadMirror
             if (snapshot.Status.ValueDate is { } activeDate)
                 foreach (var seed in snapshot.BootstrapPrices ?? []) values.SeedBootstrapPrice(activeDate, seed.Price, seed.Source);
             var option = snapshot.Status.Datasets.SingleOrDefault(x => x.Role == "Options" && x.Lifecycle == "Healthy");
+            optionSubscriptionsVerified = option is { Running: true, Healthy: true }
+                && snapshot.NativeOptionWorkload is { NativeResourceProofsComplete: true, ReplacementPending: false } proof
+                && proof.GenerationId == option.GenerationId && proof.Scopes.Length > 0
+                && proof.Scopes.All(proof.ReadyScopes.Contains);
             if (optionChainCache is OptionChainCache.OptionChainCache cache)
             {
                 if (option is null) { cache.Fence(optionGeneration); optionGeneration = Guid.Empty; }
@@ -87,6 +92,7 @@ public sealed partial class MarketDataReadMirror
             if (optionChainCache is OptionChainCache.OptionChainCache cache) cache.Fence(optionGeneration);
             optionGeneration = Guid.Empty;
             status = new(false, null, []);
+            optionSubscriptionsVerified = false;
         }
     }
     static bool MissingInstrument(out uint id) { id = 0; return false; }
@@ -104,7 +110,7 @@ public sealed partial class MarketDataReadMirror
                 OptionDataset = failure?.Dataset, OptionFailureUtc = optionFailureUtc,
                 OptionProcessingError = status.OptionProcessingFailure is { } processing ? processing.Component + ": " + processing.Code + ": " + processing.Detail : recovery is null ? null : "Option worker recovery: " + recovery.Error,
                 OptionProcessingFailureUtc = status.OptionProcessingFailure?.ObservedAtUtc ?? recovery?.ChangedAtUtc, EnabledOptionTrades = status.EnabledOptionTrades,
-                OptionRecoveryDeadlineUtc = recovery?.RecoveryDeadlineUtc };
+                OptionRecoveryDeadlineUtc = recovery?.RecoveryDeadlineUtc, OptionSubscriptionsVerified = optionSubscriptionsVerified };
         }
     }
 }

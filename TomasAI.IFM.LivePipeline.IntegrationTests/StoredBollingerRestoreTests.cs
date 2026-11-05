@@ -1,3 +1,8 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using Microsoft.Extensions.Logging.Abstractions;
+using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using NSubstitute;
 using TomasAI.IFM.Application.Api.Server.Core.Startup.Application;
 using TomasAI.IFM.Application.Storage;
@@ -13,6 +18,39 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 /// <summary>Qualifies required Regime Discovery cache evidence after restart without another EMA-generated event.</summary>
 public sealed class StoredBollingerRestoreTests
 {
+    [Fact]
+    public async Task Four_hour_restore_starts_while_one_hour_restore_is_blocked()
+    {
+        var market = Substitute.For<IMarketDataApi>();
+        market.TryGetOnTheRunFuturesContract("ES", out Arg.Any<FuturesContractV3ReadModel>())
+            .Returns(call => { call[1] = new FuturesContractV3ReadModel { ContractId = "ES20261218" }; return true; });
+        var databases = Substitute.For<IDbContextFactory>();
+        var oneHour = new TaskCompletionSource<FuturesAdxSignalReadModel?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fourHours = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var db = databases.MarketDataDb;
+        db.GetLastFuturesAdxSignalAsync("ES20261218", Arg.Any<DateOnly>(),
+            TimeFrameType.OneHour, 14, Arg.Any<CancellationToken>()).Returns(oneHour.Task);
+        db.GetLastFuturesAdxSignalAsync("ES20261218", Arg.Any<DateOnly>(),
+            TimeFrameType.FourHours, 14, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            fourHours.TrySetResult();
+            return Task.FromException<FuturesAdxSignalReadModel?>(
+                new InvalidOperationException("Simulated restore failure."));
+        });
+        var warmup = new StoredSessionIndicatorWarmup(null!, Substitute.For<IActorService>(), market, databases,
+            NullLogger<StoredSessionIndicatorWarmup>.Instance);
+        var attempt = warmup.WarmAsync(new DateOnly(2026, 11, 4), default);
+        try
+        {
+            await fourHours.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(attempt.IsCompleted);
+        }
+        finally
+        {
+            oneHour.TrySetException(new InvalidOperationException("Simulated restore failure."));
+        }
+        Assert.False(await attempt);
+    }
     [Theory]
     [InlineData(TimeFrameType.FifteenMinutes)]
     [InlineData(TimeFrameType.OneHour)]
@@ -33,6 +71,7 @@ public sealed class StoredBollingerRestoreTests
         databases.MarketDataDb.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(series, date, frame, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<FuturesBbSignalReadModel?>(stored));
         Assert.True(await StoredSessionIndicatorWarmup.RestoreBollingerAsync(databases, contract, date, frame, default));
+        Assert.False(await StoredSessionIndicatorWarmup.RestoreBollingerAsync(databases, contract, date, frame, default, at.AddMinutes(1)));
         RegimeDiscoverySignalMetric[] metrics = [RegimeDiscoverySignalMetric.BollingerWidth, RegimeDiscoverySignalMetric.BollingerWidthRatio, RegimeDiscoverySignalMetric.BollingerPosition];
         var snapshot = await new RegimeDiscoveryMarketSignalSnapshotProvider().CaptureAsync(new()
         {

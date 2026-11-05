@@ -69,6 +69,7 @@ public static class FuturesRsiSignalsGenerated
         }
     }
 
+    /// <summary>Derives a stable TDI command identity from the source fact and target signal.</summary>
     static Guid DerivedCommandId(FuturesRsiSignalsGeneratedEvent source, FuturesTdiSignalId signalId)
     {
         var sourceId = source.Id == Guid.Empty ? source.CommandId : source.Id;

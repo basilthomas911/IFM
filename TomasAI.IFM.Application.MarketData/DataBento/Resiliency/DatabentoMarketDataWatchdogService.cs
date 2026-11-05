@@ -111,8 +111,12 @@ public sealed class DatabentoMarketDataWatchdogService(
             DatabentoDisplayHealth.Inactive, false, 0, EmptyNative(), Guid.Empty, token).ConfigureAwait(false);
     }, cancellationToken);
 
+    int disposed;
+
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        if (Volatile.Read(ref disposed) != 0)
+            return;
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
         await SerializedAsync(async token =>
         {
@@ -831,6 +835,8 @@ public sealed class DatabentoMarketDataWatchdogService(
     /// <summary>Releases synchronization resources after the host stops this service.</summary>
     public override void Dispose()
     {
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+            return;
         base.Dispose();
         _operations.Dispose();
     }

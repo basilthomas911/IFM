@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Blackboard;
@@ -48,6 +49,9 @@ internal static class Program
 
     static async Task<int> Main(string[] args)
     {
+        if (args is ["--capture-marketdata-development-baseline"])
+            return await CaptureMarketDataDevelopmentBaselineAsync().ConfigureAwait(false);
+
         if (!ProjectionMigrationCommandLine.TryParse(
             args,
             out var options,
@@ -103,6 +107,51 @@ internal static class Program
         finally
         {
             Console.CancelKeyPress -= cancelHandler;
+        }
+    }
+
+    static async Task<int> CaptureMarketDataDevelopmentBaselineAsync()
+    {
+        try
+        {
+            var writers = new[]
+            {
+                "IFMServerManager", "TomasAI.IFM.Application.ServerManager",
+                "TomasAI.IFM.Application.ServerManager.SchedulerHost", "TomasAI.IFM.Application.Api.Server"
+            };
+            foreach (var writer in writers)
+            {
+                var processes = System.Diagnostics.Process.GetProcessesByName(writer);
+                try
+                {
+                    if (processes.Length != 0)
+                        throw new InvalidOperationException($"Drain and stop {writer} before capturing the baseline.");
+                }
+                finally
+                {
+                    foreach (var process in processes)
+                        process.Dispose();
+                }
+            }
+
+            var connection = Environment.GetEnvironmentVariable("IFM_MARKETDATA_BASELINE_CONNECTION")
+                ?? throw new InvalidOperationException("Set IFM_MARKETDATA_BASELINE_CONNECTION to the Development PostgreSQL database.");
+            var identity = new Npgsql.NpgsqlConnectionStringBuilder(connection);
+            if (identity.Host is not ("localhost" or "127.0.0.1") || identity.Database != "ifm_application_development")
+                throw new InvalidOperationException("Baseline capture requires the local Development PostgreSQL database.");
+
+            var settings = new DbConnectionSettings()
+                .Add(EventSourceActorDbContext.EventSourceActorDbConnection, connection, "System.Data.Postgres");
+            var capture = new MarketDataReconciliationBaseline(new PostgresEventTransaction(settings));
+            Console.WriteLine(await capture.CaptureAsync(writersStopped: true).ConfigureAwait(false)
+                ? "MarketData Development baseline committed."
+                : "MarketData Development baseline already exists.");
+            return SuccessExitCode;
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine($"MarketData baseline capture failed ({exception.GetType().Name}): {exception.Message}");
+            return FailureExitCode;
         }
     }
 

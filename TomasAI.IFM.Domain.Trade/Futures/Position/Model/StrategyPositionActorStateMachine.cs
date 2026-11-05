@@ -67,7 +67,8 @@ public sealed class StrategyPositionActorStateMachine
             return Reject("POSITION.OPTION_IDENTITY_MISMATCH", "Option payload and routed price/session identity differ.");
         var acceptInArrivalOrder = Current.StrategyKind is TradeStrategyKind.IronCondor or TradeStrategyKind.VerticalSpread;
         if (optionTick is { IsPricingUpdate: true } && leg.OptionTick is { } prior
-            && optionTick.SourceGeneration == prior.SourceGeneration && optionTick.TickId == prior.TickId)
+            && optionTick.SourceGeneration == prior.SourceGeneration
+            && (optionTick.TickId == prior.TickId || StrategyPositionLegOptionData.IsBehindMark(prior, optionTick)))
         {
             if (!acceptInArrivalOrder && (optionTick.ObservedAtUtc != prior.ObservedAtUtc
                 || optionTick.ObservationRevision <= prior.ObservationRevision))

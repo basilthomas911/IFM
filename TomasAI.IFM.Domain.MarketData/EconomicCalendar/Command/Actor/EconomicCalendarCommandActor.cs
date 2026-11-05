@@ -1,4 +1,7 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.Commands;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
@@ -27,7 +30,7 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Actor;
 /// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class EconomicCalendarCommandActor(
-    ICommandActorContext<EconomicCalendarCommandActor> actorContext)
+    ICommandActorContext<EconomicCalendarCommandActor> actorContext, IEventProjector<EconomicCalendarCommandActor>? projector = null)
     : BaseEventSourceCommandActor<EconomicCalendarCommandActor>(actorContext, actorContext.Logger)
 {
     public const string Actor = "EconomicCalendarCommand";
@@ -42,14 +45,19 @@ public class EconomicCalendarCommandActor(
     /// to the actor.</remarks>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override ValueTask OnStartup(ICommandActorContext<EconomicCalendarCommandActor> context)
+    protected override async ValueTask OnStartup(ICommandActorContext<EconomicCalendarCommandActor> context)
     {
         ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         var actorStateRepository = context.Container.Resolve<IEventSourceActorStateRepository<EconomicCalendarCommandState>>();
         _repo = IsArgumentNull.Set(actorStateRepository as EconomicCalendarStateRepository)!;
-        return ValueTask.CompletedTask;
+        if (projector is not null)
+            await projector.StartAsync(context).ConfigureAwait(false);
     }
+
+    protected override ValueTask OnShutdown(ICommandActorContext<EconomicCalendarCommandActor> context) =>
+        projector?.StopAsync() ?? ValueTask.CompletedTask;
+
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
@@ -80,6 +88,7 @@ public class EconomicCalendarCommandActor(
         [AddEconomicCalendarCommand.Verb] = msg => msg.AsCommand<AddEconomicCalendarCommand>()!,
         [ChangeEconomicCalendarCommand.Verb] = msg => msg.AsCommand<ChangeEconomicCalendarCommand>()!,
         [RemoveEconomicCalendarCommand.Verb] = msg => msg.AsCommand<RemoveEconomicCalendarCommand>()!,
+        [ApplyEconomicCalendarsImportCommand.Verb] = message => message.AsCommand<ApplyEconomicCalendarsImportCommand>()!,
         [ImportEconomicCalendarsCommand.Verb] = msg => msg.AsCommand<ImportEconomicCalendarsCommand>()!
     };
 
@@ -100,7 +109,7 @@ public class EconomicCalendarCommandActor(
         IsArgumentNull.Check(command);
         var economicCalendarState = IsArgumentNull.Set((state as EconomicCalendarCommandState)!);
         var receiveFunc = ResolveMappedCommandHandler(command, _receiveMap);
-        return ValueTask.FromResult(receiveFunc.Invoke(command, context, economicCalendarState));
+        return receiveFunc.Invoke(command, context, economicCalendarState);
     }
 
     /// <summary>
@@ -111,13 +120,14 @@ public class EconomicCalendarCommandActor(
     /// type name with a function that executes the command against an EconomicCalendarCommandState. The mapping is intended for
     /// internal use to streamline command handling and should not be modified at runtime.</remarks>
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
-        EconomicCalendarCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
-        EconomicCalendarCommandState, ServiceResult<GuidResult>>>()
+        EconomicCalendarCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
+        EconomicCalendarCommandState, ValueTask<ServiceResult<GuidResult>>>>()
         {
-            [typeof(AddEconomicCalendarCommand)] = (cmd, context, state) => (cmd as AddEconomicCalendarCommand)!.Execute(state),
-            [typeof(ChangeEconomicCalendarCommand)] = (cmd, context, state) => (cmd as ChangeEconomicCalendarCommand)!.Execute(state),
-            [typeof(RemoveEconomicCalendarCommand)] = (cmd, context, state) => (cmd as RemoveEconomicCalendarCommand)!.Execute(state),
-            [typeof(ImportEconomicCalendarsCommand)] = (cmd, context, state) => ((ImportEconomicCalendarsCommand)cmd).Execute(state)
+            [typeof(AddEconomicCalendarCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as AddEconomicCalendarCommand)!.Execute(state)),
+            [typeof(ChangeEconomicCalendarCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as ChangeEconomicCalendarCommand)!.Execute(state)),
+            [typeof(RemoveEconomicCalendarCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as RemoveEconomicCalendarCommand)!.Execute(state)),
+            [typeof(ApplyEconomicCalendarsImportCommand)] = static (command, context, _) => ((ApplyEconomicCalendarsImportCommand)command).ExecuteAsync(context.Container.Resolve<IPostgresEventTransaction>()),
+            [typeof(ImportEconomicCalendarsCommand)] = (cmd, context, state) => ValueTask.FromResult(((ImportEconomicCalendarsCommand)cmd).Execute(state))
         };
 
     /// <summary>
@@ -177,6 +187,7 @@ public class EconomicCalendarCommandActor(
                     .ValidateEntityId(e.EntityId, e.CommandName)
                     .ValidateEconomicCalendarId(e.EconomicCalendarId);
             },
+            [typeof(ApplyEconomicCalendarsImportCommand)] = static command => new List<ValidationError>().ValidateCommandId(command.CommandId, command.CommandName),
             [typeof(ImportEconomicCalendarsCommand)] = cmd =>
             {
                 var e = (ImportEconomicCalendarsCommand)cmd; return new List<ValidationError>()

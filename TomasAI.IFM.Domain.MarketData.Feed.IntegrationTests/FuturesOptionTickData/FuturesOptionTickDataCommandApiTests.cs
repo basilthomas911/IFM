@@ -378,7 +378,10 @@ public class FuturesOptionTickDataCommandApiTests(TomasAI.IFM.IntegrationTesting
         var lifecycle = _factory.Services.GetRequiredService<IMarketDataLifecycleRequests>();
         if (lifecycle.Current.ValueDate is { } activeValueDate)
             await lifecycle.StopAsync(activeValueDate);
-        await lifecycle.StartAsync(valueDate);
+        // The option-stream test owns a deterministic feed epoch. It does not require indicator startup.
+        var runtime = _factory.Services.GetRequiredService<IDatabentoLifecycleRuntime>();
+        await runtime.PrepareContractsAsync(valueDate, CancellationToken.None);
+        await runtime.StartAsync(valueDate, CancellationToken.None);
         var applicationMarketDataApi = _factory.Services.GetRequiredService<DatabentoMarketDataApi>();
         await applicationMarketDataApi.StartStreamingFuturesTickDataAsync(baseContract.ContractId);
         var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);

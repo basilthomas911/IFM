@@ -44,7 +44,12 @@ public sealed class ServerManagerOptions
         ui.EnvironmentVariables["DOTNET_ENVIRONMENT"] = "Development";
         // Only the hybrid loads a managed bridge; standalone reads its inherited client profile.
         if (standalone)
+        {
             ui.EnvironmentVariables.Remove("IFM_RUST_UI_MODE");
+            if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("IFM_UI_CONFIG_PATH")))
+                ui.EnvironmentVariables.TryAdd("IFM_UI_CONFIG_PATH",
+                    Path.Combine(Path.GetFullPath(repositoryRoot), "TomasAI.IFM.UI.Net", "appsettings.Development.json"));
+        }
         else
             ui.EnvironmentVariables["IFM_RUST_UI_MODE"] = "live";
         ui.EnvironmentVariables["IFM_UI_START_MAXIMIZED"] = "true";
@@ -134,6 +139,9 @@ public sealed class ManagedProcessDefinition
     public ProcessWindowStyle WindowStyle { get; set; } = ProcessWindowStyle.Hidden;
 
     public int StartOrder { get; set; }
+
+    /// <summary>Processes that must be ready before this process starts.</summary>
+    public string[] StartupDependencies { get; set; } = [];
 
     public bool Enabled { get; set; } = true;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1056",Justification="NATS clients and configuration consumers require the existing string endpoint contract.")]

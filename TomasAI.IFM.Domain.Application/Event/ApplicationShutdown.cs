@@ -1,11 +1,14 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Application.Event.Actor;
+using TomasAI.IFM.Domain.Application.Shared;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 
 namespace TomasAI.IFM.Domain.Application.Event;
 
-/// <summary>Shutdown event-family placeholder; production shutdown ordering is deliberately deferred.</summary>
+/// <summary>Reports the outcome of an application shutdown request.</summary>
 public static class ApplicationShutdown
 {
     /// <summary>Gets the shared log source for this lifecycle family.</summary>
@@ -13,7 +16,8 @@ public static class ApplicationShutdown
 
     extension(ApplicationShutdownEvent @event)
     {
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Processes a shutdown event using the current placeholder lifecycle behavior.</summary>
+        /// <summary>Reports that this host cannot orchestrate shutdown.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
         public async ValueTask ExecuteAsync(
                 IApplicationEventContext context,
                 ILogger<ApplicationEventActor> logger, CancellationToken cancellationToken)
@@ -22,11 +26,17 @@ public static class ApplicationShutdown
             ArgumentNullException.ThrowIfNull(context);
             cancellationToken.ThrowIfCancellationRequested();
             global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write9(logger, null, @event.CommandId);
+            var reason = new NotSupportedException("Application shutdown orchestration is unavailable on this host.");
+            var failure = (ApplicationShutdownFailEvent)@event
+                .ToFailEvent<ApplicationShutdownFailEvent, ApplicationEntityId>(reason);
+            await context.SendAsync<ApplicationShutdownFailEvent, ApplicationEntityId>(failure)
+                .ConfigureAwait(false);
+
             try
             {
                 await context.StatusConsoleWriter.WriteConsoleAsync(
                     LogSourceType.System,
-                    "Application shutdown was requested, but production shutdown orchestration is deferred in Stage 1.")
+                    reason.Message)
                     .ConfigureAwait(false);
             }
             catch (Exception exception)

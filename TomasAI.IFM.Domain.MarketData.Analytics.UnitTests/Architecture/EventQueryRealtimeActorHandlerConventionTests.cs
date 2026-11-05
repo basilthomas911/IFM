@@ -106,7 +106,17 @@ public sealed class EventQueryRealtimeActorHandlerConventionTests
                 var nextStart = receiveMap.IndexOf("[typeof(", entryStart + 1, StringComparison.Ordinal);
                 var entry = nextStart < 0 ? receiveMap[entryStart..] : receiveMap[entryStart..nextStart];
                 Assert.Contains(".Execute", entry, StringComparison.Ordinal);
-                Assert.DoesNotContain("ReplyAsync(", entry, StringComparison.Ordinal);
+                if (role == "Query")
+                {
+                    Assert.Contains("ReplyAsync(", entry, StringComparison.Ordinal);
+                    Assert.DoesNotContain("ReplyAsync(", handler, StringComparison.Ordinal);
+                    Assert.DoesNotContain("StateRepository", handler, StringComparison.Ordinal);
+                    Assert.DoesNotContain("LoadStateAsync(", handler, StringComparison.Ordinal);
+                }
+                else
+                {
+                    Assert.DoesNotContain("ReplyAsync(", entry, StringComparison.Ordinal);
+                }
                 Assert.DoesNotContain("PublishMarketOutlookComponentAsync(", entry, StringComparison.Ordinal);
                 Assert.DoesNotContain("LogError(", entry, StringComparison.Ordinal);
             }

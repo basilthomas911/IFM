@@ -30,7 +30,7 @@ public static class GetLastRateOfReturn
     extension(GetLastRateOfReturnQuery query)
     {
         /// <summary>Reads and replies with the requested market-data result.</summary>
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ServiceResult<RateOfReturnReadModel>> ExecuteAsync(
             TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
             CancellationToken cancellationToken)
         {
@@ -38,8 +38,7 @@ public static class GetLastRateOfReturn
             ArgumentNullException.ThrowIfNull(query);
             var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-                new ServiceResult<RateOfReturnReadModel>(result)).ConfigureAwait(false);
+            return new ServiceResult<RateOfReturnReadModel>(result);
         }
     }
 }

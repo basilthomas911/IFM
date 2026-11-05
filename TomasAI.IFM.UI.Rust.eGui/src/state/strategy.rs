@@ -17,7 +17,10 @@ use crate::{
 };
 use crate::{WorkflowChoice, strategy_workspace::GraphPoint};
 use rmpv::Value;
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    hash::{DefaultHasher, Hash, Hasher},
+};
 const FRAMES: [&str; 3] = ["Daily", "Weekly", "Monthly"];
 
 /// Strategy Controller used by the strategy component.
@@ -31,7 +34,13 @@ pub struct StrategyController {
     /// Frame associated with this strategy controller.
     frame: usize,
     /// Keyed views retained by StrategyController.
-    views: BTreeMap<String, WorkflowView>,
+    views: BTreeMap<String, (usize, api::GridWorkflow)>,
+    /// Hashes detect conflicting live publications at the same revision.
+    live_hashes: BTreeMap<String, (u64, u64)>,
+    /// The sole retained detail payload is the selected workflow.
+    detail: Option<WorkflowView>,
+    /// Whether the operator has opened the Details tab.
+    details_open: bool,
     /// Keyed signals retained by StrategyController.
     signals: BTreeMap<String, FuturesItiSignalV2ReadModel>,
     /// Keyed tokens retained by StrategyController.
@@ -60,6 +69,9 @@ impl Default for StrategyController {
             context: None,
             frame: 0,
             views: BTreeMap::new(),
+            live_hashes: BTreeMap::new(),
+            detail: None,
+            details_open: false,
             signals: BTreeMap::new(),
             tokens: BTreeMap::new(),
             next_token: 1000,
@@ -93,10 +105,12 @@ impl StrategyController {
         {
             return Ok(false);
         }
-        let (start, end) = api::graph_window(context, frame)?;
-        Ok(at >= start && at <= end)
+        if historical {
+            let (start, end) = api::graph_window(context, frame)?;
+            return Ok(at >= start && at <= end);
+        }
+        Ok(true)
     }
-
 
     /// Applies signal for strategy controller.
     pub fn apply_signal(
@@ -139,31 +153,58 @@ impl StrategyController {
         Ok(true)
     }
 
-
     /// Applies view for strategy controller.
     pub fn apply_view(&mut self, registry: &Registry, wire: Value) -> Result<bool, String> {
         let row = WorkflowView::from_backend(registry, &wire)?;
         let header = &row.header;
-        if !self.accepts(
-            &header.entity_contract,
-            &header.frame,
-            header.occurred(),
-            true,
-        )? {
+        if self.context.is_none()
+            || !FRAMES.contains(&header.frame.as_str())
+            || !header.entity_contract.starts_with(&self.symbol)
+        {
             return Ok(false);
         }
-        let key = header.id.clone();
+        let mut hash = DefaultHasher::new();
+        row.evidence.hash(&mut hash);
         let revision = header.revision;
-        if let Some(old) = self.views.get(&key) {
-            if old.header.revision > revision {
-                return Ok(false);
+        let digest = hash.finish();
+        if let Some((old_revision, old_digest)) = self.live_hashes.get(&header.id) {
+            if *old_revision == revision && *old_digest != digest {
+                return Err(format!("Conflicting workflow state at revision {revision}"));
             }
-            if old.header.revision == revision {
-                if old.evidence != row.evidence {
-                    return Err(format!("Conflicting workflow state at revision {revision}"));
-                }
-                return Ok(false);
-            }
+        }
+        let frame = FRAMES
+            .iter()
+            .position(|frame| *frame == header.frame)
+            .ok_or("Unknown workflow timeframe")?;
+        let key = header.id.clone();
+        let changed = self.apply_grid(
+            frame,
+            api::GridWorkflow {
+                row: header.row(0)?,
+                revision,
+                occurred: header.occurred(),
+            },
+        )?;
+        if changed
+            || self
+                .views
+                .get(&key)
+                .is_some_and(|(_, item)| item.revision == revision)
+        {
+            self.live_hashes.insert(key, (revision, digest));
+        }
+        Ok(changed)
+    }
+
+    /// Retains the newest grid revision and keeps its selection token stable.
+    fn apply_grid(&mut self, frame: usize, row: api::GridWorkflow) -> Result<bool, String> {
+        let key = row.row.id.clone();
+        if self
+            .views
+            .get(&key)
+            .is_some_and(|(_, previous)| previous.revision >= row.revision)
+        {
+            return Ok(false);
         }
         if !self.tokens.contains_key(&key) {
             let token = self.next_token;
@@ -174,13 +215,12 @@ impl StrategyController {
                 .ok_or("Workflow selection token bound reached")?;
             self.tokens.insert(key.clone(), token);
         }
-        self.views.insert(key, row);
+        self.views.insert(key, (frame, row));
         if self.views.len() > 10_000 {
             return Err("Workflow display bound reached; refresh the view".into());
         }
         Ok(true)
     }
-
 
     /// Refreshes strategy for strategy controller.
     pub async fn refresh(
@@ -209,6 +249,8 @@ impl StrategyController {
             || !self.contract.is_empty() && self.contract != contract
         {
             self.views.clear();
+            self.live_hashes.clear();
+            self.detail = None;
             self.signals.clear();
             self.pages.clear();
             self.totals.clear();
@@ -223,31 +265,59 @@ impl StrategyController {
         } else {
             FRAMES.to_vec()
         };
-        // Hydration is read-only. A failing lane remains visibly stale while other
-        // timeframes continue to refresh within the same absolute deadline.
+        // Each history lane gets a fresh budget after resolving the session and contract.
+        // A slow workflow response must not delay starting any timeframe's signal request.
+        let symbol = &self.symbol;
+        let pages = &self.pages;
+        let requests = frames.into_iter().map(|frame| {
+            let context = &context;
+            async move {
+                let page = if page_only {
+                    pages.get(frame).copied().unwrap_or(1) + 1
+                } else {
+                    1
+                };
+                let history = async {
+                    let (start, end) = api::graph_window(context, frame)?;
+                    api::workflow_page(
+                        backend,
+                        registry,
+                        symbol,
+                        frame,
+                        start,
+                        end,
+                        page,
+                        tokio::time::Instant::now() + backend.default_timeout(),
+                    )
+                    .await
+                };
+                let signals = async {
+                    if page_only {
+                        return None;
+                    }
+                    Some(
+                        api::signal_history(
+                            backend,
+                            registry,
+                            symbol,
+                            context,
+                            frame,
+                            tokio::time::Instant::now() + backend.default_timeout(),
+                        )
+                        .await,
+                    )
+                };
+                let (history, signals) = tokio::join!(history, signals);
+                (frame, page, history, signals)
+            }
+        });
         let mut errors = vec![];
-        for frame in frames {
-            let (start, end) = api::graph_window(&context, frame)?;
-            let page = if page_only {
-                self.pages.get(frame).copied().unwrap_or(1) + 1
-            } else {
-                1
-            };
-            let history = api::workflow_page(
-                backend,
-                registry,
-                &self.symbol,
-                frame,
-                start,
-                end,
-                page,
-                deadline,
-            )
-            .await;
+        for (frame, page, history, signals) in futures_util::future::join_all(requests).await {
             match history {
                 Ok((rows, total)) => {
+                    let frame_index = FRAMES.iter().position(|name| *name == frame).unwrap();
                     for row in rows {
-                        if let Err(error) = self.apply_view(registry, row) {
+                        if let Err(error) = self.apply_grid(frame_index, row) {
                             errors.push(error);
                         }
                     }
@@ -259,17 +329,8 @@ impl StrategyController {
                 }
                 Err(error) => errors.push(format!("{frame} workflow history: {error}")),
             }
-            if !page_only {
-                match api::signal_history(
-                    backend,
-                    registry,
-                    &self.symbol,
-                    &context,
-                    frame,
-                    deadline,
-                )
-                .await
-                {
+            if let Some(signals) = signals {
+                match signals {
                     Ok(rows) => {
                         for row in rows {
                             if let Err(error) = self.apply_signal(registry, row, true) {
@@ -289,7 +350,6 @@ impl StrategyController {
         Ok(())
     }
 
-
     /// Provides action for the strategy controller implementation.
     pub fn action(&mut self, action: u32) -> Result<(), String> {
         match action {
@@ -306,12 +366,16 @@ impl StrategyController {
                     .ok_or("Workflow selection no longer exists")?;
                 self.selected = Some(key);
             }
+            14 => self.details_open = true,
+            15 => {
+                self.details_open = false;
+                self.detail = None;
+            }
             2 | 13 => {}
             _ => return Err("Unknown strategy action".into()),
         }
         Ok(())
     }
-
 
     /// Provides snapshot for the strategy controller implementation.
     pub fn snapshot(&mut self, registry: &Registry) -> Result<Snapshot, String> {
@@ -328,48 +392,52 @@ impl StrategyController {
         let Some(context) = self.context.as_ref() else {
             return Ok(result);
         };
-        let (start, end) = api::graph_window(context, frame)?;
+        let (start, mut end) = api::graph_window(context, frame)?;
         let mut views = self
             .views
             .values()
-            .filter(|view| {
-                view.header.frame == frame
-                    && view.header.occurred() >= start
-                    && view.header.occurred() <= end
-            })
+            .filter(|(index, row)| *index == self.frame && row.occurred >= start)
+            .map(|(_, row)| row)
             .collect::<Vec<_>>();
-        views.sort_by_key(|view| {
-            std::cmp::Reverse((view.header.occurred(), view.header.id.clone()))
+        views.sort_by(|left, right| {
+            (right.occurred, &right.row.id).cmp(&(left.occurred, &left.row.id))
         });
         if self
             .selected
             .as_ref()
-            .is_none_or(|id| !views.iter().any(|view| &view.header.id == id))
+            .is_none_or(|id| !views.iter().any(|view| &view.row.id == id))
         {
-            self.selected = views.first().map(|view| view.header.id.clone());
+            self.selected = views.first().map(|view| view.row.id.clone());
         }
-        for view in &views {
-            let header = &view.header;
-            let token = self.tokens[&header.id];
-            result.rows.push(header.row(token)?);
+        result.workflow_id = self.selected.clone().unwrap_or_default();
+        for view in views {
+            end = end.max(view.occurred);
+            let mut row = view.row.clone();
+            row.action = self.tokens[&row.id];
             result.workflows.push(WorkflowChoice {
-                id: header.id.clone(),
+                id: row.id.clone(),
                 label: format!(
                     "{} {} {}",
-                    header.occurred().format("%H:%M:%S"),
-                    header.outcome,
-                    header.id
+                    view.occurred.format("%H:%M:%S"),
+                    row.outcome,
+                    row.id
                 ),
-                action: token,
+                action: row.action,
             });
-            if self.selected.as_ref() == Some(&header.id) {
-                let details =
-                    display::details(registry, &crate::backend::codec::decode(&view.evidence)?)?;
-                result.workflow_id = details.workflow_id;
-                result.revision = details.revision;
-                result.roots = details.roots;
-                result.header = details.header;
-            }
+            result.rows.push(row);
+        }
+        if let Some(detail) = self.detail.as_ref().filter(|detail| {
+            detail.header.id == result.workflow_id
+                && self
+                    .views
+                    .get(&result.workflow_id)
+                    .is_some_and(|(_, item)| detail.header.revision >= item.revision)
+        }) {
+            let details =
+                display::details(registry, &crate::backend::codec::decode(&detail.evidence)?)?;
+            result.revision = details.revision;
+            result.roots = details.roots;
+            result.header = details.header;
         }
         for signal in self.signals.values() {
             let at = signal_time(signal)?;
@@ -380,10 +448,10 @@ impl StrategyController {
                 .as_deref()
                 != Some(frame)
                 || at < start
-                || at > end
             {
                 continue;
             }
+            end = end.max(at);
             let mode = signal.cell("IntrinsicTimeMode").text();
             let price = signal
                 .cell("IntrinsicPrice")
@@ -432,6 +500,30 @@ impl StrategyController {
         Ok(result)
     }
 
+    /// Fetches details for the selected execution only while Details is open.
+    pub async fn load_detail(
+        &mut self,
+        backend: &Backend,
+        registry: &Registry,
+    ) -> Result<bool, String> {
+        if !self.details_open {
+            return Ok(false);
+        }
+        let Some((id, (_, item))) = self
+            .selected
+            .as_ref()
+            .and_then(|id| self.views.get_key_value(id))
+        else {
+            return Ok(false);
+        };
+        if self.detail.as_ref().is_some_and(|detail| {
+            detail.header.id == *id && detail.header.revision >= item.revision
+        }) {
+            return Ok(false);
+        }
+        self.detail = Some(api::workflow_detail(backend, registry, id, item.revision).await?);
+        Ok(true)
+    }
 
     /// Sets error for strategy controller.
     pub fn set_error(&mut self, error: &str) {
@@ -442,7 +534,6 @@ impl StrategyController {
 #[cfg(test)]
 mod typed_state_tests {
     use super::*;
-
 
     /// Verifies that workflow revisions and signal deduplication preserve typed publications.
     #[test]
@@ -493,8 +584,15 @@ mod typed_state_tests {
             .wire_field(kind, "FuturesItiSignal", trigger)
             .unwrap()
             .clone();
-        assert!(state.apply_signal(&registry, signal.clone(), true).unwrap());
-        assert!(!state.apply_signal(&registry, signal, true).unwrap());
+        let signal_at = signal_time(&FuturesItiSignalV2ReadModel::from_backend(&signal).unwrap()).unwrap();
+        let before_live = signal_at.min(header.occurred()) - chrono::Duration::seconds(1);
+        state.context.as_mut().unwrap().as_of_utc = before_live;
+        state.views.clear();
+        state.live_hashes.clear();
+        assert!(state.apply_view(&registry, wire).unwrap());
+        assert!(!state.apply_signal(&registry, signal.clone(), true).unwrap());
+        assert!(state.apply_signal(&registry, signal.clone(), false).unwrap());
+        assert!(!state.apply_signal(&registry, signal, false).unwrap());
         let snapshot = state.snapshot(&registry).unwrap();
         assert_eq!(snapshot.rows.len(), 1);
         assert_eq!(snapshot.signals.len(), 1);
@@ -503,5 +601,9 @@ mod typed_state_tests {
             snapshot.signals[0].identity
         );
         assert_eq!(snapshot.workflow_id, header.id);
+        assert_eq!(
+            snapshot.graph_end_utc,
+            signal_at.max(header.occurred()).timestamp_millis() as f64 / 1000.0
+        );
     }
 }

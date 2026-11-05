@@ -47,7 +47,11 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
     {
         [LoadFuturesAnalyticsHistoricalDataCommand.Verb] = message =>
             message.AsCommand<LoadFuturesAnalyticsHistoricalDataCommand>()
-            ?? throw new InvalidOperationException("Unable to deserialize the data load command.")
+            ?? throw new InvalidOperationException("Unable to deserialize the data load command."),
+        [CompleteFuturesAnalyticsHistoricalDataLoaderCommand.Verb] = message =>
+            message.AsCommand<CompleteFuturesAnalyticsHistoricalDataLoaderCommand>()!,
+        [FailFuturesAnalyticsHistoricalDataLoaderCommand.Verb] = message =>
+            message.AsCommand<FailFuturesAnalyticsHistoricalDataLoaderCommand>()!
     };
 
     /// <inheritdoc />
@@ -70,6 +74,18 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
                     .ValidateCommandId(load.CommandId, load.CommandName)
                     .ValidateDataLoadAttemptId(load.EntityId)
                     .ValidateHistoricalLoad(load);
+            },
+            [typeof(CompleteFuturesAnalyticsHistoricalDataLoaderCommand)] = static command =>
+            {
+                var outcome = (CompleteFuturesAnalyticsHistoricalDataLoaderCommand)command;
+                return new List<ValidationError>().ValidateCommandId(outcome.CommandId, outcome.CommandName)
+                    .ValidateDataLoadAttemptId(outcome.EntityId);
+            },
+            [typeof(FailFuturesAnalyticsHistoricalDataLoaderCommand)] = static command =>
+            {
+                var outcome = (FailFuturesAnalyticsHistoricalDataLoaderCommand)command;
+                return new List<ValidationError>().ValidateCommandId(outcome.CommandId, outcome.CommandName)
+                    .ValidateDataLoadAttemptId(outcome.EntityId);
             }
         };
 
@@ -93,7 +109,11 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
         FuturesAnalyticsHistoricalDataLoaderCommandState, ServiceResult<GuidResult>>>()
         {
             [typeof(LoadFuturesAnalyticsHistoricalDataCommand)] = static (command, _, state) =>
-                ((LoadFuturesAnalyticsHistoricalDataCommand)command).Execute(state)
+                ((LoadFuturesAnalyticsHistoricalDataCommand)command).Execute(state),
+            [typeof(CompleteFuturesAnalyticsHistoricalDataLoaderCommand)] = static (command, _, state) =>
+                ((CompleteFuturesAnalyticsHistoricalDataLoaderCommand)command).Execute(state),
+            [typeof(FailFuturesAnalyticsHistoricalDataLoaderCommand)] = static (command, _, state) =>
+                ((FailFuturesAnalyticsHistoricalDataLoaderCommand)command).Execute(state)
         };
 
     /// <inheritdoc />

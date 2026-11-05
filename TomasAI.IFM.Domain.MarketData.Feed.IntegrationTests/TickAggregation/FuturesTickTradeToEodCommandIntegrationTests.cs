@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Messaging.Nats;
+using TomasAI.IFM.Framework.Messaging.Nats;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -163,6 +163,8 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
             await dbFixture.MarketDataDb.DeleteVixFuturesEodDataAsync(
                 ContractId,
                 valueDate);
+            // This case owns its starting volume independently of earlier hosted recovery fixtures.
+            CurrentVixEodCache.Shared.Publish(new(ContractId, valueDate, tradePrice, tradePrice, tradePrice, tradePrice, 0));
             var feedApi = new MarketDataFeedCommandApi(_actorProducer);
 
             var startResponse = await feedApi.StartFuturesTickDataStreamingAsync(
@@ -192,8 +194,9 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
             persistedTrade.EntityId.Should().Be(entityId);
             persistedTrade.TradeData.Price.Should().Be(tradePrice);
 
+            // Completion follows the periodic history flush, which runs once a minute.
             var terminalResult = await eodTerminal.Task.WaitAsync(
-                TimeSpan.FromSeconds(15));
+                TimeSpan.FromSeconds(75));
 
             terminalResult.Should().BeOfType<VixFuturesEodDataInsertedCompleteEvent>();
             inserted.Should().NotBeNull();
@@ -253,7 +256,7 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
             await publisher.PublishAsync(quotePrice);
 
             var quoteTerminalResult = await quoteEodTerminal.Task.WaitAsync(
-                TimeSpan.FromSeconds(15));
+                TimeSpan.FromSeconds(75));
             if (quoteTerminalResult is VixFuturesEodDataInsertedFailEvent quoteFailed)
             {
                 throw new InvalidOperationException(

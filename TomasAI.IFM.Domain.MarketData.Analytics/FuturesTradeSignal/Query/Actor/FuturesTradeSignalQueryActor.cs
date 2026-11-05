@@ -85,12 +85,21 @@ public class FuturesTradeSignalQueryActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesTradeSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesTradeSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>>()
     {
-        [typeof(GetFuturesTradeSignalQuery)] = static (ctx, db, q, cancellationToken) =>
-            ((GetFuturesTradeSignalQuery)q).ExecuteAsync(ctx, db, cancellationToken),
-        [typeof(GetLastFuturesTradeSignalQuery)] = static (ctx, db, q, cancellationToken) =>
-            ((GetLastFuturesTradeSignalQuery)q).ExecuteAsync(ctx, db, cancellationToken),
-        [typeof(GetFuturesTradeSignalIdsQuery)] = static (ctx, db, q, cancellationToken) =>
-            ((GetFuturesTradeSignalIdsQuery)q).ExecuteAsync(ctx, db, cancellationToken)
+        [typeof(GetFuturesTradeSignalQuery)] = static async (ctx, db, q, cancellationToken) =>
+        {
+            var result = await ((GetFuturesTradeSignalQuery)q).ExecuteAsync(ctx, db, cancellationToken).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalQuery.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetLastFuturesTradeSignalQuery)] = static async (ctx, db, q, cancellationToken) =>
+        {
+            var result = await ((GetLastFuturesTradeSignalQuery)q).ExecuteAsync(ctx, db, cancellationToken).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTradeSignalQuery.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetFuturesTradeSignalIdsQuery)] = static async (ctx, db, q, cancellationToken) =>
+        {
+            var result = await ((GetFuturesTradeSignalIdsQuery)q).ExecuteAsync(ctx, db, cancellationToken).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalIdsQuery.Verb, result).ConfigureAwait(false);
+        }
     };
 
     /// <summary>

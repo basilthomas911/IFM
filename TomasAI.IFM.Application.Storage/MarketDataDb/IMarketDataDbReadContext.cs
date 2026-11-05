@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 
 using TomasAI.IFM.Application.MarketData.Pricing;
@@ -887,9 +888,7 @@ public interface IMarketDataDbReadContext
     /// <summary>Get Normal Curve Table using the MarketDataDb persistence.</summary>
     /// <returns>The typed result of the market-data query or mutation.</returns>
     Task<NormalCurveTableReadModel> GetNormalCurveTableAsync();
-    /// <summary>Get Streaming Request Id using the MarketDataDb persistence.</summary>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    Task<int> GetStreamingRequestIdAsync();
+
     /// <summary>Get Futures Trade Signal Id By Value Date using the MarketDataDb persistence.</summary>
     /// <param name="valueDate">The value date used by this operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
@@ -920,4 +919,6 @@ public interface IMarketDataDbReadContext
     /// <param name="cancellationToken">Cancels the query.</param>
     /// <returns>The completed attempt, or null.</returns>
     Task<HistoricalDataLoaderState?> GetCompletedHistoricalDataLoadAsync(string requestSha256, CancellationToken cancellationToken = default);
+    /// <summary>Reads the committed Analytics attempt projection.</summary>
+    Task<FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel?> GetHistoricalAnalyticsAttemptProjectionAsync(Guid attemptId, CancellationToken cancellationToken = default);
 }

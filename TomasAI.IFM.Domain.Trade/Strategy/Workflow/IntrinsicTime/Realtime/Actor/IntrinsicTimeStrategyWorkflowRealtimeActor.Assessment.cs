@@ -53,10 +53,15 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A failed Function request is converted to its explicit assessment failure event; the workflow retains a terminal outcome.")]
-    static async ValueTask ExecuteAssessmentAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
+    internal static async ValueTask ExecuteAssessmentAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
     {
-        var clock = RequireEventContext(context).TimeProvider;
+        var domain = RequireEventContext(context);
+        var clock = domain.TimeProvider;
         var execute = CreateAssessmentExecute(snapshot);
+        // The catalog is frozen at workflow start and does not depend on the
+        // assessment. Resolve it before capturing the short-lived market quote.
+        var selectionStart = await StartTradeSelectionPipeline.StartPipelineAsync(
+            execute.WorkflowView, domain, execute.CommandId).ConfigureAwait(false);
         FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent> terminal;
         try
         {
@@ -83,9 +88,6 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
             if (assessment.Availability != AssessmentAvailability.Unavailable &&
                 !assessment.InheritedRestrictions.Contains(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model.RegimeRestriction.NoNewTrade))
             {
-                var selectionStart = await StartTradeSelectionPipeline.StartPipelineAsync(
-                    execute.WorkflowView with { MarketCondition = execute.WorkflowView.MarketCondition with { Result = completed.Result } },
-                    RequireEventContext(context), completed.Id).ConfigureAwait(false);
                 if (selectionStart.Success) selection = selectionStart.Value;
                 else
                 {

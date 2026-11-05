@@ -11,7 +11,7 @@ public static class GetDatabentoOptionChainRange
 
     extension(GetDatabentoOptionChainRangeQuery query)
     {
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ServiceResult<OptionContractExpiryReadModel[]>> ExecuteAsync(
             IMarketDataQueryContext context,
             CancellationToken cancellationToken)
         {
@@ -26,7 +26,7 @@ public static class GetDatabentoOptionChainRange
             ServiceResult<OptionContractExpiryReadModel[]> result =
                 new ServiceOk<OptionContractExpiryReadModel[]>(contracts.ToArray());
             cancellationToken.ThrowIfCancellationRequested();
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            return result;
         }
     }
 }

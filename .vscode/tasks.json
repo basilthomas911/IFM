@@ -338,7 +338,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}/scripts/Build/Publish-MarketDataHost.ps1"
+        "${workspaceFolder}/TomasAI.IFM.Application.MarketData.Rust/scripts/Build-NativeHost.ps1"
       ],
       "options": {
         "cwd": "${workspaceFolder}"

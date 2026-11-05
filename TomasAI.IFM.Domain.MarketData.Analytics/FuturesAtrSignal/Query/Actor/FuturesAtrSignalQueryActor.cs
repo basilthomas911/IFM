@@ -77,10 +77,16 @@ public class FuturesAtrSignalQueryActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesAtrSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesAtrSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>>()
     {
-        [typeof(GetFuturesAtrSignalQuery)] = static (ctx, dbFactory, q, cancellationToken) =>
-            ((GetFuturesAtrSignalQuery)q).ExecuteAsync(ctx, dbFactory, cancellationToken),
-        [typeof(GetFuturesAtrDailySignalQuery)] = static (ctx, dbFactory, q, cancellationToken) =>
-            ((GetFuturesAtrDailySignalQuery)q).ExecuteAsync(ctx, dbFactory, cancellationToken)
+        [typeof(GetFuturesAtrSignalQuery)] = static async (ctx, dbFactory, q, cancellationToken) =>
+        {
+            var result = await ((GetFuturesAtrSignalQuery)q).ExecuteAsync(ctx, dbFactory, cancellationToken).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesAtrSignalQuery.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetFuturesAtrDailySignalQuery)] = static async (ctx, dbFactory, q, cancellationToken) =>
+        {
+            var result = await ((GetFuturesAtrDailySignalQuery)q).ExecuteAsync(ctx, dbFactory, cancellationToken).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesAtrDailySignalQuery.Verb, result).ConfigureAwait(false);
+        }
     };
 
     /// <summary>

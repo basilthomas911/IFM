@@ -1,4 +1,5 @@
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -16,6 +17,7 @@ public sealed record YieldCurveRateStateSnapshottedEvent : IEvent
     [Key(5)] public string EventSource { get; init; } = string.Empty;
     [Key(6)] public DateTime ReceivedOn { get; init; }
     [Key(7)] public IReadOnlyList<DateOnly>? ValueDates { get; init; }
+    [Key(8)] public IReadOnlyList<YieldCurveRateReadModel>? BaselineRates { get; init; }
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(YieldCurveRateStateSnapshottedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

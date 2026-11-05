@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.StatusConsole;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.DownloadLog;
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
@@ -11,6 +13,8 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Event;
 public static class YieldCurveRatesImportedFail
 {
 
+    static string ServiceId => nameof(LogSourceType.YieldCurveRatesImported);
+
     extension(YieldCurveRatesImportedFailEvent eventValue)
     {
         /// <summary>Forwards the terminal download outcome without starting another import.</summary>
@@ -18,6 +22,9 @@ public static class YieldCurveRatesImportedFail
 
         {
             ArgumentNullException.ThrowIfNull(eventValue);
+            logger.LogErrorEvent(ServiceId, null,
+                "Import failed. EventId={EventId} CommandId={CommandId} ErrorCode={ErrorCode} ErrorMessage={ErrorMessage}",
+                eventValue.Id, eventValue.CommandId, eventValue.ErrorCode, eventValue.ErrorMessage);
             return DownloadLogDelivery.ForwardAsync(eventValue.DownloadOutcome, eventValue, MarketDataDownloadDataset.TreasuryCurve, MarketDataDownloadStatus.Failed, context, logger);
         }
     }

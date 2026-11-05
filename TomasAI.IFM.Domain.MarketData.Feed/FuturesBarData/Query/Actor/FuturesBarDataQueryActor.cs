@@ -71,17 +71,13 @@ public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActo
     {
         [typeof(GetFuturesBarDataQuery)] = async (ctx, q) =>
         {
-            var query = (q as GetFuturesBarDataQuery)!;
-            var result = await (query.ExecuteAsync(ctx.DbFactory)).ConfigureAwait(false);
-            await (ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesBarDataQuery.Verb,
-                new ServiceResult<FuturesBarDataReadModel[]>(result))).ConfigureAwait(false);
+            var result = await ((GetFuturesBarDataQuery)q).ReadAsync(ctx.DbFactory).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesBarDataQuery.Verb, result).ConfigureAwait(false);
         },
         [typeof(GetLastFuturesBarDataQuery)] = async (ctx, q) =>
         {
-            var query = (q as GetLastFuturesBarDataQuery)!;
-            var result = await (query.ExecuteAsync(ctx.DbFactory)).ConfigureAwait(false);
-            await (ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesBarDataQuery.Verb,
-                new ServiceResult<FuturesBarDataReadModel>(result))).ConfigureAwait(false);
+            var result = await ((GetLastFuturesBarDataQuery)q).ReadAsync(ctx.DbFactory).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesBarDataQuery.Verb, result).ConfigureAwait(false);
         }
     };
 

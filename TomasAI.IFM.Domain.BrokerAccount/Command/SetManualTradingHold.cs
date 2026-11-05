@@ -53,11 +53,12 @@ public static class SetManualTradingHold
         ///
         /// <param name="brokerAccountChange">The accepted business data to persist.</param>
         /// <returns>The account event applied by the owning command state.</returns>
-        internal BrokerAccountChangedEvent CreateBrokerAccountChangedEvent(BrokerAccountChange brokerAccountChange) => new()
+        internal BrokerAccountOperationAppliedEvent CreateBrokerAccountChangedEvent(BrokerAccountChange brokerAccountChange) => new()
         {
             CommandId = command.CommandId,
-            Subject = new(ActorType.Event, BrokerAccountChangedEvent.Actor, BrokerAccountChangedEvent.Verb, command.EntityId.Format()),
+            Subject = new(ActorType.Event, BrokerAccountChangedEvent.Actor, BrokerAccountOperationAppliedEvent.Verb, command.EntityId.Format()),
             EntityId = command.EntityId,
+            Operation = BrokerAccountOperation.SetManualTradingHold,
             BrokerAccountDefinition = brokerAccountChange.BrokerAccountDefinition!
         };
     }

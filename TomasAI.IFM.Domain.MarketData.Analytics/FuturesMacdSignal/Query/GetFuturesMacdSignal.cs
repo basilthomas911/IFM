@@ -38,8 +38,8 @@ public static class GetFuturesMacdSignal
                     q.SlowEmaPeriod,
                     cancellationToken).ConfigureAwait(false);
 
-        /// <summary>Reads and replies to the GetFuturesMacdSignalQuery message.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Reads the GetFuturesMacdSignalQuery message.</summary>
+        public async ValueTask<ServiceResult<FuturesMacdSignalReadModel>> ExecuteAsync(
             IQueryActorContext<FuturesMacdSignalQueryActor> ctx,
             IDbContextFactory dbFactory,
             CancellationToken cancellationToken)
@@ -51,7 +51,7 @@ public static class GetFuturesMacdSignal
             var result = await query.GetLastFuturesMacdSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FuturesMacdSignalReadModel>(result);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesMacdSignalQuery.Verb, serviceResult).ConfigureAwait(false);
+            return serviceResult;
         }
     }
 }

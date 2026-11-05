@@ -250,19 +250,6 @@ public class MarketDataFeedQueryApi(IActorProducer actorProducer)
         return await (RequestAsync<GetFuturesEodDataMovingAveragesQuery, FuturesEodDataMovingAveragesReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Return a streaming request id for starting live feeds.
-    /// </summary>
-    public async Task<ServiceResult<ScalarValue<int>>> GetStreamingRequestIdAsync()
-    {
-        var entityId = new GetStreamingRequestIdParameter();
-        GetStreamingRequestIdQuery query = new()
-        {
-            Subject = new ActorSubject(ActorType.Query, GetStreamingRequestIdQuery.Actor, GetStreamingRequestIdQuery.Verb, entityId.Format()),
-        };
-        return await (RequestAsync<GetStreamingRequestIdQuery, ScalarValue<int>>(query.Subject, query)).ConfigureAwait(false);
-    }
-
     /// <summary>Returns authoritative application-owned feed runtime state over NATS.</summary>
     public async Task<ServiceResult<MarketDataFeedRuntimeStatusReadModel>> GetRuntimeStatusAsync()
     {

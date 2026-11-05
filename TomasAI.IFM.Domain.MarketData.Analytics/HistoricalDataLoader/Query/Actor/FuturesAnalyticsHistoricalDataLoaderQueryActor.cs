@@ -46,8 +46,11 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderQueryActor(
         IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesAnalyticsHistoricalDataLoaderQueryActor>,
         IQuery, CancellationToken, ValueTask>>()
         {
-            [typeof(GetFuturesAnalyticsHistoricalDataLoaderQuery)] = static (context, query, cancellationToken) =>
-                ((GetFuturesAnalyticsHistoricalDataLoaderQuery)query).ExecuteAsync(context, cancellationToken)
+            [typeof(GetFuturesAnalyticsHistoricalDataLoaderQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetFuturesAnalyticsHistoricalDataLoaderQuery)query).ExecuteAsync(context, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetFuturesAnalyticsHistoricalDataLoaderQuery.Verb, result).ConfigureAwait(false);
+            }
         };
 
     /// <inheritdoc />

@@ -15,7 +15,7 @@ public static class GetLatestFuturesVxTermStructureSignal
     extension(GetLatestFuturesVxTermStructureSignalQuery query)
     {
         /// <summary>Loads the latest projected curve and sends its typed Query reply.</summary>
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ServiceResult<FuturesVxTermStructureSignalReadModel?>> ExecuteAsync(
             IQueryActorContext<FuturesVxTermStructureSignalQueryActor> context,
             CancellationToken cancellationToken)
         {
@@ -23,9 +23,7 @@ public static class GetLatestFuturesVxTermStructureSignal
             ArgumentNullException.ThrowIfNull(query);
             var result = await context.DbFactory.MarketDataDb.GetLatestFuturesVxTermStructureSignalAsync(
                 query.ValueDate, query.ConfigurationId, cancellationToken).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId,
-                GetLatestFuturesVxTermStructureSignalQuery.Verb,
-                new ServiceResult<FuturesVxTermStructureSignalReadModel?>(result)).ConfigureAwait(false);
+            return new ServiceResult<FuturesVxTermStructureSignalReadModel?>(result);
         }
     }
 }

@@ -274,7 +274,9 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
                 var result = Black76PricingModel.Calculate(context, underlying, quote, strike, call, at);
                 lock (entry.Gate)
                 {
-                    if (entry.Latest != tick || !inputs.TryGet(quote.ContractId, out var latest) || latest?.Context != context) continue;
+                    // A newer quote may arrive during the solve. Publish this result with its
+                    // original quote identity while its captured context remains current.
+                    if (!inputs.TryGet(quote.ContractId, out var latest) || latest?.Context != context) continue;
                     Volatile.Write(ref entry.Risk, new(context, underlying, quote, result));
                     var g = result.Value;
                     QueuePublication(entry, observed, new()

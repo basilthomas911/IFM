@@ -32,7 +32,7 @@ public sealed class BrokerAccountStateRepository(
             command, CheckpointTypes, static (state, fact, checkpoint) => state.ApplyCheckpointEvent(fact, checkpoint),
             cancellationToken).ConfigureAwait(false);
 
-    private static readonly Type[] CheckpointTypes = [typeof(BrokerAccountChangedEvent)];
+    private static readonly Type[] CheckpointTypes = [typeof(BrokerAccountChangedEvent), typeof(BrokerAccountOperationAppliedEvent)];
 
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context,

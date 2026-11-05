@@ -3,12 +3,16 @@ using TomasAI.IFM.Domain.BrokerAccount.Command.Actor;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Domain.BrokerAccount.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.StatusConsole;
 
 namespace TomasAI.IFM.Domain.BrokerAccount.Event;
 
 /// <summary>Handles one complete or explicitly incomplete broker account snapshot.</summary>
 public static class BrokerAccountSnapshotObserved
 {
+
+    public static string ServiceId => nameof(LogSourceType.BrokerAccountSnapshotObserved);
 
     extension(BrokerAccountSnapshotObservedEvent observed)
     {
@@ -41,11 +45,9 @@ public static class BrokerAccountSnapshotObserved
             catch (Exception exception)
             {
 
-                var diagnosticLogger = logger;
-                if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
-                {
-                    global::TomasAI.IFM.Domain.BrokerAccount.StorageMigrationDiagnosticLog.Write2(diagnosticLogger, exception, observed.Id, observed.CommandId, observed.EntityId);
-                }
+                logger.LogErrorEvent(ServiceId, exception,
+                    "Broker account observation handoff failed. EventId={EventId} CommandId={CommandId} AccountId={AccountId}",
+                    observed.Id, observed.CommandId, observed.EntityId);
 
                 throw;
             }

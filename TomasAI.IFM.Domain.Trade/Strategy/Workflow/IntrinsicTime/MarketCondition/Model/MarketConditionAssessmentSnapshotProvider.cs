@@ -102,6 +102,20 @@ public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi mar
                 Availability = healthy ? MarketSourceAvailability.Available : MarketSourceAvailability.Unavailable,
                 Reason = healthy ? "Feed and latest-value cache operational: " + after.Generation : "MC.ASSESSMENT.FEED.UNAVAILABLE"
             };
+            // Invalid optional market observations are excluded at the source
+            // boundary. Required observations retain strict calculator validation.
+            foreach (var binding in parameters.Sources.Where(binding => !binding.Required))
+            {
+                var observation = observations[binding.SourceId];
+                if (observation.Availability == MarketSourceAvailability.Available
+                    && !MarketConditionAssessmentCalculator.HasTrustworthyMetadata(observation, evaluatedAtUtc, parameters.FutureClockSkewSeconds))
+                {
+                    observations[binding.SourceId] = Missing(binding.SourceId, evaluatedAtUtc) with
+                    {
+                        Reason = $"MC.ASSESSMENT.{binding.SourceId.ToUpperInvariant()}.INVALID_METADATA"
+                    };
+                }
+            }
             cancellationToken.ThrowIfCancellationRequested();
             return new MarketConditionAssessmentSnapshot
             {

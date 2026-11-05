@@ -18,7 +18,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Events;
 /// handling. Thread safety is not guaranteed; instances are generally used as data transfer objects within event
 /// processing pipelines.</remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record EconomicCalendarChangedEvent : IEvent<EconomicCalendarId>
+public record EconomicCalendarChangedEvent : IEvent<EconomicCalendarId>, IRequireDurableProjection
 {
     [IgnoreMember] public const string Actor = "EconomicCalendarEvent";
     [IgnoreMember] public const string Verb = "Changed";
@@ -38,6 +38,11 @@ public record EconomicCalendarChangedEvent : IEvent<EconomicCalendarId>
     [Key(8)] public EconomicCalendarReadModel EconomicCalendar { get; init; }
     [Key(9)] public DateTime UpdatedOn { get; init; }
     [Key(10)] public string UpdatedBy { get; init; }
+
+    [Key(11)] public bool UseDurableProjection { get; init; }
+    [IgnoreMember] bool IRequireDurableProjection.RequiresDurableProjection => UseDurableProjection;
+    [IgnoreMember] DurableProjectionRequirement IRequireDurableProjection.RequiredProjection =>
+        new("EconomicCalendarCommandActor", "EconomicCalendarEventProjector", TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.PublishProcessingEvent);
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;

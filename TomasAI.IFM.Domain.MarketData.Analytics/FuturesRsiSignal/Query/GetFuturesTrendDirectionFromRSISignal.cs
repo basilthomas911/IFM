@@ -27,8 +27,8 @@ public static class GetFuturesTrendDirectionFromRSISignal
                     q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, q.Timestamp,
                     q.LookBackInterval, q.StartTime, q.EndTime, cancellationToken).ConfigureAwait(false);
 
-        /// <summary>Reads and replies to the GetFuturesTrendDirectionFromRSISignalQuery message.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Reads the GetFuturesTrendDirectionFromRSISignalQuery message.</summary>
+        public async ValueTask<ServiceResult<FuturesTrendDirectionReadModel>> ExecuteAsync(
             IQueryActorContext<FuturesRsiSignalQueryActor> ctx,
             IDbContextFactory dbFactory,
             CancellationToken cancellationToken)
@@ -40,10 +40,7 @@ public static class GetFuturesTrendDirectionFromRSISignal
             var result = await query.GetFuturesTrendDirectionAsync(dbFactory, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FuturesTrendDirectionReadModel>(result);
-            await ctx.ReplyAsync(
-                q.Subject.ThreadId,
-                GetFuturesTrendDirectionFromRSISignalQuery.Verb,
-                serviceResult).ConfigureAwait(false);
+            return serviceResult;
         }
     }
 }

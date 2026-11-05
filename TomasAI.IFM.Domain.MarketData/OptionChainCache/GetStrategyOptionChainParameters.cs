@@ -11,8 +11,8 @@ public static class GetStrategyOptionChainParameters
 
     extension(GetStrategyOptionChainParametersQuery query)
     {
-        /// <summary>Reads the requested immutable version and replies through the query actor.</summary>
-        public async ValueTask ExecuteAsync(IMarketDataQueryContext context, CancellationToken token)
+        /// <summary>Reads the requested immutable version.</summary>
+        public async ValueTask<ServiceResult<StrategyOptionChainParameterSet>> ExecuteAsync(IMarketDataQueryContext context, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
@@ -20,7 +20,7 @@ public static class GetStrategyOptionChainParameters
             ServiceResult<StrategyOptionChainParameterSet> result = parameters is null
                 ? new ServiceFailed<StrategyOptionChainParameterSet>(404, "Strategy option-chain parameter version not found.")
                 : new ServiceOk<StrategyOptionChainParameterSet>(parameters);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            return result;
         }
     }
 }

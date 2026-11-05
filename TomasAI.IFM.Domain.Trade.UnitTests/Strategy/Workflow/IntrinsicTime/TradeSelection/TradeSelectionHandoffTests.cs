@@ -21,6 +21,44 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Tra
 [Trait("Gate", "TS-06")]
 public sealed class TradeSelectionHandoffTests
 {
+    [Fact]
+    public async Task Portfolio_neutral_selected_result_starts_order_composition()
+    {
+        var command = await TradeSelectionFixture.Command();
+        var original = command.SelectionBinding;
+        var universe = new StrategySelectionUniverse
+        {
+            WorkflowId = command.WorkflowId.Value,
+            WorkflowRevision = command.InputWorkflowRevision,
+            CorrelationId = command.CorrelationId,
+            InstrumentRoot = TradeSelectionContracts.CommonPolicy(original).InstrumentRoot,
+            TargetHorizon = command.TriggerEvent.EntityId.TimePeriod,
+            FrozenAtUtc = original.FrozenAtUtc,
+            ValidUntilUtc = original.ValidUntilUtc,
+            DeploymentKeys = original.DeploymentSnapshots.Select(graph => graph.DeploymentKey).ToArray()
+        };
+        var binding = TradeSelectionContracts.Seal(original with
+        {
+            SchemaVersion = 2,
+            PortfolioSnapshot = new(),
+            StrategyUniverse = universe with { PayloadSha256 = TradeSelectionContracts.EvidenceHash(universe) }
+        });
+        var fixture = new Fixture(command with
+        {
+            SelectionBinding = binding,
+            WorkflowView = command.WorkflowView with { SelectionBinding = binding }
+        });
+
+        fixture.Result.Outcome.Should().Be(SelectionOutcome.Selected);
+        fixture.Accept();
+
+        var view = fixture.State.CurrentView!;
+        view.StopReasonCode.Should().BeEmpty(view.TradeSelection.Failure?.ErrorMessage ?? string.Empty);
+        view.CurrentStage.Should().Be(StrategyWorkflowStage.OrderComposition);
+        view.OrderComposition.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Processing);
+        view.OrderComposition.ExpiresAtUtc.Should().Be(fixture.Result.ValidUntilUtc);
+    }
+
     [Theory]
     [InlineData("LongFuture")]
     [InlineData("BullCallDebit")]

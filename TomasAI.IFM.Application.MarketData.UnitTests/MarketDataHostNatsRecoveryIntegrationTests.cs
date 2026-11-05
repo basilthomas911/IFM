@@ -140,14 +140,19 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
         var request = Request();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(150));
         var before = await host.StartWorkerAsync("Options", new(request.Manifest!, request.WorkerInstanceId, request.GenerationId), deadline.Token);
-        var future = Request("XCBF.PITCH", "VX");
-        var unchanged = await host.StartWorkerAsync("Futures", new(future.Manifest!, future.WorkerInstanceId, future.GenerationId), deadline.Token);
         var lease = OptionLease(before) with { LeaseExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(119) };
         WorkerOptionChainResult acquired;
         do { acquired = await host.AcquireOptionLeaseAsync("Options", before.WorkerInstanceId, lease, deadline.Token);
             if (acquired.Failure?.Code == "UnderlyingQuoteUnavailable") await Task.Delay(50, deadline.Token);
         } while (acquired.Failure?.Code == "UnderlyingQuoteUnavailable");
         acquired.Active.Should().BeTrue("{0}", acquired.Failure);
+        var proof = host.CaptureReadSnapshot().NativeOptionWorkload;
+        Assert.NotNull(proof);
+        Assert.Equal(before.GenerationId, proof.GenerationId);
+        Assert.Contains(lease.ScopeId, proof.ReadyScopes);
+        Assert.True(proof.NativeResourceProofsComplete);
+        var future = Request("XCBF.PITCH", "VX");
+        var unchanged = await host.StartWorkerAsync("Futures", new(future.Manifest!, future.WorkerInstanceId, future.GenerationId), deadline.Token);
         var ownership = new WorkerOptionChainOwnership(1, "IFM", [new(Guid.NewGuid(), [lease.Options[0].Pricing.Contract.ContractId])],
             WorkerOptionChainRuntime.PhysicalDigest(lease.Options));
         (await host.ApplyCommittedOwnershipAsync("Options", before.WorkerInstanceId, lease,

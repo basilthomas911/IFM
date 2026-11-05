@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.Diagnostics;
+using TomasAI.IFM.Shared.Diagnostics;
 using System.Collections.Immutable;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -36,6 +36,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             wait = maximumDiscoveryWait;
         using var timeout = new CancellationTokenSource(wait, clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        OptionPricingFailure? lastUnderlyingFailure = null;
         try
         {
             var discoveryTimer = Stopwatch.StartNew();
@@ -131,6 +132,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
 
             while (string.Equals(acquired.Failure?.Code, "UnderlyingQuoteUnavailable", StringComparison.Ordinal))
             {
+                lastUnderlyingFailure = acquired.Failure;
                 await Task.Delay(TimeSpan.FromMilliseconds(25), clock, linked.Token).ConfigureAwait(false);
                 acquired = await market.AcquireAsync("GLBX.MDP3", lease, linked.Token).ConfigureAwait(false);
             }
@@ -160,7 +162,9 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
         }
         catch (OperationCanceledException)when (!cancellationToken.IsCancellationRequested)
         {
-            return Failed("DiscoveryTimeout");
+            return lastUnderlyingFailure is { } unavailable
+                ? new(null, [], false, unavailable)
+                : Failed("DiscoveryTimeout");
         }
         catch (CompositionMarketSourceException ex)
         {

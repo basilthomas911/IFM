@@ -43,8 +43,8 @@ public static class GetFuturesItiSignalHistory
 
     extension(GetFuturesItiSignalHistoryQuery q)
     {
-        /// <summary>Reads and replies to the GetFuturesItiSignalHistoryQuery message.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Reads the GetFuturesItiSignalHistoryQuery message.</summary>
+        public async ValueTask<ServiceResult<FuturesItiSignalV2ReadModel[]>> ExecuteAsync(
             IQueryActorContext<FuturesItiSignalQueryActor> ctx,
             IDbContextFactory db,
             CancellationToken cancellationToken)
@@ -55,8 +55,7 @@ public static class GetFuturesItiSignalHistory
             var query = q;
             var result = await query.GetFuturesItiSignalHistoryAsync(db, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalHistoryQuery.Verb,
-                new ServiceResult<FuturesItiSignalV2ReadModel[]>(result)).ConfigureAwait(false);
+            return new ServiceResult<FuturesItiSignalV2ReadModel[]>(result);
         }
     }
 }

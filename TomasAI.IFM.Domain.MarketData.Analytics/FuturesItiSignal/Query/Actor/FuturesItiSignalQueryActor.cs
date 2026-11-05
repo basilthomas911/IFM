@@ -80,14 +80,26 @@ public class FuturesItiSignalQueryActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesItiSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesItiSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>>()
     {
-        [typeof(GetFuturesItiSignalDataQuery)] = static (ctx, db, q, cancellationToken) =>
-            ((GetFuturesItiSignalDataQuery)q).ExecuteAsync(ctx, db, cancellationToken),
-        [typeof(GetFuturesItiSignalQuery)] = static (ctx, db, q, cancellationToken) =>
-            ((GetFuturesItiSignalQuery)q).ExecuteAsync(ctx, db, cancellationToken),
-        [typeof(GetFuturesItiSignalHistoryQuery)] = static (ctx, db, q, cancellationToken) =>
-            ((GetFuturesItiSignalHistoryQuery)q).ExecuteAsync(ctx, db, cancellationToken),
-        [typeof(GetFuturesItiTrendDirectionChangedSignalsQuery)] = static (ctx, db, q, cancellationToken) =>
-            ((GetFuturesItiTrendDirectionChangedSignalsQuery)q).ExecuteAsync(ctx, db, cancellationToken)
+        [typeof(GetFuturesItiSignalDataQuery)] = static async (ctx, db, q, cancellationToken) =>
+        {
+            var result = await ((GetFuturesItiSignalDataQuery)q).ExecuteAsync(ctx, db, cancellationToken).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalDataQuery.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetFuturesItiSignalQuery)] = static async (ctx, db, q, cancellationToken) =>
+        {
+            var result = await ((GetFuturesItiSignalQuery)q).ExecuteAsync(ctx, db, cancellationToken).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalQuery.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetFuturesItiSignalHistoryQuery)] = static async (ctx, db, q, cancellationToken) =>
+        {
+            var result = await ((GetFuturesItiSignalHistoryQuery)q).ExecuteAsync(ctx, db, cancellationToken).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalHistoryQuery.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetFuturesItiTrendDirectionChangedSignalsQuery)] = static async (ctx, db, q, cancellationToken) =>
+        {
+            var result = await ((GetFuturesItiTrendDirectionChangedSignalsQuery)q).ExecuteAsync(ctx, db, cancellationToken).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiTrendDirectionChangedSignalsQuery.Verb, result).ConfigureAwait(false);
+        }
     };
 
     /// <summary>

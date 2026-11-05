@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Shared.MarketData.Contracts;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
@@ -218,6 +218,32 @@ public sealed class OrderCompositionPricingPrerequisiteTests
     }
 
     [Fact]
+    public async Task Refresh_keeps_a_qualified_curve_for_the_in_flight_valuation()
+    {
+        var clock = new AdvancingClock { Now = At };
+        var original = Curve() with { RetrievedAtUtc = At };
+        var replacement = original with { RetrievedAtUtc = At.AddSeconds(2) };
+        var source = new CurveSource(original);
+        using var provider = new TreasuryPricingProvider(source, clock, refreshInterval: TimeSpan.FromSeconds(1));
+
+        Assert.True((await provider.GetAsync(At, 18, Publication(), Conversion, default)).Succeeded);
+        clock.Now = At.AddSeconds(3);
+        source.Current = replacement;
+        var frozen = await provider.GetAsync(At.AddSeconds(1), 18, Publication(), Conversion, default);
+        Assert.True(frozen.Succeeded);
+        Assert.Equal(original.RetrievedAtUtc, frozen.Rate!.ObservedAtUtc);
+
+        var live = await provider.GetAsync(clock.Now, 18, Publication(), Conversion, default);
+        Assert.True(live.Succeeded);
+        Assert.Equal(replacement.RetrievedAtUtc, live.Rate!.ObservedAtUtc);
+    }
+
+    sealed class AdvancingClock : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; }
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+    [Fact]
     public void Shared_messagepack_roundtrip_preserves_explicit_contract_and_context()
     {
         var original = Context();
@@ -232,8 +258,9 @@ public sealed class OrderCompositionPricingPrerequisiteTests
     internal sealed class CurveSource(TreasuryCurveSnapshot curve) : ITreasuryCurve
     {
         public int Calls;
+        public TreasuryCurveSnapshot Current { get; set; } = curve;
         public TreasuryContinuousRateResult GetContinuouslyCompoundedAnnualRate(TreasuryCurveSnapshot snapshot, TreasuryTenor tenor, TreasuryRateConversionPolicy policy) => TreasuryRateConversion.Convert(snapshot, tenor, policy);
-        public Task<TreasuryCurveSnapshot?> GetLatestAsync(DateOnly date, CancellationToken cancellationToken = default) { Calls++; return Task.FromResult<TreasuryCurveSnapshot?>(curve); }
-        public Task<IReadOnlyList<TreasuryCurveSnapshot>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TreasuryCurveSnapshot>>([curve]);
+        public Task<TreasuryCurveSnapshot?> GetLatestAsync(DateOnly date, CancellationToken cancellationToken = default) { Calls++; return Task.FromResult<TreasuryCurveSnapshot?>(Current); }
+        public Task<IReadOnlyList<TreasuryCurveSnapshot>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TreasuryCurveSnapshot>>([Current]);
     }
 }

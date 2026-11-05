@@ -50,7 +50,10 @@ internal static class TradeRealtimeSnapshotCalculations
             if (leg.Observation is not { } quote) { complete = false; continue; }
             var stale = quote.ValidUntilUtc != default && quote.ValidUntilUtc <= now;
             var quoteStatus = stale ? "Stale" : "Available";
-            var pricingStatus = stale ? "Stale" : quote.GreeksAvailable == true ? "Available"
+            var retainedRisk = leg.LastValidRisk ?? leg.Position?.OptionRisk;
+            var qualifiedRisk = retainedRisk is not null && retainedRisk.SourceGeneration == quote.SourceGeneration
+                && retainedRisk.ValidUntilUtc > now && StrategyPositionLegOptionData.HasValidRisk(retainedRisk);
+            var pricingStatus = stale ? "Stale" : qualifiedRisk || quote.GreeksAvailable == true ? "Available"
                 : quote.PricingFailure == "CalculationPending" ? "Pending" : "Unavailable";
             IronCondorTradePlanLegObservation? scenario = null;
             if (planCurrent)
@@ -62,7 +65,6 @@ internal static class TradeRealtimeSnapshotCalculations
                 changedLegs[i] = leg with { QuoteStatus = quoteStatus, PricingStatus = pricingStatus, Scenario = scenario };
             }
             anyStale |= stale;
-            var retainedRisk = leg.LastValidRisk ?? leg.Position?.OptionRisk;
             var risk = retainedRisk ?? quote;
             complete &= retainedRisk is not null || pricingStatus == "Available";
             generation ??= quote.SourceGeneration;

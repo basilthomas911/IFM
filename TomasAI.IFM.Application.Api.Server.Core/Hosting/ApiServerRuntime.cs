@@ -34,53 +34,103 @@ public sealed partial class ApiServerLifecycle
 {
     static async Task RunServerAsync(WebApplication app, string[] args, Microsoft.Extensions.Logging.ILogger logger, IApiFatalRecoveryShutdown? fatalRecoveryShutdown)
     {
-        // Normal startup does not run full deployment schema initialization. Recovery readers
-        // must have their additive operational table before any hosted services start.
-        using (var recoverySchemaDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2)))
-            await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>()
-                .CreateAsync(["live_feed_recovery"], recoverySchemaDeadline.Token);
-        if (app.Services.GetService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema.ScheduledTaskSchemaDb>() is { } scheduledTaskSchema)
-        {
-            using var scheduledTaskSchemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            await scheduledTaskSchema.CreateAllAsync().WaitAsync(scheduledTaskSchemaDeadline.Token);
-        }
         if (EventLogQualification.Active is { } qualification)
         {
             await app.Services.GetRequiredService<ApplicationSchemaInitializer>()
-            .InitializeAsync(CancellationToken.None);
+                .InitializeAsync(CancellationToken.None);
             await qualification.InitializeCandidateAsync(CancellationToken.None);
         }
-        var workflowOptions = app.Services.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.IntrinsicTimeStrategyWorkflowOptions>();
-        if (app.Environment.IsDevelopment()
-        && workflowOptions.ProvisionDevelopmentMarketConditionAssessmentDefaults)
+
+        var preflightFailures = new System.Collections.Concurrent.ConcurrentQueue<Exception>();
+        var configurationReady = false;
+        await Task.WhenAll(
+            RunPreflightAsync("Recovery schema", async () =>
+            {
+                // Normal startup does not run full deployment schema initialization. Recovery readers
+                // must have their additive operational table before any hosted services start.
+                using (var recoverySchemaDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2)))
+                    await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>()
+                        .CreateAsync(["live_feed_recovery"], recoverySchemaDeadline.Token);
+            }),
+            RunPreflightAsync("Scheduler schema", async () =>
+            {
+                if (app.Services.GetService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema.ScheduledTaskSchemaDb>() is { } scheduledTaskSchema)
+                {
+                    using var scheduledTaskSchemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                    await scheduledTaskSchema.CreateAllAsync().WaitAsync(scheduledTaskSchemaDeadline.Token);
+                }
+            }),
+            RunPreflightAsync("Option cache schema", async () =>
+            {
+                // These additive cache tables must exist before background configuration readers start.
+                using (var cacheSchemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
+                await app.Services.GetRequiredService<MarketDataSchemaDb>().CreateAsync(
+                ["strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current"], cacheSchemaDeadline.Token);
+            }),
+            RunPreflightAsync("Historical analytics diagnostics schema", async () =>
+            {
+                using var schemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await app.Services.GetRequiredService<MarketDataSchemaDb>().CreateAsync(
+                    ["historical_data_loader", "historical_analytics_attempt_projection"], schemaDeadline.Token);
+            }),
+            RunPreflightAsync("Configuration schema and parameter migration", async () =>
+            {
+                await new TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb(
+                    app.Services.GetRequiredService<TomasAI.IFM.Shared.Storage.IDbConnectionSettings>(),
+                    app.Services.GetRequiredService<ILogger<TomasAI.IFM.Framework.Storage.DbProvider>>()).CreateAllAsync();
+                var migratedParameters = await app.Services.GetRequiredService<TomasAI.IFM.Domain.Reference.ParameterSets.Migration.ParameterCatalogMigrationService>()
+                    .ExecuteAsync(app.Lifetime.ApplicationStopping);
+                logger.LogInformation("Typed parameter catalog migration completed: {SourceFacts} source facts replayed", migratedParameters);
+                configurationReady = true;
+            })
+        ).ConfigureAwait(false);
+        if (configurationReady)
+            await RunPreflightAsync("Development strategy defaults", async () =>
+            {
+                var workflowOptions = app.Services.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.IntrinsicTimeStrategyWorkflowOptions>();
+                if (app.Environment.IsDevelopment()
+                && workflowOptions.ProvisionDevelopmentMarketConditionAssessmentDefaults)
+                {
+                    var regimeDefaults = await app.Services
+                    .GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.RegimeDiscoveryDefaultProvisioner>()
+                    .EnsureAsync(DateTime.UtcNow, "IFM Development startup");
+                    Log.Information(
+                    "Development Regime Discovery defaults ready: {ExistingProfiles} existing, {PublishedProfiles} published",
+                    regimeDefaults.ExistingProfiles,
+                    regimeDefaults.PublishedProfiles);
+                    var defaults = await app.Services
+                    .GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.MarketConditionAssessmentDefaultProvisioner>()
+                    .EnsureAsync(workflowOptions.MarketConditionAssessmentProfileId, DateTime.UtcNow, "IFM Development startup");
+                    Log.Information(
+                    "Development Market Condition Assessment defaults ready for {MarketProfileId}: {ExistingProfiles} existing, {PublishedProfiles} published, {ReplacedProfiles} replaced",
+                    workflowOptions.MarketConditionAssessmentProfileId,
+                    defaults.ExistingProfiles,
+                    defaults.PublishedProfiles,
+                    defaults.ReplacedProfiles);
+                }
+            });
+        else
+            logger.LogWarning("API startup step Development strategy defaults blocked by configuration initialization.");
+
+        if (!preflightFailures.IsEmpty)
         {
-            var regimeDefaults = await app.Services
-            .GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.RegimeDiscoveryDefaultProvisioner>()
-            .EnsureAsync(DateTime.UtcNow, "IFM Development startup");
-            Log.Information(
-            "Development Regime Discovery defaults ready: {ExistingProfiles} existing, {PublishedProfiles} published",
-            regimeDefaults.ExistingProfiles,
-            regimeDefaults.PublishedProfiles);
-            var defaults = await app.Services
-            .GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.MarketConditionAssessmentDefaultProvisioner>()
-            .EnsureAsync(workflowOptions.MarketConditionAssessmentProfileId, DateTime.UtcNow, "IFM Development startup");
-            Log.Information(
-            "Development Market Condition Assessment defaults ready for {MarketProfileId}: {ExistingProfiles} existing, {PublishedProfiles} published, {ReplacedProfiles} replaced",
-            workflowOptions.MarketConditionAssessmentProfileId,
-            defaults.ExistingProfiles,
-            defaults.PublishedProfiles,
-            defaults.ReplacedProfiles);
+            logger.LogError("API startup blocked HTTP and actor startup because prerequisite checks failed.");
+            throw new AggregateException("API startup prerequisites failed.", preflightFailures);
         }
-        // These additive cache tables must exist before background configuration readers start.
-        using (var cacheSchemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
-        await app.Services.GetRequiredService<MarketDataSchemaDb>().CreateAsync(
-        ["strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current"], cacheSchemaDeadline.Token);
-        await new TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb(
-            app.Services.GetRequiredService<TomasAI.IFM.Shared.Storage.IDbConnectionSettings>(),
-            app.Services.GetRequiredService<ILogger<TomasAI.IFM.Framework.Storage.DbProvider>>()).CreateAllAsync();
-        var migratedParameters=await app.Services.GetRequiredService<TomasAI.IFM.Domain.Reference.ParameterSets.Migration.ParameterCatalogMigrationService>()
-            .ExecuteAsync(app.Lifetime.ApplicationStopping);
-        logger.LogInformation("Typed parameter catalog migration completed: {SourceFacts} source facts replayed",migratedParameters);
+
+        async Task RunPreflightAsync(string step, Func<Task> operation)
+        {
+            try
+            {
+                await operation().ConfigureAwait(false);
+                logger.LogInformation("API startup step {Step} completed.", step);
+            }
+            catch (Exception error) when (!app.Lifetime.ApplicationStopping.IsCancellationRequested)
+            {
+                logger.LogError(error, "API startup step {Step} failed.", step);
+                preflightFailures.Enqueue(new InvalidOperationException($"Startup step '{step}' failed: {error.Message}", error));
+            }
+        }
         app.EnableServerManagerStandardInputShutdown(args, logger);
         // Bind the HTTP endpoint and start hosted infrastructure before exposing
         // any NATS actor subscriptions. If Kestrel cannot bind (for example, a

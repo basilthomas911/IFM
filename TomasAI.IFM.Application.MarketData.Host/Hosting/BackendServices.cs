@@ -84,6 +84,13 @@ public static class BackendServices
                             option.Pricing.Contract, option.Pricing.Calendar, provider.GetRequiredService<TreasuryPublicationPolicy>(),
                             provider.GetRequiredService<TreasuryRateConversionPolicy>(), lease.GenerationId,
                             Black76PricingModel.EngineFor(option.Pricing.Contract), DateTimeOffset.UtcNow, token).ConfigureAwait(false);
+                        // A refresh may have completed after the first frozen valuation.
+                        // Retry with a fresh live valuation without admitting look-ahead.
+                        if (prepared.Failure?.Code is "TreasuryStale" or "TreasuryUnavailable")
+                            prepared = await provider.GetRequiredService<IOptionPricingContextProvider>().PrepareAsync(
+                                option.Pricing.Contract, option.Pricing.Calendar, provider.GetRequiredService<TreasuryPublicationPolicy>(),
+                                provider.GetRequiredService<TreasuryRateConversionPolicy>(), lease.GenerationId,
+                                Black76PricingModel.EngineFor(option.Pricing.Contract), DateTimeOffset.UtcNow, token).ConfigureAwait(false);
                         if (prepared.Failure is { } failure)
                             throw new InvalidOperationException($"Option recovery context preparation failed: {failure.Code}: {failure.Detail}");
                         builder.Add(option with

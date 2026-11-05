@@ -20,6 +20,10 @@ public static class ResolveTradeSelectionExecutionPolicy
             var deadline = stage == FunctionFailureStage.Loading
                 ? context.TimeProvider.GetUtcNow().UtcDateTime.AddMilliseconds(TradeSelectionContracts.CommonPolicy(command.SelectionBinding).MaximumExecutionMilliseconds)
                 : command.ExpiresAtUtc;
+            // Finishing an already calculated durable result has its own
+            // bounded budget. The workflow still enforces the evidence expiry.
+            if (stage == FunctionFailureStage.Persistence)
+                deadline = new[] { command.ExpiresAtUtc.AddSeconds(2), command.WorkflowView.ExpiresAtUtc }.Min();
             return new(context.TimeProvider, deadline);
         }
     }

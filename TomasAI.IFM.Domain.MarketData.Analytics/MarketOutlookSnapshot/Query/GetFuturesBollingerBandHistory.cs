@@ -20,7 +20,7 @@ public static class GetFuturesBollingerBandHistory
         /// Calculates prior-day Bollinger values from normalized Databento EOD observations and returns
         /// them in ascending value-date order. The current value-date point comes from Market Outlook.
         /// </summary>
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ServiceResult<FuturesBbSignalReadModel[]>> ExecuteAsync(
             IQueryActorContext<MarketOutlookSnapshotQueryActor> context,
             IMarketOutlookSnapshotQueryContext domainContext,
             CancellationToken cancellationToken)
@@ -56,10 +56,7 @@ public static class GetFuturesBollingerBandHistory
                 result = new ServiceOk<FuturesBbSignalReadModel[]>(values);
             }
 
-            await context.ReplyAsync(
-                query.Subject.ThreadId,
-                GetFuturesBollingerBandHistoryQuery.Verb,
-                result).ConfigureAwait(false);
+            return result;
         }
     }
 }

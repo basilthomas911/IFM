@@ -17,7 +17,7 @@ public static class TradeSelectionHandoff
         if (command.SelectionBinding.SchemaVersion == 2)
         {
             Require(command.Reservation is null && state.CompositionHandoff is null && state.CurrentStage == StrategyWorkflowStage.OrderComposition && state.Status == StrategyWorkflowStatus.Running && command.WorkflowId == state.WorkflowId && command.EntityId == state.EntityId && command.InputWorkflowRevision == state.WorkflowRevision && string.Equals(command.SelectionBinding.PayloadSha256, result.DecisionContext.SelectionBinding.PayloadSha256, StringComparison.Ordinal) && string.Equals(command.AcceptedSelection.PayloadSha256, state.TradeSelection.Result?.PayloadSha256, StringComparison.Ordinal) && result.Outcome == SelectionOutcome.Selected && now < result.ValidUntilUtc && command.ExpectedCompletionAtUtc is { } deadline && now < deadline, "TS.HANDOFF.INVALID", "Portfolio-neutral composition start is invalid.");
-            Require(state.SelectionDispatch is not null && string.Equals(EvidenceHash(TradeSelectionEvaluator.Evaluate(state.SelectionDispatch)), EvidenceHash(result), StringComparison.Ordinal), "TS.HANDOFF.INVALID", "Composition result intent was changed.");
+            Require(state.SelectionDispatch is not null && string.Equals(DecisionEvidenceHash(TradeSelectionEvaluator.Evaluate(state.SelectionDispatch)), DecisionEvidenceHash(result), StringComparison.Ordinal), "TS.HANDOFF.INVALID", "Composition result intent was changed.");
             return;
         }
 

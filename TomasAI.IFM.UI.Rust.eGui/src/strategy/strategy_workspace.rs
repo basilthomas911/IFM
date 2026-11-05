@@ -444,6 +444,7 @@ impl StrategyWorkspace {
                     }
                 }
             });
+        let details_were_open = self.tab == StrategyTab::Details;
         egui::TopBottomPanel::top("strategy_workspace_tabs")
             .show_separator_line(false)
             .show_inside(ui, |ui| {
@@ -468,6 +469,10 @@ impl StrategyWorkspace {
                     );
                 });
             });
+        let details_open = self.tab == StrategyTab::Details;
+        if details_open != details_were_open && snapshot.mode == "Live" {
+            action = Some(if details_open { 14 } else { 15 });
+        }
         self.drawn_rows = 0;
         match self.tab {
             StrategyTab::Details => details.draw_inside(ui, snapshot, catalog),

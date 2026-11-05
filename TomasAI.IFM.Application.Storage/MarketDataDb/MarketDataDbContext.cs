@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using System.Text.Json;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -2785,12 +2786,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         .SetParameters(new GetYieldCurveRate(valueDate))
         .ExecuteSingleAsync(MapToYieldCurveRate!, cancellationToken)
         .ConfigureAwait(false)) is not null;
-    /// <summary>
-    /// return stream request id
-    /// </summary>
-    /// <returns></returns>
-    public async Task<int> GetStreamingRequestIdAsync() => Convert.ToInt32(await (_sequenceIdGenerator.GetSequenceIdAsync(SequenceName.StreamingRequest_RequestId))
-                .ConfigureAwait(false));
+
     /// <summary>
     /// Gets a collection of futures ITI trend direction changed signals for a given entity ID.
     /// </summary>
@@ -4055,6 +4051,49 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         if(policy.Hash()!=(string)hash)throw new InvalidDataException("Option-chain parameter hash mismatch");
         await transaction.CommitAsync(token).ConfigureAwait(false);return policy;
     }
+    /// <inheritdoc/>
+    public async Task<FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel?> GetHistoricalAnalyticsAttemptProjectionAsync(
+        Guid attemptId, CancellationToken cancellationToken = default)
+    {
+        var projected = await Use(nameof(MarketDataDbSql.GetHistoricalAnalyticsAttemptProjection), MarketDataDbSql.GetHistoricalAnalyticsAttemptProjection)
+            .SetParameters(new HistoricalDataLoadAttemptParameter(attemptId))
+            .ExecuteSingleAsync(row => JsonSerializer.Deserialize<FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel>(row.GetString(0)), cancellationToken)
+            .ConfigureAwait(false);
+        if (projected is { Status: "Completed" or "Failed" })
+            return projected;
+
+        // Materialize operational progress and older attempts that predate terminal facts.
+        var state = await GetHistoricalDataLoadAsync(attemptId, cancellationToken).ConfigureAwait(false);
+        if (state is null)
+            return projected;
+
+        return new FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel
+        {
+            DataLoadAttemptId = state.DataLoadAttemptId,
+            RequestSha256 = state.RequestSha256,
+            Status = state.Status.ToString(),
+            ManifestId = state.Manifest?.ManifestId,
+            LastCompletedBatchOrdinal = checked((int)state.Checkpoint.BatchOrdinal),
+            LastCompletedRecordOrdinal = long.TryParse(state.Checkpoint.SourcePosition, System.Globalization.CultureInfo.InvariantCulture, out var ordinal) ? ordinal : -1,
+            ValidSessionCount = state.Audit?.ValidSessionCount ?? 0,
+            GapCount = state.Audit?.Gaps.Count ?? 0,
+            RollCount = state.Audit?.Rolls.Count ?? 0,
+            ErrorMessage = state.ErrorMessage,
+            UpdatedAtUtc = state.UpdatedAtUtc
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task UpsertHistoricalAnalyticsAttemptProjectionAsync(
+        FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel diagnostics, long eventId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventId);
+        await Use(nameof(MarketDataDbSql.UpsertHistoricalAnalyticsAttemptProjection), MarketDataDbSql.UpsertHistoricalAnalyticsAttemptProjection)
+            .SetParameters(new HistoricalAnalyticsAttemptProjectionParameter(diagnostics.DataLoadAttemptId, eventId, JsonSerializer.Serialize(diagnostics)))
+            .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Reads one persisted historical-load checkpoint and terminal manifest.</summary>
     /// <param name="attemptId">The stable load attempt identity.</param>
     /// <param name="cancellationToken">Cancels the query.</param>

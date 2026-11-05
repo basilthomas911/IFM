@@ -228,20 +228,25 @@ public sealed class OptionPipelineRecoveryRuntimeTests
         Assert.Null(runtime.Inspect().Failure); Assert.Empty(runtime.Inspect().Positions);
     }
 
-    [Fact]
-    public void Enabled_trade_with_all_quotes_stale_remains_monitored_and_starts_recovery()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Stale_trade_quotes_only_trigger_transport_recovery_without_subscription_proof(bool verified)
     {
         var clock = new LivePipelineIntegrationTests.ManualTime(); var date = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
         var cache = new TradeRealtimeCacheRegistry(); var trade = Trade();
         cache.Register(trade, date).Apply(Position(trade, date, 1, clock.GetUtcNow().AddHours(-1)));
         var market = Substitute.For<IMarketDataApi>();
-        market.GetRuntimeStatus().Returns(new TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel { EnabledOptionTrades = [trade.Id.Format()] });
+        market.GetRuntimeStatus().Returns(new TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel { EnabledOptionTrades = [trade.Id.Format()], OptionSubscriptionsVerified = verified });
         var session = Substitute.For<IFuturesMarketSessionAuthority>(); session.Current.Returns(new MarketSessionReadModel { ActiveValueDate = date });
         var supervisor = Substitute.For<IActorSupervisor>(); supervisor.IsReady.Returns(true); supervisor.RuntimeContext.Returns(new SupervisorRuntimeContext());
         var runtime = new OptionPipelineRecoveryRuntime(supervisor, market, session, cache, clock);
         Assert.Null(runtime.Inspect().Failure);
         clock.Advance(TimeSpan.FromSeconds(31));
-        var inspection = runtime.Inspect(); Assert.Single(inspection.Positions); Assert.Contains("no current quote progress", inspection.Failure);
+        var inspection = runtime.Inspect();
+        Assert.Single(inspection.Positions);
+        if (verified) Assert.Null(inspection.Failure);
+        else Assert.Contains("no current quote progress", inspection.Failure);
     }
 
     [Fact]

@@ -44,10 +44,16 @@ public class MarketOutlookSnapshotQueryActor(
             CancellationToken,
             ValueTask>>
         {
-            [typeof(GetMarketOutlookSnapshotQuery)] = static (context, domainContext, query, cancellationToken) =>
-                ((GetMarketOutlookSnapshotQuery)query).ExecuteAsync(context, domainContext, cancellationToken),
-            [typeof(GetFuturesBollingerBandHistoryQuery)] = static (context, domainContext, query, cancellationToken) =>
-                ((GetFuturesBollingerBandHistoryQuery)query).ExecuteAsync(context, domainContext, cancellationToken)
+            [typeof(GetMarketOutlookSnapshotQuery)] = static async (context, domainContext, query, cancellationToken) =>
+            {
+                var result = await ((GetMarketOutlookSnapshotQuery)query).ExecuteAsync(context, domainContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetMarketOutlookSnapshotQuery.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetFuturesBollingerBandHistoryQuery)] = static async (context, domainContext, query, cancellationToken) =>
+            {
+                var result = await ((GetFuturesBollingerBandHistoryQuery)query).ExecuteAsync(context, domainContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetFuturesBollingerBandHistoryQuery.Verb, result).ConfigureAwait(false);
+            }
         };
 
     protected override IQuery ParseMessage(

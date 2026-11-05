@@ -18,6 +18,10 @@ public static class GetLastFuturesTickDataByTickDate
     /// </param>
     extension(GetLastFuturesTickDataByTickDateQuery q)
     {
+        /// <summary>Returns the typed query result from the projected read store.</summary>
+        internal async ValueTask<ServiceResult<FuturesTickDataV2ReadModel?>> ReadAsync(IDbContextFactory databases)
+            => new(await q.ExecuteAsync(databases).ConfigureAwait(false));
+
         /// <summary>
         ///
         /// </summary>

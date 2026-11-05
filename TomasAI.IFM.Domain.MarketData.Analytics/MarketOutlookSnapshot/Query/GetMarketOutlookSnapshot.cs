@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -11,7 +13,7 @@ public static class GetMarketOutlookSnapshot
     extension(GetMarketOutlookSnapshotQuery query)
     {
         /// <summary>Reads the requested snapshot and replies using the existing query result contract.</summary>
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ServiceResult<MarketOutlookReadModel>> ExecuteAsync(
             IQueryActorContext<MarketOutlookSnapshotQueryActor> context,
             IMarketOutlookSnapshotQueryContext domainContext,
             CancellationToken cancellationToken)
@@ -20,8 +22,7 @@ public static class GetMarketOutlookSnapshot
             ArgumentNullException.ThrowIfNull(query);
             var result = await domainContext.GetMarketOutlookSnapshotAsync(
                 query.ContractId, query.ValueDate, cancellationToken).ConfigureAwait(false);
-            await context.ReplyAsync(
-                query.Subject.ThreadId, GetMarketOutlookSnapshotQuery.Verb, result).ConfigureAwait(false);
+            return result;
         }
     }
 }

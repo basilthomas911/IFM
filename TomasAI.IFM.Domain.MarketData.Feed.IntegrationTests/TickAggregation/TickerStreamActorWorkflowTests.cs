@@ -895,6 +895,8 @@ public sealed class TickerStreamActorWorkflowTests
             MarketPrice.TrySetResult(@event);
             if (@event.UpdateSource == FuturesMarketPriceUpdateSource.Trade)
                 TradeMarketPrice.TrySetResult(@event);
+            if (@event.SourceTrade is { } trade)
+                Trade.TrySetResult(trade);
             return ValueTask.CompletedTask;
         }
 

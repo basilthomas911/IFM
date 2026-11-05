@@ -14,7 +14,7 @@ public static class GetFuturesVwapSignalHistory
     extension(GetFuturesVwapSignalHistoryQuery query)
     {
         /// <summary>Reads the requested history window and replies to the caller.</summary>
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ServiceResult<FuturesVwapSignalReadModel[]>> ExecuteAsync(
             IQueryActorContext<FuturesVwapSignalQueryActor> context,
             IFuturesVwapSignalQueryContext typedContext,
             CancellationToken cancellationToken)
@@ -24,8 +24,7 @@ public static class GetFuturesVwapSignalHistory
             ArgumentNullException.ThrowIfNull(typedContext);
             var values = await FuturesVwapSignalQueryModel.ExecuteAsync(query,
                 typedContext.DbFactory, cancellationToken).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-                new ServiceResult<FuturesVwapSignalReadModel[]>(values)).ConfigureAwait(false);
+            return new ServiceResult<FuturesVwapSignalReadModel[]>(values);
         }
     }
 }

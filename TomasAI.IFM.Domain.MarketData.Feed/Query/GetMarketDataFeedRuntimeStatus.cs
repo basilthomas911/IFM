@@ -13,13 +13,13 @@ public static class GetMarketDataFeedRuntimeStatus
     extension(GetMarketDataFeedRuntimeStatusQuery query)
     {
         /// <summary>Returns the current feed runtime status.</summary>
-        public ValueTask ExecuteAsync(IMarketDataFeedQueryContext context, MarketDataFeedQueryParameters parameters)
+        public ValueTask<ServiceResult<MarketDataFeedRuntimeStatusReadModel>> ExecuteAsync(IMarketDataFeedQueryContext context, MarketDataFeedQueryParameters parameters)
 
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(parameters);
             ArgumentNullException.ThrowIfNull(query);
-            return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<MarketDataFeedRuntimeStatusReadModel>(parameters.MarketDataApi.GetRuntimeStatus()));
+            return ValueTask.FromResult(new ServiceResult<MarketDataFeedRuntimeStatusReadModel>(parameters.MarketDataApi.GetRuntimeStatus()));
         }
     }
 }

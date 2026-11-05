@@ -15,11 +15,12 @@ public record StartMarketDataFeedCommand : ICommand<MarketDataFeedId>
     [Key(0)] public Guid CommandId { get; init; }
     [Key(1)] public ActorSubject Subject { get; init; }
     [Key(2)] public bool PostEvents { get; init; }
-    // The backend resolves the date-specific identity before validation and persistence.
+    // The producer supplies the date selected by the preparation operation.
     [Key(3)] public MarketDataFeedId EntityId { get; init; } = new();
     [Key(4)] public int ErrorCode { get; init; } = ErrorId;
     [Key(5)] public BoundedContextName RouteTo { get; init; } = BoundedContextName.MarketDataFeedBoundedContext;
     // Former payload slots 6..8 are deliberately not reused.
+    [Key(9)] public TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel[]? PreparedContracts { get; init; }
 
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";

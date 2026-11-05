@@ -31,8 +31,8 @@ public static class GetFuturesRsiSignal
             => await dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
                     q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
 
-        /// <summary>Reads and replies to the GetFuturesRsiSignalQuery message.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Reads the GetFuturesRsiSignalQuery message.</summary>
+        public async ValueTask<ServiceResult<FuturesRsiSignalReadModel?>> ExecuteAsync(
             IQueryActorContext<FuturesRsiSignalQueryActor> ctx,
             IDbContextFactory dbFactory,
             CancellationToken cancellationToken)
@@ -44,7 +44,7 @@ public static class GetFuturesRsiSignal
             var result = await query.GetLastFuturesRsiSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiSignalQuery.Verb, serviceResult).ConfigureAwait(false);
+            return serviceResult;
         }
     }
 }

@@ -28,7 +28,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
 
     public static TheoryData<string> QueryKinds => new()
     {
-        "OptionContract", "OptionSpread", "Risk", "IronCondor", "NormalCurve", "StreamingRequestId"
+        "OptionContract", "OptionSpread", "Risk", "IronCondor", "NormalCurve"
     };
 
     [Theory]
@@ -181,25 +181,6 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
             Arg.Is<ServiceResult<NormalCurveTableReadModel>>(result => result.Success && result.Value == SampleData.NormCurveData));
     }
 
-    [Theory]
-    [InlineData("StreamingRequestId", 702)]
-    public async Task Given_AnAtomicSequence_When_AnIdentifierIsQueried_Then_TheNextIdIsReturned(string kind, long nextId)
-    {
-        var sequenceIdGenerator = Substitute.For<ISequenceIdApi>();
-        sequenceIdGenerator
-            .GetSequenceIdAsync(Arg.Any<SequenceName>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<long>(nextId));
-        var actor = _fixture.CreateMarketDataFeedQueryActor(
-            sequenceIdGenerator: sequenceIdGenerator);
-        IQueryActorContext<MarketDataFeedQueryActor> context = actor.Context;
-        var query = CreateQuery(kind);
-
-        await actor.InvokeReceiveAsync(context, query);
-
-        await context.Received(1).ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            Arg.Is<ServiceResult<ScalarValue<int>>>(result => result.Success && result.Value!.Value == nextId));
-    }
-
     [Fact]
     public async Task Given_MissingOrUnsupportedReceiveInputs_When_Queried_Then_TheyAreRejected()
     {
@@ -287,7 +268,6 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         "IronCondor" => Route(new GetIronCondorMarketDataFeedQuery(
             SampleData.EsContract.ContractId, "ES-P-S", "ES-P-L", "ES-C-S", "ES-C-L", SampleData.ValueDate)),
         "NormalCurve" => Route(new GetNormalCurveTableQuery()),
-        "StreamingRequestId" => Route(new GetStreamingRequestIdQuery("stream-request")),
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
@@ -301,7 +281,6 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
             case GetFuturesRiskPositionTypeQuery value: value.Subject = subject; break;
             case GetIronCondorMarketDataFeedQuery value: value.Subject = subject; break;
             case GetNormalCurveTableQuery value: value.Subject = subject; break;
-            case GetStreamingRequestIdQuery value: value.Subject = subject; break;
         }
         return query;
     }
@@ -313,7 +292,6 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         GetFuturesRiskPositionTypeQuery => GetFuturesRiskPositionTypeQuery.Verb,
         GetIronCondorMarketDataFeedQuery => GetIronCondorMarketDataFeedQuery.Verb,
         GetNormalCurveTableQuery => GetNormalCurveTableQuery.Verb,
-        GetStreamingRequestIdQuery => GetStreamingRequestIdQuery.Verb,
         _ => throw new ArgumentOutOfRangeException(nameof(query))
     };
 
@@ -327,7 +305,6 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         GetFuturesRiskPositionTypeQuery value => ActorExtensions.DataSerializer!.Serialize(value),
         GetIronCondorMarketDataFeedQuery value => ActorExtensions.DataSerializer!.Serialize(value),
         GetNormalCurveTableQuery value => ActorExtensions.DataSerializer!.Serialize(value),
-        GetStreamingRequestIdQuery value => ActorExtensions.DataSerializer!.Serialize(value),
         _ => throw new ArgumentOutOfRangeException(nameof(query))
     };
 }

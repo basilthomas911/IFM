@@ -35,8 +35,8 @@ public static class GetFuturesTradeSignal
             => await dbFactory.MarketDataDb.GetLastFuturesTradeSignalAsync(
                     q.ContractId, q.ValueDate, cancellationToken).ConfigureAwait(false);
 
-        /// <summary>Reads and replies to the GetFuturesTradeSignalQuery message.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Reads the GetFuturesTradeSignalQuery message.</summary>
+        public async ValueTask<ServiceResult<FuturesTradeSignalV2ReadModel?>> ExecuteAsync(
             IQueryActorContext<FuturesTradeSignalQueryActor> ctx,
             IDbContextFactory db,
             CancellationToken cancellationToken)
@@ -47,8 +47,7 @@ public static class GetFuturesTradeSignal
             var query = q;
             var result = await query.GetFuturesTradeSignalAsync(db, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalQuery.Verb,
-                new ServiceResult<FuturesTradeSignalV2ReadModel?>(result)).ConfigureAwait(false);
+            return new ServiceResult<FuturesTradeSignalV2ReadModel?>(result);
         }
     }
 }

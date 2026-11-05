@@ -51,8 +51,8 @@ public static class GetFuturesItiSignalData
                 trendReversalChange: await trendReversalTask.ConfigureAwait(false));
         }
 
-        /// <summary>Reads and replies to the GetFuturesItiSignalDataQuery message.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Reads the GetFuturesItiSignalDataQuery message.</summary>
+        public async ValueTask<ServiceResult<FuturesItiSignalDataReadModel>> ExecuteAsync(
             IQueryActorContext<FuturesItiSignalQueryActor> ctx,
             IDbContextFactory db,
             CancellationToken cancellationToken)
@@ -63,8 +63,7 @@ public static class GetFuturesItiSignalData
             var query = q;
             var result = await query.GetFuturesItiSignalDataAsync(db, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalDataQuery.Verb,
-                new ServiceResult<FuturesItiSignalDataReadModel>(result)).ConfigureAwait(false);
+            return new ServiceResult<FuturesItiSignalDataReadModel>(result);
         }
     }
 }

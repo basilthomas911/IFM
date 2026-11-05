@@ -3,7 +3,7 @@ using System.Reflection;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Validation;
 
-namespace TomasAI.IFM.Application.TradeBroker.UnitTests;
+namespace TomasAI.IFM.Domain.BrokerAccount.UnitTests;
 
 /// <summary>Checks actual mapped ingress for malformed serialized command payloads.</summary>
 public sealed class CommandActorValidationTests

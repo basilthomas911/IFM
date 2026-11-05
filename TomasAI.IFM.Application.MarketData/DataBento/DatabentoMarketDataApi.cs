@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -20,6 +20,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// <inheritdoc />
     public IOptionChainCache OptionChainCache { get; }
     readonly ITradeStrategySymbolCatalog? _symbolCatalog;
+    readonly IDatabentoContractAuthority? _contractAuthority;
+    readonly Func<DateOnly, Guid, CancellationToken, Task>? _resetMarketData;
     public bool TryGetMarketInstrumentId(string contractId, out uint marketInstrumentId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
@@ -57,6 +59,24 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             return _contractRegistry.TryGetFuturesTermStructureContracts(symbol, out contracts);
         contracts = default;
         return false;
+    }
+
+    /// <summary>Dispatches a managed reset through the lifecycle owner.</summary>
+    public Task ResetMarketDataAsync(DateOnly valueDate, Guid operationId, CancellationToken cancellationToken = default) =>
+        _resetMarketData?.Invoke(valueDate, operationId, cancellationToken)
+        ?? Task.FromException(new NotSupportedException("Backend reset is not configured."));
+
+    /// <summary>Prepares the local runtime's current ES and VX assignments for a market session.</summary>
+    public async Task<FuturesContractV3ReadModel[]> PrepareSessionAsync(
+        DateOnly valueDate, CancellationToken cancellationToken = default)
+    {
+        var authority = _contractAuthority ?? throw new NotSupportedException("Managed session contract authority is not configured.");
+        await authority.ReconcileAsync(valueDate, nameof(DatabentoMarketDataApi), cancellationToken).ConfigureAwait(false);
+        if (!TryGetOnTheRunFuturesContract("ES", out var es)
+            || !TryGetFuturesTermStructureContracts("VX", out var vx))
+            throw new InvalidOperationException("Current ES and VX contract assignments are unavailable.");
+
+        return [es, vx.Front, vx.Back];
     }
 
     /// <inheritdoc />
@@ -307,7 +327,9 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         IDatabentoContractRegistrationRegistry? contractRegistry = null,
         DatasetWorkerCurrentValues? currentValues = null,
         ITradeStrategySymbolCatalog? symbolCatalog = null,
-        IOptionChainCache? optionChainCache = null)
+        IOptionChainCache? optionChainCache = null,
+        IDatabentoContractAuthority? contractAuthority = null,
+        Func<DateOnly, Guid, CancellationToken, Task>? resetMarketData = null)
     {
         _epochFactory = epochFactory ?? throw new ArgumentNullException(nameof(epochFactory));
         ArgumentNullException.ThrowIfNull(options);
@@ -320,6 +342,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         _contractRegistry = contractRegistry;
         _currentValues = currentValues;
         _symbolCatalog = symbolCatalog;
+        _contractAuthority = contractAuthority;
+        _resetMarketData = resetMarketData;
         OptionChainCache = optionChainCache ?? UnavailableOptionChainCache.Instance;
     }
 
@@ -884,6 +908,24 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         return Task.FromResult(active.StopIndividualOptionRoute(
             owner ?? CreateDefaultStreamOwner(active, "option"),
             futuresOptionContractId));
+    }
+
+    /// <summary>Attaches a monitored option route to the managed epoch for the requested value date.</summary>
+    public Task<bool> AcquireMonitoredOptionAsync(TickerStreamOwner owner, FuturesOptionContractReadModel contract,
+        DateOnly valueDate, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (GetRunningEpoch().ValueDate != valueDate)
+            throw new InvalidOperationException("The managed option route requires the active value date.");
+        return StartStreamingFuturesOptionTickDataAsync(contract.ContractId, owner);
+    }
+
+    /// <summary>Releases the owner's monitored option route from the managed epoch.</summary>
+    public Task<bool> ReleaseMonitoredOptionAsync(TickerStreamOwner owner, string contractId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return StopStreamingFuturesOptionTickDataAsync(contractId, owner);
     }
 
     /// <summary>

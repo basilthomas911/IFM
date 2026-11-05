@@ -9,7 +9,10 @@ public static class GetParameterSchema
 
     extension(GetParameterSchemaQuery query)
     {
-        public async ValueTask<ParameterSchemaDefinition> ExecuteAsync(IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
+        public async ValueTask<ParameterSchemaDefinition> ExecuteAsync(
+            IParameterSetQueryContext context,
+            ILogger<ParameterSetQueryActor> logger,
+            CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);

@@ -21,9 +21,14 @@ public sealed class FourHourDatabentoSeedReplay(
     const int BarCount = 48;
     const decimal PriceScale = 1_000_000_000m;
 
+    public Task<FuturesTradeSessionBarReadModel[]> ReadAsync(string contractId, CancellationToken cancellationToken)
+        => ReadAsync(contractId, TimeFrameType.FiveMinutes, cancellationToken);
+
     public async Task<FuturesTradeSessionBarReadModel[]> ReadAsync(
-        string contractId, CancellationToken cancellationToken)
+        string contractId, TimeFrameType frame, CancellationToken cancellationToken)
     {
+        if (frame is not (TimeFrameType.FiveMinutes or TimeFrameType.FifteenMinutes or TimeFrameType.OneHour or TimeFrameType.FourHours))
+            throw new ArgumentOutOfRangeException(nameof(frame));
         cancellationToken.ThrowIfCancellationRequested();
         if (options.FeedOptions.DataSource != FeedDataSourceMode.DatabentoLive)
             return [];
@@ -33,22 +38,20 @@ public sealed class FourHourDatabentoSeedReplay(
             throw new InvalidOperationException($"No Databento registration exists for {contractId}.");
 
         var now = clock.GetUtcNow();
-        var cutoff = new DateTimeOffset(now.UtcTicks - now.UtcTicks % TimeSpan.FromMinutes(5).Ticks,
-            TimeSpan.Zero);
-        var windows = RsiHistoricalSeedWindowModel.Create(
-            TimeFrameType.FiveMinutes, BarCount, cutoff, calendar);
+        var windows = RsiHistoricalSeedWindowModel.Create(frame, BarCount, now, calendar);
         // Initialization needs 48 actual trading bars, including across maintenance/session breaks.
         if (windows.Length != BarCount)
             return [];
 
         // Live trade replay cannot cross the weekend. Read prior sessions through Historical,
         // leaving recent current-session bars to Live (Historical may not have those yet).
+        var cutoff = windows[^1].EndUtc;
         var valueDate = calendar.GetValueDate(now);
         var sessionStart = calendar.IsTradingDate(valueDate) ? calendar.GetSession(valueDate).StartUtc : cutoff;
         var historicalWindows = windows.Where(window => window.StartUtc < sessionStart
             || window.StartUtc < now.AddHours(-23)).ToArray();
         var historicalBars = await ReadHistoricalAsync(registration, contractId,
-            historicalWindows, cutoff, cancellationToken).ConfigureAwait(false);
+            historicalWindows, frame, cutoff, cancellationToken).ConfigureAwait(false);
         if (historicalBars.Length != historicalWindows.Length)
             return [];
         var replayWindows = windows.Except(historicalWindows).ToArray();
@@ -65,12 +68,12 @@ public sealed class FourHourDatabentoSeedReplay(
             StatisticsReplayStartTimestampNanoseconds = 0
         };
         return await Task.Run(() => ReadReplay(feedOptions, registration, contractId,
-            windows, historicalBars, cutoff, cancellationToken), cancellationToken).ConfigureAwait(false);
+            windows, historicalBars, frame, cutoff, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     async Task<FuturesTradeSessionBarReadModel[]> ReadHistoricalAsync(
         DatabentoContractRegistration registration, string contractId,
-        MarketSessionBounds[] windows, DateTimeOffset cutoff, CancellationToken token)
+        MarketSessionBounds[] windows, TimeFrameType frame, DateTimeOffset cutoff, CancellationToken token)
     {
         if (windows.Length == 0) return [];
         if (historical is null)
@@ -79,23 +82,24 @@ public sealed class FourHourDatabentoSeedReplay(
             return [];
         }
         var result = new List<FuturesTradeSessionBarReadModel>(windows.Length);
-        var remainingBudget = 0.10m;
+        var remainingBudget = frame == TimeFrameType.FiveMinutes ? 0.10m : 0m;
         foreach (var group in windows.GroupBy(window => window.ValueDate))
         {
             var selected = group.ToArray();
             var start = selected[0].StartUtc;
             var end = selected[^1].EndUtc;
+            var expectedMinutes = selected.Sum(window => checked((int)(window.EndUtc - window.StartUtc).TotalMinutes));
             var request = new HistoricalProviderRequest
             {
                 Dataset = registration.Dataset ?? options.FeedOptions.Dataset,
                 Symbols = [registration.ProviderContractName], Schema = HistoricalDataSchema.OhlcvOneMinute,
                 Symbology = HistoricalSymbology.RawSymbol, StartUtc = start, EndUtc = end,
-                RecordLimit = selected.Length * 5 + 1,
+                RecordLimit = expectedMinutes + 1,
                 RequestHash = $"indicator-seed-v1|{contractId}|{start:O}|{end:O}"
             };
             var estimate = await historical.EstimateAsync(request, token).ConfigureAwait(false);
             if (estimate.EstimatedCostUsd < 0 || estimate.EstimatedCostUsd > remainingBudget)
-                throw new InvalidOperationException("Indicator historical seed exceeds the $0.10 acquisition budget.");
+                throw new InvalidOperationException("Indicator historical seed exceeds the allowed acquisition budget.");
             remainingBudget -= estimate.EstimatedCostUsd;
             var minutes = new Dictionary<DateTimeOffset, HistoricalProviderRecord>();
             await using var reader = await historical.OpenRangeAsync(request, 256, token).ConfigureAwait(false);
@@ -103,7 +107,7 @@ public sealed class FourHourDatabentoSeedReplay(
             while (await reader.ReadNextAsync(token).ConfigureAwait(false) is { } batch)
                 foreach (var record in batch.Records)
                 {
-                    if (++recordCount > selected.Length * 5)
+                    if (++recordCount > expectedMinutes)
                         throw new InvalidOperationException("Indicator historical seed exceeded its bounded record limit.");
                     if (record.Kind != HistoricalProviderRecordKind.Ohlcv
                         || record.EventTimestampUtc < start || record.EventTimestampUtc >= end
@@ -117,7 +121,7 @@ public sealed class FourHourDatabentoSeedReplay(
                 }
             foreach (var window in selected)
             {
-                var records = Enumerable.Range(0, 5).Select(index =>
+                var records = Enumerable.Range(0, checked((int)(window.EndUtc - window.StartUtc).TotalMinutes)).Select(index =>
                     minutes.GetValueOrDefault(window.StartUtc.AddMinutes(index))).ToArray();
                 if (records.Any(record => record is null))
                 {
@@ -128,8 +132,8 @@ public sealed class FourHourDatabentoSeedReplay(
                 result.Add(new()
                 {
                     MarketSeriesIdentity = series,
-                    ObservationId = FuturesTradeSessionBarId.Create(series, TimeFrameType.FiveMinutes, window.EndUtc, 0),
-                    ContractId = contractId, ValueDate = window.ValueDate, TimeFrame = TimeFrameType.FiveMinutes,
+                    ObservationId = FuturesTradeSessionBarId.Create(series, frame, window.EndUtc, 0),
+                    ContractId = contractId, ValueDate = window.ValueDate, TimeFrame = frame,
                     IntervalStartUtc = window.StartUtc, IntervalEndUtc = window.EndUtc,
                     Open = records[0]!.Open, High = records.Max(record => record!.High),
                     Low = records.Min(record => record!.Low), Close = records[^1]!.CloseOrPrice,
@@ -153,6 +157,7 @@ public sealed class FourHourDatabentoSeedReplay(
         string contractId,
         MarketSessionBounds[] windows,
         FuturesTradeSessionBarReadModel[] historicalBars,
+        TimeFrameType frame,
         DateTimeOffset cutoff,
         CancellationToken cancellationToken)
     {
@@ -218,7 +223,7 @@ public sealed class FourHourDatabentoSeedReplay(
             }
             var series = MarketSeriesIdentity.ForContract(contractId);
             var bars = windows.Select((window, index) => retained.TryGetValue(window.StartUtc, out var historicalBar)
-                ? historicalBar : buckets[index].ToObservation(series, contractId, window, cutoff)).ToArray();
+                ? historicalBar : buckets[index].ToObservation(series, contractId, window, cutoff, frame)).ToArray();
             var validation = new FuturesTradeSessionBarReadModelValidationRules();
             return bars.All(bar => validation.Execute(bar).Length == 0) ? bars : [];
         }
@@ -269,14 +274,14 @@ public sealed class FourHourDatabentoSeedReplay(
 
         public readonly FuturesTradeSessionBarReadModel ToObservation(
             MarketSeriesIdentity series, string contractId,
-            MarketSessionBounds window, DateTimeOffset cutoff) => new()
+            MarketSessionBounds window, DateTimeOffset cutoff, TimeFrameType frame = TimeFrameType.FiveMinutes) => new()
         {
             MarketSeriesIdentity = series,
             ObservationId = FuturesTradeSessionBarId.Create(series,
-                TimeFrameType.FiveMinutes, window.EndUtc, LastSequence),
+                frame, window.EndUtc, LastSequence),
             ContractId = contractId,
             ValueDate = window.ValueDate,
-            TimeFrame = TimeFrameType.FiveMinutes,
+            TimeFrame = frame,
             IntervalStartUtc = window.StartUtc,
             IntervalEndUtc = window.EndUtc,
             Open = Open,

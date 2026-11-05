@@ -106,7 +106,10 @@ public sealed class TradeRealtimePipelineTests
             ValidUntilUtc = now.AddSeconds(5), GreeksAvailable = false
         };
         registry.Apply(quote);
-        var completed = quote with { IsPricingUpdate = true, ObservationRevision = 2, GreeksAvailable = true, CalculatedAtUtc = now };
+        var newest = quote with { TickId = 8, ObservedAtUtc = now.AddMilliseconds(100), ObservationRevision = 2, Vega = 0 };
+        registry.Apply(newest);
+        var completed = quote with { IsPricingUpdate = true, ObservationRevision = 3, GreeksAvailable = true,
+            CalculatedAtUtc = now.AddMilliseconds(200), TheoreticalPrice = 10 };
         var changed = new FuturesTickTradeDataChangedEvent
         {
             Id = Guid.NewGuid(), ReceivedOn = now.UtcDateTime,
@@ -123,7 +126,8 @@ public sealed class TradeRealtimePipelineTests
         var mirror = new TradeRealtimeHotCache(trade, date);
         Assert.True(mirror.AcceptSnapshot(message.Snapshot));
         Assert.Equal(snapshot.SnapshotRevision, mirror.Read().SnapshotRevision);
-        Assert.Equal(12, mirror.Read().Legs[0].Observation!.Vega);
+        Assert.Equal(8, mirror.Read().Legs[0].Observation!.TickId);
+        Assert.Equal(12, mirror.Read().Legs[0].LastValidRisk!.Vega);
         Assert.False(mirror.AcceptSnapshot(message.Snapshot with { SnapshotRevision = 1 }));
     }
 

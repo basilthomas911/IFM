@@ -58,14 +58,14 @@ public sealed class SupervisorManagedActorLifecycle(
             var managedDescriptors = _registry.ActorTypes.Where(type => !IsSupervisorActor(type)).ToArray();
             expected = managedDescriptors.Length;
             stage = "ConstructManaged";
-            _managedActors = ConstructAndRegister(managedDescriptors, cancellationToken);
+            var actorFailures = new System.Collections.Concurrent.ConcurrentQueue<Exception>();
+            var registered = ConstructAndRegister(managedDescriptors, actorFailures, cancellationToken);
             stage = "RegisterConsumers";
-            RegisterConsumers(_bootstrap.ActorTypes.Concat(_managedActors.Select(static actor => actor.Id.ActorType)));
+            RegisterConsumers(_bootstrap.ActorTypes.Concat(registered.Select(static actor => actor.Id.ActorType)));
 
             stage = "StartManaged";
-            var startedManaged = 0;
             await Parallel.ForEachAsync(
-                _managedActors,
+                registered,
                 new ParallelOptions
                 {
                     CancellationToken = cancellationToken,
@@ -75,10 +75,18 @@ public sealed class SupervisorManagedActorLifecycle(
                 },
                 async (actor, token) =>
                 {
-                    await _actorSupervisor.StartAsync(actor.Id, token).ConfigureAwait(false);
-                    Interlocked.Increment(ref startedManaged);
+                    try
+                    {
+                        await _actorSupervisor.StartAsync(actor.Id, token).ConfigureAwait(false);
+                        Interlocked.Increment(ref started);
+                    }
+                    catch (Exception error) when (IsRecoverable(error) && !token.IsCancellationRequested)
+                    {
+                        actorFailures.Enqueue(new InvalidOperationException($"Actor {actor.Id} failed: {error.Message}", error));
+                    }
                 }).ConfigureAwait(false);
-            started += startedManaged;
+            if (!actorFailures.IsEmpty)
+                throw new AggregateException("Managed actor startup failed. Actor intake is blocked.", actorFailures);
 
             stage = "ValidateActors";
             if (started != expected || _managedActors.Any(actor => !actor.IsRunning))
@@ -446,22 +454,31 @@ public sealed class SupervisorManagedActorLifecycle(
         finally { if (acquired) _gate.Release(); }
     }
 
-    IActor[] ConstructAndRegister(Type[] descriptors, CancellationToken cancellationToken)
+    IActor[] ConstructAndRegister(Type[] descriptors, System.Collections.Concurrent.ConcurrentQueue<Exception> failures, CancellationToken cancellationToken)
     {
         var actors = new List<IActor>(descriptors.Length);
+        var registered = new List<IActor>(descriptors.Length);
         foreach (var descriptor in descriptors)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var actor = _factory.GetActor(descriptor)
-                ?? throw new InvalidOperationException($"Unable to construct actor {descriptor}.");
-            _actorSupervisor.AddActor(actor);
-            actors.Add(actor);
-            _managedActors = actors.ToArray();
-            _actorSupervisor.AddProducer(actor.Id, _actorSupervisor.Container.Resolve<IActorProducer>());
-            if (actor.Id.ActorType.GetDeliveryType() == ActorDeliveryType.NatsJetStream)
-                _actorSupervisor.AddJSProducer(actor.Id, _actorSupervisor.Container.Resolve<IJSActorProducer>());
+            try
+            {
+                var actor = _factory.GetActor(descriptor)
+                    ?? throw new InvalidOperationException($"Unable to construct actor {descriptor}.");
+                _actorSupervisor.AddActor(actor);
+                actors.Add(actor);
+                _managedActors = actors.ToArray();
+                _actorSupervisor.AddProducer(actor.Id, _actorSupervisor.Container.Resolve<IActorProducer>());
+                if (actor.Id.ActorType.GetDeliveryType() == ActorDeliveryType.NatsJetStream)
+                    _actorSupervisor.AddJSProducer(actor.Id, _actorSupervisor.Container.Resolve<IJSActorProducer>());
+                registered.Add(actor);
+            }
+            catch (Exception error) when (IsRecoverable(error) && !cancellationToken.IsCancellationRequested)
+            {
+                failures.Enqueue(new InvalidOperationException($"Actor {descriptor} registration failed: {error.Message}", error));
+            }
         }
-        return actors.ToArray();
+        return registered.ToArray();
     }
 
     void RegisterConsumers(IEnumerable<ActorType> actorTypes)

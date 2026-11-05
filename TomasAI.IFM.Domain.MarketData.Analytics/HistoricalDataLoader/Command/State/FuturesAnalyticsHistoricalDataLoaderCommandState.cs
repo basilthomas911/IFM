@@ -19,12 +19,20 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandState
     /// <summary>Gets the immutable accepted parameters.</summary>
     public FuturesAnalyticsHistoricalDataLoaderParameters? FuturesAnalyticsHistoricalDataLoaderParameters { get; private set; }
 
+    /// <summary>Gets the committed terminal outcome, when available.</summary>
+    public bool IsCompleted { get; private set; }
+
+    /// <summary>Gets whether the latest committed outcome is a failure.</summary>
+    public bool IsFailed { get; private set; }
+
     /// <inheritdoc />
     protected override bool Apply(IEvent domainEvent)
     {
         return domainEvent switch
         {
             FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested => On(requested),
+            FuturesAnalyticsHistoricalDataLoaderCompletedEvent when IsRequested => Complete(),
+            FuturesAnalyticsHistoricalDataLoaderFailedEvent when IsRequested => Fail(),
             _ => false
         };
     }
@@ -34,6 +42,19 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandState
     {
         IsRequested = true;
         FuturesAnalyticsHistoricalDataLoaderParameters = requested.FuturesAnalyticsHistoricalDataLoaderParameters;
+        return true;
+    }
+    bool Complete()
+    {
+        IsCompleted = true;
+        IsFailed = false;
+        return true;
+    }
+
+    bool Fail()
+    {
+        if (IsCompleted) return false;
+        IsFailed = true;
         return true;
     }
 }

@@ -15,7 +15,8 @@ public static class TradeSelectionDispatch
     {
         ArgumentNullException.ThrowIfNull(view);
         var binding = view.SelectionBinding ?? throw new ArgumentException("Selection binding is missing; unbound historical workflows cannot continue.",nameof(view));
-        var policy = TradeSelectionContracts.ValidateBinding(binding);
+        // ValidateRequest checks the full binding after the deadline is derived.
+        var policy = TradeSelectionContracts.CommonPolicy(binding);
         var assessment = MarketConditionAssessmentContracts.ReadResult(view.MarketCondition.Result!);
         var id = new TradeSelectionExecutionId(view.EntityId, view.WorkflowId, view.WorkflowRevision);
         var commandId = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes($"{view.WorkflowId}|{StrategyWorkflowStage.TradeSelection}|{view.WorkflowRevision}")).AsSpan(0, 16));

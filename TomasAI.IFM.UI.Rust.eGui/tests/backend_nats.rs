@@ -668,7 +668,7 @@ async fn inspection_native_history_evidence_scope_and_failed_refresh_retention()
 async fn strategy_native_history_hydration_notifications_selection_and_revision_fences() {
     use ifm_ui_egui::{
         backend::schema::Registry,
-        services::{business_context::BusinessContext, strategy, strategy_stream},
+        services::{strategy, strategy_stream},
         state::strategy::StrategyController,
     };
     use std::sync::Arc;
@@ -687,7 +687,7 @@ async fn strategy_native_history_hydration_notifications_selection_and_revision_
     assert_eq!(snapshot.rows.len(), 1, "{}", snapshot.status);
     assert_eq!(snapshot.signals.len(), 1, "{}", snapshot.status);
     assert_eq!(snapshot.rows[0].futures_price, "6500.25");
-    assert!(!snapshot.roots.is_empty());
+    assert!(snapshot.roots.is_empty());
     assert_eq!(
         snapshot.graph_end_utc - snapshot.graph_start_utc,
         8.0 * 3600.0
@@ -719,25 +719,36 @@ async fn strategy_native_history_hydration_notifications_selection_and_revision_
         )
         .unwrap();
     }
+    control(&backend, "StrategyMode", "WeeklyWorkflowTimeout").await;
+    let mut independent = StrategyController::default();
+    independent.refresh(&backend, &registry, false).await.unwrap();
+    for frame in [11, 12] {
+        independent.action(frame).unwrap();
+        let snapshot = independent.snapshot(&registry).unwrap();
+        assert_eq!(snapshot.signals.len(), 1, "{}", snapshot.status);
+    }
+    control(&backend, "StrategyMode", "AllFrames").await;
+    let mut all_frames = StrategyController::default();
+    all_frames.refresh(&backend, &registry, false).await.unwrap();
+    for frame in [10, 11, 12] {
+        all_frames.action(frame).unwrap();
+        let snapshot = all_frames.snapshot(&registry).unwrap();
+        assert_eq!(snapshot.rows.len(), 1, "{}", snapshot.status);
+        assert!(snapshot.roots.is_empty());
+        assert!(!all_frames.load_detail(&backend, &registry).await.unwrap());
+    }
     control(&backend, "StrategyMode", "WrongIdentity").await;
-    let context = BusinessContext::load(&backend).await.unwrap();
-    let (start, end) = strategy::graph_window(&context, "Daily").unwrap();
     assert!(
-        strategy::workflow_page(
-            &backend,
-            &registry,
-            "ES",
-            "Daily",
-            start,
-            end,
-            1,
-            tokio::time::Instant::now() + Duration::from_secs(1)
-        )
-        .await
-        .unwrap_err()
-        .contains("identity")
+        strategy::workflow_detail(&backend, &registry, "b7329333f0e3478eb8846d7ef9d47971", 9)
+            .await.err().unwrap().contains("identity")
     );
     control(&backend, "StrategyMode", "Normal").await;
+    state.action(14).unwrap();
+    assert!(state.load_detail(&backend, &registry).await.unwrap());
+    assert!(!state.snapshot(&registry).unwrap().roots.is_empty());
+    assert!(!state.load_detail(&backend, &registry).await.unwrap());
+    state.action(15).unwrap();
+    assert!(state.snapshot(&registry).unwrap().roots.is_empty());
     let (actions, rx) = tokio::sync::mpsc::channel(8);
     let (tx, mut updates) = tokio::sync::mpsc::channel(8);
     let worker = tokio::spawn(strategy_stream::run(
@@ -784,7 +795,7 @@ async fn strategy_native_history_hydration_notifications_selection_and_revision_
         .unwrap()
         .unwrap();
     assert_eq!(completed.rows[0].end_state, "Approved");
-    assert_eq!(completed.revision, 10);
+    assert_eq!(completed.revision, 0);
     control(&backend, "StrategyEmit", "Conflict").await;
     let error = tokio::time::timeout(Duration::from_secs(1), updates.recv())
         .await
@@ -793,7 +804,7 @@ async fn strategy_native_history_hydration_notifications_selection_and_revision_
         .unwrap_err();
     assert!(error.contains("Conflicting"));
     let retained = updates.recv().await.unwrap().unwrap();
-    assert_eq!(retained.revision, 10);
+    assert_eq!(retained.revision, 0);
     assert_eq!(retained.rows[0].end_state, "Approved");
     actions.send(11).await.unwrap();
     let weekly = tokio::time::timeout(Duration::from_secs(1), updates.recv())
@@ -3898,6 +3909,14 @@ async fn feed_controls_use_api_date_terminal_events_and_authoritative_reconcilia
         .await
         .unwrap();
     assert!(!stopped.status.running);
+    configure("RejectPreparation").await;
+    let error = set_running(&backend, &registry, true, uuid::Uuid::new_v4())
+        .await
+        .err()
+        .unwrap();
+    assert!(error.contains("Fixture rejected session preparation"), "{error}");
+    assert!(!FeedObservation::load(&backend).await.unwrap().status.running);
+    configure("Normal").await;
     let started = set_running(&backend, &registry, true, uuid::Uuid::new_v4())
         .await
         .unwrap();

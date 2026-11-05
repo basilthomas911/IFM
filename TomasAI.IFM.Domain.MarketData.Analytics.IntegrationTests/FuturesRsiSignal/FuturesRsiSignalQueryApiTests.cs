@@ -40,7 +40,8 @@ public class FuturesRsiSignalQueryApiTests(TomasAI.IFM.IntegrationTesting.Kestre
             rs: 0.0,
             rsi: rsi,
             rsiAverage: 0.0,
-            rsiSlope: rsiSlope);
+            rsiSlope: rsiSlope,
+            sourceEventTimestamp: SampleData.ValueDate.ToDateTime(timestamp, DateTimeKind.Utc));
 
     async Task SeedRsiSignalsAsync()
     {

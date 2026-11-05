@@ -22,6 +22,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext : CommandActorCo
     readonly Lazy<IActorService> _actorService;
     readonly Lazy<IEventProjector<IntrinsicTimeStrategyWorkflowCommandActor>> _eventProjector;
     readonly Lazy<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>> _stateRepository;
+    readonly StrategyIndicatorWarmup? _indicatorWarmup;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
     /// <summary>Initializes the workflow Command context and its readonly application dependencies.</summary>
     public IntrinsicTimeStrategyWorkflowCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IBlackboardService blackboardService, RegimeDiscoveryExecutionOptions executionOptions, IntrinsicTimeStrategyWorkflowOptions workflowOptions, ILogger<IntrinsicTimeStrategyWorkflowCommandActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Command, IntrinsicTimeStrategyWorkflowCommandActor.ActorName))
@@ -31,6 +32,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext : CommandActorCo
         TimeProvider = TimeProvider.System;
         ExecutionOptions = IsArgumentNull.Set(executionOptions);
         WorkflowStartsEnabled = IsArgumentNull.Set(workflowOptions).Enabled;
+        _indicatorWarmup = workflowOptions.RequireWarmRegimeDiscoverySignals ? workflowOptions.IndicatorWarmup : null;
         Logger = IsArgumentNull.Set(logger);
         _dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
         _durableReplayQueue = ResolveOnce<IDurableReplayQueue>();
@@ -50,6 +52,18 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext : CommandActorCo
     public RegimeDiscoveryExecutionOptions ExecutionOptions { get; }
     /// <summary>Gets whether this host admits new signal-triggered workflows.</summary>
     public bool WorkflowStartsEnabled { get; }
+    public bool CanStartWorkflow(DateOnly valueDate) => GetWorkflowStartBlockReason(valueDate) is null;
+
+    /// <summary>Identifies the admission gate that prevented a workflow start.</summary>
+    internal string? GetWorkflowStartBlockReason(DateOnly valueDate)
+    {
+        if (!WorkflowStartsEnabled)
+            return "WORKFLOW.START.DISABLED";
+
+        return _indicatorWarmup is not null && !_indicatorWarmup.IsReady(valueDate)
+            ? "WORKFLOW.START.INDICATORS_NOT_READY"
+            : null;
+    }
     /// <inheritdoc/>
     public ILogger<IntrinsicTimeStrategyWorkflowCommandActor> Logger { get; }
     /// <inheritdoc/>

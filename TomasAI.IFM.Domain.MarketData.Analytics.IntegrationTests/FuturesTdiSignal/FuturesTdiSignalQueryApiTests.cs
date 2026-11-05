@@ -33,7 +33,8 @@ public class FuturesTdiSignalQueryApiTests(TomasAI.IFM.IntegrationTesting.Kestre
             FuturesTrendDirectionType.UpTrending,
             FuturesTrendDirectionStrengthType.Medium,
             FuturesTdiCrossType.None,
-            FuturesTdiMarketStateType.AboveMidline);
+            FuturesTdiMarketStateType.AboveMidline,
+            sourceEventTimestamp: new DateTime(2099, 12, 30, 10, 0, 0, DateTimeKind.Utc));
 
         await dbFixture.MarketDataDb.InsertFuturesTdiSignalAsync(expectedSignal);
 

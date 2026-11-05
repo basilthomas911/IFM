@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 
 using TomasAI.IFM.Application.MarketData.Pricing;
@@ -415,4 +416,6 @@ public interface IMarketDataDbWriteContext
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Completion of persistence.</returns>
     Task SaveHistoricalDataLoadAsync(HistoricalDataLoaderState state, CancellationToken cancellationToken = default);
+    /// <summary>Writes the committed Analytics attempt projection.</summary>
+    Task UpsertHistoricalAnalyticsAttemptProjectionAsync(FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel diagnostics, long eventId, CancellationToken cancellationToken = default);
 }

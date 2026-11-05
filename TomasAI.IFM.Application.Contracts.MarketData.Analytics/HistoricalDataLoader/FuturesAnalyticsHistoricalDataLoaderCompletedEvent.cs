@@ -31,7 +31,7 @@ public sealed record FuturesAnalyticsHistoricalDataLoaderCompletedEvent
     /// <param name="requestSha256">The RequestSha256 field.</param>
     /// <param name="completedAtUtc">The CompletedAtUtc field.</param>
     [SerializationConstructor]
-    public FuturesAnalyticsHistoricalDataLoaderCompletedEvent(ActorSubject subject, Guid id, FuturesAnalyticsHistoricalDataLoaderEntityId entityId, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, Guid manifestId, int validSessionCount, int gapCount, int rollCount, string requestSha256, DateTime completedAtUtc)
+    public FuturesAnalyticsHistoricalDataLoaderCompletedEvent(ActorSubject subject, Guid id, FuturesAnalyticsHistoricalDataLoaderEntityId entityId, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, Guid manifestId, int validSessionCount, int gapCount, int rollCount, string requestSha256, DateTime completedAtUtc, int lastCompletedBatchOrdinal = -1, long lastCompletedRecordOrdinal = -1)
     {
         Subject = subject;
         Id = id;
@@ -47,6 +47,8 @@ public sealed record FuturesAnalyticsHistoricalDataLoaderCompletedEvent
         RollCount = rollCount;
         RequestSha256 = requestSha256;
         CompletedAtUtc = completedAtUtc;
+        LastCompletedBatchOrdinal = lastCompletedBatchOrdinal;
+        LastCompletedRecordOrdinal = lastCompletedRecordOrdinal;
     }
     /// <summary>Gets the Event actor name.</summary>
     public const string Actor = FuturesAnalyticsHistoricalDataLoaderRequestedEvent.Actor;
@@ -80,6 +82,8 @@ public sealed record FuturesAnalyticsHistoricalDataLoaderCompletedEvent
     [Key(12)] public string RequestSha256 { get; init; } = string.Empty;
     /// <summary>Gets the UTC completion time.</summary>
     [Key(13)] public DateTime CompletedAtUtc { get; init; }
+    [Key(14)] public int LastCompletedBatchOrdinal { get; init; } = -1;
+    [Key(15)] public long LastCompletedRecordOrdinal { get; init; } = -1;
     /// <inheritdoc />
     [IgnoreMember] public string UserName => string.Empty;
     /// <inheritdoc />

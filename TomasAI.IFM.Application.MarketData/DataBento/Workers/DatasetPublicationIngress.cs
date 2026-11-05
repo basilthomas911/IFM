@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using MessagePack;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -187,7 +187,7 @@ public sealed class DatasetPublicationIngress(
                 throw new InvalidDataException("Option observation generation/value date differs from envelope.");
             optionObservation = observation;
             accepted = admissions.TryAcceptOptionObservation(identity, observation.ContractId, envelope.PublicationSequence,
-                observation.ObservedAtUtc, observation.CalculatedAtUtc, out generationCancellation);
+                observation.ObservedAtUtc, observation.CalculatedAtUtc, observation.IsPricingUpdate, out generationCancellation);
         }
         else accepted = admissions.TryAccept(identity, envelope.PublicationSequence, out generationCancellation);
         if (!accepted)
@@ -266,7 +266,7 @@ public sealed class DatasetPublicationIngress(
             return false;
         }
         if (optionObservation is { } delivered)
-            admissions.RecordOptionObservation(identity, delivered.ContractId, envelope.PublicationSequence, delivered.ObservedAtUtc, delivered.CalculatedAtUtc);
+            admissions.RecordOptionObservation(identity, delivered.ContractId, envelope.PublicationSequence, delivered.ObservedAtUtc, delivered.CalculatedAtUtc, delivered.IsPricingUpdate);
         Record(MarketDataOperationOutcome.Published, envelope);
         return true;
     }

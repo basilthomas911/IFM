@@ -190,6 +190,7 @@ public static partial class CoreServiceRegistration
         {
             services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorSeedReader>();
             services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorWarmup>();
+            services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.StrategyIndicatorWarmup>();
             services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.SessionAnalyticsStartupService>();
         }
         services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.OptionFeedRecoveryNotificationService>();

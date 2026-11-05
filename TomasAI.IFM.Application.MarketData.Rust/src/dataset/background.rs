@@ -832,7 +832,7 @@ impl Configuration {
             bootstrap.inherit_selected_models(previous, &wanted)?;
         }
         {
-            let mut retained = self
+            let retained = self
                 .reference_cache
                 .lock()
                 .map_err(|_| "Native background reference cache interrupted")?;
@@ -842,7 +842,6 @@ impl Configuration {
             for contract in &pinned {
                 bootstrap.pin_calendar(contract)?;
             }
-            *retained = Some(bootstrap.clone());
         }
         let mut all_caches = base
             .caches
@@ -890,6 +889,15 @@ impl Configuration {
             scope: base.scope.clone(),
             revision: base.revision,
         })))
+    }
+
+    pub(super) fn remember_reference_recipe(&self, active: &Intent) -> Result<(), String> {
+        *self
+            .reference_cache
+            .lock()
+            .map_err(|_| "Native background reference cache interrupted")? =
+            active.reference_bootstrap.clone();
+        Ok(())
     }
 }
 
@@ -1071,6 +1079,7 @@ impl Configuration {
                 quote_changes.mark_changed();
                 // Unrelated health traffic must not renew a maintenance sleep.
                 let mut maintenance_at=tokio::time::Instant::now()+period;
+                let mut pending_coverage = None;
                 loop {
                     let event=tokio::select!{biased;
                         ()=stopping.cancelled()=>return Ok(()),
@@ -1090,6 +1099,7 @@ impl Configuration {
                     let pending=config.committed.as_ref().map(|directory|directory.pending_deadline()).transpose()?.flatten();
                     let deadline=pending.unwrap_or_else(Deadline::recovery);
                     let mut replacement = None;
+                    let mut replacement_reason = "effective option coverage";
                     let attempt:Result<bool,String>=async{
                         let mut changed = false;
                         if let Some(directory)=&config.committed {
@@ -1102,7 +1112,7 @@ impl Configuration {
                         }
                         if !maintenance && !changed && event!=3{return Ok(true);}
                         let facts=config.source_facts(date,task_parent.clone(),&stopping,deadline,maintenance).await?;
-                        changed |= facts.fingerprint()?!=initial;
+                        let facts_changed=facts.fingerprint()?!=initial;
                         // Browser metadata/selection can change without changing
                         // provider membership. Resolve it, then compare the actual
                         // effective subscriptions and cache policies below.
@@ -1110,16 +1120,57 @@ impl Configuration {
                         let next=config.resolve(base.clone(),task_parent.clone(),clock.clone(),&stopping,deadline).await?;
                         let unchanged = !changed && match (&active,&next){
                             (None,None)=>true,
-                            (Some(old),Some(new))=>old.source.registrations==new.source.registrations && old.caches==new.caches,
+                            (Some(old),Some(new))=>{
+                                let definitions_changed = facts_changed && !same_active_definitions(old,new);
+                                let background_only = same_monitored_registrations(old,new) && !definitions_changed;
+                                let registration_changed = old.source.registrations != new.source.registrations;
+                                let caches_changed = old.caches != new.caches;
+                                if background_only && (registration_changed || caches_changed) {
+                                    // Rebuilding clears the current generation's pending cache work.
+                                    // Quiet markets must be able to finish that work on the existing
+                                    // subscriptions, even when the next strike estimate is different.
+                                    let published = config.market.upgrade()
+                                        .and_then(|market| market.options_current())
+                                        .map(|view| view.caches.lock().map(|caches|
+                                            old.caches.iter().all(|scope| caches.contains_key(&scope.scope)))
+                                            .map_err(|_| "Native cache directory interrupted"))
+                                        .transpose()?.unwrap_or(false);
+                                    if !background_coverage_confirmed(&mut pending_coverage,
+                                        &new.source.registrations, &new.caches, maintenance, old.caches.is_empty() || published) {
+                                        return Ok(true);
+                                    }
+                                }
+                                if registration_changed {
+                                    replacement_reason = "provider registration changed";
+                                    false
+                                } else if caches_changed {
+                                    replacement_reason = "prepared cache scope changed";
+                                    false
+                                } else if definitions_changed {
+                                    replacement_reason = "active pricing definition changed";
+                                    false
+                                } else {
+                                    pending_coverage = None;
+                                    true
+                                }
+                            },
                             _=>false,
                         };
+                        if changed {replacement_reason = "committed physical handoff changed";}
                         replacement=next;
                         Ok(unchanged)
                     }.await;
                     if stopping.is_cancelled(){return Ok(());}
                     match attempt {
                         Ok(true)=>{state.send_modify(|_|{});},
-                        Ok(false)=>{state.send_replace(replacement_status(replacement,pending));return Ok(());},
+                        Ok(false)=>{
+                            let mut status=replacement_status(replacement,pending);
+                            if let Some(error)=&mut status.error {
+                                error.push_str(": ");
+                                error.push_str(replacement_reason);
+                            }
+                            state.send_replace(status);return Ok(());
+                        },
                         Err(error)=>{
                             *config.refresh_incident.lock().map_err(|_|"Native background refresh status interrupted")?=Some(deadline);
                             state.send_replace(RefreshStatus{error:Some(error),deadline:Some(deadline),replacement:None});return Ok(());
@@ -1135,6 +1186,47 @@ impl Configuration {
         Ok(Refresh { stop, changes })
     }
 }
+
+fn background_coverage_confirmed(
+    pending: &mut Option<(Vec<Registration>, Vec<CacheScope>)>,
+    next: &[Registration],
+    caches: &[CacheScope],
+    maintenance: bool,
+    active_coverage_published: bool,
+) -> bool {
+    if !active_coverage_published {
+        *pending = None;
+        return false;
+    }
+    if pending.as_ref().is_some_and(|(registrations, scopes)| registrations == next && scopes == caches) {
+        return maintenance;
+    }
+    *pending = maintenance.then(|| (next.to_vec(), caches.to_vec()));
+    false
+}
+
+fn same_active_definitions(old: &Intent, new: &Intent) -> bool {
+    let old = &old.reviewed.definitions;
+    let new = &new.reviewed.definitions;
+    old.len() == new.len()
+        && old.iter().zip(new).all(|(old, new)| {
+            old.instrument == new.instrument
+                && old.underlying == new.underlying
+                && old.blueprint.contract.value() == new.blueprint.contract.value()
+                && old.blueprint.calendar.value() == new.blueprint.calendar.value()
+        })
+}
+
+fn same_monitored_registrations(old: &Intent, new: &Intent) -> bool {
+    old.monitored == new.monitored
+        && old
+            .source
+            .registrations
+            .iter()
+            .filter(|row| old.monitored.contains(&row.instrument))
+            .eq(new.source.registrations.iter().filter(|row| new.monitored.contains(&row.instrument)))
+}
+
 impl Refresh {
     /// Read-only event-driven status; never holds source resources or a lease.
     pub fn changes(&self) -> watch::Receiver<RefreshStatus> {
@@ -1196,6 +1288,34 @@ fn background_universes(planned: ResultSet) -> Result<Vec<Universe>, String> {
 #[cfg(test)]
 mod recovery_budget_tests {
     use super::*;
+    #[test]
+    fn background_membership_requires_two_scheduled_reads_with_the_same_registrations() {
+        let registration = |instrument: u32| Registration {
+            instrument,
+            publisher: 1,
+            contract: instrument.to_string(),
+            source: instrument.to_string(),
+            asset: Asset::Option,
+            tick: None,
+            vwap: false,
+            required: false,
+        };
+        let first = [registration(1)];
+        let second = [registration(2)];
+        let mut pending = None;
+
+        assert!(!background_coverage_confirmed(&mut pending, &first, &[], false, true));
+        assert!(!background_coverage_confirmed(&mut pending, &first, &[], true, true));
+        assert!(!background_coverage_confirmed(&mut pending, &first, &[], false, true));
+        assert!(!background_coverage_confirmed(&mut pending, &second, &[], false, true));
+        assert!(!background_coverage_confirmed(&mut pending, &first, &[], true, true));
+        assert!(!background_coverage_confirmed(&mut pending, &second, &[], true, true));
+        assert!(background_coverage_confirmed(&mut pending, &second, &[], true, true));
+        assert!(!background_coverage_confirmed(&mut pending, &second, &[], true, false));
+        assert!(!background_coverage_confirmed(&mut pending, &second, &[], true, false));
+        assert!(!background_coverage_confirmed(&mut pending, &second, &[], true, true));
+    }
+
     #[tokio::test]
     async fn unlisted_strategy_expiry_does_not_fail_other_background_coverage() {
         use crate::option_chain::coverage::Definition;

@@ -4,7 +4,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
-using TomasAI.IFM.Application.Storage.SecuritiesDb;
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
@@ -33,6 +33,10 @@ public class MarketDataFeedFixture : IDisposable
         var dbConn = new DbConnectionSettings()
              .Add("MarketDataDbConnection",
                  Environment.GetEnvironmentVariable("IFM_TEST_MARKET_DATA_CONNECTION") ?? throw new InvalidOperationException("The assembly integration fixture did not set IFM_TEST_MARKET_DATA_CONNECTION."),
+                 "System.Data.Postgres")
+             .Add(TradeTickQuoteDbContext.TradeTickQuoteDbConnection,
+                 Environment.GetEnvironmentVariable("ConnectionStrings__TradeTickQuoteDbConnection")
+                     ?? throw new InvalidOperationException("The assembly integration fixture did not configure the raw tick database."),
                  "System.Data.ScyllaDb");
         var diContainer = new Dictionary<Type, IObjectRepository>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
@@ -46,7 +50,7 @@ public class MarketDataFeedFixture : IDisposable
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
         diContainer.Add(typeof(IObjectRepository<MarketDataDbContext>), new MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
-        diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), SeqIdDatabase);
+        diContainer.Add(typeof(IObjectRepository<TradeTickQuoteDbContext>), new TradeTickQuoteDbContext(dbConn, logger));
         DbFactory = dbFactory;
         MarketDataDb = dbFactory.MarketDataDb as IMarketDataDbContext;
     }
@@ -76,8 +80,8 @@ public class MarketDataFeedFixture : IDisposable
         DateOnly valueDate)
         => await MarketDataDb
             .Use(
-                "MarketDataDbCql.DeleteRawEodForIntegrationTest",
-                "DELETE FROM futures_eod_observation WHERE seriesKey = ? AND yearMonth = ? AND valueDate = ? AND contractId = ?")
+                "MarketDataDbSql.DeleteRawEodForIntegrationTest",
+                "DELETE FROM market_data.futures_eod_observation WHERE seriesKey = $1 AND yearMonth = $2 AND valueDate = $3 AND contractId = $4")
             .SetParameters(new RawEodKey(
                 seriesKey,
                 checked(valueDate.Year * 100 + valueDate.Month),

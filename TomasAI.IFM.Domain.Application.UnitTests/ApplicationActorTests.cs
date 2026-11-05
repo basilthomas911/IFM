@@ -22,8 +22,13 @@ public sealed class ApplicationActorTests
     {
         var state = new ApplicationCommandState();
 
-        Assert.True(state.Update(new ApplicationStartupEvent()));
-        Assert.True(state.Update(new ApplicationShutdownEvent()));
+        var startup = new ApplicationStartupEvent { CommandId = Guid.NewGuid() };
+        var shutdown = new ApplicationShutdownEvent { CommandId = Guid.NewGuid() };
+
+        Assert.True(state.Update(startup));
+        Assert.Same(startup, state.LatestRequest);
+        Assert.True(state.Update(shutdown));
+        Assert.Same(shutdown, state.LatestRequest);
         Assert.True(state.Updated);
         Assert.Collection(
             state.Events,

@@ -743,16 +743,25 @@ impl TradeWorkspace {
                 let o = bounds.min;
                 let w = bounds.width() * p;
                 let h = bounds.height() * p;
-                // Same split calculation as IFormControl.Resize: bottom third, 183px marks,
-                // 120px four-contract pane, 79px limits, remaining width split after history, with 120px reassigned to the chart.
-                let log = (h - 7.) / 3.;
-                let upper = h - 7. - log;
+                // Reserve the fixed monitor grids before dividing the remaining area.
                 let marks = 183.;
-                let graph_h = (upper - 6. - marks).max(180.);
+                let contracts_height = 140.;
+                let limits_height = 68.;
+                let grid_gap = 6.;
+                let fixed_grids_height = grid_gap + contracts_height + limits_height;
+                // Keep the Position History header, horizontal scrollbar and
+                // at least one complete row visible even in a short window.
+                let minimum_graph_height = 107. + fixed_grids_height;
+                let available = (h - 7.).max(0.);
+                let minimum_plan_height = 96_f32.min(available / 3.);
+                let upper = (available * 2. / 3.)
+                    .max(minimum_graph_height + 6. + marks)
+                    .min(available - minimum_plan_height);
+                let graph_h = (upper - 6. - marks).max(minimum_graph_height);
                 let chart_w = (((w - 650.) / 2.) + 120.).min((w - 640.).max(0.)).max(0.);
                 let show_chart = chart_w >= 220. && upper >= marks + 180.;
                 let left = if show_chart { w - chart_w } else { w };
-                let history_h = (graph_h - 205.).max(75.);
+                let history_h = graph_h - fixed_grids_height;
                 let rr = |x, y, ww, hh| rect(o, p, x, y, ww, hh);
                 ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
                 let description = format!(
@@ -791,29 +800,27 @@ impl TradeWorkspace {
                     .or_else(|| history.len().checked_sub(1));
                 let history_rect = rr(2., 35., left - 4., history_h - 34.);
                 self.controls.insert("condor-history".into(), history_rect);
-                let clicked = ui
-                    .add_enabled_ui(monitor_flag(s, "canSelectPosition"), |ui| {
-                        table(
-                            ui,
-                            history_rect,
-                            "condor-history",
-                            &history,
-                            &[
-                                ("orderId", "Order Id", 100.),
-                                ("tradeId", "Trade Id", 100.),
-                                ("tradeType", "Trade Type", 250.),
-                                ("valueDate", "Value Date", 100.),
-                                ("daysToExpiry", "Days To Expiry", 120.),
-                                ("tradeStatus", "Trade Status", 150.),
-                                ("commission", "Commission", 115.),
-                                ("netSpread", "Net Spread", 115.),
-                                ("tradePnl", "Daily P&L", 120.),
-                            ],
-                            selected,
-                        )
-                    })
-                    .inner;
-                if let Some(index) = clicked {
+                // Position selection may be disabled while loading, but the
+                // scrollbars and wheel still need to work for saved history.
+                let clicked = table(
+                    ui,
+                    history_rect,
+                    "condor-history",
+                    &history,
+                    &[
+                        ("orderId", "Order Id", 100.),
+                        ("tradeId", "Trade Id", 100.),
+                        ("tradeType", "Trade Type", 250.),
+                        ("valueDate", "Value Date", 100.),
+                        ("daysToExpiry", "Days To Expiry", 120.),
+                        ("tradeStatus", "Trade Status", 150.),
+                        ("commission", "Commission", 115.),
+                        ("netSpread", "Net Spread", 115.),
+                        ("tradePnl", "Daily P&L", 120.),
+                    ],
+                    selected,
+                );
+                if let Some(index) = clicked.filter(|_| monitor_flag(s, "canSelectPosition")) {
                     self.draft.insert("positionIndex".into(), index.to_string());
                     self.draft.insert("index".into(), index.to_string());
                     action = Some("position");
@@ -830,7 +837,7 @@ impl TradeWorkspace {
                         .reduce(f64::min),
                 };
                 let contracts_w = 216.;
-                let info_rect = rr(2., history_h + 6., left - contracts_w - 2., 120.);
+                let info_rect = rr(2., history_h + grid_gap, left - contracts_w - 2., 120.);
                 self.controls.insert("condor-trade-info".into(), info_rect);
                 table(
                     ui,
@@ -849,7 +856,12 @@ impl TradeWorkspace {
                     ],
                     None,
                 );
-                let contracts_rect = rr(left - contracts_w, history_h + 6., contracts_w - 2., 120.);
+                let contracts_rect = rr(
+                    left - contracts_w,
+                    history_h + grid_gap,
+                    contracts_w - 2.,
+                    contracts_height,
+                );
                 self.controls
                     .insert("condor-contracts".into(), contracts_rect);
                 table(
@@ -862,7 +874,7 @@ impl TradeWorkspace {
                 );
                 let limit = one(&display, "limits").limits();
                 let limit_row = limit;
-                let limits_rect = rr(2., graph_h - 79., left - 4., 79.);
+                let limits_rect = rr(2., graph_h - limits_height, left - 4., limits_height);
                 self.controls.insert("condor-limits".into(), limits_rect);
                 table(
                     ui,

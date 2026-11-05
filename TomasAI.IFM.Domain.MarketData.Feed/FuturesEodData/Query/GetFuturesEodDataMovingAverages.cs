@@ -12,6 +12,10 @@ public static class GetFuturesEodDataMovingAverages
 
     extension(GetFuturesEodDataMovingAveragesQuery q)
     {
+        /// <summary>Returns the typed query result from the projected read store.</summary>
+        internal async ValueTask<ServiceResult<FuturesEodDataMovingAveragesReadModel>> ReadAsync(IDbContextFactory databases)
+            => new(await q.ExecuteAsync(databases).ConfigureAwait(false));
+
         internal async ValueTask<FuturesEodDataMovingAveragesReadModel> ExecuteAsync(
         IDbContextFactory dbFactory)
             => await (dbFactory.GetFuturesEodMovingAveragesAsync(q.ContractId, q.Symbol, q.ValueDate)).ConfigureAwait(false);

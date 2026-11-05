@@ -105,11 +105,13 @@ public sealed class TradeRealtimeHotCache
                 }) });
                 return true;
             }
-            // The option ingress owns validation; the cache applies every matching arrival.
+            if (StrategyPositionLegOptionData.IsBehindMark(leg.Observation, observation)
+                && leg.Observation!.SourceGeneration != observation.SourceGeneration) return false;
+            // An asynchronously priced quote can supply risk without replacing a newer mark.
             Publish(current with { Legs = current.Legs.SetItem(index, leg with
             {
-                Observation = observation,
-                LastValidRisk = StrategyPositionLegOptionData.HasValidRisk(observation) ? observation : leg.LastValidRisk
+                Observation = StrategyPositionLegOptionData.IsBehindMark(leg.Observation, observation) ? leg.Observation : observation,
+                LastValidRisk = StrategyPositionLegOptionData.RetainRisk(leg.LastValidRisk, observation)
             }) });
             return true;
         }

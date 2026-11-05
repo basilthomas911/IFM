@@ -260,8 +260,8 @@
   {
     "name": "feed-status-result",
     "type": "TomasAI.IFM.Shared.EventSourcing.ServiceResult\u00601[[TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel, TomasAI.IFM.Application.Contracts.MarketData.Feed, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]], TomasAI.IFM.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-    "rawLength": 196,
-    "wireLength": 144
+    "rawLength": 197,
+    "wireLength": 145
   },
   {
     "name": "recovery-failure-event",

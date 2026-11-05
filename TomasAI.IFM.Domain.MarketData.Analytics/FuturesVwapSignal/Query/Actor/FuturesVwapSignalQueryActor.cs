@@ -50,10 +50,16 @@ public sealed class FuturesVwapSignalQueryActor(
         IFuturesVwapSignalQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesVwapSignalQueryActor>,
         IFuturesVwapSignalQueryContext, IQuery, CancellationToken, ValueTask>>()
         {
-            [typeof(GetLatestFuturesVwapSignalQuery)] = static (context, typedContext, query, cancellationToken) =>
-                ((GetLatestFuturesVwapSignalQuery)query).ExecuteAsync(context, typedContext, cancellationToken),
-            [typeof(GetFuturesVwapSignalHistoryQuery)] = static (context, typedContext, query, cancellationToken) =>
-                ((GetFuturesVwapSignalHistoryQuery)query).ExecuteAsync(context, typedContext, cancellationToken)
+            [typeof(GetLatestFuturesVwapSignalQuery)] = static async (context, typedContext, query, cancellationToken) =>
+            {
+                var result = await ((GetLatestFuturesVwapSignalQuery)query).ExecuteAsync(context, typedContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetLatestFuturesVwapSignalQuery.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetFuturesVwapSignalHistoryQuery)] = static async (context, typedContext, query, cancellationToken) =>
+            {
+                var result = await ((GetFuturesVwapSignalHistoryQuery)query).ExecuteAsync(context, typedContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetFuturesVwapSignalHistoryQuery.Verb, result).ConfigureAwait(false);
+            }
         };
 
     /// <inheritdoc />

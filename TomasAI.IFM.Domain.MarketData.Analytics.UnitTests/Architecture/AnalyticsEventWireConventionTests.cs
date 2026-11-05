@@ -13,6 +13,8 @@ public sealed class AnalyticsEventWireConventionTests
     public static TheoryData<Type> MessageTypes => new()
     {
         typeof(LoadFuturesAnalyticsHistoricalDataCommand),
+        typeof(CompleteFuturesAnalyticsHistoricalDataLoaderCommand),
+        typeof(FailFuturesAnalyticsHistoricalDataLoaderCommand),
         typeof(FuturesAnalyticsHistoricalDataLoaderRequestedEvent),
         typeof(FuturesAnalyticsHistoricalDataLoaderCompletedEvent),
         typeof(FuturesAnalyticsHistoricalDataLoaderFailedEvent),

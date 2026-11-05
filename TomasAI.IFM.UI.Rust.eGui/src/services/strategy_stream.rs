@@ -80,8 +80,22 @@ pub async fn run(
                 return;
             }
         }
-        if updates.send(state.snapshot(&registry)).await.is_err() {
+        let snapshot = state.snapshot(&registry);
+        if updates.send(snapshot).await.is_err() {
             return;
+        }
+        match state.load_detail(&backend, &registry).await {
+            Ok(true) => {
+                if updates.send(state.snapshot(&registry)).await.is_err() {
+                    return;
+                }
+            }
+            Ok(false) => {}
+            Err(error) => {
+                if updates.send(Err(error)).await.is_err() {
+                    return;
+                }
+            }
         }
     }
 }

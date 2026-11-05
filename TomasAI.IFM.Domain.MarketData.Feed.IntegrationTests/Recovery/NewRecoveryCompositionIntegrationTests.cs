@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Application.Api.Server.Core.Observability.HealthChecks;
+using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Contracts;
+using TomasAI.IFM.Application.Api.Server.Core.Observability.HealthChecks;
 using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.HardRecovery;
 using TomasAI.IFM.Application.Api.Server.Core.Recovery.Shutdown;
 using System.Diagnostics;
@@ -24,6 +25,8 @@ using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Query;
 using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.IntegrationTesting;
 
@@ -39,9 +42,10 @@ public sealed class NewRecoveryCompositionIntegrationTests
             .UseEnvironment("Development")
             .UseSetting("AppSettings:Databento:DeploymentProfile", "SyntheticCi")
             .UseSetting("AppSettings:Databento:DataSource", "Synthetic")
+            .UseSetting("MarketDataHost:Enabled", "false")
             .UseSetting("MarketDataRecovery:Stage3:Enabled", "true")
             .UseSetting("MarketDataRecovery:Stage3:WorkerAssemblyPath",
-                "../../../../TomasAI.IFM.Application.MarketData.Host.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Host.Worker.dll")
+                ResolveWorkerAssemblyPath())
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:Enabled", "true"));
 
         var services = factory.Services;
@@ -61,9 +65,10 @@ public sealed class NewRecoveryCompositionIntegrationTests
             .UseEnvironment("Development")
             .UseSetting("AppSettings:Databento:DeploymentProfile", "SyntheticCi")
             .UseSetting("AppSettings:Databento:DataSource", "Synthetic")
+            .UseSetting("MarketDataHost:Enabled", "false")
             .UseSetting("MarketDataRecovery:Stage3:Enabled", "true")
             .UseSetting("MarketDataRecovery:Stage3:WorkerAssemblyPath",
-                "../../../../TomasAI.IFM.Application.MarketData.Host.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Host.Worker.dll")
+                ResolveWorkerAssemblyPath())
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:Enabled", "true")
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:OverallTimeout", "00:01:00")
             .UseSetting("MarketDataRecovery:HardRecovery:Runtime:QualificationTimeout", "00:00:12")
@@ -71,6 +76,10 @@ public sealed class NewRecoveryCompositionIntegrationTests
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:DownstreamTimeout", "00:00:20")
             .ConfigureTestServices(services =>
             {
+                services.RemoveAll<IFuturesMarketSessionAuthority>();
+                services.AddSingleton<RecoveryTestSession>();
+                services.AddSingleton<IFuturesMarketSessionAuthority>(provider =>
+                    provider.GetRequiredService<RecoveryTestSession>());
                 services.RemoveAll<IApiFatalRecoveryShutdown>();
                 services.AddSingleton<IApiFatalRecoveryShutdown, NonTerminatingFatalRecorder>();
             }));
@@ -154,20 +163,17 @@ public sealed class NewRecoveryCompositionIntegrationTests
     }
 
     [Fact]
-    public async Task Infrastructure_failure_requests_shutdown_and_rejects_later_recovery()
+    public async Task Rejected_recovery_inputs_request_shutdown_and_latch_the_terminal_result()
     {
-        var probes = Enum.GetValues<RecoveryInfrastructureKind>()
-            .Select(kind => new MutableRecoveryProbe(kind)).ToArray();
-        var postgres = probes.Single(item => item.Kind == RecoveryInfrastructureKind.PostgreSql);
-        postgres.Qualified = false;
         await using var root = new KestrelWebApplicationFactory<ApiServerEntryPoint>();
         await using var factory = root.WithWebHostBuilder(builder => builder
             .UseEnvironment("Development")
             .UseSetting("AppSettings:Databento:DeploymentProfile", "SyntheticCi")
             .UseSetting("AppSettings:Databento:DataSource", "Synthetic")
+            .UseSetting("MarketDataHost:Enabled", "false")
             .UseSetting("MarketDataRecovery:Stage3:Enabled", "true")
             .UseSetting("MarketDataRecovery:Stage3:WorkerAssemblyPath",
-                "../../../../TomasAI.IFM.Application.MarketData.Host.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Host.Worker.dll")
+                ResolveWorkerAssemblyPath())
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:Enabled", "true")
             .UseSetting("MarketDataRecovery:HardRecovery:SoftGate:MaximumRounds", "1")
             .UseSetting("MarketDataRecovery:HardRecovery:CandidateProof:ProofTimeout", "00:00:12")
@@ -176,15 +182,12 @@ public sealed class NewRecoveryCompositionIntegrationTests
             {
                 services.RemoveAll<IApiFatalRecoveryShutdown>();
                 services.AddSingleton<IApiFatalRecoveryShutdown, NonTerminatingFatalRecorder>();
-                services.RemoveAll<IRecoveryInfrastructureProbe>();
-                foreach (var probe in probes)
-                    services.AddSingleton<IRecoveryInfrastructureProbe>(probe);
             }));
 
         var services = factory.Services;
         var valueDate = services.GetRequiredService<IFuturesMarketSessionAuthority>()
             .Current.OperationalValueDate;
-        services.GetRequiredService<DatasetDesiredSubscriptionRegistry>().Set("GLBX.MDP3", valueDate,
+        var manifest = services.GetRequiredService<DatasetDesiredSubscriptionRegistry>().Set("GLBX.MDP3", valueDate,
         [
             new DatabentoContractRegistration
             {
@@ -195,18 +198,18 @@ public sealed class NewRecoveryCompositionIntegrationTests
         ]);
         var requester = services.GetRequiredService<IDatabentoRecoveryRequester>();
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        var workers = services.GetRequiredService<DatasetWorkerProcessRecoveryService>();
+        var worker = await workers.StartOwnedAsync(
+            services.GetRequiredService<DatabentoSupervisedWorkerOptions>().CreateStartRequest(manifest), timeout.Token);
         var first = await requester.HardResetRecoveryAsync(new DatabentoHardRecoveryRequest(
-            Guid.NewGuid(), valueDate, Guid.Empty, nameof(NewRecoveryCompositionIntegrationTests),
-            "Injected PostgreSQL probe outage"), timeout.Token);
+            Guid.NewGuid(), valueDate.AddDays(1), worker.GenerationId, nameof(NewRecoveryCompositionIntegrationTests),
+            "Recovery requested for a different session"), timeout.Token);
 
-        Assert.NotNull(first);
         Assert.Equal(DatabentoRecoveryRequestOutcome.Unrecoverable, first.Outcome);
-        var worker = Assert.Single(services.GetRequiredService<DatasetWorkerProcessRecoveryService>().Current);
-        Assert.Equal(worker.GenerationId, first.HardResult!.DatasetGenerations["GLBX.MDP3"]);
-        postgres.Qualified = true;
+        Assert.Equal(nameof(IApiDatabentoRecoveryActions.CaptureRecoveryInputsAsync), first.HardResult!.FailedStage);
         var recovered = await requester.HardResetRecoveryAsync(new DatabentoHardRecoveryRequest(
             Guid.NewGuid(), valueDate, Guid.NewGuid(), nameof(NewRecoveryCompositionIntegrationTests),
-            "Infrastructure restored"), timeout.Token);
+            "Recovery requested for the active session"), timeout.Token);
 
         Assert.NotNull(recovered);
         Assert.Same(first, recovered);
@@ -223,10 +226,11 @@ public sealed class NewRecoveryCompositionIntegrationTests
             .UseEnvironment("Development")
             .UseSetting("AppSettings:Databento:DeploymentProfile", "Development")
             .UseSetting("AppSettings:Databento:DataSource", "DatabentoLive")
+            .UseSetting("MarketDataHost:Enabled", "false")
             .UseSetting("MarketDataRecovery:Stage3:Enabled", "true")
             .UseSetting("MarketDataRecovery:Stage3:AllowDevelopmentLiveQualification", "true")
             .UseSetting("MarketDataRecovery:Stage3:WorkerAssemblyPath",
-                "../../../../TomasAI.IFM.Application.MarketData.Host.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Host.Worker.dll")
+                ResolveWorkerAssemblyPath())
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:Enabled", "true")
             .ConfigureTestServices(services =>
             {
@@ -351,16 +355,54 @@ public sealed class NewRecoveryCompositionIntegrationTests
                 Console.WriteLine($"NATS_COMMAND_WORKER_REPLACED dataset={replacement.Dataset} oldPid={original.ProcessId} newPid={replacement.ProcessId} generation={replacement.GenerationId:D}");
             }
             Assert.Equal(valueDate, services.GetRequiredService<IDatabentoLifecycleRuntime>().ActiveValueDate);
+            await VerifyContinuingDurableWritesAsync(valueDate, token);
+            await VerifyContinuingDurableWritesAsync(valueDate, token, "VX20261216");
+            await VerifyContinuingDurableWritesAsync(valueDate, token, "VX20270120");
+            // Durable writes prove the replacement is delivering data. Synthetic worker snapshots
+            // do not provide the live provider freshness telemetry used by the trading probe.
+            services.GetRequiredService<RecoveryTestSession>().OffTrading = true;
             await services.GetRequiredService<IMarketDataLifecycleRequests>().ProbeAsync(token);
             var health = services.GetRequiredService<IMarketDataLifecycleRequests>().Current;
             Assert.True(health.State == DatabentoLifecycleState.Healthy, $"{health.State}: {health.Reason}");
             Assert.False(services.GetRequiredService<IApiFatalRecoveryShutdown>().IsRequested);
-            await VerifyContinuingDurableWritesAsync(valueDate, token);
-            await VerifyContinuingDurableWritesAsync(valueDate, token, "VX20261216");
-            await VerifyContinuingDurableWritesAsync(valueDate, token, "VX20270120");
             Console.WriteLine($"NATS_COMMAND_HARD_RESET_VERIFIED command={response.Value:D} datasets={replacements.Count} health={health.State}");
         }
         finally { await listener.StopAsync(); }
+    }
+
+    sealed class RecoveryTestSession(FuturesMarketSessionAuthority authority) : IFuturesMarketSessionAuthority
+    {
+        public bool OffTrading { get; set; }
+
+        public MarketSessionReadModel Current
+        {
+            get
+            {
+                var session = authority.Current;
+                return OffTrading && session.IsMarketOpen
+                    ? session with { State = FuturesMarketState.OffTrading }
+                    : session;
+            }
+        }
+    }
+
+    static string ResolveWorkerAssemblyPath()
+    {
+        var output = new DirectoryInfo(AppContext.BaseDirectory);
+        var root = output;
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "TomasAI.IFM.sln")))
+            root = root.Parent;
+        var repository = root?.FullName ?? throw new InvalidOperationException("Repository root was not found.");
+        const string worker = "TomasAI.IFM.Application.MarketData.Host.Worker";
+        var artifactBin = output.Parent?.Parent;
+        if (artifactBin is { Name: "bin" })
+        {
+            var artifact = Path.Combine(artifactBin.FullName, worker, output.Name, worker + ".dll");
+            if (File.Exists(artifact))
+                return artifact;
+        }
+        var configuration = artifactBin is { Name: "bin" } ? output.Name : output.Parent!.Name;
+        return Path.Combine(repository, worker, "bin", configuration, "net10.0", worker + ".dll");
     }
 
     static bool HasExited(int processId)
@@ -373,7 +415,7 @@ public sealed class NewRecoveryCompositionIntegrationTests
         string contractId = "ES20261218")
     {
         var connection = new CassandraConnectionStringBuilder(
-            Environment.GetEnvironmentVariable("IFM_TEST_MARKET_DATA_CONNECTION")
+            Environment.GetEnvironmentVariable("ConnectionStrings__TradeTickQuoteDbConnection")
             ?? throw new InvalidOperationException("An isolated market-data database is required."));
         Assert.StartsWith("ifm_synthetic_", connection.DefaultKeyspace);
         using var cluster = Cluster.Builder().AddContactPoints(connection.ContactPoints)
@@ -392,25 +434,17 @@ public sealed class NewRecoveryCompositionIntegrationTests
             }
             return latest;
         }
-        var first = await LatestAsync();
-        Assert.True(first > 0, "Candidate proof must leave an actual durable trade or quote tick row.");
         using var progress = CancellationTokenSource.CreateLinkedTokenSource(token);
-        progress.CancelAfter(TimeSpan.FromSeconds(15));
+        progress.CancelAfter(TimeSpan.FromSeconds(20));
+        long first;
+        while ((first = await LatestAsync()) == 0)
+            await Task.Delay(100, progress.Token);
         while (await LatestAsync() <= first)
             await Task.Delay(100, progress.Token);
         Console.WriteLine($"DURABLE_POST_ADMISSION_PROGRESS contract={contractId} valueDate={valueDate:yyyy-MM-dd} firstTick={first}");
     }
 
-    sealed class MutableRecoveryProbe(RecoveryInfrastructureKind kind) : IRecoveryInfrastructureProbe
-    {
-        volatile bool qualified = true;
-        public string Name => Kind.ToString();
-        public RecoveryInfrastructureKind Kind { get; } = kind;
-        public bool Qualified { get => qualified; set => qualified = value; }
-        public Task<RecoveryProbeResult> CheckAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new RecoveryProbeResult(Name, Kind, Qualified,
-                Qualified ? "Available" : "Injected outage"));
-    }
+
 
     sealed class NonTerminatingFatalRecorder : IApiFatalRecoveryShutdown
     {

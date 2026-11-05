@@ -33,8 +33,8 @@ public static class GetFuturesItiTrendDirectionChangedSignals
                     .GetFuturesItiTrendDirectionChangedSignalsAsync(q.ContractId, q.ValueDate, cancellationToken)
                     .ConfigureAwait(false)];
 
-        /// <summary>Reads and replies to the GetFuturesItiTrendDirectionChangedSignalsQuery message.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Reads the GetFuturesItiTrendDirectionChangedSignalsQuery message.</summary>
+        public async ValueTask<ServiceResult<FuturesItiSignalV2ReadModel[]>> ExecuteAsync(
             IQueryActorContext<FuturesItiSignalQueryActor> ctx,
             IDbContextFactory db,
             CancellationToken cancellationToken)
@@ -45,8 +45,7 @@ public static class GetFuturesItiTrendDirectionChangedSignals
             var query = q;
             var result = await query.GetFuturesItiTrendDirectionChangedSignalsAsync(db, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiTrendDirectionChangedSignalsQuery.Verb,
-                new ServiceResult<FuturesItiSignalV2ReadModel[]>(result)).ConfigureAwait(false);
+            return new ServiceResult<FuturesItiSignalV2ReadModel[]>(result);
         }
     }
 }

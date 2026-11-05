@@ -305,6 +305,9 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<DatabentoMarketDataWatchdogService>();
         services.AddSingleton<IMarketDataLifecycleRequests>(provider =>
         provider.GetRequiredService<DatabentoMarketDataWatchdogService>());
+        services.AddSingleton<Func<DateOnly, Guid, CancellationToken, Task>>(provider =>
+            (date, operation, token) => provider.GetRequiredService<IMarketDataLifecycleRequests>()
+                .ResetAsync(date, operation, token));
         services.AddHostedService(provider =>
         provider.GetRequiredService<DatabentoMarketDataWatchdogService>());
         if (stage3Options.Enabled)

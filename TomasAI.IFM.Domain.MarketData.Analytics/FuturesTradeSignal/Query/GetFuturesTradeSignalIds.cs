@@ -35,8 +35,8 @@ public static class GetFuturesTradeSignalIds
             => [.. await dbFactory.MarketDataDb
                     .GetFuturesTradeSignalIdByValueDateAsync(q.ValueDate, cancellationToken).ConfigureAwait(false)];
 
-        /// <summary>Reads and replies to the GetFuturesTradeSignalIdsQuery message.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Reads the GetFuturesTradeSignalIdsQuery message.</summary>
+        public async ValueTask<ServiceResult<FuturesTradeSignalId[]>> ExecuteAsync(
             IQueryActorContext<FuturesTradeSignalQueryActor> ctx,
             IDbContextFactory db,
             CancellationToken cancellationToken)
@@ -47,8 +47,7 @@ public static class GetFuturesTradeSignalIds
             var query = q;
             var result = await query.GetFuturesTradeSignalIdsAsync(db, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalIdsQuery.Verb,
-                new ServiceResult<FuturesTradeSignalId[]>(result)).ConfigureAwait(false);
+            return new ServiceResult<FuturesTradeSignalId[]>(result);
         }
     }
 }

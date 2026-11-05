@@ -75,7 +75,7 @@ public static class CompleteTradeSelection
                 result = TradeSelectionContracts.ReadResult(command.Result);
                 var dispatch = current.SelectionDispatch ?? throw new ArgumentException("Missing durable selector dispatch.", nameof(command));
                 var expected = TradeSelectionEvaluator.Evaluate(dispatch);
-                TradeSelectionContracts.Require(command.SourceEventId == result.ResultId && result.InputWorkflowRevision == command.InputWorkflowRevision && string.Equals(TradeSelectionContracts.EvidenceHash(expected), TradeSelectionContracts.EvidenceHash(result), StringComparison.Ordinal), "TS.RESULT.INVALID", "Selector result differs from the deterministic decision over the saved request.");
+                TradeSelectionContracts.Require(command.SourceEventId == result.ResultId && result.InputWorkflowRevision == command.InputWorkflowRevision && string.Equals(TradeSelectionContracts.DecisionEvidenceHash(expected), TradeSelectionContracts.DecisionEvidenceHash(result), StringComparison.Ordinal), "TS.RESULT.INVALID", "Selector result differs from the deterministic decision over the saved request.");
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {

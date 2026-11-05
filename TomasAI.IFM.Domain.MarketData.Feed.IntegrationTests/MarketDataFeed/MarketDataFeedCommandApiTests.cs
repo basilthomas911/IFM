@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Messaging.Nats;
+using TomasAI.IFM.Framework.Messaging.Nats;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -25,6 +25,25 @@ public class MarketDataFeedCommandApiTests(TomasAI.IFM.IntegrationTesting.Kestre
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
     readonly TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> _factory = factory;
+
+    [Fact]
+    public async Task Start_without_a_committed_preparation_is_rejected()
+    {
+        var id = new MarketDataFeedId(SampleData.ValueDate);
+        var command = new StartMarketDataFeedCommand
+        {
+            CommandId = Guid.NewGuid(),
+            EntityId = id,
+            Subject = new(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, id.Format()),
+            PreparedContracts = [SampleData.FuturesContract]
+        };
+
+        var response = await _actorProducer.RequestAsync<StartMarketDataFeedCommand, MarketDataFeedId, GuidResult>(
+            command.Subject, command, id, CancellationToken.None);
+
+        response.Success.Should().BeFalse();
+        response.ErrorMessage.Should().Contain("matching committed session preparation");
+    }
 
     [Fact]
     public async Task StartMarketDataFeed_Ok()

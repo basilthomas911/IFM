@@ -11,7 +11,7 @@ public static class GetDatabentoOptionChain
 
     extension(GetDatabentoOptionChainQuery query)
     {
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ServiceResult<FuturesOptionContractReadModel[]>> ExecuteAsync(
             IMarketDataQueryContext context,
             CancellationToken cancellationToken)
         {
@@ -45,7 +45,7 @@ public static class GetDatabentoOptionChain
                     ? new ServiceFailed<FuturesOptionContractReadModel[]>(503, "Current Bollinger window inputs are unavailable.")
                     : new ServiceOk<FuturesOptionContractReadModel[]>(window.Contracts);
             }
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            return result;
         }
     }
 }

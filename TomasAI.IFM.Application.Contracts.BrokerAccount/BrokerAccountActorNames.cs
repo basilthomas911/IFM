@@ -11,5 +11,6 @@ public static class BrokerAccountActorNames
 {
     public const string Command = "BrokerAccountCommand";
     public const string Event = "BrokerAccountEvent";
+    public const string Outcome = "BrokerAccountOutcomeEvent";
     public const string Query = "BrokerAccountQuery";
 }

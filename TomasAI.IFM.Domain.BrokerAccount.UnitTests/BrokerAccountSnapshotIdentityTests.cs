@@ -1,8 +1,8 @@
-﻿using TomasAI.IFM.Application.TradeBroker.Contracts;
+using TomasAI.IFM.Application.TradeBroker.Contracts;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using Xunit;
 
-namespace TomasAI.IFM.Application.TradeBroker.UnitTests;
+namespace TomasAI.IFM.Domain.BrokerAccount.UnitTests;
 
 public sealed class BrokerAccountSnapshotIdentityTests
 {

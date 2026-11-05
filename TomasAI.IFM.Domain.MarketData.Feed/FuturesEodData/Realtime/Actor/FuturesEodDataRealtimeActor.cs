@@ -74,6 +74,35 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
             message => message.AsEvent<VixFuturesEodDataInsertedFailEvent>()!
         };
 
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesEodDataRealtimeContext, IEventActorContext<FuturesEodDataRealtimeActor>,
+        FuturesEodDataEventParameters, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IFuturesEodDataRealtimeContext, IEventActorContext<FuturesEodDataRealtimeActor>,
+            FuturesEodDataEventParameters, ValueTask>>
+        {
+            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = static (@event, context, _, _) =>
+                ((FuturesMarketPriceUpdatedRealtimeEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesTickTradeDataInsertedEvent)] = static (@event, context, actorContext, _) =>
+                context.ReceiveTradeAsync(actorContext, (FuturesTickTradeDataInsertedEvent)@event),
+            [typeof(FuturesSessionStatisticsUpdatedRealtimeEvent)] = static (@event, context, actorContext, _) =>
+                context.DispatchStatisticsAsync(actorContext, (FuturesSessionStatisticsUpdatedRealtimeEvent)@event),
+            [typeof(FuturesEodDataInsertedEvent)] = static (@event, context, _, _) =>
+                ((FuturesEodDataInsertedEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesEodDataInsertedCompleteEvent)] = static (@event, context, _, parameters) =>
+                ((FuturesEodDataInsertedCompleteEvent)@event).ExecuteAsync(context, parameters),
+            [typeof(VixFuturesEodDataInsertedCompleteEvent)] = static (@event, context, _, parameters) =>
+                ((VixFuturesEodDataInsertedCompleteEvent)@event).ExecuteAsync(context, parameters),
+            [typeof(FuturesEodDataInsertedFailEvent)] = static (@event, context, _, _) =>
+                ((FuturesEodDataInsertedFailEvent)@event).ExecuteAsync(context),
+            [typeof(VixFuturesEodDataInsertedFailEvent)] = static (@event, context, _, _) =>
+                ((VixFuturesEodDataInsertedFailEvent)@event).ExecuteAsync(context),
+            [typeof(VixFuturesEodDataInsertedEvent)] = static (@event, context, _, _) =>
+                ((VixFuturesEodDataInsertedEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesEodSessionStatisticsUpdatedEvent)] = static (@event, context, _, _) =>
+                ((FuturesEodSessionStatisticsUpdatedEvent)@event).ExecuteAsync(context),
+            [typeof(FuturesEodDataUpdatedEvent)] = static (@event, context, _, _) =>
+                context.InvalidateUpdateAsync((FuturesEodDataUpdatedEvent)@event)
+        };
+
     readonly FuturesEodDataEventParameters _parameters = new(
         ((IFuturesEodDataRealtimeContext)actorContext).BlackboardService,
         ((IFuturesEodDataRealtimeContext)actorContext).StatusConsoleWriter,
@@ -124,7 +153,7 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
     protected override ValueTask ReceiveAsync(
         IEventActorContext<FuturesEodDataRealtimeActor> context,
         IEvent @event) =>
-        RealtimeContext.ReceiveAsync(context, @event, _parameters);
+        ResolveMappedEventHandler(@event, _receiveMap)(@event, RealtimeContext, context, _parameters);
 
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesEodDataRealtimeActor> context,

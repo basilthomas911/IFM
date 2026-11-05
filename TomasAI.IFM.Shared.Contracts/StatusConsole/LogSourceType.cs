@@ -55,4 +55,5 @@ public enum LogSourceType
     FuturesMarketPriceUpdated = 46,
     ApplicationStartup = 47,
     ApplicationShutdown = 48,
+    BrokerAccountSnapshotObserved = 49,
 }

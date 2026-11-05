@@ -1,4 +1,7 @@
-﻿using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Validation;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Validation;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.CommandPipeline;
@@ -28,7 +31,7 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Actor;
 /// <param name="dbEventSource">The database context for event source operations.</param>
 /// <param name="logger">The logger instance for logging operations.</param>
 public class YieldCurveRateCommandActor(
-    ICommandActorContext<YieldCurveRateCommandActor> actorContext)
+    ICommandActorContext<YieldCurveRateCommandActor> actorContext, IEventProjector<YieldCurveRateCommandActor>? projector = null)
     : BaseEventSourceCommandActor<YieldCurveRateCommandActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "YieldCurveRateCommand";
@@ -43,13 +46,18 @@ public class YieldCurveRateCommandActor(
     /// to the actor.</remarks>
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override ValueTask OnStartup(ICommandActorContext<YieldCurveRateCommandActor> context)
+    protected override async ValueTask OnStartup(ICommandActorContext<YieldCurveRateCommandActor> context)
     {
         ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<YieldCurveRateCommandState>>());
-        return ValueTask.CompletedTask;
+        if (projector is not null)
+            await projector.StartAsync(context).ConfigureAwait(false);
     }
+
+    protected override ValueTask OnShutdown(ICommandActorContext<YieldCurveRateCommandActor> context) =>
+        projector?.StopAsync() ?? ValueTask.CompletedTask;
+
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
@@ -72,6 +80,7 @@ public class YieldCurveRateCommandActor(
         [AddYieldCurveRateCommand.Verb] = static message => message.AsCommand<AddYieldCurveRateCommand>()!,
         [ChangeYieldCurveRateCommand.Verb] = static message => message.AsCommand<ChangeYieldCurveRateCommand>()!,
         [RemoveYieldCurveRateCommand.Verb] = static message => message.AsCommand<RemoveYieldCurveRateCommand>()!,
+        [ApplyYieldCurveRatesImportCommand.Verb] = message => message.AsCommand<ApplyYieldCurveRatesImportCommand>()!,
         [ImportYieldCurveRatesCommand.Verb] = static message => message.AsCommand<ImportYieldCurveRatesCommand>()!
     };
 
@@ -92,21 +101,22 @@ public class YieldCurveRateCommandActor(
         IsArgumentNull.Check(command);
         var yieldCurveRateState = IsArgumentNull.Set((state as YieldCurveRateCommandState)!);
         var receiveCommand = ResolveMappedCommandHandler(command, _receiveMap);
-        return ValueTask.FromResult(receiveCommand.Invoke(command, context, yieldCurveRateState));
+        return receiveCommand.Invoke(command, context, yieldCurveRateState);
     }
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<YieldCurveRateCommandActor>,
-        YieldCurveRateCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<YieldCurveRateCommandActor>,
-        YieldCurveRateCommandState, ServiceResult<GuidResult>>>()
+        YieldCurveRateCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<YieldCurveRateCommandActor>,
+        YieldCurveRateCommandState, ValueTask<ServiceResult<GuidResult>>>>()
         {
             [typeof(AddYieldCurveRateCommand)] = static (command, _, state) =>
-                ((AddYieldCurveRateCommand)command).Execute(state),
+                ValueTask.FromResult(((AddYieldCurveRateCommand)command).Execute(state)),
             [typeof(ChangeYieldCurveRateCommand)] = static (command, _, state) =>
-                ((ChangeYieldCurveRateCommand)command).Execute(state),
+                ValueTask.FromResult(((ChangeYieldCurveRateCommand)command).Execute(state)),
             [typeof(RemoveYieldCurveRateCommand)] = static (command, _, state) =>
-                ((RemoveYieldCurveRateCommand)command).Execute(state),
+                ValueTask.FromResult(((RemoveYieldCurveRateCommand)command).Execute(state)),
+            [typeof(ApplyYieldCurveRatesImportCommand)] = static (command, context, _) => ((ApplyYieldCurveRatesImportCommand)command).ExecuteAsync(context.Container.Resolve<IPostgresEventTransaction>()),
             [typeof(ImportYieldCurveRatesCommand)] = static (command, _, state) =>
-                ((ImportYieldCurveRatesCommand)command).Execute(state)
+                ValueTask.FromResult(((ImportYieldCurveRatesCommand)command).Execute(state))
         };
 
     /// <summary>
@@ -158,6 +168,7 @@ public class YieldCurveRateCommandActor(
                     .ValidateEntityId(remove.EntityId, remove.CommandName)
                     .ValidateDateOnly(remove.ValueDate, remove.CommandName, "ValueDate");
             },
+            [typeof(ApplyYieldCurveRatesImportCommand)] = static command => new List<ValidationError>().ValidateCommandId(command.CommandId, command.CommandName),
             [typeof(ImportYieldCurveRatesCommand)] = static command =>
             {
                 var typed = (ImportYieldCurveRatesCommand)command;

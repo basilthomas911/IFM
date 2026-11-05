@@ -27,11 +27,11 @@ public class FuturesItiSignalRealtimeActor(
                 static message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!
         };
 
-    static readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesItiSignalRealtimeContext, ValueTask<bool>>>
-        _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesItiSignalRealtimeContext, ValueTask<bool>>>
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesItiSignalRealtimeContext, CancellationToken, ValueTask<bool>>>
+        _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesItiSignalRealtimeContext, CancellationToken, ValueTask<bool>>>
         {
-            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = static (@event, context) =>
-                ((FuturesMarketPriceUpdatedRealtimeEvent)@event).ExecuteAsync(context)
+            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = static (@event, context, cancellationToken) =>
+                ((FuturesMarketPriceUpdatedRealtimeEvent)@event).ExecuteAsync(context, cancellationToken)
         };
 
     IFuturesItiSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Named(actorContext as IFuturesItiSignalRealtimeContext, nameof(actorContext))!;
@@ -60,15 +60,10 @@ public class FuturesItiSignalRealtimeActor(
         IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     /// <inheritdoc />
-    protected override async ValueTask ReceiveAsync(
+    protected override ValueTask ReceiveAsync(
         IEventActorContext<FuturesItiSignalRealtimeActor> context,
         IEvent @event)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(@event);
-        var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await handler(@event, TypedContext).ConfigureAwait(false);
-    }
+        => ReceiveAsync(context, @event, CancellationToken.None);
 
     /// <inheritdoc />
     protected override async ValueTask ReceiveAsync(
@@ -79,9 +74,8 @@ public class FuturesItiSignalRealtimeActor(
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(@event);
         cancellationToken.ThrowIfCancellationRequested();
-        _ = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
-            .ExecuteAsync(TypedContext, cancellationToken).ConfigureAwait(false);
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
+        _ = await handler(@event, TypedContext, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.Api.Server.Core.Observability.Logging;
+using TomasAI.IFM.Application.Api.Server.Core.Observability.Logging;
 using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Composition;
 using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Contracts;
 using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.HardRecovery;
@@ -38,7 +38,11 @@ internal static class HostRecoveryVerificationRunner
         RecoveryActionEvidenceLogger? evidenceLogger = null;
         var database = Environment.GetEnvironmentVariable("IFM_TEST_MARKET_DATA_CONNECTION") ?? "";
         var broker = Environment.GetEnvironmentVariable("IFM_CONFIGURED_TEST_NATS_URL") ?? "";
-        if (!database.Contains("ifm_synthetic_", StringComparison.Ordinal)
+        var storage = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = database };
+        if (!storage.TryGetValue("Host", out var host) || !Equals(host, "127.0.0.1")
+            || !storage.TryGetValue("Database", out var name)
+            || name is not string databaseName
+            || !System.Text.RegularExpressions.Regex.IsMatch(databaseName, "^ifm_eventlog_bench_[0-9a-f]{12}_synthetic_host$")
             || !broker.StartsWith("nats://127.0.0.1:", StringComparison.Ordinal)
             || broker.EndsWith(":4222", StringComparison.Ordinal))
             throw new InvalidOperationException("Child recovery requires the isolated domain-actor fixture.");
@@ -46,13 +50,15 @@ internal static class HostRecoveryVerificationRunner
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "TomasAI.IFM.sln")))
             root = root.Parent;
         if (root is null) throw new InvalidOperationException("Repository root not found.");
-        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
+        var output = new DirectoryInfo(AppContext.BaseDirectory);
+        var configuration = output.Parent?.Parent?.Name == "bin" ? output.Name : output.Parent!.Name;
         var workerPath = Path.Combine(root.FullName, "TomasAI.IFM.Application.MarketData.Host.Worker",
             "bin", configuration, "net10.0", "TomasAI.IFM.Application.MarketData.Host.Worker.dll");
 
         await using var owner = new KestrelWebApplicationFactory<ApiServerEntryPoint>();
         var factory = owner.WithWebHostBuilder(builder => builder
             .UseEnvironment("Development")
+            .UseSetting("MarketDataHost:Enabled", "false")
             .UseSetting("AppSettings:Databento:DeploymentProfile", "SyntheticCi")
             .UseSetting("AppSettings:Databento:DataSource", "Synthetic")
             .UseSetting("MarketDataRecovery:Stage3:Enabled", "true")

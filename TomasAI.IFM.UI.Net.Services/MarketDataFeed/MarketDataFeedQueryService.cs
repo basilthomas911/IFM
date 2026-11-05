@@ -155,18 +155,6 @@ public class MarketDataFeedQueryService(IMarketDataFeedQueryApi marketDataFeedQu
                 longOptionContract),
             onCompleted);
 
-    /// <summary>
-    /// return streaming request id by stream id
-    /// </summary>
-    /// <returns></returns>
-    public async Task<int> GetStreamingRequestIdAsync()
-    {
-        var serviceResult = await _marketDataFeedQueryApi.GetStreamingRequestIdAsync();
-        return serviceResult.Success && serviceResult.Value is not null
-            ? serviceResult.Value.AsInteger
-            : -1;
-    }
-
     /// <summary>Gets the authoritative backend feed state used for terminal-event reconciliation.</summary>
     public async Task<MarketDataFeedRuntimeStatusReadModel?> GetRuntimeStatusAsync()
     {

@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.Commands;
+using TomasAI.IFM.Shared.EventSourcing;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -22,6 +25,16 @@ internal static class PostgresImportBoundary
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IPostgresEventTransaction>().Returns(transaction);
         context.Container.Returns(container);
+        context.RequestAsync<ApplyEconomicCalendarsImportCommand, EconomicCalendarId>(Arg.Any<ApplyEconomicCalendarsImportCommand>())
+            .Returns(call => ApplyAsync(call.Arg<ApplyEconomicCalendarsImportCommand>().CommandId));
+        context.RequestAsync<ApplyYieldCurveRatesImportCommand, YieldCurveRateEntityId>(Arg.Any<ApplyYieldCurveRatesImportCommand>())
+            .Returns(call => ApplyAsync(call.Arg<ApplyYieldCurveRatesImportCommand>().CommandId));
         return transaction;
+
+        async ValueTask<ServiceResult<GuidResult>> ApplyAsync(Guid commandId)
+        {
+            await transaction.ExecuteAsync((_, _) => Task.FromResult(true));
+            return new ServiceOk<GuidResult>(new GuidResult(commandId));
+        }
     }
 }

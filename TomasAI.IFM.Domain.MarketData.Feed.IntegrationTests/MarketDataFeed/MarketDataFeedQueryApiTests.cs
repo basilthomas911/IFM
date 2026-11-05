@@ -148,17 +148,20 @@ public class MarketDataFeedQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
     }
 
     [Fact]
-    public async Task GetStreamingRequestIdQuery_Ok()
+    public async Task Streaming_request_allocation_replays_the_same_id_for_the_same_operation()
     {
-        // act...
-        var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
-        var response = await marketDataFeedApi.GetStreamingRequestIdAsync();
+        var api = new MarketDataFeedCommandApi(_actorProducer);
+        var operation = Guid.NewGuid();
+        var first = await api.AllocateStreamingRequestIdAsync(operation);
+        var retry = await api.AllocateStreamingRequestIdAsync(operation);
+        var next = await api.AllocateStreamingRequestIdAsync(Guid.NewGuid());
 
-        // assert...
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue(response.ErrorMessage);
-        response.Value.Should().NotBeNull();
-        response.Value.AsInteger.Should().BeGreaterThan(0);
+        first.Success.Should().BeTrue(first.ErrorMessage);
+        retry.Success.Should().BeTrue(retry.ErrorMessage);
+        next.Success.Should().BeTrue(next.ErrorMessage);
+        first.Value!.Value.Should().BePositive();
+        retry.Value!.Value.Should().Be(first.Value.Value);
+        next.Value!.Value.Should().BeGreaterThan(first.Value.Value);
     }
 
     [Fact]

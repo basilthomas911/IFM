@@ -11,12 +11,22 @@ public static class MarketDataSchemaSql
     [
         new("historical_data_loader", CreateHistoricalDataLoader,
             "DROP TABLE IF EXISTS historical_data_load_manifest; DROP TABLE IF EXISTS historical_data_load_checkpoint;"),
+        new("historical_analytics_attempt_projection", CreateHistoricalAnalyticsAttemptProjection,
+            "DROP TABLE IF EXISTS historical_analytics_attempt_projection;"),
         new("market_data", Create, "DROP SCHEMA IF EXISTS market_data CASCADE;"),
         new("strategy_option_chain_parameter_version", OptionChainVersionCreate,
             "DROP TABLE IF EXISTS market_data.strategy_option_chain_policy_version;"),
         new("strategy_option_chain_parameter_current", OptionChainCurrentCreate,
             "DROP TABLE IF EXISTS market_data.strategy_option_chain_policy_current;")
     ];
+
+    public const string CreateHistoricalAnalyticsAttemptProjection = """
+        CREATE TABLE IF NOT EXISTS historical_analytics_attempt_projection (
+            attempt_id uuid PRIMARY KEY,
+            event_id bigint NOT NULL,
+            payload text NOT NULL
+        );
+        """;
 
     public const string CreateHistoricalDataLoader = """
     CREATE TABLE IF NOT EXISTS historical_data_load_checkpoint (

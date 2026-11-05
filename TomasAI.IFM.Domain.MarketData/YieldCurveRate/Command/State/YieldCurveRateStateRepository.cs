@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
@@ -14,7 +15,7 @@ using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Extensions;
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
 
 public class YieldCurveRateStateRepository(
-    ICommandActorContext<YieldCurveRateCommandActor> actorContext)
+    ICommandActorContext<YieldCurveRateCommandActor> actorContext, IEventProjector<YieldCurveRateCommandActor>? projector = null)
     : BaseEventSourceActorRepository(actorContext.StateFactory, actorContext.DbEventSource,
         actorContext.ActorService, actorContext.Logger), IEventSourceActorStateRepository<YieldCurveRateCommandState>
 {
@@ -41,7 +42,23 @@ public class YieldCurveRateStateRepository(
         => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, YieldCurveRateCommandState state, ICommand command, CancellationToken cancellationToken)
-        => await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken).ConfigureAwait(false);
+    {
+        if (projector is not null && state.Events.Count != 0 &&
+            await MarketDataReconciliationBaseline.IsCapturedAsync(actorContext.DbEventSource, cancellationToken).ConfigureAwait(false))
+        {
+            for (var index = 0; index < state.Events.Count; index++)
+            {
+                state.Events[index] = state.Events[index] switch
+                {
+                    YieldCurveRateAddedEvent added => added with { UseDurableProjection = true },
+                    YieldCurveRateChangedEvent changed => changed with { UseDurableProjection = true },
+                    YieldCurveRateRemovedEvent removed => removed with { UseDurableProjection = true },
+                    var source => source
+                };
+            }
+        }
+        await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the yield curve rate query state
@@ -57,8 +74,17 @@ public class YieldCurveRateStateRepository(
     {
         ArgumentNullException.ThrowIfNull(domainEvents);
         var db = actorContext.DbFactory.MarketDataDb;
+        if (projector is not null)
+        {
+            var durable = new DomainEventCollection(domainEvents.Where(
+                source => source is IRequireDurableProjection { RequiresDurableProjection: true }));
+            if (durable.Count != 0)
+                await projector.DomainEventsProjectionAsync(durable).ConfigureAwait(false);
+        }
         foreach (var domainEvent in domainEvents)
         {
+            if (domainEvent is IRequireDurableProjection { RequiresDurableProjection: true })
+                continue;
             _ = domainEvent switch
             {
                 YieldCurveRateAddedEvent e => await (UpdateReadModelAsync<YieldCurveRateAddedEvent, YieldCurveRateAddedCompleteEvent, YieldCurveRateAddedFailEvent, YieldCurveRateEntityId>(

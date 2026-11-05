@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -16,7 +17,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.State;
 
 public class EconomicCalendarStateRepository(
-    ICommandActorContext<EconomicCalendarCommandActor> actorContext)
+    ICommandActorContext<EconomicCalendarCommandActor> actorContext, IEventProjector<EconomicCalendarCommandActor>? projector = null)
     : BaseEventSourceActorRepository(actorContext.StateFactory, actorContext.DbEventSource,
         actorContext.ActorService, actorContext.Logger), IEventSourceActorStateRepository<EconomicCalendarCommandState>
 {
@@ -50,7 +51,23 @@ public class EconomicCalendarStateRepository(
         => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, EconomicCalendarCommandState state, ICommand command, CancellationToken cancellationToken)
-        => await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken).ConfigureAwait(false);
+    {
+        if (projector is not null && state.Events.Count != 0 &&
+            await MarketDataReconciliationBaseline.IsCapturedAsync(actorContext.DbEventSource, cancellationToken).ConfigureAwait(false))
+        {
+            for (var index = 0; index < state.Events.Count; index++)
+            {
+                state.Events[index] = state.Events[index] switch
+                {
+                    EconomicCalendarAddedEvent added => added with { UseDurableProjection = true },
+                    EconomicCalendarChangedEvent changed => changed with { UseDurableProjection = true },
+                    EconomicCalendarRemovedEvent removed => removed with { UseDurableProjection = true },
+                    var source => source
+                };
+            }
+        }
+        await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the economic calendar query state
@@ -66,8 +83,17 @@ public class EconomicCalendarStateRepository(
     {
         ArgumentNullException.ThrowIfNull(domainEvents);
         var db = actorContext.DbFactory.MarketDataDb;
+        if (projector is not null)
+        {
+            var durable = new DomainEventCollection(domainEvents.Where(
+                source => source is IRequireDurableProjection { RequiresDurableProjection: true }));
+            if (durable.Count != 0)
+                await projector.DomainEventsProjectionAsync(durable).ConfigureAwait(false);
+        }
         foreach (var domainEvent in domainEvents)
         {
+            if (domainEvent is IRequireDurableProjection { RequiresDurableProjection: true })
+                continue;
             _ = domainEvent switch
             {
                 EconomicCalendarAddedEvent e => await (UpdateReadModelAsync<EconomicCalendarAddedEvent, EconomicCalendarAddedCompleteEvent, EconomicCalendarAddedFailEvent, EconomicCalendarId>(

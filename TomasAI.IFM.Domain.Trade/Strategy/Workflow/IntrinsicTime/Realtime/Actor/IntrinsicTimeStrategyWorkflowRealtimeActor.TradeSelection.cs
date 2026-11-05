@@ -17,10 +17,11 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
 {
-    static async ValueTask ExecuteSelectionAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
+    internal static async ValueTask ExecuteSelectionAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
     {
         var execute = snapshot.State.SelectionDispatch ?? throw new InvalidOperationException("Missing durable selector request. Historical unbound selector dispatch is disabled.");
-        var clock = RequireEventContext(context).TimeProvider;
+        var domain = RequireEventContext(context);
+        var clock = domain.TimeProvider;
         FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent> terminal;
         try
         {
@@ -30,6 +31,13 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
             terminal = reply.Value ?? throw new InvalidOperationException("Selector returned no result.");
             if (!terminal.IsTerminal)
                 throw new InvalidOperationException("Invalid selector result union.");
+            if (terminal.Failed?.ReasonCode == "TS.PERSISTENCE.OUTCOME_UNKNOWN")
+            {
+                var committed = await domain.ReadCommittedSelectionAsync(execute, deadline.Token).ConfigureAwait(false);
+                if (committed is null)
+                    throw new InvalidOperationException("The selector commit is unconfirmed; retry the saved dispatch.");
+                terminal = FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>.Complete(committed);
+            }
             if (terminal.IsCompleted)
             {
                 var completed = terminal.Completed!;

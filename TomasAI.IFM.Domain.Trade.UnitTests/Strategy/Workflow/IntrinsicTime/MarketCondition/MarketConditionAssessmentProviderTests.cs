@@ -29,6 +29,30 @@ public sealed class MarketConditionAssessmentProviderTests
         calls.Should().BeSubsetOf(["TryGetOnTheRunFuturesContract", "TryGetLastTickPrice", "GetFuturesMarketHealth"]);
     }
 
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(-3, false)]
+    [InlineData(3, false)]
+    public async Task Optional_trade_with_untrustworthy_receive_time_does_not_abort_assessment(int receiveOffsetSeconds, bool available)
+    {
+        var f = new Fixture();
+        f.Market.TryGetLastTickPrice("ES-test", out Arg.Any<FuturesMarketPriceSnapshot>()).Returns(call =>
+        {
+            call[1] = new FuturesMarketPriceSnapshot("ES-test", 1, 1, default, DateOnly.FromDateTime(f.At),
+                new FuturesMarketQuoteSnapshot(5000, 10, 5000.25m, 10, 1, 1, 1, new(f.At), new(f.At)),
+                new FuturesMarketTradeSnapshot(5000.25m, 1, 1, new(f.At), new(f.At.AddSeconds(receiveOffsetSeconds))));
+            return true;
+        });
+
+        var snapshot = await f.Capture();
+        var trade = snapshot.Observations.Single(observation => observation.SourceId == "LastTrade");
+        Assert.Equal(available ? MarketSourceAvailability.Available : MarketSourceAvailability.Unavailable, trade.Availability);
+        if (!available)
+            Assert.Equal("MC.ASSESSMENT.LASTTRADE.INVALID_METADATA", trade.Reason);
+
+        var result = new MarketConditionAssessmentCalculator().Calculate(f.Command, snapshot, f.Command.CommandId);
+        Assert.Equal(AssessmentAvailability.Available, result.Assessment.Availability);
+    }
     [Fact]
     public async Task Changing_feed_generation_exhausts_bounded_capture_instead_of_sealing_mixed_sources()
     {

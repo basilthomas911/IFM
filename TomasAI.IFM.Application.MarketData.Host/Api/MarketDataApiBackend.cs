@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
@@ -74,6 +74,9 @@ public sealed partial class MarketDataApiBackend(MarketDataHostConnection connec
                 result = true; break;
             case nameof(ReadFiveMinuteSeedBarsAsync):
                 result = await services.GetRequiredService<Seeding.FourHourDatabentoSeedReplay>().ReadAsync((string)args[0]!, token).ConfigureAwait(false); break;
+            case nameof(ReadIndicatorSeedBarsAsync):
+                result = await services.GetRequiredService<Seeding.FourHourDatabentoSeedReplay>()
+                    .ReadAsync((string)args[0]!, (TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType)args[1]!, token).ConfigureAwait(false); break;
             case nameof(GetBackendReadSnapshotAsync):
                 var snapshot = host.CaptureReadSnapshot();
                 var contractsForMirror = PreparedContracts();

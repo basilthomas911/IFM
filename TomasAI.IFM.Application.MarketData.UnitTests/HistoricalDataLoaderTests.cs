@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -76,19 +76,11 @@ public sealed class HistoricalDataLoaderTests
             () => coordinator.ExecuteAsync(request, CancellationToken.None).AsTask());
 
         Assert.Equal("fixture estimate timeout", exception.Message);
-        Assert.Collection(states.Saves,
-            started =>
-            {
-                Assert.Equal(HistoricalDataLoaderStatus.Processing, started.Status);
-                Assert.Equal(HistoricalAcquisitionStage.None, started.Checkpoint.Stage);
-                Assert.StartsWith("estimating:", started.RequestSha256, StringComparison.Ordinal);
-            },
-            failed =>
-            {
-                Assert.Equal(HistoricalDataLoaderStatus.Failed, failed.Status);
-                Assert.Equal(HistoricalAcquisitionStage.None, failed.Checkpoint.Stage);
-                Assert.Equal("fixture estimate timeout", failed.ErrorMessage);
-            });
+        var failed = Assert.Single(states.Saves);
+        Assert.Equal(HistoricalDataLoaderStatus.Failed, failed.Status);
+        Assert.Equal(HistoricalAcquisitionStage.None, failed.Checkpoint.Stage);
+        Assert.StartsWith("estimating:", failed.RequestSha256, StringComparison.Ordinal);
+        Assert.Equal("fixture estimate timeout", failed.ErrorMessage);
     }
 
     sealed class EstimateFailureHistoricalApi : IMarketDataHistoricalApi

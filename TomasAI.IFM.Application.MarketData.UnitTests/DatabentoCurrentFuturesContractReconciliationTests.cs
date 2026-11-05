@@ -1,7 +1,8 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -12,6 +13,27 @@ public sealed class DatabentoCurrentFuturesContractReconciliationTests
 {
     static readonly DateOnly ValueDate = new(2026, 8, 21);
     static readonly DateOnly RolloverDate = new(2026, 9, 18);
+
+    [Fact]
+    public async Task Managed_session_preparation_reads_the_reconciled_ES_and_VX_assignments()
+    {
+        var registry = Substitute.For<IDatabentoContractRegistrationRegistry>();
+        var authority = Substitute.For<IDatabentoContractAuthority>();
+        var es = Contract(onTheRun: true);
+        var front = new FuturesContractV3ReadModel("VX20260916", "Front VX", "VX", "VXU6", "FUT",
+            "USD", "CFE", "1000", new(2026, 9, 16), true, true);
+        var back = new FuturesContractV3ReadModel("VX20261021", "Back VX", "VX", "VXV6", "FUT",
+            "USD", "CFE", "1000", new(2026, 10, 21), false, true);
+        registry.TryGetOnTheRunFuturesContract("ES", out Arg.Any<FuturesContractV3ReadModel>())
+            .Returns(call => { call[1] = es; return true; });
+        registry.TryGetFuturesTermStructureContracts("VX", out Arg.Any<FuturesTermStructureContracts>())
+            .Returns(call => { call[1] = new FuturesTermStructureContracts(front, back); return true; });
+        await using var api = new DatabentoMarketDataApi(Substitute.For<IDatabentoMarketDataEpochFactory>(),
+            new(), contractRegistry: registry, contractAuthority: authority);
+
+        (await api.PrepareSessionAsync(ValueDate)).Should().Equal(es, front, back);
+        await authority.Received(1).ReconcileAsync(ValueDate, nameof(DatabentoMarketDataApi), CancellationToken.None);
+    }
 
     [Fact]
     public async Task Startup_check_does_not_call_provider_when_all_roll_dates_are_in_the_future()

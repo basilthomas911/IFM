@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
@@ -62,8 +63,8 @@ public static class GetFuturesOptionSpreadData
 
     extension(GetFuturesOptionSpreadDataQuery query)
     {
-        /// <summary>Reads and replies with the requested market-data feed result.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Returns the typed market-data feed result.</summary>
+        public async ValueTask<ServiceResult<FuturesOptionSpreadDataReadModel>> ExecuteAsync(
             TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
             MarketDataFeedQueryParameters parameters)
         {
@@ -71,8 +72,7 @@ public static class GetFuturesOptionSpreadData
             ArgumentNullException.ThrowIfNull(parameters);
             ArgumentNullException.ThrowIfNull(query);
             var result = await query.ExecuteAsync(parameters.MarketDataApi).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-                new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FuturesOptionSpreadDataReadModel>(result)).ConfigureAwait(false);
+            return new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FuturesOptionSpreadDataReadModel>(result);
         }
     }
 }

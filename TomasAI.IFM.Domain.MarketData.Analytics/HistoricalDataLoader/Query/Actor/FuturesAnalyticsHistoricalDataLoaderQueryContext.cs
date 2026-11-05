@@ -1,5 +1,5 @@
+using TomasAI.IFM.Application.Storage;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -15,16 +15,16 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderQueryContext
     /// <summary>Initializes the readonly context.</summary>
     public FuturesAnalyticsHistoricalDataLoaderQueryContext(
         IActorSupervisor supervisor,
-        IHistoricalDataLoaderStore dataLoaderStore,
+        IDbContextFactory dbFactory,
         ILogger<FuturesAnalyticsHistoricalDataLoaderQueryActor> logger)
         : base(supervisor, new(ActorType.Query, FuturesAnalyticsHistoricalDataLoaderQueryActor.ActorName))
     {
-        DataLoaderStore = IsArgumentNull.Set(dataLoaderStore);
+        DbFactory = IsArgumentNull.Set(dbFactory);
         Logger = IsArgumentNull.Set(logger);
     }
 
     /// <inheritdoc />
-    public IHistoricalDataLoaderStore DataLoaderStore { get; }
-    /// <inheritdoc />
     public ILogger<FuturesAnalyticsHistoricalDataLoaderQueryActor> Logger { get; }
+    /// <inheritdoc />
+    public IDbContextFactory DbFactory { get; }
 }

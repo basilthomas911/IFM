@@ -125,12 +125,10 @@ public sealed class MarketDataFeedBddFixture
 
     public TestableMarketDataFeedQueryActor CreateMarketDataFeedQueryActor(
         ApplicationMarketDataApi? marketDataApi = null,
-        ISequenceIdApi? sequenceIdGenerator = null,
         IDbContextFactory? dbFactory = null,
         ILogger<MarketDataFeedQueryActor>? logger = null)
         => new(
             marketDataApi ?? Substitute.For<ApplicationMarketDataApi>(),
-            sequenceIdGenerator ?? Substitute.For<ISequenceIdApi>(),
             dbFactory ?? Substitute.For<IDbContextFactory>(),
             logger ?? Substitute.For<ILogger<MarketDataFeedQueryActor>>());
 }
@@ -162,10 +160,9 @@ public sealed class TestableMarketDataFeedQueryActor : MarketDataFeedQueryActor
 
     public TestableMarketDataFeedQueryActor(
         ApplicationMarketDataApi marketDataApi,
-        ISequenceIdApi sequenceIdGenerator,
         IDbContextFactory dbFactory,
         ILogger<MarketDataFeedQueryActor> logger)
-        : this(TypedActorContextFactory.Query(marketDataApi, sequenceIdGenerator, dbFactory, logger)) { }
+        : this(TypedActorContextFactory.Query(marketDataApi, dbFactory, logger)) { }
 
     TestableMarketDataFeedQueryActor(IMarketDataFeedQueryContext context)
         : base(context) => Context = context;

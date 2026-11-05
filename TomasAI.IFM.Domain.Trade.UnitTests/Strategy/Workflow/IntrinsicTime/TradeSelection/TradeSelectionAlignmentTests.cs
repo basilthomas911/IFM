@@ -6,12 +6,18 @@ using FluentAssertions;
 using MessagePack;
 using NSubstitute;
 using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.Exceptions;
@@ -84,6 +90,23 @@ public sealed class TradeSelectionAlignmentTests
     }
 
     [Fact]
+    public async Task Portfolio_neutral_binding_preserves_its_seal_across_command_transport()
+    {
+        var command = await TradeSelectionFixture.Command();
+        var binding = TradeSelectionContracts.Seal(command.SelectionBinding with
+        {
+            SchemaVersion = 2,
+            PortfolioSnapshot = new()
+        });
+        var completion = new CompleteMarketConditionCommand { SelectionBinding = binding };
+        var bytes = MessagePackBinarySerializer.Shared.Serialize(completion)!;
+        var received = MessagePackBinarySerializer.Shared.Deserialize<CompleteMarketConditionCommand>(bytes)!.SelectionBinding!;
+        TradeSelectionContracts.BindingHash(received).Should().Be(binding.PayloadSha256);
+        TradeSelectionContracts.BindingHash(received with { FrozenAtUtc = received.FrozenAtUtc.AddSeconds(1) })
+            .Should().NotBe(binding.PayloadSha256);
+    }
+
+    [Fact]
     public async Task Typed_content_rejects_tampering_mixed_representations_and_protects_owned_collections()
     {
         var result = TradeSelectionEvaluator.Evaluate(await TradeSelectionFixture.Command());
@@ -128,6 +151,56 @@ public sealed class TradeSelectionAlignmentTests
         var failed = TradeSelectionFunctionActor.MapEvent(new(typeof(TradeSelectionFunctionFailedEvent), c,
             Exception: new InvalidOperationException("injected"), Stage: stage), new Clock(c.RequestedAtUtc)).Failed!;
         failed.ReasonCode.Should().Be(reason); failed.CorrelationId.Should().Be(c.CorrelationId);
+    }
+
+    [Fact]
+    public async Task Persistence_has_a_bounded_budget_and_an_ambiguous_commit_is_distinct()
+    {
+        var command = await TradeSelectionFixture.Command();
+        var context = Substitute.For<ITradeSelectionFunctionContext>();
+        context.TimeProvider.Returns(new Clock(command.RequestedAtUtc));
+
+        command.ResolveExecutionPolicy(FunctionFailureStage.Execution, context).DeadlineUtc.Should().Be(command.ExpiresAtUtc);
+        command.ResolveExecutionPolicy(FunctionFailureStage.Persistence, context).DeadlineUtc.Should()
+            .Be(new[] { command.ExpiresAtUtc.AddSeconds(2), command.WorkflowView.ExpiresAtUtc }.Min());
+        var failed = TradeSelectionFunctionActor.MapEvent(new(typeof(TradeSelectionFunctionFailedEvent), command,
+            Exception: new FunctionCommitOutcomeUnknownException("injected", new TimeoutException()),
+            Stage: FunctionFailureStage.Persistence), context.TimeProvider).Failed!;
+        failed.ReasonCode.Should().Be("TS.PERSISTENCE.OUTCOME_UNKNOWN");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Ambiguous_commit_requires_a_matching_durable_result_before_advancing(bool committed)
+    {
+        var command = await TradeSelectionFixture.Command();
+        var completion = (await new FunctionFixture(command).Execute()).Completed!;
+        var context = Substitute.For<IIntrinsicTimeStrategyWorkflowRealtimeContext>();
+        context.TimeProvider.Returns(new Clock(command.RequestedAtUtc));
+        var uncertain = TradeSelectionFunctionActor.MapEvent(new(typeof(TradeSelectionFunctionFailedEvent), command,
+            Exception: new FunctionCommitOutcomeUnknownException("injected", new TimeoutException()),
+            Stage: FunctionFailureStage.Persistence), context.TimeProvider);
+        context.RequestFunctionAsync<ExecuteTradeSelectionPipelineCommand, TradeSelectionExecutionId,
+            FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>(
+            command, Arg.Any<CancellationToken>()).Returns(new ServiceOk<FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>(uncertain));
+        context.ReadCommittedSelectionAsync(command, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<TradeSelectionFunctionCompletedEvent?>(committed ? completion : null));
+        var snapshot = new WorkflowStrategyStateUpdatedEvent { State = command.WorkflowView with { SelectionDispatch = command } };
+
+        if (committed)
+        {
+            await IntrinsicTimeStrategyWorkflowRealtimeActor.ExecuteSelectionAsync(context, snapshot);
+            await context.Received(1).SendAsync<CompleteTradeSelectionCommand, IntrinsicTimeStrategyWorkflowEntityId>(
+                Arg.Is<CompleteTradeSelectionCommand>(result => result.SourceEventId == completion.Id), command.WorkflowEntityId);
+        }
+        else
+        {
+            Func<Task> act = () => IntrinsicTimeStrategyWorkflowRealtimeActor.ExecuteSelectionAsync(context, snapshot).AsTask();
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*commit is unconfirmed*");
+        }
+        await context.DidNotReceive().SendAsync<FailTradeSelectionCommand, IntrinsicTimeStrategyWorkflowEntityId>(
+            Arg.Any<FailTradeSelectionCommand>(), Arg.Any<IntrinsicTimeStrategyWorkflowEntityId>());
     }
 
     [Fact]

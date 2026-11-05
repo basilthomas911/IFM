@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using TomasAI.IFM.Shared.MarketData.Contracts;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
@@ -49,6 +49,7 @@ public sealed class TreasuryPricingProvider : IDisposable
             await refresh.WaitAsync(linked.Token).ConfigureAwait(false);
             try
             {
+                var previous = cached;
                 if (clock.GetUtcNow() >= retryAfter)
                 {
                     retryAfter = clock.GetUtcNow() + refreshInterval;
@@ -76,11 +77,13 @@ public sealed class TreasuryPricingProvider : IDisposable
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
-                if (cached is null)
-                    return new(null, default, "TreasuryUnavailable");
-                if (cached.ValueDate < required || cached.ValueDate > valuationDate || cached.RetrievedAtUtc > at)
-                    return new(null, default, "TreasuryStale");
-                var result = source.GetContinuouslyCompoundedAnnualRate(cached, tenor.Value, conversion);
+                var qualified = IsQualified(cached) ? cached : IsQualified(previous) ? previous : null;
+                if (qualified is null)
+                    return new(null, default, cached is null ? "TreasuryUnavailable" : "TreasuryStale");
+                var result = source.GetContinuouslyCompoundedAnnualRate(qualified, tenor.Value, conversion);
+
+                bool IsQualified(TreasuryCurveSnapshot? curve) => curve is not null
+                    && curve.ValueDate >= required && curve.ValueDate <= valuationDate && curve.RetrievedAtUtc <= at;
                 return new(result.Value, publication.ValidUntil(at), result.Error);
             }
             finally

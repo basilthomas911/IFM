@@ -28,6 +28,7 @@ public static class FailTradeSelectionPipeline
                 true => "TS.CONTRACT.CONFLICTING_DUPLICATE",
                 _ => (input.Exception switch
                 {
+                    FunctionCommitOutcomeUnknownException => "TS.PERSISTENCE.OUTCOME_UNKNOWN",
                     TradeSelectionValidationException validation => validation.ReasonCode,
                     _ => input.Exception is TimeoutException ? "TS.TIME.EXPIRED" : input.Stage switch
                     {

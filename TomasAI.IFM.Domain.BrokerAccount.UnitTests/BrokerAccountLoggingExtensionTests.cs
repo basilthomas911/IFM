@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
-namespace TomasAI.IFM.Application.Actor.IntegrationTests.Architecture;
+namespace TomasAI.IFM.Domain.BrokerAccount.UnitTests;
 
 public sealed class BrokerAccountLoggingExtensionTests
 {

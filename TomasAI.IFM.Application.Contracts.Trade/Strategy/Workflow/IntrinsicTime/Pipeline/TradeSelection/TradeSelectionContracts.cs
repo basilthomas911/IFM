@@ -42,7 +42,21 @@ public static partial class TradeSelectionContracts
     public static string BindingHash(TradeSelectionBinding b) 
     {
         ArgumentNullException.ThrowIfNull(b);
-        return EvidenceHash(b with { PayloadSha256 = "" });
+        var content = b with { PayloadSha256 = "" };
+        // Schema 2 uses StrategyUniverse as its authority. Restore the unused legacy
+        // placeholder to its original form because MessagePack marks default dates UTC.
+        return EvidenceHash(b.SchemaVersion == 2 ? content with { PortfolioSnapshot = new() } : content);
+    }
+
+    /// <summary>Compares replayed selection decisions independently of schema 2's unused legacy placeholder.</summary>
+    public static string DecisionEvidenceHash(TradeSelectionResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        var context = result.DecisionContext;
+        var binding = context.SelectionBinding;
+        return EvidenceHash(binding.SchemaVersion == 2
+            ? result with { DecisionContext = context with { SelectionBinding = binding with { PortfolioSnapshot = new() } } }
+            : result);
     }
     public static string CandidateHash(SelectionCandidateBinding c, SelectionDeploymentSnapshot graph)
     {

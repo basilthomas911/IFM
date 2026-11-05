@@ -1,5 +1,4 @@
 using NSubstitute;
-using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Query;
@@ -17,12 +16,12 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.Query;
 
-/// <summary>Verifies the typed replies of Query handlers moved out of actor receive maps.</summary>
+/// <summary>Verifies the typed results returned by Query handlers.</summary>
 public sealed class AlignedAnalyticsQueryHandlerTests
 {
     /// <summary>A missing historical attempt produces a successful, nullable typed reply.</summary>
     [Fact]
-    public async Task HistoricalAttemptMissing_RepliesWithNullDiagnostics()
+    public async Task HistoricalAttemptMissing_ReturnsNullDiagnostics()
     {
         var id = Guid.NewGuid();
         var query = new GetFuturesAnalyticsHistoricalDataLoaderQuery(id) with
@@ -31,17 +30,14 @@ public sealed class AlignedAnalyticsQueryHandlerTests
                 GetFuturesAnalyticsHistoricalDataLoaderQuery.Verb, id.ToString("D"))
         };
         var context = Substitute.For<IFuturesAnalyticsHistoricalDataLoaderQueryContext>();
-        var store = Substitute.For<IHistoricalDataLoaderStore>();
-        context.DataLoaderStore.Returns(store);
-        store.GetAsync(id, Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<HistoricalDataLoaderState?>((HistoricalDataLoaderState?)null));
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        context.DbFactory.Returns(dbFactory);
+        dbFactory.MarketDataDb.Returns(Substitute.For<IMarketDataDbContext>());
 
-        await query.ExecuteAsync(context, CancellationToken.None);
+        var result = await query.ExecuteAsync(context, CancellationToken.None);
 
-        await context.Received(1).ReplyAsync(query.Subject.ThreadId,
-            GetFuturesAnalyticsHistoricalDataLoaderQuery.Verb,
-            Arg.Is<ServiceResult<FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel?>>(
-                result => result.Success && result.Value == null));
+        Assert.True(result.Success);
+        Assert.Null(result.Value);
     }
 
     /// <summary>Cancelling a diagnostics read prevents the Query reply.</summary>
@@ -55,10 +51,6 @@ public sealed class AlignedAnalyticsQueryHandlerTests
                 GetFuturesAnalyticsHistoricalDataLoaderQuery.Verb, id.ToString("D"))
         };
         var context = Substitute.For<IFuturesAnalyticsHistoricalDataLoaderQueryContext>();
-        var store = Substitute.For<IHistoricalDataLoaderStore>();
-        context.DataLoaderStore.Returns(store);
-        store.GetAsync(id, Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<HistoricalDataLoaderState?>((HistoricalDataLoaderState?)null));
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
@@ -71,7 +63,7 @@ public sealed class AlignedAnalyticsQueryHandlerTests
 
     /// <summary>The VX latest handler keeps a null database result in the typed reply.</summary>
     [Fact]
-    public async Task VxLatestMissing_RepliesWithNullObservation()
+    public async Task VxLatestMissing_ReturnsNullObservation()
     {
         var query = new GetLatestFuturesVxTermStructureSignalQuery
         {
@@ -89,17 +81,15 @@ public sealed class AlignedAnalyticsQueryHandlerTests
                 query.ValueDate, query.ConfigurationId, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<FuturesVxTermStructureSignalReadModel?>(null));
 
-        await query.ExecuteAsync(context, CancellationToken.None);
+        var result = await query.ExecuteAsync(context, CancellationToken.None);
 
-        await context.Received(1).ReplyAsync(query.Subject.ThreadId,
-            GetLatestFuturesVxTermStructureSignalQuery.Verb,
-            Arg.Is<ServiceResult<FuturesVxTermStructureSignalReadModel?>>(
-                result => result.Success && result.Value == null));
+        Assert.True(result.Success);
+        Assert.Null(result.Value);
     }
 
     /// <summary>The VWAP latest handler keeps a null database result in the typed reply.</summary>
     [Fact]
-    public async Task VwapLatestMissing_RepliesWithNullSignal()
+    public async Task VwapLatestMissing_ReturnsNullSignal()
     {
         var query = new GetLatestFuturesVwapSignalQuery
         {
@@ -118,11 +108,9 @@ public sealed class AlignedAnalyticsQueryHandlerTests
                 query.ValueDate, query.ConfigurationId, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<FuturesVwapSignalReadModel?>(null));
 
-        await query.ExecuteAsync(context, context, CancellationToken.None);
+        var result = await query.ExecuteAsync(context, context, CancellationToken.None);
 
-        await context.Received(1).ReplyAsync(query.Subject.ThreadId,
-            GetLatestFuturesVwapSignalQuery.Verb,
-            Arg.Is<ServiceResult<FuturesVwapSignalReadModel?>>(
-                result => result.Success && result.Value == null));
+        Assert.True(result.Success);
+        Assert.Null(result.Value);
     }
 }

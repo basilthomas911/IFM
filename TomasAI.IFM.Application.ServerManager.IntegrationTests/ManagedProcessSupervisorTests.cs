@@ -124,6 +124,7 @@ public sealed class ManagedProcessSupervisorTests
             ProcessShutdownMode.StandardInput,
             "--wait-for-shutdown", "stop");
         second.StartOrder = 20;
+        second.StartupDependencies = ["first"];
 
         await using var supervisor = new ManagedProcessSupervisor(
             [first, second],
@@ -149,7 +150,7 @@ public sealed class ManagedProcessSupervisorTests
     }
 
     [Fact]
-    public async Task Readiness_timeout_throws_and_never_starts_the_next_process()
+    public async Task Readiness_timeout_blocks_dependents_and_keeps_independent_processes_running()
     {
         var logs = new ConcurrentQueue<ManagedProcessLogEntry>();
         var first = CreateDefinition(
@@ -164,21 +165,21 @@ public sealed class ManagedProcessSupervisorTests
             ProcessShutdownMode.StandardInput,
             "--wait-for-shutdown", "stop");
         second.StartOrder = 20;
+        second.StartupDependencies = ["first"];
 
+        var independent = CreateDefinition("independent", ProcessShutdownMode.StandardInput, "--wait-for-shutdown", "stop");
         await using var supervisor = new ManagedProcessSupervisor(
-            [first, second],
+            [first, second, independent],
             TimeSpan.FromSeconds(2),
             logs.Enqueue);
 
         var start = () => supervisor.StartAllAsync();
 
-        await start.Should().ThrowAsync<TimeoutException>()
-            .WithMessage("Readiness timed out after 1 seconds*");
-        logs.Should().NotContain(entry => entry.ProcessKey == "second"
-            && entry.Message.StartsWith("Started process"));
-        supervisor.RunningProcessKeys.Should().BeEmpty();
+        await start.Should().ThrowAsync<AggregateException>();
+        logs.Should().Contain(entry => entry.ProcessKey == "second" && entry.Message.Contains("startup blocked"));
+        logs.Should().Contain(entry => entry.ProcessKey == "independent" && entry.Message == "Startup ready.");
+        supervisor.RunningProcessKeys.Should().Contain("independent").And.NotContain("second");
     }
-
     [Fact]
     public async Task Missing_executable_is_reported_without_abandoning_lifecycle_control()
     {
@@ -193,7 +194,7 @@ public sealed class ManagedProcessSupervisorTests
         };
         await using var supervisor = new ManagedProcessSupervisor([definition], TimeSpan.FromSeconds(1), logs.Enqueue);
 
-        await supervisor.StartAllAsync();
+        await Assert.ThrowsAsync<AggregateException>(() => supervisor.StartAllAsync());
         await supervisor.WaitForExitAsync("missing");
 
         logs.Should().Contain(entry => entry.Message.StartsWith("Start failed:")

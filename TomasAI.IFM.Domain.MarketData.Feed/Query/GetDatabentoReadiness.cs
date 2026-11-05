@@ -13,7 +13,7 @@ public static class GetDatabentoReadiness
     extension(GetDatabentoReadinessQuery query)
     {
         /// <summary>Returns the mapped current Databento readiness snapshot.</summary>
-        public async ValueTask ExecuteAsync(IMarketDataFeedQueryContext context, MarketDataFeedQueryParameters parameters)
+        public async ValueTask<ServiceResult<DatabentoReadinessReadModel>> ExecuteAsync(IMarketDataFeedQueryContext context, MarketDataFeedQueryParameters parameters)
 
         {
             ArgumentNullException.ThrowIfNull(context);
@@ -21,7 +21,7 @@ public static class GetDatabentoReadiness
             ArgumentNullException.ThrowIfNull(query);
             var backend = await parameters.MarketDataApi.GetBackendStatusAsync().ConfigureAwait(false);
             var model = DatabentoQueryModel.MapReadiness(backend);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<DatabentoReadinessReadModel>(model)).ConfigureAwait(false);
+            return new ServiceResult<DatabentoReadinessReadModel>(model);
         }
     }
 }

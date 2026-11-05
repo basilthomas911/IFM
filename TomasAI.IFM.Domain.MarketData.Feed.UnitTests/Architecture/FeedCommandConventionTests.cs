@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations;
 using System.Reflection;
 using FluentAssertions;
 using MessagePack;
@@ -21,26 +22,34 @@ public sealed class FeedCommandConventionTests
     private static readonly TradeEntityId TradeId = new(1, 2, 3, 4);
 
     [Fact]
-    public void Parameterless_start_uses_API_value_date_and_preserves_prepared_contracts_in_event()
+    public void Prepared_start_round_trips_and_preserves_assignments_in_the_event()
     {
-        var request = new StartMarketDataFeedCommand { CommandId = Guid.NewGuid() };
-        var wire = MessagePackSerializer.Deserialize<StartMarketDataFeedCommand>(MessagePackSerializer.Serialize(request));
-        wire.ValueDate.Should().Be(default);
-        var dates = Substitute.For<IValueDateProvider>();
-        dates.ValueDate.Returns(ValueDate);
-        var resolved = wire.ResolveSession(dates);
-        _ = dates.Received(1).ValueDate;
+        var id = new MarketDataFeedId(ValueDate);
+        var operation = Guid.NewGuid();
+        var command = new StartMarketDataFeedCommand
+        {
+            CommandId = operation,
+            EntityId = id,
+            Subject = new(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, id.Format()),
+            PreparedContracts = SampleData.FuturesContracts
+        };
+        var receipt = new FeedSessionPreparationCompletedEvent
+        {
+            CommandId = operation, ValueDate = ValueDate, Contracts = SampleData.FuturesContracts
+        };
+        var restored = MessagePackSerializer.Deserialize<StartMarketDataFeedCommand>(MessagePackSerializer.Serialize(command));
+
+        restored.ValidatePreparation(receipt);
         var state = new MarketDataFeedCommandState();
-        var result = resolved.Execute(state, SampleData.FuturesContracts);
-        result.Success.Should().BeTrue(result.ErrorMessage);
+        restored.Execute(state).Success.Should().BeTrue();
         var source = state.Events.OfType<MarketDataFeedStartedEvent>().Single();
         source.ValueDate.Should().Be(ValueDate);
-        source.EntityId.ValueDate.Should().Be(ValueDate);
         source.FuturesContracts.Should().BeEquivalentTo(SampleData.FuturesContracts);
-        request.ValueDate.Should().Be(default, "resolving the backend snapshot must not mutate the request");
-        dates.ValueDate.Returns(ValueDate.AddDays(1));
-        wire.ResolveSession(dates).ValueDate.Should().Be(ValueDate.AddDays(1));
-        resolved.ValueDate.Should().Be(ValueDate, "a later provider change cannot alter an accepted command");
+        Assert.Throws<InvalidOperationException>(() => restored.ValidatePreparation(null));
+        Assert.Throws<InvalidOperationException>(() =>
+            (restored with { PreparedContracts = [] }).ValidatePreparation(receipt));
+        Assert.Throws<InvalidOperationException>(() =>
+            restored.ValidatePreparation(receipt with { ValueDate = ValueDate.AddDays(1) }));
     }
 
     [Fact]

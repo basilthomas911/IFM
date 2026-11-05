@@ -162,13 +162,47 @@ impl Operation {
         // Install and flush the subscription before sending. The event may precede
         // the actor reply, and it remains observable after the request deadline.
         let mut subscription = backend.subscribe("Event", "BrokerAccountEvent").await?;
+        let mut outcomes = backend.subscribe("Event", "BrokerAccountOutcomeEvent").await?;
+        let completion = match self.prepared.subject.verb.as_str() {
+            "SubmitAccountQualificationEvidence" => "AccountQualificationEvidenceSubmittedComplete",
+            "AcceptAccountQualification" => "AccountQualificationAcceptedComplete",
+            "RevokeAccountQualification" => "AccountQualificationRevokedComplete",
+            "SetManualTradingHold" => "ManualTradingHoldSetComplete",
+            "ReleaseManualTradingHold" => "ManualTradingHoldReleasedComplete",
+            "RequestBrokerAccountResynchronization" => "BrokerAccountResynchronizedComplete",
+            _ => return Err("Unsupported broker account command receipt".into()),
+        };
         backend.flush_until(deadline).await?;
         let (sender, receiver) = tokio::sync::watch::channel(None);
         let id = self.prepared.command_id.to_string();
         let alias = self.prepared.subject.entity.clone();
         let task = tokio::spawn(async move {
             let route = format!("Event.BrokerAccountEvent.BrokerAccountChanged.{alias}");
-            while let Some(event) = subscription.next().await {
+            let outcome_route = format!("Event.BrokerAccountOutcomeEvent.{completion}.{alias}");
+            while let Some(event) = tokio::select! {
+                event = subscription.next() => event,
+                event = outcomes.next() => event,
+            } {
+                if event.subject.as_str() == outcome_route.as_str() {
+                    let Ok(body) = crate::backend::codec::decode(&event.payload) else {
+                        continue;
+                    };
+                    if body.as_array().is_some_and(|parts| {
+                        parts.len() >= 8
+                            && parts[0] == Value::Array(vec![
+                                3.into(), "BrokerAccountOutcomeEvent".into(),
+                                completion.into(), alias.clone().into(),
+                            ])
+                            && parts[4].as_str() == Some(id.as_str())
+                            && parts[3].as_i64().is_some_and(|value| value > 0)
+                            && parts[2].as_array().and_then(|id| id.first()).and_then(Value::as_str)
+                                == Some(alias.as_str())
+                    }) {
+                        let _ = sender.send(Some(body));
+                        break;
+                    }
+                    continue;
+                }
                 if event.subject.as_str() != route.as_str() {
                     continue;
                 }

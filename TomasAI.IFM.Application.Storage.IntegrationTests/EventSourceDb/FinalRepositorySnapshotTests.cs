@@ -1,3 +1,13 @@
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.State;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.State;
 using TomasAI.IFM.Domain.MarketData.DownloadLog.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.DownloadLog.Command.State;
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
@@ -247,6 +257,152 @@ public sealed class FinalRepositorySnapshotTests(EventSourceActorSnapshotRangeFi
             });
     }
 
+    [Fact]
+    public Task FuturesBarData_restores_creation_and_head()
+    {
+        var context = Substitute.For<IFuturesBarDataCommandContext>();
+        var factory = Factory<FuturesBarDataCommandState>();
+        var actors = Substitute.For<IActorService>();
+        var projector = Substitute.For<IEventProjector<FuturesBarDataCommandActor>>();
+        context.DbEventSource.Returns(Database);
+        context.StateFactory.Returns(factory);
+        context.ActorService.Returns(actors);
+        context.EventProjector.Returns(projector);
+        context.Logger.Returns(NullLogger<FuturesBarDataCommandActor>.Instance);
+        return VerifyStateless(new FuturesBarDataStateRepository(context), () => new FuturesBarDataStreamingStoppedEvent());
+    }
+
+    [Fact]
+    public Task FuturesEodData_restores_creation_and_head()
+    {
+        var context = Substitute.For<IFuturesEodDataCommandContext>();
+        var factory = Factory<FuturesEodDataCommandState>();
+        var actors = Substitute.For<IActorService>();
+        var projector = Substitute.For<IEventProjector<FuturesEodDataCommandActor>>();
+        context.DbEventSource.Returns(Database);
+        context.StateFactory.Returns(factory);
+        context.ActorService.Returns(actors);
+        context.EventProjector.Returns(projector);
+        context.Logger.Returns(NullLogger<FuturesEodDataCommandActor>.Instance);
+        return VerifyStateless(new FuturesEodDataStateRepository(context), () => new FuturesEodDataInsertedEvent());
+    }
+
+    [Fact]
+    public Task FuturesTickData_restores_creation_and_head()
+    {
+        var context = Substitute.For<IFuturesTickDataCommandContext>();
+        var factory = Factory<FuturesTickDataCommandState>();
+        var actors = Substitute.For<IActorService>();
+        var projector = Substitute.For<IEventProjector<FuturesTickDataCommandActor>>();
+        context.DbEventSource.Returns(Database);
+        context.StateFactory.Returns(factory);
+        context.ActorService.Returns(actors);
+        context.EventProjector.Returns(projector);
+        context.Logger.Returns(NullLogger<FuturesTickDataCommandActor>.Instance);
+        return VerifyStateless(new FuturesTickDataStateRepository(context), () => new FuturesTickDataStreamingStoppedEvent());
+    }
+
+    [Fact]
+    public Task FuturesOptionTickData_restores_creation_and_head()
+    {
+        var context = Substitute.For<IFuturesOptionTickDataCommandContext>();
+        var factory = Factory<FuturesOptionTickDataCommandState>();
+        var actors = Substitute.For<IActorService>();
+        var projector = Substitute.For<IEventProjector<FuturesOptionTickDataCommandActor>>();
+        context.DbEventSource.Returns(Database);
+        context.StateFactory.Returns(factory);
+        context.ActorService.Returns(actors);
+        context.EventProjector.Returns(projector);
+        context.Logger.Returns(NullLogger<FuturesOptionTickDataCommandActor>.Instance);
+        return VerifyStateless(new FuturesOptionTickDataStateRepository(context), () => new FuturesOptionTickDataStreamingStoppedEvent());
+    }
+
+    private async Task VerifyStateless<TState>(
+        IEventSourceActorStateRepository<TState> repository, Func<IEvent> createFact)
+        where TState : BaseEventSourceActorState<TState>, IStatelessCreationSnapshotState, new()
+    {
+        const int head = 64;
+        var command = TestCommand(Address(typeof(TState).Name));
+        await Database.SaveEventsAsync(command.StreamId, Guid.NewGuid(),
+            new DomainEventCollection(Enumerable.Range(0, head).Select(_ => createFact())), 0, CancellationToken.None);
+        var before = new List<double>();
+        var after = new List<double>();
+        for (var i = 0; i < 20; i++)
+        {
+            if (i % 2 == 0)
+            {
+                await FullAsync();
+                await SnapshotAsync();
+            }
+            else
+            {
+                await SnapshotAsync();
+                await FullAsync();
+            }
+        }
+
+        var rows = new List<long>();
+        var stream = await Database.GetEventStreamIdAsync(command.StreamId, CancellationToken.None);
+        await Database.MapReduceStatelessActorEventStreamFromCreationAsync<TState>(
+            stream, page => rows.AddRange(page.Select(row => row.StreamVersion)));
+        Assert.Equal(new long[] { 1, head }, rows);
+        await Database.SaveEventsAsync(command.StreamId, Guid.NewGuid(),
+            new DomainEventCollection([createFact()]), head, CancellationToken.None);
+        Assert.Equal(head + 1, (await repository.LoadStateAsync(command)).CommittedStreamVersion);
+        before.Sort();
+        after.Sort();
+        output.WriteLine($"{typeof(TState).Name}: {head} -> {rows.Count} rows, median " +
+            $"{(before[9] + before[10]) / 2:F2} -> {(after[9] + after[10]) / 2:F2} ms, p95 {before[18]:F2} -> {after[18]:F2} ms.");
+
+        async Task FullAsync()
+        {
+            var started = Stopwatch.GetTimestamp();
+            var id = await Database.GetEventStreamIdAsync(command.StreamId, CancellationToken.None);
+            var state = new TState { Id = command.Subject.ThreadId };
+            await Database.MapReduceActorEventStreamFromCreationAsync<TState>(id, state.ReplayEvents);
+            before.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            Assert.Equal(head, state.CommittedStreamVersion);
+        }
+
+        async Task SnapshotAsync()
+        {
+            var started = Stopwatch.GetTimestamp();
+            var state = await repository.LoadStateAsync(command);
+            after.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            Assert.Equal(head, state.CommittedStreamVersion);
+            Assert.Empty(state.Events);
+        }
+    }
+
+    [Fact]
+    public async Task Closing_price_restores_the_latest_insert()
+    {
+        var context = Substitute.For<IFuturesClosingPriceCommandContext>();
+        var factory = Substitute.For<IEventSourceActorStateFactory>();
+        factory.CreateState<FuturesClosingPriceCommandState>().Returns(_ => new FuturesClosingPriceCommandState());
+        context.DbEventSource.Returns(Database);
+        context.StateFactory.Returns(factory);
+        context.ActorService.Returns(Substitute.For<IActorService>());
+        context.EventProjector.Returns(Substitute.For<IEventProjector<FuturesClosingPriceCommandActor>>());
+        context.Logger.Returns(NullLogger<FuturesClosingPriceCommandActor>.Instance);
+        var repository = new FuturesClosingPriceStateRepository(context);
+        var command = TestCommand(Address("ClosingPrice"));
+        var first = new TomasAI.IFM.Domain.MarketData.Shared.FuturesDataId("ES", new(2026, 10, 1));
+        var last = new TomasAI.IFM.Domain.MarketData.Shared.FuturesDataId("ES", new(2026, 10, 2));
+        var source = Enumerable.Range(1, 128).Select(i => (IEvent)new FuturesClosingPriceInsertedEvent
+        {
+            EntityId = i == 128 ? last : first, ClosingPrice = 5000m + i
+        }).ToArray();
+
+        await Verify<FuturesClosingPriceCommandState, FuturesClosingPriceInsertedEvent>(command, repository, source,
+            [1, 128], (full, restored) =>
+            {
+                Assert.True(full.FuturesClosingPriceExists(last));
+                Assert.True(restored.FuturesClosingPriceExists(last));
+                Assert.False(restored.FuturesClosingPriceExists(first));
+            }, createState: () => new FuturesClosingPriceCommandState());
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -334,8 +490,8 @@ public sealed class FinalRepositorySnapshotTests(EventSourceActorSnapshotRangeFi
     }
 
     private async Task Verify<TState, TSnapshot>(ICommand command, IEventSourceActorStateRepository<TState> repository,
-        IReadOnlyList<IEvent> facts, long[] expectedRows, Action<TState, TState> assertState, bool resolveFromDb = false, int? savedHead = null, int fallbackRows = 0)
-        where TState : BaseEventSourceActorState<TState>, new() where TSnapshot : IEvent
+        IReadOnlyList<IEvent> facts, long[] expectedRows, Action<TState, TState> assertState, bool resolveFromDb = false, int? savedHead = null, int fallbackRows = 0, Func<TState>? createState = null)
+        where TState : BaseEventSourceActorState<TState> where TSnapshot : IEvent
     {
         var identified = facts.Select(fact =>
         {
@@ -383,7 +539,8 @@ public sealed class FinalRepositorySnapshotTests(EventSourceActorSnapshotRangeFi
             var id = resolveFromDb
                 ? (await Database.GetEventStreamIdFromDbAsync(command.StreamId))!.EventStreamId
                 : await Database.GetEventStreamIdAsync(command.StreamId, CancellationToken.None);
-            var baseline = new TState { Id = command.Subject.ThreadId };
+            var baseline = createState is null ? Activator.CreateInstance<TState>() : createState();
+            baseline.Id = command.Subject.ThreadId;
             await Database.MapReduceActorEventStreamFromCreationAsync<TState>(id, baseline.ReplayEvents);
             before[sample] = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             return baseline;

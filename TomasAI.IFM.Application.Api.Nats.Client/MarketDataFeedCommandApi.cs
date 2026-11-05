@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -39,20 +40,43 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId = new MarketDataFeedId();
-            var cmd = new StartMarketDataFeedCommand()
+            var request = PrepareMarketDataFeedSessionCommand.ForOperation(cmdId);
+            var preparation = await RequestFunctionAsync<PrepareMarketDataFeedSessionCommand, ActorEntityId,
+                FunctionResult<FeedSessionPreparationCompletedEvent, FeedSessionPreparationFailedEvent>>(
+                request, request.EntityId, CancellationToken.None).ConfigureAwait(false);
+            if (preparation is not { Success: true, Value.Completed: { } prepared } || prepared.CommandId != cmdId)
+                return new ServiceFailed<Guid>(StartMarketDataFeedCommand.ErrorId,
+                    preparation.Value?.Failed?.ErrorMessage ?? preparation.ErrorMessage) { Value = cmdId };
+
+            var entityId = new MarketDataFeedId(prepared.ValueDate);
+            var command = new StartMarketDataFeedCommand
             {
                 CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, "current"),
-                ErrorCode = StartMarketDataFeedCommand.ErrorId
+                EntityId = entityId,
+                Subject = new(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, entityId.Format()),
+                PreparedContracts = prepared.Contracts
             };
-            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
+            serviceResult = await RequestCommandAsync(command, entityId).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             serviceResult = OnError(ex, cmdId, StartMarketDataFeedCommand.ErrorId);
         }
         return serviceResult;
+    }
+
+    /// <summary>Allocates an ID and returns the same allocation when the operation is retried.</summary>
+    public async Task<ServiceResult<ScalarValue<int>>> AllocateStreamingRequestIdAsync(
+        Guid operationId, CancellationToken cancellationToken = default)
+    {
+        var request = AllocateStreamingRequestIdCommand.ForOperation(operationId);
+        var reply = await RequestFunctionAsync<AllocateStreamingRequestIdCommand, ActorEntityId,
+            FunctionResult<StreamingRequestIdAllocationCompletedEvent, StreamingRequestIdAllocationFailedEvent>>(
+            request, request.EntityId, cancellationToken).ConfigureAwait(false);
+        return reply is { Success: true, Value.Completed: { } allocation } && allocation.CommandId == operationId
+            ? new ServiceOk<ScalarValue<int>>(new(allocation.Value))
+            : new ServiceFailed<ScalarValue<int>>(AllocateStreamingRequestIdCommand.ErrorId,
+                reply.Value?.Failed?.ErrorMessage ?? reply.ErrorMessage);
     }
 
     /// <summary>

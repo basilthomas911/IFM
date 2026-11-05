@@ -37,7 +37,7 @@ public static class GetTradingDays
     extension(GetTradingDaysQuery query)
     {
         /// <summary>Reads and replies with the requested market-data result.</summary>
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ServiceResult<ScalarReadModel<int>>> ExecuteAsync(
             TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
             CancellationToken cancellationToken)
         {
@@ -45,8 +45,7 @@ public static class GetTradingDays
             ArgumentNullException.ThrowIfNull(query);
             var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-                new ServiceResult<ScalarReadModel<int>>(result)).ConfigureAwait(false);
+            return new ServiceResult<ScalarReadModel<int>>(result);
         }
     }
 }

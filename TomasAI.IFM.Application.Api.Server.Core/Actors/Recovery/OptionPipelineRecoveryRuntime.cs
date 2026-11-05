@@ -17,6 +17,8 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
     public string? RecoveryDetail => Volatile.Read(ref recoveryDetail);
     readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     readonly Dictionary<string, DateTimeOffset> missingPlanSince = new(StringComparer.Ordinal);
+    readonly Dictionary<string, string> pricingGaps = new(StringComparer.Ordinal);
+    readonly Dictionary<string, Guid> qualifiedPricingGenerations = new(StringComparer.Ordinal);
     DateOnly? observedDate;
     DateTimeOffset verifiedThrough;
     readonly Dictionary<string, DateTimeOffset> monitoringSince = new(StringComparer.Ordinal);
@@ -39,7 +41,7 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
     {
         var session = sessions.Current;
         var date = session.ActiveValueDate;
-        if (observedDate != date) { missingPlanSince.Clear(); monitoringSince.Clear(); verifiedThrough = default; observedDate = date; }
+        if (observedDate != date) { missingPlanSince.Clear(); monitoringSince.Clear(); pricingGaps.Clear(); qualifiedPricingGenerations.Clear(); verifiedThrough = default; observedDate = date; }
         if (date is null || !supervisor.IsReady) return new(null, null, []);
         var now = clock.GetUtcNow();
         var backend = market.GetRuntimeStatus() ?? new TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel();
@@ -48,7 +50,7 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
                 || backend.EnabledOptionTrades.Contains(trade.TradeId.Format(), StringComparer.Ordinal))).ToArray();
         var positions = trades.Select(trade => trade.PositionId.Format()).ToArray();
         foreach (var inactive in monitoringSince.Keys.Where(key => !positions.Contains(key, StringComparer.Ordinal)).ToArray())
-        { monitoringSince.Remove(inactive); missingPlanSince.Remove(inactive); }
+        { monitoringSince.Remove(inactive); missingPlanSince.Remove(inactive); pricingGaps.Remove(inactive); qualifiedPricingGenerations.Remove(inactive); }
         if (backend.OptionProcessingError is { } failure && backend.OptionProcessingFailureUtc > verifiedThrough)
             return new(date, failure, positions, backend.OptionRecoveryDeadlineUtc);
         if (processingHealth?.Read(date.Value, backend.OptionGenerationId) is { } local && local.ObservedAtUtc > verifiedThrough)
@@ -72,17 +74,40 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
             var newest = trade.Legs.Select(leg => leg.Observation?.ObservedAtUtc).Where(at => at.HasValue).Max();
             var key = trade.PositionId.Format();
             monitoringSince.TryAdd(key, now);
-            // Missing data stays in inspection; it is not evidence that monitoring was disabled.
-            if (now - monitoringSince[key] > TimeSpan.FromSeconds(30) && trade.Legs.Any(leg =>
+            // Quote or valuation silence alone cannot diagnose a transport fault when
+            // the current worker has acknowledged its subscriptions. Explicit worker,
+            // lease, and mailbox failures above still initiate recovery.
+            if (!backend.OptionSubscriptionsVerified && now - monitoringSince[key] > TimeSpan.FromSeconds(30) && trade.Legs.Any(leg =>
                 leg.Observation is null || now - leg.Observation.ObservedAtUtc > TimeSpan.FromSeconds(30)))
                 return new(date, $"{key}: a required option leg has no current quote progress", positions);
-            if (now - monitoringSince[key] > TimeSpan.FromSeconds(30) && trade.Legs.Any(leg =>
+            if (!backend.OptionSubscriptionsVerified && now - monitoringSince[key] > TimeSpan.FromSeconds(30) && trade.Legs.Any(leg =>
                 leg.LastValidRisk is null || now - leg.LastValidRisk.CalculatedAtUtc > TimeSpan.FromSeconds(30)))
                 return new(date, $"{key}: a required option leg has no current qualified pricing progress", positions);
-            if (trade.Plan is null && newest is { } recent && now - recent < TimeSpan.FromSeconds(15))
+            var canBuildPlan = trade.Legs.Any() && trade.Legs.All(leg => leg.LastValidRisk is { } risk
+                && risk.ValidUntilUtc > now && risk.SourceGeneration == backend.OptionGenerationId);
+            if (canBuildPlan && backend.OptionGenerationId != Guid.Empty
+                && qualifiedPricingGenerations.GetValueOrDefault(key) != backend.OptionGenerationId)
+            {
+                qualifiedPricingGenerations[key] = backend.OptionGenerationId;
+                logger?.LogInformation("Current qualified option pricing verified; Position={Position}; Generation={Generation}; Contracts={Contracts}",
+                    key, backend.OptionGenerationId, string.Join(",", trade.Legs.Select(leg => leg.Definition.ContractId)));
+            }
+            if (canBuildPlan)
+                pricingGaps.Remove(key);
+            else if (backend.OptionSubscriptionsVerified && now - monitoringSince[key] > TimeSpan.FromSeconds(30))
+            {
+                var gap = string.Join("; ", trade.Legs.Where(leg => leg.LastValidRisk is null || leg.LastValidRisk.ValidUntilUtc <= now)
+                    .Select(leg => $"{leg.Definition.ContractId}: {leg.Observation?.PricingFailure ?? "no current qualified risk"}"));
+                if (!pricingGaps.TryGetValue(key, out var previous) || previous != gap)
+                {
+                    pricingGaps[key] = gap;
+                    logger?.LogWarning("Option monitoring has unpriced legs on verified subscriptions; Position={Position}; Legs={Legs}", key, gap);
+                }
+            }
+            if (canBuildPlan && trade.Plan is null && newest is { } recent && now - recent < TimeSpan.FromSeconds(15))
                 missingPlanSince.TryAdd(key, now);
             else missingPlanSince.Remove(key);
-            if (newest is { } quote && now - quote < TimeSpan.FromSeconds(15)
+            if (canBuildPlan && newest is { } quote && now - quote < TimeSpan.FromSeconds(15)
                 && (trade.Plan is null ? missingPlanSince.TryGetValue(key, out var since) && now - since > TimeSpan.FromSeconds(10)
                     : quote.UtcDateTime - trade.Plan.CalculatedAtUtc > TimeSpan.FromSeconds(10)))
                 return new(date, $"{trade.PositionId.Format()}: fresh quotes are not producing current plans", positions);

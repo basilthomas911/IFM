@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 public sealed class LatestOptionObservations
 {
     readonly object gate = new();
-    readonly Dictionary<string, Entry> latest = new(StringComparer.Ordinal);
+    readonly Dictionary<(string Contract, bool PricingUpdate), Entry> latest = [];
     readonly HashSet<Guid> retired = [];
     readonly Queue<Guid> retiredOrder = new();
     Guid generation;
@@ -32,11 +32,12 @@ public sealed class LatestOptionObservations
                 if (retiredOrder.Count > 64) retired.Remove(retiredOrder.Dequeue());
                 generation = frame.GenerationId; latest.Clear(); cursor = 0;
             }
-            if (!latest.ContainsKey(tick.ContractId) && latest.Count >= 2048) throw new InvalidOperationException("Option latest-value capacity exceeded.");
-            if (latest.TryGetValue(tick.ContractId, out var old) && old.Frame.GenerationId == frame.GenerationId
+            var key = (tick.ContractId, tick.IsPricingUpdate);
+            if (!latest.ContainsKey(key) && latest.Count >= 4096) throw new InvalidOperationException("Option latest-value capacity exceeded.");
+            if (latest.TryGetValue(key, out var old) && old.Frame.GenerationId == frame.GenerationId
                 && (old.Frame.PublicationSequence >= frame.PublicationSequence || tick.ObservedAtUtc < old.ObservedAt
                     || tick.ObservedAtUtc == old.ObservedAt && tick.CalculatedAtUtc < old.CalculatedAt)) return false;
-            latest[tick.ContractId] = new(frame, tick.ObservedAtUtc, tick.CalculatedAtUtc);
+            latest[key] = new(frame, tick.ObservedAtUtc, tick.CalculatedAtUtc);
             return true;
         }
     }

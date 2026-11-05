@@ -95,6 +95,10 @@ public sealed class HardResetTerminalHostVerificationTests(ITestOutputHelper out
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
         var assembly = Path.Combine(root.FullName, "TomasAI.IFM.Application.Api.Server.RecoveryChildProbe",
             "bin", configuration, "net10.0", "TomasAI.IFM.Application.Api.Server.RecoveryChildProbe.dll");
+        var outputDirectory = new DirectoryInfo(AppContext.BaseDirectory);
+        if (!File.Exists(assembly) && outputDirectory.Parent?.Parent is { Name: "bin" } artifactBin)
+            assembly = Path.Combine(artifactBin.FullName, "TomasAI.IFM.Application.Api.Server.RecoveryChildProbe",
+                outputDirectory.Name, "TomasAI.IFM.Application.Api.Server.RecoveryChildProbe.dll");
         Assert.True(File.Exists(assembly), "Build the child verification project before running this test.");
         using var child = new Process
         {

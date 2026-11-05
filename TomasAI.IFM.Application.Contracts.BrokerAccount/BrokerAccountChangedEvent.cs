@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.BrokerAccount.Contracts;
 
 [MessagePackObject]
-public sealed record BrokerAccountChangedEvent : IEvent<BrokerAccountId>
+public record BrokerAccountChangedEvent : IEvent<BrokerAccountId>
 {
     public const string Actor = "BrokerAccountEvent";
     public const string Verb = "BrokerAccountChanged";
@@ -22,6 +22,6 @@ public sealed record BrokerAccountChangedEvent : IEvent<BrokerAccountId>
     /// <summary>Gets the accepted broker account definition carried by this event.</summary>
     [Key(8)] public BrokerAccountDefinition BrokerAccountDefinition { get; init; } = new();
     [IgnoreMember] public string UserName => string.Empty;
-    [IgnoreMember] public string EventName => nameof(BrokerAccountChangedEvent);
+    [IgnoreMember] public virtual string EventName => nameof(BrokerAccountChangedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
 }

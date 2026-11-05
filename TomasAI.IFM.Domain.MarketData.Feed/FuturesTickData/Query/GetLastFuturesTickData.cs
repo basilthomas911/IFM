@@ -14,6 +14,10 @@ public static class GetLastFuturesTickData
     /// </param>
     extension(GetLastFuturesTickDataQuery q)
     {
+        /// <summary>Returns the typed query result from the projected read store.</summary>
+        internal async ValueTask<ServiceResult<FuturesTickDataV2ReadModel?>> ReadAsync(IDbContextFactory databases)
+            => new(await q.ExecuteAsync(databases).ConfigureAwait(false));
+
         /// <summary>
         ///
         /// </summary>

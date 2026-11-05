@@ -25,7 +25,7 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
     protected IMarketDataFeedQueryContext QueryContext { get; } =
         IsArgumentNull.Named(actorContext as IMarketDataFeedQueryContext, nameof(actorContext))!;
     readonly MarketDataFeedQueryParameters _qryParameters = new(
-        ((IMarketDataFeedQueryContext)actorContext).MarketDataApi, ((IMarketDataFeedQueryContext)actorContext).SequenceIdGenerator,
+        ((IMarketDataFeedQueryContext)actorContext).MarketDataApi,
         ((IMarketDataFeedQueryContext)actorContext).DbFactory, ((IMarketDataFeedQueryContext)actorContext).MarketDataServiceStore,
         ((IMarketDataFeedQueryContext)actorContext).MarketDataLifecycle);
 
@@ -53,8 +53,7 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
         [GetMarketDataFeedRuntimeStatusQuery.Verb] = msg => msg.AsQuery<GetMarketDataFeedRuntimeStatusQuery, MarketDataFeedRuntimeStatusReadModel>()!,
         [GetDatabentoReadinessQuery.Verb] = msg => msg.AsQuery<GetDatabentoReadinessQuery, DatabentoReadinessReadModel>()!,
         [GetDatabentoCurrentContractsQuery.Verb] = msg => msg.AsQuery<GetDatabentoCurrentContractsQuery, DatabentoContractAssignmentReadModel[]>()!,
-        [GetDatabentoWatchdogHistoryQuery.Verb] = msg => msg.AsQuery<GetDatabentoWatchdogHistoryQuery, DatabentoWatchdogObservationReadModel[]>()!,
-        [GetStreamingRequestIdQuery.Verb] = msg => msg.AsQuery<GetStreamingRequestIdQuery, ScalarValue<int>>()!
+        [GetDatabentoWatchdogHistoryQuery.Verb] = msg => msg.AsQuery<GetDatabentoWatchdogHistoryQuery, DatabentoWatchdogObservationReadModel[]>()!
     };
 
     /// <summary>
@@ -79,16 +78,51 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
     static readonly IReadOnlyDictionary<Type, Func<IMarketDataFeedQueryContext, MarketDataFeedQueryParameters, IQuery, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IMarketDataFeedQueryContext, MarketDataFeedQueryParameters, IQuery, ValueTask>>
         {
-            [typeof(GetFuturesOptionContractQuery)] = static (context, parameters, query) => ((GetFuturesOptionContractQuery)query).ExecuteAsync(context, parameters),
-            [typeof(GetFuturesOptionSpreadDataQuery)] = static (context, parameters, query) => ((GetFuturesOptionSpreadDataQuery)query).ExecuteAsync(context, parameters),
-            [typeof(GetFuturesRiskPositionTypeQuery)] = static (context, parameters, query) => ((GetFuturesRiskPositionTypeQuery)query).ExecuteAsync(context, parameters),
-            [typeof(GetIronCondorMarketDataFeedQuery)] = static (context, parameters, query) => ((GetIronCondorMarketDataFeedQuery)query).ExecuteAsync(context, parameters),
-            [typeof(GetNormalCurveTableQuery)] = static (context, parameters, query) => ((GetNormalCurveTableQuery)query).ExecuteAsync(context, parameters),
-            [typeof(GetMarketDataFeedRuntimeStatusQuery)] = static (context, parameters, query) => ((GetMarketDataFeedRuntimeStatusQuery)query).ExecuteAsync(context, parameters),
-            [typeof(GetDatabentoReadinessQuery)] = static (context, parameters, query) => ((GetDatabentoReadinessQuery)query).ExecuteAsync(context, parameters),
-            [typeof(GetDatabentoCurrentContractsQuery)] = static (context, parameters, query) => ((GetDatabentoCurrentContractsQuery)query).ExecuteAsync(context, parameters),
-            [typeof(GetDatabentoWatchdogHistoryQuery)] = static (context, parameters, query) => ((GetDatabentoWatchdogHistoryQuery)query).ExecuteAsync(context, parameters),
-            [typeof(GetStreamingRequestIdQuery)] = static (context, parameters, query) => ((GetStreamingRequestIdQuery)query).ExecuteAsync(context, parameters)
+            [typeof(GetFuturesOptionContractQuery)] = static async (context, parameters, query) =>
+            {
+                var result = await ((GetFuturesOptionContractQuery)query).ExecuteAsync(context, parameters).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetFuturesOptionContractQuery.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetFuturesOptionSpreadDataQuery)] = static async (context, parameters, query) =>
+            {
+                var result = await ((GetFuturesOptionSpreadDataQuery)query).ExecuteAsync(context, parameters).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetFuturesOptionSpreadDataQuery.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetFuturesRiskPositionTypeQuery)] = static async (context, parameters, query) =>
+            {
+                var result = await ((GetFuturesRiskPositionTypeQuery)query).ExecuteAsync(context, parameters).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetFuturesRiskPositionTypeQuery.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetIronCondorMarketDataFeedQuery)] = static async (context, parameters, query) =>
+            {
+                var result = await ((GetIronCondorMarketDataFeedQuery)query).ExecuteAsync(context, parameters).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetIronCondorMarketDataFeedQuery.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetNormalCurveTableQuery)] = static async (context, parameters, query) =>
+            {
+                var result = await ((GetNormalCurveTableQuery)query).ExecuteAsync(context, parameters).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetNormalCurveTableQuery.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetMarketDataFeedRuntimeStatusQuery)] = static async (context, parameters, query) =>
+            {
+                var result = await ((GetMarketDataFeedRuntimeStatusQuery)query).ExecuteAsync(context, parameters).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetMarketDataFeedRuntimeStatusQuery.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetDatabentoReadinessQuery)] = static async (context, parameters, query) =>
+            {
+                var result = await ((GetDatabentoReadinessQuery)query).ExecuteAsync(context, parameters).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetDatabentoReadinessQuery.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetDatabentoCurrentContractsQuery)] = static async (context, parameters, query) =>
+            {
+                var result = await ((GetDatabentoCurrentContractsQuery)query).ExecuteAsync(context, parameters).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetDatabentoCurrentContractsQuery.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetDatabentoWatchdogHistoryQuery)] = static async (context, parameters, query) =>
+            {
+                var result = await ((GetDatabentoWatchdogHistoryQuery)query).ExecuteAsync(context, parameters).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, GetDatabentoWatchdogHistoryQuery.Verb, result).ConfigureAwait(false);
+            }
         };
     /// <summary>
     /// Handles exceptions that occur during the processing of a query in the actor context.

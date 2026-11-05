@@ -59,7 +59,7 @@ public static class MarketDataDbSql
         """;
 
     public const string GetLastFuturesTdiSignal = """
-        SELECT ContractId AS "ContractId", ValueDate AS "ValueDate", TimePeriod AS "TimePeriod", Timestamp AS "Timestamp", SchemaVersion AS "SchemaVersion", ConfigurationId AS "ConfigurationId", RsiPeriod AS "RsiPeriod", PriceLinePeriod AS "PriceLinePeriod", SignalLinePeriod AS "SignalLinePeriod", MarketBasePeriod AS "MarketBasePeriod", VolatilityBandPeriod AS "VolatilityBandPeriod", VolatilityBandDeviation AS "VolatilityBandDeviation", Price AS "Price", Rsi AS "Rsi", PriceLine AS "PriceLine", SignalLine AS "SignalLine", MarketBaseLine AS "MarketBaseLine", UpperVolatilityBand AS "UpperVolatilityBand", LowerVolatilityBand AS "LowerVolatilityBand", BandWidth AS "BandWidth", PriceSignalDivergence AS "PriceSignalDivergence", CrossType AS "CrossType", MarketState AS "MarketState", TrendDirection AS "TrendDirection", TrendStrength AS "TrendStrength", SourceSequence AS "SourceSequence", SourceEventTimestamp AS "SourceEventTimestamp" FROM market_data.futures_traders_dynamic_index_signal WHERE ContractId = $1 AND TimePeriod = $2 AND ConfigurationId = $3 AND ValueDate = $4 ORDER BY timestamp DESC LIMIT 1;
+        SELECT ContractId AS "ContractId", ValueDate AS "ValueDate", TimePeriod AS "TimePeriod", Timestamp AS "Timestamp", SchemaVersion AS "SchemaVersion", ConfigurationId AS "ConfigurationId", RsiPeriod AS "RsiPeriod", PriceLinePeriod AS "PriceLinePeriod", SignalLinePeriod AS "SignalLinePeriod", MarketBasePeriod AS "MarketBasePeriod", VolatilityBandPeriod AS "VolatilityBandPeriod", VolatilityBandDeviation AS "VolatilityBandDeviation", Price AS "Price", Rsi AS "Rsi", PriceLine AS "PriceLine", SignalLine AS "SignalLine", MarketBaseLine AS "MarketBaseLine", UpperVolatilityBand AS "UpperVolatilityBand", LowerVolatilityBand AS "LowerVolatilityBand", BandWidth AS "BandWidth", PriceSignalDivergence AS "PriceSignalDivergence", CrossType AS "CrossType", MarketState AS "MarketState", TrendDirection AS "TrendDirection", TrendStrength AS "TrendStrength", SourceSequence AS "SourceSequence", SourceEventTimestamp AS "SourceEventTimestamp" FROM market_data.futures_traders_dynamic_index_signal WHERE ContractId = $1 AND TimePeriod = $2 AND ConfigurationId = $3 AND ValueDate = $4 ORDER BY SourceEventTimestamp DESC NULLS LAST, Timestamp DESC LIMIT 1;
         """;
 
 
@@ -97,7 +97,7 @@ public static class MarketDataDbSql
 
     /// <summary>Native PostgreSQL indicator query.</summary>
     public const string GetLastFuturesAtrSignal = """
-        SELECT ContractId AS "ContractId", ValueDate AS "ValueDate", TimePeriod as "TimePeriod", PeriodLength as "PeriodLength", Timestamp AS "Timestamp", FuturesPrice as "FuturesPrice", AtrValue AS "AtrValue", TrueRange AS "TrueRange", ATR AS "ATR", ATRStrength AS "ATRStrength", PreviousAtrValue AS "PreviousAtrValue", AtrBaseline AS "AtrBaseline", AtrRatio AS "AtrRatio", IsWarm AS "IsWarm", ConfigurationId AS "ConfigurationId", ObservationId AS "ObservationId", MarketDataAsOf AS "MarketDataAsOf", SourceSequence AS "SourceSequence", CalculationVersion AS "CalculationVersion", CalculationMethod AS "CalculationMethod", SchemaVersion AS "SchemaVersion", IsValid AS "IsValid" FROM market_data.futures_atr_signal WHERE ContractId = $1 AND TimePeriod = $2 AND PeriodLength = $3 AND ValueDate = $4 ORDER BY timestamp DESC LIMIT 1;
+        SELECT ContractId AS "ContractId", ValueDate AS "ValueDate", TimePeriod as "TimePeriod", PeriodLength as "PeriodLength", Timestamp AS "Timestamp", FuturesPrice as "FuturesPrice", AtrValue AS "AtrValue", TrueRange AS "TrueRange", ATR AS "ATR", ATRStrength AS "ATRStrength", PreviousAtrValue AS "PreviousAtrValue", AtrBaseline AS "AtrBaseline", AtrRatio AS "AtrRatio", IsWarm AS "IsWarm", ConfigurationId AS "ConfigurationId", ObservationId AS "ObservationId", MarketDataAsOf AS "MarketDataAsOf", SourceSequence AS "SourceSequence", CalculationVersion AS "CalculationVersion", CalculationMethod AS "CalculationMethod", SchemaVersion AS "SchemaVersion", IsValid AS "IsValid" FROM market_data.futures_atr_signal WHERE ContractId = $1 AND TimePeriod = $2 AND PeriodLength = $3 AND ValueDate = $4 ORDER BY MarketDataAsOf DESC NULLS LAST, Timestamp DESC LIMIT 1;
         """;
 
     /// <summary>Native PostgreSQL indicator query.</summary>
@@ -107,7 +107,7 @@ public static class MarketDataDbSql
 
     /// <summary>Native PostgreSQL indicator query.</summary>
     public const string GetLastFuturesAdxSignal = """
-        SELECT ContractId AS "ContractId", ValueDate AS "ValueDate", TimePeriod as "TimePeriod", PeriodLength as "PeriodLength", Timestamp AS "Timestamp", FuturesPrice AS "FuturesPrice", PlusDI AS "PlusDI", MinusDI AS "MinusDI", AdxValue AS "AdxValue", ADX AS "ADX", ADXStrength AS "ADXStrength", ConfigurationId AS "ConfigurationId", ObservationId AS "ObservationId", MarketDataAsOf AS "MarketDataAsOf", SourceSequence AS "SourceSequence", CalculationVersion AS "CalculationVersion", CalculationMethod AS "CalculationMethod", SchemaVersion AS "SchemaVersion", IsValid AS "IsValid", IsWarm AS "IsWarm" FROM market_data.futures_adx_signal WHERE ContractId = $1 AND TimePeriod = $2 AND PeriodLength = $3 AND ValueDate = $4 ORDER BY timestamp DESC LIMIT 1;
+        SELECT ContractId AS "ContractId", ValueDate AS "ValueDate", TimePeriod as "TimePeriod", PeriodLength as "PeriodLength", Timestamp AS "Timestamp", FuturesPrice AS "FuturesPrice", PlusDI AS "PlusDI", MinusDI AS "MinusDI", AdxValue AS "AdxValue", ADX AS "ADX", ADXStrength AS "ADXStrength", ConfigurationId AS "ConfigurationId", ObservationId AS "ObservationId", MarketDataAsOf AS "MarketDataAsOf", SourceSequence AS "SourceSequence", CalculationVersion AS "CalculationVersion", CalculationMethod AS "CalculationMethod", SchemaVersion AS "SchemaVersion", IsValid AS "IsValid", IsWarm AS "IsWarm" FROM market_data.futures_adx_signal WHERE ContractId = $1 AND TimePeriod = $2 AND PeriodLength = $3 AND ValueDate = $4 ORDER BY MarketDataAsOf DESC NULLS LAST, Timestamp DESC LIMIT 1;
         """;
 
     /// <summary>Native PostgreSQL indicator query.</summary>
@@ -117,7 +117,7 @@ public static class MarketDataDbSql
 
     /// <summary>Native PostgreSQL indicator query.</summary>
     public const string GetLastFuturesMacdSignal = """
-        SELECT ContractId AS "ContractId", ValueDate AS "ValueDate", TimePeriod AS "TimePeriod", SignalEmaPeriod AS "SignalEmaPeriod", FastEmaPeriod AS "FastEmaPeriod", SlowEmaPeriod AS "SlowEmaPeriod", Timestamp AS "Timestamp", FuturesPrice AS "FuturesPrice", FastEma AS "FastEma", SlowEma AS "SlowEma", MacdLine AS "MacdLine", SignalLine AS "SignalLine", Histogram AS "Histogram", MACD AS "MACD", MACDStrength AS "MACDStrength", IsWarm AS "IsWarm", ObservationCount AS "ObservationCount", ConfigurationId AS "ConfigurationId", ObservationId AS "ObservationId", MarketDataAsOf AS "MarketDataAsOf", SourceSequence AS "SourceSequence", CalculationVersion AS "CalculationVersion", CalculationMethod AS "CalculationMethod", SchemaVersion AS "SchemaVersion", IsValid AS "IsValid" FROM market_data.futures_macd_signal WHERE ContractId = $1 AND TimePeriod = $2 AND SignalEmaPeriod = $3 AND FastEmaPeriod = $4 AND SlowEmaPeriod = $5 AND ValueDate = $6 ORDER BY timestamp DESC LIMIT 1;
+        SELECT ContractId AS "ContractId", ValueDate AS "ValueDate", TimePeriod AS "TimePeriod", SignalEmaPeriod AS "SignalEmaPeriod", FastEmaPeriod AS "FastEmaPeriod", SlowEmaPeriod AS "SlowEmaPeriod", Timestamp AS "Timestamp", FuturesPrice AS "FuturesPrice", FastEma AS "FastEma", SlowEma AS "SlowEma", MacdLine AS "MacdLine", SignalLine AS "SignalLine", Histogram AS "Histogram", MACD AS "MACD", MACDStrength AS "MACDStrength", IsWarm AS "IsWarm", ObservationCount AS "ObservationCount", ConfigurationId AS "ConfigurationId", ObservationId AS "ObservationId", MarketDataAsOf AS "MarketDataAsOf", SourceSequence AS "SourceSequence", CalculationVersion AS "CalculationVersion", CalculationMethod AS "CalculationMethod", SchemaVersion AS "SchemaVersion", IsValid AS "IsValid" FROM market_data.futures_macd_signal WHERE ContractId = $1 AND TimePeriod = $2 AND SignalEmaPeriod = $3 AND FastEmaPeriod = $4 AND SlowEmaPeriod = $5 AND ValueDate = $6 ORDER BY MarketDataAsOf DESC NULLS LAST, Timestamp DESC LIMIT 1;
         """;
 
     /// <summary>Native PostgreSQL indicator query.</summary>
@@ -262,7 +262,7 @@ public static class MarketDataDbSql
 
     /// <summary>Native PostgreSQL market observation persistence.</summary>
     public const string GetLastFuturesRsiSignal = """
-        SELECT contractid AS "ContractId", valuedate AS "ValueDate", timePeriod AS "TimePeriod", periodLength AS "PeriodLength", timestamp AS "Timestamp", price AS "FuturesPrice", pricechange AS "PriceChange", pricegain AS "PriceGain", priceloss AS "PriceLoss", averagepricegain AS "AveragePriceGain", averagepriceloss AS "AveragePriceLoss", rs AS "RS", rsi AS "RSI", rsiaverage AS "RSIAverage", rsislope AS "RSISlope", sourceSequence AS "SourceSequence", sourceEventTimestamp AS "SourceEventTimestamp", configurationId AS "ConfigurationId", observationId AS "ObservationId", marketDataAsOf AS "MarketDataAsOf", calculationVersion AS "CalculationVersion", calculationMethod AS "CalculationMethod", schemaVersion AS "SchemaVersion", isValid AS "IsValid", previousRsi AS "PreviousRsi", regimeSlope AS "RegimeSlope", isWarm AS "IsWarm" FROM market_data.futures_rsi_signal WHERE contractid = $1 AND timePeriod = $2 AND periodLength = $3 AND valuedate = $4 ORDER BY timestamp DESC LIMIT 1;
+        SELECT contractid AS "ContractId", valuedate AS "ValueDate", timePeriod AS "TimePeriod", periodLength AS "PeriodLength", timestamp AS "Timestamp", price AS "FuturesPrice", pricechange AS "PriceChange", pricegain AS "PriceGain", priceloss AS "PriceLoss", averagepricegain AS "AveragePriceGain", averagepriceloss AS "AveragePriceLoss", rs AS "RS", rsi AS "RSI", rsiaverage AS "RSIAverage", rsislope AS "RSISlope", sourceSequence AS "SourceSequence", sourceEventTimestamp AS "SourceEventTimestamp", configurationId AS "ConfigurationId", observationId AS "ObservationId", marketDataAsOf AS "MarketDataAsOf", calculationVersion AS "CalculationVersion", calculationMethod AS "CalculationMethod", schemaVersion AS "SchemaVersion", isValid AS "IsValid", previousRsi AS "PreviousRsi", regimeSlope AS "RegimeSlope", isWarm AS "IsWarm" FROM market_data.futures_rsi_signal WHERE contractid = $1 AND timePeriod = $2 AND periodLength = $3 AND valuedate = $4 ORDER BY MarketDataAsOf DESC NULLS LAST, Timestamp DESC LIMIT 1;
         """;
 
     /// <summary>Native PostgreSQL market observation persistence.</summary>
@@ -681,6 +681,17 @@ public static class MarketDataDbSql
         """;
 
     /// <summary>Creates or advances a checkpoint and stores its immutable terminal manifest.</summary>
+    public const string GetHistoricalAnalyticsAttemptProjection = """
+        SELECT payload FROM historical_analytics_attempt_projection WHERE attempt_id = $1;
+        """;
+
+    public const string UpsertHistoricalAnalyticsAttemptProjection = """
+        INSERT INTO historical_analytics_attempt_projection (attempt_id, event_id, payload)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (attempt_id) DO UPDATE SET event_id = EXCLUDED.event_id, payload = EXCLUDED.payload
+        WHERE historical_analytics_attempt_projection.event_id < EXCLUDED.event_id;
+        """;
+
     public const string SaveHistoricalDataLoad = """
     WITH checkpoint AS (
         INSERT INTO historical_data_load_checkpoint (
@@ -703,7 +714,7 @@ public static class MarketDataDbSql
         data_load_attempt_id, manifest_json, audit_json, created_at_utc)
     SELECT $1, $11, $12, $10
     FROM checkpoint
-    WHERE $11 <> ''
+    WHERE $11 <> '' OR $12 <> ''
     ON CONFLICT (data_load_attempt_id) DO NOTHING;
     """;
 
@@ -712,7 +723,7 @@ public static class MarketDataDbSql
     SELECT c.data_load_attempt_id, c.request_sha256, c.status, c.stage,
            c.provider_job_id, c.provider_file_id, c.batch_ordinal,
            c.source_position, c.error_message, c.updated_at_utc,
-           m.manifest_json, m.audit_json
+           NULLIF(m.manifest_json, ''), NULLIF(m.audit_json, '')
     FROM historical_data_load_checkpoint c
     LEFT JOIN historical_data_load_manifest m
       ON m.data_load_attempt_id = c.data_load_attempt_id
@@ -724,11 +735,11 @@ public static class MarketDataDbSql
     SELECT c.data_load_attempt_id, c.request_sha256, c.status, c.stage,
            c.provider_job_id, c.provider_file_id, c.batch_ordinal,
            c.source_position, c.error_message, c.updated_at_utc,
-           m.manifest_json, m.audit_json
+           NULLIF(m.manifest_json, ''), NULLIF(m.audit_json, '')
     FROM historical_data_load_checkpoint c
     INNER JOIN historical_data_load_manifest m
       ON m.data_load_attempt_id = c.data_load_attempt_id
-    WHERE c.request_sha256 = $1 AND c.status = 2
+    WHERE c.request_sha256 = $1 AND c.status = 2 AND m.manifest_json <> ''
     LIMIT 1;
     """;
     /// <summary>GetCanonicalYieldCurvesForRebuild database statement.</summary>

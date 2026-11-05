@@ -25,8 +25,30 @@ public sealed partial class MarketDataWorkerHost
                 .Where(frame => status.Datasets.Any(dataset => dataset.Role == "Options" && dataset.Lifecycle == "Healthy"
                     && dataset.WorkerInstanceId == frame.WorkerInstanceId && dataset.GenerationId == frame.GenerationId
                     && dataset.ValueDate == frame.ValueDate && dataset.ManifestRevision == frame.ManifestRevision)).ToArray();
-            return new(status, active, contracts, values?.Capture() ?? [], OptionObservations: options);
+            return new(status, active, contracts, values?.Capture() ?? [], OptionObservations: options, NativeOptionWorkload: CaptureOptionWorkload(status));
         }
+    }
+    NativeOptionWorkloadEvidence? CaptureOptionWorkload(MarketDataBackendStatus status)
+    {
+        var dataset = status.Datasets.SingleOrDefault(state => state.Role == "Options");
+        if (dataset is null || dataset.GenerationId == Guid.Empty) return null;
+
+        var now = DateTimeOffset.UtcNow;
+        // The Host records a generation only after the worker acknowledges acquisition
+        // or restoration of that scope. Expired temporary leases carry no proof.
+        var desired = optionLeases.Where(pair => pair.Key.Worker == dataset.WorkerInstanceId
+                && pair.Value.ValueDate == dataset.ValueDate && pair.Value.LeaseExpiresAtUtc > now)
+            .Select(pair => pair.Value)
+            .Concat(businessScopes.Where(pair => pair.Key.Worker == dataset.WorkerInstanceId
+                && pair.Value.Chain.ValueDate == dataset.ValueDate).Select(pair => pair.Value.Chain))
+            .GroupBy(lease => lease.ScopeId, StringComparer.Ordinal)
+            .ToArray();
+        var scopes = desired.Select(group => group.Key).Order(StringComparer.Ordinal).ToArray();
+        var admitted = dataset.Running && dataset.Healthy && dataset.Lifecycle == "Healthy";
+        var ready = admitted ? desired.Where(group => group.All(lease => lease.GenerationId == dataset.GenerationId))
+            .Select(group => group.Key).Order(StringComparer.Ordinal).ToArray() : [];
+        return new(dataset.GenerationId, now, dataset.Lifecycle is "Starting" or "Recovering" or "Resetting",
+            scopes, ready, scopes, FormatVersion: 1, NativeResourceProofsComplete: admitted && scopes.Length != 0 && ready.Length == scopes.Length);
     }
     public async Task<DatasetWorkerControlFrame> ResetOwnedWorkerAsync(string role, Guid workerId,
         DatasetSubscriptionManifest manifest, CancellationToken token)

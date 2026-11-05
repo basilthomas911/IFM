@@ -61,11 +61,12 @@ public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
     public async Task GetFuturesEodDataParameters_Ok()
     {
         // arrange...
-        var contractId = SampleData.FuturesContractId;
-        var eodDataToday = SampleData.FuturesEodData;
+        var contractId = "TEST-EOD-PARAMETERS";
+        var eodDataToday = SampleData.FuturesEodData with { ContractId = contractId };
         var valueDate = eodDataToday.ValueDate;
         var eodDataRange = SampleData.FuturesEodDataRange
             .Where(e => e.ValueDate < valueDate && e.ValueDate >= valueDate.AddMonths(-2))
+            .Select(e => e with { ContractId = contractId })
             .ToList();
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
         foreach (var eodData in eodDataRange)
@@ -115,8 +116,8 @@ public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
     public async Task GetFuturesEodData_Ok()
     {
         // arrange...
-        var contractId = SampleData.FuturesContractId;
-        var eodData = SampleData.FuturesEodData;
+        var contractId = "ES20261217";
+        var eodData = SampleData.FuturesEodData with { ContractId = contractId };
         var valueDate = eodData.ValueDate;
 
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
@@ -128,7 +129,7 @@ public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
 
         // assert...
         response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
+        response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBeNull();
         response.Value!.ContractId.Should().Be(eodData.ContractId);
         response.Value.ValueDate.Should().Be(eodData.ValueDate);
@@ -144,14 +145,14 @@ public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
     public async Task GetLastFuturesEodData_Ok()
     {
         // arrange...
-        var contractId = SampleData.FuturesContractId;
+        var contractId = "ES20261216";
         var eodData = SampleData.FuturesEodData;
         var valueDate = eodData.ValueDate;
-
-        var lastFuturesEodData = await dbFixture.MarketDataDb.GetLastFuturesEodDataAsync(contractId, valueDate);
-        Assert.NotNull(lastFuturesEodData);
+        var lastFuturesEodData = eodData with { ContractId = contractId, ValueDate = valueDate.AddDays(-1) };
+        await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, lastFuturesEodData.ValueDate);
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
-        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodData);
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(lastFuturesEodData);
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodData with { ContractId = contractId });
 
         // act...
         var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);

@@ -1822,7 +1822,7 @@ internal readonly record struct InsertFuturesRsiSignal(string contractId, DateOn
         Double(rsiAverage),
         Double(rsiSlope),
         Bigint(sourceSequence),
-        TimestampTz(sourceEventTimestamp),
+        TimestampTz(sourceEventTimestamp == default ? DateTime.SpecifyKind(default, DateTimeKind.Utc) : sourceEventTimestamp),
         Text(configurationId),
         Uuid(observationId),
         TimestampTz(marketDataAsOf),
@@ -1867,7 +1867,7 @@ internal readonly record struct InsertFuturesTdiSignal(
     long sourceSequence,
     DateTime sourceEventTimestamp) : IBindValue
 {
-    public object Bind() => Values(Text(contractId), Text(timePeriod), Text(configurationId), Date(valueDate), Time(timestamp ), Integer(schemaVersion), Integer(rsiPeriod), Integer(priceLinePeriod), Integer(signalLinePeriod), Integer(marketBasePeriod), Integer(volatilityBandPeriod), Double(volatilityBandDeviation), Numeric(price ), Double(rsi), Double(priceLine), Double(signalLine), Double(marketBaseLine), Double(upperVolatilityBand), Double(lowerVolatilityBand), Double(bandWidth), Double(priceSignalDivergence), Text(crossType), Text(marketState), Text(trendDirection), Text(trendStrength), Bigint(sourceSequence), TimestampTz(sourceEventTimestamp));
+    public object Bind() => Values(Text(contractId), Text(timePeriod), Text(configurationId), Date(valueDate), Time(timestamp ), Integer(schemaVersion), Integer(rsiPeriod), Integer(priceLinePeriod), Integer(signalLinePeriod), Integer(marketBasePeriod), Integer(volatilityBandPeriod), Double(volatilityBandDeviation), Numeric(price ), Double(rsi), Double(priceLine), Double(signalLine), Double(marketBaseLine), Double(upperVolatilityBand), Double(lowerVolatilityBand), Double(bandWidth), Double(priceSignalDivergence), Text(crossType), Text(marketState), Text(trendDirection), Text(trendStrength), Bigint(sourceSequence), TimestampTz(sourceEventTimestamp == default ? DateTime.SpecifyKind(default, DateTimeKind.Utc) : sourceEventTimestamp));
 }
 
 
@@ -2601,3 +2601,9 @@ internal readonly record struct SaveHistoricalDataLoadParameter(HistoricalDataLo
             Text(State.Manifest is null ? string.Empty : JsonSerializer.Serialize(State.Manifest)),
             Text(State.Audit is null ? string.Empty : JsonSerializer.Serialize(State.Audit)));
     }
+
+
+internal readonly record struct HistoricalAnalyticsAttemptProjectionParameter(Guid AttemptId, long EventId, string Payload) : IBindValue
+{
+    public object Bind() => new object[] { AttemptId, EventId, Payload };
+}

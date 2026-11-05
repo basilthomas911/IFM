@@ -1,33 +1,28 @@
-﻿using TomasAI.IFM.Domain.Application.Shared.Events;
+using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Application.Command.State;
 
-/// <summary>
-/// Represents the event-sourced state of Application commands within the actor system.
-/// </summary>
-/// <remarks>This class manages the state transitions for Application operations by applying domain events.
-/// It mirrors the logic of <see cref="Application.ApplicationBoundedContextState"/>.</remarks>
+/// <summary>Tracks the latest accepted lifecycle request in the application stream.</summary>
+/// <remarks>Each request event fully replaces this state. Runtime readiness is observed separately.</remarks>
 public sealed class ApplicationCommandState
-    : BaseEventSourceActorState<ApplicationCommandState>, IEventSourceActorState<ApplicationCommandState>, IStatelessCreationSnapshotState
+    : BaseEventSourceActorState<ApplicationCommandState>, IEventSourceActorState<ApplicationCommandState>
 {
-    /// <summary>
-    /// Gets or sets the unique identifier for the actor thread associated with this state.
-    /// </summary>
+    /// <summary>Gets or sets the actor thread associated with the state.</summary>
     public override ActorThreadId Id { get; set; } = default!;
 
-    /// <summary>
-    /// Applies the specified domain event to update the state of the current object.
-    /// </summary>
-    /// <param name="domainEvent">The domain event to apply. Must be of a supported type.</param>
-    /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
+    /// <summary>Gets the latest accepted startup or shutdown request.</summary>
+    public IEvent? LatestRequest { get; private set; }
+
+    /// <summary>Restores the lifecycle request, including its command identity and audit fields.</summary>
     protected override bool Apply(IEvent domainEvent)
-        => domainEvent switch
-        {
-            ApplicationStartupEvent => true,
-            ApplicationShutdownEvent => true,
-            _ => false
-        };
+    {
+        if (domainEvent is not (ApplicationStartupEvent or ApplicationShutdownEvent))
+            return false;
+
+        LatestRequest = domainEvent;
+        return true;
+    }
 }

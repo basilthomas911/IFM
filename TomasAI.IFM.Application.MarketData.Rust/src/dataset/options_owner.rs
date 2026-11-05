@@ -718,6 +718,10 @@ impl Run {
             return Ok(());
         }
         *setup = Some(initial);
+        if let Some(background) = &self.intent.background {
+            // A proposed refresh cannot evict the recipe for the active feed.
+            background.remember_reference_recipe(&wanted)?;
+        }
         let initial_physical = self
             .intent
             .background

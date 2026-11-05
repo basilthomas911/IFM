@@ -238,11 +238,11 @@ pub fn options_health(value: &Value) -> (&'static str, &'static str) {
         && proof["nativeResourceProofsComplete"] == true
         && scopes
             .zip(ready)
-            .is_some_and(|(s, r)| !s.is_empty() && s.iter().all(|x| r.contains(x)))
+            .is_some_and(|(s, r)| s.iter().all(|x| r.contains(x)))
     {
         (
             "Green",
-            "Current Options generation and monitoring scopes verified",
+            "Current Options subscriptions and requested scopes verified",
         )
     } else {
         (

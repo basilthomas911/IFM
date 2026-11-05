@@ -12,6 +12,10 @@ public static class GetLastFuturesOptionTickData
 
     extension(GetLastFuturesOptionTickDataQuery q)
     {
+        /// <summary>Returns the typed query result from the projected read store.</summary>
+        internal async ValueTask<ServiceResult<FuturesOptionTickDataV2ReadModel?>> ReadAsync(IDbContextFactory databases)
+            => new(await q.ExecuteAsync(databases).ConfigureAwait(false));
+
         internal async ValueTask<FuturesOptionTickDataV2ReadModel?> ExecuteAsync(
         IDbContextFactory dbFactory)
             => await (dbFactory.MarketDataDb.GetLastFuturesOptionTickDataAsync(q.ContractId, q.ValueDate)).ConfigureAwait(false);

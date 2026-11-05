@@ -50,4 +50,9 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext : EventActorCon
     public IConfigurationDbContext ConfigurationDb => _configurationDb.Value;
     /// <inheritdoc/>
     public IRegimeDiscoveryMarketSignalSnapshotProvider RegimeDiscoverySnapshotProvider => _regimeDiscoverySnapshotProvider.Value;
+
+    public Task<Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.TradeSelectionFunctionCompletedEvent?> ReadCommittedSelectionAsync(
+        Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands.ExecuteTradeSelectionPipelineCommand command,
+        CancellationToken token) => Container.Resolve<Application.Storage.IDbContextFactory>().TradeDb
+            .GetTradeSelectionInvocationAsync(command.WorkflowId, command.CommandId, token);
 }

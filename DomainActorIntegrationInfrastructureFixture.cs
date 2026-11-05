@@ -179,6 +179,8 @@ public static class DomainActorIntegrationInfrastructureFixture
         var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "qualification", $"acceptance-{infrastructure.RunId}");
         Directory.CreateDirectory(artifactDirectory);
         SetEnvironment("IFM_QUALIFICATION_ARTIFACT_DIRECTORY", artifactDirectory);
+        if (testAssemblyName.Contains("MarketData.Feed.IntegrationTests", StringComparison.Ordinal))
+            SetEnvironment("MarketData__FuturesEodHistorySpoolPath", Path.Combine(artifactDirectory, "eod-history"));
 
         foreach (var name in PostgresConnections)
             SetEnvironment($"ConnectionStrings__{name}", postgresConnection);
@@ -230,6 +232,10 @@ public static class DomainActorIntegrationInfrastructureFixture
                 KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>
                     .ConfigureSharedServices(services =>
                     {
+                        if (services.Any(descriptor => descriptor.ImplementationType ==
+                            typeof(TomasAI.IFM.Application.MarketData.Databento.Workers.SupervisedDatabentoLifecycleRuntime)))
+                            return;
+
                         var serviceType = Type.GetType(
                             "TomasAI.IFM.Framework.MarketData.DataBento.IDatabentoFeedFactory, TomasAI.IFM.Framework.MarketData.DataBento",
                             throwOnError: true)!;

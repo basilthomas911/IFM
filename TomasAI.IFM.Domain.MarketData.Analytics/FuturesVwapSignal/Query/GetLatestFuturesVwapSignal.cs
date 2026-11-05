@@ -14,7 +14,7 @@ public static class GetLatestFuturesVwapSignal
     extension(GetLatestFuturesVwapSignalQuery query)
     {
         /// <summary>Reads the current VWAP projection and replies to the caller.</summary>
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ServiceResult<FuturesVwapSignalReadModel?>> ExecuteAsync(
             IQueryActorContext<FuturesVwapSignalQueryActor> context,
             IFuturesVwapSignalQueryContext typedContext,
             CancellationToken cancellationToken)
@@ -24,8 +24,7 @@ public static class GetLatestFuturesVwapSignal
             ArgumentNullException.ThrowIfNull(typedContext);
             var current = await FuturesVwapSignalQueryModel.ExecuteAsync(query,
                 typedContext.DbFactory, cancellationToken).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-                new ServiceResult<FuturesVwapSignalReadModel?>(current)).ConfigureAwait(false);
+            return new ServiceResult<FuturesVwapSignalReadModel?>(current);
         }
     }
 }

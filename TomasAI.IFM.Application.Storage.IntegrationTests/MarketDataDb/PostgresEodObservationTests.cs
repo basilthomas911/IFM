@@ -607,6 +607,25 @@ public sealed class PostgresEodObservationTests
         Assert.Null(await db.GetLastFuturesAtrSignalAsync("ATR", date, atr.TimePeriod, 14));
         Assert.Equal(date.AddDays(-1), (await db.GetLastFuturesAtrDailySignalAsync("ATR", atr.TimePeriod, 14))!.ValueDate);
 
+        var overnight = atr with
+        {
+            ContractId = "ATR-OVERNIGHT",
+            Timestamp = new TimeOnly(23, 59),
+            Metadata = new()
+            {
+                SignalKey = new(MarketSeriesIdentity.ForContract("ATR-OVERNIGHT"), MarketAnalyticsSignalKind.Atr, atr.TimePeriod, "atr"),
+                MarketDataAsOfUtc = new DateTimeOffset(date.AddDays(-1), new TimeOnly(23, 59), TimeSpan.Zero)
+            }
+        };
+        await db.InsertFuturesAtrSignalAsync(overnight);
+        var current = overnight with
+        {
+            Timestamp = new TimeOnly(0, 59),
+            AtrValue = 17,
+            Metadata = overnight.Metadata! with { MarketDataAsOfUtc = new DateTimeOffset(date, new TimeOnly(0, 59), TimeSpan.Zero) }
+        };
+        await db.InsertFuturesAtrSignalAsync(current);
+        Assert.Equal(17, (await db.GetLastFuturesAtrSignalAsync(current.ContractId, date, atr.TimePeriod, 14))!.AtrValue);
         var adx = new FuturesAdxSignalReadModel
         {
             ContractId = "ADX", ValueDate = date, TimePeriod = atr.TimePeriod, PeriodLength = 14,

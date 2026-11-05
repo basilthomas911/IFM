@@ -1,7 +1,6 @@
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Shared.Queries;
 using TomasAI.IFM.Domain.Application.Query.Actor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Application.Query;
@@ -13,12 +12,13 @@ public static class GetApplicationStartupStatus
     extension(GetApplicationStartupStatusQuery query)
     {
         /// <summary>Returns the current immutable application startup status.</summary>
-        public ValueTask ExecuteAsync(IApplicationQueryContext context, CancellationToken cancellationToken)
+        public ValueTask<ServiceResult<ApplicationStartupStatus>> ExecuteAsync(IApplicationQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             cancellationToken.ThrowIfCancellationRequested();
-            return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ApplicationStartupStatus>(context.StatusStore.Current));
+            return ValueTask.FromResult<ServiceResult<ApplicationStartupStatus>>(
+                new ServiceOk<ApplicationStartupStatus>(context.StatusStore.Current));
         }
     }
 }

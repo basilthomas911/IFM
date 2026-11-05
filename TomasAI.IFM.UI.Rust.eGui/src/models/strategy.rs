@@ -104,7 +104,6 @@ pub struct WorkflowView {
     pub evidence: Arc<[u8]>,
 }
 
-
 /// Provides value for the strategy implementation.
 fn value<'a>(r: &Registry, kind: &str, wire: &'a Value, name: &str) -> Result<&'a Value, String> {
     if wire.is_nil() {
@@ -115,7 +114,6 @@ fn value<'a>(r: &Registry, kind: &str, wire: &'a Value, name: &str) -> Result<&'
         r.wire_field(kind, name, wire)
     }
 }
-
 
 /// Returns the display text for the requested value or field.
 fn text(r: &Registry, kind: &str, wire: &Value, name: &str) -> Result<String, String> {
@@ -135,7 +133,6 @@ fn text(r: &Registry, kind: &str, wire: &Value, name: &str) -> Result<String, St
     Err(format!("Invalid workflow text {kind}.{name}"))
 }
 
-
 /// Reads a timestamp as an instant while retaining the supported precision.
 fn instant(
     r: &Registry,
@@ -145,7 +142,6 @@ fn instant(
 ) -> Result<chrono::DateTime<chrono::Utc>, String> {
     timestamp(value(r, kind, wire, name)?)
 }
-
 
 /// Reads an optional timestamp without inventing a value for missing data.
 fn optional_instant(
@@ -250,7 +246,6 @@ impl WorkflowHeader {
         })
     }
 
-
     /// Reads the occurrence time used to order the supplied event.
     pub fn occurred(&self) -> chrono::DateTime<chrono::Utc> {
         if self.trigger_created.timestamp() <= -62_135_596_800 {
@@ -259,7 +254,6 @@ impl WorkflowHeader {
             self.trigger_created
         }
     }
-
 
     /// Provides header for the workflow header implementation.
     pub fn header(&self) -> String {
@@ -309,7 +303,6 @@ impl WorkflowHeader {
     }
 }
 
-
 /// Extracts the workflow signal's published event time.
 pub fn signal_time(
     signal: &FuturesItiSignalV2ReadModel,
@@ -324,7 +317,6 @@ pub fn signal_time(
     .map(|v| v.to_utc())
     .map_err(|_| "Invalid strategy timestamp".into())
 }
-
 
 /// Extracts the workflow signal identity used for correlation and deduplication.
 pub fn signal_identity(signal: &FuturesItiSignalV2ReadModel) -> Result<String, String> {
@@ -371,95 +363,117 @@ pub fn signal_identity(signal: &FuturesItiSignalV2ReadModel) -> Result<String, S
 impl WorkflowHeader {
     /// Provides row for the workflow header implementation.
     pub fn row(&self, action: u32) -> Result<crate::strategy_workspace::WorkflowRow, String> {
-        use crate::strategy_workspace::{WorkflowActor, WorkflowRow};
-        let local = self.occurred().with_timezone(&chrono_tz::America::New_York);
-        let occurred_on = if self.frame == "Daily" {
-            local.format("%I:%M:%S%.3f %p")
-        } else {
-            local.format("%d-%b-%Y %I:%M:%S%.3f %p")
+        workflow_grid_row(
+            &self.id,
+            action,
+            self.occurred(),
+            &self.frame,
+            &self.status,
+            &self.outcome,
+            &self.signal,
+            &self.stages,
+        )
+    }
+}
+
+/// Formats the same grid columns for historical summaries and live updates.
+pub fn workflow_grid_row(
+    id: &str,
+    action: u32,
+    occurred: chrono::DateTime<chrono::Utc>,
+    frame: &str,
+    status: &str,
+    outcome: &str,
+    signal: &FuturesItiSignalV2ReadModel,
+    stages: &[StageHeader],
+) -> Result<crate::strategy_workspace::WorkflowRow, String> {
+    use crate::strategy_workspace::{WorkflowActor, WorkflowRow};
+    let local = occurred.with_timezone(&chrono_tz::America::New_York);
+    let occurred_on = if frame == "Daily" {
+        local.format("%I:%M:%S%.3f %p")
+    } else {
+        local.format("%d-%b-%Y %I:%M:%S%.3f %p")
+    }
+    .to_string();
+    let resolved = if outcome != "None" {
+        outcome
+    } else {
+        match status {
+            "Failed" => "PipelineFailed",
+            "TimedOut" => "TimedOut",
+            "Cancelled" => "Cancelled",
+            _ => "None",
         }
-        .to_string();
-        let resolved = if self.outcome != "None" {
-            self.outcome.as_str()
-        } else {
-            match self.status.as_str() {
-                "Failed" => "PipelineFailed",
-                "TimedOut" => "TimedOut",
-                "Cancelled" => "Cancelled",
-                _ => "None",
-            }
-        };
-        let end_state = if self.status == "Started" {
-            "In Progress"
-        } else {
-            match resolved {
-                "Completed" => "Approved",
-                "NoTrade" => "No Trade",
-                "PipelineFailed" => "Pipeline Failed",
-                "InvalidResult" => "Invalid Result",
-                "TimedOut" => "Timed Out",
-                "Cancelled" => "Cancelled",
-                "ConsistencyFault" => "Consistency Fault",
-                _ => "Unknown",
-            }
+    };
+    let end_state = if status == "Started" {
+        "In Progress"
+    } else {
+        match resolved {
+            "Completed" => "Approved",
+            "NoTrade" => "No Trade",
+            "PipelineFailed" => "Pipeline Failed",
+            "InvalidResult" => "Invalid Result",
+            "TimedOut" => "Timed Out",
+            "Cancelled" => "Cancelled",
+            "ConsistencyFault" => "Consistency Fault",
+            _ => "Unknown",
+        }
+    }
+    .into();
+    let mut actors = Vec::new();
+    for ((stage, (_, _, title)), short) in stages
+        .iter()
+        .zip(STAGES)
+        .zip(["RD", "MC", "TS", "OC", "RM"])
+    {
+        if stage.processing == "NotStarted" {
+            continue;
+        }
+        let state = match (stage.processing.as_str(), stage.continuation.as_str()) {
+            ("Processing", _) => "Processing",
+            ("Completed", "Proceed") => "Continued",
+            ("Completed", "Stop") => "Stopped",
+            ("Completed", _) => "Processing",
+            _ => "Stopped",
         }
         .into();
-        let mut actors = Vec::new();
-        for ((stage, (_, _, title)), short) in self
-            .stages
-            .iter()
-            .zip(STAGES)
-            .zip(["RD", "MC", "TS", "OC", "RM"])
-        {
-            if stage.processing == "NotStarted" {
-                continue;
+        let mut value = format!(
+            "{title}: {}; continuation {}",
+            stage.processing, stage.continuation
+        );
+        for (label, at) in [("completed", stage.completed), ("failed", stage.failed)] {
+            if let Some(at) = at {
+                value.push_str(&format!("; {label} {}", utc_roundtrip(at)));
             }
-            let state = match (stage.processing.as_str(), stage.continuation.as_str()) {
-                ("Processing", _) => "Processing",
-                ("Completed", "Proceed") => "Continued",
-                ("Completed", "Stop") => "Stopped",
-                ("Completed", _) => "Processing",
-                _ => "Stopped",
-            }
-            .into();
-            let mut value = format!(
-                "{title}: {}; continuation {}",
-                stage.processing, stage.continuation
-            );
-            for (label, at) in [("completed", stage.completed), ("failed", stage.failed)] {
-                if let Some(at) = at {
-                    value.push_str(&format!("; {label} {}", utc_roundtrip(at)));
-                }
-            }
-            if let Some(failure) = &stage.failure {
-                value.push_str(&format!(
-                    "; {} {}: {}",
-                    failure.error_type, failure.error_code, failure.error_message
-                ));
-            }
-            actors.push(WorkflowActor {
-                name: short.into(),
-                value,
-                state,
-            });
         }
-        Ok(WorkflowRow {
-            id: self.id.clone(),
-            action,
-            trigger_identity: signal_identity(&self.signal)?,
-            occurred_on,
-            signal: self.signal.cell("IntrinsicTimeMode").text(),
-            trend: self.signal.cell("IntrinsicTimeTrend").text(),
-            futures_price: format!(
-                "{:.2}",
-                self.signal
-                    .cell("IntrinsicPrice")
-                    .number()
-                    .ok_or("Invalid workflow display number")?
-            ),
-            outcome: self.outcome.clone(),
-            end_state,
-            actors,
-        })
+        if let Some(failure) = &stage.failure {
+            value.push_str(&format!(
+                "; {} {}: {}",
+                failure.error_type, failure.error_code, failure.error_message
+            ));
+        }
+        actors.push(WorkflowActor {
+            name: short.into(),
+            value,
+            state,
+        });
     }
+    Ok(WorkflowRow {
+        id: id.into(),
+        action,
+        trigger_identity: signal_identity(signal)?,
+        occurred_on,
+        signal: signal.cell("IntrinsicTimeMode").text(),
+        trend: signal.cell("IntrinsicTimeTrend").text(),
+        futures_price: format!(
+            "{:.2}",
+            signal
+                .cell("IntrinsicPrice")
+                .number()
+                .ok_or("Invalid workflow display number")?
+        ),
+        outcome: outcome.into(),
+        end_state,
+        actors,
+    })
 }

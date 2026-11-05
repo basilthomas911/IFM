@@ -29,8 +29,13 @@ public sealed class ApplicationQueryActor(IQueryActorContext<ApplicationQueryAct
         new Dictionary<Type, Func<
             IQueryActorContext<ApplicationQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
-            [typeof(GetApplicationStartupStatusQuery)] = static (context, query, cancellationToken) =>
-                ((GetApplicationStartupStatusQuery)query).ExecuteAsync(Require(context), cancellationToken)
+            [typeof(GetApplicationStartupStatusQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetApplicationStartupStatusQuery)query)
+                    .ExecuteAsync(Require(context), cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            }
         };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

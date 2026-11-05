@@ -14,8 +14,10 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 /// <summary>Qualifies local raw-trade history without substituting close-only or missing data.</summary>
 public sealed class StoredSessionIndicatorSeedTests
 {
-    [Fact]
-    public async Task Daily_oscillators_reuse_complete_unadjusted_baseline_sessions_without_provider_acquisition()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Daily_oscillators_require_every_original_baseline_session(bool omitLastSession)
     {
         var db = Substitute.For<IDbContextFactory>();
         var market = Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>();
@@ -33,14 +35,20 @@ public sealed class StoredSessionIndicatorSeedTests
             FirstMarketEventUtc = window.StartUtc, LastMarketEventUtc = window.EndUtc.AddSeconds(-1), IsComplete = true, IsValid = true
         }).ToArray();
         ((IHistoricalObservationStore)db.MarketDataDb).GetRawEodRangeAsync(series, windows[0].ValueDate, windows[^1].ValueDate, Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<IReadOnlyList<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesEodObservationReadModel>>(original));
+            .Returns(new ValueTask<IReadOnlyList<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesEodObservationReadModel>>(
+                omitLastSession ? original[..^1] : original));
         var reader = new StoredSessionIndicatorSeedReader(db, calendar, new Clock(now), NullLogger<StoredSessionIndicatorSeedReader>.Instance, market);
         var bars = await reader.ReadAsync("ES20261218", TimeFrameType.Daily, 48, default);
+        await market.DidNotReceive().ReadIndicatorSeedBarsAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<CancellationToken>());
+        if (omitLastSession)
+        {
+            Assert.Empty(bars);
+            return;
+        }
         Assert.Equal(48, bars.Length);
         Assert.All(bars, bar => { Assert.Equal("ES20261218", bar.ContractId); Assert.Equal(series, bar.MarketSeriesIdentity); });
         Assert.Equal(original.Select(value => value.ObservationId), bars.Select(value => value.ObservationId));
         Assert.All(original, value => Assert.Equal("ES.c.0", value.ContractId));
-        await market.DidNotReceive().ReadIndicatorSeedBarsAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

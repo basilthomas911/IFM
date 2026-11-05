@@ -1427,7 +1427,9 @@ fn established_iron_condor_dashboard_displays_saved_limits_and_leg_marks() {
             "established",
             serde_json::json!({"id":{"orderId":27,"tradeId":1},"status":"Open","openingValue":"-3.2","establishedAtUtc":"2026-10-14T14:30:00Z","legs":[
             {"tradeLegId":"sp","contractId":"SAVED-PUT","putCall":2,"strike":"90","signedQuantity":-1,"cashMultiplier":"50","expiry":"2026-11-20"},
-            {"tradeLegId":"lp","contractId":"LONG-PUT","putCall":2,"strike":"85","signedQuantity":1,"cashMultiplier":"50","expiry":"2026-11-20"}]}),
+            {"tradeLegId":"lp","contractId":"LONG-PUT","putCall":2,"strike":"85","signedQuantity":1,"cashMultiplier":"50","expiry":"2026-11-20"},
+            {"tradeLegId":"sc","contractId":"SAVED-CALL","putCall":1,"strike":"110","signedQuantity":-1,"cashMultiplier":"50","expiry":"2026-11-20"},
+            {"tradeLegId":"lc","contractId":"LONG-CALL","putCall":1,"strike":"115","signedQuantity":1,"cashMultiplier":"50","expiry":"2026-11-20"}]}),
         ),
         (
             "position",
@@ -1477,7 +1479,16 @@ fn established_iron_condor_dashboard_displays_saved_limits_and_leg_marks() {
     let controls = &h.state().view.controls;
     assert!(controls["condor-chart"].left() > controls["condor-history"].right() - 5.);
     assert!(controls["condor-trade-info"].top() > controls["condor-history"].bottom());
-    assert!(controls["condor-limits"].top() >= controls["condor-contracts"].bottom() - 6.);
+    let contracts = controls["condor-contracts"];
+    let fourth_contract = h
+        .get_by_label("LONG-CALL")
+        .accesskit_node()
+        .bounding_box()
+        .unwrap();
+    assert!(fourth_contract.y0 >= f64::from(contracts.top()));
+    assert!(fourth_contract.y1 <= f64::from(contracts.bottom() - 16.));
+    assert!(controls["condor-limits"].top() >= contracts.bottom());
+    assert_eq!(controls["condor-limits"].height(), 68.);
     assert!(controls["condor-plans"].top() > controls["condor-limits"].bottom());
     assert!(
         (controls["condor-plans"].bottom() - h.state().view.loaded_bounds.unwrap().bottom()).abs()
@@ -1490,6 +1501,30 @@ fn established_iron_condor_dashboard_displays_saved_limits_and_leg_marks() {
     h.set_size(eframe::egui::vec2(1200., 800.));
     h.run();
     assert!(h.query_by_label("Close trade 27:1").is_some());
+
+    let result = &mut h.state_mut().snapshot.result;
+    result.context.insert("canSelectPosition".into(), "False".into());
+    for index in 1..=60 {
+        let data = serde_json::json!({"orderId":9000 + index,"tradeId":1,"tradeType":"ShortIronCondor","valueDate":"2026-10-14"});
+        result.rows.push(serde_json::from_value(serde_json::json!({
+            "id": format!("position:{index}"),
+            "fields": {"kind": "position", "data": data.to_string()}
+        })).unwrap());
+    }
+    h.run_steps(2);
+    let history = h.state().view.controls["condor-history"];
+    assert!(h.query_by_label("9060").is_none());
+    h.input_mut().events.extend([
+        egui::Event::PointerMoved(history.center()),
+        egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0., -3000.),
+            modifiers: egui::Modifiers::NONE,
+        },
+    ]);
+    h.run_steps(12);
+    let last = h.get_by_label("9060").accesskit_node().bounding_box().unwrap();
+    assert!(last.y1 <= f64::from(history.bottom() - 16.));
 }
 
 

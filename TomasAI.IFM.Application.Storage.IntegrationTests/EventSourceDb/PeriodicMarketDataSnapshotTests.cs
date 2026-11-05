@@ -39,6 +39,57 @@ public sealed class PeriodicMarketDataSnapshotTests(EventSourceActorSnapshotRang
     private static readonly DateOnly FirstDate = new(2026, 1, 1);
 
     [Fact]
+    public async Task Calendar_Crud_commits_projection_obligation_before_submission()
+    {
+        var context = Substitute.For<IEconomicCalendarCommandContext>();
+        var projector = Substitute.For<IEventProjector<EconomicCalendarCommandActor>>();
+        var factory = Factory<EconomicCalendarCommandState>();
+        var actors = Substitute.For<IActorService>();
+        context.DbEventSource.Returns(fixture.ActorEventDb);
+        context.StateFactory.Returns(factory);
+        context.ActorService.Returns(actors);
+        context.Logger.Returns(NullLogger<EconomicCalendarCommandActor>.Instance);
+        var databases = DatabaseFactory();
+        context.DbFactory.Returns(databases);
+        var baselineId = Guid.NewGuid();
+        await fixture.ActorEventDb.SaveEventsAsync("migration/market-data/postgres-baseline/v1", baselineId,
+            new DomainEventCollection([new MarketDataReconciliationBaselineEvent
+            {
+                Id = baselineId, CommandId = baselineId,
+                Subject = new(ActorType.Event, "MarketDataMigration", "PostgresBaseline", "v1")
+            }]), 0, CancellationToken.None);
+        var repository = new EconomicCalendarStateRepository(context, projector);
+        var entry = new EconomicCalendarReadModel
+        {
+            EventDate = FirstDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+            CountryCode = "US", EventName = $"durable-{Guid.NewGuid():N}"
+        };
+        var command = new TomasAI.IFM.Domain.MarketData.Shared.Commands.AddEconomicCalendarCommand(entry)
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, EconomicCalendarCommandActor.Actor, "Add", entry.Id.Format())
+        };
+        var state = await repository.LoadStateAsync(command);
+        Assert.True(state.Update(new EconomicCalendarAddedEvent
+        {
+            Id = Guid.NewGuid(), CommandId = command.CommandId, EntityId = entry.Id, EconomicCalendar = entry,
+            Subject = new(ActorType.Event, EconomicCalendarAddedEvent.Actor, EconomicCalendarAddedEvent.Verb, entry.Id.Format())
+        }, command));
+        EconomicCalendarAddedEvent? submitted = null;
+        projector.DomainEventsProjectionAsync(Arg.Do<DomainEventCollection>(events =>
+            submitted = Assert.IsType<EconomicCalendarAddedEvent>(Assert.Single(events))));
+
+        await repository.SaveStateAsync(context, state, command);
+
+        Assert.NotNull(submitted);
+        Assert.True(submitted.UseDurableProjection);
+        Assert.True(submitted.EventId > 0);
+        Assert.NotNull(await fixture.ActorEventDb.GetEventProjectorExecutionStateAsync(
+            submitted.EventId, "EconomicCalendarEventProjector", CancellationToken.None));
+        await context.DidNotReceiveWithAnyArgs().SendAsync<EconomicCalendarAddedEvent, EconomicCalendarId>(default!);
+    }
+
+    [Fact]
     public async Task Yield_curve_saves_a_full_snapshot_at_the_boundary()
     {
         var context = Substitute.For<IYieldCurveRateCommandContext>();

@@ -1,5 +1,5 @@
+using TomasAI.IFM.Application.Storage;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -10,8 +10,8 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Query.Act
 public interface IFuturesAnalyticsHistoricalDataLoaderQueryContext
     : IQueryActorContext<FuturesAnalyticsHistoricalDataLoaderQueryActor>
 {
-    /// <summary>Gets the durable data load operational store.</summary>
-    IHistoricalDataLoaderStore DataLoaderStore { get; }
     /// <summary>Gets the typed logger.</summary>
     ILogger<FuturesAnalyticsHistoricalDataLoaderQueryActor> Logger { get; }
+    /// <summary>Gets the database that owns committed attempt diagnostics.</summary>
+    IDbContextFactory DbFactory { get; }
 }

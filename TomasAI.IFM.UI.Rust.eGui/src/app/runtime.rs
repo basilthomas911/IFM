@@ -185,7 +185,7 @@ pub(crate) fn run(
                     if sidebar_actions.as_ref().is_none_or(|sender|sender.try_send(action).is_err()){pending.push(Update::Warning("Calendar action is unavailable while its service is starting or busy".into()));}
                 }
                 Ok(action) => {
-                    if matches!(action,2|10..=13|1000..=0x0fff_ffff){
+                    if matches!(action,2|10..=15|1000..=0x0fff_ffff){
                         if strategy_actions.as_ref().is_none_or(|sender|sender.try_send(action).is_err()){pending.push(Update::Warning("Strategy action is unavailable while its service is starting or busy".into()));}
                     }else{
                         // Every unsupported action returns a visible rejection, never a successful fixture outcome.

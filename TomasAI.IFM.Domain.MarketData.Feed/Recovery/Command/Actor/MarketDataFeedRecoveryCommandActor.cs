@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.CommandPipeline;
+using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -15,18 +17,36 @@ public sealed class MarketDataFeedRecoveryCommandActor(ICommandActorContext<Mark
     public const string ActorName = AppendMarketDataFeedRecoveryCommand.Actor;
     protected override ValueTask OnStartup(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context) => projector.StartAsync(context);
     protected override ValueTask OnShutdown(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context) => projector.StopAsync();
-    protected override ICommand ParseMessage(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context, IActorMessage message) => message.AsCommand<AppendMarketDataFeedRecoveryCommand>()!;
-    protected override ValueTask OnValidateAsync(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context,ActorThreadId thread,ICommand command)
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
+        {
+            [AppendMarketDataFeedRecoveryCommand.Verb] = static message => message.AsCommand<AppendMarketDataFeedRecoveryCommand>()!
+        };
+
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(AppendMarketDataFeedRecoveryCommand)] = static command =>
+                ((AppendMarketDataFeedRecoveryCommand)command).Validate()
+                    .ValidateCommandId(command.CommandId, command.CommandName)
+        };
+
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, MarketDataFeedRecoveryState, ServiceResult<GuidResult>>> _receiveMap =
+        new Dictionary<Type, Func<ICommand, MarketDataFeedRecoveryState, ServiceResult<GuidResult>>>
+        {
+            [typeof(AppendMarketDataFeedRecoveryCommand)] = static (command, state) =>
+                ((AppendMarketDataFeedRecoveryCommand)command).Execute(state)
+        };
+
+    protected override ICommand ParseMessage(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context, IActorMessage message) =>
+        ParseMappedCommand(context, message, _parseMap);
+
+    protected override ValueTask OnValidateAsync(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context, ActorThreadId thread, ICommand command)
     {
-        var request=(AppendMarketDataFeedRecoveryCommand)command;
-        var fact=RecoveryRecord.Parse(request.Payload,request.Digest);
-        if(request.EntityId.Value!=fact.OperationId || request.AttemptId==Guid.Empty ||
-            request.Subject!=new ActorSubject(ActorType.Command,ActorName,AppendMarketDataFeedRecoveryCommand.Verb,request.EntityId.Format()) ||
-            request.AttemptStartedAtUtc.Kind!=DateTimeKind.Utc || request.RequestDeadlineUtc.Kind!=DateTimeKind.Utc ||
-            request.RequestDeadlineUtc<=request.AttemptStartedAtUtc)
-            throw new InvalidDataException("Invalid recovery append route/attempt/deadline.");
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
+
     protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context, ActorThreadId threadId, ICommand command) =>
         await repository.LoadStateAsync(command).ConfigureAwait(false);
     protected override ValueTask OnSaveStateAsync(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command) =>
@@ -35,13 +55,9 @@ public sealed class MarketDataFeedRecoveryCommandActor(ICommandActorContext<Mark
         await repository.LoadStateAsync(command,token).ConfigureAwait(false);
     protected override ValueTask OnSaveStateAsync(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command, CancellationToken token) =>
         repository.SaveStateAsync(context,(MarketDataFeedRecoveryState)state,command,token);
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context, IActorState state, ICommand command)
-    {
-        var request = (AppendMarketDataFeedRecoveryCommand)command;
-        if (request.RequestDeadlineUtc <= DateTime.UtcNow) throw new TimeoutException("Recovery audit attempt expired before append.");
-        ((MarketDataFeedRecoveryState)state).Accept(request);
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(new(new GuidResult(command.CommandId)));
-    }
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context, IActorState state, ICommand command) =>
+        ValueTask.FromResult(ResolveMappedCommandHandler(command, _receiveMap)(command, (MarketDataFeedRecoveryState)state));
+
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<MarketDataFeedRecoveryCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
         logger.LogError(ex, "Recovery audit append rejected {CommandId}", command.CommandId);

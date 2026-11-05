@@ -4,7 +4,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
@@ -20,7 +19,6 @@ public sealed class MarketDataFeedQueryContext : QueryActorContext, IMarketDataF
         IDbContextFactory dbFactory,
         ILogger<MarketDataFeedQueryActor> logger,
         ApplicationMarketDataApi marketDataApi,
-        ISequenceIdApi sequenceIdGenerator,
         IMarketDataServiceStore marketDataServiceStore,
         TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataLifecycle)
         : base(supervisor, new ActorMailboxId(ActorType.Query, MarketDataFeedQueryActor.ActorName))
@@ -28,7 +26,6 @@ public sealed class MarketDataFeedQueryContext : QueryActorContext, IMarketDataF
         DbFactory = IsArgumentNull.Set(dbFactory);
         Logger = IsArgumentNull.Set(logger);
         MarketDataApi = IsArgumentNull.Set(marketDataApi);
-        SequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
         MarketDataServiceStore = IsArgumentNull.Set(marketDataServiceStore);
         MarketDataLifecycle = IsArgumentNull.Set(marketDataLifecycle);
     }
@@ -41,7 +38,6 @@ public sealed class MarketDataFeedQueryContext : QueryActorContext, IMarketDataF
     /// <inheritdoc/>
     public ApplicationMarketDataApi MarketDataApi { get; }
     /// <inheritdoc/>
-    public ISequenceIdApi SequenceIdGenerator { get; }
     public IMarketDataServiceStore MarketDataServiceStore { get; }
     public TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi MarketDataLifecycle { get; }
 }

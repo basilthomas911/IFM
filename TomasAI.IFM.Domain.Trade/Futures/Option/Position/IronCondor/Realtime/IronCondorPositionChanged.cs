@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.ForwardPrice.Function;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Realtime;
@@ -91,6 +92,8 @@ public static class IronCondorPositionChanged
             };
             var reply = await context.RequestFunctionAsync<UpdateIronCondorTradePlanCommand, IronCondorTradePlanId, FunctionResult<IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>>>(command).ConfigureAwait(false);
             var terminal = reply.Value ?? throw new InvalidOperationException($"Iron Condor Trade Plan Function returned no result: {reply.ErrorMessage}");
+            if (terminal.Failed?.ErrorData == SupersededIronCondorPlanObservationException.Reason)
+                return;
             if (!terminal.IsCompleted)
                 throw new InvalidOperationException($"Iron Condor Trade Plan failed: {terminal.Failed!.ErrorData};{terminal.Failed.ErrorMessage}");
             await context.PublishRealtimeAsync(changed.PositionSnapshot, terminal.Completed!.Plan).ConfigureAwait(false);

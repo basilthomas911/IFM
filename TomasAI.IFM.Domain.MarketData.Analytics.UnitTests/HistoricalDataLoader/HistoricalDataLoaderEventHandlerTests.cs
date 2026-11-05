@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.HistoricalDataLoader;
 
@@ -36,14 +37,18 @@ public sealed class HistoricalDataLoaderEventHandlerTests
                 UpdatedAtUtc = DateTimeOffset.UtcNow
             }));
 
+        context.RequestAsync<CompleteFuturesAnalyticsHistoricalDataLoaderCommand,
+                FuturesAnalyticsHistoricalDataLoaderEntityId>(Arg.Any<CompleteFuturesAnalyticsHistoricalDataLoaderCommand>())
+            .Returns(new ValueTask<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid()))));
+
         await request.ExecuteAsync(context, logger);
 
-        await context.Received(1).SendAsync<
-            FuturesAnalyticsHistoricalDataLoaderCompletedEvent,
+        await context.Received(1).RequestAsync<
+            CompleteFuturesAnalyticsHistoricalDataLoaderCommand,
             FuturesAnalyticsHistoricalDataLoaderEntityId>(
-            Arg.Is<FuturesAnalyticsHistoricalDataLoaderCompletedEvent>(terminal =>
+            Arg.Is<CompleteFuturesAnalyticsHistoricalDataLoaderCommand>(terminal =>
                 terminal.EntityId == request.EntityId
-                && terminal.CommandId == request.CommandId
+                && terminal.CommandId != request.CommandId && terminal.CommandId != Guid.Empty
                 && terminal.RequestSha256 == "request-sha"));
         await provider.DidNotReceiveWithAnyArgs().AcquireAsync(
             default!, default!, default!, default);
@@ -60,14 +65,18 @@ public sealed class HistoricalDataLoaderEventHandlerTests
                 Task.FromException<MarketDataHistoricalEstimate>(
                     new InvalidOperationException("provider unavailable"))));
 
+        context.RequestAsync<FailFuturesAnalyticsHistoricalDataLoaderCommand,
+                FuturesAnalyticsHistoricalDataLoaderEntityId>(Arg.Any<FailFuturesAnalyticsHistoricalDataLoaderCommand>())
+            .Returns(new ValueTask<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid()))));
+
         await request.ExecuteAsync(context, logger);
 
-        await context.Received(1).SendAsync<
-            FuturesAnalyticsHistoricalDataLoaderFailedEvent,
+        await context.Received(1).RequestAsync<
+            FailFuturesAnalyticsHistoricalDataLoaderCommand,
             FuturesAnalyticsHistoricalDataLoaderEntityId>(
-            Arg.Is<FuturesAnalyticsHistoricalDataLoaderFailedEvent>(terminal =>
+            Arg.Is<FailFuturesAnalyticsHistoricalDataLoaderCommand>(terminal =>
                 terminal.EntityId == request.EntityId
-                && terminal.CommandId == request.CommandId
+                && terminal.CommandId != request.CommandId && terminal.CommandId != Guid.Empty
                 && terminal.ErrorMessage.Contains("provider unavailable", StringComparison.Ordinal)));
         await store.Received().SaveAsync(
             Arg.Is<HistoricalDataLoaderState>(state => state.Status == HistoricalDataLoaderStatus.Failed),
@@ -85,11 +94,11 @@ public sealed class HistoricalDataLoaderEventHandlerTests
 
         await provider.DidNotReceiveWithAnyArgs().EstimateAsync(default!, default);
         await store.DidNotReceiveWithAnyArgs().SaveAsync(default!, default);
-        await context.DidNotReceiveWithAnyArgs().SendAsync<
-            FuturesAnalyticsHistoricalDataLoaderCompletedEvent,
+        await context.DidNotReceiveWithAnyArgs().RequestAsync<
+            CompleteFuturesAnalyticsHistoricalDataLoaderCommand,
             FuturesAnalyticsHistoricalDataLoaderEntityId>(default!);
-        await context.DidNotReceiveWithAnyArgs().SendAsync<
-            FuturesAnalyticsHistoricalDataLoaderFailedEvent,
+        await context.DidNotReceiveWithAnyArgs().RequestAsync<
+            FailFuturesAnalyticsHistoricalDataLoaderCommand,
             FuturesAnalyticsHistoricalDataLoaderEntityId>(default!);
     }
 

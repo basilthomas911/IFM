@@ -30,7 +30,8 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(IQueryActorContext<I
         [GetCompletedIntrinsicTimeStrategyWorkflowsQuery.Verb] = message => message.AsQuery<GetCompletedIntrinsicTimeStrategyWorkflowsQuery, IntrinsicTimeStrategyWorkflowHistoryReadModel[]>()!,
         [GetStoppedIntrinsicTimeStrategyWorkflowsQuery.Verb] = message => message.AsQuery<GetStoppedIntrinsicTimeStrategyWorkflowsQuery, IntrinsicTimeStrategyWorkflowHistoryReadModel[]>()!,
         [GetIntrinsicTimeStrategyWorkflowObservationQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowObservationQuery, IntrinsicTimeStrategyWorkflowObservationReadModel>()!,
-        [GetIntrinsicTimeStrategyWorkflowHistoryPageQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowHistoryPageQuery, IntrinsicTimeStrategyWorkflowHistoryPageReadModel>()!
+        [GetIntrinsicTimeStrategyWorkflowHistoryPageQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowHistoryPageQuery, IntrinsicTimeStrategyWorkflowHistoryPageReadModel>()!,
+        [GetIntrinsicTimeStrategyUpdatesGridQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyUpdatesGridQuery, IntrinsicTimeStrategyUpdatesGridPage>()!
     };
     /// <summary>Gets the Query actor name.</summary>
     public const string ActorName = GetIntrinsicTimeStrategyWorkflowByIdQuery.Actor;
@@ -59,7 +60,8 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(IQueryActorContext<I
         [typeof(GetCompletedIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) => ((GetCompletedIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
         [typeof(GetStoppedIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) => ((GetStoppedIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
         [typeof(GetIntrinsicTimeStrategyWorkflowObservationQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyWorkflowObservationQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)query).ExecuteAsync(services, context, cancellationToken)
+        [typeof(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)query).ExecuteAsync(services, context, cancellationToken),
+        [typeof(GetIntrinsicTimeStrategyUpdatesGridQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyUpdatesGridQuery)query).ExecuteAsync(services, context, cancellationToken)
     };
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys, static (query, exception) => exception is ProjectionSnapshotNotReadyException ? 25009 : query.ErrorCode);
     protected override ValueTask OnExceptionAsync(IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex) => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);

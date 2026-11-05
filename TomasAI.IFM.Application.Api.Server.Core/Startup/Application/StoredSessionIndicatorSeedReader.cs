@@ -32,7 +32,13 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
             {
                 var candidates = daily.Where(value => value.ValueDate == window.ValueDate && value.IsComplete && value.IsValid
                     && value.SessionStartUtc == window.StartUtc && value.SessionEndUtc == window.EndUtc).ToArray();
-                if (candidates.Length != 1) return [];
+                if (candidates.Length != 1)
+                {
+                    logger.LogWarning(
+                        "Daily indicator seed unavailable for {ContractId}: expected one complete valid observation for {ValueDate} and session {StartUtc} to {EndUtc}, found {CandidateCount}.",
+                        contractId, window.ValueDate, window.StartUtc, window.EndUtc, candidates.Length);
+                    return [];
+                }
                 // Match the existing unadjusted Daily baseline's current-contract
                 // alias while retaining its continuation identity and observation ID.
                 var bar = FuturesEodObservationMapper.ToDailyBar(candidates[0]) with { ContractId = contractId };

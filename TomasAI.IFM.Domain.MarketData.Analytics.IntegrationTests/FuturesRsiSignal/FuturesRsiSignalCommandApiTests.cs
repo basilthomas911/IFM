@@ -92,8 +92,9 @@ public class FuturesRsiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
         FuturesRsiSignalStoppedEvent futuresRsiSignalStoppedEvent = default!;
         var eventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        var entityId = SampleData.RsiEntityId with { ContractId = $"ESRSI{Guid.NewGuid():N}"[..18] };
         await eventListener.StartAsync(
-            "TestEventListener",
+            $"rsi-stop-{Guid.NewGuid():N}",
             new()
             {
                 [new ActorMailboxId(ActorType.Event, FuturesRsiSignalStartedEvent.Actor)] = [FuturesRsiSignalStartedEvent.Verb, FuturesRsiSignalStoppedEvent.Verb]
@@ -101,17 +102,6 @@ public class FuturesRsiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
             EventHandlerAsync
         );
 
-        var entityId = SampleData.RsiEntityId;
-
-        var startSubject = new ActorSubject(ActorType.Command, StartFuturesRsiSignalCommand.Actor, StartFuturesRsiSignalCommand.Verb, entityId.Format());
-        var startEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{startSubject.ThreadId}");
-        if (startEventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(startEventStreamId);
-
-        var stopSubject = new ActorSubject(ActorType.Command, StopFuturesRsiSignalCommand.Actor, StopFuturesRsiSignalCommand.Verb, entityId.Format());
-        var stopEventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{stopSubject.ThreadId}");
-        if (stopEventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(stopEventStreamId);
 
         // act...
 
@@ -152,6 +142,8 @@ public class FuturesRsiSignalCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
 
             IEvent SetEvent(IEvent @event)
             {
+                if (@event is IEvent<FuturesRsiSignalEntityId> routed && routed.EntityId != entityId)
+                    return @event;
                 if (@event is FuturesRsiSignalStartedEvent started)
                 {
                     futuresRsiSignalStartedEvent = started;

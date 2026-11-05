@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -54,6 +54,29 @@ public sealed class OptionObservationCatchUpTests
         Assert.Equal(newest, Assert.Single(retained.Capture()));
     }
 
+    [Fact]
+    public async Task Late_pricing_completion_survives_a_newer_quote_on_the_same_contract()
+    {
+        var retained = new LatestOptionObservations();
+        var admissions = new DatasetWorkerAdmissionRegistry();
+        admissions.Admit(Identity);
+        var ingress = new DatasetPublicationIngress(admissions, Substitute.For<ITickAggregationEventPublisher>(), Substitute.For<IMarketDataOperationsRecorder>());
+        var newest = Frame("C8100", 2, At.AddSeconds(1));
+        var completion = Frame("C8100", 3, At);
+        var change = MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(completion.Payload);
+        completion = completion with { Payload = MessagePackSerializer.Serialize(change with
+        {
+            OptionMarketPriceObservation = change.OptionMarketPriceObservation! with
+            { OptionTickData = Tick(completion) with { IsPricingUpdate = true, CalculatedAtUtc = At.AddSeconds(2) } }
+        }) };
+
+        Assert.True(retained.Retain(newest));
+        Assert.True(await ingress.AcceptAsync(newest));
+        Assert.True(retained.Retain(completion));
+        Assert.True(await ingress.AcceptAsync(completion));
+        Assert.False(await ingress.AcceptAsync(completion));
+        Assert.Equal(new[] { newest, completion }, retained.Capture());
+    }
     [Fact]
     public async Task Failed_delivery_does_not_consume_the_catch_up_value()
     {

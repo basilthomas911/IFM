@@ -17,6 +17,28 @@ public sealed class ApplicationStartupWorkflowTests
     static readonly DateOnly ValueDate = new(2026, 9, 2);
 
     [Fact]
+    public async Task Unsupported_shutdown_publishes_a_correlated_failure()
+    {
+        var context = new TestContext(new RecordingActivities());
+        var entityId = new ApplicationEntityId(ValueDate);
+        var request = new ApplicationShutdownEvent
+        {
+            Subject = new(ActorType.Event, ApplicationShutdownEvent.Actor, ApplicationShutdownEvent.Verb, entityId.Format()),
+            EntityId = entityId,
+            CommandId = Guid.NewGuid(),
+            EventId = 42
+        };
+
+        await request.ExecuteAsync(context, context.Logger, CancellationToken.None);
+
+        var failure = Assert.IsType<ApplicationShutdownFailEvent>(Assert.Single(context.SentEvents));
+        Assert.Equal(request.CommandId, failure.CommandId);
+        Assert.Equal(request.EventId, failure.EventId);
+        Assert.Equal(entityId, failure.EntityId);
+        Assert.Equal(ApplicationShutdownEvent.ErrorCode, failure.ErrorCode);
+    }
+
+    [Fact]
     public async Task Startup_executes_every_activity_by_dependency_and_completes()
     {
         var activities = new RecordingActivities();

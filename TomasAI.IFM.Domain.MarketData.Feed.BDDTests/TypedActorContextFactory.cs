@@ -96,7 +96,7 @@ internal static class TypedActorContextFactory
     }
 
     internal static IMarketDataFeedQueryContext Query(
-        ApplicationMarketDataApi marketDataApi, ISequenceIdApi sequenceIdGenerator,
+        ApplicationMarketDataApi marketDataApi,
         IDbContextFactory dbFactory, ILogger<MarketDataFeedQueryActor> logger)
     {
         var context = Substitute.For<IMarketDataFeedQueryContext>();
@@ -104,7 +104,6 @@ internal static class TypedActorContextFactory
         context.Logger.Returns(logger);
         context.ActorId.Returns(new ActorMailboxId(ActorType.Query, MarketDataFeedQueryActor.ActorName));
         context.MarketDataApi.Returns(marketDataApi);
-        context.SequenceIdGenerator.Returns(sequenceIdGenerator);
         return context;
     }
 

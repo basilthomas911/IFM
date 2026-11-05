@@ -59,6 +59,13 @@ public sealed class HistoricalDataLoader
         if (remote is not null) return await remote.LoadHistoricalAsync(request, cancellationToken).ConfigureAwait(false);
         var existing = await dataLoaderStore.GetAsync(
             request.DataLoadAttemptId, cancellationToken).ConfigureAwait(false);
+        if (existing?.Status == HistoricalDataLoaderStatus.Completed)
+        {
+            var repeated = await historicalApi.EstimateAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!StringComparer.Ordinal.Equals(existing.RequestSha256, repeated.RequestSha256))
+                throw new InvalidOperationException("The completed historical attempt belongs to a different request.");
+            return existing;
+        }
         var checkpoint = existing?.Checkpoint ?? new HistoricalAcquisitionCheckpoint
         {
             DataLoadAttemptId = request.DataLoadAttemptId,
@@ -72,7 +79,6 @@ public sealed class HistoricalDataLoader
             Checkpoint = checkpoint,
             UpdatedAtUtc = timeProvider.GetUtcNow()
         };
-        await dataLoaderStore.SaveAsync(state, cancellationToken).ConfigureAwait(false);
         DataLoadSink? sink = null;
         try
         {

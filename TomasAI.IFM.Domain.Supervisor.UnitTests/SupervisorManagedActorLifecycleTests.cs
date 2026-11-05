@@ -98,6 +98,18 @@ public sealed class SupervisorManagedActorLifecycleTests
     }
 
     [Fact]
+    public async Task A_failed_actor_does_not_prevent_the_next_actor_from_starting()
+    {
+        var fixture = new Fixture(failManagedStartup: true, includeIndependentActor: true);
+
+        var result = await fixture.Lifecycle.StartupActorsAsync(CancellationToken.None);
+
+        Assert.Equal(SupervisorOperationOutcome.Failed, result.Outcome);
+        Assert.Contains("start:IndependentQuery", fixture.Events);
+        Assert.DoesNotContain("intake:start", fixture.Events);
+        Assert.False(fixture.Ready);
+    }
+    [Fact]
     public async Task Cancelled_startup_returns_cancelled_without_throwing()
     {
         var fixture = new Fixture();
@@ -352,7 +364,8 @@ public sealed class SupervisorManagedActorLifecycleTests
             bool failActorRemoval = false,
             bool blockManagedStart = false,
             bool blockManagedStop = false,
-            TimeSpan? actorShutdownTimeout = null)
+            TimeSpan? actorShutdownTimeout = null,
+            bool includeIndependentActor = false)
         {
             var supervisorActor = Substitute.For<IActor>();
             supervisorActor.Id.Returns(_supervisorId);
@@ -362,10 +375,18 @@ public sealed class SupervisorManagedActorLifecycleTests
             managedActor.IsRunning.Returns(_ => _running.Contains(_managedId));
 
             var registry = Substitute.For<IActorRegistry>();
-            registry.ActorTypes.Returns([SupervisorDescriptor, ManagedDescriptor]);
+            var independentDescriptor = typeof(IActor<IndependentActor>);
+            registry.ActorTypes.Returns(includeIndependentActor
+                ? [SupervisorDescriptor, ManagedDescriptor, independentDescriptor]
+                : [SupervisorDescriptor, ManagedDescriptor]);
             var factory = Substitute.For<IActorFactory>();
             factory.GetActor(SupervisorDescriptor).Returns(supervisorActor);
             factory.GetActor(ManagedDescriptor).Returns(managedActor);
+            var independentId = new ActorMailboxId(ActorType.Query, "IndependentQuery");
+            var independentActor = Substitute.For<IActor>();
+            independentActor.Id.Returns(independentId);
+            independentActor.IsRunning.Returns(_ => _running.Contains(independentId));
+            factory.GetActor(independentDescriptor).Returns(independentActor);
 
             var producer = Substitute.For<IActorProducer>();
             var consumer = Substitute.For<IActorConsumer>();
@@ -475,7 +496,9 @@ public sealed class SupervisorManagedActorLifecycleTests
         public SupervisorManagedActorLifecycle Lifecycle { get; }
     }
 
-    sealed class ManagedActor : IActor<ManagedActor>
+    sealed class IndependentActor : ManagedActor, IActor<IndependentActor> { }
+
+    class ManagedActor : IActor<ManagedActor>
     {
         public ActorMailboxId Id => throw new NotSupportedException();
         public IActorMailbox Mailbox => throw new NotSupportedException();

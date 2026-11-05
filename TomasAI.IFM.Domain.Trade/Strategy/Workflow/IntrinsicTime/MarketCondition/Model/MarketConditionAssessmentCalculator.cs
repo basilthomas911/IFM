@@ -9,6 +9,15 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketConditi
 /// <summary>Pure evaluation of one sealed market snapshot and its accepted upstream decision.</summary>
 public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssessmentCalculator
 {
+    internal static bool HasTrustworthyMetadata(AssessmentObservation observation, DateTime evaluatedAtUtc, int skewSeconds)
+    {
+        var latest = evaluatedAtUtc.AddSeconds(skewSeconds);
+        return observation.Sequence >= 0
+            && MarketConditionAssessmentContracts.Utc(observation.ObservedAtUtc)
+            && MarketConditionAssessmentContracts.Utc(observation.ReceivedAtUtc)
+            && observation.ObservedAtUtc <= latest && observation.ReceivedAtUtc <= latest
+            && observation.ReceivedAtUtc >= observation.ObservedAtUtc.AddSeconds(-skewSeconds);
+    }
     public MarketConditionAssessmentResult Calculate(ExecuteMarketConditionAssessmentCommand command, MarketConditionAssessmentSnapshot snapshot, Guid resultId)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -30,8 +39,10 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
         foreach (var binding in p.Sources)
         {
             var o = observations.Single(x => string.Equals(x.SourceId, binding.SourceId, StringComparison.Ordinal));
-            if (!Enum.IsDefined(o.Availability) || !Enum.IsDefined(o.Validity) || o.Sequence < 0 || o.Availability == MarketSourceAvailability.Unknown || o.Validity != MarketSourceValidity.Valid || !MarketConditionAssessmentContracts.Utc(o.ObservedAtUtc) || !MarketConditionAssessmentContracts.Utc(o.ReceivedAtUtc) || o.ObservedAtUtc > at.AddSeconds(p.FutureClockSkewSeconds) || o.ReceivedAtUtc > at.AddSeconds(p.FutureClockSkewSeconds) || o.ReceivedAtUtc < o.ObservedAtUtc.AddSeconds(-p.FutureClockSkewSeconds))
-                throw Invalid($"Untrustworthy {o.SourceId} metadata.");
+            if (!Enum.IsDefined(o.Availability) || !Enum.IsDefined(o.Validity)
+                || o.Availability == MarketSourceAvailability.Unknown || o.Validity != MarketSourceValidity.Valid
+                || !HasTrustworthyMetadata(o, at, p.FutureClockSkewSeconds))
+                throw Invalid($"Untrustworthy {o.SourceId} metadata. Observed={o.ObservedAtUtc:O}, Received={o.ReceivedAtUtc:O}, Evaluated={at:O}, Sequence={o.Sequence}.");
             var age = Age(at, o.ObservedAtUtc);
             var usable = o.Availability == MarketSourceAvailability.Available && age < binding.MaximumAgeSeconds;
             fresh.Add(o.SourceId, usable);

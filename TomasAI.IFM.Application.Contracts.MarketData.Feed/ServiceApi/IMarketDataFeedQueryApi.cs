@@ -33,7 +33,6 @@ public interface IMarketDataFeedQueryApi
         double riskFreeRate, double timeValue, FuturesOptionContractReadModel qfShortOptionContract, FuturesOptionContractReadModel qfLongOptionContract);
     Task<ServiceResult<NormalCurveTableReadModel>> GetNormalCurveTableAsync();
     Task<ServiceResult<RiskPositionTypeReadModel>> GetFuturesRiskPositionTypeAsync(DateOnly valueDate, TradeType tradeType);
-    Task<ServiceResult<ScalarValue<int>>> GetStreamingRequestIdAsync();
     Task<ServiceResult<MarketDataFeedRuntimeStatusReadModel>> GetRuntimeStatusAsync();
     Task<ServiceResult<DatabentoReadinessReadModel>> GetDatabentoReadinessAsync();
     Task<ServiceResult<DatabentoContractAssignmentReadModel[]>> GetDatabentoCurrentContractsAsync();

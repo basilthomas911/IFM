@@ -11,7 +11,7 @@ public static class GetEvaluatedOptionChain
 
     extension(GetEvaluatedOptionChainQuery q)
     {
-        public async ValueTask ExecuteAsync(IMarketDataQueryContext c, CancellationToken ct)
+        public async ValueTask<ServiceResult<EvaluatedOptionChainReadModel>> ExecuteAsync(IMarketDataQueryContext c, CancellationToken ct)
         {
             ArgumentNullException.ThrowIfNull(c);
             ArgumentNullException.ThrowIfNull(q);
@@ -58,7 +58,7 @@ public static class GetEvaluatedOptionChain
                 }
                 result = new ServiceOk<EvaluatedOptionChainReadModel>(EvaluatedOptionChainSummary.Apply(model, date));
             }
-            await c.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb, result).ConfigureAwait(false);
+            return result;
         }
     }
     static async Task<ServiceResult<EvaluatedOptionChainReadModel>> LoadAsync(GetEvaluatedOptionChainQuery q, IMarketDataQueryContext c, CancellationToken ct)

@@ -59,25 +59,45 @@ public sealed class SupervisorBootstrap(
 
             stage = "ConstructSupervisor";
             var actors = new List<IActor>(expected);
+            var registered = new List<IActor>(expected);
+            var failures = new List<Exception>();
             foreach (var descriptor in descriptors)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var actor = _factory.GetActor(descriptor)
-                    ?? throw new InvalidOperationException($"Unable to construct Supervisor actor {descriptor}.");
-                _actorSupervisor.AddActor(actor);
-                actors.Add(actor);
-                _actors = actors.ToArray();
-                _actorSupervisor.AddProducer(actor.Id, _actorSupervisor.Container.Resolve<IActorProducer>());
-                if (actor.Id.ActorType.GetDeliveryType() == ActorDeliveryType.NatsJetStream)
-                    _actorSupervisor.AddJSProducer(actor.Id, _actorSupervisor.Container.Resolve<IJSActorProducer>());
+                try
+                {
+                    var actor = _factory.GetActor(descriptor)
+                        ?? throw new InvalidOperationException($"Unable to construct Supervisor actor {descriptor}.");
+                    _actorSupervisor.AddActor(actor);
+                    actors.Add(actor);
+                    _actors = actors.ToArray();
+                    _actorSupervisor.AddProducer(actor.Id, _actorSupervisor.Container.Resolve<IActorProducer>());
+                    if (actor.Id.ActorType.GetDeliveryType() == ActorDeliveryType.NatsJetStream)
+                        _actorSupervisor.AddJSProducer(actor.Id, _actorSupervisor.Container.Resolve<IJSActorProducer>());
+                    registered.Add(actor);
+                }
+                catch (Exception error) when (IsRecoverable(error) && !cancellationToken.IsCancellationRequested)
+                {
+                    failures.Add(new InvalidOperationException($"Supervisor actor {descriptor} registration failed: {error.Message}", error));
+                }
             }
 
             stage = "StartSupervisor";
-            foreach (var actor in _actors)
+            foreach (var actor in registered)
             {
-                await _actorSupervisor.StartAsync(actor.Id, cancellationToken).ConfigureAwait(false);
-                started++;
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    await _actorSupervisor.StartAsync(actor.Id, cancellationToken).ConfigureAwait(false);
+                    started++;
+                }
+                catch (Exception error) when (IsRecoverable(error) && !cancellationToken.IsCancellationRequested)
+                {
+                    failures.Add(new InvalidOperationException($"Supervisor actor {actor.Id} startup failed: {error.Message}", error));
+                }
             }
+            if (failures.Count != 0)
+                throw new AggregateException("Supervisor startup failed. Managed actor startup is blocked.", failures);
             if (started != expected || _actors.Any(static actor => !actor.IsRunning))
                 throw new InvalidOperationException(
                     $"Supervisor startup validation failed: expected {expected}, started {started}.");

@@ -3944,25 +3944,55 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedCommandApi.cs",
-    "line": 35,
+    "line": 36,
     "client": "MarketDataFeedCommandApi",
     "method": "StartMarketDataFeedAsync",
     "parameters": [],
     "result": "Task\u003CServiceResult\u003CGuid\u003E\u003E",
     "calls": [
       "Guid.NewGuid",
-      "(RequestCommandAsync(cmd!, entityId)).ConfigureAwait",
+      "PrepareMarketDataFeedSessionCommand.ForOperation",
+      "RequestFunctionAsync\u003CPrepareMarketDataFeedSessionCommand, ActorEntityId,\r\n                FunctionResult\u003CFeedSessionPreparationCompletedEvent, FeedSessionPreparationFailedEvent\u003E\u003E(\r\n                request, request.EntityId, CancellationToken.None).ConfigureAwait",
+      "RequestFunctionAsync\u003CPrepareMarketDataFeedSessionCommand, ActorEntityId,\r\n                FunctionResult\u003CFeedSessionPreparationCompletedEvent, FeedSessionPreparationFailedEvent\u003E\u003E",
+      "entityId.Format",
+      "RequestCommandAsync(command, entityId).ConfigureAwait",
       "RequestCommandAsync",
       "OnError"
     ],
-    "subjects": [
-      "(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, \u0022current\u0022)"
-    ],
+    "subjects": [],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedCommandService.cs:72"
     ],
     "nativeOwner": "services/feed_control.rs",
     "status": "Implemented; see native contract/controller tests"
+  },
+  {
+    "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedCommandApi.cs",
+    "line": 69,
+    "client": "MarketDataFeedCommandApi",
+    "method": "AllocateStreamingRequestIdAsync",
+    "parameters": [
+      {
+        "name": "operationId",
+        "type": "Guid",
+        "optional": null
+      },
+      {
+        "name": "cancellationToken",
+        "type": "CancellationToken",
+        "optional": "default"
+      }
+    ],
+    "result": "Task\u003CServiceResult\u003CScalarValue\u003Cint\u003E\u003E\u003E",
+    "calls": [
+      "AllocateStreamingRequestIdCommand.ForOperation",
+      "RequestFunctionAsync\u003CAllocateStreamingRequestIdCommand, ActorEntityId,\r\n            FunctionResult\u003CStreamingRequestIdAllocationCompletedEvent, StreamingRequestIdAllocationFailedEvent\u003E\u003E(\r\n            request, request.EntityId, cancellationToken).ConfigureAwait",
+      "RequestFunctionAsync\u003CAllocateStreamingRequestIdCommand, ActorEntityId,\r\n            FunctionResult\u003CStreamingRequestIdAllocationCompletedEvent, StreamingRequestIdAllocationFailedEvent\u003E\u003E"
+    ],
+    "subjects": [],
+    "resolvedUiCallSites": [],
+    "nativeOwner": null,
+    "status": "Pending reachability review or native port"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedCommandApi.cs",
@@ -5357,27 +5387,6 @@
       "(ActorType.Query, GetFuturesEodDataMovingAveragesQuery.Actor, GetFuturesEodDataMovingAveragesQuery.Verb, entityId.Format())"
     ],
     "resolvedUiCallSites": [],
-    "nativeOwner": null,
-    "status": "Pending reachability review or native port"
-  },
-  {
-    "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedQueryApi.cs",
-    "line": 256,
-    "client": "MarketDataFeedQueryApi",
-    "method": "GetStreamingRequestIdAsync",
-    "parameters": [],
-    "result": "Task\u003CServiceResult\u003CScalarValue\u003Cint\u003E\u003E\u003E",
-    "calls": [
-      "entityId.Format",
-      "(RequestAsync\u003CGetStreamingRequestIdQuery, ScalarValue\u003Cint\u003E\u003E(query.Subject, query)).ConfigureAwait",
-      "RequestAsync\u003CGetStreamingRequestIdQuery, ScalarValue\u003Cint\u003E\u003E"
-    ],
-    "subjects": [
-      "(ActorType.Query, GetStreamingRequestIdQuery.Actor, GetStreamingRequestIdQuery.Verb, entityId.Format())"
-    ],
-    "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs:164"
-    ],
     "nativeOwner": null,
     "status": "Pending reachability review or native port"
   },
@@ -10701,13 +10710,13 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceCommandApi.cs",
-    "line": 15,
+    "line": 16,
     "client": "ReferenceCommandApi",
     "method": "ExecuteStrategyCatalogAsync",
     "parameters": [
       {
         "name": "request",
-        "type": "TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogCommandRequest",
+        "type": "CatalogCommandRequest",
         "optional": null
       },
       {
@@ -10719,14 +10728,17 @@
     "result": "Task\u003CServiceResult\u003CGuid\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
-      "TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogJson.Write",
-      "ActorEntityId.Default.Format",
-      "RequestCommandAsync(command, command.EntityId, cancellationToken).AsTask",
-      "RequestCommandAsync"
+      "Task.FromResult\u003CServiceResult\u003CGuid\u003E\u003E",
+      "StrategyCatalogLifecycleCommand.Address",
+      "identity.Format",
+      "RequestCommandAsync(new SaveStrategyCatalogDraftCommand\r\n                {\r\n                    CommandId = request.OperationId, EntityId = identity, Subject = Subject(SaveStrategyCatalogDraftCommand.Verb),\r\n                    DefinitionJson = StrategyCatalogJson.Write(definition), ExpectedPreviousVersion = request.ExpectedPreviousVersion\r\n                }, identity, cancellationToken).AsTask",
+      "RequestCommandAsync",
+      "Subject",
+      "StrategyCatalogJson.Write",
+      "RequestCommandAsync(new PublishStrategyCatalogVersionCommand\r\n                {\r\n                    CommandId = request.OperationId, EntityId = identity, Subject = Subject(PublishStrategyCatalogVersionCommand.Verb),\r\n                    Key = key, ExpectedHash = hash, EffectiveUtc = effective\r\n                }, identity, cancellationToken).AsTask",
+      "RequestCommandAsync(new RetireStrategyCatalogVersionCommand\r\n                {\r\n                    CommandId = request.OperationId, EntityId = identity, Subject = Subject(RetireStrategyCatalogVersionCommand.Verb),\r\n                    Key = key, ExpectedHash = hash, EffectiveUtc = effective\r\n                }, identity, cancellationToken).AsTask"
     ],
-    "subjects": [
-      "(ActorType.Command, \u0022TradeStrategyFamilyCommand\u0022, \u0022Catalog\u0022, ActorEntityId.Default.Format())"
-    ],
+    "subjects": [],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Rust.Bridge.Net/StrategyCatalogSession.cs:44"
     ],
@@ -10735,7 +10747,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceCommandApi.cs",
-    "line": 26,
+    "line": 47,
     "client": "ReferenceCommandApi",
     "method": "ChangeTradeStrategyFamilyAsync",
     "parameters": [
@@ -10767,7 +10779,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceCommandApi.cs",
-    "line": 37,
+    "line": 58,
     "client": "ReferenceCommandApi",
     "method": "RemoveTradeStrategyFamilyAsync",
     "parameters": [
@@ -10799,7 +10811,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceCommandApi.cs",
-    "line": 48,
+    "line": 69,
     "client": "ReferenceCommandApi",
     "method": "CreateTradeStrategyFamilyAsync",
     "parameters": [
@@ -10831,7 +10843,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceCommandApi.cs",
-    "line": 65,
+    "line": 86,
     "client": "ReferenceCommandApi",
     "method": "AddLookupTypeAsync",
     "parameters": [
@@ -10862,7 +10874,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceCommandApi.cs",
-    "line": 97,
+    "line": 118,
     "client": "ReferenceCommandApi",
     "method": "ChangeLookupTypeAsync",
     "parameters": [
@@ -10903,7 +10915,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceCommandApi.cs",
-    "line": 128,
+    "line": 149,
     "client": "ReferenceCommandApi",
     "method": "RemoveLookupTypeAsync",
     "parameters": [
@@ -10939,7 +10951,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 19,
+    "line": 20,
     "client": "ReferenceQueryApi",
     "method": "GetLookupDefinitionsAsync",
     "parameters": [
@@ -10969,7 +10981,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 28,
+    "line": 29,
     "client": "ReferenceQueryApi",
     "method": "QueryStrategyCatalogAsync",
     "parameters": [
@@ -11002,7 +11014,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 37,
+    "line": 38,
     "client": "ReferenceQueryApi",
     "method": "GetTradeStrategySymbolsAsync",
     "parameters": [
@@ -11034,7 +11046,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 43,
+    "line": 44,
     "client": "ReferenceQueryApi",
     "method": "GetTradeStrategyFamiliesAsync",
     "parameters": [
@@ -11059,7 +11071,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 54,
+    "line": 55,
     "client": "ReferenceQueryApi",
     "method": "GetDefaultFuturesContractDefinitionsAsync",
     "parameters": [],
@@ -11080,7 +11092,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 67,
+    "line": 68,
     "client": "ReferenceQueryApi",
     "method": "GetLookupTypesAsync",
     "parameters": [],
@@ -11101,7 +11113,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 80,
+    "line": 81,
     "client": "ReferenceQueryApi",
     "method": "GetLookupTypesAsync",
     "parameters": [
@@ -11128,7 +11140,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 93,
+    "line": 94,
     "client": "ReferenceQueryApi",
     "method": "GetLookupTypeNamesAsync",
     "parameters": [],
@@ -11149,7 +11161,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 106,
+    "line": 107,
     "client": "ReferenceQueryApi",
     "method": "GetLookupTypeShortCodesAsync",
     "parameters": [
@@ -11176,7 +11188,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 119,
+    "line": 120,
     "client": "ReferenceQueryApi",
     "method": "GetMarketDataDefinitionTypesAsync",
     "parameters": [],
@@ -11197,7 +11209,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 132,
+    "line": 133,
     "client": "ReferenceQueryApi",
     "method": "GetReferenceDataDefinitionTypesAsync",
     "parameters": [],
@@ -11218,7 +11230,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 145,
+    "line": 146,
     "client": "ReferenceQueryApi",
     "method": "GetSystemAdminFunctionTypesAsync",
     "parameters": [],
@@ -11239,7 +11251,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 158,
+    "line": 159,
     "client": "ReferenceQueryApi",
     "method": "GetNextSeedIdAsync",
     "parameters": [
@@ -11251,13 +11263,13 @@
     ],
     "result": "Task\u003CServiceResult\u003CScalarReadModel\u003Cint\u003E\u003E\u003E",
     "calls": [
+      "Guid.NewGuid",
+      "operation.ToString",
       "entityId.Format",
-      "(RequestAsync\u003CGetNextSeedIdQuery, ScalarReadModel\u003Cint\u003E\u003E(query.Subject, query)).ConfigureAwait",
-      "RequestAsync\u003CGetNextSeedIdQuery, ScalarReadModel\u003Cint\u003E\u003E"
+      "RequestFunctionAsync\u003CAllocateSeedIdCommand, ActorEntityId,\r\n            FunctionResult\u003CSeedAllocationCompletedEvent, SeedAllocationFailedEvent\u003E\u003E(request, entityId, CancellationToken.None).ConfigureAwait",
+      "RequestFunctionAsync\u003CAllocateSeedIdCommand, ActorEntityId,\r\n            FunctionResult\u003CSeedAllocationCompletedEvent, SeedAllocationFailedEvent\u003E\u003E"
     ],
-    "subjects": [
-      "(ActorType.Query, GetNextSeedIdQuery.Actor, GetNextSeedIdQuery.Verb, entityId.Format())"
-    ],
+    "subjects": [],
     "resolvedUiCallSites": [
       "TomasAI.IFM.UI.Net.Services/Reference/ReferenceDataService.cs:209"
     ],
@@ -11266,7 +11278,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 171,
+    "line": 181,
     "client": "ReferenceQueryApi",
     "method": "GetCurrentSeedIdAsync",
     "parameters": [
@@ -11291,7 +11303,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 184,
+    "line": 194,
     "client": "ReferenceQueryApi",
     "method": "GetFuturesOptionStrikePriceDefinitionsAsync",
     "parameters": [],
@@ -11312,7 +11324,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 197,
+    "line": 207,
     "client": "ReferenceQueryApi",
     "method": "LookupTypeShortCodeExistsAsync",
     "parameters": [
@@ -11342,7 +11354,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs",
-    "line": 210,
+    "line": 220,
     "client": "ReferenceQueryApi",
     "method": "GetMDIForwardLossRatiosAsync",
     "parameters": [

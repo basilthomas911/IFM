@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Remote;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -138,8 +138,8 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
         var contract = new FuturesContractV3ReadModel(
             "ES20251010", "ES VWAP integration future", "ES", "ESZ5",
             "FUT", "USD", "CME", "50", new DateOnly(2025, 10, 10), true);
-        factory.Services.GetRequiredService<IDatabentoContractRegistrationRegistry>()
-            .ReplaceFuturesRolloverSet("ES", [contract]);
+        factory.Services.GetRequiredService<MarketDataReadMirror>()
+            .Apply(new MarketDataReadSnapshot(new(true, valueDate, []), [], [contract], []));
         try
         {
             var epoch = Guid.NewGuid();

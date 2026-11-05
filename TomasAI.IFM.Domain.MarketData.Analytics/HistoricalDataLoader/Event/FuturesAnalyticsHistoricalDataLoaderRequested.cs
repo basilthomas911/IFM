@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Security.Cryptography;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Event.Extensions;
@@ -28,43 +29,48 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
             ArgumentNullException.ThrowIfNull(requested);
             var request = ToApplicationRequest(requested);
             global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write25(logger, null, requested.EntityId.Value, requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup, requested.ReceivedOn, requested.FuturesAnalyticsHistoricalDataLoaderParameters.AnalyticsTargetContractId);
+            var existing = await context.DataLoaderStore.GetAsync(
+                requested.EntityId.Value, CancellationToken.None).ConfigureAwait(false);
+            if (existing?.Status != HistoricalDataLoaderStatus.Completed
+                && requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup
+                && requested.ReceivedOn != default
+                && DateTime.UtcNow - DateTime.SpecifyKind(requested.ReceivedOn, DateTimeKind.Utc)
+                    > AutomaticRequestMaximumAge)
+            {
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write26(logger, null, requested.EntityId.Value, requested.ReceivedOn);
+                return;
+            }
+
+            HistoricalDataLoaderState state;
             try
             {
-                if (requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup
-                    && requested.ReceivedOn != default
-                    && DateTime.UtcNow - DateTime.SpecifyKind(requested.ReceivedOn, DateTimeKind.Utc)
-                        > AutomaticRequestMaximumAge)
-                {
-                    global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write26(logger, null, requested.EntityId.Value, requested.ReceivedOn);
-                    return;
-                }
-
-                var state = await LoadRequestedAsync(requested, request, context, logger).ConfigureAwait(false);
-                var terminal = new FuturesAnalyticsHistoricalDataLoaderCompletedEvent
-                {
-                    Subject = new(ActorType.Event, FuturesAnalyticsHistoricalDataLoaderEventActor.ActorName,
-                        FuturesAnalyticsHistoricalDataLoaderCompletedEvent.Verb, requested.EntityId.Format()),
-                    Id = Guid.NewGuid(),
-                    EntityId = requested.EntityId,
-                    CommandId = requested.CommandId,
-                    AggregateId = requested.EntityId.Format(),
-                    EventSource = nameof(FuturesAnalyticsHistoricalDataLoaderEventActor),
-                    ReceivedOn = DateTime.UtcNow,
-                    ManifestId = state.Manifest?.ManifestId ?? Guid.Empty,
-                    ValidSessionCount = state.Audit?.ValidSessionCount ?? 0,
-                    GapCount = state.Audit?.Gaps.Count ?? 0,
-                    RollCount = state.Audit?.Rolls.Count ?? 0,
-                    RequestSha256 = state.RequestSha256,
-                    CompletedAtUtc = DateTime.UtcNow
-                };
-                await context.SendAsync<
-                    FuturesAnalyticsHistoricalDataLoaderCompletedEvent,
-                    FuturesAnalyticsHistoricalDataLoaderEntityId>(terminal).ConfigureAwait(false);
+                state = existing?.Status == HistoricalDataLoaderStatus.Completed
+                    ? existing
+                    : await LoadRequestedAsync(requested, request, context, logger).ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 await PublishFailureAsync(requested, context, logger, exception).ConfigureAwait(false);
+                return;
             }
+
+            var completion = new CompleteFuturesAnalyticsHistoricalDataLoaderCommand
+            {
+                Subject = new(ActorType.Command, CompleteFuturesAnalyticsHistoricalDataLoaderCommand.Actor,
+                    CompleteFuturesAnalyticsHistoricalDataLoaderCommand.Verb, requested.EntityId.Format()),
+                EntityId = requested.EntityId,
+                CommandId = OutcomeCommandId(requested.CommandId, 1),
+                ManifestId = state.Manifest?.ManifestId ?? Guid.Empty,
+                ValidSessionCount = state.Audit?.ValidSessionCount ?? 0,
+                GapCount = state.Audit?.Gaps.Count ?? 0,
+                RollCount = state.Audit?.Rolls.Count ?? 0,
+                RequestSha256 = state.Manifest?.RequestSha256 ?? state.RequestSha256,
+                LastCompletedBatchOrdinal = checked((int)state.Checkpoint.BatchOrdinal),
+                LastCompletedRecordOrdinal = ParseRecordOrdinal(state.Checkpoint.SourcePosition),
+                CompletedAtUtc = state.UpdatedAtUtc.UtcDateTime
+            };
+            RequireAccepted(await context.RequestAsync<CompleteFuturesAnalyticsHistoricalDataLoaderCommand,
+                FuturesAnalyticsHistoricalDataLoaderEntityId>(completion).ConfigureAwait(false));
         }
     }
 
@@ -73,7 +79,6 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
         MarketDataHistoricalRequest request, IFuturesAnalyticsHistoricalDataLoaderEventContext context,
         ILogger<FuturesAnalyticsHistoricalDataLoaderEventActor> logger)
     {
-        HistoricalAnalyticsWarmupResult? warmupResult = null;
         HistoricalDataLoaderState state;
         if (requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup)
         {
@@ -91,25 +96,23 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
                 UpdatedAtUtc = DateTimeOffset.UtcNow
             }, CancellationToken.None).ConfigureAwait(false);
             global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write28(logger, null, requested.EntityId.Value);
-            warmupResult = await context.WarmupService.EnsureAsync(
+            var warmupResult = await context.WarmupService.EnsureAsync(
                 request, CancellationToken.None).ConfigureAwait(false);
-            state = ToState(requested, warmupResult);
-            await context.DataLoaderStore.SaveAsync(new HistoricalDataLoaderState
+            var lastLoad = warmupResult.LastLoadState;
+            state = new HistoricalDataLoaderState
             {
                 DataLoadAttemptId = requested.EntityId.Value,
                 RequestSha256 = $"automatic:{requested.EntityId.Value:D}:{warmupResult.Outcome}:{warmupResult.StartDate:O}:{warmupResult.EndDate:O}",
                 Status = HistoricalDataLoaderStatus.Completed,
-                Checkpoint = new HistoricalAcquisitionCheckpoint
+                Checkpoint = (lastLoad?.Checkpoint ?? new HistoricalAcquisitionCheckpoint
                 {
-                    DataLoadAttemptId = requested.EntityId.Value,
-                    Stage = HistoricalAcquisitionStage.Completed
-                },
-                Audit = new HistoricalDataLoaderAudit(
-                    warmupResult.ValidSessionCount,
-                    [],
-                    []),
+                    DataLoadAttemptId = requested.EntityId.Value
+                }) with { DataLoadAttemptId = requested.EntityId.Value, Stage = HistoricalAcquisitionStage.Completed },
+                Manifest = lastLoad?.Manifest,
+                Audit = lastLoad?.Audit ?? new HistoricalDataLoaderAudit(warmupResult.ValidSessionCount, [], []),
                 UpdatedAtUtc = DateTimeOffset.UtcNow
-            }, CancellationToken.None).ConfigureAwait(false);
+            };
+            await context.DataLoaderStore.SaveAsync(state, CancellationToken.None).ConfigureAwait(false);
             global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write29(logger, null, warmupResult.Outcome, warmupResult.StartDate, warmupResult.EndDate, warmupResult.ValidSessionCount, warmupResult.MissingSessionCount);
         }
         else
@@ -139,24 +142,36 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
             await context.DataLoaderStore.SaveAsync(state, CancellationToken.None)
                 .ConfigureAwait(false);
         }
-        var terminal = new FuturesAnalyticsHistoricalDataLoaderFailedEvent
+        var failure = new FailFuturesAnalyticsHistoricalDataLoaderCommand
         {
-            Subject = new(ActorType.Event, FuturesAnalyticsHistoricalDataLoaderEventActor.ActorName,
-                FuturesAnalyticsHistoricalDataLoaderFailedEvent.Verb, requested.EntityId.Format()),
-            Id = Guid.NewGuid(),
+            Subject = new(ActorType.Command, FailFuturesAnalyticsHistoricalDataLoaderCommand.Actor,
+                FailFuturesAnalyticsHistoricalDataLoaderCommand.Verb, requested.EntityId.Format()),
             EntityId = requested.EntityId,
-            CommandId = requested.CommandId,
-            AggregateId = requested.EntityId.Format(),
-            EventSource = nameof(FuturesAnalyticsHistoricalDataLoaderEventActor),
-            ReceivedOn = DateTime.UtcNow,
+            CommandId = OutcomeCommandId(requested.CommandId, 2),
             ErrorMessage = exception.Message,
             LastCompletedBatchOrdinal = checked((int)(state?.Checkpoint.BatchOrdinal ?? -1)),
             LastCompletedRecordOrdinal = ParseRecordOrdinal(state?.Checkpoint.SourcePosition)
         };
-        await context.SendAsync<
-            FuturesAnalyticsHistoricalDataLoaderFailedEvent,
-            FuturesAnalyticsHistoricalDataLoaderEntityId>(terminal).ConfigureAwait(false);
+        RequireAccepted(await context.RequestAsync<FailFuturesAnalyticsHistoricalDataLoaderCommand,
+            FuturesAnalyticsHistoricalDataLoaderEntityId>(failure).ConfigureAwait(false));
     }
+
+    /// <summary>Derives a stable command identity for one outcome of the accepted request.</summary>
+    static Guid OutcomeCommandId(Guid requestId, byte outcome)
+    {
+        Span<byte> identity = stackalloc byte[17];
+        requestId.TryWriteBytes(identity);
+        identity[16] = outcome;
+        return new Guid(SHA256.HashData(identity).AsSpan(0, 16));
+    }
+
+    /// <summary>Raises a retryable processing failure when the owning command actor cannot accept the outcome.</summary>
+    static void RequireAccepted(ServiceResult<GuidResult>? result)
+    {
+        if (result?.Success != true)
+            throw new InvalidOperationException(result?.ErrorMessage ?? "Historical load outcome was not acknowledged.");
+    }
+
 
     /// <summary>Maps the durable acquisition request to the provider-neutral application request.</summary>
     static MarketDataHistoricalRequest ToApplicationRequest(
@@ -188,23 +203,4 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
     /// <summary>Parses a source record ordinal, returning minus one when it is unavailable.</summary>
     static long ParseRecordOrdinal(string? sourcePosition) =>
         long.TryParse(sourcePosition, System.Globalization.CultureInfo.InvariantCulture, out var value) ? value : -1;
-
-    /// <summary>Uses the final load state or constructs the completed automatic-warmup state.</summary>
-    static HistoricalDataLoaderState ToState(
-        FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested,
-        HistoricalAnalyticsWarmupResult result)
-        => result.LastLoadState ?? new HistoricalDataLoaderState
-        {
-            DataLoadAttemptId = requested.EntityId.Value,
-            RequestSha256 = $"automatic:{result.Outcome}:{result.StartDate:O}:{result.EndDate:O}",
-            Status = HistoricalDataLoaderStatus.Completed,
-            Checkpoint = new HistoricalAcquisitionCheckpoint
-            {
-                DataLoadAttemptId = requested.EntityId.Value,
-                Stage = HistoricalAcquisitionStage.Completed
-            },
-            Audit = new HistoricalDataLoaderAudit(result.ValidSessionCount, [], []),
-            UpdatedAtUtc = DateTimeOffset.UtcNow
-        };
-
 }

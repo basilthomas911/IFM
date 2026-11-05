@@ -74,20 +74,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            try
-            {
-                foreach (var definition in _definitions)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    await StartCoreAsync(definition).ConfigureAwait(false);
-                    await WaitForReadinessAsync(definition, cancellationToken).ConfigureAwait(false);
-                }
-            }
-            catch
-            {
-                await StopAllCoreAsync(CancellationToken.None).ConfigureAwait(false);
-                throw;
-            }
+            await StartConfiguredProcessesAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -102,20 +89,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         try
         {
             await StopAllCoreAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                foreach (var definition in _definitions)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    await StartCoreAsync(definition).ConfigureAwait(false);
-                    await WaitForReadinessAsync(definition, cancellationToken).ConfigureAwait(false);
-                }
-            }
-            catch
-            {
-                await StopAllCoreAsync(CancellationToken.None).ConfigureAwait(false);
-                throw;
-            }
+            await StartConfiguredProcessesAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -123,6 +97,54 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         }
     }
 
+    private async Task StartConfiguredProcessesAsync(CancellationToken cancellationToken)
+    {
+        var attempts = new Dictionary<string, Task<Exception?>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var definition in _definitions)
+        {
+            // Dependencies must precede their consumers in the configured start order.
+            var prerequisites = definition.StartupDependencies.Select(key => (Key: key, Attempt: attempts.GetValueOrDefault(key))).ToArray();
+            attempts.Add(definition.Key, StartWhenReadyAsync(definition, prerequisites));
+        }
+
+        var outcomes = await Task.WhenAll(attempts.Values).ConfigureAwait(false);
+        var failures = outcomes.OfType<Exception>().ToArray();
+        if (failures.Length != 0)
+            throw new AggregateException("Server Manager startup completed with failed or blocked processes.", failures);
+
+        async Task<Exception?> StartWhenReadyAsync(ManagedProcessDefinition definition,
+            (string Key, Task<Exception?>? Attempt)[] prerequisites)
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                foreach (var (dependency, prerequisite) in prerequisites)
+                {
+                    if (prerequisite is null)
+                        return Blocked($"dependency '{dependency}' is missing or does not precede it in start order");
+                    if (await prerequisite.ConfigureAwait(false) is not null)
+                        return Blocked($"dependency '{dependency}' did not become ready");
+                }
+
+                await StartCoreAsync(definition).ConfigureAwait(false);
+                await WaitForReadinessAsync(definition, cancellationToken).ConfigureAwait(false);
+                WriteLifecycle(definition, "Startup ready.");
+                return null;
+            }
+            catch (Exception error) when (!cancellationToken.IsCancellationRequested)
+            {
+                WriteLifecycle(definition, $"Startup failed: {error.Message}", error);
+                return new InvalidOperationException($"{definition.Key} startup failed: {error.Message}", error);
+            }
+
+            Exception Blocked(string reason)
+            {
+                var message = $"{definition.Key} startup blocked: {reason}.";
+                WriteLifecycle(definition, message);
+                return new InvalidOperationException(message);
+            }
+        }
+    }
     /// <summary>Emergency API replacement. No graceful drain and no process-tree termination.</summary>
     public async Task<int> RestartApiAsync(int expectedProcessId, DateTime expectedStartedUtc, CancellationToken cancellationToken)
     {
@@ -291,7 +313,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
                 _lastCompletions[definition.Key] = Task.CompletedTask;
             }
 
-            return Task.CompletedTask;
+            throw;
         }
 
         NotifyRunningProcessesChanged();

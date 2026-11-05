@@ -1,4 +1,6 @@
-﻿using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations;
+using TomasAI.IFM.Domain.MarketData.Feed.FeedSessionPreparation.Function.State;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using FluentAssertions;
@@ -29,32 +31,26 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var context = Substitute.For<IMarketDataFeedCommandContext>();
         context.Logger.Returns(Microsoft.Extensions.Logging.Abstractions.NullLogger<MarketDataFeedCommandActor>.Instance);
         var container = Substitute.For<IContainerInstance>();
-        // Startup now uses the authoritative API date and prepared backend assignments.
-        var dates=Substitute.For<IValueDateProvider>();dates.ValueDate.Returns(SampleData.ValueDate);
-        container.Resolve<IValueDateProvider>().Returns(dates);
-        var marketData=Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>();
-        marketData.PrepareSessionAsync(SampleData.ValueDate,Arg.Any<CancellationToken>()).Returns(Task.FromResult(SampleData.FuturesContracts));
-        container.Resolve<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>().Returns(marketData);
-        var authority = Substitute.For<IFuturesMarketSessionAuthority>();
-        authority.Current.Returns(new MarketSessionReadModel
-        {
-            OperationalValueDate = SampleData.ValueDate, Revision = 1,
-            SessionStartUtc = DateTime.UtcNow.AddHours(-1), SessionEndUtc = DateTime.UtcNow.AddHours(1),
-            NextTransitionUtc = DateTime.UtcNow.AddHours(1), AsOfUtc = DateTime.UtcNow
-        });
-        container.Resolve<IFuturesMarketSessionAuthority>().Returns(authority);
-        var contracts = Substitute.For<IDatabentoContractAuthority>();
-        contracts.ReconcileAsync(SampleData.ValueDate, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(
-            Task.FromResult<IReadOnlyList<FuturesRolloverContractAssignment>>(SampleData.FuturesContracts.Select(contract => new FuturesRolloverContractAssignment
+        var preparations = Substitute.For<IEventSourceFunctionStateRepository<
+            FeedSessionPreparationFunctionState, PrepareMarketDataFeedSessionCommand>>();
+        preparations.LoadStateAsync(Arg.Any<PrepareMarketDataFeedSessionCommand>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
             {
-                ContractRole = DatabentoContractRole.EsQuarterly,
-                ContractId = contract.ContractId, Description = contract.Description, RootSymbol = contract.Symbol,
-                LocalSymbol = contract.LocalSymbol, SecurityType = contract.SecurityType, Currency = contract.Currency,
-                Exchange = contract.Exchange, Multiplier = contract.Multiplier, LastTradeDate = contract.LastTradeDate,
-                NextRolloverDate = contract.LastTradeDate, SourceContractHash = new string('a', 64),
-                RowVersion = 1, CreatedBy = "test", UpdatedBy = "test", UpdatedOnUtc = DateTime.UtcNow, CreatedOnUtc = DateTime.UtcNow
-            }).ToArray()));
-        container.Resolve<IDatabentoContractAuthority>().Returns(contracts);
+                var request = call.Arg<PrepareMarketDataFeedSessionCommand>();
+                var state = new FeedSessionPreparationFunctionState();
+                state.TryComplete(new FeedSessionPreparationCompletedEvent
+                {
+                    Id = request.CommandId,
+                    CommandId = request.CommandId,
+                    EntityId = request.EntityId,
+                    Subject = new(ActorType.Event, "FeedSessionPreparationEvent", "Completed", request.EntityId.Format()),
+                    ValueDate = SampleData.ValueDate,
+                    Contracts = SampleData.FuturesContracts
+                }, request);
+                return ValueTask.FromResult(state);
+            });
+        container.Resolve<IEventSourceFunctionStateRepository<FeedSessionPreparationFunctionState,
+            PrepareMarketDataFeedSessionCommand>>().Returns(preparations);
         context.Container.Returns(container);
         return context;
     }
@@ -282,6 +278,18 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
     }
 
     [Fact]
+    public async Task Given_AnUnpreparedStart_When_Validated_Then_ItIsRejected()
+    {
+        var actor = _fixture.CreateMarketDataFeedCommandActor();
+        var context = CreateCommandContext();
+        var command = (StartMarketDataFeedCommand)CreateCommand("Start");
+        var altered = command with { PreparedContracts = [] };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            actor.InvokeOnValidateAsync(context, altered.Subject.ThreadId, altered).AsTask());
+    }
+
+    [Fact]
     public async Task Given_UnsupportedOrMissingInputs_When_ReceivedOrValidated_Then_TheyAreRejected()
     {
         var actor = _fixture.CreateMarketDataFeedCommandActor();
@@ -360,7 +368,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
     {
         ICommand command = kind switch
         {
-            "Start" => new StartMarketDataFeedCommand { EntityId = new(SampleData.ValueDate) },
+            "Start" => new StartMarketDataFeedCommand { EntityId = new(SampleData.ValueDate), PreparedContracts = SampleData.FuturesContracts },
             "Stop" => new StopMarketDataFeedCommand(SampleData.ValueDate),
             "Reset" => new ResetMarketDataFeedCommand(SampleData.FuturesContracts, SampleData.ValueDate),
             "Add" => new AddTradeLiveFeedCommand(TradeId(), SampleData.ValueDate),

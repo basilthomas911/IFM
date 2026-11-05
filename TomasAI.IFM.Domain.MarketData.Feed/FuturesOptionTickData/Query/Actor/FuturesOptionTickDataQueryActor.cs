@@ -70,10 +70,8 @@ public class FuturesOptionTickDataQueryActor(IQueryActorContext<FuturesOptionTic
     {
         [typeof(GetLastFuturesOptionTickDataQuery)] = async (ctx, q) =>
         {
-            var query = (q as GetLastFuturesOptionTickDataQuery)!;
-            var result = await (query.ExecuteAsync(ctx.DbFactory)).ConfigureAwait(false);
-            await (ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesOptionTickDataQuery.Verb,
-                new ServiceResult<FuturesOptionTickDataV2ReadModel?>(result))).ConfigureAwait(false);
+            var result = await ((GetLastFuturesOptionTickDataQuery)q).ReadAsync(ctx.DbFactory).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesOptionTickDataQuery.Verb, result).ConfigureAwait(false);
         }
     };
 

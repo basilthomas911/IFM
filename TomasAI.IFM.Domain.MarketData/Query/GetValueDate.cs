@@ -34,15 +34,14 @@ public static class GetValueDate
     extension(GetValueDateQuery query)
     {
         /// <summary>Reads and replies with the requested market-data result.</summary>
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ServiceResult<ScalarReadModel<DateOnly>>> ExecuteAsync(
             TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             var result = await query.ExecuteAsync(context.MarketSessionAuthority, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-                new ServiceResult<ScalarReadModel<DateOnly>>(result)).ConfigureAwait(false);
+            return new ServiceResult<ScalarReadModel<DateOnly>>(result);
         }
     }
 

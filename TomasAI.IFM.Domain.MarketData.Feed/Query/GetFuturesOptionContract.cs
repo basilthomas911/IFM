@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
@@ -38,8 +39,8 @@ public static class GetFuturesOptionContract
 
     extension(GetFuturesOptionContractQuery query)
     {
-        /// <summary>Reads and replies with the requested market-data feed result.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Returns the typed market-data feed result.</summary>
+        public async ValueTask<ServiceResult<FuturesOptionContractReadModel>> ExecuteAsync(
             TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
             MarketDataFeedQueryParameters parameters)
         {
@@ -47,8 +48,7 @@ public static class GetFuturesOptionContract
             ArgumentNullException.ThrowIfNull(parameters);
             ArgumentNullException.ThrowIfNull(query);
             var result = await query.ExecuteAsync(parameters.MarketDataApi).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-                new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FuturesOptionContractReadModel>(result)).ConfigureAwait(false);
+            return new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FuturesOptionContractReadModel>(result);
         }
     }
 }

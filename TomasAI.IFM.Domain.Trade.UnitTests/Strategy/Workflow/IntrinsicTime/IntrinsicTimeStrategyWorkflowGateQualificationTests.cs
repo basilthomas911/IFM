@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using FluentAssertions;
 using MessagePack;
 using NSubstitute;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
@@ -17,8 +18,12 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime;
@@ -61,6 +66,27 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
     [Fact]
     public void Live_workflow_feature_defaults_to_disabled()
         => new IntrinsicTimeStrategyWorkflowOptions().Enabled.Should().BeFalse();
+
+    [Fact]
+    public void Live_workflow_admission_waits_for_the_same_session_to_warm()
+    {
+        var warmup = new StrategyIndicatorWarmup();
+        var context = new IntrinsicTimeStrategyWorkflowCommandContext(
+            Substitute.For<IActorSupervisor>(), Substitute.For<TomasAI.IFM.Application.Storage.IDbContextFactory>(),
+            Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>(),
+            new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options.RegimeDiscoveryExecutionOptions(),
+            new IntrinsicTimeStrategyWorkflowOptions { Enabled = true, IndicatorWarmup = warmup },
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<IntrinsicTimeStrategyWorkflowCommandActor>.Instance);
+        var date = new DateOnly(2026, 11, 4);
+        context.CanStartWorkflow(date).Should().BeFalse();
+        context.GetWorkflowStartBlockReason(date).Should().Be("WORKFLOW.START.INDICATORS_NOT_READY");
+        warmup.Complete(date);
+        context.CanStartWorkflow(date).Should().BeTrue();
+        context.GetWorkflowStartBlockReason(date).Should().BeNull();
+        context.CanStartWorkflow(date.AddDays(1)).Should().BeFalse();
+        warmup.Reset();
+        context.CanStartWorkflow(date).Should().BeFalse();
+    }
 
     /// <summary>Confirms ITSW-9 introduces no durable workflow Event actor.</summary>
     [Fact]
@@ -204,6 +230,27 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         first.ParameterPayloadSha256.Should().Be(marketCondition.State.AssessmentBinding!.PayloadSha256);
         (first.ExpiresAtUtc <= marketCondition.State.ExpiresAtUtc).Should().BeTrue();
         terminal.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task Selection_activation_is_resolved_before_requesting_the_market_snapshot()
+    {
+        var command = MarketCondition.AssessmentFixture.Command();
+        var snapshot = new WorkflowStrategyStateUpdatedEvent { Id = Guid.NewGuid(), State = command.WorkflowView };
+        var context = Substitute.For<IIntrinsicTimeStrategyWorkflowRealtimeContext>();
+        context.TimeProvider.Returns(TimeProvider.System);
+        context.Options.Returns(new IntrinsicTimeStrategyWorkflowOptions { Activations = [] });
+        context.RequestFunctionAsync<ExecuteMarketConditionAssessmentCommand, MarketConditionAssessmentExecutionId,
+                FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>>(
+                Arg.Any<ExecuteMarketConditionAssessmentCommand>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceResult<FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>>());
+        context.ClearReceivedCalls();
+
+        await IntrinsicTimeStrategyWorkflowRealtimeActor.ExecuteAssessmentAsync(context, snapshot);
+
+        var calls = context.ReceivedCalls().Select(call => call.GetMethodInfo().Name).ToArray();
+        Array.IndexOf(calls, "get_Options").Should().BeGreaterThanOrEqualTo(0)
+            .And.BeLessThan(Array.IndexOf(calls, nameof(context.RequestFunctionAsync)));
     }
 
     /// <summary>Confirms the typed query contract survives the default MessagePack transport boundary.</summary>

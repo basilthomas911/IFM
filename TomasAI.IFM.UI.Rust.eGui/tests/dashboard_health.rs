@@ -97,11 +97,16 @@ fn health_items_sort_red_yellow_green_inactive() {
 /// A silent off-hours feed remains green when current subscriptions are ready.
 #[test]
 fn quiet_options_feed_is_green_without_quotes_or_valuations() {
-    let value = json!({
+    let mut value = json!({
         "datasets": [{"running": true, "healthy": true, "lifecycle": "Healthy", "generationId": "quiet-current"}],
         "workload": {"generationId": "quiet-current", "replacementPending": false,
             "nativeResourceProofsComplete": true, "scopes": ["monitor"], "readyScopes": ["monitor"]},
         "optionObservations": [], "optionChains": []
     });
     assert_eq!(options_health(&value).0, "Green");
+    value["workload"]["scopes"] = json!([]);
+    value["workload"]["readyScopes"] = json!([]);
+    assert_eq!(options_health(&value).0, "Green");
+    value["workload"]["nativeResourceProofsComplete"] = false.into();
+    assert_eq!(options_health(&value).0, "Yellow");
 }

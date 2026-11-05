@@ -39,8 +39,10 @@ public class FuturesTradeSignalQueryApiTests(TomasAI.IFM.IntegrationTesting.Kest
     {
         // arrange...
         var contractId = $"{SampleData.ContractId}-Q2";
-        var valueDate = new DateOnly(2099, 1, 3);
-        await dbFixture.MarketDataDb.InsertFuturesTradeSignalAsync(CreateTradeSignalViewModel(contractId, valueDate, 2));
+        var valueDate = new DateOnly(2099, 1, 5);
+        // The global latest index uses sequence order while other fixtures publish concurrently.
+        await dbFixture.MarketDataDb.InsertFuturesTradeSignalAsync(
+            CreateTradeSignalViewModel(contractId, valueDate, 4) with { SequenceId = long.MaxValue });
 
         // act...
         var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);

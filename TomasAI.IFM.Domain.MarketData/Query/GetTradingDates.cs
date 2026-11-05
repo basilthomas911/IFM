@@ -36,7 +36,7 @@ public static class GetTradingDates
     extension(GetTradingDatesQuery query)
     {
         /// <summary>Reads and replies with the requested market-data result.</summary>
-        public async ValueTask ExecuteAsync(
+        public async ValueTask<ServiceResult<DateOnly[]>> ExecuteAsync(
             TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
             CancellationToken cancellationToken)
         {
@@ -44,8 +44,7 @@ public static class GetTradingDates
             ArgumentNullException.ThrowIfNull(query);
             var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-                new ServiceResult<DateOnly[]>(result)).ConfigureAwait(false);
+            return new ServiceResult<DateOnly[]>(result);
         }
     }
 }

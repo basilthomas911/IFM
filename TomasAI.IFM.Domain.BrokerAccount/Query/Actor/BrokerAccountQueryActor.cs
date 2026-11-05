@@ -21,8 +21,8 @@ public sealed class BrokerAccountQueryActor(IQueryActorContext<BrokerAccountQuer
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     private static readonly IReadOnlyDictionary<Type,
-        Func<IBrokerAccountQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<IBrokerAccountQueryContext, IQuery, CancellationToken, ValueTask>>
+        Func<IBrokerAccountQueryContext, IQuery, CancellationToken, ValueTask<ServiceResult<BrokerAccountDefinition?>>>> _receiveMap =
+        new Dictionary<Type, Func<IBrokerAccountQueryContext, IQuery, CancellationToken, ValueTask<ServiceResult<BrokerAccountDefinition?>>>>
         {
             [typeof(GetBrokerAccountQuery)] = static (owner, query, token) =>
                 ((GetBrokerAccountQuery)query).ExecuteAsync(owner, token)
@@ -37,9 +37,14 @@ public sealed class BrokerAccountQueryActor(IQueryActorContext<BrokerAccountQuer
     protected override ValueTask ReceiveAsync(IQueryActorContext<BrokerAccountQueryActor> context,
         IQuery query) => ReceiveAsync(context, query, CancellationToken.None);
 
-    protected override ValueTask ReceiveAsync(IQueryActorContext<BrokerAccountQueryActor> context,
-        IQuery query, CancellationToken cancellationToken) =>
-        ResolveMappedQueryHandler(query, _receiveMap)(Typed(context), query, cancellationToken);
+    protected override async ValueTask ReceiveAsync(IQueryActorContext<BrokerAccountQueryActor> context,
+        IQuery query, CancellationToken cancellationToken)
+    {
+        var result = await ResolveMappedQueryHandler(query, _receiveMap)(Typed(context), query, cancellationToken)
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+    }
 
     protected override ValueTask OnExceptionAsync(IQueryActorContext<BrokerAccountQueryActor> context,
         ActorThreadId threadId, IQuery query, string verb, Exception ex) =>

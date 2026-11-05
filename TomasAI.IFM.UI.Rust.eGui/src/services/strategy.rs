@@ -1,18 +1,30 @@
 //! Read-only strategy history boundary. A historical item is hydrated from the
 //! backend's complete state payload with identity/revision checks before use.
 use crate::backend::{codec, contracts::*, schema::Registry, transport::Backend};
+use crate::models::{
+    strategy::{StageFailure, StageHeader, WorkflowView, workflow_grid_row},
+    trade_contracts::FuturesItiSignalV2ReadModel,
+    wire_types::FromBackend,
+};
 use crate::services::business_context::BusinessContext;
+use crate::strategy_workspace::WorkflowRow;
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use rmpv::Value;
 use std::collections::BTreeMap;
-pub const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime";
 
+/// A compact workflow grid row and the metadata needed to select and order it.
+pub struct GridWorkflow {
+    pub row: WorkflowRow,
+    pub revision: u64,
+    pub occurred: DateTime<Utc>,
+}
+
+pub const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime";
 
 /// Provides kind for the strategy implementation.
 pub fn kind(section: &str, name: &str) -> String {
     format!("{ROOT}.{section}.{name}")
 }
-
 
 /// Looks up the requested member in the supplied record.
 pub fn member(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<Value, String> {
@@ -34,7 +46,6 @@ pub fn member(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Resu
         .cloned()
         .ok_or("Incomplete strategy payload".into())
 }
-
 
 /// Provides graph window for the strategy implementation.
 pub fn graph_window(
@@ -67,7 +78,6 @@ pub fn graph_window(
         .to_utc();
     Ok((start, end))
 }
-
 
 /// Provides signal history for the strategy implementation.
 pub async fn signal_history(
@@ -114,7 +124,6 @@ pub async fn signal_history(
         .ok_or("Invalid or oversized ITI history".into())
 }
 
-
 /// Provides workflow page for the strategy implementation.
 pub async fn workflow_page(
     backend: &Backend,
@@ -125,7 +134,7 @@ pub async fn workflow_page(
     to: DateTime<Utc>,
     page: u32,
     deadline: tokio::time::Instant,
-) -> Result<(Vec<Value>, usize), String> {
+) -> Result<(Vec<GridWorkflow>, usize), String> {
     if page == 0 || page > 2000 {
         return Err("Invalid strategy history page".into());
     }
@@ -138,8 +147,12 @@ pub async fn workflow_page(
         "Queries",
         "GetIntrinsicTimeStrategyWorkflowHistoryPageQuery",
     );
-    let (actor, verb) = registry.route(&query)?;
-    let subject = ActorSubject::query(actor, verb, &entity_key);
+    // The grid query shares the existing history request's numeric key layout.
+    let subject = ActorSubject::query(
+        "IntrinsicTimeStrategyWorkflowQuery",
+        "GetStrategyUpdatesGrid",
+        &entity_key,
+    );
     let body = registry.encode(
         &query,
         &BTreeMap::from([
@@ -167,101 +180,137 @@ pub async fn workflow_page(
     let reply = backend
         .request_until(&subject, &body, deadline, None)
         .await?;
-    let value = service_result(&reply)?;
-    let model = kind(
-        "ViewModels",
-        "IntrinsicTimeStrategyWorkflowHistoryPageReadModel",
-    );
-    let row = registry.project(&model, value)?;
-    if row["PageNumber"] != page || row["PageSize"] != 50 {
-        return Err("Strategy history page metadata mismatch".into());
+    let page_fields = fields::<4>(service_result(&reply)?)?;
+    let [items, page_number, page_size, total] = page_fields;
+    if page_number.as_u64() != Some(page.into()) || page_size.as_u64() != Some(50) {
+        return Err("Strategy grid page metadata mismatch".into());
     }
-    let total = row["TotalCount"]
+    let total = total
         .as_u64()
-        .filter(|v| *v <= 100_000)
-        .ok_or("Invalid strategy history total")? as usize;
-    let items = member(registry, &model, value, "Items")?;
+        .filter(|value| *value <= 100_000)
+        .ok_or("Invalid strategy grid total")? as usize;
     let items = items
         .as_array()
-        .filter(|v| v.len() <= 50)
-        .ok_or("Invalid strategy history page")?;
-    let histories = items
-        .iter()
-        .map(|v| {
-            registry.project(
-                &kind(
-                    "ViewModels",
-                    "IntrinsicTimeStrategyWorkflowHistoryReadModel",
-                ),
-                v,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if histories.is_empty() {
-        return Ok((vec![], total));
-    }
-    let mut ids = vec![];
-    let mut revisions = vec![];
+        .filter(|values| values.len() <= 50)
+        .ok_or("Invalid strategy grid page")?;
     let mut seen = std::collections::BTreeSet::new();
-    for row in &histories {
-        let id = row["WorkflowId"]["Value"]
-            .as_str()
-            .ok_or("Missing workflow history identity")?;
-        if !seen.insert(id.to_string()) {
-            return Err("Duplicate strategy history identity".into());
+    let mut rows = Vec::with_capacity(items.len());
+    for item in items {
+        let [id, revision, occurred, status, outcome, signal, stages] = fields::<7>(item)?;
+        let [id] = fields::<1>(id)?;
+        let id = uuid::Uuid::parse_str(grid_text(id)?)
+            .map_err(|_| "Invalid strategy grid workflow ID")?;
+        if id.is_nil() || !seen.insert(id) {
+            return Err("Invalid or duplicate strategy grid workflow ID".into());
         }
-        let revision = row["WorkflowRevision"]
-            .as_i64()
-            .filter(|v| *v > 0)
-            .ok_or("Invalid workflow history revision")?;
-        ids.push(Value::Array(vec![id.into()]));
-        revisions.push(revision.into());
+        let revision = revision
+            .as_u64()
+            .filter(|value| *value > 0)
+            .ok_or("Invalid strategy grid workflow revision")?;
+        let occurred = timestamp(occurred)?;
+        let signal = FuturesItiSignalV2ReadModel::from_backend(signal)?;
+        let stages = fields::<5>(stages)?
+            .iter()
+            .map(|stage| {
+                let [
+                    processing,
+                    continuation,
+                    completed,
+                    failed,
+                    error_type,
+                    error_code,
+                    message,
+                ] = fields::<7>(stage)?;
+                let optional_time =
+                    |value: &Value| (!value.is_nil()).then(|| timestamp(value)).transpose();
+                Ok::<_, String>(StageHeader {
+                    processing: grid_text(processing)?.into(),
+                    continuation: grid_text(continuation)?.into(),
+                    completed: optional_time(completed)?,
+                    failed: optional_time(failed)?,
+                    failure: message.as_str().map(|message| StageFailure {
+                        error_type: error_type.as_str().unwrap_or_default().into(),
+                        error_code: error_code.as_str().unwrap_or_default().into(),
+                        error_message: message.into(),
+                    }),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let row = workflow_grid_row(
+            &id.simple().to_string(),
+            0,
+            occurred,
+            frame,
+            grid_text(status)?,
+            grid_text(outcome)?,
+            &signal,
+            &stages,
+        )?;
+        rows.push(GridWorkflow {
+            row,
+            revision,
+            occurred,
+        });
     }
-    let query = kind("Queries", "GetIntrinsicTimeStrategyWorkflowsByIdsQuery");
+    Ok((rows, total))
+}
+
+fn fields<const N: usize>(value: &Value) -> Result<&[Value; N], String> {
+    value
+        .as_array()
+        .and_then(|items| items.as_slice().try_into().ok())
+        .ok_or_else(|| "Invalid Strategy Updates wire layout".into())
+}
+
+fn grid_text(value: &Value) -> Result<&str, String> {
+    value
+        .as_str()
+        .ok_or_else(|| "Invalid Strategy Updates text field".into())
+}
+
+/// Loads the selected execution and fences its identity and minimum revision.
+pub async fn workflow_detail(
+    backend: &Backend,
+    registry: &Registry,
+    id: &str,
+    minimum_revision: u64,
+) -> Result<WorkflowView, String> {
+    let query = kind("Queries", "GetIntrinsicTimeStrategyWorkflowByIdQuery");
     let (actor, verb) = registry.route(&query)?;
-    let key = uuid::Uuid::new_v4().simple().to_string();
-    let subject = ActorSubject::query(actor, verb, &key);
+    let subject = ActorSubject::query(actor, verb, id);
+    let wire_id = uuid::Uuid::parse_str(id)
+        .map_err(|_| "Invalid strategy detail workflow ID")?
+        .hyphenated()
+        .to_string();
     let body = registry.encode(
         &query,
         &BTreeMap::from([
             ("Subject".into(), subject.wire()),
             (
                 "EntityId".into(),
-                Value::Array(vec![0.into(), Value::Array(vec![key.into()])]),
+                Value::Array(vec![0.into(), Value::Array(vec![id.into()])]),
             ),
-            ("WorkflowIds".into(), Value::Array(ids)),
-            ("MinimumRevisions".into(), Value::Array(revisions)),
+            ("WorkflowId".into(), Value::Array(vec![wire_id.into()])),
+            ("MinimumWorkflowRevision".into(), minimum_revision.into()),
         ]),
     )?;
     let reply = backend
-        .request_until(&subject, &body, deadline, None)
+        .request_until(
+            &subject,
+            &body,
+            tokio::time::Instant::now() + backend.default_timeout(),
+            None,
+        )
         .await?;
-    let rows = service_result(&reply)?
-        .as_array()
-        .filter(|v| v.len() == histories.len())
-        .ok_or("Workflow detail batch length differs from request")?;
-    let mut views = vec![];
-    for (wire, history) in rows.iter().zip(histories) {
-        let kind = kind("ViewModels", "IntrinsicTimeStrategyWorkflowReadModel");
-        let row = registry.project(&kind, wire)?;
-        if row["WorkflowId"] != history["WorkflowId"]
-            || row["WorkflowRevision"].as_i64() < history["WorkflowRevision"].as_i64()
-        {
-            return Err("Workflow batch identity or revision mismatch".into());
-        }
-        let bytes = member(registry, &kind, wire, "StatePayload")?;
-        let bytes = bytes
-            .as_slice()
-            .filter(|v| v.len() <= 16 * 1024 * 1024)
-            .ok_or("Invalid workflow state payload")?;
-        let view = codec::decode(bytes)?;
-        let projected = registry.project(crate::services::strategy_display::VIEW, &view)?;
-        if projected["WorkflowId"] != row["WorkflowId"]
-            || projected["WorkflowRevision"] != row["WorkflowRevision"]
-        {
-            return Err("Workflow payload identity or revision mismatch".into());
-        }
-        views.push(view);
+    let model = kind("ViewModels", "IntrinsicTimeStrategyWorkflowReadModel");
+    let payload = member(registry, &model, service_result(&reply)?, "StatePayload")?;
+    let bytes = payload
+        .as_slice()
+        .filter(|v| v.len() <= 16 * 1024 * 1024)
+        .ok_or("Invalid workflow state payload")?;
+    let view = WorkflowView::from_backend(registry, &codec::decode(bytes)?)?;
+    if view.header.id != id || view.header.revision < minimum_revision {
+        return Err("Workflow detail identity or revision mismatch".into());
     }
-    Ok((views, total))
+    Ok(view)
 }

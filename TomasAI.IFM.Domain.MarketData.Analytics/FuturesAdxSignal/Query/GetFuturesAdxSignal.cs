@@ -18,8 +18,8 @@ public static class GetFuturesAdxSignal
 
     extension(GetFuturesAdxSignalQuery q)
     {
-        /// <summary>Reads and replies to the GetFuturesAdxSignalQuery message.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Reads the GetFuturesAdxSignalQuery message.</summary>
+        public async ValueTask<ServiceResult<FuturesAdxSignalReadModel?>> ExecuteAsync(
             IQueryActorContext<FuturesAdxSignalQueryActor> ctx,
             IDbContextFactory dbFactory,
             CancellationToken cancellationToken)
@@ -30,7 +30,7 @@ public static class GetFuturesAdxSignal
             var queryResult = await query.GetLastFuturesAdxSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FuturesAdxSignalReadModel?>(queryResult);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesAdxSignalQuery.Verb, serviceResult).ConfigureAwait(false);
+            return serviceResult;
         }
     }
 }

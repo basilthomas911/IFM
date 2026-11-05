@@ -19,14 +19,27 @@ public sealed class MarketConditionAssessmentDefaultProvisionerTests
     static readonly TimeFrameType[] Horizons =
         [TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly];
 
-    [Fact]
-    public async Task Ensure_publishes_three_bound_profiles_once_and_is_idempotent()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Ensure_publishes_three_bound_profiles_once_and_is_idempotent(bool hasLegacyDefaults)
     {
         var at = new DateTime(2026, 9, 9, 20, 0, 0, DateTimeKind.Utc);
         var configuration = Substitute.For<IConfigurationDbContext>();
         var published = new Dictionary<TimeFrameType, ResolvedMarketConditionAssessmentParameterSet>();
         var drafts = new Dictionary<Guid, MarketConditionAssessmentParameterSet>();
 
+        if (hasLegacyDefaults)
+        {
+            foreach (var horizon in Horizons)
+            {
+                var regime = Regime(horizon, at).ParameterSet;
+                var identity = $"IFM.Development.MarketConditionAssessment.v1|ES.Standard|ES|{horizon}|{regime.ParameterSetId:D}|{regime.Version}";
+                var legacyId = new Guid(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(identity)).AsSpan(0, 16));
+                var legacy = MarketConditionAssessmentParameterSet.CreateDefault("ES.Standard", horizon, legacyId, regime.ParameterSetId, regime.Version);
+                published.Add(horizon, new(legacy, MarketConditionAssessmentHash.Parameters(legacy), at.AddDays(-1), ConfigurationParameterSetStatus.Published));
+            }
+        }
         configuration.GetEffectiveRegimeDiscoveryAsync(
                 Arg.Any<DateTime>(), Arg.Any<TimeFrameType>(), Arg.Any<CancellationToken>())
             .Returns(call => Task.FromResult<ResolvedRegimeDiscoveryParameterSet?>(Regime(call.ArgAt<TimeFrameType>(1), at)));
@@ -52,11 +65,11 @@ public sealed class MarketConditionAssessmentDefaultProvisionerTests
             .Returns(call =>
             {
                 var profile = drafts[call.ArgAt<Guid>(1)];
-                published.Add(profile.TargetHorizon, new(
+                published[profile.TargetHorizon] = new(
                     profile,
                     MarketConditionAssessmentHash.Parameters(profile),
                     at,
-                    ConfigurationParameterSetStatus.Published));
+                    ConfigurationParameterSetStatus.Published);
                 return Task.CompletedTask;
             });
 
@@ -65,7 +78,7 @@ public sealed class MarketConditionAssessmentDefaultProvisionerTests
         var first = await provisioner.EnsureAsync("ES.Standard", at, "test");
         var second = await provisioner.EnsureAsync("ES.Standard", at, "test");
 
-        first.Should().Be(new MarketConditionAssessmentDefaultProvisioningResult(0, 3, 0));
+        first.Should().Be(new MarketConditionAssessmentDefaultProvisioningResult(0, 3, hasLegacyDefaults ? 3 : 0));
         second.Should().Be(new MarketConditionAssessmentDefaultProvisioningResult(3, 0, 0));
         published.Keys.Should().BeEquivalentTo(Horizons);
         foreach (var horizon in Horizons)
@@ -73,6 +86,7 @@ public sealed class MarketConditionAssessmentDefaultProvisionerTests
             var expectedRegime = Regime(horizon, at).ParameterSet;
             published[horizon].ParameterSet.HorizonProfile.RegimeProfileId.Should().Be(expectedRegime.ParameterSetId);
             published[horizon].ParameterSet.HorizonProfile.RegimeProfileVersion.Should().Be(expectedRegime.Version);
+            published[horizon].ParameterSet.FutureClockSkewSeconds.Should().Be(5);
         }
         await configuration.Received(3).InsertMarketConditionAssessmentDraftAsync(
             Arg.Any<MarketConditionAssessmentParameterSet>(), Arg.Any<string>(), "test", Arg.Any<CancellationToken>());

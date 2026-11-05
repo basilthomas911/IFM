@@ -76,8 +76,11 @@ public class FuturesTdiSignalQueryActor(
     /// </summary>
     static readonly IReadOnlyDictionary<Type, Func<IQueryActorContext<FuturesTdiSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQueryActorContext<FuturesTdiSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>>()
     {
-        [typeof(GetFuturesTdiSignalQuery)] = static (ctx, db, q, cancellationToken) =>
-            ((GetFuturesTdiSignalQuery)q).ExecuteAsync(ctx, db, cancellationToken)
+        [typeof(GetFuturesTdiSignalQuery)] = static async (ctx, db, q, cancellationToken) =>
+        {
+            var result = await ((GetFuturesTdiSignalQuery)q).ExecuteAsync(ctx, db, cancellationToken).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTdiSignalQuery.Verb, result).ConfigureAwait(false);
+        }
     };
 
     /// <summary>

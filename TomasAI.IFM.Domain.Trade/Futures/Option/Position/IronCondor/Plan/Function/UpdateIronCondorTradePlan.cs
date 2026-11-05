@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.Actor;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.State;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -30,7 +30,7 @@ public static class UpdateIronCondorTradePlan
             ArgumentNullException.ThrowIfNull(state);
             cancellationToken.ThrowIfCancellationRequested();
             if (state.LatestSourceTradePlan is { } latest && (command.RequestedAtUtc < latest.CalculatedAtUtc || command.Position.RouteGeneration < latest.Position.RouteGeneration || command.Position.RouteGeneration == latest.Position.RouteGeneration && command.Position.PositionSequence < latest.Position.PositionSequence))
-                throw new InvalidOperationException("IronCondorTradePlan.OBSERVATION.SUPERSEDED: a newer source snapshot is already persisted.");
+                throw new SupersededIronCondorPlanObservationException();
             // Valuation uses current inputs; only the revision comes from the single latest source snapshot.
             var calculated = context.Algorithm.Calculate(command.Position, command.Parameters, null, command.EntityId.ValueDate, command.RequestedAtUtc).Snapshot with
             {
@@ -130,4 +130,10 @@ public static class UpdateIronCondorTradePlan
             Explanation = monitoring.ExitReason ?? string.Empty
         };
     }
+}
+
+internal sealed class SupersededIronCondorPlanObservationException()
+    : InvalidOperationException("IronCondorTradePlan.OBSERVATION.SUPERSEDED: a newer source snapshot is already persisted.")
+{
+    internal const string Reason = "IronCondorTradePlan.OBSERVATION.SUPERSEDED";
 }

@@ -13,6 +13,10 @@ public static class GetFuturesEodData
 
     extension(GetFuturesEodDataQuery q)
     {
+        /// <summary>Returns the typed query result from the projected read store.</summary>
+        internal async ValueTask<ServiceResult<FuturesEodDataV2ReadModel>> ReadAsync(IDbContextFactory databases)
+            => new(await q.ExecuteAsync(databases).ConfigureAwait(false));
+
         internal async ValueTask<FuturesEodDataV2ReadModel> ExecuteAsync(
         IDbContextFactory dbFactory)
         {

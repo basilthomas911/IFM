@@ -114,27 +114,27 @@ public sealed class DatasetWorkerAdmissionRegistry : IRealtimeSourceAdmission
 
     /// <summary>Latest option values are ordered per contract, so another active contract cannot fence catch-up.</summary>
     public bool TryAcceptOptionObservation(DatasetWorkerAdmission identity, string contract, long sequence,
-        DateTimeOffset observedAt, DateTimeOffset calculatedAt, out CancellationToken cancellation)
+        DateTimeOffset observedAt, DateTimeOffset calculatedAt, bool pricingUpdate, out CancellationToken cancellation)
     {
         cancellation = default;
         lock (gate)
         {
             if (sequence < 1 || string.IsNullOrWhiteSpace(contract) || !admissions.TryGetValue(identity.Dataset, out var current)
                 || current.Identity != identity) return Reject();
-            if (current.Options.TryGetValue(contract, out var old)
+            if (current.Options.TryGetValue((contract, pricingUpdate), out var old)
                 && (sequence <= old.Sequence || observedAt < old.ObservedAt
                     || observedAt == old.ObservedAt && calculatedAt < old.CalculatedAt)) return Reject();
-            if (!current.Options.ContainsKey(contract) && current.Options.Count >= 2048) return Reject();
+            if (!current.Options.ContainsKey((contract, pricingUpdate)) && current.Options.Count >= 4096) return Reject();
             cancellation = current.Stopping.Token;
             return true;
         }
     }
     public void RecordOptionObservation(DatasetWorkerAdmission identity, string contract, long sequence,
-        DateTimeOffset observedAt, DateTimeOffset calculatedAt)
+        DateTimeOffset observedAt, DateTimeOffset calculatedAt, bool pricingUpdate)
     {
         lock (gate)
             if (admissions.TryGetValue(identity.Dataset, out var current) && current.Identity == identity)
-                current.Options[contract] = (sequence, observedAt, calculatedAt);
+                current.Options[(contract, pricingUpdate)] = (sequence, observedAt, calculatedAt);
     }
 
     /// <summary>Holds an accepted generation while its actor handler runs; a hard reset drains this lease.</summary>
@@ -261,7 +261,7 @@ public sealed class DatasetWorkerAdmissionRegistry : IRealtimeSourceAdmission
 
     sealed class AdmissionState(DatasetWorkerAdmission identity)
     {
-        public Dictionary<string, (long Sequence, DateTimeOffset ObservedAt, DateTimeOffset CalculatedAt)> Options { get; } = new(StringComparer.Ordinal);
+        public Dictionary<(string Contract, bool PricingUpdate), (long Sequence, DateTimeOffset ObservedAt, DateTimeOffset CalculatedAt)> Options { get; } = [];
         public DatasetWorkerAdmission Identity { get; } = identity;
         public CancellationTokenSource Stopping { get; } = new();
         public long LastSequence;

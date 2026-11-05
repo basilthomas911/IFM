@@ -1,4 +1,6 @@
-﻿using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations;
+using TomasAI.IFM.Domain.MarketData.Feed.FeedSessionPreparation.Function.State;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Validation;
@@ -75,12 +77,7 @@ public class MarketDataFeedCommandActor(
     protected override ICommand ParseMessage(
         ICommandActorContext<MarketDataFeedCommandActor> context,
         IActorMessage message)
-    {
-        var command = ParseMappedCommand(context, message, _parseMap);
-        return command is StartMarketDataFeedCommand start
-            ? start.ResolveSession(context.Container.Resolve<IValueDateProvider>())
-            : command;
-    }
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
@@ -127,7 +124,7 @@ public class MarketDataFeedCommandActor(
         MarketDataFeedCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<MarketDataFeedCommandActor>,
         MarketDataFeedCommandState, ValueTask<ServiceResult<GuidResult>>>>()
         {
-            [typeof(StartMarketDataFeedCommand)] = (cmd, context, state) => ExecuteStartAsync((StartMarketDataFeedCommand)cmd, context, state),
+            [typeof(StartMarketDataFeedCommand)] = (cmd, context, state) => ValueTask.FromResult(((StartMarketDataFeedCommand)cmd).Execute(state)),
             [typeof(StopMarketDataFeedCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as StopMarketDataFeedCommand)!.Execute(state)),
             [typeof(ResetMarketDataFeedCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as ResetMarketDataFeedCommand)!.Execute(state)),
             [typeof(AddTradeLiveFeedCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as AddTradeLiveFeedCommand)!.Execute(state)),
@@ -137,16 +134,6 @@ public class MarketDataFeedCommandActor(
             [typeof(DeleteStreamingRequestIdCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as DeleteStreamingRequestIdCommand)!.Execute(state)),
             [typeof(HaltTradeLiveFeedCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as HaltTradeLiveFeedCommand)!.Execute(state))
         };
-
-    /// <summary>Loads the API-prepared assignments without discovering contracts in the caller.</summary>
-    internal static async ValueTask<ServiceResult<GuidResult>> ExecuteStartAsync(StartMarketDataFeedCommand start, ICommandActorContext<MarketDataFeedCommandActor> context, MarketDataFeedCommandState state)
-    {
-        var contracts = await context.Container.Resolve<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>()
-            .PrepareSessionAsync(start.ValueDate, CancellationToken.None).ConfigureAwait(false);
-        context.Logger.LogInformation("Starting Host-backed market session {ValueDate} with {ContractCount} prepared contracts; CommandId={CommandId}.",
-            start.ValueDate, contracts.Length, start.CommandId);
-        return start.Execute(state, contracts);
-    }
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -158,14 +145,28 @@ public class MarketDataFeedCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override async ValueTask OnValidateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand command)
+    protected override ValueTask OnValidateAsync(ICommandActorContext<MarketDataFeedCommandActor> context,
+        ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command, CancellationToken.None);
+
+    protected override async ValueTask OnValidateAsync(ICommandActorContext<MarketDataFeedCommandActor> context,
+        ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(command);
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(command);
-        _=command.GetType();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateMappedCommand(command, _validationMap);
+        if (command is StartMarketDataFeedCommand start)
+            await ValidatePreparationAsync(context, start, cancellationToken).ConfigureAwait(false);
+    }
+
+    static async ValueTask ValidatePreparationAsync(ICommandActorContext<MarketDataFeedCommandActor> context,
+        StartMarketDataFeedCommand start, CancellationToken cancellationToken)
+    {
+        var request = PrepareMarketDataFeedSessionCommand.ForOperation(start.CommandId);
+        var repository = context.Container.Resolve<IEventSourceFunctionStateRepository<
+            FeedSessionPreparationFunctionState, PrepareMarketDataFeedSessionCommand>>();
+        var preparation = await repository.LoadStateAsync(request, cancellationToken).ConfigureAwait(false);
+        start.ValidatePreparation(preparation.CompletedEvent);
     }
 
     /// <summary>

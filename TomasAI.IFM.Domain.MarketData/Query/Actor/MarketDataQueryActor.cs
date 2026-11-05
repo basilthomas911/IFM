@@ -84,26 +84,35 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         Func<IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>>
         {
-            [typeof(GetStrategyOptionChainParametersQuery)] = static (context, query, cancellationToken) => ((GetStrategyOptionChainParametersQuery)query).ExecuteAsync(context, cancellationToken),
+            [typeof(GetStrategyOptionChainParametersQuery)] = static (context, query, cancellationToken) => ReplyAsync(context, query, ((GetStrategyOptionChainParametersQuery)query).ExecuteAsync(context, cancellationToken), cancellationToken),
             [typeof(GetTradeStrategySymbolsQuery)] = static (context, query, cancellationToken) =>
-                ((GetTradeStrategySymbolsQuery)query).ExecuteAsync(context, cancellationToken),
+                ReplyAsync(context, query, ((GetTradeStrategySymbolsQuery)query).ExecuteAsync(context, cancellationToken), cancellationToken),
             [typeof(GetDatabentoOptionChainRangeQuery)] = static (context, query, cancellationToken) =>
-                ((GetDatabentoOptionChainRangeQuery)query).ExecuteAsync(context, cancellationToken),
+                ReplyAsync(context, query, ((GetDatabentoOptionChainRangeQuery)query).ExecuteAsync(context, cancellationToken), cancellationToken),
             [typeof(GetDatabentoOptionChainQuery)] = static (context, query, cancellationToken) =>
-                ((GetDatabentoOptionChainQuery)query).ExecuteAsync(context, cancellationToken),
+                ReplyAsync(context, query, ((GetDatabentoOptionChainQuery)query).ExecuteAsync(context, cancellationToken), cancellationToken),
             [typeof(GetEvaluatedOptionChainQuery)] = static (context, query, cancellationToken) =>
-                ((GetEvaluatedOptionChainQuery)query).ExecuteAsync(context, cancellationToken),
+                ReplyAsync(context, query, ((GetEvaluatedOptionChainQuery)query).ExecuteAsync(context, cancellationToken), cancellationToken),
             [typeof(GetLastRateOfReturnQuery)] = static (context, query, cancellationToken) =>
-                ((GetLastRateOfReturnQuery)query).ExecuteAsync(context, cancellationToken),
+                ReplyAsync(context, query, ((GetLastRateOfReturnQuery)query).ExecuteAsync(context, cancellationToken), cancellationToken),
             [typeof(GetTradingDaysQuery)] = static (context, query, cancellationToken) =>
-                ((GetTradingDaysQuery)query).ExecuteAsync(context, cancellationToken),
+                ReplyAsync(context, query, ((GetTradingDaysQuery)query).ExecuteAsync(context, cancellationToken), cancellationToken),
             [typeof(GetTradingDatesQuery)] = static (context, query, cancellationToken) =>
-                ((GetTradingDatesQuery)query).ExecuteAsync(context, cancellationToken),
+                ReplyAsync(context, query, ((GetTradingDatesQuery)query).ExecuteAsync(context, cancellationToken), cancellationToken),
             [typeof(GetValueDateQuery)] = static (context, query, cancellationToken) =>
-                ((GetValueDateQuery)query).ExecuteAsync(context, cancellationToken),
+                ReplyAsync(context, query, ((GetValueDateQuery)query).ExecuteAsync(context, cancellationToken), cancellationToken),
             [typeof(GetMarketSessionQuery)] = static (context, query, cancellationToken) =>
-                ((GetMarketSessionQuery)query).ExecuteAsync(context, cancellationToken)
+                ReplyAsync(context, query, ((GetMarketSessionQuery)query).ExecuteAsync(context, cancellationToken), cancellationToken)
         };
+
+    private static async ValueTask ReplyAsync<TResult>(IMarketDataQueryContext context, IQuery query,
+        ValueTask<ServiceResult<TResult>> pending, CancellationToken cancellationToken)
+    {
+        var result = await pending.ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Handles exceptions that occur during the processing of a query in the actor context.
     /// </summary>

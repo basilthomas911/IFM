@@ -40,7 +40,20 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
             RequireRevision(result?.WorkflowRevision, query.MinimumRevisions[index], id.ToString());
             results[index] = result ?? throw new KeyNotFoundException($"Workflow {id} was not found.");
         }).ConfigureAwait(false);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<IntrinsicTimeStrategyWorkflowReadModel[]>(results)).ConfigureAwait(false);
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, BoundWorkflowBatch(results)).ConfigureAwait(false);
+    }
+
+    internal static ServiceResult<IntrinsicTimeStrategyWorkflowReadModel[]> BoundWorkflowBatch(
+        IntrinsicTimeStrategyWorkflowReadModel[] results)
+    {
+        const int replyBudget = 1000 * 1024;
+        var reply = new ServiceResult<IntrinsicTimeStrategyWorkflowReadModel[]>(results);
+        if (MessagePackSerializer.Serialize(reply, TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Options).Length <= replyBudget)
+            return reply;
+        var message = results.Length > 1
+            ? "Workflow detail response is too large. Retry with fewer workflow IDs."
+            : "This workflow detail exceeds the transport limit. Request an individual workflow stage.";
+        return new ServiceFailed<IntrinsicTimeStrategyWorkflowReadModel[]>(413, message);
     }
 
     internal static async ValueTask ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, GetActiveIntrinsicTimeStrategyWorkflowQuery query, CancellationToken cancellationToken)
@@ -95,24 +108,51 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
 
     internal static async ValueTask ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, GetIntrinsicTimeStrategyWorkflowHistoryPageQuery query, CancellationToken cancellationToken)
     {
-        RequireHistoryPage(query);
-        var symbol = query.Symbol.Trim().ToUpperInvariant();
-        var frameStarts = ResolveHistoryBucketStarts(query.FromUtc, query.ToUtc, query.TimePeriod);
-        var history = new List<IntrinsicTimeStrategyWorkflowHistoryReadModel>();
-        foreach (var status in Enum.GetValues<StrategyWorkflowStatus>().Where(static status => status != StrategyWorkflowStatus.None))
-        {
-            for (var date = DateOnly.FromDateTime(query.FromUtc); date <= DateOnly.FromDateTime(query.ToUtc); date = date.AddDays(1))
-            {
-                var candidates = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowsByStatusAsync(status, date, date, 1000, cancellationToken).ConfigureAwait(false);
-                history.AddRange(candidates.Where(item => item.StartedAtUtc >= query.FromUtc && item.StartedAtUtc <= query.ToUtc && MatchesHistoryEntity(item.WorkflowEntityId, symbol, frameStarts, query.TimePeriod)));
-            }
-        }
-
-        var ordered = history.GroupBy(static item => item.WorkflowId).Select(static group => group.OrderByDescending(item => item.WorkflowRevision).First()).OrderByDescending(static item => item.StartedAtUtc).ThenByDescending(static item => item.WorkflowId.Value).ToArray();
+        RequireHistoryPage(query.Symbol, query.TimePeriod, query.FromUtc, query.ToUtc, query.PageNumber);
+        var ordered = await ReadHistoryAsync(services, query.Symbol, query.TimePeriod, query.FromUtc, query.ToUtc, cancellationToken).ConfigureAwait(false);
         var pageSize = RequirePageSize(query.PageSize);
         var offset = checked((query.PageNumber - 1) * pageSize);
         var page = new IntrinsicTimeStrategyWorkflowHistoryPageReadModel(ordered.Skip(offset).Take(pageSize).ToArray(), query.PageNumber, pageSize, ordered.Length);
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<IntrinsicTimeStrategyWorkflowHistoryPageReadModel>(page)).ConfigureAwait(false);
+    }
+
+    internal static async ValueTask ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, GetIntrinsicTimeStrategyUpdatesGridQuery query, CancellationToken cancellationToken)
+    {
+        RequireHistoryPage(query.Symbol, query.TimePeriod, query.FromUtc, query.ToUtc, query.PageNumber);
+        var ordered = await ReadHistoryAsync(services, query.Symbol, query.TimePeriod, query.FromUtc, query.ToUtc, cancellationToken).ConfigureAwait(false);
+        var pageSize = RequirePageSize(query.PageSize);
+        var offset = checked((query.PageNumber - 1) * pageSize);
+        var page = ordered.Skip(offset).Take(pageSize).ToArray();
+        var rows = new IntrinsicTimeStrategyUpdatesGridRow[page.Length];
+        await Parallel.ForEachAsync(Enumerable.Range(0, page.Length), new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = cancellationToken }, async (index, token) =>
+        {
+            var history = page[index];
+            var projection = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(history.WorkflowId, token).ConfigureAwait(false);
+            RequireRevision(projection?.WorkflowRevision, history.WorkflowRevision, history.WorkflowId.ToString());
+            var view = TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Deserialize<IntrinsicTimeStrategyWorkflowView>(projection!.StatePayload);
+            rows[index] = IntrinsicTimeStrategyUpdatesGridRow.FromView(view);
+        }).ConfigureAwait(false);
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<IntrinsicTimeStrategyUpdatesGridPage>(new IntrinsicTimeStrategyUpdatesGridPage(rows, query.PageNumber, pageSize, ordered.Length))).ConfigureAwait(false);
+    }
+
+    static async Task<IntrinsicTimeStrategyWorkflowHistoryReadModel[]> ReadHistoryAsync(
+        IIntrinsicTimeStrategyWorkflowQueryContext services, string requestedSymbol, TimeFrameType timePeriod,
+        DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken)
+    {
+        var symbol = requestedSymbol.Trim().ToUpperInvariant();
+        var frameStarts = ResolveHistoryBucketStarts(fromUtc, toUtc, timePeriod);
+        var history = new List<IntrinsicTimeStrategyWorkflowHistoryReadModel>();
+        foreach (var status in Enum.GetValues<StrategyWorkflowStatus>().Where(static status => status != StrategyWorkflowStatus.None))
+        {
+            for (var date = DateOnly.FromDateTime(fromUtc); date <= DateOnly.FromDateTime(toUtc); date = date.AddDays(1))
+            {
+                var candidates = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowsByStatusAsync(status, date, date, 1000, cancellationToken).ConfigureAwait(false);
+                history.AddRange(candidates.Where(item => item.StartedAtUtc >= fromUtc && item.StartedAtUtc <= toUtc && MatchesHistoryEntity(item.WorkflowEntityId, symbol, frameStarts, timePeriod)));
+            }
+        }
+
+        return history.GroupBy(static item => item.WorkflowId).Select(static group => group.OrderByDescending(item => item.WorkflowRevision).First()).OrderByDescending(static item => item.StartedAtUtc).ThenByDescending(static item => item.WorkflowId.Value).ToArray();
     }
 
     internal static async ValueTask ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, GetCompletedIntrinsicTimeStrategyWorkflowsQuery query, CancellationToken cancellationToken)
@@ -133,18 +173,17 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<IntrinsicTimeStrategyWorkflowObservationReadModel>(result)).ConfigureAwait(false);
     }
 
-    static void RequireHistoryPage(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery query)
+    static void RequireHistoryPage(string symbol, TimeFrameType timePeriod, DateTime fromUtc, DateTime toUtc, int pageNumber)
     {
-        if (string.IsNullOrWhiteSpace(query.Symbol)) throw new ArgumentException("Symbol is required.", nameof(query));
-        if (query.TimePeriod is not (TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly))
-            throw new ArgumentOutOfRangeException(nameof(query));
-        if (query.FromUtc.Kind != DateTimeKind.Utc || query.ToUtc.Kind != DateTimeKind.Utc)
-            throw new ArgumentException("Workflow history bounds must be UTC.",nameof(query));
-        if (query.ToUtc < query.FromUtc)
-            throw new ArgumentOutOfRangeException(nameof(query));
-        if (query.PageNumber < 1)
-            throw new ArgumentOutOfRangeException(nameof(query));
-        RequirePageSize(query.PageSize);
+        if (string.IsNullOrWhiteSpace(symbol)) throw new ArgumentException("Symbol is required.", nameof(symbol));
+        if (timePeriod is not (TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly))
+            throw new ArgumentOutOfRangeException(nameof(symbol));
+        if (fromUtc.Kind != DateTimeKind.Utc || toUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("Workflow history bounds must be UTC.",nameof(symbol));
+        if (toUtc < fromUtc)
+            throw new ArgumentOutOfRangeException(nameof(symbol));
+        if (pageNumber < 1)
+            throw new ArgumentOutOfRangeException(nameof(symbol));
     }
 
     internal static bool MatchesHistoryEntity(string workflowEntityId, string symbol, IReadOnlyCollection<DateOnly> frameStarts, TimeFrameType timePeriod)

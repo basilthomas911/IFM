@@ -73,6 +73,16 @@ public sealed class FourHourDatabentoSeedReplayTests
         f.Feeds.DidNotReceive().CreateTickerFeed(Arg.Any<DatabentoFeedOptions>());
     }
 
+    [Fact]
+    public async Task Four_hour_recovery_refuses_any_paid_historical_request()
+    {
+        var fixture = Fixture(new(2026, 10, 25, 22, 0, 0, TimeSpan.Zero));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Replay.ReadAsync("ES-SEED", TimeFrameType.FourHours, default));
+
+        await fixture.Provider.DidNotReceive().OpenRangeAsync(
+            Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
     static (FourHourDatabentoSeedReplay Replay, IDatabentoFeedFactory Feeds,
         IMarketDataHistoricalProvider Provider, List<HistoricalProviderRequest> Requests) Fixture(
         DateTimeOffset now, bool omitMinute = false)

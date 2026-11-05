@@ -26,8 +26,8 @@ public static class GetFuturesAtrSignal
             => await dbFactory.MarketDataDb.GetLastFuturesAtrSignalAsync(
                     q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
 
-        /// <summary>Reads and replies to the GetFuturesAtrSignalQuery message.</summary>
-        public async ValueTask ExecuteAsync(
+        /// <summary>Reads the GetFuturesAtrSignalQuery message.</summary>
+        public async ValueTask<ServiceResult<FuturesAtrSignalReadModel?>> ExecuteAsync(
             IQueryActorContext<FuturesAtrSignalQueryActor> ctx,
             IDbContextFactory dbFactory,
             CancellationToken cancellationToken)
@@ -39,7 +39,7 @@ public static class GetFuturesAtrSignal
             var queryResult = await query.GetLastFuturesAtrSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             var serviceResult = new ServiceResult<FuturesAtrSignalReadModel?>(queryResult);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesAtrSignalQuery.Verb, serviceResult).ConfigureAwait(false);
+            return serviceResult;
         }
     }
 }

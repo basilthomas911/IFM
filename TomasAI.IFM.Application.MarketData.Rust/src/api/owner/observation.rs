@@ -318,10 +318,12 @@ impl MarketData {
         // Resource proof belongs to the native supervisor, independently of
         // whether current financial inputs produce an executable candidate.
         // Loaded-trade risk/plan checks remain at the application boundary.
-        let resources_ready = self.has_desired(Lane::OptionsGlbx) && self.health(Lane::OptionsGlbx).resources_ready();
+        let resources_ready = self.has_desired(Lane::OptionsGlbx)
+            && options.is_some()
+            && self.health(Lane::OptionsGlbx).resources_ready();
         let mut owned_scopes = scopes
             .iter()
-            .map(|(id, _)| (id.clone(), resources_ready && options.is_some()))
+            .map(|(id, _)| (id.clone(), resources_ready))
             .collect::<std::collections::BTreeMap<_, _>>();
         if let Some(intent) = self.options.control.intent()
             && let Some(background) = &intent.background
@@ -329,12 +331,12 @@ impl MarketData {
             for demand in background.scope_demands()? {
                 owned_scopes
                     .entry(demand.scope)
-                    .or_insert(resources_ready && options.is_some());
+                    .or_insert(resources_ready);
             }
             for monitor in background.monitors() {
                 owned_scopes
                     .entry(monitor.scope)
-                    .or_insert(resources_ready && options.is_some());
+                    .or_insert(resources_ready);
             }
         }
         if let Some(view) = options

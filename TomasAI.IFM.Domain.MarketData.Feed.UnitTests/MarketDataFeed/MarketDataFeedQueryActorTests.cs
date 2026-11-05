@@ -73,7 +73,6 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var context = Substitute.For<IMarketDataFeedQueryContext>();
         context.MarketDataApi.Returns(marketDataApi);
         context.DbFactory.Returns(Substitute.For<IDbContextFactory>());
-        context.SequenceIdGenerator.Returns(Substitute.For<ISequenceIdApi>());
         context.Logger.Returns(Substitute.For<ILogger<MarketDataFeedQueryActor>>());
         context.ActorId.Returns(new ActorMailboxId(ActorType.Query, MarketDataFeedQueryActor.ActorName));
         var actor = new TestableMarketDataFeedQueryActor(context);
@@ -113,7 +112,6 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var context = Substitute.For<IMarketDataFeedQueryContext>();
         context.MarketDataApi.Returns(lifecycle);
         context.DbFactory.Returns(Substitute.For<IDbContextFactory>());
-        context.SequenceIdGenerator.Returns(Substitute.For<ISequenceIdApi>());
         context.MarketDataLifecycle.Returns(lifecycle);
         context.MarketDataServiceStore.Returns(store);
         context.Logger.Returns(Substitute.For<ILogger<MarketDataFeedQueryActor>>());

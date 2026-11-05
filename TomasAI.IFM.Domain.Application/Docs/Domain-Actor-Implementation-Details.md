@@ -34,11 +34,13 @@ obj/Debug/net10.0/refint/
 
 `ApplicationCommandActor` owns the `ApplicationCommand` mailbox. On startup it resolves its state repository. For each message it validates the actor type, actor name, and command verb; deserializes the payload; records the command in event-source storage; validates the command identifier; loads state; invokes the appropriate handler; saves state and publishes resulting events; and converts failures into command exception events.
 
-The state accepts `ApplicationStartupEvent` and `ApplicationShutdownEvent`. The repository restores from an application-startup snapshot and posts both lifecycle event types through the actor service after persistence.
+Each `ApplicationStartupEvent` and `ApplicationShutdownEvent` contains the full latest accepted lifecycle request. The repository restores the creation event and the newest request snapshot through one event-store query, along with the committed stream version. The command-owned projector submits lifecycle events after persistence.
 
 ## Event actor behavior
 
-`ApplicationEventActor` owns the `ApplicationEvent` mailbox and accepts startup and shutdown lifecycle events. These events are broadcast notifications whose side effects belong to registered external event listeners, so the domain event actor validates and acknowledges them without introducing another state store or synchronization boundary.
+`ApplicationEventActor` owns the `ApplicationEvent` mailbox and accepts startup and shutdown lifecycle events. Startup runs host activities and publishes Complete, Degraded, or Fail. A shutdown request publishes Fail because this host does not implement command-driven shutdown. In the API host, lifecycle dispatch is transient. Replaying an old lifecycle request could rerun host side effects in a new boot.
+
+`ApplicationQueryActor` replies with the runtime startup observation returned by its query handler. This status store is scoped to the current process, and the persisted command snapshot records accepted intent separately.
 
 ## Extension points
 

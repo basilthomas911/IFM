@@ -8,7 +8,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Application.Identity;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.Query.Api;
@@ -32,29 +31,6 @@ public class ActorMarketDataFeedQueryApiTests
         result.Should().BeSameAs(expected);
         result.IsValid.Should().BeTrue();
         marketDataApi.Received(1).GetRuntimeStatus();
-    }
-
-    [Fact]
-    public async Task StreamingRequestIdentifierUsesTheSystemSequenceGenerator()
-    {
-        const SequenceName sequenceName = SequenceName.StreamingRequest_RequestId;
-        const long sequenceId = 701;
-        var dbFactory = Substitute.For<IDbContextFactory>();
-        var generator = Substitute.For<ISequenceIdApi>();
-        generator
-            .GetSequenceIdAsync(sequenceName, Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<long>(sequenceId));
-        var api = Substitute.For<IMarketDataFeedQueryContext>();
-        api.DbFactory.Returns(dbFactory);
-        api.MarketDataApi.Returns(Substitute.For<ApplicationMarketDataApi>());
-        api.SequenceIdGenerator.Returns(generator);
-
-        var result = await api.GetStreamingRequestIdAsync();
-
-        result.Success.Should().BeTrue();
-        result.Value!.Value.Should().Be((int)sequenceId);
-        await generator.Received(1)
-            .GetSequenceIdAsync(sequenceName, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -98,7 +74,6 @@ public class ActorMarketDataFeedQueryApiTests
         var api = Substitute.For<IMarketDataFeedQueryContext>();
         api.DbFactory.Returns(dbFactory);
         api.MarketDataApi.Returns(marketDataApi);
-        api.SequenceIdGenerator.Returns(Substitute.For<ISequenceIdApi>());
 
         var result = await api.GetFuturesOptionContractAsync("ES-OPTION", queryForContract);
 
@@ -113,11 +88,9 @@ public class ActorMarketDataFeedQueryApiTests
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
         var marketDataApi = Substitute.For<ApplicationMarketDataApi>();
-        var sequenceIdGenerator = Substitute.For<ISequenceIdApi>();
         var context = Substitute.For<IMarketDataFeedQueryContext>();
         context.DbFactory.Returns(dbFactory);
         context.MarketDataApi.Returns(marketDataApi);
-        context.SequenceIdGenerator.Returns(sequenceIdGenerator);
         return (context, db);
     }
 }

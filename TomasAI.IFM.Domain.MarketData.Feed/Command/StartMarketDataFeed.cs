@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -21,25 +22,21 @@ public static class StartMarketDataFeed
     /// </param>
     extension(StartMarketDataFeedCommand command)
     {
-        /// <summary>Captures the API value-date provider once, before validation and event persistence.
-        /// The captured date is passed unchanged to preparation and the backend; no feed clock derives it.</summary>
-        public StartMarketDataFeedCommand ResolveSession(IValueDateProvider valueDates)
+        /// <summary>Rejects unprepared or altered session commands before state is loaded.</summary>
+        public void ValidatePreparation(FeedSessionPreparationCompletedEvent? prepared)
         {
-            ArgumentNullException.ThrowIfNull(command);
-            ArgumentNullException.ThrowIfNull(valueDates);
-            // The API resolves a fresh opening boundary before any event or backend
-            // preparation. Custom/backtest providers retain complete date authority.
-            var valueDate = valueDates is IMarketOpenValueDateInitializer opening
-                ? opening.InitializeMarketOpen() : valueDates.ValueDate;
-            if (valueDate == default)
-                throw new InvalidOperationException("The API value-date provider has not been initialized.");
-            var id = new MarketDataFeedId(valueDate);
-            return command with
-            {
-                EntityId = id,
-                Subject = new ActorSubject(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, id.Format())
-            };
+            if (prepared is null || prepared.CommandId != command.CommandId
+                || prepared.ValueDate != command.ValueDate
+                || command.Subject != new ActorSubject(ActorType.Command, StartMarketDataFeedCommand.Actor,
+                    StartMarketDataFeedCommand.Verb, command.EntityId.Format())
+                || command.PreparedContracts is not { Length: > 0 } contracts
+                || !prepared.Contracts.SequenceEqual(contracts))
+                throw new InvalidOperationException("Feed start requires matching committed session preparation.");
         }
+
+        /// <summary>Applies the prepared start without consulting the backend.</summary>
+        public ServiceResult<GuidResult> Execute(MarketDataFeedCommandState state) =>
+            command.Execute(state, command.PreparedContracts ?? []);
 
         /// <summary>Computes the requested business change and applies its event only after acceptance guards pass.</summary>
         ///

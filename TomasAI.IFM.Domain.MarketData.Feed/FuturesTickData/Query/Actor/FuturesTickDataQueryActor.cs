@@ -71,17 +71,13 @@ public class FuturesTickDataQueryActor(IQueryActorContext<FuturesTickDataQueryAc
     {
         [typeof(GetLastFuturesTickDataQuery)] = async (ctx, q) =>
         {
-            var query = (q as GetLastFuturesTickDataQuery)!;
-            var result = await (query.ExecuteAsync(ctx.DbFactory)).ConfigureAwait(false);
-            await (ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataQuery.Verb,
-                new ServiceResult<FuturesTickDataV2ReadModel?>(result))).ConfigureAwait(false);
+            var result = await ((GetLastFuturesTickDataQuery)q).ReadAsync(ctx.DbFactory).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataQuery.Verb, result).ConfigureAwait(false);
         },
         [typeof(GetLastFuturesTickDataByTickDateQuery)] = async (ctx, q) =>
         {
-            var query = (q as GetLastFuturesTickDataByTickDateQuery)!;
-            var result = await (query.ExecuteAsync(ctx.DbFactory)).ConfigureAwait(false);
-            await (ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataByTickDateQuery.Verb,
-                new ServiceResult<FuturesTickDataV2ReadModel?>(result))).ConfigureAwait(false);
+            var result = await ((GetLastFuturesTickDataByTickDateQuery)q).ReadAsync(ctx.DbFactory).ConfigureAwait(false);
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataByTickDateQuery.Verb, result).ConfigureAwait(false);
         }
     };
 

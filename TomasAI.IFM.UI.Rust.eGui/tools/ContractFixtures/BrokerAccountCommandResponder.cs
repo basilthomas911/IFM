@@ -27,7 +27,12 @@ internal static class BrokerAccountCommandResponder {
   if(Get("ManifestHash") is string hash&&hash!=new string('a',64)||Get("AuthorizedBy") is string reviewer&&reviewer!="Reviewer"||Get("Reason") is string reason&&reason!="Offline qualification"||Get("EvidenceReference") is string reference&&reference!="offline://report"||Get("ApprovalId") is Guid approval&&approval==Guid.Empty)throw new InvalidDataException("Qualification command input differs");
   if(mode=="Reject")return MessagePackSerializer.Serialize(new ServiceResult<GuidResult>{Success=false,ErrorCode=25104,ErrorMessage="Fixture qualification rejection"},options);
   if(mode=="LostAck"){pending=command.CommandId;return null;}
-  if(mode=="EventBeforeAck"){await Event(command.CommandId);return null;}
+  if(mode=="EventBeforeAck"){
+   var completion=new ActorSubject(ActorType.Event,BrokerAccountActorNames.Outcome,"ManualTradingHoldSetComplete",command.EntityId.Format());
+   var receipt=new ManualTradingHoldSetCompleteEvent{Subject=completion,Id=Guid.NewGuid(),CommandId=command.CommandId,EventId=17,EntityId=command.EntityId};
+   await connection.PublishAsync(completion.ToString(),MessagePackSerializer.Serialize(receipt,options),cancellationToken:token);
+   return null;
+  }
   if(mode=="WrongEvent"){await Event(Guid.NewGuid());return null;}
   return Result(new GuidResult(mode=="WrongReceipt"?Guid.NewGuid():command.CommandId));
  }

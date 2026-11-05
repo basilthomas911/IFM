@@ -17,10 +17,11 @@ public sealed class IntrinsicTimeStrategyWorkflowOptions : TomasAI.IFM.Domain.Tr
     /// <summary>Gets or sets whether live ITI triggers may start workflow executions.</summary>
     public bool Enabled { get; set; }
     /// <summary>
-    /// Gets or sets whether every required Regime Discovery signal must pass an atomic snapshot preflight before a
-    /// live ITI trigger can start a workflow.
+    /// Gets or sets whether live ITI admission waits for the host's indicator restoration.
     /// </summary>
     public bool RequireWarmRegimeDiscoverySignals { get; set; } = true;
+    /// <summary>The host's session warm-up gate, when it owns stored indicator restoration.</summary>
+    public StrategyIndicatorWarmup? IndicatorWarmup { get; init; }
     /// <summary>Market profile shared across strategy families, resolved for the triggering timeframe.</summary>
     public string MarketConditionAssessmentProfileId { get; set; } = "ES.Standard";
     /// <summary>

@@ -18,8 +18,8 @@ if ($existing.Count -gt 0) {
 }
 
 if (-not $NoBuild) {
-    & (Join-Path $repositoryRoot 'scripts/Build/Publish-MarketDataHost.ps1') -Configuration $Configuration
-    if ($LASTEXITCODE -ne 0) { throw 'Market Data Host publish failed.' }
+    & (Join-Path $repositoryRoot 'TomasAI.IFM.Application.MarketData.Rust/scripts/Build-NativeHost.ps1') -Configuration $Configuration
+    if ($LASTEXITCODE -ne 0) { throw 'Rust Market Data Host publish failed.' }
     $projects = @(
         "TomasAI.IFM.Application.Api.Server\TomasAI.IFM.Application.Api.Server.csproj",
         "TomasAI.IFM.UI.Net\TomasAI.IFM.UI.Net.csproj",
@@ -42,6 +42,13 @@ $managerPath = Join-Path $repositoryRoot `
     "TomasAI.IFM.Application.ServerManager\bin\Debug\net10.0-windows7.0\IFMServerManager.exe"
 if (-not (Test-Path -LiteralPath $managerPath)) {
     throw "Development Server Manager was not found at '$managerPath'. Build without -NoBuild first."
+}
+
+$rustHostDirectory = Join-Path $repositoryRoot ".artifacts/rust-marketdata-package/$Configuration"
+foreach ($artifact in @('TomasAI.IFM.Application.MarketData.Host.exe', 'ifm_market_data_native.dll', 'native-package.json')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $rustHostDirectory $artifact) -PathType Leaf)) {
+        throw "Rust Market Data Host artifact '$artifact' is missing from '$rustHostDirectory'. Build without -NoBuild first."
+    }
 }
 
 # Run the AWS cutover controller outside Server Manager's application job so it can

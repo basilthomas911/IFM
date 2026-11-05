@@ -64,6 +64,25 @@ public sealed class OrderCompositionDiscoveryTests
     }
 
     [Fact]
+    public async Task Discovery_deadline_preserves_the_underlying_quote_rejection()
+    {
+        var contract = Contract();
+        var mappings = Substitute.For<IOptionPricingConventionStore>();
+        mappings.GetAsync(contract.ContractId, contract.MappingVersion, Arg.Any<CancellationToken>()).Returns(contract);
+        var market = Substitute.For<ICompositionMarketDataApi>();
+        var clock = new Clock(At);
+        var failure = new OptionPricingFailure("UnderlyingQuoteUnavailable", "Underlying", "ES-future", "Underlying quote exceeds the source clock limit.");
+        market.AcquireAsync("GLBX.MDP3", Arg.Any<WorkerOptionChainRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new WorkerOptionChainResult(false, failure));
+        await using var discovery = new QualifiedCompositionDiscovery(new(mappings),
+            new OptionPricingContextProvider(new(new CurveSource(Curve()), clock)), market, clock);
+
+        var result = await discovery.AcquireAsync(Request(contract) with { DeadlineUtc = At.AddMilliseconds(500) }, default);
+
+        Assert.Null(result.Lease);
+        Assert.Equal(failure, result.Failure);
+    }
+    [Fact]
     public async Task Registered_context_refresh_uses_expected_batch_and_stops_after_lease_expiry()
     {
         var c = Contract(); var mappings = Substitute.For<IOptionPricingConventionStore>();

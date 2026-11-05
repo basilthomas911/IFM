@@ -16,7 +16,8 @@ public static class FailIronCondorTradePlan
             ArgumentNullException.ThrowIfNull(input);
             var command = input.Request;
             var now = clock.GetUtcNow().UtcDateTime;
-            var reason = input.IsConflict ? "PLAN.COMMAND.CONFLICT" : $"PLAN.{input.Stage.ToString().ToUpperInvariant()}.FAILED";
+            var reason = input.IsConflict ? "PLAN.COMMAND.CONFLICT" :
+                input.Exception is SupersededIronCondorPlanObservationException ? SupersededIronCondorPlanObservationException.Reason : $"PLAN.{input.Stage.ToString().ToUpperInvariant()}.FAILED";
             var failed = new TradePlanFailedEvent<IronCondorTradePlanId>
             {
                 Subject = command?.Subject ?? ActorSubject.Unknown,

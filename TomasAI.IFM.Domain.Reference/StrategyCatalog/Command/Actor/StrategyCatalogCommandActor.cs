@@ -14,7 +14,8 @@ public sealed class StrategyCatalogCommandActor(ICommandActorContext<StrategyCat
     : BaseEventSourceCommandActor<StrategyCatalogCommandActor>(context, logger)
 {
     public const string ActorName = StrategyCatalogLifecycleCommand.Actor;
-    IEventProjector<StrategyCatalogCommandActor> Projector => Context.Container.Resolve<IEventProjector<StrategyCatalogCommandActor>>();
+    IEventProjector<StrategyCatalogCommandActor>? projector;
+    IEventProjector<StrategyCatalogCommandActor> Projector => projector ??= Context.Container.Resolve<IEventProjector<StrategyCatalogCommandActor>>();
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)

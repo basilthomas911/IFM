@@ -11,14 +11,13 @@ public static class GetBrokerAccount
     extension(GetBrokerAccountQuery query)
     {
         /// <summary>Returns the current immutable account state when available.</summary>
-        public async ValueTask ExecuteAsync(IBrokerAccountQueryContext context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<BrokerAccountDefinition?>> ExecuteAsync(IBrokerAccountQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             cancellationToken.ThrowIfCancellationRequested();
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-                new ServiceResult<BrokerAccountDefinition?>(await context.Store.GetAsync(query.BrokerAccountId, cancellationToken).ConfigureAwait(false)))
-                .ConfigureAwait(false);
+            return new ServiceResult<BrokerAccountDefinition?>(
+                await context.Store.GetAsync(query.BrokerAccountId, cancellationToken).ConfigureAwait(false));
         }
     }
 }

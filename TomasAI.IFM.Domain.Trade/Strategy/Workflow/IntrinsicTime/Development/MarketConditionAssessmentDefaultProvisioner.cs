@@ -14,6 +14,8 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 /// </summary>
 public sealed class MarketConditionAssessmentDefaultProvisioner(IConfigurationDbContext configurationDb)
 {
+    const int CurrentDefaultRevision = 2;
+    const int DevelopmentClockSkewSeconds = 5;
     static readonly TimeFrameType[] Horizons = [TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly];
     /// <summary>Ensures one effective assessment profile for every supported strategy horizon.</summary>
     public async Task<MarketConditionAssessmentDefaultProvisioningResult> EnsureAsync(string marketProfileId, DateTime effectiveAtUtc, string createdBy, CancellationToken cancellationToken = default)
@@ -30,7 +32,8 @@ public sealed class MarketConditionAssessmentDefaultProvisioner(IConfigurationDb
             cancellationToken.ThrowIfCancellationRequested();
             var regime = await configurationDb.GetEffectiveRegimeDiscoveryAsync(effectiveAtUtc, horizon, cancellationToken).ConfigureAwait(false) ?? throw new InvalidOperationException($"Cannot provision Market Condition Assessment default '{marketProfileId}' for {horizon}: " + "no effective Regime Discovery parameters exist for that horizon.");
             var current = await configurationDb.GetEffectiveMarketConditionAssessmentAsync(effectiveAtUtc, marketProfileId, "ES", horizon, cancellationToken).ConfigureAwait(false);
-            if (current is not null && HasBinding(current.ParameterSet, regime))
+            if (current is not null && HasBinding(current.ParameterSet, regime)
+                && (!IsProvisionedDefault(current.ParameterSet) || IsCurrentDefault(current.ParameterSet)))
             {
                 existing++;
                 continue;
@@ -38,7 +41,8 @@ public sealed class MarketConditionAssessmentDefaultProvisioner(IConfigurationDb
 
             if (current is not null && !IsProvisionedDefault(current.ParameterSet))
                 throw new InvalidOperationException($"Published Market Condition Assessment profile '{marketProfileId}' for {horizon} is bound to " + $"Regime Discovery {current.ParameterSet.HorizonProfile.RegimeProfileId}/v" + $"{current.ParameterSet.HorizonProfile.RegimeProfileVersion}, while the effective version is " + $"{regime.ParameterSet.ParameterSetId}/v{regime.ParameterSet.Version}. " + "The incompatible profile was authored outside Development default provisioning and was not overwritten.");
-            var parameterSet = MarketConditionAssessmentParameterSet.CreateDefault(marketProfileId, horizon, DefaultId(marketProfileId, horizon, regime.ParameterSet.ParameterSetId, regime.ParameterSet.Version), regime.ParameterSet.ParameterSetId, regime.ParameterSet.Version);
+            var parameterSet = MarketConditionAssessmentParameterSet.CreateDefault(marketProfileId, horizon, DefaultId(marketProfileId, horizon, regime.ParameterSet.ParameterSetId, regime.ParameterSet.Version, CurrentDefaultRevision), regime.ParameterSet.ParameterSetId, regime.ParameterSet.Version)
+                with { FutureClockSkewSeconds = DevelopmentClockSkewSeconds };
             var exact = await configurationDb.GetMarketConditionAssessmentAsync(parameterSet.ParameterSetId, parameterSet.Version, cancellationToken).ConfigureAwait(false);
             if (exact is null)
             {
@@ -66,10 +70,18 @@ public sealed class MarketConditionAssessmentDefaultProvisioner(IConfigurationDb
     }
 
     static bool HasBinding(MarketConditionAssessmentParameterSet assessment, ResolvedRegimeDiscoveryParameterSet regime) => assessment.HorizonProfile.RegimeProfileId == regime.ParameterSet.ParameterSetId && assessment.HorizonProfile.RegimeProfileVersion == regime.ParameterSet.Version;
-    static bool IsProvisionedDefault(MarketConditionAssessmentParameterSet assessment) => assessment.ParameterSetId == DefaultId(assessment.MarketProfileId, assessment.TargetHorizon, assessment.HorizonProfile.RegimeProfileId, assessment.HorizonProfile.RegimeProfileVersion);
-    static Guid DefaultId(string marketProfileId, TimeFrameType horizon, Guid regimeId, int regimeVersion)
+    static bool IsProvisionedDefault(MarketConditionAssessmentParameterSet assessment)
+        => IsCurrentDefault(assessment) || assessment.ParameterSetId == DefaultId(
+            assessment.MarketProfileId, assessment.TargetHorizon, assessment.HorizonProfile.RegimeProfileId,
+            assessment.HorizonProfile.RegimeProfileVersion, 1);
+
+    static bool IsCurrentDefault(MarketConditionAssessmentParameterSet assessment)
+        => assessment.ParameterSetId == DefaultId(assessment.MarketProfileId, assessment.TargetHorizon,
+            assessment.HorizonProfile.RegimeProfileId, assessment.HorizonProfile.RegimeProfileVersion, CurrentDefaultRevision);
+
+    static Guid DefaultId(string marketProfileId, TimeFrameType horizon, Guid regimeId, int regimeVersion, int revision)
     {
-        var key = $"IFM.Development.MarketConditionAssessment.v1|{marketProfileId}|ES|{horizon}|{regimeId:D}|{regimeVersion}";
+        var key = $"IFM.Development.MarketConditionAssessment.v{revision}|{marketProfileId}|ES|{horizon}|{regimeId:D}|{regimeVersion}";
         return new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(key)).AsSpan(0, 16));
     }
 }

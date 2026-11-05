@@ -16,7 +16,16 @@ public sealed class BrokerAccountCommandState : BaseEventSourceActorState<Broker
     protected override bool Apply(IEvent domainEvent) => ApplyCheckpointEvent(domainEvent, false);
 
     internal bool ApplyCheckpointEvent(IEvent domainEvent, bool checkpoint) =>
-        domainEvent is BrokerAccountChangedEvent changed && ApplyAccountChange(changed, checkpoint);
+        domainEvent switch
+        {
+            BrokerAccountOperationDecidedEvent decision => OwnsAccount(decision.EntityId),
+            BrokerAccountResynchronizationRequestedEvent request => OwnsAccount(request.EntityId),
+            BrokerAccountChangedEvent changed => ApplyAccountChange(changed, checkpoint),
+            _ => false
+        };
+
+    private bool OwnsAccount(BrokerAccountId accountId) => accountId.IsValid &&
+        (BrokerAccountDefinition is null || BrokerAccountDefinition.Id == accountId);
 
     /// <summary>Applies an account event only when its identity and next revision are valid.</summary>
     private bool ApplyAccountChange(BrokerAccountChangedEvent changed, bool checkpoint)

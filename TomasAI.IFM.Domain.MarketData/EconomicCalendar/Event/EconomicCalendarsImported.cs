@@ -1,4 +1,6 @@
-﻿using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Domain.MarketData.Shared.Commands;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using System.Diagnostics;
 using TomasAI.IFM.Domain.MarketData.DownloadLog;
@@ -64,17 +66,25 @@ public static class EconomicCalendarsImported
                     persisted = records.LongLength;
                     var accepted = (EconomicCalendarsImportedCompleteEvent)@event.ToCompleteEvent<EconomicCalendarsImportedCompleteEvent, EconomicCalendarId>(records);
                     accepted = accepted with { Id = terminalId, DownloadOutcome = CreateOutcome(@event, started, terminalId, stopwatch, downloaded, persisted, MarketDataDownloadStatus.Completed, null) };
-                    var transactions = context.Container.Resolve<IPostgresEventTransaction>();
                     try
                     {
-                        await PersistAcceptedAsync(@event, transactions, acceptedStream, accepted, records).ConfigureAwait(false);
+                        var result = await context.RequestAsync<ApplyEconomicCalendarsImportCommand, EconomicCalendarId>(new ApplyEconomicCalendarsImportCommand
+                        {
+                            CommandId = accepted.Id,
+                            EntityId = accepted.EntityId,
+                            Accepted = accepted,
+                            Subject = new(ActorType.Command, ImportEconomicCalendarsCommand.Actor, ApplyEconomicCalendarsImportCommand.Verb, accepted.EntityId.Format())
+                        }).ConfigureAwait(false);
+                        if (!result.Success)
+                            throw new InvalidOperationException(result.ErrorMessage);
                     }
                     catch
                     {
                         persisted = null; // A commit-transport failure can leave the atomic commit outcome uncertain.
                         throw;
                     }
-                    complete = accepted;
+                    complete = await AcceptedImportSnapshot.LoadAsync<EconomicCalendarsImportedCompleteEvent>(dbFactory, acceptedStream).ConfigureAwait(false)
+                        ?? accepted;
                     stopwatch.Stop();
 
                 }
@@ -115,19 +125,6 @@ public static class EconomicCalendarsImported
             ErrorCode = error is null ? null : "ImportProcessingFailed",
             ErrorMessage = error is null ? null : "Provider acquisition, response validation or data persistence failed. See the correlated import diagnostics."
         };
-
-    /// <summary>Appends the accepted import and its complete mapped projection together in the shared PostgreSQL transaction.</summary>
-    static async Task PersistAcceptedAsync(EconomicCalendarsImportedEvent @event, IPostgresEventTransaction transactions,
-        string acceptedStream, EconomicCalendarsImportedCompleteEvent accepted, EconomicCalendarReadModel[] records)
-    {
-        await transactions.ExecuteAsync(async (transaction, token) =>
-                    {
-                        await transaction.AppendAsync(acceptedStream,
-                            @event.CommandId, accepted, 0, token).ConfigureAwait(false);
-                        await MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction, records, @event.DuplicatePolicy, @event.CommandId, token).ConfigureAwait(false);
-                        return true;
-                    }).ConfigureAwait(false);
-    }
 
     /// <summary>Checks that the accepted facts and their projection use the same PostgreSQL security and database identity before counting any persisted rows.</summary>
     static void ValidateDatabaseIdentity(IDbContextFactory dbFactory)

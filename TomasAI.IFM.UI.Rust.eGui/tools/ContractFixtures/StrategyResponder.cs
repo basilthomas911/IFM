@@ -30,19 +30,47 @@ internal sealed class StrategyResponder {
      await connection.PublishAsync(route.ToString(),MessagePackSerializer.Serialize(new IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent{Subject=route,State=sent,WorkflowId=sent.WorkflowId,WorkflowRevision=sent.WorkflowRevision,EntityId=sent.EntityId},options),cancellationToken:token);
     }return Result(true);
    }
-   if(verb=="GetFuturesItiSignalHistory") {var q=MessagePackSerializer.Deserialize<GetFuturesItiSignalHistoryQuery>(bytes,options);if(q.Subject.ToString()!=subject||q.Symbol!="ES"||q.ValueDate!=new DateOnly(2026,10,26)||q.EntityId.Format()!=$"ES.2026-10-26.{q.TimePeriod}")throw new InvalidDataException("Incorrect ITI history scope");return Result(q.TimePeriod==TimeFrameType.Daily?new[]{StrategyFixtures.Signal}:[]);}
-   if(verb=="GetHistoryPage"){
-    var q=MessagePackSerializer.Deserialize<GetIntrinsicTimeStrategyWorkflowHistoryPageQuery>(bytes,options);if(q.Subject.ToString()!=subject||q.Symbol!="ES"||q.PageSize!=50||q.PageNumber<=0||q.FromUtc.Kind!=DateTimeKind.Utc||!DesktopFixtureMode.Clock(q.ToUtc,StrategyFixtures.At))throw new InvalidDataException("Incorrect workflow history range/page");
-    var items=q.TimePeriod==TimeFrameType.Daily&&q.PageNumber==1?new[]{new IntrinsicTimeStrategyWorkflowHistoryReadModel(view.EntityId.Format(),view.StartedAtUtc,view.WorkflowId,StrategyWorkflowStatus.Running,view.Outcome,view.CurrentStage,view.WorkflowRevision,view.TerminalAtUtc,view.StopReasonCode)}:[];
-    return Result(new IntrinsicTimeStrategyWorkflowHistoryPageReadModel(items,q.PageNumber,50,items.Length));
+   if(verb=="GetFuturesItiSignalHistory") {var q=MessagePackSerializer.Deserialize<GetFuturesItiSignalHistoryQuery>(bytes,options);if(q.Subject.ToString()!=subject||q.Symbol!="ES"||q.ValueDate!=new DateOnly(2026,10,26)||q.EntityId.Format()!=$"ES.2026-10-26.{q.TimePeriod}")throw new InvalidDataException("Incorrect ITI history scope");return Result(q.TimePeriod==TimeFrameType.Daily||Mode=="WeeklyWorkflowTimeout"?new[]{StrategyFixtures.Signal with{TimePeriod=q.TimePeriod}}:[]);}
+   if (verb == "GetStrategyUpdatesGrid")
+   {
+       var q = MessagePackSerializer.Deserialize<GetIntrinsicTimeStrategyUpdatesGridQuery>(bytes, options);
+       if (q.Subject.ToString() != subject || q.Symbol != "ES" || q.PageSize != 50 || q.PageNumber <= 0
+           || q.FromUtc.Kind != DateTimeKind.Utc || !DesktopFixtureMode.Clock(q.ToUtc, StrategyFixtures.At))
+           throw new InvalidDataException("Incorrect Strategy Updates scope");
+       if (Mode == "WeeklyWorkflowTimeout" && q.TimePeriod == TimeFrameType.Weekly)
+           return null;
+
+       IntrinsicTimeStrategyUpdatesGridRow[] items = [];
+       if (q.PageNumber == 1 && (q.TimePeriod == TimeFrameType.Daily || Mode == "AllFrames"))
+       {
+           var row = IntrinsicTimeStrategyUpdatesGridRow.FromView(view);
+           var id = q.TimePeriod switch
+           {
+               TimeFrameType.Weekly => new StrategyWorkflowId(Guid.Parse("5fcae8d2-8fa4-47fb-85b3-3ee4afe4e65d")),
+               TimeFrameType.Monthly => new StrategyWorkflowId(Guid.Parse("36e1aa9f-802b-4631-a721-fdf75f825639")),
+               _ => row.WorkflowId
+           };
+           items = [row with { WorkflowId = id }];
+       }
+
+       return Result(new IntrinsicTimeStrategyUpdatesGridPage(items, q.PageNumber, 50, items.Length));
    }
-   if(verb is "GetByIds" or "GetById"){
-    if(verb=="GetByIds"){var q=MessagePackSerializer.Deserialize<GetIntrinsicTimeStrategyWorkflowsByIdsQuery>(bytes,options);if(q.WorkflowIds is not [var id]||id!=view.WorkflowId||q.MinimumRevisions is not [var revision]||revision>view.WorkflowRevision)throw new InvalidDataException("Incorrect workflow hydration batch");}
-    else{var q=MessagePackSerializer.Deserialize<GetIntrinsicTimeStrategyWorkflowByIdQuery>(bytes,options);if(q.WorkflowId!=view.WorkflowId||q.Subject.ToString()!=subject||q.EntityId.Format()!=view.WorkflowId.ToString())throw new InvalidDataException("Incorrect single workflow lookup");}
-    var result=new IntrinsicTimeStrategyWorkflowReadModel(view.WorkflowId,view.EntityId.Format(),view.EntityId.WorkflowDefinitionId,view.WorkflowDefinitionVersion,"ESZ6",new(2026,10,26),TimeFrameType.Daily,view.TriggerEventId,view.CorrelationId,StrategyWorkflowStatus.Running,view.Outcome,view.CurrentStage,view.WorkflowRevision,1,1,MessagePackSerializer.Serialize(view,MessagePackBinarySerializer.ContentOptions),view.StopReasonCode,view.StartedAtUtc,view.TerminalAtUtc,view.UpdatedAtUtc);
-    if(Mode=="WrongIdentity")result=result with{WorkflowId=new(Guid.NewGuid())};return verb=="GetById"?Result(result):Result(new[]{result});
+   if (verb == "GetById")
+   {
+       var q = MessagePackSerializer.Deserialize<GetIntrinsicTimeStrategyWorkflowByIdQuery>(bytes, options);
+       if (Mode == "AllFrames" || q.WorkflowId != view.WorkflowId || q.Subject.ToString() != subject
+           || q.EntityId.Format() != view.WorkflowId.ToString() || q.MinimumWorkflowRevision > view.WorkflowRevision)
+           throw new InvalidDataException("Unexpected strategy detail request");
+       var payload = Mode == "WrongIdentity" ? view with { WorkflowId = new(Guid.NewGuid()) } : view;
+       return Result(new IntrinsicTimeStrategyWorkflowReadModel(view.WorkflowId, view.EntityId.Format(),
+           view.EntityId.WorkflowDefinitionId, view.WorkflowDefinitionVersion, "ESZ6", new(2026,10,26),
+           TimeFrameType.Daily, view.TriggerEventId, view.CorrelationId, StrategyWorkflowStatus.Running,
+           view.Outcome, view.CurrentStage, view.WorkflowRevision, 1, 1,
+           MessagePackSerializer.Serialize(payload, MessagePackBinarySerializer.ContentOptions),
+           view.StopReasonCode, view.StartedAtUtc, view.TerminalAtUtc, view.UpdatedAtUtc));
    }
    throw new InvalidDataException("Unknown strategy fixture query "+verb);
   }catch(Exception error){return MessagePackSerializer.Serialize(new ServiceResult<GuidResult>{Success=false,ErrorCode=3400,ErrorMessage=error.Message},options);}
  }
+
 }

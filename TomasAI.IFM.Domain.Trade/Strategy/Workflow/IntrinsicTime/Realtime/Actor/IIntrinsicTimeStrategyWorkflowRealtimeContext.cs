@@ -53,4 +53,8 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext : IRealtimeActorC
 
     /// <summary>Gets the atomic signal snapshot provider used by the live-readiness gate.</summary>
     IRegimeDiscoveryMarketSignalSnapshotProvider RegimeDiscoverySnapshotProvider { get; }
+
+    Task<Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.TradeSelectionFunctionCompletedEvent?> ReadCommittedSelectionAsync(
+        Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands.ExecuteTradeSelectionPipelineCommand command,
+        CancellationToken token) => Task.FromResult<Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.TradeSelectionFunctionCompletedEvent?>(null);
 }

@@ -1,11 +1,11 @@
-﻿using TomasAI.IFM.Domain.BrokerAccount.Command;
+using TomasAI.IFM.Domain.BrokerAccount.Command;
 using TomasAI.IFM.Domain.BrokerAccount.Command.State;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using AppBrokerEnvironment = TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment;
 using Xunit;
 
-namespace TomasAI.IFM.Application.TradeBroker.UnitTests;
+namespace TomasAI.IFM.Domain.BrokerAccount.UnitTests;
 
 public sealed class BrokerAccountCommandTests
 {
