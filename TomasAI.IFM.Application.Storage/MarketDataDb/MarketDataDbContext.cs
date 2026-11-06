@@ -53,7 +53,7 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <param name="blackboardService">The existing context construction dependency.</param>
 /// <param name="sequenceIdGenerator">The database sequence allocator.</param>
 /// <param name = "logger"></param>
-public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
+public partial class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
 {
     readonly ILogger _diagnosticLogger = logger;
     public const string MarketDataDbConnection = "MarketDataDbConnection";
@@ -3717,20 +3717,10 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         ArgumentNullException.ThrowIfNull(sourceId);
         if (string.IsNullOrWhiteSpace(contract) || contract.Length > 128 || date == default || sourceId.Length != 64)
             throw new ArgumentException("Exact trade source identity is required.",nameof(contract));
-        Func<IObjectDataRecord, OptionTradeEvidence> map = row =>
-        {
-            var payload = row.GetBytes(1);
-            if (payload.Length is 0 or > 131072)
-                throw new InvalidDataException("Invalid trade evidence payload size.");
-            var value = MessagePackBinarySerializer.Shared.Deserialize<OptionTradeEvidence>(payload) ?? throw new InvalidDataException("Missing trade evidence.");
-            value.Validate();
-            if (!string.Equals(value.Source.ContractId,contract,StringComparison.Ordinal) || value.Source.ValueDate != date || !string.Equals(value.Source.Identity,sourceId,StringComparison.Ordinal) || !string.Equals(value.Source.SourceDigest,row.GetString(0),StringComparison.Ordinal))
-                throw new InvalidDataException("Trade evidence identity mismatch.");
-            return value;
-        };
+        var key = new EvidenceKey(contract, date, sourceId);
         var rows = await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetOptionTradeEvidence)}", MarketDataDbSql.GetOptionTradeEvidence)
             .SetParameters(new NativeOptionEvidenceReadParameters(contract, date, sourceId))
-            .ExecuteQueryAsync(map, token)
+            .ExecuteQueryAsync(row => ReadOptionTradeEvidence(key, row.GetString(0), row.GetBytes(1)), token)
             .ConfigureAwait(false);
         return rows.SingleOrDefault();
     }

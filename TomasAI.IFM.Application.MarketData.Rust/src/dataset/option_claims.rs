@@ -176,6 +176,7 @@ struct Inner {
     state: Mutex<State>,
     supervisor: Arc<Supervisor<Intent>>,
     changed: watch::Sender<u64>,
+    scope_changes: watch::Sender<u64>,
     error: Mutex<Option<String>>,
 }
 impl Inner {
@@ -188,7 +189,8 @@ impl Inner {
         mut candidate: State,
         maintenance: bool,
     ) -> Result<(), String> {
-        if candidate.active() != old.active() || !Arc::ptr_eq(&candidate.base, &old.base) {
+        let changed = candidate.active() != old.active() || !Arc::ptr_eq(&candidate.base, &old.base);
+        if changed {
             candidate.revision = old
                 .revision
                 .checked_add(1)
@@ -213,6 +215,9 @@ impl Inner {
             accepted.map_err(|e| format!("Native desired control unavailable: {e:?}"))?;
         }
         *old = candidate;
+        if changed {
+            self.scope_changes.send_modify(|n| *n = n.saturating_add(1));
+        }
         Ok(())
     }
     fn expire(&self, now: Instant) -> Result<Option<Instant>, String> {
@@ -319,6 +324,7 @@ impl Coordinator {
             }),
             supervisor,
             changed,
+            scope_changes: watch::channel(0).0,
             error: Mutex::new(None),
         });
         let running = inner.clone();
@@ -945,6 +951,11 @@ impl Coordinator {
         let state = self.inner.state.lock()
             .map_err(|_| "Native business claim state interrupted")?;
         Ok(state.claims.contains(id).then(|| state.scopes.get(id).cloned()).flatten())
+    }
+
+    /// Detached notification for changes that can invalidate capture routing.
+    pub(crate) fn scope_changes(&self) -> watch::Receiver<u64> {
+        self.inner.scope_changes.subscribe()
     }
 
     /// Finds the first active single-option monitoring scope in scope-key order.

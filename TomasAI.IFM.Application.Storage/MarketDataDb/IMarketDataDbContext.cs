@@ -1,6 +1,8 @@
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
@@ -21,6 +23,13 @@ public interface IMarketDataDbContext :
     IOptionVolatilityRepository,
     IHistoricalObservationStore
 {
+    /// <summary>Reads canonical observations and compatible persisted Native replay coverage in one bounded request.</summary>
+    Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> GetQualifiedIndicatorSeedBarsAsync(string contractId, TimeFrameType frame,
+        DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, string sourceVersion, CancellationToken cancellationToken);
+
+    /// <summary>Atomically retains independently qualified seed intervals for the same contract, date and timeframe.</summary>
+    Task StoreQualifiedIndicatorSeedBarsAsync(string sourceVersion, FuturesTradeSessionBarReadModel[] bars, CancellationToken cancellationToken);
+
     /// <summary>Gets the Market Data database read capability.</summary>
     IMarketDataDbReadContext DbReader { get; }
 

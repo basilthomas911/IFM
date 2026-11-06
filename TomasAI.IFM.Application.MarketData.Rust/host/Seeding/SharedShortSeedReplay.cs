@@ -9,7 +9,7 @@ internal sealed class SharedShortSeedReplay
 {
     static readonly TimeSpan JoinWindow = TimeSpan.FromMilliseconds(10);
     readonly object gate = new();
-    readonly Dictionary<(string ContractId, DateOnly ValueDate), Batch> pending = [];
+    readonly Dictionary<(string ContractId, string SourceVersion, DateOnly ValueDate), Batch> pending = [];
 
     internal sealed record Window(TimeFrameType Frame, MarketSessionBounds[] Intervals, DateTimeOffset Cutoff);
 
@@ -27,12 +27,12 @@ internal sealed class SharedShortSeedReplay
         public TaskCompletionSource Paired { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    public Task<FuturesTradeSessionBarReadModel[]> ReadAsync(string contractId, Window window,
+    public Task<FuturesTradeSessionBarReadModel[]> ReadAsync(string contractId, string sourceVersion, Window window,
         Func<Window[], CancellationToken, Task<FuturesTradeSessionBarReadModel[][]>> read,
         CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        var key = (contractId, window.Intervals[0].ValueDate);
+        var key = (contractId, sourceVersion, window.Intervals[0].ValueDate);
         var request = new Request(window, token);
         Batch batch;
         bool start;
@@ -53,7 +53,7 @@ internal sealed class SharedShortSeedReplay
         return request.Completion.Task.WaitAsync(token);
     }
 
-    async Task RunAsync((string ContractId, DateOnly ValueDate) key, Batch batch,
+    async Task RunAsync((string ContractId, string SourceVersion, DateOnly ValueDate) key, Batch batch,
         Func<Window[], CancellationToken, Task<FuturesTradeSessionBarReadModel[][]>> read)
     {
         // An arriving partner starts work immediately. A single-frame caller

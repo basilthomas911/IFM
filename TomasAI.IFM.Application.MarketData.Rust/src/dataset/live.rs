@@ -10,7 +10,9 @@ use super::{
 use crate::{
     latest::{Asset, Contract},
     pricing::Values,
-    runtime::{Deadline, clock::Clock, owner::Owner},
+    runtime::{
+        Deadline, capture_updates::{CaptureUpdates, Subscription}, clock::Clock, owner::Owner,
+    },
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -69,6 +71,28 @@ struct BookState {
     ready: bool,
     trade_replay_pending: bool,
     statistics_replay_pending: bool,
+    heartbeat_diagnostics: HeartbeatDiagnostics,
+}
+
+/// One log sample per minute and physical attempt for routine provider heartbeats.
+#[derive(Default)]
+struct HeartbeatDiagnostics {
+    next: Option<tokio::time::Instant>,
+    suppressed: u64,
+}
+
+impl HeartbeatDiagnostics {
+    fn admit(&mut self, event: &Event, now: tokio::time::Instant) -> Option<u64> {
+        if !matches!(event, Event::System { code: 0, message } if message == "Heartbeat") {
+            return Some(0);
+        }
+        if self.next.is_some_and(|next| now < next) {
+            self.suppressed = self.suppressed.saturating_add(1);
+            return None;
+        }
+        self.next = Some(now + std::time::Duration::from_secs(60));
+        Some(std::mem::take(&mut self.suppressed))
+    }
 }
 /// Read-only native query view of numeric book state. It contains no provider
 /// client, task, cancellation authority or dataset child. Retirement invalidates
@@ -78,6 +102,7 @@ pub struct Queries {
     retired: CancellationToken,
     book: Arc<Mutex<BookState>>,
     changes: watch::Receiver<u64>,
+    capture_updates: Arc<CaptureUpdates>,
 }
 /// Detached coherent raw source copy. No member owns a provider or task.
 #[derive(Clone, Copy)]
@@ -94,6 +119,14 @@ impl Queries {
     /// task, socket or dataset cancellation authority.
     pub fn updates(&self) -> watch::Receiver<u64> {
         self.changes.clone()
+    }
+
+    pub(crate) fn capture_updates(&self, instruments: Vec<u32>) -> Option<Subscription> {
+        self.capture_updates.subscribe(instruments)
+    }
+
+    pub(crate) async fn cancelled(&self) {
+        self.retired.cancelled().await;
     }
 
     /// Current physical identity of copied books only. Retiring source tasks
@@ -280,6 +313,7 @@ struct Active {
     stop: CancellationToken,
     book: Arc<Mutex<BookState>>,
     retired: CancellationToken,
+    capture_updates: Arc<CaptureUpdates>,
 }
 /// Exact source record retained until the application drains it. The generation
 /// fences replacement data. Pending options quotes may be replaced per contract;
@@ -753,6 +787,8 @@ impl LiveData {
             );
         let retired = CancellationToken::new();
         let processor_retired = retired.clone();
+        let capture_updates = Arc::new(CaptureUpdates::default());
+        let capture_signal = capture_updates.clone();
         let book = Arc::new(Mutex::new(BookState {
             attempt: 0,
             generation: 0,
@@ -760,6 +796,7 @@ impl LiveData {
             ready: false,
             trade_replay_pending: false,
             statistics_replay_pending: false,
+            heartbeat_diagnostics: HeartbeatDiagnostics::default(),
         }));
         let has_trade_replay = plan
             .subscriptions
@@ -871,27 +908,36 @@ impl LiveData {
                 state.ready = false;
                 state.trade_replay_pending = has_trade_replay;
                 state.statistics_replay_pending = has_statistics_replay;
+                state.heartbeat_diagnostics = HeartbeatDiagnostics::default();
+                capture_signal.notify(None);
             }
             let generation = state.generation;
             if matches!(event, Event::System { .. } | Event::Error { .. }) {
-                let mut diagnostic = event.clone();
-                if let Some(scope) = &diagnostic_scope {
-                    match &mut diagnostic {
-                        Event::System { message, .. } | Event::Error { message, .. } => {
+                if let Some(suppressed) = state
+                    .heartbeat_diagnostics
+                    .admit(event, tokio::time::Instant::now())
+                {
+                    let mut diagnostic = event.clone();
+                    if let Event::System { message, .. } | Event::Error { message, .. } =
+                        &mut diagnostic
+                    {
+                        if let Some(scope) = &diagnostic_scope {
                             *message =
-                                format!("[scope={scope}; generation={generation:032x}] {message}")
+                                format!("[scope={scope}; generation={generation:032x}] {message}");
                         }
-                        _ => {}
+                        if suppressed > 0 {
+                            message.push_str(&format!(" [routine heartbeats suppressed: {suppressed}]"));
+                        }
                     }
+                    diagnostics.retain(Diagnostic {
+                        worker: diagnostic_worker,
+                        lane,
+                        attempt,
+                        observed: clock.utc_ticks().map_err(|e| format!("{e:?}"))?,
+                        replaced: 0,
+                        event: diagnostic,
+                    })?;
                 }
-                diagnostics.retain(Diagnostic {
-                    worker: diagnostic_worker,
-                    lane,
-                    attempt,
-                    observed: clock.utc_ticks().map_err(|e| format!("{e:?}"))?,
-                    replaced: 0,
-                    event: diagnostic,
-                })?;
                 updates.send_modify(|version| *version = version.saturating_add(1));
                 notifier
                     .signal(1 << (lane as u32))
@@ -913,6 +959,7 @@ impl LiveData {
                 for instrument in &option_trade_instruments {
                     book.complete_option_replay(generation, *instrument)
                         .map_err(|e| format!("{e:?}"))?;
+                    capture_signal.notify(Some(*instrument));
                 }
                 let mut queues = output
                     .lock()
@@ -987,9 +1034,10 @@ impl LiveData {
                     super::records::Observation::Order(value) => value.header,
                     super::records::Observation::Statistic(value) => value.header,
                 };
-                if let Some(registration) = registration_indices
+                let registration = registration_indices
                     .get(&header.instrument)
-                    .map(|index| &registrations[*index])
+                    .map(|index| &registrations[*index]);
+                if let Some(registration) = registration
                     && !publisher_matches(lane, registration.publisher, header.publisher)
                 {
                     return Err(format!(
@@ -1006,12 +1054,18 @@ impl LiveData {
                 {
                     pricing.observe_wire(generation, *quote, local)?;
                 }
-                let instrument = match record {
-                    super::records::Observation::Quote(v) => v.header.instrument,
-                    super::records::Observation::Trade(v) => v.header.instrument,
-                    super::records::Observation::Order(v) => v.header.instrument,
-                    super::records::Observation::Statistic(v) => v.header.instrument,
-                };
+                let instrument = header.instrument;
+                // Options capture also reads the logical statistics book.
+                // Replay executions and provider statistics can change it
+                // independently of the raw quote and trade ordering result.
+                let capture_changed = update == super::book::Update::Quote
+                    || lane == Lane::OptionsGlbx
+                        && matches!(
+                            record,
+                            super::records::Observation::Trade(_)
+                                | super::records::Observation::Statistic(_)
+                        )
+                        && registration.is_some_and(|row| row.asset == Asset::Option);
                 let trade = if matches!(record, super::records::Observation::Trade(value) if value.header.flags & 2 == 0)
                 {
                     if let Some(prepared) = pricing
@@ -1072,6 +1126,9 @@ impl LiveData {
                 if was_ready {
                     // Numeric state and the bounded output are committed. Wake consumers only after releasing the book.
                     drop(state);
+                    if capture_changed {
+                        capture_signal.notify(Some(instrument));
+                    }
                     updates.send_modify(|version| *version = version.saturating_add(1));
                     notifier
                         .signal(1 << (lane as u32))
@@ -1088,6 +1145,9 @@ impl LiveData {
                 // record. Individual trade/quote fields remain None until real
                 // observations arrive; this never manufactures market data.
                 state.ready = true;
+                if !was_ready {
+                    capture_signal.notify(None);
+                }
                 return Ok(true);
             }
             if was_ready {
@@ -1110,6 +1170,7 @@ impl LiveData {
                 }
             }
             state.ready = true;
+            capture_signal.notify(None);
             Ok(true)
         };
         let mut status = if let Some(parent) = parent {
@@ -1135,6 +1196,7 @@ impl LiveData {
                     stop: stop.clone(),
                     book,
                     retired,
+                    capture_updates,
                 },
             );
         drop(lanes);
@@ -1290,6 +1352,7 @@ impl LiveData {
             book: active.book.clone(),
             retired: active.retired.clone(),
             changes: self.updates.subscribe(),
+            capture_updates: active.capture_updates.clone(),
         }))
     }
     fn with_book<T>(
@@ -1442,6 +1505,74 @@ fn publisher_matches(lane: Lane, expected: u16, received: u16) -> bool {
 
 #[cfg(test)]
 mod publisher_tests {
+    #[test]
+    #[ignore = "Explicit paired diagnostic admission benchmark"]
+    fn heartbeat_diagnostic_before_after_timings() {
+        use super::{Diagnostic, Event, HeartbeatDiagnostics, Lane};
+        use std::{hint::black_box, time::{Duration, Instant}};
+
+        let heartbeat = Event::System { code: 0, message: "Heartbeat".into() };
+        let error = Event::Error { code: 199, last: true, message: "Provider failure".into() };
+        let now = tokio::time::Instant::now();
+        for pair in 1..=5 {
+            for sampled in if pair % 2 == 1 { [false, true] } else { [true, false] } {
+                let started = Instant::now();
+                let mut sent = 0;
+                let mut errors = 0;
+                let mut bytes = 0;
+                for _ in 0..8 {
+                    let mut sampler = HeartbeatDiagnostics::default();
+                    for second in 0..600 {
+                        for event in [&heartbeat, &error] {
+                            if event == &error && second % 20 != 0 { continue; }
+                            let sample = if sampled {
+                                sampler.admit(event, now + Duration::from_secs(second))
+                            } else {
+                                Some(0)
+                            };
+                            if let Some(count) = sample {
+                                let mut event = event.clone();
+                                if count > 0 && let Event::System { message, .. } = &mut event {
+                                    message.push_str(&format!(" [routine heartbeats suppressed: {count}]"));
+                                }
+                                errors += usize::from(matches!(event, Event::Error { .. }));
+                                let diagnostic = Diagnostic {
+                                    worker: [1; 16], lane: Lane::OptionsGlbx, attempt: 1,
+                                    observed: second as i64 * 10_000_000, replaced: 0, event,
+                                };
+                                bytes += black_box(crate::messaging::diagnostic::encode(&diagnostic, [1; 16]).unwrap()).len();
+                                sent += 1;
+                            }
+                        }
+                    }
+                }
+                assert_eq!(errors, 240);
+                println!("HEARTBEAT_DIAGNOSTICS pair={pair} sampled={sampled} frames={sent} bytes={bytes} elapsed_ns={}", started.elapsed().as_nanos());
+            }
+        }
+    }
+
+    #[test]
+    fn diagnostic_sampling_only_suppresses_routine_heartbeats() {
+        use super::{Event, HeartbeatDiagnostics};
+        use std::time::Duration;
+        use tokio::time::Instant;
+
+        let heartbeat = Event::System { code: 0, message: "Heartbeat".into() };
+        let transition = Event::System { code: 3, message: "Replay completed".into() };
+        let unknown = Event::System { code: 255, message: "Heartbeat".into() };
+        let error = Event::Error { code: 0, last: true, message: "Heartbeat".into() };
+        let mut diagnostics = HeartbeatDiagnostics::default();
+        let now = Instant::now();
+        assert_eq!(diagnostics.admit(&heartbeat, now), Some(0));
+        assert_eq!(diagnostics.admit(&heartbeat, now), None);
+        assert_eq!(diagnostics.admit(&heartbeat, now + Duration::from_secs(59)), None);
+        assert_eq!(diagnostics.admit(&transition, now), Some(0));
+        assert_eq!(diagnostics.admit(&unknown, now), Some(0));
+        assert_eq!(diagnostics.admit(&error, now), Some(0));
+        assert_eq!(diagnostics.admit(&heartbeat, now + Duration::from_secs(60)), Some(2));
+        assert_eq!(HeartbeatDiagnostics::default().admit(&heartbeat, now), Some(0));
+    }
     use super::*;
     #[test]
     fn xcbf_off_exchange_is_same_dataset_but_options_and_unrelated_sources_stay_strict() {

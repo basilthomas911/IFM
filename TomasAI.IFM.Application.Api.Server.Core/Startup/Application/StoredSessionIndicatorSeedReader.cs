@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
@@ -8,12 +9,14 @@ using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
+using TomasAI.IFM.Framework.MarketData.DataBento;
 
 namespace TomasAI.IFM.Application.Api.Server.Core.Startup.Application;
 
 /// <summary>Reconstructs complete indicator seed bars from local original trades; no provider acquisition or fabricated OHLC is permitted.</summary>
 public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases, IMarketSessionCalendar calendar,
-    TimeProvider clock, ILogger<StoredSessionIndicatorSeedReader> logger, IMarketDataApi? market = null)
+    TimeProvider clock, ILogger<StoredSessionIndicatorSeedReader> logger, IMarketDataApi? market = null,
+    DatabentoMarketDataRuntimeOptions? sourceOptions = null)
 {
     /// <summary>Reads one bounded sequence of completed trading intervals, or returns unavailable when any interval lacks trades.</summary>
     public async Task<FuturesTradeSessionBarReadModel[]> ReadAsync(string contractId, TimeFrameType frame, int count, CancellationToken token)
@@ -50,10 +53,14 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
         }
         var validation = new FuturesTradeSessionBarReadModelValidationRules();
         var bars = new Dictionary<DateTimeOffset, FuturesTradeSessionBarReadModel>(windows.Length);
+        var sourceVersion = sourceOptions?.FeedOptions.DataSource == FeedDataSourceMode.DatabentoLive
+            && sourceOptions.Contracts.SingleOrDefault(registration => registration.DomainContractId == contractId) is { } registration
+                ? DatabentoIndicatorSeedSourceVersion.Create(registration, sourceOptions.FeedOptions.Dataset)
+                : null;
         foreach (var group in windows.GroupBy(window => window.ValueDate))
         {
             var expected = group.ToDictionary(window => window.EndUtc);
-            var stored = await ReadStoredAsync(contractId, frame, group.Key, expected.Keys.ToArray(), token).ConfigureAwait(false);
+            var stored = await ReadStoredAsync(contractId, frame, group.Key, expected.Keys.ToArray(), sourceVersion, token).ConfigureAwait(false);
             foreach (var bar in stored)
             {
                 if (expected.TryGetValue(bar.IntervalEndUtc, out var window) && bar.IntervalStartUtc == window.StartUtc
@@ -114,8 +121,10 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
     }
 
     async Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> ReadStoredAsync(string contractId, TimeFrameType frame,
-        DateOnly date, DateTimeOffset[] ends, CancellationToken token)
+        DateOnly date, DateTimeOffset[] ends, string? sourceVersion, CancellationToken token)
     {
+        if (sourceVersion is not null)
+            return await databases.MarketDataDb.GetQualifiedIndicatorSeedBarsAsync(contractId, frame, date, ends, sourceVersion, token).ConfigureAwait(false);
         if (ends.Length != 1)
             return await databases.MarketDataDb.GetStoredTradeSessionBarsAsync(contractId, frame, date, ends, token).ConfigureAwait(false);
         var bar = await databases.MarketDataDb.GetStoredTradeSessionBarAsync(contractId, frame, date, ends[0], token).ConfigureAwait(false);

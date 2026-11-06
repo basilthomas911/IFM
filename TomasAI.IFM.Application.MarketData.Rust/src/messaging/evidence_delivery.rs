@@ -12,6 +12,7 @@ use crate::{
     runtime::{Deadline, owner::Child},
 };
 use std::{
+    collections::VecDeque,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -20,6 +21,13 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
+
+const PERSISTENCE_WINDOW: usize = 4;
+
+struct AwaitingReceipt {
+    record: Arc<Record>,
+    acknowledgement: Option<evidence_protocol::Receipt>,
+}
 
 /// Observable native IO status. Availability is not evidence of provider/pricing
 /// readiness; the dataset owner combines those independent proofs.
@@ -123,8 +131,8 @@ impl Delivery {
                     let (mut publisher, mut receipts) = match Publisher::start_evidence_exchange(
                         config.broker.clone(),
                         config.scope.clone(),
-                        2,
-                        512 * 1024,
+                        2 * PERSISTENCE_WINDOW,
+                        2 * PERSISTENCE_WINDOW * 132096,
                         budget,
                         &owned,
                     ) {
@@ -218,6 +226,7 @@ impl Delivery {
         sequence: &mut i64,
         submitted: &mut u64,
     ) -> Result<(), &'static str> {
+        let mut awaiting = VecDeque::<AwaitingReceipt>::with_capacity(PERSISTENCE_WINDOW);
         'delivery: loop {
             let broker = progress.borrow_and_update().clone();
             if broker.failure.is_some() || broker.stopped {
@@ -232,8 +241,22 @@ impl Delivery {
                 continue;
             }
             let persisted = outbox.capture(true, 1)?;
-            let pending = outbox.capture(false, 1)?;
-            let record = persisted.first().or_else(|| pending.first()).cloned();
+            let mut unsent = Vec::new();
+            if persisted.is_empty() && awaiting.is_empty() {
+                // The managed receiver drains available existing requests in
+                // groups. Each receipt keeps the original identity and shape.
+                let window = if config.actor.is_some() {
+                    PERSISTENCE_WINDOW
+                } else {
+                    1
+                };
+                unsent = outbox.capture(false, window)?;
+            }
+            let record = persisted
+                .first()
+                .or_else(|| awaiting.front().map(|item| &item.record))
+                .or_else(|| unsent.first())
+                .cloned();
             let Some(record) = record else {
                 *episode = None;
                 status.send_modify(|s| {
@@ -251,24 +274,42 @@ impl Delivery {
             let deadline = episode.map_or(original, |d| d.earliest(original));
             *episode = Some(deadline);
             if persisted.is_empty() {
-                publisher.try_evidence(&record)?;
-                *submitted = submitted
-                    .checked_add(1)
-                    .ok_or("Native evidence publication count exhausted")?;
+                for record in unsent {
+                    publisher.try_evidence(&record)?;
+                    *submitted = submitted
+                        .checked_add(1)
+                        .ok_or("Native evidence publication count exhausted")?;
+                    awaiting.push_back(AwaitingReceipt {
+                        record,
+                        acknowledgement: None,
+                    });
+                }
                 loop {
+                    if let Some(front) = awaiting.front_mut()
+                        && let Some(ack) = front.acknowledgement.take()
+                    {
+                        if deadline.remaining().is_zero() {
+                            return Err("Native evidence original persistence deadline expired");
+                        }
+                        awaiting.pop_front();
+                        if !evidence_protocol::apply_receipt(&ack, outbox)? {
+                            *episode = None;
+                            continue 'delivery;
+                        }
+                        break;
+                    }
                     let received = Self::receipt(receipts, progress, stop, deadline).await?;
                     let ack = evidence_protocol::decode_receipt(&received)?;
-                    if ack.receipt != record.receipt
-                        || ack.identity != record.identity
-                        || ack.digest != record.digest
+                    if let Some(item) = awaiting.iter_mut().find(|item| {
+                        item.record.receipt == ack.receipt
+                            && item.record.identity == ack.identity
+                            && item.record.digest == ack.digest
+                    }) && item.acknowledgement.is_none()
                     {
-                        continue;
+                        // Apply only the oldest receipt. A later durable write
+                        // cannot jump an earlier failure or publish out of order.
+                        item.acknowledgement = Some(ack);
                     }
-                    if !evidence_protocol::apply_receipt(&ack, outbox)? {
-                        *episode = None;
-                        continue 'delivery;
-                    }
-                    break;
                 }
             }
             if let Some(actor) = &config.actor {

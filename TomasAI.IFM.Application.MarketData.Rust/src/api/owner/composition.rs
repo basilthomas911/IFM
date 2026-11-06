@@ -17,6 +17,17 @@ fn risk_scope(contract: &str) -> String {
     use sha2::{Digest, Sha256};
     format!("native-risk-{:x}", Sha256::digest(contract.as_bytes()))
 }
+
+pub(super) fn monitored_capture_definition<'a>(
+    view: &'a View,
+    scope: &str,
+) -> Option<&'a crate::option_chain::preparation::Definition> {
+    view.definitions.iter().find(|definition| {
+        view.monitored.contains(&definition.instrument)
+            && risk_scope(definition.blueprint.contract.contract()) == scope
+    })
+}
+
 impl MarketData {
     /// Captures a complete active option scope entirely in native code. Source
     /// copying and numerical qualification cannot pin a physical dataset owner.
@@ -53,10 +64,7 @@ impl MarketData {
             .map_err(|_| failed("Recovering", "ScopeId"))?
         {
             scope
-        } else if let Some(definition) = view.definitions.iter().find(|definition| {
-            view.monitored.contains(&definition.instrument)
-                && risk_scope(definition.blueprint.contract.contract()) == request.scope
-        }) {
+        } else if let Some(definition) = monitored_capture_definition(&view, &request.scope) {
             crate::dataset::option_claims::Scope {
                 options: [definition.instrument].into_iter().collect(),
                 monitored: [definition.instrument].into_iter().collect(),

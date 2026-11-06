@@ -18,6 +18,17 @@ pub struct Record {
     /// Optional occurrence time retained for pending-age diagnostics.
     pub(crate) occurred_ticks: Option<i64>,
 }
+
+/// Validated routing metadata for an immutable payload digest.
+#[derive(Clone)]
+pub(super) struct RecordIndex {
+    pub(super) digest: String,
+    id: String,
+    operation: String,
+    sequence: u64,
+    occurred_ticks: Option<i64>,
+}
+
 impl Record {
     /// Validates retained files as rigorously as newly captured facts.
     /// # Errors
@@ -26,6 +37,15 @@ impl Record {
         if payload.len() > 256 * 1024 {
             return Err("Recovery audit record exceeds capacity".into());
         }
+        let digest = Self::content_digest(payload.as_bytes());
+        Self::parse_verified(payload, digest)
+    }
+
+    pub(super) fn content_digest(payload: &[u8]) -> String {
+        format!("{:x}", Sha256::digest(payload))
+    }
+
+    pub(super) fn parse_verified(payload: String, digest: String) -> Result<Self, String> {
         let value: serde_json::Value =
             serde_json::from_str(&payload).map_err(|_| "Invalid recovery audit JSON")?;
         let text = |name: &str| {
@@ -58,7 +78,6 @@ impl Record {
             .as_str()
             .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
             .and_then(|at| at.timestamp_nanos_opt().map(|ns| ns / 100));
-        let digest = format!("{:x}", Sha256::digest(payload.as_bytes()));
         Ok(Self {
             payload,
             digest,
@@ -67,6 +86,16 @@ impl Record {
             sequence,
             occurred_ticks,
         })
+    }
+
+    pub(super) fn index(&self) -> RecordIndex {
+        RecordIndex {
+            digest: self.digest.clone(),
+            id: self.id.clone(),
+            operation: self.operation.clone(),
+            sequence: self.sequence,
+            occurred_ticks: self.occurred_ticks,
+        }
     }
     /// Fresh attempt envelope. Occurrence time is never substituted for attempt time.
     /// # Errors
@@ -161,6 +190,19 @@ impl Record {
             return Err("Recovery audit receipt identity conflict".into());
         }
         Ok(())
+    }
+}
+
+impl RecordIndex {
+    pub(super) fn restore(&self, payload: String, digest: String) -> Record {
+        Record {
+            payload,
+            digest,
+            id: self.id.clone(),
+            operation: self.operation.clone(),
+            sequence: self.sequence,
+            occurred_ticks: self.occurred_ticks,
+        }
     }
 }
 fn decode(bytes: &[u8]) -> Result<Value, String> {

@@ -33,6 +33,57 @@ public sealed class NativeEvidenceStorage(IOptionTradeEvidenceWriter writer)
     /// external consumer, never to a native resource or dataset control gate.</summary>
     public async ValueTask<NativeEvidenceReceipt> WriteAsync(NativeEvidenceWrite request, CancellationToken stoppingToken)
     {
+        var evidence = Validate(request, stoppingToken);
+        var accepted = await writer.WriteFirstAsync(evidence, stoppingToken).ConfigureAwait(false);
+        return Receipt(request, accepted);
+    }
+
+    /// <summary>Persists a bounded group and keeps each validation or write outcome correlated to its own receipt.</summary>
+    public async ValueTask<(NativeEvidenceReceipt Receipt, Exception? Error)[]> WriteBatchAsync(
+        IReadOnlyList<NativeEvidenceWrite> requests, CancellationToken stoppingToken)
+    {
+        ArgumentNullException.ThrowIfNull(requests);
+        if (requests.Count is < 1 or > IOptionTradeEvidenceWriter.MaximumFirstWriteBatch)
+            throw new ArgumentOutOfRangeException(nameof(requests));
+        if (requests.Count == 1)
+        {
+            try { return [(await WriteAsync(requests[0], stoppingToken).ConfigureAwait(false), null)]; }
+            catch (Exception error) when (!stoppingToken.IsCancellationRequested) { return [(Failed(requests[0]), error)]; }
+        }
+        var results = new (NativeEvidenceReceipt Receipt, Exception? Error)[requests.Count];
+        var valid = new List<(int Index, OptionTradeEvidence Evidence)>(requests.Count);
+        for (var index = 0; index < requests.Count; index++)
+        {
+            try { valid.Add((index, Validate(requests[index], stoppingToken))); }
+            catch (Exception error) when (!stoppingToken.IsCancellationRequested)
+            {
+                results[index] = (Failed(requests[index]), error);
+            }
+        }
+
+        if (valid.Count == 0) return results;
+        try
+        {
+            var accepted = await writer.WriteFirstBatchAsync(valid.Select(static item => item.Evidence).ToArray(), stoppingToken)
+                .ConfigureAwait(false);
+            if (accepted.Length != valid.Count)
+                throw new InvalidOperationException("Durable option evidence results do not match the batch.");
+            for (var index = 0; index < valid.Count; index++)
+            {
+                var requestIndex = valid[index].Index;
+                results[requestIndex] = (Receipt(requests[requestIndex], accepted[index]), null);
+            }
+        }
+        catch (Exception error) when (!stoppingToken.IsCancellationRequested)
+        {
+            foreach (var item in valid)
+                results[item.Index] = (Failed(requests[item.Index]), error);
+        }
+        return results;
+    }
+
+    static OptionTradeEvidence Validate(NativeEvidenceWrite request, CancellationToken stoppingToken)
+    {
         ArgumentNullException.ThrowIfNull(request);
         if (request.Receipt == 0 || !Hash(request.Identity) || !Hash(request.Digest)
             || request.Content is not { Length: > 0 and <= 131072 })
@@ -43,9 +94,14 @@ public sealed class NativeEvidenceStorage(IOptionTradeEvidenceWriter writer)
         if (!string.Equals(evidence.Source.Identity, request.Identity, StringComparison.Ordinal)
             || !string.Equals(evidence.Source.SourceDigest, request.Digest, StringComparison.Ordinal))
             throw new InvalidDataException("Native evidence receipt differs from its immutable source.");
-        var accepted = await writer.WriteFirstAsync(evidence, stoppingToken).ConfigureAwait(false);
-        return new(request.Receipt, request.Identity, request.Digest, accepted, accepted ? null : AlreadySeen);
+        return evidence;
     }
+
+    static NativeEvidenceReceipt Receipt(NativeEvidenceWrite request, bool accepted)
+        => new(request.Receipt, request.Identity, request.Digest, accepted, accepted ? null : AlreadySeen);
+
+    static NativeEvidenceReceipt Failed(NativeEvidenceWrite request)
+        => new(request.Receipt, request.Identity, request.Digest, false, "Durable option evidence persistence failed.");
 
     static bool Hash(string value) => value is { Length: 64 } && value.All(char.IsAsciiHexDigit);
 }

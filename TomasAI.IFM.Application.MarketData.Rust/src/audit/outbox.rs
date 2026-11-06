@@ -1,11 +1,12 @@
 //! Bounded disk-backed delivery outside dataset ownership. Capture never awaits I/O.
 //! Durability begins after file sync+atomic rename, not when try-send returns.
-use super::protocol::Record;
+use super::protocol::{Record, RecordIndex};
 use crate::{
     messaging::publisher::{BrokerSettings, Publisher},
     runtime::{Deadline, clock::Clock, owner::Child},
 };
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -18,6 +19,8 @@ use tokio::{
     sync::{Notify, OwnedSemaphorePermit, Semaphore, mpsc},
 };
 use tokio_util::sync::CancellationToken;
+
+const COMMIT_BATCH: usize = 16;
 
 /// Bounded operational counters. These are audit health, never dataset readiness proofs.
 #[derive(Default)]
@@ -146,7 +149,7 @@ pub struct Spool {
     directory: PathBuf,
     maximum_records: usize,
     maximum_bytes: u64,
-    io: tokio::sync::Mutex<()>,
+    io: tokio::sync::Mutex<HashMap<String, RecordIndex>>,
     used_bytes: AtomicU64,
     stored_entries: AtomicU64,
     rejected_entries: AtomicU64,
@@ -158,7 +161,7 @@ impl Spool {
             directory,
             maximum_records: 4096,
             maximum_bytes: 128 * 1024 * 1024,
-            io: tokio::sync::Mutex::new(()),
+            io: tokio::sync::Mutex::new(HashMap::new()),
             used_bytes: AtomicU64::new(0),
             stored_entries: AtomicU64::new(0),
             rejected_entries: AtomicU64::new(0),
@@ -174,10 +177,13 @@ impl Spool {
     /// # Errors
     /// Storage outage, invalid content, wrong identity/digest or exhausted bounds.
     pub async fn read(&self) -> Result<Vec<Record>, String> {
-        let _io = self.io.lock().await;
-        self.read_unlocked().await
+        let mut index = self.io.lock().await;
+        self.read_unlocked(&mut index).await
     }
-    async fn read_unlocked(&self) -> Result<Vec<Record>, String> {
+    async fn read_unlocked(
+        &self,
+        index: &mut HashMap<String, RecordIndex>,
+    ) -> Result<Vec<Record>, String> {
         tokio::fs::create_dir_all(&self.directory)
             .await
             .map_err(|e| e.to_string())?;
@@ -185,6 +191,7 @@ impl Spool {
             .await
             .map_err(|e| e.to_string())?;
         let mut records = Vec::new();
+        let mut next_index = HashMap::with_capacity(index.len());
         let mut bytes = 0u64;
         let mut entries = 0;
         let mut rejected = 0;
@@ -205,8 +212,7 @@ impl Spool {
                 return Err("Recovery audit physical storage capacity exceeded".into());
             }
             if path.extension().is_some_and(|v| v == "tmp") {
-                let metadata = entry.metadata().await.map_err(|e| e.to_string())?;
-                let valid = if metadata.is_file() && metadata.len() <= 256 * 1024 + 65 {
+                let valid = if disk.is_file() && disk.len() <= 256 * 1024 + 65 {
                     read_record(&path).await.ok()
                 } else {
                     None
@@ -245,8 +251,7 @@ impl Spool {
             if path.extension().is_none_or(|v| v != "audit") {
                 continue;
             }
-            let metadata = entry.metadata().await.map_err(|e| e.to_string())?;
-            if !metadata.is_file() || metadata.len() > 256 * 1024 + 65 {
+            if !disk.is_file() || disk.len() > 256 * 1024 + 65 {
                 tokio::fs::rename(&path, path.with_extension("rejected"))
                     .await
                     .map_err(|e| e.to_string())?;
@@ -255,7 +260,9 @@ impl Spool {
             if bytes > self.maximum_bytes || records.len() >= self.maximum_records {
                 return Err("Recovery audit durable capacity exceeded".into());
             }
-            let record = match read_record(&path).await {
+            let id = path.file_stem().and_then(|s| s.to_str());
+            let cached = id.and_then(|id| index.remove(id));
+            let record = match read_indexed_record(&path, cached.as_ref()).await {
                 Ok(record) => record,
                 Err(error) => {
                     tokio::fs::rename(&path, path.with_extension("rejected"))
@@ -264,14 +271,19 @@ impl Spool {
                     return Err(error);
                 }
             };
-            if path.file_stem().and_then(|s| s.to_str()) != Some(&record.id) {
+            if id != Some(&record.id) {
                 tokio::fs::rename(&path, path.with_extension("rejected"))
                     .await
                     .map_err(|e| e.to_string())?;
                 return Err("Recovery audit file identity conflict".into());
             }
+            let metadata = cached
+                .filter(|cached| cached.digest == record.digest)
+                .unwrap_or_else(|| record.index());
+            next_index.insert(record.id.clone(), metadata);
             records.push(record);
         }
+        *index = next_index;
         self.used_bytes.store(bytes, Ordering::Relaxed);
         self.stored_entries.store(entries as u64, Ordering::Relaxed);
         self.rejected_entries.store(rejected, Ordering::Relaxed);
@@ -286,6 +298,43 @@ impl Spool {
     /// # Errors
     /// Conflicting content, disk/full capacity, invalid partial writes or filesystem failure.
     pub async fn commit(&self, record: &Record, terminal: bool) -> Result<(), String> {
+        Self::check_commit(record)?;
+        let mut index = self.io.lock().await;
+        let mut records = self.read_unlocked(&mut index).await?;
+        self.commit_unlocked(record, terminal, &mut records).await
+    }
+
+    // Amortize the directory scan across a bounded writer batch. Each fact
+    // still has its own sync, atomic rename, outcome and recoverable temp file.
+    pub(super) async fn commit_batch<'a>(
+        &self,
+        batch: impl ExactSizeIterator<Item = (&'a Record, bool)>,
+    ) -> Vec<Result<(), String>> {
+        assert!(batch.len() <= COMMIT_BATCH);
+        let mut index = self.io.lock().await;
+        let mut records = None;
+        let mut results = Vec::with_capacity(batch.len());
+        for (record, terminal) in batch {
+            let result = async {
+                Self::check_commit(record)?;
+                let records = match &mut records {
+                    Some(records) => records,
+                    None => records.insert(self.read_unlocked(&mut index).await?),
+                };
+                self.commit_unlocked(record, terminal, records).await
+            }
+            .await;
+            if result.is_err() {
+                // An interrupted write may have left a partial or committed file.
+                // Revalidate the directory before admitting the following record.
+                records = None;
+            }
+            results.push(result);
+        }
+        results
+    }
+
+    fn check_commit(record: &Record) -> Result<(), String> {
         let checked = Record::new(record.payload.clone())?;
         if checked.id != record.id
             || checked.digest != record.digest
@@ -294,8 +343,15 @@ impl Spool {
         {
             return Err("Invalid audit commit identity".into());
         }
-        let _io = self.io.lock().await;
-        let records = self.read_unlocked().await?;
+        Ok(())
+    }
+
+    async fn commit_unlocked(
+        &self,
+        record: &Record,
+        terminal: bool,
+        records: &mut Vec<Record>,
+    ) -> Result<(), String> {
         if let Some(prior) = records.iter().find(|r| r.id == record.id) {
             return if prior.digest == record.digest && prior.payload == record.payload {
                 Ok(())
@@ -342,6 +398,10 @@ impl Spool {
         tokio::fs::rename(partial, target)
             .await
             .map_err(|e| e.to_string())?;
+        self.stored_entries.fetch_add(1, Ordering::Relaxed);
+        self.used_bytes
+            .fetch_add((record.payload.len() + 65) as u64, Ordering::Relaxed);
+        records.push(record.clone());
         // A late genuine creation fact makes the preserved successors retryable.
         // No history is manufactured and no blocked bytes are acknowledged.
         if record.sequence == 1 {
@@ -352,6 +412,7 @@ impl Spool {
                     let blocked = read_record(&path).await?;
                     if blocked.operation == record.operation {
                         tokio::fs::rename(&path, path.with_extension("audit")).await.map_err(|e| e.to_string())?;
+                        records.push(blocked);
                     }
                 }
             }
@@ -367,15 +428,17 @@ impl Spool {
             return Err("Invalid audit acknowledgement identity".into());
         }
         record.acknowledge(receipt)?;
-        let _io = self.io.lock().await;
+        let mut index = self.io.lock().await;
         let path = self.directory.join(format!("{}.audit", record.id));
-        let current = read_record(&path).await?;
+        let current = read_indexed_record(&path, index.get(&record.id)).await?;
         if current.payload != record.payload {
             return Err("Recovery audit changed before acknowledgement".into());
         }
         tokio::fs::remove_file(path)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        index.remove(&record.id);
+        Ok(())
     }
 
     /// Retains an entire rejected incident for reconciliation without acknowledging
@@ -383,8 +446,8 @@ impl Spool {
     /// # Errors
     /// Changed content, conflicting quarantine or unavailable storage.
     pub async fn block_incident(&self, record: &Record) -> Result<(), String> {
-        let _io = self.io.lock().await;
-        let records = self.read_unlocked().await?;
+        let mut index = self.io.lock().await;
+        let records = self.read_unlocked(&mut index).await?;
         if !records.iter().any(|value| value.id == record.id && value.digest == record.digest) {
             return Err("Recovery quarantine identity changed".into());
         }
@@ -445,12 +508,41 @@ pub fn start(
                 value=incoming.recv()=>match value {Some(value)=>pending.push_back(value),None=>break},
                 ()=async {if pending.is_empty(){std::future::pending::<()>().await;}else{tokio::time::sleep(Duration::from_secs(5)).await;}}=>{}
             }
-            let count=pending.len();
-            for _ in 0..count {
-                let captured=pending.pop_front().expect("bounded pending entry");
-                let record=match Record::new(captured.payload.clone()){Ok(r)=>r,Err(e)=>{writer_health.failure(&e);continue;}};
-                let result=tokio::select! {biased;()=stop.cancelled()=>{pending.push_front(captured);break 'writer;},result=writer_spool.commit(&record,captured.terminal)=>result};
-                match result {Ok(())=>writer_notify.notify_one(),Err(e)=>{writer_health.write_failures.fetch_add(1,Ordering::Relaxed);writer_health.failure(&e);pending.push_back(captured);}}
+            while pending.len() < COMMIT_BATCH {
+                let Ok(value) = incoming.try_recv() else { break };
+                pending.push_back(value);
+            }
+            let mut remaining = pending.len();
+            while remaining != 0 {
+                let count = remaining.min(COMMIT_BATCH);
+                remaining -= count;
+                let batch = pending.drain(..count).filter_map(|captured| {
+                    match Record::new(captured.payload.clone()) {
+                        Ok(record) => Some((captured, record)),
+                        Err(error) => { writer_health.failure(&error); None }
+                    }
+                }).collect::<Vec<_>>();
+                let results = tokio::select! { biased;
+                    () = stop.cancelled() => {
+                        for (captured, _) in batch.into_iter().rev() {
+                            pending.push_front(captured);
+                        }
+                        break 'writer;
+                    }
+                    results = writer_spool.commit_batch(
+                        batch.iter().map(|(captured, record)| (record, captured.terminal))
+                    ) => results,
+                };
+                for ((captured, _), result) in batch.into_iter().zip(results) {
+                    match result {
+                        Ok(()) => writer_notify.notify_one(),
+                        Err(error) => {
+                            writer_health.write_failures.fetch_add(1, Ordering::Relaxed);
+                            writer_health.failure(&error);
+                            pending.push_back(captured);
+                        }
+                    }
+                }
             }
         }
         // Graceful root stop commits already captured values once; never wait
@@ -596,6 +688,10 @@ pub(crate) fn channel() -> (Sink, mpsc::Receiver<Captured>) {
 // The integrity prefix is persisted, not recomputed as a substitute for validation.
 // take() also bounds races with an externally growing file after metadata inspection.
 async fn read_record(path: &Path) -> Result<Record, String> {
+    read_indexed_record(path, None).await
+}
+
+async fn read_indexed_record(path: &Path, cached: Option<&RecordIndex>) -> Result<Record, String> {
     let file = tokio::fs::File::open(path)
         .await
         .map_err(|e| e.to_string())?;
@@ -607,11 +703,16 @@ async fn read_record(path: &Path) -> Result<Record, String> {
     if bytes.len() < 65 || bytes.len() > 256 * 1024 + 65 || bytes[64] != b'\n' {
         return Err("Invalid audit integrity framing/size".into());
     }
-    let digest = std::str::from_utf8(&bytes[..64]).map_err(|_| "Invalid audit digest")?;
-    let record =
-        Record::new(String::from_utf8(bytes[65..].to_vec()).map_err(|_| "Invalid audit UTF-8")?)?;
-    if record.digest != digest {
+    let prefix = std::str::from_utf8(&bytes[..64]).map_err(|_| "Invalid audit digest")?;
+    let payload = String::from_utf8(bytes[65..].to_vec()).map_err(|_| "Invalid audit UTF-8")?;
+    let digest = Record::content_digest(payload.as_bytes());
+    if digest != prefix {
         return Err("Recovery audit checksum mismatch".into());
     }
-    Ok(record)
+    // Compare the exact disk bytes to the stored digest before reusing metadata.
+    // A replaced file must pass the same JSON and identity validation as a cold load.
+    match cached.filter(|value| value.digest == digest) {
+        Some(value) => Ok(value.restore(payload, digest)),
+        None => Record::parse_verified(payload, digest),
+    }
 }

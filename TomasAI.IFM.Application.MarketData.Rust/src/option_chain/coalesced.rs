@@ -5,7 +5,10 @@
 use super::qualification::{self, Quote};
 use crate::{
     pricing::{Calculator, Failure as NumericalFailure, PriceDelta, Request, Settings, Values},
-    runtime::Deadline,
+    runtime::{
+        Deadline,
+        capture_updates::{CaptureUpdates, Subscription},
+    },
 };
 use std::{
     collections::BTreeMap,
@@ -221,6 +224,7 @@ pub struct Coalesced {
     selection_pass: AsyncMutex<PricingBatch>,
     risk_pass: AsyncMutex<PricingBatch>,
     changes: tokio::sync::watch::Sender<u64>,
+    capture_updates: Arc<CaptureUpdates>,
     reference_updates: tokio::sync::watch::Sender<u64>,
     reference_incident: Mutex<Option<Deadline>>,
 }
@@ -274,6 +278,7 @@ impl Coalesced {
             selection_pass: AsyncMutex::new(Vec::with_capacity(batch)),
             risk_pass: AsyncMutex::new(Vec::with_capacity(batch)),
             changes: tokio::sync::watch::channel(0).0,
+            capture_updates: Arc::new(CaptureUpdates::default()),
             reference_updates: tokio::sync::watch::channel(0).0,
             reference_incident: Mutex::new(None),
         })
@@ -564,6 +569,7 @@ impl Coalesced {
         state.reference_validation = None;
         self.changes
             .send_modify(|version| *version = version.saturating_add(1));
+        self.capture_updates.notify(None);
         Ok(())
     }
     /// Attaches cold application evidence before provider admission. It cannot
@@ -812,6 +818,10 @@ impl Coalesced {
     /// slots; a delayed consumer never accumulates a completion/timer backlog.
     pub fn updates(&self) -> tokio::sync::watch::Receiver<u64> {
         self.changes.subscribe()
+    }
+
+    pub(crate) fn capture_updates(&self, instruments: Vec<u32>) -> Option<Subscription> {
+        self.capture_updates.subscribe(instruments)
     }
     /// Checks typed immutable configuration as well as opaque semantic digests.
     /// A reused digest cannot conceal changed model/reference inputs. Dynamic
@@ -1424,6 +1434,9 @@ impl Coalesced {
                 }
                 self.changes
                     .send_modify(|version| *version = version.saturating_add(1));
+                if !risk {
+                    self.capture_updates.notify(Some(id));
+                }
             }
         }
         Ok(count)

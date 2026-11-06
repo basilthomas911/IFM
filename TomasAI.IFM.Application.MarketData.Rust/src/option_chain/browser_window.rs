@@ -116,6 +116,115 @@ fn ordered(indices: &mut [usize], rows: &[Row<'_>], kind: bool) {
             })
     });
 }
+
+const NEAREST_STRIKES: usize = 80;
+
+fn fixed_strike(value: Decimal) -> Option<u128> {
+    let [lo, mid, hi, flags] = value.bits;
+    let scale = flags >> 16;
+    if scale > 9 || flags != scale << 16 {
+        return None;
+    }
+    let coefficient = u128::from(lo) | (u128::from(mid) << 32) | (u128::from(hi) << 64);
+    let fixed = coefficient * 10u128.pow(9 - scale);
+    // Bounding both positive operands at a common scale also bounds their
+    // difference. CLR decimal subtraction cannot round in this case.
+    (fixed < 1u128 << 96).then_some(fixed)
+}
+
+fn nearest_exact(strikes: &[Decimal], centre: Decimal) -> Option<Vec<Decimal>> {
+    let centre = fixed_strike(centre)?;
+    if strikes.iter().any(|strike| fixed_strike(*strike).is_none()) {
+        return None;
+    }
+    let pivot = strikes.partition_point(|strike| fixed_strike(*strike).unwrap() < centre);
+    let (mut left, mut right) = (pivot, pivot);
+    for _ in 0..NEAREST_STRIKES.min(strikes.len()) {
+        if left > 0
+            && (right == strikes.len()
+                || centre - fixed_strike(strikes[left - 1]).unwrap()
+                    <= fixed_strike(strikes[right]).unwrap() - centre)
+        {
+            // On equal distance the existing stable sort picks the lower strike.
+            left -= 1;
+        } else {
+            right += 1;
+        }
+    }
+    Some(strikes[left..right].to_vec())
+}
+
+fn nearest_decimal(strikes: &[Decimal], centre: Decimal) -> Result<Vec<Decimal>, &'static str> {
+    let mut ranked = strikes
+        .iter()
+        .map(|s| Ok((*s, absolute(number(math::subtract(*s, centre))?))))
+        .collect::<Result<Vec<_>, &'static str>>()?;
+    ranked.sort_by(|a, b| compare(a.1, b.1));
+    ranked.truncate(NEAREST_STRIKES);
+    let mut selected = ranked.into_iter().map(|(s, _)| s).collect::<Vec<_>>();
+    selected.sort_by(|a, b| compare(*a, *b));
+    Ok(selected)
+}
+
+#[cfg(test)]
+mod nearest_tests {
+    use super::*;
+
+    fn strikes(count: usize) -> Vec<Decimal> {
+        (0..count)
+            .map(|index| decimal::from_double(2000.0 + index as f64 * 1.25).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn exact_strike_slice_matches_decimal_ranking_at_ties_and_bounds() {
+        let values = strikes(256);
+        for price in [100.0, 1999.5, 2000.0, 2063.125, 2160.0, 2318.75, 3000.0] {
+            let centre = decimal::from_double(price).unwrap();
+            assert_eq!(
+                nearest_exact(&values, centre).unwrap(),
+                nearest_decimal(&values, centre).unwrap()
+            );
+        }
+        let precise = Decimal {
+            bits: [1, 0, 0, 28 << 16],
+        };
+        assert!(nearest_exact(&[precise], values[0]).is_none());
+        assert_eq!(nearest_decimal(&[precise], values[0]).unwrap(), [precise]);
+    }
+
+    #[test]
+    #[ignore = "Explicit paired nearest-strike kernel benchmark"]
+    fn nearest_strike_kernel_before_after_timings() {
+        use std::{hint::black_box, time::Instant};
+        for count in [128, 1024, 2048] {
+            let values = strikes(count);
+            let centre = values[count / 2];
+            for pair in 1..=5 {
+                for exact in if pair % 2 == 1 {
+                    [false, true]
+                } else {
+                    [true, false]
+                } {
+                    let started = Instant::now();
+                    for _ in 0..128 {
+                        let result = if exact {
+                            nearest_exact(black_box(&values), black_box(centre)).unwrap()
+                        } else {
+                            nearest_decimal(black_box(&values), black_box(centre)).unwrap()
+                        };
+                        black_box(result);
+                    }
+                    println!(
+                        "NEAREST_STRIKES pair={pair} count={count} exact={exact} calls=128 elapsed_ns={}",
+                        started.elapsed().as_nanos()
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// Selects the baseline nearest/Bollinger/IV window. Checks cancellation while
 /// reading the bounded source; no raw reference is held across an await.
 ///
@@ -224,14 +333,10 @@ pub fn select(
     strikes.sort_by(|a, b| compare(*a, *b));
     strikes.dedup_by(|a, b| compare(*a, *b).is_eq());
     let (lower, upper, selected) = if nearest {
-        let mut ranked = strikes
-            .iter()
-            .map(|s| Ok((*s, absolute(number(math::subtract(*s, centre))?))))
-            .collect::<Result<Vec<_>, &'static str>>()?;
-        ranked.sort_by(|a, b| compare(a.1, b.1));
-        ranked.truncate(80);
-        let mut selected = ranked.into_iter().map(|(s, _)| s).collect::<Vec<_>>();
-        selected.sort_by(|a, b| compare(*a, *b));
+        let selected = match nearest_exact(&strikes, centre) {
+            Some(selected) => selected,
+            None => nearest_decimal(&strikes, centre)?,
+        };
         (
             selected.first().copied(),
             selected.last().copied(),

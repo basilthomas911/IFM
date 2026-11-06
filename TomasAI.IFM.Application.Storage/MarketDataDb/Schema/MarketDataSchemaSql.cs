@@ -14,6 +14,7 @@ public static class MarketDataSchemaSql
         new("historical_analytics_attempt_projection", CreateHistoricalAnalyticsAttemptProjection,
             "DROP TABLE IF EXISTS historical_analytics_attempt_projection;"),
         new("market_data", Create, "DROP SCHEMA IF EXISTS market_data CASCADE;"),
+        new("indicator_seed_coverage", IndicatorSeedCoverageCreate, "DROP TABLE IF EXISTS market_data.indicator_seed_coverage;"),
         new("strategy_option_chain_parameter_version", OptionChainVersionCreate,
             "DROP TABLE IF EXISTS market_data.strategy_option_chain_policy_version;"),
         new("strategy_option_chain_parameter_current", OptionChainCurrentCreate,
@@ -73,7 +74,16 @@ public static class MarketDataSchemaSql
     /// <summary>Creates both option-chain policy tables for staged offline migration.</summary>
     public const string OptionChainPoliciesCreate = OptionChainVersionCreate + "\n" + OptionChainCurrentCreate + "\n";
 
-    public const string Create = OptionChainPoliciesCreate + """
+    public const string IndicatorSeedCoverageCreate = """
+        CREATE SCHEMA IF NOT EXISTS market_data;
+        CREATE TABLE IF NOT EXISTS market_data.indicator_seed_coverage (
+            contract_id text NOT NULL, time_frame text NOT NULL, value_date date NOT NULL,
+            source_version text NOT NULL, interval_end timestamptz NOT NULL, payload bytea NOT NULL,
+            PRIMARY KEY (contract_id, time_frame, value_date, source_version, interval_end)
+        );
+        """;
+
+    public const string Create = OptionChainPoliciesCreate + IndicatorSeedCoverageCreate + "\n" + """
         CREATE TABLE IF NOT EXISTS market_data.ifm_recovery_probe (
             probe_id uuid PRIMARY KEY,
             observed_at_utc timestamptz
@@ -143,7 +153,7 @@ public static class MarketDataSchemaSql
                 PRIMARY KEY (seriesKey, timePeriod, yearMonth, marketDataAsOf, observationId)
             );
         CREATE INDEX IF NOT EXISTS futures_trade_session_bar_ordered ON market_data.futures_trade_session_bar (seriesKey, timePeriod, yearMonth, marketDataAsOf DESC, observationId ASC);
-        
+
         CREATE TABLE IF NOT EXISTS market_data.futures_ema_signal (
                 seriesKey text, timePeriod text, configurationId text, yearMonth int,
                 marketDataAsOf timestamptz, observationId uuid, contractId text, valueDate date,

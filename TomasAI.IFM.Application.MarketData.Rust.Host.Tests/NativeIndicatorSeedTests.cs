@@ -71,7 +71,7 @@ public sealed class NativeIndicatorSeedTests(ITestOutputHelper output)
         {
             var bucket = new NativeFuturesSeedReplay.BarBucket();
             bucket.Add(100, 1, window.StartUtc.AddMinutes(1), 1);
-            bars.Add(window.EndUtc, bucket.ToObservation(series, Contract, window, now, TimeFrameType.FourHours));
+            bars.Add((string.Empty, window.EndUtc), bucket.ToObservation(series, Contract, window, now, TimeFrameType.FourHours));
         }
         var missing = windows[^1];
         var replay = Substitute.For<INativeSeedReplaySource>();
@@ -184,6 +184,76 @@ public sealed class NativeIndicatorSeedTests(ITestOutputHelper output)
         provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(call => new Reader(Minutes(call.Arg<HistoricalProviderRequest>()).Skip(1).ToArray()));
         Assert.Empty(await Create(provider).ReadAsync("ES20261218", TimeFrameType.OneHour, default));
+    }
+
+    [Fact]
+    public async Task Restart_reacquires_only_the_hole_in_a_completed_historical_range()
+    {
+        var (database, bars) = Cache();
+        var windows = RsiHistoricalSeedWindowModel.Create(TimeFrameType.OneMinute, 48, Now, new CmeFuturesMarketSessionCalendar());
+        var missing = windows[20];
+        var partialProvider = Provider(0m);
+        partialProvider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(Minutes(call.Arg<HistoricalProviderRequest>())
+                .Where(record => record.EventTimestampUtc != missing.StartUtc).ToArray()));
+
+        Assert.Empty(await Create(partialProvider, database).ReadAsync(Contract, TimeFrameType.OneMinute, default));
+        Assert.Equal(47, bars.Count);
+        var retryProvider = Provider(0m);
+        retryProvider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(Minutes(call.Arg<HistoricalProviderRequest>())));
+
+        var restored = await Create(retryProvider, database).ReadAsync(Contract, TimeFrameType.OneMinute, default);
+        Assert.Equal(windows.Select(window => window.EndUtc), restored.Select(bar => bar.IntervalEndUtc));
+        await retryProvider.Received(1).OpenRangeAsync(Arg.Is<HistoricalProviderRequest>(request =>
+            request.StartUtc == missing.StartUtc && request.EndUtc == missing.EndUtc), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        Assert.Equal(48, bars.Count);
+    }
+
+    [Fact]
+    public async Task Provider_remapping_never_reuses_the_prior_cache_and_keeps_observation_ids_stable()
+    {
+        var (database, bars) = Cache();
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var request = call.Arg<HistoricalProviderRequest>();
+                var price = request.Symbols[0] == "ESZ6" ? 100 : 101;
+                return new Reader(Minutes(request).Select(row => row with
+                    { Symbol = request.Symbols[0], CloseOrPrice = price }).ToArray());
+            });
+
+        var original = await Create(provider, database).ReadAsync(Contract, TimeFrameType.OneMinute, default);
+        var remapped = await Create(provider, database, symbol: "ESZ26").ReadAsync(Contract, TimeFrameType.OneMinute, default);
+
+        Assert.Equal(48, original.Length);
+        Assert.Equal(original.Select(bar => bar.ObservationId), remapped.Select(bar => bar.ObservationId));
+        Assert.All(original, bar => Assert.Equal(100, bar.Close));
+        Assert.All(remapped, bar => Assert.Equal(101, bar.Close));
+        Assert.Equal(96, bars.Count);
+        await provider.Received().OpenRangeAsync(Arg.Is<HistoricalProviderRequest>(request => request.Symbols[0] == "ESZ26"),
+            Arg.Any<int>(), Arg.Any<CancellationToken>());
+        Assert.Equal(original, await Create(Provider(0m), database).ReadAsync(Contract, TimeFrameType.OneMinute, default));
+    }
+
+    [Fact]
+    public async Task A_live_replay_without_a_final_marker_does_not_persist_apparently_complete_bars()
+    {
+        var (database, bars) = Cache();
+        var now = new DateTimeOffset(2026, 11, 5, 15, 30, 0, TimeSpan.Zero);
+        var replay = Substitute.For<INativeSeedReplaySource>();
+        replay.Open(Arg.Any<DatabentoContractRegistration>(), Arg.Any<DateTimeOffset>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(new Reader(Enumerable.Range(0, 48).Select(index => new HistoricalProviderRecord
+            {
+                Kind = HistoricalProviderRecordKind.Trade, Symbol = "ESZ6", InstrumentId = "42",
+                EventTimestampUtc = now.AddMinutes(index - 48).AddSeconds(1), CloseOrPrice = 100, VolumeOrSize = 1,
+                SourceSequence = index + 1
+            }).ToArray(), complete: false));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => Create(Provider(0m), database, replay, now)
+            .ReadAsync(Contract, TimeFrameType.OneMinute, default));
+        Assert.Empty(bars);
     }
 
 
@@ -341,47 +411,48 @@ public sealed class NativeIndicatorSeedTests(ITestOutputHelper output)
         return provider;
     }
 
-    static (IDbContextFactory Database, Dictionary<DateTimeOffset, FuturesTradeSessionBarReadModel> Bars) Cache()
+    static (IDbContextFactory Database, Dictionary<(string SourceVersion, DateTimeOffset End), FuturesTradeSessionBarReadModel> Bars) Cache()
     {
-        var bars = new Dictionary<DateTimeOffset, FuturesTradeSessionBarReadModel>();
+        var bars = new Dictionary<(string SourceVersion, DateTimeOffset End), FuturesTradeSessionBarReadModel>();
         var database = Substitute.For<IDbContextFactory>();
         var market = Substitute.For<IMarketDataDbContext>();
         database.MarketDataDb.Returns(market);
-        market.GetStoredTradeSessionBarsAsync(Contract, Arg.Any<TimeFrameType>(), Arg.Any<DateOnly>(),
-                Arg.Any<DateTimeOffset[]>(), Arg.Any<CancellationToken>())
+        market.GetQualifiedIndicatorSeedBarsAsync(Contract, Arg.Any<TimeFrameType>(), Arg.Any<DateOnly>(),
+                Arg.Any<DateTimeOffset[]>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(call => Task.FromResult<IReadOnlyList<FuturesTradeSessionBarReadModel>>(call.Arg<DateTimeOffset[]>()
-                .Select(end => bars.GetValueOrDefault(end))
+                .Select(end => bars.GetValueOrDefault((string.Empty, end)) ?? bars.GetValueOrDefault((call.ArgAt<string>(4), end)))
                 .OfType<FuturesTradeSessionBarReadModel>()
                 .Where(bar => bar.ValueDate == call.Arg<DateOnly>() && bar.TimeFrame == call.Arg<TimeFrameType>())
                 .ToArray()));
-        ((IHistoricalObservationStore)market).TryWriteObservationAsync(Arg.Any<FuturesTradeSessionBarReadModel>(), Arg.Any<CancellationToken>())
+        market.StoreQualifiedIndicatorSeedBarsAsync(Arg.Any<string>(), Arg.Any<FuturesTradeSessionBarReadModel[]>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                var bar = call.Arg<FuturesTradeSessionBarReadModel>();
-                return ValueTask.FromResult(bars.TryAdd(bar.IntervalEndUtc, bar));
+                foreach (var bar in call.Arg<FuturesTradeSessionBarReadModel[]>())
+                    bars.TryAdd((call.Arg<string>(), bar.IntervalEndUtc), bar);
+                return Task.CompletedTask;
             });
         return (database, bars);
     }
 
     static NativeFuturesSeedReplay Create(IMarketDataHistoricalProvider provider, IDbContextFactory? database = null,
-        INativeSeedReplaySource? replay = null, DateTimeOffset? now = null) => new(replay!, new()
+        INativeSeedReplaySource? replay = null, DateTimeOffset? now = null, string symbol = "ESZ6") => new(replay!, new()
     {
         FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3") with { DataSource = FeedDataSourceMode.DatabentoLive },
-        Contracts = [new() { DomainContractId = "ES20261218", ProviderContractName = "ESZ6", AssetTypeId = AssetTypeId.Futures, Dataset = "GLBX.MDP3" }]
+        Contracts = [new() { DomainContractId = "ES20261218", ProviderContractName = symbol, AssetTypeId = AssetTypeId.Futures, Dataset = "GLBX.MDP3" }]
     }, new CmeFuturesMarketSessionCalendar(), new Clock(now ?? Now), historical: provider, databases: database);
 
     static HistoricalProviderRecord[] Minutes(HistoricalProviderRequest request) => Enumerable.Range(0, (int)(request.EndUtc - request.StartUtc).TotalMinutes)
         .Select(i => new HistoricalProviderRecord { Kind = HistoricalProviderRecordKind.Ohlcv, Symbol = "ESZ6", InstrumentId = "42", EventTimestampUtc = request.StartUtc.AddMinutes(i), Open = 100, High = 101, Low = 99, CloseOrPrice = 100, VolumeOrSize = 10 }).ToArray();
 
     sealed class Clock(DateTimeOffset now) : TimeProvider { public override DateTimeOffset GetUtcNow() => now; }
-    sealed class Reader(HistoricalProviderRecord[] records) : IHistoricalRecordReader
+    sealed class Reader(HistoricalProviderRecord[] records, bool complete = true) : IHistoricalRecordReader
     {
         bool read;
         public ValueTask<HistoricalProviderRecordBatch?> ReadNextAsync(CancellationToken cancellationToken)
         {
             if (read) return ValueTask.FromResult<HistoricalProviderRecordBatch?>(null);
             read = true;
-            return ValueTask.FromResult<HistoricalProviderRecordBatch?>(new(records, 0, "fixture", true));
+            return ValueTask.FromResult<HistoricalProviderRecordBatch?>(new(records, 0, "fixture", complete));
         }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

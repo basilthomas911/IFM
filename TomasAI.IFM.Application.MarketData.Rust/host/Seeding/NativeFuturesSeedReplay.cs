@@ -77,14 +77,15 @@ public sealed class NativeFuturesSeedReplay(
             return [];
 
         var retained = new Dictionary<DateTimeOffset, FuturesTradeSessionBarReadModel>();
+        var sourceVersion = DatabentoIndicatorSeedSourceVersion.Create(registration, options.FeedOptions.Dataset);
         if (cache is not null)
         {
             var validation = new FuturesTradeSessionBarReadModelValidationRules();
             foreach (var group in windows.GroupBy(window => window.ValueDate))
             {
                 var expected = group.ToDictionary(window => window.EndUtc);
-                var bars = await cache.MarketDataDb.GetStoredTradeSessionBarsAsync(contractId, timeFrame,
-                    group.Key, expected.Keys.ToArray(), token).ConfigureAwait(false);
+                var bars = await cache.MarketDataDb.GetQualifiedIndicatorSeedBarsAsync(contractId, timeFrame,
+                    group.Key, expected.Keys.ToArray(), sourceVersion, token).ConfigureAwait(false);
                 foreach (var bar in bars)
                 {
                     if (expected.TryGetValue(bar.IntervalEndUtc, out var window)
@@ -105,35 +106,33 @@ public sealed class NativeFuturesSeedReplay(
         var historicalWindows = missing.Where(window => window.StartUtc < sessionStart
             || window.StartUtc < now.AddHours(-23)).ToArray();
         var historicalBars = timeFrame == TimeFrameType.FifteenSeconds
-            ? await ReadHistoricalTradesAsync(registration, contractId, historicalWindows, cutoff, cache, token).ConfigureAwait(false)
-            : await ReadHistoricalAsync(registration, contractId, historicalWindows, cutoff, timeFrame, maximumCostUsd, cache, token).ConfigureAwait(false);
-        if (historicalBars.Length != historicalWindows.Length)
+            ? await ReadHistoricalTradesAsync(registration, contractId, historicalWindows, cutoff, cache, sourceVersion, token).ConfigureAwait(false)
+            : await ReadHistoricalAsync(registration, contractId, historicalWindows, cutoff, timeFrame, maximumCostUsd, cache, sourceVersion, token).ConfigureAwait(false);
+        if (historicalBars.Length != historicalWindows.Length && cache is null)
             return [];
         foreach (var bar in historicalBars)
             retained.Add(bar.IntervalStartUtc, bar);
         var replayWindows = missing.Except(historicalWindows).ToArray();
         if (replayWindows.Length == 0)
-            return windows.Select(window => retained[window.StartUtc]).ToArray();
+            return retained.Count == windows.Length ? windows.Select(window => retained[window.StartUtc]).ToArray() : [];
         var replayStart = replayWindows[0].StartUtc;
         logger?.LogInformation("Indicator seed acquisition: ContractId={ContractId}; RetainedBars={RetainedBars}; LiveBars={LiveBars}; LiveStartUtc={LiveStartUtc}; CutoffUtc={CutoffUtc}",
             contractId, retained.Count, replayWindows.Length, replayStart, cutoff);
         var replayRequest = new SharedShortSeedReplay.Window(timeFrame, replayWindows, cutoff);
         var replayBars = timeFrame is TimeFrameType.FifteenSeconds or TimeFrameType.OneMinute
-            ? await shortReplay.ReadAsync(contractId, replayRequest,
+            ? await shortReplay.ReadAsync(contractId, sourceVersion, replayRequest,
                 (requests, replayToken) => ReadReplayAsync(registration, contractId, requests, replayToken), token).ConfigureAwait(false)
             : (await ReadReplayAsync(registration, contractId, [replayRequest], token).ConfigureAwait(false))[0];
+        await CacheBarsAsync(cache, sourceVersion, replayBars, token).ConfigureAwait(false);
         foreach (var bar in replayBars)
-        {
-            await CacheBarAsync(cache, bar, token).ConfigureAwait(false);
             retained.Add(bar.IntervalStartUtc, bar);
-        }
         return retained.Count == windows.Length ? windows.Select(window => retained[window.StartUtc]).ToArray() : [];
     }
 
     async Task<FuturesTradeSessionBarReadModel[]> ReadHistoricalAsync(
         DatabentoContractRegistration registration, string contractId,
         MarketSessionBounds[] windows, DateTimeOffset cutoff, TimeFrameType timeFrame, decimal maximumCostUsd,
-        IDbContextFactory? cache, CancellationToken token)
+        IDbContextFactory? cache, string sourceVersion, CancellationToken token)
     {
         if (windows.Length == 0) return [];
         if (historical is null)
@@ -142,6 +141,7 @@ public sealed class NativeFuturesSeedReplay(
             return [];
         }
         var result = new List<FuturesTradeSessionBarReadModel>(windows.Length);
+        var validation = new FuturesTradeSessionBarReadModelValidationRules();
         var remainingBudget = maximumCostUsd;
         foreach (var selected in ContiguousRanges(windows))
         {
@@ -154,7 +154,7 @@ public sealed class NativeFuturesSeedReplay(
                 Symbols = [registration.ProviderContractName], Schema = HistoricalDataSchema.OhlcvOneMinute,
                 Symbology = HistoricalSymbology.RawSymbol, StartUtc = start, EndUtc = end,
                 RecordLimit = minuteCount + 1,
-                RequestHash = $"indicator-seed-v1|{contractId}|{start:O}|{end:O}"
+                RequestHash = $"indicator-seed-v1|{sourceVersion}|{contractId}|{start:O}|{end:O}"
             };
             var estimate = await historical.EstimateAsync(request, token).ConfigureAwait(false);
             if (estimate.EstimatedCostUsd < 0 || estimate.EstimatedCostUsd > remainingBudget)
@@ -178,6 +178,7 @@ public sealed class NativeFuturesSeedReplay(
                     if (!minutes.TryAdd(record.EventTimestampUtc, record))
                         throw new InvalidOperationException("Duplicate historical indicator seed minute.");
                 }
+            var qualified = new List<FuturesTradeSessionBarReadModel>(selected.Length);
             foreach (var window in selected)
             {
                 var records = Enumerable.Range(0, (int)(window.EndUtc - window.StartUtc).TotalMinutes).Select(index =>
@@ -185,7 +186,8 @@ public sealed class NativeFuturesSeedReplay(
                 if (records.Any(record => record is null))
                 {
                     logger?.LogWarning("Historical indicator seed incomplete: ContractId={ContractId}; IntervalStartUtc={IntervalStartUtc}", contractId, window.StartUtc);
-                    return [];
+                    if (cache is null) return [];
+                    continue;
                 }
                 var series = MarketSeriesIdentity.ForContract(contractId);
                 var bar = new FuturesTradeSessionBarReadModel
@@ -203,9 +205,11 @@ public sealed class NativeFuturesSeedReplay(
                     CalculationVersion = "databento-historical-minute-seed-v1",
                     CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
                 };
-                await CacheBarAsync(cache, bar, token).ConfigureAwait(false);
-                result.Add(bar);
+                if (validation.Execute(bar).Length == 0)
+                    qualified.Add(bar);
             }
+            await CacheBarsAsync(cache, sourceVersion, qualified.ToArray(), token).ConfigureAwait(false);
+            result.AddRange(qualified);
             logger?.LogInformation("Historical indicator seed acquired: ContractId={ContractId}; StartUtc={StartUtc}; EndUtc={EndUtc}; Bars={Bars}",
                 contractId, start, end, selected.Length);
         }
@@ -214,7 +218,7 @@ public sealed class NativeFuturesSeedReplay(
 
     async Task<FuturesTradeSessionBarReadModel[]> ReadHistoricalTradesAsync(
         DatabentoContractRegistration registration, string contractId, MarketSessionBounds[] windows,
-        DateTimeOffset cutoff, IDbContextFactory? cache, CancellationToken token)
+        DateTimeOffset cutoff, IDbContextFactory? cache, string sourceVersion, CancellationToken token)
     {
         if (windows.Length == 0 || historical is null) return [];
         const int recordLimit = 250_000;
@@ -231,7 +235,7 @@ public sealed class NativeFuturesSeedReplay(
                 Symbols = [registration.ProviderContractName], Schema = HistoricalDataSchema.Trades,
                 Symbology = HistoricalSymbology.RawSymbol, StartUtc = start, EndUtc = end,
                 RecordLimit = recordLimit + 1,
-                RequestHash = $"indicator-trade-seed-v1|{contractId}|{start:O}|{end:O}"
+                RequestHash = $"indicator-trade-seed-v1|{sourceVersion}|{contractId}|{start:O}|{end:O}"
             };
             var estimate = await historical.EstimateAsync(request, token).ConfigureAwait(false);
             if (estimate.EstimatedCostUsd != 0m)
@@ -254,18 +258,24 @@ public sealed class NativeFuturesSeedReplay(
                             trade.EventTimestampUtc, checked((uint)trade.SourceSequence));
                 }
             }
+            var qualified = new List<FuturesTradeSessionBarReadModel>(selected.Length);
             for (var index = 0; index < selected.Length; index++)
             {
-                if (buckets[index].Count == 0) return [];
+                if (buckets[index].Count == 0)
+                {
+                    if (cache is null) return [];
+                    continue;
+                }
                 var bar = buckets[index].ToObservation(series, contractId, selected[index], cutoff, TimeFrameType.FifteenSeconds) with
                 {
                     CalculationVersion = "databento-historical-trade-seed-v1",
                     CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
                 };
-                if (validation.Execute(bar).Length != 0) return [];
-                await CacheBarAsync(cache, bar, token).ConfigureAwait(false);
-                bars.Add(bar);
+                if (validation.Execute(bar).Length == 0)
+                    qualified.Add(bar);
             }
+            await CacheBarsAsync(cache, sourceVersion, qualified.ToArray(), token).ConfigureAwait(false);
+            bars.AddRange(qualified);
         }
         return bars.ToArray();
     }
@@ -283,10 +293,12 @@ public sealed class NativeFuturesSeedReplay(
         }
     }
 
-    static async ValueTask CacheBarAsync(IDbContextFactory? cache, FuturesTradeSessionBarReadModel bar, CancellationToken token)
+    static async Task CacheBarsAsync(IDbContextFactory? cache, string sourceVersion,
+        FuturesTradeSessionBarReadModel[] bars, CancellationToken token)
     {
-        if (cache is not null)
-            _ = await ((IHistoricalObservationStore)cache.MarketDataDb).TryWriteObservationAsync(bar, token).ConfigureAwait(false);
+        if (cache is null || bars.Length == 0) return;
+        foreach (var group in bars.GroupBy(bar => bar.ValueDate))
+            await cache.MarketDataDb.StoreQualifiedIndicatorSeedBarsAsync(sourceVersion, group.ToArray(), token).ConfigureAwait(false);
     }
 
     async Task<FuturesTradeSessionBarReadModel[][]> ReadReplayAsync(DatabentoContractRegistration registration,
@@ -297,8 +309,10 @@ public sealed class NativeFuturesSeedReplay(
         logger?.LogInformation("Opening one indicator replay for {ContractId} at {StartUtc} with {FrameCount} frame requests.",
             contractId, replayStart, requests.Length);
         await using var reader = replay.Open(registration, replayStart, TimeSpan.FromMinutes(2), token);
+        var completed = false;
         while (await reader.ReadNextAsync(token).ConfigureAwait(false) is { } batch)
         {
+            completed = batch.IsFinal;
             foreach (var row in batch.Records)
             {
                 if (row.Kind != HistoricalProviderRecordKind.Trade || row.CloseOrPrice <= 0 || row.VolumeOrSize <= 0)
@@ -307,6 +321,8 @@ public sealed class NativeFuturesSeedReplay(
                     accumulator.Add(row);
             }
         }
+        if (!completed)
+            throw new InvalidDataException("Native indicator replay ended without a successful replay-complete marker.");
 
         // Complete coverage is published only after the provider replay-complete
         // marker. A hole invalidates just the affected frame.

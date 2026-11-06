@@ -1,9 +1,11 @@
 using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using MessagePack;
 using NATS.Client.Core;
 using NATS.Net;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
+using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Rust.Persistence;
 
 namespace TomasAI.IFM.Application.MarketData.Rust.Host;
@@ -34,23 +36,22 @@ public sealed class NativeEvidenceStorageService(IConfiguration configuration, M
                     // Backpressure here must not block the dedicated evidence connection or shared Host control connection.
                     opts: new NatsSubOpts { ChannelOpts = new NatsSubChannelOpts { Capacity = 64, FullMode = BoundedChannelFullMode.DropWrite } },
                     cancellationToken: stoppingToken).ConfigureAwait(false);
-                await Parallel.ForEachAsync(subscriber.Msgs.ReadAllAsync(stoppingToken),
+                await Parallel.ForEachAsync(ReadBatchesAsync(subscriber.Msgs, stoppingToken),
                     new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = stoppingToken },
-                    async (message, token) =>
+                    async (batch, token) =>
                     {
-                        var request = message.Data;
-                        if (request is null || string.IsNullOrWhiteSpace(message.ReplyTo)) return;
-                        NativeEvidenceReceipt receipt;
-                        try { receipt = await storage.WriteAsync(request, token).ConfigureAwait(false); }
-                        catch (Exception error) when (!token.IsCancellationRequested)
+                        var results = await storage.WriteBatchAsync(batch.Select(static item => item.Request).ToArray(), token)
+                            .ConfigureAwait(false);
+                        for (var index = 0; index < batch.Count; index++)
                         {
-                            logger.LogError(error, "Native copied evidence persistence failed; Receipt={Receipt}; Source={Source}", request.Receipt, request.Identity);
-                            // The full exception stays in structured logs. Untrusted source
-                            // or database diagnostics are not echoed onto broker subjects.
-                            receipt = new(request.Receipt, request.Identity, request.Digest, false, "Durable option evidence persistence failed.");
+                            var (message, request) = batch[index];
+                            var (receipt, error) = results[index];
+                            if (error is not null)
+                                logger.LogError(error, "Native copied evidence persistence failed; Receipt={Receipt}; Source={Source}",
+                                    request.Receipt, request.Identity);
+                            await message.ReplyAsync(receipt, serializer: Plain<NativeEvidenceReceipt>.Default,
+                                cancellationToken: token).ConfigureAwait(false);
                         }
-                        await message.ReplyAsync(receipt, serializer: Plain<NativeEvidenceReceipt>.Default,
-                            cancellationToken: token).ConfigureAwait(false);
                     }).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
@@ -62,6 +63,23 @@ public sealed class NativeEvidenceStorageService(IConfiguration configuration, M
             }
             try { await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken).ConfigureAwait(false); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
+        }
+    }
+
+    // Drain only requests already available so quiet feeds incur no batching timer.
+    static async IAsyncEnumerable<List<(NatsMsg<NativeEvidenceWrite> Message, NativeEvidenceWrite Request)>> ReadBatchesAsync(
+        ChannelReader<NatsMsg<NativeEvidenceWrite>> messages,
+        [EnumeratorCancellation] CancellationToken stoppingToken)
+    {
+        const int capacity = IOptionTradeEvidenceWriter.MaximumFirstWriteBatch;
+        while (await messages.WaitToReadAsync(stoppingToken).ConfigureAwait(false))
+        {
+            var batch = new List<(NatsMsg<NativeEvidenceWrite>, NativeEvidenceWrite)>(capacity);
+            for (var read = 0; read < capacity && messages.TryRead(out var message); read++)
+                if (message.Data is { } request && !string.IsNullOrWhiteSpace(message.ReplyTo))
+                    batch.Add((message, request));
+            if (batch.Count != 0)
+                yield return batch;
         }
     }
 

@@ -1,0 +1,41 @@
+{
+  "committedBase": "ed7053001dc7ab21a57eb0cf26a499c021317d5c",
+  "reviewedAfterBase": [
+    "TomasAI.IFM.Application.MarketData/Pricing/IOptionTradeEvidenceWriter.cs"
+  ],
+  "sourceFiles": {
+    "TomasAI.IFM.Application.MarketData.Host.Worker/Hosting/Program.cs": "797ee2ee6311837e294f70bebd873b650aec49614035cabbcf39c1fb1859cf02",
+    "TomasAI.IFM.Application.MarketData.Host/Api/MarketDataApiBackend.cs": "afdb4c3ca0dbdb520f72384fb8247f6cca92373d96d19fd8ba1c5d88b5085d64",
+    "TomasAI.IFM.Application.MarketData.Host/Hosting/BackendServices.cs": "b49585f3ebf09c6425e1631c9948b5b0002e489dc90e378ab9dbd1b2a4836bb4",
+    "TomasAI.IFM.Application.MarketData.Host/Messaging/MarketDataNatsService.cs": "80d764781fa241ba913732768356466d813ab992d38da897b6135baf463f7e4d",
+    "TomasAI.IFM.Application.MarketData.Host/Seeding/FourHourDatabentoSeedReplay.cs": "a6c07671c03c632218d384d5ff3c384788e1f4092396f7109734f323a9f64b70",
+    "TomasAI.IFM.Application.MarketData.Host/Workers/MarketDataWorkerRecovery.cs": "25f2bd6818d7a47720b8134ed4c27376531c7d3ebbf3e9517194128519074f69",
+    "TomasAI.IFM.Application.MarketData/Contracts/Historical/IMarketDataHistoricalApi.cs": "59c9035508bc33a5857e0a0c1c2235ae190538f3827a98c78275b16ef3d88bfa",
+    "TomasAI.IFM.Application.MarketData/Contracts/IMarketDataApi.Backend.cs": "d4612dbca065fc6c146703c74f6fbd68de9fa1ae1cbe550d392e18ac46e96ff2",
+    "TomasAI.IFM.Application.MarketData/DataBento/DatabentoMarketDataApi.cs": "c6a565aa1dc374c2f2262e1f0407872a4f3dfd1eb12710d8f35efaf6c9af4f47",
+    "TomasAI.IFM.Application.MarketData/DataBento/Historical/DatabentoHistoricalApi.cs": "aa9d59af2e3d29cf3ec08a3bfcfab2742b9443bf72a58d56e26aaad997b81b0a",
+    "TomasAI.IFM.Application.MarketData/DataBento/MarketDataServiceCollectionExtensions.cs": "790fc97c4af6ed04b10f9a0c37a9deca40c55a414e561ad0b1cc1a14bce74b6b",
+    "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatabentoMarketDataWatchdogService.cs": "05e815797774cef5a848f7454c2f31e0535e32f2f80cef259c56a26c7f816042",
+    "TomasAI.IFM.Application.MarketData/DataBento/Resiliency/DatasetWorkerAdmissionRegistry.cs": "1c4f2cbaa0bba2b228de9a11734ef5c215b06c7b9597431c660676132d5e634c",
+    "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetPublicationIngress.cs": "2e173dfd01321c06a41d579d35204e4f63528251b91219cc2702fe083e07186d",
+    "TomasAI.IFM.Application.MarketData/DataBento/Workers/DatasetWorkerCurrentValues.cs": "f81331ab35dbbe1313d1cfa4127f3d3e745aa69bed14d8323188de4cf52487ad",
+    "TomasAI.IFM.Application.MarketData/DataBento/Workers/LatestOptionObservations.cs": "5eda08b8d65110a85a644452bfebdbfe059812006baefbf85cda04d66ce19b25",
+    "TomasAI.IFM.Application.MarketData/DataBento/Workers/MarketDataHostConnection.cs": "f3b5f5421d6c70903efb097db7cf6358c3987f9265c0ad557693d349a0913419",
+    "TomasAI.IFM.Application.MarketData/FinancialModelingPrep/FmpMarketDataServiceCollectionExtensions.cs": "2e5bef8ac1323cec12183b3e3ecbafac871d9b8e9b4480737808f3193350e72a",
+    "TomasAI.IFM.Application.MarketData/Historical/HistoricalAnalyticsWarmupService.cs": "f5eac8498af307f59921daf5956949f7d7b5e07a18f35e9fb8d441333036e465",
+    "TomasAI.IFM.Application.MarketData/Historical/HistoricalDataLoader.cs": "fdb50fd35cb55d5c47936a05725ec11b03eb218ba0e43c6ab3a21fe53df94db7",
+    "TomasAI.IFM.Application.MarketData/MarketOutlook/MarketOutlookInputState.cs": "01a2507f1338c2534ad5c08f50431bd95dd2cbb78d145a97657749b5df1e4d71",
+    "TomasAI.IFM.Application.MarketData/OptionChainCache/OptionChainCacheServiceCollectionExtensions.cs": "42373a9f0ac6b66c6ea2a39726ed42cdd218b50b59014661f846ca3fbdafbf60",
+    "TomasAI.IFM.Application.MarketData/Pricing/CoalescedOptionChainPricing.cs": "25c99d58348fc4ccad80b7da9e14398a5b0b3904789b6a086716482a677e7235",
+    "TomasAI.IFM.Application.MarketData/Pricing/IOptionTradeEvidenceWriter.cs": "1315414ab17bb1d575d4ced086ab619880a69f6befd29bbe394c2765e918d0ac",
+    "TomasAI.IFM.Application.MarketData/Pricing/OptionTradeRealtimeEvent.cs": "658d7c9f7bc5d3a8d8d7a91ff62c02d61dfd4fa379d9f968c396af7012606e5d",
+    "TomasAI.IFM.Application.MarketData/Pricing/QualifiedCompositionDiscovery.cs": "c984238019a4d4e54d245357649ed8e3e0550a2b6858c0bdb655ba9151c03ad0",
+    "TomasAI.IFM.Application.MarketData/Pricing/TreasuryPricingProvider.cs": "942d4e9cb393ba4faa40dea1e77c1a2b1d809bbda0d040554c7d9e2812dd9ed1",
+    "TomasAI.IFM.Application.MarketData/Remote/MarketDataApiCall.cs": "12cf8890eb915f11b3a726c6427f16c361281b24d142ae5a3132d3c28ae5149c",
+    "TomasAI.IFM.Application.MarketData/Remote/MarketDataApiClient.Backend.cs": "927b0bd389335529d0d860b372559ed74e5754ff646cb576a86f682de57bdd6f",
+    "TomasAI.IFM.Application.MarketData/Remote/MarketDataApiClient.cs": "9a9952b862dcb4df61774fde0745697a256e9544bdc88a8367f79cb7e4516291",
+    "TomasAI.IFM.Application.MarketData/Remote/MarketDataReadMirror.State.cs": "2702623c349816d040465a0e12430a0efcdf2e71e2daf4ef7c71ac5a371eb241",
+    "TomasAI.IFM.Framework.MarketData.DataBento/Configuration/DatabentoServiceCollectionExtensions.cs": "c3cef99a6a2b8f96b07d25aca208557abc149d43f54d4ebd416465777afca68f",
+    "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep/Configuration/FinancialModelingPrepServiceCollectionExtensions.cs": "02a25c706349643d467239d7ffb624265cb4d921946b8027b798faab107b053d"
+  }
+}

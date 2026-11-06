@@ -8,6 +8,7 @@ use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
 pub mod availability;
+pub(crate) mod capture_updates;
 pub mod clock;
 pub mod owner;
 pub mod panic_capture;

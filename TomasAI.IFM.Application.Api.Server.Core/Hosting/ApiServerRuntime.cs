@@ -73,6 +73,12 @@ public sealed partial class ApiServerLifecycle
                 await app.Services.GetRequiredService<MarketDataSchemaDb>().CreateAsync(
                     ["historical_data_loader", "historical_analytics_attempt_projection"], schemaDeadline.Token);
             }),
+            RunPreflightAsync("Indicator seed coverage schema", async () =>
+            {
+                using var schemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await app.Services.GetRequiredService<MarketDataSchemaDb>().CreateAsync(
+                    ["indicator_seed_coverage"], schemaDeadline.Token);
+            }),
             RunPreflightAsync("Configuration schema and parameter migration", async () =>
             {
                 await new TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb(

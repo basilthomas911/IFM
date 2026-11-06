@@ -42,6 +42,128 @@ async fn rejected_orphan_is_retained_without_ack_and_late_creation_restores_deli
 fn payload(sequence: u64, kind: &str) -> String {
     serde_json::json!({"Version":1,"RecordId":"00000001-0001-4001-8001-000000000001","OperationId":"00000002-0002-4002-8002-000000000002","Sequence":sequence,"Kind":kind}).to_string()
 }
+
+#[tokio::test]
+async fn warm_audit_index_preserves_order_and_validates_replaced_files() {
+    let path = directory();
+    let spool = Spool::new(path.clone());
+    let second = Record::new(payload(2, "ConnectionRestored")).unwrap();
+    let mut first: serde_json::Value = serde_json::from_str(&payload(1, "Started")).unwrap();
+    first["RecordId"] = "00000003-0003-4003-8003-000000000003".into();
+    let first = Record::new(first.to_string()).unwrap();
+    spool.commit(&second, false).await.unwrap();
+    spool.commit(&first, false).await.unwrap();
+
+    for reader in [&spool, &Spool::new(path.clone())] {
+        let records = reader.read().await.unwrap();
+        assert_eq!(records.iter().map(|record| record.sequence).collect::<Vec<_>>(), [1, 2]);
+    }
+
+    let mut changed: serde_json::Value = serde_json::from_str(&second.payload).unwrap();
+    changed["Sequence"] = 3.into();
+    let changed = Record::new(changed.to_string()).unwrap();
+    assert_eq!(changed.payload.len(), second.payload.len());
+    let file = path.join(format!("{}.audit", second.id));
+    tokio::fs::write(&file, format!("{}\n{}", changed.digest, changed.payload))
+        .await
+        .unwrap();
+    let records = spool.read().await.unwrap();
+    assert_eq!(records[1].sequence, 3);
+    assert_eq!(records[1].payload, changed.payload);
+
+    tokio::fs::write(&file, format!("{}\n{}", changed.digest, second.payload))
+        .await
+        .unwrap();
+    assert!(spool.read().await.is_err());
+    assert!(file.with_extension("rejected").exists());
+    assert_eq!(spool.read().await.unwrap().len(), 1);
+    tokio::fs::remove_dir_all(path).await.unwrap();
+}
+
+fn batch_record(sequence: u64) -> Record {
+    let mut value: serde_json::Value = serde_json::from_str(&payload(sequence, "Started")).unwrap();
+    value["RecordId"] = format!("{sequence:08x}-0001-4001-8001-000000000001").into();
+    value["Fixture"] = "fixture evidence ".repeat(128).into();
+    Record::new(value.to_string()).unwrap()
+}
+
+#[tokio::test]
+async fn grouped_audit_commits_keep_independent_durable_outcomes() {
+    let path = directory();
+    let spool = Spool::new(path.clone());
+    let first = batch_record(1);
+    let second = batch_record(2);
+    let mut conflicting: serde_json::Value = serde_json::from_str(&first.payload).unwrap();
+    conflicting["Kind"] = "ConnectionRestored".into();
+    let conflicting = Record::new(conflicting.to_string()).unwrap();
+    let results = spool
+        .commit_batch([(&first, false), (&first, false), (&conflicting, false), (&second, false)].into_iter())
+        .await;
+    assert!(results[0].is_ok());
+    assert!(results[1].is_ok());
+    assert_eq!(results[2].as_ref().unwrap_err(), "Recovery audit RecordId conflict");
+    assert!(results[3].is_ok());
+
+    let reopened = Spool::new(path.clone());
+    let committed = reopened.read().await.unwrap();
+    assert_eq!(committed.len(), 2);
+    assert_eq!(committed[0].payload, first.payload);
+    assert_eq!(committed[1].payload, second.payload);
+    reopened.acknowledge(&first, &receipt(&first)).await.unwrap();
+    assert_eq!(reopened.read().await.unwrap()[0].payload, second.payload);
+    tokio::fs::remove_dir_all(path).await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "Explicit paired durable spool benchmark"]
+async fn audit_commit_batch_before_after_timings() {
+    use std::time::Instant;
+    let records = (1..=16).map(batch_record).collect::<Vec<_>>();
+    for pair in 1..=5 {
+        for grouped in if pair % 2 == 1 { [false, true] } else { [true, false] } {
+            let path = directory();
+            let spool = Spool::new(path.clone());
+            let started = Instant::now();
+            if grouped {
+                for result in spool.commit_batch(records.iter().map(|r| (r, false))).await {
+                    result.unwrap();
+                }
+            } else {
+                for record in &records {
+                    spool.commit(record, false).await.unwrap();
+                }
+            }
+            println!("AUDIT_COMMIT pair={pair} grouped={grouped} records={} elapsed_us={}", records.len(), started.elapsed().as_micros());
+            assert_eq!(Spool::new(path.clone()).read().await.unwrap().len(), records.len());
+            tokio::fs::remove_dir_all(path).await.unwrap();
+        }
+    }
+}
+
+#[tokio::test]
+#[ignore = "Explicit paired durable retry-index benchmark"]
+async fn audit_retry_index_before_after_timings() {
+    use std::time::Instant;
+    let path = directory();
+    let spool = Spool::new(path.clone());
+    tokio::fs::create_dir_all(&path).await.unwrap();
+    for sequence in 1..=256 {
+        let record = batch_record(sequence);
+        tokio::fs::write(path.join(format!("{}.audit", record.id)), format!("{}\n{}", record.digest, record.payload))
+            .await.unwrap();
+    }
+    assert_eq!(spool.read().await.unwrap().len(), 256);
+    for pair in 1..=5 {
+        for indexed in if pair % 2 == 1 { [false, true] } else { [true, false] } {
+            let cold = Spool::new(path.clone());
+            let reader = if indexed { &spool } else { &cold };
+            let started = Instant::now();
+            assert_eq!(reader.read().await.unwrap().len(), 256);
+            println!("AUDIT_INDEX pair={pair} indexed={indexed} records=256 elapsed_us={}", started.elapsed().as_micros());
+        }
+    }
+    tokio::fs::remove_dir_all(path).await.unwrap();
+}
 fn receipt(record: &Record) -> Vec<u8> {
     use rmpv::Value;
     let mut completed = vec![Value::Nil; 12];

@@ -50,6 +50,197 @@ fn evidence() -> Evidence {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn pipelined_receipts_preserve_actor_order_and_pending_state_after_failure() {
+    use ifm_market_data_native::{
+        dataset::transport::Lane,
+        messaging::{
+            codec,
+            evidence_delivery::{Configuration, Delivery},
+            ordered::{Header, Ordered},
+            wire::Frame,
+        },
+    };
+    use tokio::sync::mpsc;
+
+    for fail_first in [false, true] {
+        let storage = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let actor = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let storage_broker = BrokerSettings::new(
+            format!("nats://{}", storage.local_addr().unwrap()),
+            vec!["127.0.0.1:1".parse().unwrap()],
+        )
+        .unwrap();
+        let actor_broker = BrokerSettings::new(
+            format!("nats://{}", actor.local_addr().unwrap()),
+            vec!["127.0.0.1:1".parse().unwrap()],
+        )
+        .unwrap();
+        let storage_peer = tokio::spawn(async move {
+            let (socket, _) = storage.accept().await.unwrap();
+            let (read, mut write) = socket.into_split();
+            let mut read = BufReader::new(read);
+            write.write_all(b"INFO {\"server_id\":\"evidence\",\"version\":\"2.10.0\",\"proto\":1,\"max_payload\":1048576}\r\n").await.unwrap();
+            let mut line = String::new();
+            let mut inbox = None;
+            let mut pending = Vec::new();
+            while read.read_line(&mut line).await.unwrap_or(0) != 0 {
+                let fields: Vec<_> = line.split_whitespace().collect();
+                match fields[0] {
+                    "PING" => {
+                        if write.write_all(b"PONG\r\n").await.is_err() {
+                            break;
+                        }
+                    }
+                    "SUB" => inbox = Some((fields[1].to_owned(), fields[2].to_owned())),
+                    "PUB" => {
+                        assert_eq!(fields[1], "ifm.test.marketdata.v1.evidence.write");
+                        let length = fields.last().unwrap().parse::<usize>().unwrap();
+                        let mut bytes = vec![0; length + 2];
+                        read.read_exact(&mut bytes).await.unwrap();
+                        let request = rmpv::decode::read_value(&mut &bytes[..length]).unwrap();
+                        let request = request.as_array().unwrap();
+                        assert_eq!(request[0].as_u64(), Some((pending.len() + 1) as u64));
+                        pending.push(request[..3].to_vec());
+                        if pending.len() == 4 {
+                            let (subject, sid) = inbox.as_ref().unwrap();
+                            for (index, mut reply) in pending.drain(..).enumerate().rev() {
+                                let duplicate = index == 1;
+                                let failed = fail_first && index == 0;
+                                reply.push((!duplicate && !failed).into());
+                                reply.push(if duplicate {
+                                    "OPTION_EVIDENCE_ALREADY_SEEN".into()
+                                } else if failed {
+                                    "Persistence failed".into()
+                                } else {
+                                    rmpv::Value::Nil
+                                });
+                                let bytes = codec::encode(&rmpv::Value::Array(reply)).unwrap();
+                                write
+                                    .write_all(
+                                        format!("MSG {subject} {sid} {}\r\n", bytes.len())
+                                            .as_bytes(),
+                                    )
+                                    .await
+                                    .unwrap();
+                                write.write_all(&bytes).await.unwrap();
+                                write.write_all(b"\r\n").await.unwrap();
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                line.clear();
+            }
+        });
+        let (published, mut observations) = mpsc::unbounded_channel();
+        let actor_peer = tokio::spawn(async move {
+            let (socket, _) = actor.accept().await.unwrap();
+            let (read, mut write) = socket.into_split();
+            let mut read = BufReader::new(read);
+            write.write_all(b"INFO {\"server_id\":\"actor\",\"version\":\"2.10.0\",\"proto\":1,\"max_payload\":1048576}\r\n").await.unwrap();
+            let mut line = String::new();
+            while read.read_line(&mut line).await.unwrap_or(0) != 0 {
+                let fields: Vec<_> = line.split_whitespace().collect();
+                if fields[0] == "PING" && write.write_all(b"PONG\r\n").await.is_err() {
+                    break;
+                }
+                if fields[0] == "PUB" {
+                    let length = fields.last().unwrap().parse::<usize>().unwrap();
+                    let mut bytes = vec![0; length + 2];
+                    read.read_exact(&mut bytes).await.unwrap();
+                    bytes.truncate(length);
+                    published.send(bytes).unwrap();
+                }
+                line.clear();
+            }
+        });
+
+        let root = Arc::new(Owner::default());
+        let parent = Arc::new(root.child().unwrap());
+        let mut writer = Publisher::start_owned(
+            actor_broker,
+            "test".into(),
+            4,
+            512 * 1024,
+            budget(),
+            &parent,
+        )
+        .unwrap();
+        let outbox = Arc::new(Outbox::new(4, 1024 * 1024).unwrap());
+        let records: Vec<_> = (0..4)
+            .map(|index| {
+                let mut item = evidence();
+                item.source.sequence += index;
+                outbox.retain(&item).unwrap()
+            })
+            .collect();
+        let header = Header {
+            lane: Lane::OptionsGlbx,
+            value_date: records[0].value_date,
+            worker: [3; 16],
+            generation: records[0].generation,
+            revision: 1,
+        };
+        let actor = Ordered::new(writer.port(), header.clone()).unwrap();
+        let mut delivery = Delivery::start(
+            outbox.clone(),
+            Configuration {
+                broker: storage_broker,
+                scope: "test".into(),
+                worker: header.worker,
+                revision: header.revision,
+                actor: Some(actor),
+            },
+            parent.clone(),
+            budget(),
+        )
+        .unwrap();
+        if fail_first {
+            let mut status = delivery.changes();
+            tokio::time::timeout(
+                Duration::from_secs(2),
+                status.wait_for(|state| state.recovering),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            assert!(observations.try_recv().is_err());
+            assert!(outbox.capture(true, 4).unwrap().is_empty());
+            assert_eq!(outbox.capture(false, 4).unwrap().len(), 4);
+        } else {
+            let mut changes = outbox.changes();
+            for (sequence, index) in [0, 2, 3].into_iter().enumerate() {
+                let bytes = tokio::time::timeout(Duration::from_secs(2), observations.recv())
+                    .await
+                    .unwrap()
+                    .unwrap();
+                let expected = Frame {
+                    lane: header.lane,
+                    value_date: header.value_date,
+                    worker: header.worker,
+                    generation: header.generation,
+                    manifest_revision: header.revision,
+                    sequence: (sequence + 1) as i64,
+                    kind: 6,
+                    payload: records[index].bytes.to_vec(),
+                };
+                assert_eq!(bytes, expected.encode().unwrap());
+            }
+            while outbox.retained_counts().unwrap().0 != 0 {
+                tokio::time::timeout(Duration::from_secs(2), changes.changed())
+                    .await
+                    .unwrap()
+                    .unwrap();
+            }
+        }
+        delivery.shutdown(budget()).await.unwrap();
+        writer.shutdown(budget()).await.unwrap();
+        storage_peer.await.unwrap();
+        actor_peer.await.unwrap();
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn durable_receipt_is_separate_and_silent_writer_cannot_block_join() {
     for mode in 0..5 {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

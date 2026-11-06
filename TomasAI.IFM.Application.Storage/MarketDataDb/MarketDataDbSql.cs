@@ -1,26 +1,33 @@
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 /// <summary>Native PostgreSQL session snapshot and observation statements.</summary>
-public static class MarketDataDbSql
+public static partial class MarketDataDbSql
 {
+    // These older rows lack the provider mapping necessary to reuse them across a registration change.
+    internal const string UnversionedProviderSeedCalculations = """
+        ('databento-historical-minute-seed-v1','databento-historical-trade-seed-v1','databento-four-hour-trade-replay-v1')
+        """;
+
     /// <summary>Reads a complete bar under its exact indexed series/frame/month/end identity.</summary>
-    public const string GetStoredTradeSessionBar = """
+    public const string GetStoredTradeSessionBar = $$"""
         SELECT observationId,intervalStart,intervalEnd,openPrice,highPrice,lowPrice,closePrice,
                volume,tradeCount,priceVolumeSum,firstSourceSequence,lastSourceSequence,
                firstMarketEvent,lastMarketEvent,calculatedAt,schemaVersion,calculationVersion
         FROM market_data.futures_trade_session_bar
         WHERE seriesKey=$1 AND timePeriod=$2 AND yearMonth=$3 AND marketDataAsOf=$4
             AND contractId=$5 AND valueDate=$6 AND isComplete AND isValid
+            AND calculationVersion NOT IN {{UnversionedProviderSeedCalculations}}
         ORDER BY calculatedAt DESC,observationId LIMIT 1;
         """;
     /// <summary>Reads bounded exact interval keys, retaining the singular lookup's latest-observation ordering.</summary>
-    public const string GetStoredTradeSessionBars = """
+    public const string GetStoredTradeSessionBars = $$"""
         SELECT DISTINCT ON (marketDataAsOf) observationId,intervalStart,intervalEnd,openPrice,highPrice,lowPrice,closePrice,
                volume,tradeCount,priceVolumeSum,firstSourceSequence,lastSourceSequence,
                firstMarketEvent,lastMarketEvent,calculatedAt,schemaVersion,calculationVersion
         FROM market_data.futures_trade_session_bar
         WHERE seriesKey=$1 AND timePeriod=$2 AND yearMonth=$3 AND marketDataAsOf=ANY($4)
             AND contractId=$5 AND valueDate=$6 AND isComplete AND isValid
+            AND calculationVersion NOT IN {{UnversionedProviderSeedCalculations}}
         ORDER BY marketDataAsOf,calculatedAt DESC,observationId;
         """;
     public const string InsertFuturesEodData = """
@@ -296,6 +303,20 @@ public static class MarketDataDbSql
             INSERT INTO market_data.option_trade_evidence(contract_id,value_date,source_id,source_digest,payload)
             VALUES($1,$2,$3,$4,$5) ON CONFLICT (contract_id,value_date,source_id) DO NOTHING RETURNING 1
         ) SELECT EXISTS(SELECT 1 FROM accepted);
+        """;
+    public const string InsertOptionTradeEvidenceBatch = """
+        INSERT INTO market_data.option_trade_evidence(contract_id,value_date,source_id,source_digest,payload)
+        SELECT contract_id,value_date,source_id,source_digest,payload
+        FROM unnest($1::text[],$2::date[],$3::text[],$4::text[],$5::bytea[])
+            AS requested(contract_id,value_date,source_id,source_digest,payload)
+        ORDER BY contract_id,value_date,source_id
+        ON CONFLICT (contract_id,value_date,source_id) DO NOTHING
+        RETURNING contract_id,value_date,source_id;
+        """;
+    public const string GetOptionTradeEvidenceBatch = """
+        SELECT stored.contract_id,stored.value_date,stored.source_id,stored.source_digest,stored.payload
+        FROM unnest($1::text[],$2::date[],$3::text[]) AS requested(contract_id,value_date,source_id)
+        JOIN market_data.option_trade_evidence stored USING (contract_id,value_date,source_id);
         """;
     public const string GetCompositionPreparation = "SELECT payload FROM market_data.composition_preparation WHERE workflow_id=$1 AND input_revision=$2;";
     public const string InsertCompositionPreparation = "INSERT INTO market_data.composition_preparation(workflow_id,input_revision,payload) VALUES($1,$2,$3) ON CONFLICT (workflow_id,input_revision) DO NOTHING;";
