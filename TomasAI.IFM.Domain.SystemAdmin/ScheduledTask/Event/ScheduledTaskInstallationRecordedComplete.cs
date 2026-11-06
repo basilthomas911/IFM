@@ -13,9 +13,10 @@ public static class ScheduledTaskInstallationRecordedComplete
     {
         /// <summary>Dispatches committed desired work or observes its explicit projection outcome.</summary>
         ///
-        /// <param name="context">Readonly durable transport and logging services.</param>
+        /// <param name="context">The event actor context.</param>
+        /// <param name="logger">The owning actor logger.</param>
         /// <returns>The bounded notification dispatch operation.</returns>
-        public ValueTask ExecuteAsync(ScheduledTaskEventContext context)
+        public ValueTask ExecuteAsync(ScheduledTaskEventContext context, ILogger<ScheduledTaskEventActor> logger)
         {
             return ValueTask.CompletedTask;
         }

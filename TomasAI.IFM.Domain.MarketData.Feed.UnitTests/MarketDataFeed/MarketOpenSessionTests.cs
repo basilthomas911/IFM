@@ -10,11 +10,11 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed;
 public sealed class MarketOpenSessionTests
 {
     [Fact]
-    public async Task Opening_initializes_API_provider_before_preparing_the_session()
+    public async Task Opening_reads_API_provider_without_advancing_the_date()
     {
         var dates = Substitute.For<IValueDateProvider, IMarketOpenValueDateInitializer>();
         var date = new DateOnly(2026, 10, 30);
-        ((IMarketOpenValueDateInitializer)dates).InitializeMarketOpen().Returns(date);
+        dates.ValueDate.Returns(date);
         var market = Substitute.For<IMarketDataApi>();
         market.PrepareSessionAsync(date, CancellationToken.None).Returns([SampleData.EsContract]);
         var request = PrepareMarketDataFeedSessionCommand.ForOperation(Guid.NewGuid());
@@ -24,7 +24,7 @@ public sealed class MarketOpenSessionTests
         prepared.ValueDate.Should().Be(date);
         prepared.Contracts.Should().Equal(SampleData.EsContract);
         prepared.CommandId.Should().Be(request.CommandId);
-        ((IMarketOpenValueDateInitializer)dates).Received(1).InitializeMarketOpen();
+        ((IMarketOpenValueDateInitializer)dates).DidNotReceive().InitializeMarketOpen();
         await market.Received(1).PrepareSessionAsync(date, CancellationToken.None);
     }
 

@@ -82,7 +82,7 @@ public sealed class TradeTickQuoteRoutingTests
         Assert.Null(await market.GetLastFuturesOptionTickDataAsync(option.ContractId, date));
 
         // Verify direct ingestion through the new owner using this same disposable fixture.
-        var timestamp = new DateTime(2026, 10, 7, 16, 1, 2, DateTimeKind.Utc).AddTicks(1234);
+        var timestamp = new DateTime(2026, 10, 7, 16, 1, 2, DateTimeKind.Utc).AddTicks(5_671_234);
         var trade = new FuturesTickTradeDataInsertedEvent
         {
             Id = Guid.NewGuid(), EventId = 81, CommandId = Guid.NewGuid(),
@@ -109,6 +109,10 @@ public sealed class TradeTickQuoteRoutingTests
             Assert.Equal(trade.TradeData.PriceRaw, row.GetProperty("price_raw").GetInt64());
             Assert.Equal((long)uint.MaxValue, row.GetProperty("size").GetInt64());
         }
+        var clusteringTime = new TimeOnly(16, 1, 2, 567);
+        var rawTrade = Assert.Single(await raw.GetRawFuturesTradeWindowAsync(contract, date, clusteringTime, clusteringTime));
+        Assert.Equal(clusteringTime, rawTrade.AggregationTimeUtc);
+        Assert.Equal(trade.TradeData.EventTimestampNanoseconds, rawTrade.EventNanoseconds);
         foreach (var count in new[] { 1, 512 })
         {
             var quotes = Enumerable.Range(0, count).Select(index => new FuturesTickQuoteData(

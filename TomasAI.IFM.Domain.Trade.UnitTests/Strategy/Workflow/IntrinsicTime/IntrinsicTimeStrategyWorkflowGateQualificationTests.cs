@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.TradeDb;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using FluentAssertions;
@@ -33,6 +34,35 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime;
 /// <summary>Qualifies ITSW-7 through ITSW-11 structural boundaries.</summary>
 public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
 {
+    [Fact]
+    public async Task Current_workflow_observation_uses_latest_verified_projection()
+    {
+        var view = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification().State;
+        var entity = view.EntityId.Format();
+        var store = Substitute.For<ITradeDbReadContext>();
+        var detail = new IntrinsicTimeStrategyWorkflowReadModel(
+            view.WorkflowId, entity, view.EntityId.WorkflowDefinitionId, view.WorkflowDefinitionVersion,
+            view.EntityId.ItiSignalEntityId.ContractId, view.EntityId.ItiSignalEntityId.TimeFrameStartValueDate,
+            view.EntityId.ItiSignalEntityId.TimePeriod, view.TriggerEventId, view.CorrelationId,
+            StrategyWorkflowStatus.Running, view.Outcome, view.CurrentStage, view.WorkflowRevision,
+            1, 2, MessagePackSerializer.Serialize(view), view.StopReasonCode, view.StartedAtUtc, null, view.UpdatedAtUtc);
+        var history = new IntrinsicTimeStrategyWorkflowHistoryReadModel(
+            entity, view.StartedAtUtc, view.WorkflowId, detail.Status, detail.Outcome, view.CurrentStage,
+            view.WorkflowRevision, null, view.StopReasonCode);
+        var before = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
+        store.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(entity, before, 1, CancellationToken.None)
+            .Returns(Task.FromResult<ICollection<IntrinsicTimeStrategyWorkflowHistoryReadModel>>([history]));
+        store.GetIntrinsicTimeStrategyWorkflowAsync(view.WorkflowId, CancellationToken.None).Returns(detail);
+
+        var loaded = await ProjectedWorkflowView.ReadCurrentAsync(store, entity, CancellationToken.None);
+
+        loaded.Should().BeEquivalentTo(view);
+        store.GetIntrinsicTimeStrategyWorkflowAsync(view.WorkflowId, CancellationToken.None)
+            .Returns(detail with { StatePayload = MessagePackSerializer.Serialize(view with { WorkflowRevision = view.WorkflowRevision + 1 }) });
+        var inconsistent = async () => await ProjectedWorkflowView.ReadCurrentAsync(store, entity, CancellationToken.None);
+        await inconsistent.Should().ThrowAsync<InvalidDataException>();
+    }
+
     [Fact]
     public async Task Missing_trade_selection_activation_returns_typed_initialization_failure()
     {

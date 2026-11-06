@@ -1,5 +1,10 @@
 using TomasAI.IFM.Shared.MarketData.Definitions;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text.Json;
+using Xunit.Abstractions;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,7 +28,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb;
 
-public sealed class OptionPricingReferenceBundlePostgresTests
+public sealed class OptionPricingReferenceBundlePostgresTests(ITestOutputHelper output)
 {
     [Fact]
     public async Task Exact_reviewed_version_roundtrips_restarts_and_refuses_conflicting_content()
@@ -94,6 +99,57 @@ public sealed class OptionPricingReferenceBundlePostgresTests
             await Assert.ThrowsAsync<InvalidOperationException>(() => PublishAsync(restarted, banded with
             { PremiumTickRule = OptionPremiumTickRule.Fixed }, token));
             
+            var identities = Enumerable.Range(1, 12)
+                .Select(index => (value.ContractId, Version: $"batch/v{index}")).ToArray();
+            foreach (var identity in identities)
+                await PublishAsync(store, value with { MappingVersion = identity.Version }, token);
+            var pendingVersion = value with { MappingVersion = "batch/unpublished" };
+            var pending = await store.StageReferenceVersionAsync(Definition(pendingVersion), token);
+            var reader = Open();
+            var mixed = new[] { identities[^1], (value.ContractId, pendingVersion.MappingVersion),
+                identities[0], identities[^1], (value.ContractId, "missing") };
+            var exactResults = await reader.GetManyAsync(mixed, token);
+            Assert.Equal(await SerialAsync(Open(), mixed), exactResults);
+            Assert.Null(exactResults[1]);
+            Assert.Null(exactResults[4]);
+            await store.CommitReferenceVersionAsync(pending, token);
+            Assert.Equal(ReviewedOptionConvention.From(Definition(pendingVersion)),
+                Assert.Single(await reader.GetManyAsync([(value.ContractId, pendingVersion.MappingVersion)], token)));
+
+            var beforeWarm = Open();
+            var afterWarm = Open();
+            var expected = await SerialAsync(beforeWarm, identities);
+            Assert.Equal(expected, await afterWarm.GetManyAsync(identities, token));
+            var samples = new List<object>();
+            for (var pair = 0; pair < 5; pair++)
+            {
+                foreach (var (mode, before, after) in new[] { ("cold", Open(), Open()), ("warm", beforeWarm, afterWarm) })
+                {
+                    var reversed = pair % 2 == 1;
+                    var firstMs = await TimeAsync(reversed ? () => after.GetManyAsync(identities, token) : () => SerialAsync(before, identities));
+                    var secondMs = await TimeAsync(reversed ? () => SerialAsync(before, identities) : () => after.GetManyAsync(identities, token));
+                    samples.Add(new { mode, beforeMs = reversed ? secondMs : firstMs, afterMs = reversed ? firstMs : secondMs });
+                }
+            }
+            output.WriteLine("reference-convention-timings " + JsonSerializer.Serialize(samples));
+
+            async Task<IReadOnlyList<OptionPricingConvention?>> SerialAsync(SecuritiesDbContext database,
+                IReadOnlyList<(string ContractId, string Version)> requests)
+            {
+                var result = new List<OptionPricingConvention?>(requests.Count);
+                foreach (var (id, version) in requests)
+                    result.Add(await database.GetAsync(id, version, token));
+                return result;
+            }
+            async Task<double> TimeAsync(Func<Task<IReadOnlyList<OptionPricingConvention?>>> run)
+            {
+                var started = Stopwatch.GetTimestamp();
+                var result = await run();
+                var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                Assert.Equal(expected, result);
+                return elapsed;
+            }
+
             var bundles = new OptionPricingReferenceBundleRepository(db);
             var expiry = DateOnly.FromDateTime(value.ExpirationUtc.UtcDateTime);
             var candidate = new OptionDefinitionCandidate(value.ContractId, value.MappingVersion, value.DefinitionDigest,

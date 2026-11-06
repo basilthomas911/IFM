@@ -1,7 +1,8 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Model;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query;
 /// <summary>Handles batched workflow projection queries by identifier.</summary>
@@ -10,12 +11,11 @@ public static class GetIntrinsicTimeStrategyWorkflowsByIds
 
     extension(GetIntrinsicTimeStrategyWorkflowsByIdsQuery query)
     {
-        /// <summary>Executes the mapped batch query and replies with its typed result.</summary>
-        public ValueTask ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, CancellationToken cancellationToken)
+        /// <summary>Executes the mapped batch query and returns its typed result.</summary>
+        public ValueTask<ServiceResult<IntrinsicTimeStrategyWorkflowReadModel[]>> ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
-            return IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(services, context, query, cancellationToken);
+            return IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(services, query, cancellationToken);
         }
     }
 }

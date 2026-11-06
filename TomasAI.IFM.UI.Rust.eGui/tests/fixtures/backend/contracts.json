@@ -29435,12 +29435,6 @@
         "type": "System.Boolean"
       },
       {
-        "name": "EntityId",
-        "index": 3,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.MarketDataFeedId"
-      },
-      {
         "name": "ErrorCode",
         "index": 4,
         "mapKey": null,
@@ -29451,12 +29445,6 @@
         "index": 5,
         "mapKey": null,
         "type": "TomasAI.IFM.Shared.EventSourcing.BoundedContextName"
-      },
-      {
-        "name": "PreparedContracts",
-        "index": 9,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel[]"
       }
     ],
     "actor": "MarketDataFeedCommand",

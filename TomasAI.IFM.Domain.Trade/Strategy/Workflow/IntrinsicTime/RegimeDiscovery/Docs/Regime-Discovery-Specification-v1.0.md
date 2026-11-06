@@ -53,17 +53,16 @@ trade preference as the decision itself.
    to Market Condition and must not alter the Regime Discovery market decision.
 2. The exact target-horizon `FuturesItiSignalGeneratedEvent` is authoritative
    for current price, ITI direction, band progress, reversal progress, source
-   sequence/time, and front-VX value. Supporting cache observations remain
+   sequence and time. Supporting cache observations remain
    authoritative for other horizons and indicator families.
 3. TDI is optional signed trend-confirmation evidence on configured
    observation frames. When present, it receives 25 percent of the configured
    ITI component weight; ITI retains the full component weight when TDI is
    unavailable. Missing optional TDI is explicit quality evidence, never a
    fabricated numeric default.
-4. Spot VIX and front VX are different signals. `VixLevel` is optional Daily
-   spot-volatility evidence. `VxFrontLevel` is the target-horizon futures value
-   carried by the ITI event. `VxFrontSecondRatio` is Daily term-structure
-   evidence. Front VX must never be stored or described as spot VIX.
+4. The qualified VX term-structure producer supplies `VxFrontLevel` and
+   `VxFrontSecondRatio` as required Daily evidence for each workflow horizon.
+   Saved `VixLevel` configuration rows are accepted for compatibility.
 5. Market Structure derives breakout distance from current price, rolling
    high/low, and ATR. The supplied breakout signal is retained as corroborating
    evidence and affects confidence through agreement; it is not allowed to
@@ -556,8 +555,8 @@ Default volatility weights are volatility level 0.35, ATR ratio 0.35, term struc
 0.20, and optional realized volatility 0.10. The common unsigned scoring and
 confidence formulas apply. Volatility is Low below 0.25, Normal from 0.25 to
 below 0.50, High from 0.50 to below 0.75, and Extreme at or above 0.75.
-The level component uses qualified Daily spot VIX when available and otherwise
-uses required target-horizon front VX; evidence states which source was used.
+The level component uses the qualified Daily front VX price and records
+`VX_FRONT_LEVEL` as its evidence.
 Expansion means the composite score increased by at least 0.10 from its prior
 warm observation; contraction means it decreased by at least 0.10; otherwise
 it is stable. NoNewTrade evidence is set when VIX is at or above its Extreme

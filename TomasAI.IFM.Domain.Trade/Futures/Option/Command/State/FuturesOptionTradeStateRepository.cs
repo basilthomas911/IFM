@@ -1,5 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
-using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -12,10 +12,12 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Command.State;
 /// <summary>Accepts source state only after audit and required read rows commit together.</summary>
-public sealed class FuturesOptionTradeStateRepository(IEventSourceActorStateFactory factory, IEventSourceActorDbContext source, IActorService actors, IEventProjector<FuturesOptionTradeCommandActor> projector, ILogger<FuturesOptionTradeStateRepository> logger, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(factory, source, actors, logger), IEventSourceActorStateRepository<FuturesOptionTradeCommandState>
+public sealed class FuturesOptionTradeStateRepository(IEventSourceActorStateFactory factory, IEventSourceActorDbContext source, IActorService actors, IEventProjector<FuturesOptionTradeCommandActor> projector, ILogger<FuturesOptionTradeStateRepository> logger, IPostgresEventTransaction? transactions = null) : TradeReplacementStateRepository(factory, source, actors, logger), IEventSourceActorStateRepository<FuturesOptionTradeCommandState>
 {
-    public ValueTask<FuturesOptionTradeCommandState> LoadStateAsync(ICommand command) => new(LoadStateFromLatestCheckpointAsync<FuturesOptionTradeCommandState, OptionTradeChangedEvent>(
-        command, static fact => fact.EstablishedTradeDefinition is not null));
+    public ValueTask<FuturesOptionTradeCommandState> LoadStateAsync(ICommand command) =>
+        LoadVerifiedReplacementAsync<FuturesOptionTradeCommandState, OptionTradeChangedEvent, TradeEntityId>(command,
+            static fact => fact.EntityId.IsValid && fact.EstablishedTradeDefinition is { AssetFamily: TradeAssetFamily.FuturesOption,
+                EvidenceRevision: > 0, Legs.Length: > 0 } trade && trade.Id == fact.EntityId);
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesOptionTradeCommandState state, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(state);

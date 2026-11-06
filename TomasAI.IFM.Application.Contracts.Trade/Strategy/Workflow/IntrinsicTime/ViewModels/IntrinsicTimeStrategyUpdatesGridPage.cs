@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 
@@ -29,7 +30,9 @@ public sealed record IntrinsicTimeStrategyUpdatesGridRow(
         view.TriggerEvent.CreatedOn == default ? view.StartedAtUtc : view.TriggerEvent.CreatedOn,
         view.Status.ToString(), view.Outcome.ToString(), view.TriggerEvent.FuturesItiSignal,
         [IntrinsicTimeStrategyUpdatesGridStage.FromState(view.RegimeDiscovery),
-         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.MarketCondition),
+         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.MarketCondition,
+             view.Outcome == StrategyWorkflowOutcome.NoTrade ? view.RegimeDiscovery.Result?.RegimeResult : null,
+             view.Outcome == StrategyWorkflowOutcome.NoTrade ? view.StopReasonCode : null),
          IntrinsicTimeStrategyUpdatesGridStage.FromState(view.TradeSelection),
          IntrinsicTimeStrategyUpdatesGridStage.FromState(view.OrderComposition),
          IntrinsicTimeStrategyUpdatesGridStage.FromState(view.RiskManagement)]);
@@ -44,13 +47,25 @@ public sealed record IntrinsicTimeStrategyUpdatesGridStage(
     [property: Key(3)] DateTime? Failed,
     [property: Key(4)] string? ErrorType,
     [property: Key(5)] string? ErrorCode,
-    [property: Key(6)] string? ErrorMessage)
+    [property: Key(6)] string? ErrorMessage,
+    [property: Key(7)] string[]? DecisionReasons = null)
 {
-    internal static IntrinsicTimeStrategyUpdatesGridStage FromState(StrategyWorkflowStageState state)
+    internal static IntrinsicTimeStrategyUpdatesGridStage FromState(StrategyWorkflowStageState state,
+        RegimeDiscoveryResult? regime = null, string? stopReason = null)
     {
         var message = state.Failure?.ErrorMessage;
+        var reasons = state.ContinuationDecision == StrategyWorkflowContinuationDecision.Stop
+            && state.Failure is null ? state.ContinuationReasonCodes : [];
+        if (reasons.Length == 0 && state.ContinuationDecision == StrategyWorkflowContinuationDecision.Stop
+            && state.Failure is null && !string.IsNullOrWhiteSpace(stopReason))
+            reasons = [stopReason];
+        if (reasons.Contains("MC.ASSESSMENT.INHERITED_NO_NEW_TRADE", StringComparer.Ordinal)
+            && regime is not null)
+            reasons = [.. reasons, .. regime.Volatility.Reasons.Select(reason => reason.Code)];
         return new(state.ProcessingStatus.ToString(), state.ContinuationDecision.ToString(),
             state.CompletedAtUtc, state.FailedAtUtc, state.Failure?.ErrorType.ToString(),
-            state.Failure?.ErrorCode.ToString(), message is { Length: > 512 } ? message[..512] : message);
+            state.Failure?.ErrorCode.ToString(), message is { Length: > 512 } ? message[..512] : message,
+            reasons.Length == 0 ? null : reasons.Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code => code.Length > 96 ? code[..96] : code).Distinct(StringComparer.Ordinal).Take(8).ToArray());
     }
 }

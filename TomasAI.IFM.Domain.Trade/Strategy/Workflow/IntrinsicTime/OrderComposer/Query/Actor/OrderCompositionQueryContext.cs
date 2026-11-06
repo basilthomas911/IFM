@@ -1,5 +1,4 @@
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
@@ -17,7 +16,6 @@ public sealed class OrderCompositionQueryContext : QueryActorContext, IOrderComp
         Logger = IsArgumentNull.Set(logger);
     }
 
-    public IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository => Container.Resolve<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
     public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
     public IDbContextFactory DbFactory { get; }
     public ILogger<OrderCompositionQueryActor> Logger { get; }

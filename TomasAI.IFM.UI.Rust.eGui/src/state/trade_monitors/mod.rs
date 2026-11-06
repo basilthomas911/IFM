@@ -206,7 +206,7 @@ impl Hub {
                     key,
                     &crate::models::trade_presentation::WorkspaceTabRow {
                         key: key.clone(),
-                        title: format!("{}:{}", owner.scope.order, owner.scope.trade),
+                        title: owner.tab_title.clone(),
                         kind: "trade".into(),
                         active: state.active.as_ref() == Some(key),
                     },

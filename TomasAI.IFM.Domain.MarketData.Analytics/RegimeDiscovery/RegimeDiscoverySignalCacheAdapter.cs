@@ -114,14 +114,12 @@ public static class RegimeDiscoverySignalCacheAdapter
 
     /// <summary>Publishes current ITI direction, threshold progress, reversal progress, and price.</summary>
     public static void Publish(FuturesItiSignalV2ReadModel signal, long sourceSequence,
-        DateTime calculatedAtUtc, decimal vixLevel = 0m)
+        DateTime calculatedAtUtc)
     {
         ArgumentNullException.ThrowIfNull(signal);
         var metadata = Synthetic(signal.ContractId, signal.TimePeriod, signal.ValueDate,
             signal.IntrinsicTime, calculatedAtUtc, sourceSequence, MarketAnalyticsSignalKind.Iti, "iti-v1");
         Publish(metadata, RegimeDiscoverySignalMetric.CurrentPrice, (decimal)signal.IntrinsicPrice, true);
-        if (vixLevel > 0)
-            Publish(metadata, RegimeDiscoverySignalMetric.VxFrontLevel, vixLevel, true);
         Publish(metadata, RegimeDiscoverySignalMetric.ItiDirection,
             signal.IntrinsicTimeTrend.ToString().Contains("Up", StringComparison.OrdinalIgnoreCase) ? 1m : -1m, true);
         Publish(metadata, RegimeDiscoverySignalMetric.ItiBandLevel, (decimal)signal.BandLevel, true);
@@ -222,6 +220,8 @@ public static class RegimeDiscoverySignalCacheAdapter
             MarketAnalyticsSignalKind.VxTermStructure, signal.ConfigurationId);
         Publish(metadata, RegimeDiscoverySignalMetric.VxFrontSecondRatio,
             signal.FrontBackRatio, signal.IsWarm && signal.IsValid);
+        if (signal is { IsWarm: true, IsValid: true, FrontVxPrice: > 0 })
+            Publish(metadata, RegimeDiscoverySignalMetric.VxFrontLevel, signal.FrontVxPrice, true);
     }
 
     static void Publish(MarketAnalyticsSignalMetadata metadata,

@@ -54,6 +54,11 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepositoryTests
 
         state.CurrentView.Should().BeEquivalentTo(second.State);
         state.PersistedStreamVersion.Should().Be(2);
+        state.CommittedStreamVersion.Should().Be(2);
+        state.AppliedEntityEventCount.Should().Be(2);
+        state.LastPersistedEventId.Should().Be(42);
+        state.LastStartDecision.Should().Be(StrategyWorkflowStartDecision.Accepted);
+        state.Updated.Should().BeFalse();
         await fixture.Projector.DidNotReceiveWithAnyArgs()
             .DomainEventsProjectionAsync(default!);
     }

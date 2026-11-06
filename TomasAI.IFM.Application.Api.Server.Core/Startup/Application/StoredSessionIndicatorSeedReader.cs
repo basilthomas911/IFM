@@ -48,49 +48,106 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
             logger.LogInformation("Stored Daily baseline supplied {Count} original session bars for {ContractId} in {ElapsedMilliseconds} ms.", result.Count, contractId, watch.Elapsed.TotalMilliseconds);
             return result.ToArray();
         }
-        var bars = new List<FuturesTradeSessionBarReadModel>(windows.Length);
-        foreach (var window in windows)
+        var validation = new FuturesTradeSessionBarReadModelValidationRules();
+        var bars = new Dictionary<DateTimeOffset, FuturesTradeSessionBarReadModel>(windows.Length);
+        foreach (var group in windows.GroupBy(window => window.ValueDate))
         {
-            token.ThrowIfCancellationRequested();
-            var stored = await databases.MarketDataDb.GetStoredTradeSessionBarAsync(contractId, frame,
-                window.ValueDate, window.EndUtc, token).ConfigureAwait(false);
-            if (stored is not null && stored.IntervalStartUtc == window.StartUtc && stored.IntervalEndUtc == window.EndUtc
-                && new FuturesTradeSessionBarReadModelValidationRules().Execute(stored).Length == 0)
+            var expected = group.ToDictionary(window => window.EndUtc);
+            var stored = await ReadStoredAsync(contractId, frame, group.Key, expected.Keys.ToArray(), token).ConfigureAwait(false);
+            foreach (var bar in stored)
             {
-                bars.Add(stored);
-                continue;
+                if (expected.TryGetValue(bar.IntervalEndUtc, out var window) && bar.IntervalStartUtc == window.StartUtc
+                    && bar is { IsComplete: true, IsValid: true } && validation.Execute(bar).Length == 0)
+                    bars.Add(bar.IntervalEndUtc, bar);
             }
-            if (frame == TimeFrameType.FourHours && market is not null)
+        }
+
+        var missing = windows.Where(window => !bars.ContainsKey(window.EndUtc)).ToArray();
+        if (missing.Length > 0 && frame == TimeFrameType.FourHours && market is not null)
+        {
+            logger.LogInformation("Four-hour indicator history requires qualified native acquisition for {ContractId}; no full multi-session raw-tick scan will be materialized.", contractId);
+            return await market.ReadIndicatorSeedBarsAsync(contractId, frame, token).ConfigureAwait(false);
+        }
+
+        foreach (var range in RawRanges(missing, frame))
+        {
+            // Read adjacent short windows together. An overlap admits ordinary
+            // delayed writes; exact exchange timestamps qualify each bar below.
+            var rows = await ReadRawRangeAsync(contractId, range[0], range[^1], token).ConfigureAwait(false);
+            var hasUnmappedTimes = range.Length > 1 && rows.Any(row => row.AggregationTimeUtc is null);
+            foreach (var window in range)
             {
-                logger.LogInformation("Four-hour indicator history requires qualified native acquisition for {ContractId}; no full multi-session raw-tick scan will be materialized.", contractId);
-                return await market.ReadIndicatorSeedBarsAsync(contractId, frame, token).ConfigureAwait(false);
+                // Legacy rows can lack the full aggregation timestamp. Keep the
+                // original Scylla time bounds when those rows cannot be filtered locally.
+                var source = hasUnmappedTimes
+                    ? await ReadRawRangeAsync(contractId, window, window, token).ConfigureAwait(false)
+                    : range.Length == 1 ? rows : WithinOriginalReadWindow(window, rows);
+                var bar = Aggregate(contractId, frame, window, cutoff, source);
+                if (bar is null)
+                {
+                    logger.LogWarning("Stored indicator seed unavailable: {ContractId} {TimeFrame} {IntervalStartUtc}; no complete local trade interval.", contractId, frame, window.StartUtc);
+                    return market is null ? [] : await market.ReadIndicatorSeedBarsAsync(contractId, frame, token).ConfigureAwait(false);
+                }
+                bars.Add(bar.IntervalEndUtc, bar);
             }
-            var rows = new List<BootstrapTradeRow>();
-            // A bounded receive-time overlap admits ordinary delayed writes;
-            // qualification below uses exact original exchange timestamps.
-            var until = window.EndUtc.AddMinutes(1);
-            for (var cursor = window.StartUtc.AddMinutes(-1); cursor < until;)
-            {
-                var midnight = new DateTimeOffset(cursor.UtcDateTime.Date.AddDays(1), TimeSpan.Zero);
-                var end = until < midnight ? until : midnight;
-                var lower = TimeOnly.FromDateTime(cursor.UtcDateTime);
-                var upper = end == midnight ? TimeOnly.MaxValue : TimeOnly.FromDateTime(end.UtcDateTime);
-                rows.AddRange(await databases.TradeTickQuoteDb.GetRawFuturesTradeWindowAsync(contractId, window.ValueDate,
-                    lower, upper, token).ConfigureAwait(false));
-                cursor = end;
-            }
-            var bar = Aggregate(contractId, frame, window, cutoff, rows);
-            if (bar is null)
-            {
-                logger.LogWarning("Stored indicator seed unavailable: {ContractId} {TimeFrame} {IntervalStartUtc}; no complete local trade interval.", contractId, frame, window.StartUtc);
-                // Provider I/O stays in the native Host. It qualifies complete
-                // replay and original minute OHLCV, with a zero-dollar ceiling.
-                return market is null ? [] : await market.ReadIndicatorSeedBarsAsync(contractId, frame, token).ConfigureAwait(false);
-            }
-            bars.Add(bar);
         }
         logger.LogInformation("Stored indicator seed reconstructed {Count} {TimeFrame} bars for {ContractId} in {ElapsedMilliseconds} ms.", bars.Count, frame, contractId, watch.Elapsed.TotalMilliseconds);
-        return bars.ToArray();
+        return windows.Select(window => bars[window.EndUtc]).ToArray();
+    }
+
+    async Task<List<BootstrapTradeRow>> ReadRawRangeAsync(string contractId, MarketSessionBounds first,
+        MarketSessionBounds last, CancellationToken token)
+    {
+        var rows = new List<BootstrapTradeRow>();
+        var until = last.EndUtc.AddMinutes(1);
+        for (var cursor = first.StartUtc.AddMinutes(-1); cursor < until;)
+        {
+            var midnight = new DateTimeOffset(cursor.UtcDateTime.Date.AddDays(1), TimeSpan.Zero);
+            var end = until < midnight ? until : midnight;
+            var lower = TimeOnly.FromDateTime(cursor.UtcDateTime);
+            var upper = end == midnight ? TimeOnly.MaxValue : TimeOnly.FromDateTime(end.UtcDateTime);
+            rows.AddRange(await databases.TradeTickQuoteDb.GetRawFuturesTradeWindowAsync(contractId, first.ValueDate,
+                lower, upper, token).ConfigureAwait(false));
+            cursor = end;
+        }
+        return rows;
+    }
+
+    async Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> ReadStoredAsync(string contractId, TimeFrameType frame,
+        DateOnly date, DateTimeOffset[] ends, CancellationToken token)
+    {
+        if (ends.Length != 1)
+            return await databases.MarketDataDb.GetStoredTradeSessionBarsAsync(contractId, frame, date, ends, token).ConfigureAwait(false);
+        var bar = await databases.MarketDataDb.GetStoredTradeSessionBarAsync(contractId, frame, date, ends[0], token).ConfigureAwait(false);
+        return bar is null ? [] : [bar];
+    }
+
+    static IEnumerable<MarketSessionBounds[]> RawRanges(MarketSessionBounds[] windows, TimeFrameType frame)
+    {
+        var start = 0;
+        for (var index = 1; index <= windows.Length; index++)
+        {
+            if (index < windows.Length && frame is TimeFrameType.FifteenSeconds or TimeFrameType.OneMinute
+                && windows[start].ValueDate == windows[index].ValueDate
+                && windows[index - 1].EndUtc == windows[index].StartUtc
+                && windows[index].EndUtc - windows[start].StartUtc <= TimeSpan.FromMinutes(4))
+                continue;
+            yield return windows[start..index];
+            start = index;
+        }
+    }
+
+    static IEnumerable<BootstrapTradeRow> WithinOriginalReadWindow(MarketSessionBounds window, IEnumerable<BootstrapTradeRow> rows)
+    {
+        var start = window.StartUtc.UtcDateTime.AddMinutes(-1);
+        var end = window.EndUtc.UtcDateTime.AddMinutes(1);
+        var lower = TimeOnly.FromDateTime(start);
+        var upper = TimeOnly.FromDateTime(end);
+        if (start.Date == end.Date)
+            return rows.Where(row => row.AggregationTimeUtc is { } time && time >= lower && time <= upper);
+
+        // A request ending at midnight reads only the old day's partition slice.
+        return rows.Where(row => row.AggregationTimeUtc is { } time && (time >= lower || (upper != TimeOnly.MinValue && time <= upper)));
     }
 
     /// <summary>Builds exact OHLCV and source provenance, discarding duplicates, non-trades, and observations outside the requested interval.</summary>

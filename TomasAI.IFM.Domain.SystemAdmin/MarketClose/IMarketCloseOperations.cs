@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Domain.SystemAdmin.MarketClose;
 public interface IMarketCloseOperations
 {
     Task<DateOnly?> GetCompletedDateAsync(CancellationToken token);
+    Task<DateOnly?> GetCompletedCloseDateAsync(CancellationToken token);
     Task<DateTime?> GetPreviousCloseBoundaryAsync(DateOnly valueDate, CancellationToken token);
     Task<Guid> BeginAsync(DateOnly valueDate, DateTime closeBoundaryUtc, CancellationToken token);
     Task StopFeedsAsync(DateOnly valueDate, CancellationToken token);

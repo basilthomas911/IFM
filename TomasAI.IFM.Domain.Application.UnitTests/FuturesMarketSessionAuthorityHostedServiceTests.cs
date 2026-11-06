@@ -46,7 +46,7 @@ public sealed class FuturesMarketSessionAuthorityHostedServiceTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Restart_restores_completed_EOD_and_storage_failure_does_not_change_held_date(bool failRead)
+    public async Task Restart_restores_fully_completed_close_and_storage_failure_does_not_change_held_date(bool failRead)
     {
         var clock = new FixedClock();
         var authority = new FuturesMarketSessionAuthority(clock);
@@ -74,6 +74,8 @@ public sealed class FuturesMarketSessionAuthorityHostedServiceTests
     {
         public int ReadCount { get; private set; }
         public ValueTask<DateOnly?> GetCompletedEndOfDayAsync(string environment, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("Position finalization cannot restore ValueDate.");
+        public ValueTask<DateOnly?> GetCompletedMarketCloseAsync(string environment, CancellationToken cancellationToken = default)
         {
             Assert.Equal("Development", environment);
             ReadCount++;

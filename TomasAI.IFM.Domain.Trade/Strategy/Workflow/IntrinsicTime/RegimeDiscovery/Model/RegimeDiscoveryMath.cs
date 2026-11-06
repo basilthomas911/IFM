@@ -88,7 +88,6 @@ internal static class RegimeDiscoveryMath
             },
             RegimeDiscoverySignalMetric.ItiBandLevel => (decimal)trigger.BandLevel,
             RegimeDiscoverySignalMetric.ItiReversalLevel => (decimal)trigger.ReversalLevel,
-            RegimeDiscoverySignalMetric.VxFrontLevel when input.TriggerEvent.VixFuturesPrice > 0 => (decimal)input.TriggerEvent.VixFuturesPrice,
             _ => null
         };
         if (authoritativeValue is null)
@@ -98,7 +97,7 @@ internal static class RegimeDiscoveryMath
         var authoritative = observation ?? new RegimeDiscoverySignalObservation
         {
             Metric = metric,
-            SignalKey = new MarketAnalyticsSignalKey(MarketSeriesIdentity.ForContract(trigger.ContractId), metric == RegimeDiscoverySignalMetric.VxFrontLevel ? MarketAnalyticsSignalKind.VxTermStructure : MarketAnalyticsSignalKind.Iti, timeFrame, $"{metric}.trigger-v1"),
+            SignalKey = new MarketAnalyticsSignalKey(MarketSeriesIdentity.ForContract(trigger.ContractId), MarketAnalyticsSignalKind.Iti, timeFrame, $"{metric}.trigger-v1"),
             SchemaVersion = 1,
             CalculationVersion = "1",
             IsWarm = true,

@@ -193,6 +193,63 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         => (await GetReferenceVersionAsync(contractId, mappingVersion, cancellationToken)
             .ConfigureAwait(false))?.Convention;
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<OptionPricingConvention?>> GetManyAsync(
+        IReadOnlyList<(string ContractId, string Version)> identities, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(identities);
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = new OptionPricingConvention?[identities.Count];
+        HashSet<(string ContractId, string Version)>? uncached = null;
+        for (var index = 0; index < identities.Count; index++)
+        {
+            var identity = identities[index];
+            if (string.IsNullOrWhiteSpace(identity.ContractId) || identity.ContractId.Length > 128
+                || string.IsNullOrWhiteSpace(identity.Version) || identity.Version.Length > 128)
+                throw new ArgumentException("Exact reference version is required.", nameof(identities));
+            if (referenceVersions.TryGetCompleted(identity, out var cached))
+                result[index] = cached?.Convention;
+            else
+                (uncached ??= []).Add(identity);
+        }
+
+        if (uncached is null)
+            return result;
+
+        var versions = new Dictionary<(string ContractId, string Version), ReferenceContractVersion?>(uncached.Count);
+        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+        {
+            var missing = uncached.ToArray();
+            var rows = await this.NativeTransaction().ExecuteOnceAsync((db, token) => db.QueryAsync("""
+                SELECT v.contract_id, v.version, v.digest, v.published, v.payload
+                FROM unnest($1::text[], $2::text[]) AS requested(contract_id, version)
+                JOIN securities.securities_reference_version v USING (contract_id, version);
+                """, [missing.Select(key => key.ContractId).ToArray(), missing.Select(key => key.Version).ToArray()],
+                row => (Key: (row.GetString(0), row.GetString(1)), Digest: row.GetString(2),
+                    Published: row.GetBoolean(3), Payload: row.GetFieldValue<byte[]>(4)), token), cancellationToken).ConfigureAwait(false);
+            foreach (var row in rows)
+            {
+                var decoded = this.DecodeReferenceVersion(row.Digest, row.Published, row.Payload);
+                if (this.ValidatePublishedReferenceVersion(row.Key.Item1, decoded) is { } published)
+                {
+                    referenceVersions.RememberCompleted(row.Key, published);
+                    versions[row.Key] = published;
+                }
+            }
+        }
+        else
+        {
+            foreach (var identity in uncached)
+                versions[identity] = await GetReferenceVersionAsync(identity.ContractId, identity.Version, cancellationToken)
+                    .ConfigureAwait(false);
+        }
+
+        for (var index = 0; index < identities.Count; index++)
+            if (versions.TryGetValue(identities[index], out var version))
+                result[index] = version?.Convention;
+        return result;
+    }
+
     /// <summary>Gets whether a staged or published immutable reference version exists.</summary>
     public Task<bool> ContainsReferenceVersionAsync(
         string contractId,
@@ -1064,20 +1121,28 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         CancellationToken cancellationToken = default)
     {
         symbol = this.ValidateAndNormalizeExpiryRange(symbol, fromExpiry, throughExpiry);
-        var db = DbFactory.SecuritiesDb;
-        var state = await (db
+        var state = await ReadExpiryStateAsync(symbol, cancellationToken).ConfigureAwait(false);
+        return await ReadExpiriesAsync(symbol, fromExpiry, throughExpiry, state, cancellationToken).ConfigureAwait(false);
+    }
+
+    Task<OptionExpiryCalendarState?> ReadExpiryStateAsync(string symbol, CancellationToken token)
+        => DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiryCalendarState)}",
-                string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.GetOptionContractExpiryCalendarState : SecuritiesDbCql.GetOptionContractExpiryCalendarState)
+                string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
+                    ? SecuritiesDbSql.GetOptionContractExpiryCalendarState : SecuritiesDbCql.GetOptionContractExpiryCalendarState)
             .SetParameters(new GetOptionContractExpiryCalendarState(symbol))
-            .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, cancellationToken))
-                .ConfigureAwait(false);
+            .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, token);
+
+    async Task<IReadOnlyList<OptionContractExpiryReadModel>> ReadExpiriesAsync(
+        string symbol, DateOnly fromExpiry, DateOnly throughExpiry, OptionExpiryCalendarState? state, CancellationToken cancellationToken)
+    {
         if (state is null || fromExpiry > state.CoverageThrough || throughExpiry < state.CoverageFrom)
             return [];
         var effectiveFromExpiry = fromExpiry < state.CoverageFrom ? state.CoverageFrom : fromExpiry;
         var effectiveThroughExpiry = throughExpiry > state.CoverageThrough
             ? state.CoverageThrough
             : throughExpiry;
-        var rows = (await (db
+        var rows = (await (DbFactory.SecuritiesDb
             .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiries)}",
                 string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.GetOptionContractExpiries : SecuritiesDbCql.GetOptionContractExpiries)
             .SetParameters(new GetOptionContractExpiries(symbol, state.Generation, effectiveFromExpiry,
@@ -1098,11 +1163,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     {
         symbol = this.ValidateAndNormalizeCachedDefinitionQuery(symbol, underlyingContractId);
         var db = DbFactory.SecuritiesDb;
-        var state = await (db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiryCalendarState)}",
-                string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.GetOptionContractExpiryCalendarState : SecuritiesDbCql.GetOptionContractExpiryCalendarState)
-            .SetParameters(new GetOptionContractExpiryCalendarState(symbol))
-            .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, cancellationToken))
-                .ConfigureAwait(false);
+        var state = await ReadExpiryStateAsync(symbol, cancellationToken).ConfigureAwait(false);
         if (state is null || expiryDate < state.CoverageFrom || expiryDate > state.CoverageThrough) return [];
         var roots = (providerRoots ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
         // The published generation is checked on every call. Only its immutable payload partition is cached.
@@ -1113,10 +1174,87 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
                 .ExecuteQueryAsync(MapToCachedOptionContractDefinition!, token))
                 .ConfigureAwait(false)).ToArray(), cancellationToken)
             .ConfigureAwait(false) ?? [];
-        return rows.Where(row => row is not null
-                                 && string.Equals(row.UnderlyingContractId, underlyingContractId, StringComparison.OrdinalIgnoreCase)
-                                 && (roots.Count == 0 || roots.Contains(row.ProviderRoot)))
-            .Select(row => row!).DistinctBy(row => row.Definition.ContractId).ToArray();
+        return FilterDefinitions(rows, underlyingContractId, roots).ToArray();
+    }
+
+    static IEnumerable<CachedOptionContractDefinitionReadModel> FilterDefinitions(
+        IEnumerable<CachedOptionContractDefinitionReadModel?> rows, string underlyingContractId, HashSet<string> roots)
+        => rows.Where(row => row is not null
+                            && string.Equals(row.UnderlyingContractId, underlyingContractId, StringComparison.OrdinalIgnoreCase)
+                            && (roots.Count == 0 || roots.Contains(row.ProviderRoot)))
+            .Select(row => row!).DistinctBy(row => row.Definition.ContractId);
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<CachedOptionContractDefinitionReadModel> ReadPublishedOptionDefinitionsAsync(
+        string symbol, DateOnly first, DateOnly last, int maximumExpiries,
+        IReadOnlyCollection<string>? providerRoots = null,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumExpiries);
+        symbol = this.ValidateAndNormalizeExpiryRange(symbol, first, last);
+        var state = await ReadExpiryStateAsync(symbol, cancellationToken).ConfigureAwait(false);
+        if (state is null) yield break;
+        var expiries = await ReadExpiriesAsync(symbol, first, last, state, cancellationToken).ConfigureAwait(false);
+        if (expiries.Count > maximumExpiries)
+            throw new InvalidDataException("Raw option expiry capacity exceeded.");
+
+        var pairs = expiries.Select(row => (row.ExpiryDate, row.ContractId)).Distinct();
+        if (!string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+        {
+            foreach (var (expiry, underlying) in pairs)
+            {
+                var rows = await GetCachedOptionContractDefinitionsAsync(symbol, underlying, expiry, providerRoots, cancellationToken)
+                    .ConfigureAwait(false);
+                foreach (var row in rows) yield return row;
+            }
+            yield break;
+        }
+
+        // SQL and the existing calendar reader both order partitions by expiry.
+        // Retain the first underlying group order and the established .NET filters.
+        var groups = pairs.GroupBy(row => row.ExpiryDate).ToArray();
+        var cached = new Dictionary<DateOnly, CachedOptionContractDefinitionReadModel[]>();
+        foreach (var group in groups)
+            if (definitionPartitions.TryGetCompleted((symbol, state.Generation, group.Key), out var partition))
+                cached.Add(group.Key, partition!);
+        var missing = groups.Select(group => group.Key).Where(expiry => !cached.ContainsKey(expiry)).ToArray();
+        var roots = (providerRoots ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        await using var cold = ReadDefinitionPartitionsAsync(symbol, state.Generation, missing, cancellationToken)
+            .GetAsyncEnumerator(cancellationToken);
+        var more = await cold.MoveNextAsync().ConfigureAwait(false);
+
+        foreach (var group in groups)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!cached.TryGetValue(group.Key, out var rows))
+            {
+                var partition = new List<CachedOptionContractDefinitionReadModel>();
+                while (more && cold.Current.ExpiryDate == group.Key)
+                {
+                    partition.Add(cold.Current);
+                    more = await cold.MoveNextAsync().ConfigureAwait(false);
+                }
+                rows = partition.ToArray();
+                definitionPartitions.RememberCompleted((symbol, state.Generation, group.Key), rows);
+            }
+            foreach (var (_, underlying) in group)
+                foreach (var row in FilterDefinitions(rows, underlying, roots))
+                    yield return row;
+        }
+    }
+
+    async IAsyncEnumerable<CachedOptionContractDefinitionReadModel> ReadDefinitionPartitionsAsync(
+        string symbol, Guid generation, DateOnly[] expiries,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken token)
+    {
+        if (expiries.Length == 0) yield break;
+        await foreach (var row in DbFactory.SecuritiesDb
+            .Use(nameof(SecuritiesDbSql.GetCachedOptionDefinitionPartitions), SecuritiesDbSql.GetCachedOptionDefinitionPartitions)
+            .SetParameters(new GetCachedOptionDefinitionPartitions(symbol, generation, expiries))
+            .ExecuteStreamAsync(MapToCachedOptionContractDefinition!, token).ConfigureAwait(false))
+        {
+            if (row is not null) yield return row;
+        }
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "MA0051", Justification = "Native and transitional provider paths implement one compatibility operation; retain its transaction and failure ordering during migration.")]

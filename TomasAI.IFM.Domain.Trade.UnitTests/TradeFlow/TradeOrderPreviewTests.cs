@@ -1,5 +1,6 @@
 using MessagePack;
 using NSubstitute;
+using System.Reflection;
 using TomasAI.IFM.Domain.Trade.Order.Query;
 using TomasAI.IFM.Domain.Trade.Order.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Query.Model;
@@ -115,7 +116,7 @@ public sealed class TradeOrderPreviewTests
     }
 
     [Fact]
-    public async Task Query_resolves_tick_reference_and_replies_without_mutating_state()
+    public async Task Query_actor_replies_with_resolved_tick_or_invalid_draft()
     {
         var context = Substitute.For<ITradeOrderQueryContext>();
         var db = Substitute.For<TomasAI.IFM.Application.Storage.IDbContextFactory>();
@@ -125,11 +126,16 @@ public sealed class TradeOrderPreviewTests
             new TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel("ES","ESZ6","ES","ESZ6","FUT","USD","XCME","50",new(2026,12,18),true,true) { TickSize=.25m });
         var future = Condor() with { SelectedLegs=[new("ES",1,1,null,false,true,10m,10.25m,null,null,50m)] };
         var query = new GetTradeOrderPreviewQuery { Subject = new(ActorType.Query, GetTradeOrderPreviewQuery.Actor, GetTradeOrderPreviewQuery.Verb, "Preview"), TradeOrderPreviewRequest = future };
-        await query.ExecuteAsync(context, CancellationToken.None);
-        context.Received().ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, Arg.Is<ServiceResult<TradeOrderPreview>>(x => x.Success && x.Value!.ResolvedTickIncrement == .25m));
+        var receiveMap = (IReadOnlyDictionary<Type, Func<ITradeOrderQueryContext, IQuery, CancellationToken, ValueTask>>)typeof(TradeOrderQueryActor)
+            .GetField("_receiveMap", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
+        var receive = receiveMap[typeof(GetTradeOrderPreviewQuery)];
+        await receive(context, query, CancellationToken.None);
+        await context.Received(1).ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            Arg.Is<ServiceResult<TradeOrderPreview>>(result => result.Success && result.Value!.ResolvedTickIncrement == .25m));
         var invalid = query with { TradeOrderPreviewRequest = future with { StrategyQuantity = 0 } };
-        await invalid.ExecuteAsync(context, CancellationToken.None);
-        context.Received().ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, Arg.Is<ServiceResult<TradeOrderPreview>>(x => !x.Success && x.ErrorCode == 400));
+        await receive(context, invalid, CancellationToken.None);
+        await context.Received(1).ReplyAsync(invalid.Subject.ThreadId, invalid.Subject.Verb,
+            Arg.Is<ServiceResult<TradeOrderPreview>>(result => !result.Success && result.ErrorCode == 400));
         await securities.Received(2).GetFuturesContractAsync("ES", Arg.Any<CancellationToken>());
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => query.ExecuteAsync(context, cancelled.Token).AsTask());

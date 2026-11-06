@@ -39,7 +39,7 @@ public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi mar
                     };
                 // Consume an existing measured signal; do not rebuild ATR or a volatility regime.
                 var atr = await storage.MarketDataDb.GetLastFuturesAtrSignalAsync(contract.ContractId, price.ValueDate, TimeFrameType.OneMinute, 14, cancellationToken).ConfigureAwait(false);
-                if (atr?.Metadata is { IsValid: true } metadata)
+                if (atr is { IsWarm: true, Metadata: { IsValid: true } metadata })
                 {
                     if (!double.IsFinite(atr.AtrValue) || !double.IsFinite(atr.TrueRange) || atr.AtrValue <= 0)
                         throw new InvalidOperationException("Authoritative normalized movement contains invalid numeric values.");

@@ -209,7 +209,7 @@ pub fn select(
                 source[*index].call == call && *delta >= minimum && *delta <= maximum
             })
             .collect();
-        shorts.sort_by(|a, b| {
+        let rank = |a: &&(usize, i128, i64), b: &&(usize, i128, i64)| {
             (a.1 - target)
                 .abs()
                 .cmp(&(b.1 - target).abs())
@@ -219,8 +219,14 @@ pub fn select(
                         .encode_utf16()
                         .cmp(source[b.0].id.encode_utf16())
                 })
-        });
-        for (index, _, _) in shorts.into_iter().take(policy.maximum) {
+                .then_with(|| a.0.cmp(&b.0))
+        };
+        if shorts.len() > policy.maximum {
+            shorts.select_nth_unstable_by(policy.maximum, rank);
+            shorts.truncate(policy.maximum);
+        }
+        shorts.sort_unstable_by(rank);
+        for (index, _, _) in shorts {
             let row = &source[*index];
             for width in widths {
                 let width = units(*width)?;

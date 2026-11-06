@@ -26,7 +26,7 @@ public sealed class VolatilityEvidencePropagationTests
 
         var composition = new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.OrderComposer(
             new Black76ComposerPricer()).Calculate(compositionCommand);
-        var riskCommand = await RiskFixture.Command(actualCompositionCommand: compositionCommand,
+        var riskCommand = await RiskFixture.Command(atUtc: compositionCommand.EvaluatedAtUtc, actualCompositionCommand: compositionCommand,
             actualCompositionResult: composition);
         var risk = new RiskEvaluator().Calculate(riskCommand);
 

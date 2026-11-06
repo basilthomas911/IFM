@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
@@ -22,10 +22,26 @@ public sealed class TradeOrderQueryActor(IQueryActorContext<TradeOrderQueryActor
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ITradeOrderQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<ITradeOrderQueryContext, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetTradeEndOfDayDisplayQuery)] = static (c,q,t) => ((GetTradeEndOfDayDisplayQuery)q).ExecuteAsync(c,t),
-        [typeof(PrepareTradeOrderQuery)] = static (c, q, t) => ((PrepareTradeOrderQuery)q).ExecuteAsync(c, t),
-        [typeof(GetTradeOrderPreviewQuery)] = static (c, q, t) => ((GetTradeOrderPreviewQuery)q).ExecuteAsync(c, t),
-        [typeof(GetTradeOrderQuery)] = static (c, q, t) => ((GetTradeOrderQuery)q).ExecuteAsync(c, t)
+        [typeof(GetTradeEndOfDayDisplayQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradeEndOfDayDisplayQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(PrepareTradeOrderQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((PrepareTradeOrderQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradeOrderPreviewQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradeOrderPreviewQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradeOrderQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradeOrderQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        }
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<TradeOrderQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

@@ -1,9 +1,13 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using System.Reflection;
+using System.Buffers;
 using FluentAssertions;
 using MessagePack;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
@@ -11,6 +15,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -138,6 +143,39 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
         }
     }
 
+    [Fact]
+    public void Producer_evidence_is_append_only_and_preserves_legacy_audit_identity()
+    {
+        var command = new PrepareRiskManagementCommand
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, PrepareRiskManagementCommand.Actor, PrepareRiskManagementCommand.Verb, "legacy"),
+            InputWorkflowRevision = 4,
+            EvidenceCollected = true,
+            EvidenceCollectedAtUtc = new DateTime(2026, 11, 5, 16, 0, 0, DateTimeKind.Utc)
+        };
+        var codec = new CommandAuditMessagePackCodec();
+        var encoded = codec.Serialize(command);
+        var reader = new MessagePackReader(encoded.Bytes);
+        Assert.Equal(12, reader.ReadArrayHeader());
+        var current = Assert.IsType<PrepareRiskManagementCommand>(codec.Deserialize(typeof(PrepareRiskManagementCommand),
+            encoded.Bytes, (short)encoded.Format, encoded.Version));
+        Assert.Equal(command.EvidenceCollectedAtUtc, current.EvidenceCollectedAtUtc);
+        var buffer = new ArrayBufferWriter<byte>();
+        var writer = new MessagePackWriter(buffer);
+        writer.WriteArrayHeader(8);
+        for (var index = 0; index < 8; index++)
+            writer.WriteRaw(reader.ReadRaw());
+        writer.Flush();
+
+        var legacy = Assert.IsType<PrepareRiskManagementCommand>(codec.Deserialize(typeof(PrepareRiskManagementCommand),
+            buffer.WrittenMemory, (short)encoded.Format, encoded.Version));
+        Assert.Null(legacy.EvidenceCollected);
+        Assert.Null(legacy.EvidenceCollectedAtUtc);
+        Assert.True(codec.MatchesStoredEncoding(legacy, buffer.WrittenMemory));
+        Assert.Equal(codec.Serialize(legacy.ForRetryIdentity()).Sha256, codec.Serialize(command.ForRetryIdentity()).Sha256);
+    }
+
     /// <summary>Confirms default workflow commands select the workflow bounded context and event projection.</summary>
     [Fact]
     public void Default_commands_have_required_routing_metadata()
@@ -240,7 +278,7 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
 
     static object CreateSampleValue(Type type, string parameterName, bool isCommand)
     {
-        if (type == typeof(Guid))
+        if (type == typeof(Guid) || type == typeof(Guid?))
             return Guid.Parse("0198E212-3C00-7000-8000-000000000011");
         if (type == typeof(ActorSubject))
             return new ActorSubject(
@@ -248,7 +286,7 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
                 "IntrinsicTimeStrategyWorkflow",
                 "ContractTest",
                 CreateEntityId().Format());
-        if (type == typeof(bool))
+        if (type == typeof(bool) || type == typeof(bool?))
             return true;
         if (type == typeof(IntrinsicTimeStrategyWorkflowEntityId))
             return CreateEntityId();
@@ -332,6 +370,19 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
             return new DateTime(2026, 8, 25, 15, 35, 0, DateTimeKind.Utc);
         if (type == typeof(string[]))
             return new[] { "VALID_RESULT", "PROCEED" };
+        if (type == typeof(ReadOnlyMemory<byte>?))
+            return new ReadOnlyMemory<byte>([1, 2, 3]);
+        if (type == typeof(SelectionPipelinePolicySnapshot))
+            return new SelectionPipelinePolicySnapshot { Version = 1, PayloadJson = "{}" };
+        if (type == typeof(FundOrderProjectionReadModel))
+            return new FundOrderProjectionReadModel { OrderId = 1, AggregateVersion = 2 };
+        var observedAt = new DateTime(2026, 8, 25, 15, 30, 0, DateTimeKind.Utc);
+        if (type == typeof(FinancialRead<FinancialAdmissionSnapshot>))
+            return new FinancialRead<FinancialAdmissionSnapshot>(FinancialReadStatus.Unavailable, null, 1, observedAt);
+        if (type == typeof(FinancialRead<FinancialOperationOutcome>))
+            return new FinancialRead<FinancialOperationOutcome>(FinancialReadStatus.NotFound, null, 1, observedAt);
+        if (type == typeof(FinancialRead<FundRiskAuthorizationEvidence>))
+            return new FinancialRead<FundRiskAuthorizationEvidence>(FinancialReadStatus.NotFound, null, 1, observedAt);
 
         if (type == typeof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionBinding)) return TradeSelection.TradeSelectionFixture.Command().GetAwaiter().GetResult().SelectionBinding;
         if (type == typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult)) return new TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult();

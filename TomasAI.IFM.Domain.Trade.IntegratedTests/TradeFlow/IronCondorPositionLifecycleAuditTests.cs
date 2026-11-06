@@ -53,7 +53,7 @@ public sealed class IronCondorPositionLifecycleAuditTests(ITestOutputHelper outp
             throw new InvalidOperationException("This audit requires the isolated loopback PostgreSQL position_lifecycle_verification database.");
         var settings = new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection, connection, "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
-        await new TradeSchemaDb(settings, logger).CreateAsync(["strategy_position_current", "strategy_position_history"]);
+        await new TradeSchemaDb(settings, logger).CreateAsync(["trade"]);
         var factory = Substitute.For<IDbContextFactory>();
         var database = new TradeDbContext(settings, factory, Substitute.For<ISequenceIdGenerator>(), logger);
         factory.TradeDb.Returns(database);

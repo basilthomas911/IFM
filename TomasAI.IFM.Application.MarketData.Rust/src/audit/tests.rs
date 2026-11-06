@@ -871,3 +871,66 @@ fn captured_csharp_reply_preserves_committed_acceptance_or_full_failure() {
         );
     }
 }
+
+#[test]
+fn occurrence_time_is_optional_and_preserves_exact_audit_bytes() {
+    let base = payload(1, "Started");
+    let without_time = Record::new(base.clone()).unwrap();
+    assert_eq!(without_time.occurred_ticks, None);
+    assert_eq!(without_time.payload, base);
+
+    let mut value: serde_json::Value = serde_json::from_str(&base).unwrap();
+    value["OccurredAtUtc"] = "2026-11-05T19:00:00.0000001Z".into();
+    let payload = value.to_string();
+    let record = Record::new(payload.clone()).unwrap();
+    let second = chrono::DateTime::parse_from_rfc3339("2026-11-05T19:00:00Z").unwrap();
+    assert_eq!(record.occurred_ticks, Some(second.timestamp() * 10_000_000 + 1));
+    assert_eq!(record.payload, payload);
+
+    value["OccurredAtUtc"] = "legacy-unparseable".into();
+    assert_eq!(Record::new(value.to_string()).unwrap().occurred_ticks, None);
+}
+
+#[test]
+#[ignore = "Explicit paired Release timing"]
+fn pending_age_parse_before_after_timings() {
+    use std::{hint::black_box, time::Instant};
+
+    let mut value: serde_json::Value = serde_json::from_str(&payload(1, "Started")).unwrap();
+    value["OccurredAtUtc"] = "2026-11-05T19:00:00.0000001Z".into();
+    value["Reason"] = "retained provider and transport recovery evidence".repeat(16).into();
+    let payloads = (0..512).map(|index| {
+        value["RecordId"] = format!("00000001-0001-4001-8001-{index:012x}").into();
+        value.to_string()
+    }).collect::<Vec<_>>();
+    // Isolate the age pass; the spool read and digest validation are unchanged.
+    let records = payloads.into_iter().map(|payload| Record::new(payload).unwrap()).collect::<Vec<_>>();
+    let mut pairs = Vec::new();
+    for pair in 0..5 {
+        for before in if pair % 2 == 0 { [true, false] } else { [false, true] } {
+            let mut samples = Vec::new();
+            for iteration in 0..34 {
+                let start = Instant::now();
+                let oldest = if before {
+                    records.iter()
+                        .filter_map(|record| serde_json::from_str::<serde_json::Value>(&record.payload).ok())
+                        .filter_map(|value| value["OccurredAtUtc"].as_str().and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok()))
+                        .filter_map(|at| at.timestamp_nanos_opt().map(|ns| ns / 100))
+                        .min()
+                } else {
+                    records.iter().filter_map(|record| record.occurred_ticks).min()
+                };
+                assert!(black_box(oldest).is_some());
+                if iteration >= 3 {
+                    samples.push(start.elapsed().as_nanos() as u64);
+                }
+            }
+            samples.sort_unstable();
+            pairs.push(serde_json::json!({
+                "pair": pair, "before": before, "recordsPerSample": records.len(),
+                "p50Ns": samples[15], "p95Ns": samples[29], "p99Ns": samples[30], "samplesNs": samples
+            }));
+        }
+    }
+    println!("PENDING_AGE_PERFORMANCE {}", serde_json::json!(pairs));
+}

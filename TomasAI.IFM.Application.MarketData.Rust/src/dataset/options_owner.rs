@@ -947,6 +947,9 @@ impl Run {
         let mut cache_dirty = true;
         let mut cache_evaluated = false;
         let mut cache_cadence = crate::option_chain::cadence::Cadence::new();
+        // Cache membership depends on the immutable generation intent, not
+        // on incoming quotes or refreshed pricing context.
+        let mut cache_memberships = None;
         let header = Header {
             lane: Lane::OptionsGlbx,
             value_date: intent.date.to_julian_day() - 1721426,
@@ -1130,12 +1133,18 @@ impl Run {
                     let token=configuration.lock().map_err(|_|"Native cache configuration interrupted")?.clone();
                     let complete=source::read(&data,&engine,&intent.reviewed,self.generation,&token,at)
                         .map_err(|error|format!("Native cache source failed: {}: {}",error.code,error.input))?;
+                    if cache_memberships.is_none() {
+                        cache_memberships=Some(intent.caches.iter().map(|cache|
+                            crate::option_chain::cache_scopes::choices(cache,&intent.reviewed,intent.date)
+                        ).collect::<Result<Vec<_>,_>>()?);
+                    }
                     let mut next=std::collections::BTreeMap::new();let mut retained=0usize;
-                    for cache in &intent.caches {
+                    let memberships=cache_memberships.as_ref().expect("generation cache memberships initialized");
+                    for (cache,choices) in intent.caches.iter().zip(memberships) {
                         let mut prepared=None;
                         let mut no_candidate:Option<crate::option_chain::composition::model::Snapshot>=None;
                         let mut complete_choices=true;
-                        for membership in crate::option_chain::cache_scopes::choices(cache,&intent.reviewed,intent.date)? {
+                        for membership in choices {
                         let items=complete.instruments.iter().filter(|i|membership.contains(&i.contract)).cloned().collect::<Vec<_>>();
                         if items.len()!=membership.len(){return Err("Native cache complete membership changed".into());}
                         // Source/evidence draining and preceding cache calculations may

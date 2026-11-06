@@ -36,15 +36,15 @@ public abstract class DatabaseOperationStateRepository<TState, TActor>(
         ArgumentNullException.ThrowIfNull(command);
         var legacyId = LegacyStreamId(command);
         var isLegacyStream = string.Equals(command.StreamId, legacyId, StringComparison.Ordinal);
+        if (EventSourceDb is EventSourceActorDbContext { ProviderName: "System.Data.Postgres" } postgres)
+        {
+            var restored = await ReadConcernWindowAsync(postgres, command, legacyId, useCheckpoint: true, cancellationToken)
+                .ConfigureAwait(false);
+            return restored ?? (await ReadConcernWindowAsync(postgres, command, legacyId, useCheckpoint: false, cancellationToken)
+                .ConfigureAwait(false)) ?? throw new InvalidDataException("Backup full replay rejected its source state.");
+        }
         var state = await LoadLegacyPrefix().ConfigureAwait(false);
         var stream = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
-        if (isLegacyStream)
-        {
-            await EventSourceDb.MapReduceActorEventStreamFromCreationAsync<TState>(
-                stream, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
-            return state;
-        }
-
         var incompatible = false;
         await EventSourceDb.MapReduceActorEventStreamFromCreationWithCheckpointsAsync<TState>(
             stream, CheckpointTypes, rows => state.ReplayEvents(Validate(rows)), cancellationToken).ConfigureAwait(false);
@@ -95,6 +95,100 @@ public abstract class DatabaseOperationStateRepository<TState, TActor>(
         }
     }
 
+    async Task<TState?> ReadConcernWindowAsync(EventSourceActorDbContext postgres, ICommand command, string legacyId,
+        bool useCheckpoint, CancellationToken cancellationToken)
+    {
+        var state = (TState)_stateFactory.CreateState<TState>();
+        state.Id = command.Subject.ThreadId;
+        long concernHead = 0, legacyHead = 0, checkpointVersion = 0, concernVersion = 0, legacyVersion = 0;
+        var compatible = true;
+        await postgres.ReadConcernCheckpointWindowAsync(command.StreamId, legacyId,
+            typeof(DatabaseOperationStateSnapshottedEvent), useCheckpoint,
+            page => state.ReplayEvents(ReadFacts(page)), cancellationToken).ConfigureAwait(false);
+        if (concernVersion != concernHead || (checkpointVersion == 0 && legacyVersion != legacyHead))
+            throw new InvalidDataException($"Backup state replay did not reach both captured heads for '{command.StreamId}'.");
+        if (!compatible) return null;
+        state.LegacyStreamVersion = legacyHead;
+        state.RestoreCommittedStreamVersion(concernHead);
+        return state;
+
+        IEnumerable<IEvent> ReadFacts(IEnumerable<ConcernCheckpointRow> rows)
+        {
+            foreach (var row in rows)
+            {
+                (concernHead, legacyHead, checkpointVersion) = (row.ConcernHead, row.LegacyHead, row.CheckpointVersion);
+                if (row.Event is not { } persisted) continue;
+                if (row.IsLegacy)
+                {
+                    if (concernVersion != 0 || checkpointVersion != 0 || persisted.StreamVersion != ++legacyVersion)
+                        throw new InvalidDataException($"Backup legacy stream '{legacyId}' is not contiguous.");
+                }
+                else
+                {
+                    var expected = concernVersion == 1 && checkpointVersion > 1 ? checkpointVersion : concernVersion + 1;
+                    if (persisted.StreamVersion != expected)
+                        throw new InvalidDataException($"Backup concern stream '{command.StreamId}' is not contiguous at revision {expected}.");
+                    concernVersion = expected;
+                }
+
+                if (!compatible) continue;
+                if (!row.IsLegacy && checkpointVersion > 0 && concernVersion == checkpointVersion)
+                {
+                    state.LegacyStreamVersion = legacyHead;
+                    if (!TryReadCheckpoint(persisted, out var snapshot))
+                    {
+                        compatible = false;
+                        continue;
+                    }
+                    yield return snapshot;
+                    continue;
+                }
+
+                if (row.IsCheckpoint)
+                {
+                    if (!row.IsLegacy && checkpointVersion > 0 && concernVersion == 1) compatible = false;
+                    continue;
+                }
+                IEvent fact;
+                try { fact = persisted.ToDomainEvent(); }
+                catch (Exception exception) when (IsReplayDataError(exception))
+                {
+                    throw new InvalidDataException($"Backup source fact at revision {persisted.StreamVersion} cannot be decoded for '{command.StreamId}'.", exception);
+                }
+                if (fact is DatabaseOperationStateSnapshottedEvent)
+                {
+                    if (!row.IsLegacy && checkpointVersion > 0 && concernVersion == 1) compatible = false;
+                    continue;
+                }
+                if (fact is not DatabaseBackupEventContract source || !DatabaseOperationCommandState<TState>.IsAuthoritativeFact(source)
+                    || !string.Equals(source.Source.OperationId.Format(), command.Subject.EntityId, StringComparison.Ordinal))
+                    throw new InvalidDataException($"Backup source fact at revision {persisted.StreamVersion} does not belong to '{command.StreamId}'.");
+                yield return source;
+            }
+        }
+
+        bool TryReadCheckpoint(EventStreamReadModel persisted, out DatabaseOperationStateSnapshottedEvent snapshot)
+        {
+            snapshot = null!;
+            try
+            {
+                if (persisted.ToDomainEvent() is not DatabaseOperationStateSnapshottedEvent candidate ||
+                    !state.IsCompatibleSnapshot(candidate) || candidate.Operation is not { Exists: true, Revision: > 0 } operation ||
+                    !string.Equals(operation.OperationId.Format(), command.Subject.EntityId, StringComparison.Ordinal))
+                    return false;
+                snapshot = candidate;
+                return true;
+            }
+            catch (Exception exception) when (IsReplayDataError(exception))
+            {
+                return false;
+            }
+        }
+    }
+
+    static bool IsReplayDataError(Exception exception) => exception is InvalidDataException or InvalidOperationException
+        or ArgumentException or EndOfStreamException or MessagePack.MessagePackSerializationException;
+
     private static readonly Type[] CheckpointTypes = [typeof(DatabaseOperationStateSnapshottedEvent)];
     private static string LegacyStreamId(ICommand command) => $"Command.DatabaseBackupCommand.{command.Subject.EntityId}";
 
@@ -107,11 +201,8 @@ public abstract class DatabaseOperationStateRepository<TState, TActor>(
         ArgumentNullException.ThrowIfNull(command);
         if (databases?.SystemAdminDb is not { ProviderName: "System.Data.Postgres" } target)
         {
-            if (string.Equals(command.StreamId, LegacyStreamId(command), StringComparison.Ordinal))
-                await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
-            else
-                await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken)
-                    .ConfigureAwait(false);
+            await SaveStateWithPeriodicSnapshotAsync(context, state, command, () => state.CaptureSnapshot(command), cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
         if (state.Events.Count == 0) return;
@@ -120,8 +211,8 @@ public abstract class DatabaseOperationStateRepository<TState, TActor>(
             throw new InvalidOperationException("Backup source and read rows must share one PostgreSQL database/security identity.");
         var owner = transactions ?? throw new InvalidOperationException("Backup persistence requires the PostgreSQL transaction service.");
         var pending = new DomainEventCollection(state.Events);
-        var snapshot = !string.Equals(command.StreamId, LegacyStreamId(command), StringComparison.Ordinal) &&
-            ShouldCapturePeriodicSnapshot(state.CommittedStreamVersion, pending.Count) ? state.CaptureSnapshot(command) : null;
+        var snapshot = ShouldCapturePeriodicSnapshot(state.CommittedStreamVersion, pending.Count)
+            ? state.CaptureSnapshot(command) : null;
         await owner.ExecuteOnceAsync(async (transaction, token) =>
         {
             await transaction.ReserveCommandAsync(command, token).ConfigureAwait(false);

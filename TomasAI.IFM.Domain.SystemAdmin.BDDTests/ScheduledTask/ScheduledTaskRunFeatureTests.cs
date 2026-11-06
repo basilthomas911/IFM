@@ -7,6 +7,36 @@ namespace TomasAI.IFM.Domain.SystemAdmin.BDDTests.ScheduledTask;
 
 public sealed class ScheduledTaskRunFeatureTests
 {
+    [Theory]
+    [InlineData(ScheduledTaskRunStatus.Succeeded)]
+    [InlineData(ScheduledTaskRunStatus.Failed)]
+    [InlineData(ScheduledTaskRunStatus.Uncertain)]
+    public void Given_a_running_task_when_actors_reload_then_the_host_can_record_its_outcome(ScheduledTaskRunStatus outcome)
+    {
+        var given = new ScheduledTaskScenario().GivenAdmittedOccurrence().GivenRunningRun();
+        Assert.True(given.Send(given.Stage()).Success);
+        var definition = given.Definition;
+        var catalog = given.Catalog;
+        var running = given.Run;
+
+        given.RestartFromRecordedEvents();
+
+        Assert.Equivalent(definition, given.Definition, strict: true);
+        Assert.Equivalent(catalog, given.Catalog, strict: true);
+        Assert.Equivalent(running, given.Run, strict: true);
+        Assert.Equal("FeedsStopped", given.Run.Stage);
+        var result = outcome switch
+        {
+            ScheduledTaskRunStatus.Succeeded => given.Send(given.Complete()),
+            ScheduledTaskRunStatus.Failed => given.Send(given.Fail()),
+            ScheduledTaskRunStatus.Uncertain => given.Send(given.Uncertain()),
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome))
+        };
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Equal(outcome, given.Run.Status);
+        Assert.Equal(running.Revision + 1, given.Run.Revision);
+    }
+
     [Fact]
     [Trait("Command", nameof(RequestScheduledTaskRunCommand))]
     [Trait("Scenario", "HappyPath")]
@@ -412,6 +442,7 @@ public sealed class ScheduledTaskRunFeatureTests
         {
             Assert.Equal(ScheduledTaskScenario.ValueDate, actual.CompletedEndOfDayValueDate);
             Assert.Equal(ScheduledTaskRunStatus.Running, actual.Status);
+            Assert.Null(actual.GetCompletedMarketCloseDate());
         });
     }
 
@@ -460,6 +491,7 @@ public sealed class ScheduledTaskRunFeatureTests
         {
             Assert.Equal(ScheduledTaskRunStatus.Failed, actual.Status);
             Assert.Equal(ScheduledTaskScenario.ValueDate, actual.CompletedEndOfDayValueDate);
+            Assert.Null(actual.GetCompletedMarketCloseDate());
         });
     }
 }

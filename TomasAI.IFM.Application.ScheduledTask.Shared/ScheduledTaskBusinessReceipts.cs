@@ -23,7 +23,7 @@ public sealed class ScheduledTaskBusinessReceipts(IScheduledTaskCommandApi comma
             await Task.Delay(TimeSpan.FromMilliseconds(200), deadline.Token);
         }
     }
-    /// <summary>Persists one verified stage; only PositionsFinalized from the market-close task permits date rollover.</summary>
+    /// <summary>Persists one verified business checkpoint for the running task.</summary>
     public async Task RecordAsync(DateOnly valueDate, string stage, string detail, CancellationToken cancellationToken)
     {
         var result = await commands.RecordScheduledTaskRunStageAsync(new()

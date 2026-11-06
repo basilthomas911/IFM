@@ -1500,7 +1500,7 @@ fn established_iron_condor_dashboard_displays_saved_limits_and_leg_marks() {
     }
     h.set_size(eframe::egui::vec2(1200., 800.));
     h.run();
-    assert!(h.query_by_label("Close trade 27:1").is_some());
+    assert!(h.query_by_label("Close trade 27:1 ShortIronCondor=115:110|90:85 26-Nov-20").is_some());
 
     let result = &mut h.state_mut().snapshot.result;
     result.context.insert("canSelectPosition".into(), "False".into());

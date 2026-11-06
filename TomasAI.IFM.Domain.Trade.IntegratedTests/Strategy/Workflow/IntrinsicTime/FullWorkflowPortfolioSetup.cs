@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -28,10 +29,10 @@ public sealed partial class TradeSelectionRuntimeTests
         {
             DeploymentKey = binding.Candidates[0].DeploymentKey,
             AssignmentVersion = 1,
-            PortfolioVersion = 1,
-            FundMandateVersion = 1,
-            PolicyId = 1,
-            PolicyVersion = 1,
+            PortfolioVersion = source.Portfolio.PortfolioVersion,
+            FundMandateVersion = source.Fund.FundMandateVersion,
+            PolicyId = source.FinancialPolicy.PolicyId,
+            PolicyVersion = source.FinancialPolicy.PolicyVersion,
             EnvelopeId = source.RiskEnvelope.EnvelopeId,
             EnvelopeVersion = 1,
             FinancialSnapshotHash = source.PayloadSha256,
@@ -61,16 +62,32 @@ public sealed partial class TradeSelectionRuntimeTests
                 Limits=fundLimits,Deployments=[new(authority,deploymentLimits,1000000000)] }]
         };
         var transactions = FinancialBoundaryTransactions();
-        // Initial immutable authority is test setup, outside the measured workflow. All subsequent
-        // Fund transitions, ledger funding, reservation and authorization use production services.
+        // Seed committed authority and its read models together, outside the measured workflow.
+        // Subsequent Fund transitions, ledger funding, reservation and authorization use production services.
         await transactions.ExecuteAsync(async (db, ct) =>
         {
-            var command = Guid.NewGuid();
-            await db.AppendAsync($"Portfolio.{id}", command, new PortfolioCreatedEvent(Guid.NewGuid(), command, 1, DateTime.UtcNow, "FullWorkflowFixture", source.Portfolio), 0, ct);
-            command = Guid.NewGuid();
-            await db.AppendAsync($"PortfolioFund.{id}.{source.Fund.FundId}", command, new FundMandateCreatedEvent(Guid.NewGuid(), command, 1, DateTime.UtcNow, "FullWorkflowFixture", source.Fund), 0, ct);
-            command = Guid.NewGuid();
-            await db.AppendAsync($"PortfolioFinancialPolicy.{id}.1", command, new PortfolioFinancialPolicyCreatedEvent(Guid.NewGuid(), command, 1, DateTime.UtcNow, "FullWorkflowFixture", source.FinancialPolicy, Guid.NewGuid()), 0, ct);
+            var committedAt = DateTime.UtcNow;
+            var portfolio = new PortfolioCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, committedAt, "FullWorkflowFixture", source.Portfolio)
+            {
+                AggregateId = id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ProjectionFacts = new() { Revision = 1, UpdatedAtUtc = committedAt, Portfolio = source.Portfolio }
+            };
+            var fund = new FundMandateCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, committedAt, "FullWorkflowFixture", source.Fund)
+            {
+                AggregateId = $"{id}.{source.Fund.FundId}",
+                ProjectionFacts = new() { Revision = 1, UpdatedAtUtc = committedAt, Fund = source.Fund }
+            };
+            var policy = new PortfolioFinancialPolicyCreatedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, committedAt, "FullWorkflowFixture", source.FinancialPolicy, Guid.NewGuid())
+            {
+                AggregateId = $"{id}.{authority.PolicyId}",
+                ProjectionFacts = new() { Revision = 1, UpdatedAtUtc = committedAt, Policies = [source.FinancialPolicy with { AggregateRevision = 1 }] }
+            };
+            await db.AppendAsync($"Portfolio.{portfolio.AggregateId}", portfolio.CommandId, portfolio, 0, ct);
+            await db.PersistAcceptedPortfolioAsync(portfolio, portfolio.ProjectionFacts, ct);
+            await db.AppendAsync($"PortfolioFund.{fund.AggregateId}", fund.CommandId, fund, 0, ct);
+            await db.PersistAcceptedPortfolioAsync(fund, fund.ProjectionFacts, ct);
+            await db.AppendAsync($"PortfolioFinancialPolicy.{policy.AggregateId}", policy.CommandId, policy, 0, ct);
+            await db.PersistAcceptedPortfolioAsync(policy, policy.ProjectionFacts, ct);
             return true;
         });
         var rule = new LedgerPostingRule(Guid.NewGuid(), 1, "five-stage-funding-rule", LedgerTransactionKind.DepositConfirmed, new(101, 1), new(102, 1), true);

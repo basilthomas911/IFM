@@ -53,7 +53,12 @@ public static class StartVerticalSpreadExitPositionWorkflow
         /// <returns>The event ready for state application.</returns>
         internal ExitPositionWorkflowStartedEvent CreateExitPositionWorkflowStartedEvent(ExitPositionWorkflowChange exitWorkflowChange) => new()
         {
+            LifecycleVersion = 1,
+            Id = Guid.NewGuid(),
+            ReceivedOn = DateTime.UtcNow,
             CommandId = command.CommandId,
+            Subject = new(ActorType.Event, command.Subject.Name + "Event", ExitPositionWorkflowStartedEvent.Verb, command.EntityId.Format()),
+            AggregateId = command.EntityId.Format(),
             EntityId = command.EntityId,
             ExitPlan = exitWorkflowChange.ExitPlan,
             StrategyKind = exitWorkflowChange.StrategyKind,

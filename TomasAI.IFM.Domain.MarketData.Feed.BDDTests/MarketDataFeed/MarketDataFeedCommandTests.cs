@@ -1,5 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations;
-using TomasAI.IFM.Domain.MarketData.Feed.FeedSessionPreparation.Function.State;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -31,26 +30,12 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var context = Substitute.For<IMarketDataFeedCommandContext>();
         context.Logger.Returns(Microsoft.Extensions.Logging.Abstractions.NullLogger<MarketDataFeedCommandActor>.Instance);
         var container = Substitute.For<IContainerInstance>();
-        var preparations = Substitute.For<IEventSourceFunctionStateRepository<
-            FeedSessionPreparationFunctionState, PrepareMarketDataFeedSessionCommand>>();
-        preparations.LoadStateAsync(Arg.Any<PrepareMarketDataFeedSessionCommand>(), Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                var request = call.Arg<PrepareMarketDataFeedSessionCommand>();
-                var state = new FeedSessionPreparationFunctionState();
-                state.TryComplete(new FeedSessionPreparationCompletedEvent
-                {
-                    Id = request.CommandId,
-                    CommandId = request.CommandId,
-                    EntityId = request.EntityId,
-                    Subject = new(ActorType.Event, "FeedSessionPreparationEvent", "Completed", request.EntityId.Format()),
-                    ValueDate = SampleData.ValueDate,
-                    Contracts = SampleData.FuturesContracts
-                }, request);
-                return ValueTask.FromResult(state);
-            });
-        container.Resolve<IEventSourceFunctionStateRepository<FeedSessionPreparationFunctionState,
-            PrepareMarketDataFeedSessionCommand>>().Returns(preparations);
+        var dates = Substitute.For<IValueDateProvider>();
+        dates.ValueDate.Returns(SampleData.ValueDate);
+        var market = Substitute.For<IMarketDataApi>();
+        market.PrepareSessionAsync(SampleData.ValueDate, Arg.Any<CancellationToken>()).Returns(SampleData.FuturesContracts);
+        container.Resolve<IValueDateProvider>().Returns(dates);
+        container.Resolve<IMarketDataApi>().Returns(market);
         context.Container.Returns(container);
         return context;
     }
@@ -174,8 +159,9 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var actor = _fixture.CreateMarketDataFeedCommandActor(database);
         var command = actor.InvokeParseMessage(
             CreateCommandContext(), CreateMessage(CreateCommand("Start")));
-        Func<Task> act = () => actor.InvokeOnValidateAsync(
-            CreateCommandContext(), command.Subject.ThreadId, command).AsTask();
+        var context = CreateCommandContext();
+        command = await actor.InvokeResolveCommandAsync(context, command);
+        Func<Task> act = () => actor.InvokeOnValidateAsync(context, command.Subject.ThreadId, command).AsTask();
 
         await act.Should().NotThrowAsync();
     }
@@ -278,15 +264,21 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
     }
 
     [Fact]
-    public async Task Given_AnUnpreparedStart_When_Validated_Then_ItIsRejected()
+    public async Task Given_A_DateFreeStart_When_Resolved_Then_TheProviderDateOwnsTheEventStream()
     {
         var actor = _fixture.CreateMarketDataFeedCommandActor();
         var context = CreateCommandContext();
-        var command = (StartMarketDataFeedCommand)CreateCommand("Start");
-        var altered = command with { PreparedContracts = [] };
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            actor.InvokeOnValidateAsync(context, altered.Subject.ThreadId, altered).AsTask());
+        var request = StartMarketDataFeedCommand.ForCurrentSession(Guid.NewGuid());
+        var parsed = actor.InvokeParseMessage(context, CreateMessage(request));
+        var resolved = (StartMarketDataFeedCommand)await actor.InvokeResolveCommandAsync(context, parsed);
+        await actor.InvokeOnValidateAsync(context, resolved.Subject.ThreadId, resolved);
+        var state = new MarketDataFeedCommandState { Id = resolved.Subject.ThreadId };
+        (await actor.InvokeReceiveAsync(context, state, resolved)).Success.Should().BeTrue();
+        var started = state.Events.OfType<MarketDataFeedStartedEvent>().Single();
+        started.ValueDate.Should().Be(SampleData.ValueDate);
+        started.EntityId.Should().Be(resolved.EntityId);
+        started.Subject.EntityId.Should().Be(resolved.EntityId.Format());
+        started.CommandId.Should().Be(request.CommandId);
     }
 
     [Fact]

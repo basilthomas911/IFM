@@ -3,7 +3,6 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Query.Actor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Query;
@@ -14,13 +13,12 @@ public static class GetRegimeDiscoveryDecisionReference
     extension(GetRegimeDiscoveryDecisionReferenceQuery query)
     {
         /// <summary>Generates and returns the immutable Regime Discovery decision reference.</summary>
-        public ValueTask ExecuteAsync(IRegimeDiscoveryQueryContext services, IQueryActorContext<RegimeDiscoveryQueryActor> context, CancellationToken cancellationToken)
+        public ValueTask<ServiceResult<RegimeDiscoveryDecisionReferenceDto[]>> ExecuteAsync(IRegimeDiscoveryQueryContext services, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             cancellationToken.ThrowIfCancellationRequested();
             var result = new RegimeDiscoveryDecisionReferenceGenerator().Generate();
-            return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<RegimeDiscoveryDecisionReferenceDto[]>(result));
+            return ValueTask.FromResult<ServiceResult<RegimeDiscoveryDecisionReferenceDto[]>>(new ServiceResult<RegimeDiscoveryDecisionReferenceDto[]>(result));
         }
     }
 }

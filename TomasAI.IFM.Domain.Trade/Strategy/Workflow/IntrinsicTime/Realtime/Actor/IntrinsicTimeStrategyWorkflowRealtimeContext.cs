@@ -1,4 +1,6 @@
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -14,7 +16,19 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Acto
 /// <summary>Provides the closed-generic context for one-way workflow realtime orchestration.</summary>
 public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext : EventActorContext, IIntrinsicTimeStrategyWorkflowRealtimeContext
 {
-    public IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository => Container.Resolve<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
+    /// <inheritdoc/>
+    public async Task<IntrinsicTimeStrategyWorkflowView?> ReadActiveWorkflowAsync(IntrinsicTimeStrategyWorkflowEntityId entityId, CancellationToken token = default)
+    {
+        var projection = await Container.Resolve<Application.Storage.IDbContextFactory>().TradeDb
+            .GetActiveIntrinsicTimeStrategyWorkflowAsync(entityId.Format(), token).ConfigureAwait(false);
+        if (projection is null)
+            return null;
+        var view = MessagePackBinarySerializer.Shared.Deserialize<IntrinsicTimeStrategyWorkflowView>(projection.StatePayload);
+        if (view is null || view.EntityId != entityId || view.WorkflowId != projection.WorkflowId
+            || view.WorkflowRevision != projection.WorkflowRevision || view.CurrentStage != projection.CurrentStage)
+            throw new InvalidDataException("Active workflow projection metadata does not match its payload.");
+        return view;
+    }
     public Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi => Container.Resolve<Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>();
     public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
     public IPortfolioFundCommandApi PortfolioCommands => Container.Resolve<IPortfolioFundCommandApi>();

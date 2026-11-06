@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model;
 
@@ -68,11 +69,70 @@ public static class ExecuteRiskFinancialHandoff
             }
 
             using var timing_authorization_build_advance = WorkflowTrace.Start("authorization.build_advance", view);
-            var advance = RiskFinancialHandoff.Advance(view);
+            using var readTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var advance = await PrepareAdvanceAsync(view, context, readTimeout.Token).ConfigureAwait(false);
             timing_authorization_build_advance?.Stop();
             using var timing_authorization_advance_send = WorkflowTrace.Start("authorization.advance_send", view);
             await context.SendAsync<AdvanceRiskFinancialHandoffCommand, IntrinsicTimeStrategyWorkflowEntityId>(advance, advance.EntityId).ConfigureAwait(false);
             timing_authorization_advance_send?.Stop();
+        }
+    }
+
+    /// <summary>Collects the evidence for the one checkpoint the owning command will validate.</summary>
+    static async Task<AdvanceRiskFinancialHandoffCommand> PrepareAdvanceAsync(
+        IntrinsicTimeStrategyWorkflowView view, IIntrinsicTimeStrategyWorkflowRealtimeContext context, CancellationToken token)
+    {
+        var advance = RiskFinancialHandoff.Advance(view);
+        var risk = view.RiskManagement.Result?.RiskResult ?? throw new RiskCalculationException("RM.HANDOFF.NO_RESULT");
+        var api = context.FinancialApi;
+        var scope = new FinancialReadScope
+        {
+            PortfolioId = risk.PortfolioId,
+            FundId = risk.FundId,
+            Access = new("IntrinsicTimeStrategyWorkflow", ["LedgerRead"], [risk.PortfolioId])
+        };
+        switch (advance.ExpectedPhase)
+        {
+            case RiskFinancialHandoffPhase.None:
+                var order = await context.PortfolioQueries.GetOrderAsync(checked((int)risk.OrderId), token).ConfigureAwait(false);
+                if (!order.Success || order.Value is not { Status: "RiskPending" })
+                    return advance;
+                var candidate = view.OrderComposition.Result!.ReadCompositionResult().Candidate!;
+                return advance with
+                {
+                    FundOrder = order.Value,
+                    Financial = await ReadFinancialAsync(FinancialScopeKeys.Underlying(candidate.Product.Symbol, candidate.Product.Exchange, candidate.Product.Currency)).ConfigureAwait(false)
+                };
+            case RiskFinancialHandoffPhase.ReservePending:
+            {
+                var request = view.FinancialHandoff!.ReservationRequest;
+                using var reservationRead = WorkflowTrace.Start("authorization.verify.reservation_receipt", view);
+                var receipt = await api.GetPostingReceiptAsync(scope, new(request.OperationId), token).ConfigureAwait(false);
+                reservationRead?.Stop();
+                return advance with
+                {
+                    ReservationReceipt = receipt.Success ? receipt.Value : null,
+                    ReservationReceiptOperationId = request.OperationId,
+                    Financial = receipt.Success && receipt.Value is not null && RiskResizing.IsFencedOut(request, receipt.Value)
+                        ? await ReadFinancialAsync(view.RiskExecution!.SizingAuthority.UnderlyingId).ConfigureAwait(false)
+                        : null
+                };
+            }
+            case RiskFinancialHandoffPhase.FundPending:
+            {
+                using var fundRead = WorkflowTrace.Start("authorization.verify.fund_receipt", view);
+                var fund = await api.GetFundRiskAuthorizationAsync(scope, new(view.FinancialHandoff!.FundCommandId), token).ConfigureAwait(false);
+                fundRead?.Stop();
+                return advance with { FundReceipt = fund.Success ? fund.Value : null };
+            }
+            default:
+                return advance;
+        }
+
+        async Task<FinancialRead<FinancialAdmissionSnapshot>?> ReadFinancialAsync(string underlying)
+        {
+            var result = await api.GetFinancialAdmissionSnapshotAsync(scope, new(risk.Authority.DeploymentKey, underlying), token).ConfigureAwait(false);
+            return result.Success ? result.Value : null;
         }
     }
 }

@@ -51,7 +51,12 @@ public sealed class RiskPreparationTests
     public async Task Preparation_freezes_exact_upstream_snapshots_policy_and_one_financial_revision()
     {
         var input = await Input();
-        var execute = RiskPreparation.Create(input.View, input.Policy, input.Financial, Guid.NewGuid(), input.At);
+        var preparationCommandId = Guid.NewGuid();
+        var functionInvocationId = RiskPreparation.FunctionInvocationId(preparationCommandId);
+        functionInvocationId.Should().NotBe(preparationCommandId);
+        RiskPreparation.FunctionInvocationId(preparationCommandId).Should().Be(functionInvocationId);
+        var execute = RiskPreparation.Create(input.View, input.Policy, input.Financial, functionInvocationId, input.At);
+        execute.CommandId.Should().Be(functionInvocationId);
         execute.InputWorkflowRevision.Should().Be(input.View.WorkflowRevision + 1);
         execute.InputSha256.Should().Be(execute.Fingerprint());
         execute.ConfigurationPayloadSha256.Should().Be(input.Policy.Hash());
@@ -73,6 +78,23 @@ public sealed class RiskPreparationTests
         var execute = RiskPreparation.Create(input.View, input.Policy, financial, Guid.NewGuid(), input.At);
         execute.SizingAuthority.PerTradeLossBudget.Should().Be(500m);
         execute.SizingAuthority.Limits.Where(x => x.Measure == CapacityMeasure.LossCharge).Should().OnlyContain(x => x.Maximum > 500m);
+    }
+
+    [Fact]
+    public async Task Producer_capture_preserves_freshness_across_delivery_and_owner_still_enforces_expiry()
+    {
+        var input = await Input();
+        var invocation = Guid.NewGuid();
+        var financial = input.Financial with { ObservedAtUtc = input.At.AddMilliseconds(-1250) };
+        var capturedAt = input.At.AddMilliseconds(-500);
+        var execute = RiskPreparation.Create(input.View, input.Policy, financial, invocation, input.At, capturedAt);
+        execute.RequestedAtUtc.Should().Be(input.At);
+        Action expired = () => RiskPreparation.Create(input.View, input.Policy, financial, invocation,
+            execute.ExpiresAtUtc, capturedAt);
+        expired.Should().Throw<RiskCalculationException>().Which.ReasonCode.Should().Be("RM.TIME.EXPIRED");
+        Action future = () => RiskPreparation.Create(input.View, input.Policy, input.Financial, invocation,
+            input.At, input.At.AddMilliseconds(1));
+        future.Should().Throw<RiskCalculationException>().Which.ReasonCode.Should().Be("RM.AUTHORITY.UNAVAILABLE");
     }
 
     [Theory]

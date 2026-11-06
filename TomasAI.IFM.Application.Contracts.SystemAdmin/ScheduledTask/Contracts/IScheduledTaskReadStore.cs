@@ -5,8 +5,10 @@ namespace TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 /// <summary>Reads only persisted PostgreSQL scheduled-task projections.</summary>
 public interface IScheduledTaskReadStore
 {
-    /// <summary>Reads the latest successfully finalized session for restart-safe operational date rollover.</summary>
+    /// <summary>Reads the latest session with positions finalized, including incomplete close attempts.</summary>
     ValueTask<DateOnly?> GetCompletedEndOfDayAsync(string environment, CancellationToken cancellationToken = default);
+    /// <summary>Reads the latest fully completed API-owned market close for operational date rollover.</summary>
+    ValueTask<DateOnly?> GetCompletedMarketCloseAsync(string environment, CancellationToken cancellationToken = default);
     /// <summary>Reads one persisted definition by its owning host and identity.</summary>
     ValueTask<ScheduledTaskDefinition?> GetDefinitionAsync(string environment, string hostId, ScheduledTaskId id, CancellationToken cancellationToken = default);
     /// <summary>Reads a bounded page of definitions for a host.</summary>

@@ -95,13 +95,8 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
             return;
         if (view.CurrentStage is StrategyWorkflowStage.TradeSelection or StrategyWorkflowStage.OrderComposition)
         {
-            var read = new RedispatchCurrentStrategyPipelineCommand
-            {
-                EntityId = view.EntityId,
-                Subject = WorkflowSubject(RedispatchCurrentStrategyPipelineCommand.Verb, view.EntityId)
-            };
-            var current = await RequireEventContext(context).WorkflowRepository.LoadStateAsync(read).ConfigureAwait(false);
-            if (!IsCurrentSelectionNotification(view, current.CurrentView))
+            var current = await RequireEventContext(context).ReadActiveWorkflowAsync(view.EntityId).ConfigureAwait(false);
+            if (!IsCurrentSelectionNotification(view, current))
                 return;
         }
 

@@ -5,7 +5,7 @@ public static class TradeTickQuoteDbCql
 {
     public const string GetRawFuturesTradeWindow = """
         SELECT value_date, price, size, source_sequence, source_event_timestamp_ns,
-            source_receive_timestamp_ns, action, header_flags, instrument_id, publisher_id
+            source_receive_timestamp_ns, action, header_flags, instrument_id, publisher_id, aggregation_timestamp_utc_ticks
         FROM tick_trade_data WHERE asset_type_id = ? AND contract_id = ? AND value_date = ?
             AND aggregation_time >= ? AND aggregation_time <= ?;
         """;

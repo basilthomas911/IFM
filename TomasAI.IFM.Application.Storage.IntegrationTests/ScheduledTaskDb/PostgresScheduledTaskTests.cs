@@ -53,6 +53,40 @@ public sealed class PostgresScheduledTaskTests(TomasAI.IFM.Application.Storage.I
     }
 
     [Fact]
+    public async Task Rollover_uses_the_last_successful_close_even_when_newer_position_finalizations_exist()
+    {
+        var store = await Store();
+        var env = "rollover-" + Guid.NewGuid();
+        var host = ScheduledTaskKeys.ApiMarketCloseHost;
+        var schedule = ScheduledTaskIdentities.Catalog(env, host);
+        var completedDate = new DateOnly(2026, 10, 8);
+        var pendingDate = completedDate.AddDays(1);
+        var successful = Run(env, schedule, DateTimeOffset.UtcNow.AddDays(-1)) with
+        {
+            HostId = host, TaskKey = ScheduledTaskKeys.FuturesMarketClose,
+            Stage = ScheduledTaskKeys.MarketClosedStage, ExitCode = 0, CompletedEndOfDayValueDate = completedDate
+        };
+        await store.ProjectAsync(successful);
+        var pending = successful with
+        {
+            Id = new(Guid.NewGuid()), IntendedFireTimeUtc = successful.IntendedFireTimeUtc.AddDays(1),
+            CompletedEndOfDayValueDate = pendingDate, Status = ScheduledTaskRunStatus.Running,
+            Stage = "PositionsFinalized", ExitCode = null
+        };
+        await store.ProjectAsync(pending);
+        (await store.GetCompletedEndOfDayAsync(env)).Should().Be(pendingDate);
+        (await store.GetCompletedMarketCloseAsync(env)).Should().Be(completedDate);
+        await store.ProjectAsync(pending with { Revision = pending.Revision + 1, Status = ScheduledTaskRunStatus.Failed, Stage = "MarketCloseFailed" });
+        (await store.GetCompletedMarketCloseAsync(env)).Should().Be(completedDate);
+        await store.ProjectAsync(pending with
+        {
+            Id = new(Guid.NewGuid()), Status = ScheduledTaskRunStatus.Succeeded,
+            Stage = ScheduledTaskKeys.MarketClosedStage, ExitCode = 0
+        });
+        (await store.GetCompletedMarketCloseAsync(env)).Should().Be(pendingDate);
+    }
+
+    [Fact]
     public async Task History_pages_all_rows_in_time_order_and_rejects_a_cursor_from_another_schedule()
     {
         var store = await Store(); var env = "test-" + Guid.NewGuid(); var schedule = new ScheduledTaskId(Guid.NewGuid());

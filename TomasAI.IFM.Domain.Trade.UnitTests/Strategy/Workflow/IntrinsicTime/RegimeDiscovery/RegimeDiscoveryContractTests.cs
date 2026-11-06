@@ -67,7 +67,7 @@ public sealed class RegimeDiscoveryContractTests
         var evidenceFrame = RegimeDiscoverySnapshotRequestFactory.TargetEvidenceTimeFrame(parameters);
 
         request.Requirements.Should().NotContain(requirement =>
-            requirement.Metric == RegimeDiscoverySignalMetric.VxFrontLevel ||
+            requirement.Metric == RegimeDiscoverySignalMetric.VixLevel ||
             requirement.Metric == RegimeDiscoverySignalMetric.ItiDirection ||
             requirement.Metric == RegimeDiscoverySignalMetric.ItiBandLevel ||
             requirement.Metric == RegimeDiscoverySignalMetric.ItiReversalLevel);
@@ -78,8 +78,8 @@ public sealed class RegimeDiscoveryContractTests
             requirement.Metric == RegimeDiscoverySignalMetric.VxFrontSecondRatio &&
             requirement.TimeFrame == TimeFrameType.Daily && requirement.IsRequired);
         request.Requirements.Should().Contain(requirement =>
-            requirement.Metric == RegimeDiscoverySignalMetric.VixLevel &&
-            requirement.TimeFrame == TimeFrameType.Daily && !requirement.IsRequired);
+            requirement.Metric == RegimeDiscoverySignalMetric.VxFrontLevel &&
+            requirement.TimeFrame == TimeFrameType.Daily && requirement.IsRequired);
         var tdiRequirements = request.Requirements
             .Where(requirement => requirement.Metric == RegimeDiscoverySignalMetric.Tdi).ToArray();
         tdiRequirements.Should().OnlyContain(requirement => !requirement.IsRequired);

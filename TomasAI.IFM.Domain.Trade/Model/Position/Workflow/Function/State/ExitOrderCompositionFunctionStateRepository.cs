@@ -33,11 +33,11 @@ public sealed class ExitOrderCompositionFunctionStateRepository(IEventSourceActo
         if (string.Equals(dbFactory?.TradePlanDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
         {
             await ExitWorkflowAtomicPersistence.CommitAsync(request, new DomainEventCollection(state.Events), state.CommittedStreamVersion,
-                EventSourceDb, dbFactory, transactions, cancellationToken).ConfigureAwait(false);
+                EventSourceDb, dbFactory, transactions, cancellationToken, projectWorkflow: false).ConfigureAwait(false);
             state.AcceptChanges();
             return;
         }
-        _ = await SaveStateEventsAsync(state, request, state.LastPersistedEventId, cancellationToken).ConfigureAwait(false);
+        _ = await SaveStateEventsAsync(state, request, state.CommittedStreamVersion, cancellationToken).ConfigureAwait(false);
     }
 
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents) => ValueTask.CompletedTask;

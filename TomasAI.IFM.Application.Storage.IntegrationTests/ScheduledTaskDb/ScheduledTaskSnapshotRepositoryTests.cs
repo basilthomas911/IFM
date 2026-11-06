@@ -49,7 +49,19 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
             Subject = new(ActorType.Command, EnableScheduledTaskCommand.Actor, EnableScheduledTaskCommand.Verb, id.Format()) };
         var initial = new ScheduledTaskDefinition { Id = id, Revision = 1, DesiredRevision = 1 };
         const int head = 512;
-        var enabled = initial with { Revision = head, DesiredRevision = head, Enabled = true };
+        var enabled = initial with
+        {
+            Revision = head,
+            DesiredRevision = head,
+            Enabled = true,
+            AppliedEnabled = true,
+            AppliedRevision = head - 1,
+            InstallationFingerprint = "fixture-installation",
+            ReviewedArtifactDigest = "sha256:fixture",
+            ActiveRunId = Guid.NewGuid(),
+            LastAdmittedFireUtc = DateTimeOffset.UnixEpoch.AddHours(1),
+            Schedule = new() { TaskKey = "fixture-task", TimeZoneId = "UTC" }
+        };
         IEvent[] history =
         [
             new ScheduledTaskCreatedEvent { EntityId = id, ScheduledTaskDefinition = initial },
@@ -88,8 +100,11 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
         Assert.Equal(head + 1, reloaded.CommittedStreamVersion);
     }
 
-    [Fact]
-    public async Task Run_repository_restores_requested_snapshot_and_terminal_business_outcome()
+    [Theory]
+    [InlineData(ScheduledTaskRunStatus.Succeeded)]
+    [InlineData(ScheduledTaskRunStatus.Failed)]
+    [InlineData(ScheduledTaskRunStatus.Uncertain)]
+    public async Task Run_repository_restores_requested_snapshot_and_terminal_business_outcome(ScheduledTaskRunStatus outcome)
     {
         var id = new ScheduledTaskId(Guid.NewGuid());
         var command = new CompleteScheduledTaskRunCommand { CommandId = Guid.NewGuid(), EntityId = id,
@@ -97,12 +112,27 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
         var initial = new ScheduledTaskRun { Id = id, ScheduleId = new(Guid.NewGuid()), Revision = 1 };
         var admitted = initial with { Revision = 2, Status = ScheduledTaskRunStatus.Admitted };
         var started = admitted with { Revision = 3, Status = ScheduledTaskRunStatus.Running, ProcessId = 1234 };
-        var completed = started with { Revision = 4, Status = ScheduledTaskRunStatus.Succeeded, ExitCode = 0,
-            FinishedAtUtc = DateTimeOffset.UtcNow, CompletedEndOfDayValueDate = new(2026, 11, 2), StandardOutputTail = "confirmed" };
+        var staged = started with { Revision = 4, Stage = "FeedsStopped", ValueDate = new DateOnly(2026, 11, 2) };
+        var completed = staged with
+        {
+            Revision = 5,
+            Status = outcome,
+            ExitCode = outcome == ScheduledTaskRunStatus.Uncertain ? null : outcome == ScheduledTaskRunStatus.Succeeded ? 0 : 1,
+            FinishedAtUtc = DateTimeOffset.UtcNow,
+            CompletedEndOfDayValueDate = outcome == ScheduledTaskRunStatus.Succeeded ? new DateOnly(2026, 11, 2) : null,
+            StandardOutputTail = $"Outcome: {outcome}"
+        };
+        IEvent terminalEvent = outcome switch
+        {
+            ScheduledTaskRunStatus.Succeeded => new ScheduledTaskRunCompletedEvent { EntityId = id, ScheduledTaskRun = completed },
+            ScheduledTaskRunStatus.Failed => new ScheduledTaskRunFailedEvent { EntityId = id, ScheduledTaskRun = completed },
+            ScheduledTaskRunStatus.Uncertain => new ScheduledTaskRunUncertainRecordedEvent { EntityId = id, ScheduledTaskRun = completed },
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome))
+        };
         await Append(command, new ScheduledTaskRunRequestedEvent { EntityId = id, ScheduledTaskRun = initial },
             new ScheduledTaskRunAdmissionRecordedEvent { EntityId = id, ScheduledTaskRun = admitted },
             new ScheduledTaskRunStartedEvent { EntityId = id, ScheduledTaskRun = started },
-            new ScheduledTaskRunCompletedEvent { EntityId = id, ScheduledTaskRun = completed });
+            new ScheduledTaskRunStageRecordedEvent { EntityId = id, ScheduledTaskRun = staged });
 
         await using var source = Source();
         var factory = Substitute.For<IEventSourceActorStateFactory>();
@@ -110,12 +140,21 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
         var repository = new ScheduledTaskRunStateRepository(factory, source, Substitute.For<IActorService>(),
             Substitute.For<IEventProjector<ScheduledTaskRunCommandActor>>(), NullLogger<ScheduledTaskRunStateRepository>.Instance);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        var beforeOutcome = await repository.LoadStateAsync(command, deadline.Token);
+        Assert.Equivalent(staged, beforeOutcome.ScheduledTaskRun);
+        Assert.Equal(4, beforeOutcome.CommittedStreamVersion);
+        await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
+        {
+            await transaction.AppendAsync(command.StreamId, Guid.NewGuid(), terminalEvent, beforeOutcome.CommittedStreamVersion, token);
+            return true;
+        }, deadline.Token);
+
         var baseline = await CompareReadWindows(source, command, () => new ScheduledTaskRunCommandState(), [typeof(ScheduledTaskRunRequestedEvent),
-            typeof(ScheduledTaskRunStartedEvent), typeof(ScheduledTaskRunCompletedEvent)], 4, () => repository.LoadStateAsync(command, deadline.Token));
+            typeof(ScheduledTaskRunStageRecordedEvent), terminalEvent.GetType()], 5, () => repository.LoadStateAsync(command, deadline.Token));
         var restored = await repository.LoadStateAsync(command, deadline.Token);
         Assert.Equivalent(completed, restored.ScheduledTaskRun);
         Assert.Equivalent(baseline.ScheduledTaskRun, restored.ScheduledTaskRun);
-        Assert.Equal(4, restored.CommittedStreamVersion);
+        Assert.Equal(5, restored.CommittedStreamVersion);
         Assert.Empty(restored.Events); Assert.False(restored.Updated);
     }
 
@@ -158,6 +197,18 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
         Assert.Equivalent(baseline.ScheduledTaskCatalog, restored.ScheduledTaskCatalog);
         Assert.Equal(4, restored.CommittedStreamVersion);
         Assert.Empty(restored.Events); Assert.False(restored.Updated);
+
+        var next = ready with { Revision = 5, Projects = [.. ready.Projects, new() { TaskKey = "third" }] };
+        await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
+        {
+            await transaction.AppendAsync(command.StreamId, Guid.NewGuid(),
+                new ScheduledTaskCatalogProjectRegisteredEvent { EntityId = id, ScheduledTaskCatalog = next },
+                restored.CommittedStreamVersion, token);
+            return true;
+        });
+        var reloaded = await repository.LoadStateAsync(command);
+        Assert.Equivalent(next, reloaded.ScheduledTaskCatalog);
+        Assert.Equal(5, reloaded.CommittedStreamVersion);
     }
 
     private async Task<TState> CompareReadWindows<TState>(EventSourceActorDbContext source, ICommand command,

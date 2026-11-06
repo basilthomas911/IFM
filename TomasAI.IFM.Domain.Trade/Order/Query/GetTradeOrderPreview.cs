@@ -15,12 +15,12 @@ public static class GetTradeOrderPreview
     /// </param>
     extension(GetTradeOrderPreviewQuery query)
     {
-        /// <summary>Replies with calculated strategy economics or a structured invalid-draft failure.</summary>
+        /// <summary>Returns calculated strategy economics or a structured invalid-draft failure.</summary>
         ///
-        /// <param name="context">The actor reply and resolved reference-data context.</param>
+        /// <param name="context">The resolved reference-data context.</param>
         /// <param name="cancellationToken">Cancellation of the read-only request.</param>
-        /// <returns>Completion after the typed success or invalid-input reply is sent.</returns>
-        public async ValueTask ExecuteAsync(ITradeOrderQueryContext context, CancellationToken cancellationToken)
+        /// <returns>The typed success or invalid-input result.</returns>
+        public async ValueTask<ServiceResult<TradeOrderPreview>> ExecuteAsync(ITradeOrderQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(context);
@@ -48,7 +48,7 @@ public static class GetTradeOrderPreview
             catch (ArgumentException exception) { result = new ServiceFailed<TradeOrderPreview>(400, exception.Message); }
             catch (InvalidOperationException exception) { result = new ServiceFailed<TradeOrderPreview>(503, exception.Message); }
             catch (OverflowException) { result = new ServiceFailed<TradeOrderPreview>(400, "TradeOrder.Preview.NUMERIC_OVERFLOW: draft values exceed supported numeric limits."); }
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            return result;
         }
 
         /// <summary>Computes the preview without changing actor or persisted state.</summary>

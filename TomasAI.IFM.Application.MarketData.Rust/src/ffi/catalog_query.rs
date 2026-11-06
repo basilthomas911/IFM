@@ -265,6 +265,89 @@ pub unsafe extern "C" fn ifm_market_data_catalog_query_row_v1(
         Ok(())
     })
 }
+/// Copies a bounded page of immutable catalog rows. Each row is prefixed by
+/// a little-endian u32 byte length. Successful pages may be shorter than the
+/// requested count if the next full row would exceed the supplied capacity.
+/// Format 0 returns source JSON and format 1 returns native projections.
+/// Errors leave the output buffer and both result scalars unchanged.
+///
+/// # Safety
+/// Output holds capacity exclusive writable bytes; length and rows_written
+/// are aligned exclusive writable u32 values, independent of the output.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ifm_market_data_catalog_query_page_v1(
+    handle: u64,
+    token: u64,
+    start: u32,
+    count: u32,
+    format: u32,
+    output: *mut u8,
+    capacity: u32,
+    length: *mut u32,
+    rows_written: *mut u32,
+) -> i32 {
+    boundary(|| {
+        if !valid(length)
+            || !valid(rows_written)
+            || output.is_null()
+            || capacity > 262_148
+            || format > 1
+        {
+            return Err(Status::InvalidInput);
+        }
+        let rows = instance(handle)?
+            .catalog_queries
+            .lock()
+            .map_err(|_| Status::InternalFailure)?
+            .page(token, start as usize, count as usize)
+            .map_err(status)?;
+        let mut written = 0;
+        let mut bytes_written = 0;
+        let mut projected = Vec::new();
+        let maximum_row = if format == 0 { 65_536 } else { 262_144 };
+        for row in &rows {
+            let projection = if format == 1 {
+                Some(queries::project(row).map_err(|_| Status::Capacity)?)
+            } else {
+                None
+            };
+            let size = projection.as_ref().map_or(row.json.len(), Vec::len);
+            if size > maximum_row || bytes_written + 4 + size > capacity as usize {
+                break;
+            }
+            bytes_written += 4 + size;
+            written += 1;
+            if let Some(projection) = projection {
+                projected.push(projection);
+            }
+        }
+        if written == 0 {
+            return Err(Status::Capacity);
+        }
+        let mut offset = 0;
+        for (index, row) in rows[..written].iter().enumerate() {
+            let bytes = if format == 0 {
+                row.json.as_bytes()
+            } else {
+                &projected[index]
+            };
+            let size = (bytes.len() as u32).to_le_bytes();
+            // SAFETY: The complete page size was checked before copying.
+            unsafe {
+                std::ptr::copy_nonoverlapping(size.as_ptr(), output.add(offset), 4);
+                std::ptr::copy_nonoverlapping(bytes.as_ptr(), output.add(offset + 4), bytes.len());
+            }
+            offset += 4 + bytes.len();
+        }
+        // SAFETY: These scalars are caller-owned exclusive aligned outputs.
+        unsafe {
+            length.write(bytes_written as u32);
+            rows_written.write(written as u32);
+        }
+        Ok(())
+    })
+}
+
 /// Releases one query. A stale identity is rejected rather than closing a newer
 /// query accidentally; no provider resources or threads are joined here.
 #[unsafe(no_mangle)]

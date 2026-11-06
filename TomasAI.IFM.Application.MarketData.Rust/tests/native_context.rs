@@ -24,72 +24,9 @@ async fn tenor_cutover_requires_complete_atomic_native_reference_refresh() {
         manifest::Budget,
     };
     use ifm_market_data_native::runtime::Deadline;
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::collections::BTreeMap;
     use tokio_util::sync::CancellationToken;
-    let rows: serde_json::Value = serde_json::from_str(include_str!(
-        "../qualification/ContextWireBridge/contexts.json"
-    ))
-    .unwrap();
-    let mut value = rmpv::decode::read_value(&mut wire(&rows[0], "contract").as_slice()).unwrap();
-    let at = rows[0]["at"].as_i64().unwrap() - 25 * 864_000_000_000;
-    let rmpv::Value::Array(ref mut fields) = value else {
-        panic!("contract DTO")
-    };
-    fields[12] = codec::utc_offset(at + 30 * 864_000_000_000).unwrap();
-    fields[13] = fields[12].clone();
-    let contract = Convention::new(value).unwrap();
-    let first = time::Date::from_calendar_date(2026, time::Month::October, 1).unwrap();
-    let day = first.to_julian_day() - 1721426;
-    let calendar = Calendar::new(
-        "fixture/v1".into(),
-        "Eastern Standard Time",
-        first,
-        date(day + 59),
-        648_000_000_000,
-        (0..60).map(|i| date(day + i)).collect(),
-    )
-    .unwrap();
-    let publications = Publications::new(
-        "publication/v1".into(),
-        at - 864_000_000_000,
-        at + 10 * 864_000_000_000,
-        vec![Publication {
-            date: first,
-            available: at - 864_000_000_000,
-        }],
-        "Eastern Standard Time",
-    )
-    .unwrap();
-    let observation = Observation::official(Curve {
-        date: first,
-        retrieved: at - 600_000_000,
-        rates: vec![
-            Point {
-                months: 1,
-                percentage: decimal::parse("4.0").unwrap(),
-            },
-            Point {
-                months: 2,
-                percentage: decimal::parse("4.1").unwrap(),
-            },
-        ],
-    });
-    let prepare = |now| {
-        Arc::new(
-            Context::prepare(
-                contract.clone(),
-                calendar.clone(),
-                &publications,
-                &Conversion::standard(),
-                Some(&observation),
-                [1; 16],
-                contract.engine(),
-                now,
-                0,
-            )
-            .unwrap(),
-        )
-    };
+    let (at, prepare) = tenor_reference_fixture();
     let prior = prepare(at);
     let next_at = at + 864_000_000_000;
     assert!(prior.valid_until() > next_at);
@@ -104,6 +41,13 @@ async fn tenor_cutover_requires_complete_atomic_native_reference_refresh() {
         .register(42, 99, prior.bind(at, 1, 7, strike, true).unwrap(), true)
         .unwrap();
     engine.attach_reference(42, 1, prior.clone()).unwrap();
+    assert_eq!(engine.reference_window(at).unwrap(), (true, prior.valid_until()));
+    assert_eq!(engine.reference_window(at + 1).unwrap(), (true, prior.valid_until()));
+    // Moving backwards and crossing the reviewed tenor boundary each require
+    // fresh authority, even after a successful result was cached.
+    assert!(!engine.reference_window(at - 600_000_001).unwrap().0);
+    assert!(!engine.reference_window(next_at).unwrap().0);
+    assert!(engine.reference_window(at).unwrap().0);
     let captured = engine.trade_context(42, 99).unwrap().unwrap();
     let original_digest = captured.reference.as_ref().unwrap().digest().unwrap();
     let stop = CancellationToken::new();
@@ -177,10 +121,128 @@ async fn tenor_cutover_requires_complete_atomic_native_reference_refresh() {
         "queued old evidence retains its original validity"
     );
 }
+fn tenor_reference_fixture() -> (i64, impl Fn(i64) -> std::sync::Arc<Context>) {
+    use std::sync::Arc;
+    let rows: serde_json::Value = serde_json::from_str(include_str!(
+        "../qualification/ContextWireBridge/contexts.json"
+    ))
+    .unwrap();
+    let mut value = rmpv::decode::read_value(&mut wire(&rows[0], "contract").as_slice()).unwrap();
+    let at = rows[0]["at"].as_i64().unwrap() - 25 * 864_000_000_000;
+    let rmpv::Value::Array(ref mut fields) = value else {
+        panic!("contract DTO")
+    };
+    fields[12] = codec::utc_offset(at + 30 * 864_000_000_000).unwrap();
+    fields[13] = fields[12].clone();
+    let contract = Convention::new(value).unwrap();
+    let first = time::Date::from_calendar_date(2026, time::Month::October, 1).unwrap();
+    let day = first.to_julian_day() - 1721426;
+    let calendar = Calendar::new(
+        "fixture/v1".into(),
+        "Eastern Standard Time",
+        first,
+        date(day + 59),
+        648_000_000_000,
+        (0..60).map(|i| date(day + i)).collect(),
+    )
+    .unwrap();
+    let publications = Publications::new(
+        "publication/v1".into(),
+        at - 864_000_000_000,
+        at + 10 * 864_000_000_000,
+        vec![Publication {
+            date: first,
+            available: at - 864_000_000_000,
+        }],
+        "Eastern Standard Time",
+    )
+    .unwrap();
+    let observation = Observation::official(Curve {
+        date: first,
+        retrieved: at - 600_000_000,
+        rates: vec![
+            Point {
+                months: 1,
+                percentage: decimal::parse("4.0").unwrap(),
+            },
+            Point {
+                months: 2,
+                percentage: decimal::parse("4.1").unwrap(),
+            },
+        ],
+    });
+    let prepare = move |now| {
+        Arc::new(
+            Context::prepare(
+                contract.clone(),
+                calendar.clone(),
+                &publications,
+                &Conversion::standard(),
+                Some(&observation),
+                [1; 16],
+                contract.engine(),
+                now,
+                0,
+            )
+            .unwrap(),
+        )
+    };
+    (at, prepare)
+}
+
+#[test]
+#[ignore = "Explicit paired pricing reference timing"]
+fn reference_window_before_after_timings() {
+    use ifm_market_data_native::option_chain::coalesced::Coalesced;
+    use std::{hint::black_box, time::Instant};
+
+    let (at, prepare) = tenor_reference_fixture();
+    let reference = prepare(at);
+    let engine = Coalesced::new(1024, 64, 5000).unwrap();
+    for instrument in 1..=1024 {
+        let identity = u128::from(instrument);
+        engine.register(instrument, 99,
+            reference.bind(at, identity, 7, decimal::parse("6000").unwrap(), true).unwrap(), true).unwrap();
+        engine.attach_reference(instrument, identity, reference.clone()).unwrap();
+    }
+    let references = vec![reference; 1024];
+    let mut timings = Vec::new();
+    for pair in 0..5 {
+        for before in if pair % 2 == 0 { [true, false] } else { [false, true] } {
+            let mut samples = Vec::new();
+            for iteration in 0..34 {
+                let started = Instant::now();
+                for offset in 0..16 {
+                    let at = black_box(at + offset);
+                    let (valid, until) = if before {
+                        let mut valid = true;
+                        let mut until = i64::MAX;
+                        for reference in &references {
+                            valid &= reference.validate_at(at).is_ok();
+                            until = until.min(reference.valid_until());
+                        }
+                        (valid, until)
+                    } else {
+                        engine.reference_window(at).unwrap()
+                    };
+                    assert_eq!(black_box((valid, until)), (true, references[0].valid_until()));
+                }
+                if iteration >= 3 {
+                    samples.push(started.elapsed().as_nanos() as u64);
+                }
+            }
+            samples.sort_unstable();
+            timings.push(serde_json::json!({"pair":pair,"before":before,"checksPerSample":16,
+                "references":1024,"p50Ns":samples[15],"p95Ns":samples[29],"p99Ns":samples[30],"samplesNs":samples}));
+        }
+    }
+    println!("REFERENCE_WINDOW_PERFORMANCE {}", serde_json::json!(timings));
+}
+
 fn wire(row: &serde_json::Value, key: &str) -> Vec<u8> {
     STANDARD.decode(row[key].as_str().unwrap()).unwrap()
 }
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn exact_current_context_and_manifest_contents_and_hashes() {
     let rows: serde_json::Value = serde_json::from_str(include_str!(
         "../qualification/ContextWireBridge/contexts.json"

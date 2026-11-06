@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations;
 using System.Reflection;
 using FluentAssertions;
 using MessagePack;
@@ -22,34 +21,56 @@ public sealed class FeedCommandConventionTests
     private static readonly TradeEntityId TradeId = new(1, 2, 3, 4);
 
     [Fact]
-    public void Prepared_start_round_trips_and_preserves_assignments_in_the_event()
+    public void Start_wire_format_omits_the_server_date_and_assignments()
     {
-        var id = new MarketDataFeedId(ValueDate);
-        var operation = Guid.NewGuid();
-        var command = new StartMarketDataFeedCommand
+        var command = StartMarketDataFeedCommand.ForCurrentSession(Guid.NewGuid()) with
         {
-            CommandId = operation,
-            EntityId = id,
-            Subject = new(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, id.Format()),
+            EntityId = new(ValueDate),
             PreparedContracts = SampleData.FuturesContracts
         };
-        var receipt = new FeedSessionPreparationCompletedEvent
-        {
-            CommandId = operation, ValueDate = ValueDate, Contracts = SampleData.FuturesContracts
-        };
-        var restored = MessagePackSerializer.Deserialize<StartMarketDataFeedCommand>(MessagePackSerializer.Serialize(command));
+        var wire = MessagePackSerializer.Serialize(command);
+        var reader = new MessagePackReader(wire);
+        reader.ReadArrayHeader().Should().Be(6);
+        reader.Skip(); // CommandId
+        reader.Skip(); // Subject
+        reader.Skip(); // PostEvents
+        reader.TryReadNil().Should().BeTrue(); // Former EntityId slot
 
-        restored.ValidatePreparation(receipt);
-        var state = new MarketDataFeedCommandState();
-        restored.Execute(state).Success.Should().BeTrue();
-        var source = state.Events.OfType<MarketDataFeedStartedEvent>().Single();
-        source.ValueDate.Should().Be(ValueDate);
-        source.FuturesContracts.Should().BeEquivalentTo(SampleData.FuturesContracts);
-        Assert.Throws<InvalidOperationException>(() => restored.ValidatePreparation(null));
-        Assert.Throws<InvalidOperationException>(() =>
-            (restored with { PreparedContracts = [] }).ValidatePreparation(receipt));
-        Assert.Throws<InvalidOperationException>(() =>
-            restored.ValidatePreparation(receipt with { ValueDate = ValueDate.AddDays(1) }));
+        var restored = MessagePackSerializer.Deserialize<StartMarketDataFeedCommand>(wire);
+        restored.CommandId.Should().Be(command.CommandId);
+        restored.Subject.EntityId.Should().Be(StartMarketDataFeedCommand.CurrentSession);
+        restored.ValueDate.Should().Be(default);
+        restored.PreparedContracts.Should().BeNull();
+    }
+
+    [Fact]
+    public void Start_deserializes_the_older_payload_without_trusting_its_date_or_assignments()
+    {
+        var request = StartMarketDataFeedCommand.ForCurrentSession(Guid.NewGuid());
+        var fields = new MessagePackReader(MessagePackSerializer.Serialize(request));
+        fields.ReadArrayHeader().Should().Be(6);
+        var output = new System.Buffers.ArrayBufferWriter<byte>();
+        var writer = new MessagePackWriter(output);
+        writer.WriteArrayHeader(10);
+        for (var slot = 0; slot < 6; slot++)
+        {
+            var field = fields.ReadRaw();
+            if (slot == 3)
+                writer.WriteRaw(MessagePackSerializer.Serialize(new MarketDataFeedId(ValueDate)));
+            else
+                writer.WriteRaw(field);
+        }
+        writer.WriteNil();
+        writer.WriteNil();
+        writer.WriteNil();
+        writer.WriteRaw(MessagePackSerializer.Serialize(SampleData.FuturesContracts));
+        writer.Flush();
+
+        var restored = MessagePackSerializer.Deserialize<StartMarketDataFeedCommand>(output.WrittenMemory);
+        restored.CommandId.Should().Be(request.CommandId);
+        restored.Subject.Should().Be(request.Subject);
+        restored.ValueDate.Should().Be(default);
+        restored.PreparedContracts.Should().BeNull();
     }
 
     [Fact]

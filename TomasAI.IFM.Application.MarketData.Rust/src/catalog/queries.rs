@@ -64,6 +64,19 @@ impl Queries {
             .cloned()
             .ok_or(Error::Invalid)
     }
+    /// Clones a bounded contiguous page of immutable row handles.
+    pub fn page(
+        &self,
+        token: u64,
+        start: usize,
+        count: usize,
+    ) -> Result<Vec<Arc<Definition>>, Error> {
+        let (rows, _) = self.active.get(&token).ok_or(Error::Invalid)?;
+        if !(1..=64).contains(&count) || start >= rows.len() {
+            return Err(Error::Invalid);
+        }
+        Ok(rows[start..(start + count).min(rows.len())].to_vec())
+    }
     /// Clones immutable row handles for a further native selection, without
     /// copying provider JSON or resolving against a refreshed mutable universe.
     pub fn rows(&self, token: u64) -> Result<Vec<Arc<Definition>>, Error> {
@@ -85,25 +98,56 @@ impl Queries {
 /// All source timestamps/prices remain integers; original JSON remains separately
 /// accessible for definition persistence and digest identity.
 pub fn project(row: &Definition) -> Result<Vec<u8>, Failure> {
-    let value = serde_json::json!({
-        "Dataset": row.dataset, "Publisher": row.publisher, "Instrument": row.instrument,
-        "Symbol": row.symbol, "Asset": row.asset, "Kind": row.kind, "Class":row.class, "Currency": row.currency,
-        "Exchange": row.exchange, "SettlementCurrency": row.settlement_currency,
-        "Underlying": row.underlying, "UnderlyingInstrument": row.underlying_instrument,
-        "ReceivedNanoseconds": row.received_ns, "EventNanoseconds": row.event_ns,
-        "Deleted": row.deleted, "Activation": row.activation, "Expiration": row.expiration,
-        "Maturity": row.maturity.map(|v| v.to_string()), "Strike": row.strike,
-        "Tick": row.tick, "TickAmount": row.tick_amount, "Multiplier": row.multiplier,
-        "MaturityWeek": row.maturity_week, "CanonicalId": selection::format(row).ok(),
-        "QueryMaturity": row.query_maturity.map(|v| v.to_string()),
-        "QueryMaturityInvalid": row.query_maturity_invalid,
-        "SecurityType": row.security_type, "Cfi": row.cfi, "UnitOfMeasure": row.unit
-    });
-    let bytes = serde_json::to_vec(&value).map_err(|_| Failure::InvalidDefinition)?;
+    let bytes = serde_json::to_vec(&Projection(row)).map_err(|_| Failure::InvalidDefinition)?;
     if bytes.len() > 262_144 {
         return Err(Failure::Capacity);
     }
     Ok(bytes)
+}
+
+struct Projection<'a>(&'a Definition);
+
+impl serde::Serialize for Projection<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+
+        // Preserve the exact alphabetical property order from the former Value map.
+        let row = self.0;
+        let mut fields = serializer.serialize_struct("NativeContractDefinition", 29)?;
+        fields.serialize_field("Activation", &row.activation)?;
+        fields.serialize_field("Asset", &row.asset)?;
+        fields.serialize_field("CanonicalId", &selection::format(row).ok())?;
+        fields.serialize_field("Cfi", &row.cfi)?;
+        fields.serialize_field("Class", &row.class)?;
+        fields.serialize_field("Currency", &row.currency)?;
+        fields.serialize_field("Dataset", &row.dataset)?;
+        fields.serialize_field("Deleted", &row.deleted)?;
+        fields.serialize_field("EventNanoseconds", &row.event_ns)?;
+        fields.serialize_field("Exchange", &row.exchange)?;
+        fields.serialize_field("Expiration", &row.expiration)?;
+        fields.serialize_field("Instrument", &row.instrument)?;
+        fields.serialize_field("Kind", &row.kind)?;
+        fields.serialize_field("Maturity", &row.maturity.map(|value| value.to_string()))?;
+        fields.serialize_field("MaturityWeek", &row.maturity_week)?;
+        fields.serialize_field("Multiplier", &row.multiplier)?;
+        fields.serialize_field("Publisher", &row.publisher)?;
+        fields.serialize_field(
+            "QueryMaturity",
+            &row.query_maturity.map(|value| value.to_string()),
+        )?;
+        fields.serialize_field("QueryMaturityInvalid", &row.query_maturity_invalid)?;
+        fields.serialize_field("ReceivedNanoseconds", &row.received_ns)?;
+        fields.serialize_field("SecurityType", &row.security_type)?;
+        fields.serialize_field("SettlementCurrency", &row.settlement_currency)?;
+        fields.serialize_field("Strike", &row.strike)?;
+        fields.serialize_field("Symbol", &row.symbol)?;
+        fields.serialize_field("Tick", &row.tick)?;
+        fields.serialize_field("TickAmount", &row.tick_amount)?;
+        fields.serialize_field("Underlying", &row.underlying)?;
+        fields.serialize_field("UnderlyingInstrument", &row.underlying_instrument)?;
+        fields.serialize_field("UnitOfMeasure", &row.unit)?;
+        fields.end()
+    }
 }
 
 /// Matches the preserved bridge's non-exact contract-detail ordering. Stored

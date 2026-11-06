@@ -26,7 +26,7 @@ public sealed class DatabaseBackupSharedBoundaryTests
     [InlineData("Model.DatabaseOperationReceiptComputation")]
     [InlineData("Translation.DatabaseBackupEventTranslator")]
     [InlineData("EventHandling.DatabaseBackupServiceEventHandler")]
-    [InlineData("Query.DatabaseBackupQueryReply")]
+    [InlineData("Query.DatabaseBackupQueryResult")]
     public void Shared_helpers_belong_to_the_domain_assembly(string name)
     {
         var fullName = $"TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.{name}";

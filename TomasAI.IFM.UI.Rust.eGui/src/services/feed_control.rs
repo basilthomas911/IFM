@@ -10,57 +10,6 @@ use std::collections::BTreeMap;
 
 const FEED_CONTRACTS: &str = "TomasAI.IFM.Domain.MarketData.Feed.Shared.";
 
-/// Resolve the session on the API and forward its committed assignments intact.
-async fn prepare_start(
-    backend: &Backend,
-    registry: &Registry,
-    id: uuid::Uuid,
-    route_to: i64,
-    deadline: tokio::time::Instant,
-) -> Result<(chrono::NaiveDate, Value), String> {
-    let kind = format!("{FEED_CONTRACTS}ProducerOperations.PrepareMarketDataFeedSessionCommand");
-    let (actor, verb) = registry.route(&kind)?;
-    let subject = ActorSubject {
-        kind: ActorKind::Function,
-        name: actor.into(),
-        verb: verb.into(),
-        entity: id.simple().to_string(),
-    };
-    let id = id.to_string();
-    let body = registry.encode(&kind, &BTreeMap::from([
-        ("CommandId".into(), id.clone().into()),
-        ("Subject".into(), subject.wire()),
-        ("EntityId".into(), Value::Array(vec![subject.entity.clone().into()])),
-        ("ErrorCode".into(), registry.error_id(&kind)?.into()),
-        ("RouteTo".into(), route_to.into()),
-    ]))?;
-    let reply = backend.request_until(&subject, &body, deadline, None).await?;
-    let [completed, failed] = service_result(&reply)?
-        .as_array()
-        .map(Vec::as_slice)
-        .ok_or("Invalid feed preparation reply")?
-    else {
-        return Err("Invalid feed preparation reply".into());
-    };
-    if completed.is_nil() && !failed.is_nil() {
-        let kind = format!("{FEED_CONTRACTS}ProducerOperations.FeedSessionPreparationFailedEvent");
-        let message = registry.wire_field(&kind, "ErrorMessage", failed)?;
-        return Err(message.as_str().unwrap_or("Feed session preparation failed").into());
-    }
-    let kind = format!("{FEED_CONTRACTS}ProducerOperations.FeedSessionPreparationCompletedEvent");
-    if !failed.is_nil()
-        || registry.wire_field(&kind, "CommandId", completed)?.as_str() != Some(id.as_str())
-    {
-        return Err("Feed preparation reply has an invalid operation identity or outcome".into());
-    }
-    let value_date = date_only(registry.wire_field(&kind, "ValueDate", completed)?)?;
-    let contracts = registry.wire_field(&kind, "Contracts", completed)?;
-    if contracts.as_array().is_none_or(Vec::is_empty) {
-        return Err("Feed session preparation returned no contract assignments".into());
-    }
-    Ok((value_date, contracts.clone()))
-}
-
 /// Feed Observation used by the feed control component.
 pub struct FeedObservation {
     /// Session associated with this feed observation.
@@ -114,21 +63,20 @@ pub async fn set_running(
         if expected && initial.session.market_state==0{return Err("Live market-data APIs are unavailable while the futures session is closed".into());}
         let root=FEED_CONTRACTS;
         let route_to=registry.enum_value("TomasAI.IFM.Shared.EventSourcing.BoundedContextName","MarketDataFeedBoundedContext")?;
-        let (value_date, prepared_contracts) = if expected {
-            let (date, contracts) = prepare_start(backend, registry, id, route_to, deadline).await?;
-            (date, Some(contracts))
-        } else {
-            (value_date, None)
-        };
-        let kind=format!("{root}Commands.{}MarketDataFeedCommand",if expected{"Start"}else{"Stop"});let (actor,verb)=registry.route(&kind)?;
-        let subject=ActorSubject{kind:ActorKind::Command,name:actor.into(),verb:verb.into(),entity:value_date.to_string()};
-        let mut fields=BTreeMap::from([("CommandId".into(),id.to_string().into()),("Subject".into(),subject.wire()),("PostEvents".into(),false.into()),
-            ("EntityId".into(),Value::Array(vec![date_only_wire(value_date)])),
-            ("ErrorCode".into(),registry.error_id(&kind)?.into()),("RouteTo".into(),route_to.into())]);
-        if let Some(contracts) = prepared_contracts {
-            fields.insert("PreparedContracts".into(), contracts);
-        } else {
-            fields.insert("ValueDate".into(),date_only_wire(value_date));
+        let kind = format!("{root}Commands.{}MarketDataFeedCommand", if expected { "Start" } else { "Stop" });
+        let (actor, verb) = registry.route(&kind)?;
+        let entity = if expected { "current".into() } else { value_date.to_string() };
+        let subject = ActorSubject { kind: ActorKind::Command, name: actor.into(), verb: verb.into(), entity };
+        let mut fields = BTreeMap::from([
+            ("CommandId".into(), id.to_string().into()),
+            ("Subject".into(), subject.wire()),
+            ("PostEvents".into(), false.into()),
+            ("ErrorCode".into(), registry.error_id(&kind)?.into()),
+            ("RouteTo".into(), route_to.into()),
+        ]);
+        if !expected {
+            fields.insert("EntityId".into(), Value::Array(vec![date_only_wire(value_date)]));
+            fields.insert("ValueDate".into(), date_only_wire(value_date));
         }
         let body=registry.encode(&kind,&fields)?;let id=id.to_string();
         let success=format!("{root}Events.MarketDataFeed{}CompleteEvent",if expected{"Started"}else{"Stopped"});
@@ -140,12 +88,21 @@ pub async fn set_running(
         loop {
             tokio::select! {
                 result=&mut command,if !completed=>{
-                    match result {Ok(_)=>{initial.status.running=expected;initial.status.active_date=if expected{Some(value_date)}else{None};return Ok(initial);},Err(error) if error.starts_with("OutcomeUnknown:")=>completed=true,Err(error)=>return Err(error)}
+                    match result {
+                        Ok(_) if expected => completed = true,
+                        Ok(_) => {
+                            initial.status.running = false;
+                            initial.status.active_date = None;
+                            return Ok(initial);
+                        },
+                        Err(error) if error.starts_with("OutcomeUnknown:") => completed = true,
+                        Err(error) => return Err(error),
+                    }
                 },
                 _=tick.tick(),if reading.is_none()=>{reading=Some(Box::pin(FeedObservation::load(backend)));},
                 result=async{reading.as_mut().unwrap().await},if reading.is_some()=>{
                     reading=None;
-                    if let Ok(observation)=result{if matches(&observation,value_date){return Ok(observation);}}
+                    if let Ok(observation)=result{if matches(&observation,observation.session.value_date){return Ok(observation);}}
                 },
             }
         }

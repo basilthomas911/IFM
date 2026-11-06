@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Futures.Option.Position.Query.Actor;
+using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.Query.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
@@ -10,12 +10,12 @@ public static class GetVerticalSpreadOptionTradePositionHistory
 
     extension(GetVerticalSpreadOptionTradePositionHistoryQuery query)
     {
-        /// <summary>Reads and replies with the requested VerticalSpread position data.</summary>
-        public ValueTask ExecuteAsync(IFuturesOptionPositionQueryContext context, CancellationToken cancellationToken)
+        /// <summary>Reads the requested VerticalSpread position history.</summary>
+        public ValueTask<StrategyPositionSnapshot[]> ExecuteAsync(ITradeDbReadContext tradeDb, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(tradeDb);
             ArgumentNullException.ThrowIfNull(query);
-            return PositionQueryModel.ManyAsync(query, context, TradeStrategyKind.VerticalSpread, cancellationToken);
+            return PositionQueryModel.ManyAsync(query, tradeDb, TradeStrategyKind.VerticalSpread, cancellationToken);
         }
     }
 }

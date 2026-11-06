@@ -33,6 +33,9 @@ internal sealed partial class NativeMarketDataLibrary
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate int CatalogQueryCloseCall(ulong handle, ulong token);
     internal CatalogQueryCall CatalogQuery = null!;
     internal CatalogQueryRowCall CatalogQueryRow = null!;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal unsafe delegate int CatalogQueryPageCall(
+        ulong handle, ulong token, uint start, uint count, uint format, byte* output, uint capacity, out uint length, out uint rowsWritten);
+    internal CatalogQueryPageCall? CatalogQueryPage;
     internal CatalogQueryCloseCall CatalogQueryClose = null!;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal unsafe delegate int CatalogCurrentCall(ulong handle, ulong token, byte* input, uint length, byte* output, uint capacity, out uint required);
@@ -59,6 +62,8 @@ internal sealed partial class NativeMarketDataLibrary
         if (Marshal.SizeOf<NativeCatalogQuery>() != 24) throw new InvalidDataException("Native catalog query layout mismatch.");
         CatalogQuery = Bind<CatalogQueryCall>("ifm_market_data_catalog_query_v1");
         CatalogQueryRow = Bind<CatalogQueryRowCall>("ifm_market_data_catalog_query_row_v1");
+        CatalogQueryPage = NativeLibrary.TryGetExport(module, "ifm_market_data_catalog_query_page_v1", out var page)
+            ? Marshal.GetDelegateForFunctionPointer<CatalogQueryPageCall>(page) : null;
         CatalogQueryClose = Bind<CatalogQueryCloseCall>("ifm_market_data_catalog_query_close_v1");
     }
 }

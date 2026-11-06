@@ -188,6 +188,12 @@ int32_t ifm_market_data_catalog_query_v1(uint64_t handle, uint64_t revision,
  * (<=262144 bytes). Failed reads do not modify output or length. */
 int32_t ifm_market_data_catalog_query_row_v1(uint64_t handle, uint64_t token,
     uint32_t index, uint32_t format, uint8_t* output, uint32_t capacity, uint32_t* length);
+/* Copies at most 64 immutable rows. Each row has a little-endian u32 byte
+ * length followed by source JSON or a native projection, using the row formats
+ * above. A page may be shorter if its next row cannot fit the caller buffer. */
+int32_t ifm_market_data_catalog_query_page_v1(uint64_t handle, uint64_t token,
+    uint32_t start, uint32_t count, uint32_t format, uint8_t* output, uint32_t capacity,
+    uint32_t* length, uint32_t* rows_written);
 int32_t ifm_market_data_catalog_query_close_v1(uint64_t handle, uint64_t token);
 /* Acquires provider {dataset,parents:[...]} into an independent query, preserving
  * active live definitions. Standard terminal control result payload is JSON

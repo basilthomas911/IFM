@@ -5,7 +5,6 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.M
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Reference;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Query.Actor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Query;
@@ -15,14 +14,13 @@ public static class GetMarketConditionAssessment
 
     extension(GetMarketConditionAssessmentQuery query)
     {
-        /// <summary>Executes the mapped Market Condition query and replies with its typed result.</summary>
-        public async ValueTask ExecuteAsync(IMarketConditionQueryContext services, IQueryActorContext<MarketConditionQueryActor> context, CancellationToken cancellationToken)
+        /// <summary>Executes the mapped Market Condition query and returns its typed result.</summary>
+        public async ValueTask<ServiceResult<MarketConditionAssessmentCompletedEvent>> ExecuteAsync(IMarketConditionQueryContext services, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(services);
             var value = await services.DbFactory.TradeDb.GetMarketConditionAssessmentAsync(query.WorkflowId, cancellationToken).ConfigureAwait(false) ?? throw new KeyNotFoundException("Assessment result was not found.");
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<MarketConditionAssessmentCompletedEvent>(value)).ConfigureAwait(false);
+            return new ServiceResult<MarketConditionAssessmentCompletedEvent>(value);
         }
     }
 }

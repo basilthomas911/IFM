@@ -1,9 +1,11 @@
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using TomasAI.IFM.Application.MarketData.Rust.Delivery;
+using TomasAI.IFM.Shared.MarketData.Contracts.Historical;
 
 var wire=await File.ReadAllBytesAsync(args[1]);var mode=0;
 using var stop=new CancellationTokenSource();var listener=new TcpListener(IPAddress.Loopback,0);listener.Start();var port=(ushort)((IPEndPoint)listener.LocalEndpoint).Port;
@@ -22,9 +24,34 @@ var server=Task.Run(async()=>{try{while(true){var client=await listener.AcceptTc
 }catch(IOException){}catch(OperationCanceledException)when(stop.IsCancellationRequested){}catch(Exception e){faults.Enqueue(e);}finally{Interlocked.Increment(ref closed);}}));}}catch(OperationCanceledException)when(stop.IsCancellationRequested){}});
 await using var runtime=new NativeMarketDataRuntime(Path.GetFullPath(args[0]),2);runtime.ConfigureHistory("http://127.0.0.1:9/",new('x',32),["127.0.0.1:9"]);
 var start=DateTimeOffset.FromUnixTimeSeconds(1_790_000_000);
-TomasAI.IFM.Shared.MarketData.Contracts.Historical.IHistoricalRecordReader Open(TimeSpan budget,CancellationToken token=default)=>runtime.OpenFuturesReplay("GLBX.MDP3","ESZ6",new('x',32),"127.0.0.1",port,["127.0.0.1:9"],start,128,budget,token);
+IHistoricalRecordReader Open(TimeSpan budget,CancellationToken token=default)=>runtime.OpenFuturesReplay("GLBX.MDP3","ESZ6",new('x',32),"127.0.0.1",port,["127.0.0.1:9"],start,128,budget,token);
 try{
-    await using(var reader=Open(TimeSpan.FromSeconds(10))){var rows=0;while(await reader.ReadNextAsync(default)is{} batch){foreach(var row in batch.Records){rows++;if(row.SourceSequence!=rows||row.CloseOrPrice!=6000m+rows/1000000000m||row.VolumeOrSize!=rows%9+1||row.Symbol!="ESZ6"||row.PublisherId!="3")throw new InvalidDataException("Replay changed an ordered source row.");}if(rows==128)await Task.Delay(100);}if(rows!=10000)throw new InvalidDataException("Replay lost rows or consumed post-completion live data.");}
+    if(args.Length==3&&args[2]=="--timings"){
+        for(var run=0;run<11;run++){
+            var allocated=GC.GetTotalAllocatedBytes(precise:true);var began=Stopwatch.GetTimestamp();
+            await using(var reader=runtime.OpenFuturesReplay("GLBX.MDP3","ESZ6",new('x',32),"127.0.0.1",port,["127.0.0.1:9"],start,4096,TimeSpan.FromSeconds(10))){
+                var rows=0;
+                while(await reader.ReadNextAsync(default)is{} batch){
+                    foreach(var row in batch.Records)if(row.SourceSequence!=++rows)throw new InvalidDataException("Replay changed row order.");
+                }
+                if(rows!=10000)throw new InvalidDataException("Replay changed row count.");
+            }
+            if(run>0)Console.WriteLine($"REPLAY_TIMING ms={Stopwatch.GetElapsedTime(began).TotalMilliseconds:F3} bytes={GC.GetTotalAllocatedBytes(precise:true)-allocated}");
+        }
+        await runtime.StopAndDisposeAsync(TimeSpan.FromSeconds(3));
+        return;
+    }
+    await using(var reader=Open(TimeSpan.FromSeconds(10))){
+        var rows=0;HistoricalProviderRecordBatch? firstBatch=null;
+        while(await reader.ReadNextAsync(default)is{} batch){
+            firstBatch??=batch;
+            foreach(var row in batch.Records){rows++;if(row.SourceSequence!=rows||row.CloseOrPrice!=6000m+rows/1000000000m||row.VolumeOrSize!=rows%9+1||row.Symbol!="ESZ6"||row.PublisherId!="3")throw new InvalidDataException("Replay changed an ordered source row.");}
+            if(rows==128)await Task.Delay(100);
+        }
+        if(rows!=10000)throw new InvalidDataException("Replay lost rows or consumed post-completion live data.");
+        if(firstBatch is null||firstBatch.Records.Count!=128||firstBatch.Records[0].SourceSequence!=1||firstBatch.Records[^1].SourceSequence!=128)
+            throw new InvalidDataException("Refilling the native replay buffer changed a returned batch.");
+    }
     var warnings=runtime.DrainHistoricalWarnings();if(warnings.Length!=3||warnings.All(x=>x.Text!="replay warning fixture"))throw new InvalidDataException("Replay provider notices were dropped.");
     foreach(var faultMode in new[]{1,2,3}){
         Volatile.Write(ref mode,faultMode);var failed=false;var began=System.Diagnostics.Stopwatch.GetTimestamp();

@@ -34,6 +34,9 @@ internal static class TradePipelineAtomicPersistence
                 case MarketConditionAssessmentCompletedEvent assessed:
                     await TradeDbContextExtensions.PipelineProjectAsync(db, assessed, ct).ConfigureAwait(false);
                     break;
+                case RiskManagementFunctionCompletedEvent risk:
+                    await RiskCompletionProjection.WriteAsync(db, risk, ct).ConfigureAwait(false);
+                    break;
                 default:
                     throw new InvalidOperationException("Unsupported atomic pipeline result: " + candidate.GetType().Name);
             }

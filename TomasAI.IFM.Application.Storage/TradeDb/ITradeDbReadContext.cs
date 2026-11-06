@@ -33,6 +33,8 @@ public interface ITradeDbReadContext
     Task<QueryPage<TradeSelectionHistoryRow>> GetTradeSelectionHistoryAsync(int portfolioId, int fundId, DateOnly valueDate, int pageSize, byte[]? pagingState = null, CancellationToken cancellationToken = default);
     /// <summary>Get Risk Invocation through the typed trade persistence boundary.</summary>
     Task<WorkflowStrategyStateUpdatedEvent?> GetRiskInvocationAsync(Guid workflow, Guid invocation, CancellationToken token = default);
+    /// <summary>Reads the verified calculation projection for the exact Risk invocation.</summary>
+    Task<RiskManagementFunctionCompletedEvent?> GetRiskCompletionAsync(Guid workflow, Guid invocation, CancellationToken token = default);
     /// <summary>Get Risk History through the typed trade persistence boundary.</summary>
     Task<QueryPage<RiskHistoryRow>> GetRiskHistoryAsync(int portfolio, int fund, DateOnly date, int size, byte[]? cursor, CancellationToken token = default);
     /// <summary>Get Trade Order through the typed trade persistence boundary.</summary>

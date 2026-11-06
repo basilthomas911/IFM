@@ -25,12 +25,7 @@ public static class ExecuteCompositionFunction
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(execute);
-            var read = new RedispatchCurrentStrategyPipelineCommand
-            {
-                EntityId = execute.WorkflowEntityId,
-                Subject = new(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor, RedispatchCurrentStrategyPipelineCommand.Verb, execute.WorkflowEntityId.Format())
-            };
-            var current = (await context.WorkflowRepository.LoadStateAsync(read).ConfigureAwait(false)).CurrentView;
+            var current = await context.ReadActiveWorkflowAsync(execute.WorkflowEntityId).ConfigureAwait(false);
             if (current is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.OrderComposition } || current.WorkflowId != execute.WorkflowId || current.WorkflowRevision != execute.InputWorkflowRevision || !string.Equals(current.CompositionExecution?.InputSha256, execute.InputSha256, StringComparison.Ordinal))
                 return;
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;

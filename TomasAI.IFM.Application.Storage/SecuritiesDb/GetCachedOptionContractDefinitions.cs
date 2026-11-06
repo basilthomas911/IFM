@@ -10,3 +10,10 @@ internal readonly record struct GetCachedOptionContractDefinitions(
 {
     public object Bind() => Values(Text(symbol),Uuid(generation),Date(expiryDate));
 }
+
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+internal readonly record struct GetCachedOptionDefinitionPartitions(
+    string symbol, Guid generation, DateOnly[] expiries) : IBindValue
+{
+    public object Bind() => Values(Text(symbol), Uuid(generation), expiries);
+}

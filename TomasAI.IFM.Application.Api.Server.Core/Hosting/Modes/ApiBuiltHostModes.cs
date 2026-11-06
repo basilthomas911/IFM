@@ -82,6 +82,11 @@ public static partial class ApiServerModes
             Console.WriteLine($"Recovery infrastructure qualified in {result.Rounds} round(s); no actors, feeds or HTTP listeners started.");
             // The executable disposes the supplied host after this mode completes.
         }
+        else if (args.Any(static arg => arg.Equals("--reconcile-exit-workflow", StringComparison.OrdinalIgnoreCase)
+            || arg.StartsWith("--reconcile-exit-workflow=", StringComparison.OrdinalIgnoreCase)))
+        {
+            await ReconcileExitWorkflowAsync(app, args);
+        }
         else if (args.Contains("--initialize-iron-condor-risk-only", StringComparer.OrdinalIgnoreCase))
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
@@ -95,6 +100,10 @@ public static partial class ApiServerModes
             policy.ParameterSetId, policy.Version, policy.Hash());
             Console.WriteLine($"Iron Condor daily-risk schema initialized; policy {policy.ParameterSetId}/{policy.Version}, hash {policy.Hash()}.");
             // The executable disposes the supplied host after this mode completes.
+        }
+        else if (args.Any(IsIronCondorCurrencyReconciliationArgument))
+        {
+            await RunIronCondorCurrencyReconciliationAsync(app, args);
         }
         else if (initializeSchemaOnly)
         {
@@ -112,6 +121,12 @@ public static partial class ApiServerModes
             long cursor = cursorText is null ? 0 : long.Parse(cursorText, System.Globalization.CultureInfo.InvariantCulture);
             if (cursor < 0) throw new ArgumentException("Risk cursor must be nonnegative.");
             var recovery = app.Services.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
+            int completionPage;
+            do
+            {
+                completionPage = await recovery.ProjectCompletionPageAsync(deadline.Token);
+                Console.WriteLine($"Risk completions projected: {completionPage}");
+            } while (completionPage != 0);
             do { cursor = await recovery.ProjectPageAsync(cursor, false, deadline.Token); Console.WriteLine($"Risk history next cursor: {cursor}"); } while (cursor != 0);
             // The executable disposes the supplied host after this mode completes.
         }

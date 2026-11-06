@@ -12,7 +12,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
 /// <summary>Serves side-effect-free Intrinsic Time Strategy workflow projections from cache and ScyllaDB.</summary>
@@ -50,18 +49,66 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(IQueryActorContext<I
 
     static readonly IReadOnlyDictionary<Type, Func<IIntrinsicTimeStrategyWorkflowQueryContext, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IIntrinsicTimeStrategyWorkflowQueryContext, IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor>, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetIntrinsicTimeStrategyWorkflowByIdQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyWorkflowByIdQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowsByIdsQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyWorkflowsByIdsQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetActiveIntrinsicTimeStrategyWorkflowQuery)] = static (services, context, query, cancellationToken) => ((GetActiveIntrinsicTimeStrategyWorkflowQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowStageStateQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyWorkflowStageStateQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowTimelineQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyWorkflowTimelineQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetRecentIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) => ((GetRecentIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetCompletedIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) => ((GetCompletedIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetStoppedIntrinsicTimeStrategyWorkflowsQuery)] = static (services, context, query, cancellationToken) => ((GetStoppedIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowObservationQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyWorkflowObservationQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetIntrinsicTimeStrategyUpdatesGridQuery)] = static (services, context, query, cancellationToken) => ((GetIntrinsicTimeStrategyUpdatesGridQuery)query).ExecuteAsync(services, context, cancellationToken)
+        [typeof(GetIntrinsicTimeStrategyWorkflowByIdQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetIntrinsicTimeStrategyWorkflowByIdQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIntrinsicTimeStrategyWorkflowsByIdsQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetIntrinsicTimeStrategyWorkflowsByIdsQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetActiveIntrinsicTimeStrategyWorkflowQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetActiveIntrinsicTimeStrategyWorkflowQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIntrinsicTimeStrategyWorkflowStageStateQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetIntrinsicTimeStrategyWorkflowStageStateQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIntrinsicTimeStrategyWorkflowTimelineQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetIntrinsicTimeStrategyWorkflowTimelineQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetRecentIntrinsicTimeStrategyWorkflowsQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetRecentIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetCompletedIntrinsicTimeStrategyWorkflowsQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetCompletedIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetStoppedIntrinsicTimeStrategyWorkflowsQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetStoppedIntrinsicTimeStrategyWorkflowsQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIntrinsicTimeStrategyWorkflowObservationQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetIntrinsicTimeStrategyWorkflowObservationQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetIntrinsicTimeStrategyWorkflowHistoryPageQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIntrinsicTimeStrategyUpdatesGridQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetIntrinsicTimeStrategyUpdatesGridQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        }
     };
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys, static (query, exception) => exception is ProjectionSnapshotNotReadyException ? 25009 : query.ErrorCode);
     protected override ValueTask OnExceptionAsync(IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex) => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);

@@ -19,6 +19,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 [Union(9, typeof(CloseVerticalSpreadPositionCommand))]
 [Union(10, typeof(CorrectVerticalSpreadPositionBasisCommand))]
 [Union(11, typeof(SnapshotVerticalSpreadPositionCommand))]
+[Union(12, typeof(ReconcileIronCondorPositionCurrencyEvidenceCommand))]
 public abstract record PositionCommand : ICommand<StrategyPositionId>
 {
     [Key(0)] public Guid CommandId { get; init; }

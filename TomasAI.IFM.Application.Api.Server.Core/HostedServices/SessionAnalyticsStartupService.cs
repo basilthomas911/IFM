@@ -33,10 +33,10 @@ public sealed class SessionAnalyticsStartupService(IMarketSessionAnalyticsInitia
                         initialized = date;
                         logger.LogInformation("Session analytics attached for {ValueDate}; signal readiness remains independently qualified.", date);
                     }
-                    if (warmed != date && warmup is not null && DateTimeOffset.UtcNow >= nextWarmupAttempt)
+                    if (warmup is not null && DateTimeOffset.UtcNow >= nextWarmupAttempt)
                     {
                         nextWarmupAttempt = DateTimeOffset.UtcNow.AddMinutes(1);
-                        if (await warmup.WarmAsync(date.Value, stoppingToken).ConfigureAwait(false))
+                        if (await warmup.WarmAsync(date.Value, stoppingToken).ConfigureAwait(false) && warmed != date)
                         {
                             warmed = date;
                             logger.LogInformation("Strategy indicator warm-up completed for {ValueDate}.", date);

@@ -264,7 +264,6 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
     // navigation starts healthy; failure-dialog scenarios inject it explicitly.
     if(DesktopFixtureMode.Enabled)feedRuntime=feedRuntime with{OptionProcessingError=""};
     var feedScenario="Normal";
-    var preparedFeedOperations = new HashSet<Guid>();
     var holdCalendar=false;
     var outlookAvailable=false;
     var calendarResponder = new CalendarResponder();
@@ -463,35 +462,19 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
             if(feedScenario=="Stopped")feedRuntime=feedRuntime with{IsRunning=false,ActiveValueDate=null};
             response=MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<bool>>{Success=true,ErrorMessage="",Value=new(true)},MessagePackBinarySerializer.Options);
         }
-        else if(request.Subject.StartsWith("Function.FeedSessionPreparationFunction.PrepareMarketDataFeedSession.",StringComparison.Ordinal)) {
-            var command = MessagePackSerializer.Deserialize<PrepareMarketDataFeedSessionCommand>(request.Data!, MessagePackBinarySerializer.Options);
-            var entity = command.CommandId.ToString("N");
-            if (command.Subject.ToString() != request.Subject || command.EntityId != new ActorEntityId(entity)
-                || command.Subject != new ActorSubject(ActorType.Function, PrepareMarketDataFeedSessionCommand.Actor,
-                    PrepareMarketDataFeedSessionCommand.Verb, entity)
-                || command.RouteTo != BoundedContextName.MarketDataFeedBoundedContext || command.ErrorCode != 5005)
-                throw new InvalidDataException("Invalid feed session preparation request");
-            var result = feedScenario == "RejectPreparation"
-                ? FunctionResult<FeedSessionPreparationCompletedEvent, FeedSessionPreparationFailedEvent>.Fail(new()
-                    { CommandId = command.CommandId, ErrorCode = 5005, ErrorMessage = "Fixture rejected session preparation" })
-                : FunctionResult<FeedSessionPreparationCompletedEvent, FeedSessionPreparationFailedEvent>.Complete(new()
-                    { CommandId = command.CommandId, EntityId = command.EntityId, ValueDate = date, Contracts = [providerContract] });
-            if (result.IsCompleted)
-                preparedFeedOperations.Add(command.CommandId);
-            response = MessagePackSerializer.Serialize(new ServiceResult<FunctionResult<FeedSessionPreparationCompletedEvent, FeedSessionPreparationFailedEvent>>
-                { Success = true, ErrorMessage = "", Value = result }, MessagePackBinarySerializer.Options);
-        }
         else if(request.Subject.StartsWith("Command.MarketDataFeedCommand.",StringComparison.Ordinal)) {
             try {
                 var start=request.Subject.StartsWith("Command.MarketDataFeedCommand.Start.",StringComparison.Ordinal);
                 Guid commandId;
                 if(start) {
                     var command=MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands.StartMarketDataFeedCommand>(request.Data!,MessagePackBinarySerializer.Options);
-                    if(command.Subject.ToString()!=request.Subject || command.Subject!=new ActorSubject(ActorType.Command,"MarketDataFeedCommand","Start",date.ToString("yyyy-MM-dd"))
-                        || command.RouteTo!=BoundedContextName.MarketDataFeedBoundedContext || command.EntityId.ValueDate!=date || command.ErrorCode!=5005
-                        || command.PreparedContracts is not [var contract] || contract!=providerContract
-                        || !preparedFeedOperations.Remove(command.CommandId))
-                        throw new InvalidDataException("Start must forward the prepared session date and assignments");
+                    if (command.Subject.ToString() != request.Subject ||
+                        command.Subject != new ActorSubject(ActorType.Command, "MarketDataFeedCommand", "Start", "current") ||
+                        command.RouteTo != BoundedContextName.MarketDataFeedBoundedContext || command.ErrorCode != 5005 ||
+                        command.ValueDate != default || command.PreparedContracts is not null)
+                        throw new InvalidDataException("Start must request the server's current session without a date or assignments");
+                    if (feedScenario == "RejectPreparation")
+                        throw new InvalidDataException("Fixture rejected session preparation");
                     commandId=command.CommandId;
                 } else {
                     var command=MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands.StopMarketDataFeedCommand>(request.Data!,MessagePackBinarySerializer.Options);

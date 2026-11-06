@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Query.Actor;
 
@@ -16,10 +17,10 @@ public static class GetPositionExitWorkflow
         /// <param name = "context">The typed query-actor context.</param>
         /// <param name = "cancellationToken">Cancels storage access.</param>
         /// <returns>A task that completes after the reply is sent.</returns>
-        public ValueTask ExecuteAsync(IPositionExitWorkflowQueryContext context, CancellationToken cancellationToken)
+        public ValueTask<ServiceResult<ExitPositionWorkflowProjection?>> ExecuteAsync(IPositionExitWorkflowQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
-            return PositionExitWorkflowQueryExecution.ReplyCurrentAsync(context, context.DbFactory, query, cancellationToken);
+            return PositionExitWorkflowQueryExecution.ReadCurrentAsync(context.DbFactory, query, cancellationToken);
         }
     }
 }

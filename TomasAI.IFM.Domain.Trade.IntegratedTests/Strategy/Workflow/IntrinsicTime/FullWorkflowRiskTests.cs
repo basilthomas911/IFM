@@ -45,6 +45,8 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 
 public sealed partial class TradeSelectionRuntimeTests
 {
+    const int WorkflowFixtureAssessmentValiditySeconds = 45;
+
     // Actual workflow command, projector, realtime dispatcher and all five Function actors.
     // Portfolio command/query/function actors use real NATS and durable stores.
     // External market observations and initial test authority remain deterministic fixtures.
@@ -205,7 +207,7 @@ public sealed partial class TradeSelectionRuntimeTests
             var profile = assessment.ParameterSet with
             {
                 MarketProfileId = $"FullWorkflow-{Guid.NewGuid():N}",
-                Sources = assessment.ParameterSet.Sources.Select(x => x with { MaximumAgeSeconds = 15 }).ToArray()
+                Sources = assessment.ParameterSet.Sources.Select(x => x with { MaximumAgeSeconds = WorkflowFixtureAssessmentValiditySeconds }).ToArray()
             };
             assessment = assessment with
             {
@@ -234,9 +236,10 @@ public sealed partial class TradeSelectionRuntimeTests
                 }
             };
             assessment = assessment with { TriggerEvent = trigger, WorkflowView = assessment.WorkflowView with { TriggerEvent = trigger } };
+            var scopeId = Random.Shared.Next(10000000, 900000000);
             var selection = await TradeSelectionFixture.Command(variant, horizon, DateTime.UtcNow,
-                scopeId: Random.Shared.Next(10000000, 900000000), compositionReady: true, compositionIntegrationTiming: true,
-                actualAssessmentCommand: assessment, riskPolicy: policy, compositionLifetimeMilliseconds: 30000);
+                scopeId: scopeId, compositionReady: true, compositionIntegrationTiming: true,
+                actualAssessmentCommand: assessment, riskPolicy: policy, compositionLifetimeMilliseconds: 30000, policyId: scopeId);
             await InitializeWorkflowPortfolioAsync(host.Services, selection.SelectionBinding, initializeSchema: firstFixture);
             firstFixture = false;
             var parameters = assessment.WorkflowView.RegimeDiscoveryParameterSet!;

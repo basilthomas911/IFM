@@ -36,7 +36,7 @@ public sealed class RiskResizingTests
     [InlineData(true)]
     public async Task Terminal_capacity_refusal_prompts_authoritative_reconciliation(bool serviceFailure)
     {
-        var (view, _, _) = await Input();
+        var (view, financial, _) = await Input();
         var api = Substitute.For<IPortfolioFinancialApi>();
         api.ReserveAsync(Arg.Any<ReservePortfolioTradeRiskCommand>(), Arg.Any<CancellationToken>())
             .Returns(serviceFailure ? new ServiceFailed<FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>>(
@@ -44,11 +44,20 @@ public sealed class RiskResizingTests
                 new ServiceOk<FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>>(
                 FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>.Fail(
                     new() { ErrorCode = FinancialReasons.RevisionConflict })));
+        api.GetPostingReceiptAsync(Arg.Any<FinancialReadScope>(), Arg.Any<GetPostingReceiptRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<FinancialRead<FinancialOperationOutcome>>(Absent(financial)));
+        api.GetFinancialAdmissionSnapshotAsync(Arg.Any<FinancialReadScope>(), Arg.Any<GetFinancialAdmissionSnapshotRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<FinancialRead<FinancialAdmissionSnapshot>>(financial));
         var context = Substitute.For<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.IIntrinsicTimeStrategyWorkflowRealtimeContext>();
         context.FinancialApi.Returns(api);
         await TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.ExecuteRiskFinancialHandoff
             .ExecuteFinancialHandoffAsync(view, context);
         context.ReceivedCalls().Count(x => x.GetMethodInfo().Name == "SendAsync").Should().Be(1);
+        var advance = context.ReceivedCalls().Single(x => x.GetMethodInfo().Name == "SendAsync").GetArguments()
+            .OfType<Shared.Strategy.Workflow.IntrinsicTime.Commands.AdvanceRiskFinancialHandoffCommand>().Single();
+        advance.ReservationReceipt.Should().Be(Absent(financial));
+        advance.ReservationReceiptOperationId.Should().Be(view.FinancialHandoff!.ReservationRequest.OperationId);
+        advance.Financial.Should().Be(financial);
         view.RiskExecution!.EntityId.AttemptOrdinal.Should().Be(1);
     }
 
@@ -153,19 +162,24 @@ public sealed class RiskResizingTests
             WorkflowId = view.WorkflowId,
             WorkflowRevision = view.WorkflowRevision
         }, false);
-        var api = Substitute.For<IPortfolioFinancialApi>();
-        api.GetPostingReceiptAsync(Arg.Any<FinancialReadScope>(), Arg.Any<GetPostingReceiptRequest>(), Arg.Any<CancellationToken>())
-            .Returns(new ServiceOk<FinancialRead<FinancialOperationOutcome>>(Absent(financial)));
-        api.GetFinancialAdmissionSnapshotAsync(Arg.Any<FinancialReadScope>(), Arg.Any<GetFinancialAdmissionSnapshotRequest>(), Arg.Any<CancellationToken>())
-            .Returns(new ServiceOk<FinancialRead<FinancialAdmissionSnapshot>>(financial));
         var context = Substitute.For<IIntrinsicTimeStrategyWorkflowCommandContext>();
-        context.FinancialApi.Returns(api); context.TimeProvider.Returns(new FixedClock(at));
-        var command = RiskFinancialHandoff.Advance(view);
+        context.TimeProvider.Returns(new FixedClock(at));
+        var command = RiskFinancialHandoff.Advance(view) with
+        {
+            ReservationReceipt = Absent(financial),
+            ReservationReceiptOperationId = view.FinancialHandoff!.ReservationRequest.OperationId,
+            Financial = financial
+        };
+        var mismatched = command with { ReservationReceiptOperationId = Guid.NewGuid() };
+        var rejected = await Assert.ThrowsAsync<RiskCalculationException>(() => mismatched.ExecuteAsync(context, state).AsTask());
+        rejected.ReasonCode.Should().Be("RM.HANDOFF.RESERVATION_MISMATCH");
+        state.CurrentView!.WorkflowRevision.Should().Be(view.WorkflowRevision);
         await command.ExecuteAsync(context, state);
         state.CurrentView!.RiskExecution!.EntityId.AttemptOrdinal.Should().Be(2);
         var saved = MessagePackBinarySerializer.Shared.Serialize(state.CurrentView);
         await command.ExecuteAsync(context, state);
         MessagePackBinarySerializer.Shared.Serialize(state.CurrentView).Should().Equal(saved);
+        _ = context.DidNotReceive().DbFactory;
     }
 
     static FinancialRead<FinancialOperationOutcome> Absent(FinancialRead<FinancialAdmissionSnapshot> financial)

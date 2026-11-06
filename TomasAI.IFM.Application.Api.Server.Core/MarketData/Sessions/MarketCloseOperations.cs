@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Application.Api.Server.Core.MarketData.Sessions;
 /// <summary>Adapts domain close operations to existing actor commands and their durable receipts.</summary>
 public sealed class MarketCloseOperations : IMarketCloseOperations
 {
-    const string HostId = "api-market-close";
+    const string HostId = ScheduledTaskKeys.ApiMarketCloseHost;
     const string Operator = "ApiMarketClose";
     readonly IDbContextFactory databases;
     readonly IHostEnvironment environment;
@@ -51,6 +51,9 @@ public sealed class MarketCloseOperations : IMarketCloseOperations
 
     public async Task<DateOnly?> GetCompletedDateAsync(CancellationToken token)
         => await databases.ScheduledTaskDb.GetCompletedEndOfDayAsync(environment.EnvironmentName, token).ConfigureAwait(false);
+
+    public async Task<DateOnly?> GetCompletedCloseDateAsync(CancellationToken token)
+        => await databases.ScheduledTaskDb.GetCompletedMarketCloseAsync(environment.EnvironmentName, token).ConfigureAwait(false);
 
     public async Task<DateTime?> GetPreviousCloseBoundaryAsync(DateOnly valueDate, CancellationToken token)
     {
@@ -110,7 +113,7 @@ public sealed class MarketCloseOperations : IMarketCloseOperations
     public async Task CompleteAsync(Guid runId, CancellationToken token)
         => Require(await receipts.CompleteScheduledTaskRunAsync(new()
         { CommandId = Guid.NewGuid(), OperationCommandId = runId, EntityId = new(runId), FinishedAtUtc = DateTimeOffset.UtcNow,
-            ExitCode = 0, Stage = "MarketClosed", Detail = "Backend EOD and transport maintenance completed.", Operator = Operator }, token).ConfigureAwait(false));
+            ExitCode = 0, Stage = ScheduledTaskKeys.MarketClosedStage, Detail = "Backend EOD and transport maintenance completed.", Operator = Operator }, token).ConfigureAwait(false));
 
     public async Task FailAsync(Guid runId, Exception error, CancellationToken token)
         => Require(await receipts.FailScheduledTaskRunAsync(new()

@@ -13,9 +13,6 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor
 /// <summary>Provides the closed-generic Command context for the workflow aggregate.</summary>
 public sealed class IntrinsicTimeStrategyWorkflowCommandContext : CommandActorContext, IIntrinsicTimeStrategyWorkflowCommandContext
 {
-    public Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi PortfolioQueries => Container.Resolve<Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi>();
-    public Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi => Container.Resolve<Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>();
-
     readonly Lazy<IEventSourceActorDbContext> _dbEventSource;
     readonly Lazy<IDurableReplayQueue> _durableReplayQueue;
     readonly Lazy<IEventSourceActorStateFactory> _stateFactory;

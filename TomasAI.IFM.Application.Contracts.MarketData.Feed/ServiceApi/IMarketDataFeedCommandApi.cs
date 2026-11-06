@@ -12,6 +12,7 @@ public interface IMarketDataFeedCommandApi
     Task<ServiceResult<ScalarValue<int>>> AllocateStreamingRequestIdAsync(Guid operationId, CancellationToken cancellationToken = default);
     Task<ServiceResult<Guid>> DeleteStreamingRequestIdAsync(FeedId streamId);
     Task<ServiceResult<Guid>> StartMarketDataFeedAsync();
+    Task<ServiceResult<Guid>> StartMarketDataFeedAsync(CancellationToken cancellationToken);
     Task<ServiceResult<Guid>> StopMarketDataFeedAsync(DateOnly valueDate);
     Task<ServiceResult<Guid>> ResetMarketDataFeedAsync(ICollection<FuturesContractV3ReadModel> futuresContracts, DateOnly valueDate);
 

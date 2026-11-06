@@ -190,7 +190,9 @@ public sealed class FinalRepositorySnapshotTests(EventSourceActorSnapshotRangeFi
         var workflow = new StrategyWorkflowId(Guid.NewGuid());
         var command = new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
-            CommandId = Guid.NewGuid(), Subject = Address("Workflow"), EntityId = id, ProposedWorkflowId = workflow
+            CommandId = Guid.NewGuid(), EntityId = id, ProposedWorkflowId = workflow,
+            Subject = new(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor,
+                ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, id.Format())
         };
         var databases = Substitute.For<IDbContextFactory>();
         var trade = (ITradeDbContext)Substitute.For([typeof(ITradeDbContext), typeof(IEnlistedTradeDbWriter)], []);

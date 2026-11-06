@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 using TomasAI.IFM.Shared.EventModelActor;
 using System.Text.Json;
+using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime;
@@ -136,8 +137,11 @@ public static class ExecuteOrderComposition
             EntityId = view.EntityId,
             WorkflowId = view.WorkflowId,
             InputWorkflowRevision = view.WorkflowRevision,
-            Evidence = CompositionPreparationAcceptance.Reference(prepared)
+            Evidence = CompositionPreparationAcceptance.Reference(prepared),
+            PreparedMarketPayload = MessagePackBinarySerializer.Shared.Serialize(prepared)
         };
+        if (MessagePackBinarySerializer.MeasureEncoded(command) >= TradeSelectionContracts.MaximumTransportBytes)
+            throw new CompositionMarketSourceException("CompositionPreparationPayloadTooLarge");
         using var timing_composer_acceptance_send = WorkflowTrace.Start("composer.acceptance.send", view);
         await context.SendAsync<AcceptOrderCompositionPreparationCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, view.EntityId).ConfigureAwait(false);
         timing_composer_acceptance_send?.Stop();

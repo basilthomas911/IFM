@@ -2,6 +2,7 @@ using Quartz;
 using TomasAI.IFM.Application.ServerManager.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.ServiceApi;
 namespace TomasAI.IFM.Application.ServerManager.SchedulerHost;
 /// <summary>Launches actor-managed occurrences only after durable run and schedule admission.</summary>
@@ -26,7 +27,20 @@ public sealed class ActorScheduledTaskRunCoordinator(SchedulerHostOptions option
         using var admissionDeadline = CancellationTokenSource.CreateLinkedTokenSource(active.Token);
         admissionDeadline.CancelAfter(TimeSpan.FromSeconds(15));
         var operationCommandId = occurrence.OperationCommandId;
-        if (!occurrence.AlreadyRequested)
+        if (occurrence.AlreadyRequested)
+        {
+            // A durable publication can be replayed before the first Quartz trigger updates the run.
+            var requested = await queries.GetScheduledTaskRunAsync(new()
+            {
+                EntityId = runId, ScheduleId = scheduleId, HostId = options.HostId,
+                Environment = options.Environment, IntendedFireTimeUtc = fire
+            }, admissionDeadline.Token);
+            ActorScheduleRuntime.Require(requested);
+            if (requested.Value is not { Manual: true, Status: ScheduledTaskRunStatus.Requested } pending ||
+                pending.OperationCommandId != operationCommandId)
+                return;
+        }
+        else
         {
             var request = await commands.RequestScheduledTaskRunAsync(new() { CommandId = operationCommandId, EntityId = runId, ScheduleId = scheduleId,
                 DefinitionRevision = revision, IntendedFireTimeUtc = fire, Manual = manual, TaskKey = task.TaskKey,

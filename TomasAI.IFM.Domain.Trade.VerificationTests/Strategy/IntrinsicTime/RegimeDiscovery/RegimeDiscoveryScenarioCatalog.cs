@@ -206,7 +206,7 @@ public static class RegimeDiscoveryScenarioCatalog
 
     public static RegimeDiscoveryScenario ExtremeVolatility { get; } = TrendingUp.With(
         nameof(ExtremeVolatility),
-        (RegimeDiscoverySignalMetric.VixLevel, 35m),
+        (RegimeDiscoverySignalMetric.VxFrontLevel, 35m),
         (RegimeDiscoverySignalMetric.AtrBaselineRatio, 1.5m),
         (RegimeDiscoverySignalMetric.VxFrontSecondRatio, 1.08m),
         (RegimeDiscoverySignalMetric.RealizedVolatilityPercentile, 0.9m)) with

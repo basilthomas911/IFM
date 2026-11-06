@@ -23,9 +23,21 @@ public sealed class RiskQueryActor(IQueryActorContext<RiskQueryActor> context) :
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<RiskQueryActor, IQueryActorContext<RiskQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<RiskQueryActor, IQueryActorContext<RiskQueryActor>, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetRiskInvocationQuery)] = static (a, c, q, t) => ((GetRiskInvocationQuery)q).ExecuteAsync(a.services, c, t),
-        [typeof(GetRiskResultQuery)] = static (a, c, q, t) => ((GetRiskResultQuery)q).ExecuteAsync(a.services, c, t),
-        [typeof(GetRiskHistoryPageQuery)] = static (a, c, q, t) => ((GetRiskHistoryPageQuery)q).ExecuteAsync(a.services, c, t),
+        [typeof(GetRiskInvocationQuery)] = static async (actor, context, query, token) =>
+        {
+            var result = await ((GetRiskInvocationQuery)query).ExecuteAsync(actor.services, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetRiskResultQuery)] = static async (actor, context, query, token) =>
+        {
+            var result = await ((GetRiskResultQuery)query).ExecuteAsync(actor.services, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetRiskHistoryPageQuery)] = static async (actor, context, query, token) =>
+        {
+            var result = await ((GetRiskHistoryPageQuery)query).ExecuteAsync(actor.services, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<RiskQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

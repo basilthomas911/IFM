@@ -44,8 +44,18 @@ public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => Scy
         ArgumentOutOfRangeException.ThrowIfGreaterThan(fromUtc, throughUtc);
         var rows = await this.Use(nameof(TradeTickQuoteDbCql.GetRawFuturesTradeWindow), TradeTickQuoteDbCql.GetRawFuturesTradeWindow)
             .SetParameters(new BootstrapTradeWindowParameters(contractId, valueDate, fromUtc, throughUtc))
-            .ExecuteQueryAsync(row => new BootstrapTradeRow(row.GetDateOnly(0), row.GetDecimal(1), row.GetLong(2), row.GetLong(3),
-                row.GetLong(4), row.GetLong(5), row.GetShort(6), row.GetShort(7), checked((uint)row.GetLong(8)), checked((ushort)row.GetInt(9))), token).ConfigureAwait(false);
+            .ExecuteQueryAsync(row =>
+            {
+                var aggregationTicks = row.GetLong(10);
+                return new BootstrapTradeRow(row.GetDateOnly(0), row.GetDecimal(1), row.GetLong(2), row.GetLong(3),
+                    row.GetLong(4), row.GetLong(5), row.GetShort(6), row.GetShort(7), checked((uint)row.GetLong(8)), checked((ushort)row.GetInt(9)))
+                {
+                    // The CQL clustering time is written with millisecond precision.
+                    AggregationTimeUtc = aggregationTicks > 0
+                        ? new TimeOnly(aggregationTicks % TimeSpan.TicksPerDay / TimeSpan.TicksPerMillisecond * TimeSpan.TicksPerMillisecond)
+                        : null
+                };
+            }, token).ConfigureAwait(false);
         return rows.ToArray();
     }
 

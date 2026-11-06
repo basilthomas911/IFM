@@ -5,6 +5,12 @@ using TomasAI.IFM.Shared.MarketData.Definitions;
 
 if(args.Length==3&&args[0]=="--export-option-models"){await CatalogParity.ExportOptions(args[1],args[2]);return;}
 if(args.Length==3&&args[0]=="--catalog-parity"){using var fixture=JsonDocument.Parse(await File.ReadAllTextAsync(args[2]));await CatalogParity.Run(Path.GetFullPath(args[1]),fixture.RootElement[0].GetProperty("json").GetString()!);return;}
+if (args.Length == 3 && args[0] == "--catalog-page-performance")
+{
+    using var fixture = JsonDocument.Parse(await File.ReadAllTextAsync(args[2]));
+    await CatalogPagePerformance.Run(Path.GetFullPath(args[1]), fixture.RootElement[0].GetProperty("json").GetString()!);
+    return;
+}
 // Real DLL boundary: provider source identity, cancellation and failed refresh
 // semantics. This tool does not use provider credentials or production services.
 if (args.Length != 2) throw new ArgumentException("Expected native DLL and definition oracle paths.");

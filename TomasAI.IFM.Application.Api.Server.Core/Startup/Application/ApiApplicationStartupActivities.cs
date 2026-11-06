@@ -56,7 +56,8 @@ public sealed class ApiApplicationStartupActivities(
     IMarketSessionCalendar? marketSessionCalendar = null,
     IActorService? actorService = null,
     ConfigurationSchemaDb? configurationSchema = null,
-    FourHourDatabentoSeedReplay? liveSeedReplay = null) : IApplicationStartupActivities, TomasAI.IFM.Application.MarketData.IMarketSessionAnalyticsInitializer
+    FourHourDatabentoSeedReplay? liveSeedReplay = null,
+    StoredSessionIndicatorWarmup? storedIndicatorWarmup = null) : IApplicationStartupActivities, TomasAI.IFM.Application.MarketData.IMarketSessionAnalyticsInitializer
 {
     readonly ConcurrentDictionary<DateOnly, FuturesContractV3ReadModel[]> contractsByValueDate = new();
     readonly SemaphoreSlim sessionAnalyticsGate = new(1, 1);
@@ -320,36 +321,47 @@ public sealed class ApiApplicationStartupActivities(
                 logger.LogWarning(exception,                    "{Component}.{Method} "+"Four-hour Databento Historical/Live seed acquisition failed for {ContractId}; indicators will use retained or live observations. Ingestion startup does not wait for indicator readiness.",nameof(ApiApplicationStartupActivities),nameof(StartRealtimeAnalyticsAsync),                    es.ContractId);
             }
         }
-        await Task.WhenAll(activations.SelectMany(activation => new[]
+        await Task.WhenAll(activations.Select(InitializeActivationAsync)).WaitAsync(options.ParticipantTimeout, cancellationToken).ConfigureAwait(false);
+
+        async Task InitializeActivationAsync(FuturesIntradaySignalActivation activation)
         {
-            RequireAcceptedAsync(
-                activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
-                    ? StartSeededFiveMinuteRsiAsync(activation.Rsi, liveSeedBars, cancellationToken)
-                    : analyticsCommandApi.StartFuturesRsiSignalAsync(activation.Rsi),
-                $"RSI {activation.TimeFrame}"),
-            // RSI13 serves TDI. Regime Discovery explicitly requires RSI14;
-            // running the first does not satisfy the second's identity.
-            RequireAcceptedAsync(
-                activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
-                    ? StartSeededFiveMinuteRsiAsync(activation.Rsi with { PeriodLength = 14 }, liveSeedBars, cancellationToken)
-                    : analyticsCommandApi.StartFuturesRsiSignalAsync(activation.Rsi with { PeriodLength = 14 }),
-                $"RSI14 {activation.TimeFrame}"),
-            RequireAcceptedAsync(
-                activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
-                    ? StartSeededFiveMinuteAtrAsync(activation.Atr, liveSeedBars, cancellationToken)
-                    : analyticsCommandApi.StartFuturesAtrSignalAsync(activation.Atr),
-                $"ATR {activation.TimeFrame}"),
-            RequireAcceptedAsync(
-                activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
-                    ? StartSeededFiveMinuteAdxAsync(activation.Adx, liveSeedBars, cancellationToken)
-                    : analyticsCommandApi.StartFuturesAdxSignalAsync(activation.Adx),
-                $"ADX {activation.TimeFrame}"),
-            RequireAcceptedAsync(
-                activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
-                    ? StartSeededFiveMinuteMacdAsync(activation.Macd, liveSeedBars, cancellationToken)
-                    : analyticsCommandApi.StartFuturesMacdSignalAsync(activation.Macd),
-                $"MACD {activation.TimeFrame}")
-        })).WaitAsync(options.ParticipantTimeout, cancellationToken).ConfigureAwait(false);
+            // The historical Start commands also attach the live processors.
+            if (storedIndicatorWarmup is not null
+                && activation.TimeFrame is TimeFrameType.FifteenSeconds or TimeFrameType.OneMinute
+                && await storedIndicatorWarmup.WarmShortFrameAsync(es.ContractId, valueDate, activation.TimeFrame, cancellationToken).ConfigureAwait(false))
+                return;
+
+            await Task.WhenAll(new[]
+            {
+                RequireAcceptedAsync(
+                    activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
+                        ? StartSeededFiveMinuteRsiAsync(activation.Rsi, liveSeedBars, cancellationToken)
+                        : analyticsCommandApi.StartFuturesRsiSignalAsync(activation.Rsi),
+                    $"RSI {activation.TimeFrame}"),
+                // RSI13 serves TDI. Regime Discovery explicitly requires RSI14;
+                // running the first does not satisfy the second's identity.
+                RequireAcceptedAsync(
+                    activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
+                        ? StartSeededFiveMinuteRsiAsync(activation.Rsi with { PeriodLength = 14 }, liveSeedBars, cancellationToken)
+                        : analyticsCommandApi.StartFuturesRsiSignalAsync(activation.Rsi with { PeriodLength = 14 }),
+                    $"RSI14 {activation.TimeFrame}"),
+                RequireAcceptedAsync(
+                    activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
+                        ? StartSeededFiveMinuteAtrAsync(activation.Atr, liveSeedBars, cancellationToken)
+                        : analyticsCommandApi.StartFuturesAtrSignalAsync(activation.Atr),
+                    $"ATR {activation.TimeFrame}"),
+                RequireAcceptedAsync(
+                    activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
+                        ? StartSeededFiveMinuteAdxAsync(activation.Adx, liveSeedBars, cancellationToken)
+                        : analyticsCommandApi.StartFuturesAdxSignalAsync(activation.Adx),
+                    $"ADX {activation.TimeFrame}"),
+                RequireAcceptedAsync(
+                    activation.TimeFrame == TimeFrameType.FiveMinutes && liveSeedBars.Length == 48
+                        ? StartSeededFiveMinuteMacdAsync(activation.Macd, liveSeedBars, cancellationToken)
+                        : analyticsCommandApi.StartFuturesMacdSignalAsync(activation.Macd),
+                    $"MACD {activation.TimeFrame}")
+            }).ConfigureAwait(false);
+        }
 
         await WaitForRealtimeAnalyticsAttachmentsAsync(activations, cancellationToken)
             .ConfigureAwait(false);

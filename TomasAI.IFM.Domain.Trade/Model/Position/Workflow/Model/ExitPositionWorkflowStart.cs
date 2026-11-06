@@ -19,7 +19,10 @@ public static class ExitPositionWorkflowStart
     internal static ExitPositionWorkflowChange Compute(ICommand<ExitPositionWorkflowId> command, ExitPositionWorkflowStartedEvent? started, StrategyTradePlanSnapshot plan, TradeStrategyKind strategyKind, Guid sourcePlanEventId)
     {
         if (started is not null)
-            return started.SourcePlanEventId == sourcePlanEventId ? new(plan, strategyKind, sourcePlanEventId, AlreadyStarted: true) : new(plan, strategyKind, sourcePlanEventId, RejectionReason: "EXIT.WORKFLOW.ALREADY_STARTED; the stream belongs to a different exit decision.");
+            return started.SourcePlanEventId == sourcePlanEventId && started.StrategyKind == strategyKind &&
+                string.Equals(started.ExitPlan.ContentHash, plan.ContentHash, StringComparison.Ordinal)
+                ? new(plan, strategyKind, sourcePlanEventId, AlreadyStarted: true)
+                : new(plan, strategyKind, sourcePlanEventId, RejectionReason: "EXIT.WORKFLOW.ALREADY_STARTED; the stream belongs to a different exit decision.");
         if (!command.EntityId.IsValid || sourcePlanEventId == Guid.Empty || plan.Position.Id != command.EntityId.Position || plan.ValueDate != command.EntityId.ValueDate || plan.Position.StrategyKind != strategyKind || plan.State != TradePlanState.ExitRequired || !plan.RequiresExit || plan.Action is not (TradePlanAction.ExitAtLimit or TradePlanAction.ExitAtMarket))
             return new(plan, strategyKind, sourcePlanEventId, RejectionReason: "EXIT.WORKFLOW.INVALID_START; a committed exit-required plan with exact identity is required.");
         return new(plan, strategyKind, sourcePlanEventId);

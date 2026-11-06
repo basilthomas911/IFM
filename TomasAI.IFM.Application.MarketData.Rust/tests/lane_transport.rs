@@ -7646,7 +7646,9 @@ async fn native_options_group_case(
                 // live. The replacement must open only its final source, not a
                 // second temporary underlying-quote bootstrap.
                 update_policy.store(true, Ordering::SeqCst);
-                tokio::time::timeout(Duration::from_secs(36), async {
+                // Background-only membership changes require two consecutive
+                // 30-second maintenance reads before replacing a healthy source.
+                tokio::time::timeout(Duration::from_secs(70), async {
                     loop {
                         if market
                             .publication_identity(Lane::OptionsGlbx)

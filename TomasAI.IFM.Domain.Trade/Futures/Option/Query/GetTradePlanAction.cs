@@ -11,12 +11,12 @@ public static class GetTradePlanAction
     extension(GetTradePlanActionQuery query)
     {
         /// <summary>Returns the empty compatibility result for the retired legacy trade-plan projection.</summary>
-        public async ValueTask ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<TradePlanActionReadModel[]>> ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             cancellationToken.ThrowIfCancellationRequested();
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<TradePlanActionReadModel[]>([])).ConfigureAwait(false);
+            return new ServiceResult<TradePlanActionReadModel[]>([]);
         }
     }
 }

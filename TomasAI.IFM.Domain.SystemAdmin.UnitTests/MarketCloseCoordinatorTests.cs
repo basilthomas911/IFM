@@ -106,6 +106,8 @@ public sealed class MarketCloseCoordinatorTests
     public async Task Maintenance_failure_preserves_EOD_and_retry_does_not_refinalize_positions()
     {
         var calls = 0;
+        var retryRun = Guid.NewGuid();
+        operations.BeginAsync(Date, Boundary, Arg.Any<CancellationToken>()).Returns(run, retryRun);
         operations.RecordStageAsync(run, Date, "PositionsFinalized", Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(_ =>
         {
             operations.GetCompletedDateAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult<DateOnly?>(Date));
@@ -114,17 +116,30 @@ public sealed class MarketCloseCoordinatorTests
         operations.PurgeCompletedMessagesAsync(Arg.Any<CancellationToken>()).Returns(_ => ++calls == 1
             ? Task.FromException(new InvalidOperationException("maintenance failed")) : Task.CompletedTask);
         await Assert.ThrowsAsync<InvalidOperationException>(() => close.CloseMarketAsync(default));
-        var retry = await close.CloseMarketAsync(default);
-        Assert.True(retry.AlreadyCompleted);
-        await operations.Received(2).StopFeedsAsync(Date, Arg.Any<CancellationToken>());
+        await operations.DidNotReceive().CompleteAsync(run, Arg.Any<CancellationToken>());
+        await operations.Received(1).StopFeedsAsync(Date, Arg.Any<CancellationToken>());
         await operations.Received(1).RecordStageAsync(run, Date, "PositionsFinalized", Arg.Any<string>(), Arg.Any<CancellationToken>());
-        await operations.Received(2).PurgeCompletedMessagesAsync(Arg.Any<CancellationToken>());
+        await operations.Received(1).LoadPositionsAsync(Date, Arg.Any<byte[]?>(), Arg.Any<CancellationToken>());
+        await operations.Received(1).PurgeCompletedMessagesAsync(Arg.Any<CancellationToken>());
+        operations.ClearReceivedCalls();
+        var retry = await close.CloseMarketAsync(default);
+        Assert.False(retry.AlreadyCompleted);
+        Assert.Equal(retryRun, retry.RunId);
+        await operations.Received(1).StopFeedsAsync(Date, Arg.Any<CancellationToken>());
+        await operations.DidNotReceive().LoadPositionsAsync(Date, Arg.Any<byte[]?>(), Arg.Any<CancellationToken>());
+        Received.InOrder(() =>
+        {
+            operations.RecordStageAsync(retryRun, Date, "PositionsFinalized", Arg.Any<string>(), Arg.Any<CancellationToken>());
+            operations.PurgeCompletedMessagesAsync(Arg.Any<CancellationToken>());
+            operations.CompleteAsync(retryRun, Arg.Any<CancellationToken>());
+        });
     }
 
     [Fact]
     public async Task Already_completed_date_is_idempotent()
     {
         operations.GetCompletedDateAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult<DateOnly?>(Date));
+        operations.GetCompletedCloseDateAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult<DateOnly?>(Date));
         authority.Current.Returns(Session() with { OperationalValueDate = Date.AddDays(1) });
         var result = await close.CloseMarketAsync(default);
         Assert.True(result.AlreadyCompleted);

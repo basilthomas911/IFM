@@ -42,6 +42,39 @@ public sealed class AsyncReadCache<TKey, TValue> where TKey : notnull where TVal
         return entry.Value.Value.WaitAsync(token);
     }
 
+    /// <summary>Reads a completed immutable value without starting or waiting for a load.</summary>
+    public bool TryGetCompleted(TKey key, out TValue? value)
+    {
+        lock (gate)
+        {
+            if (entries.TryGetValue(key, out var entry) && entry.Expires > clock.GetUtcNow()
+                && entry.Value.IsValueCreated && entry.Value.Value.IsCompletedSuccessfully)
+            {
+                value = entry.Value.Value.Result;
+                return value is not null;
+            }
+        }
+        value = null;
+        return false;
+    }
+
+    /// <summary>Seeds a successful value from a set-based read without replacing an active load.</summary>
+    public void RememberCompleted(TKey key, TValue value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        lock (gate)
+        {
+            var now = clock.GetUtcNow();
+            if (entries.TryGetValue(key, out var existing) && existing.Expires > now)
+                return;
+            if (entries.Count >= capacity)
+                entries.Remove(entries.MinBy(x => x.Value.Expires).Key);
+            var loaded = new Lazy<Task<TValue?>>(() => Task.FromResult<TValue?>(value));
+            _ = loaded.Value;
+            entries[key] = new(now + lifetime, loaded);
+        }
+    }
+
     async Task<TValue?> LoadAsync(TKey key, Entry entry, Func<CancellationToken, Task<TValue?>> read)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));

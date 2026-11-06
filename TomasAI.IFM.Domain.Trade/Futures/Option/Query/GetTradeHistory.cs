@@ -12,12 +12,12 @@ public static class GetTradeHistory
     extension(GetTradeHistoryQuery query)
     {
         /// <summary>Reads the ordered position history for a legacy option-trade order.</summary>
-        public async ValueTask ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<TradeHistoryReadModel[]>> ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             TradeHistoryReadModel[] result = [.. await context.DbFactory.GetTradeHistoryAsync(query.OrderId, cancellationToken).ConfigureAwait(false)];
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<TradeHistoryReadModel[]>(result)).ConfigureAwait(false);
+            return new ServiceResult<TradeHistoryReadModel[]>(result);
         }
     }
 }

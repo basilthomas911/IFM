@@ -1,6 +1,7 @@
 using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.RegimeDiscovery;
@@ -61,11 +62,28 @@ public sealed class RegimeConfiguredRequirementsTests
         RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract("ES20260918"), Explicit()).Requirements.Should().HaveCount(51);
     }
     [Fact]
-    public void Disabling_optional_inputs_requests_only_the_29_mandatory_inputs()
+    public void Disabling_optional_inputs_keeps_front_vx_and_the_other_mandatory_inputs()
     {
         var value = Explicit(); value = value with { SignalRequirements = value.SignalRequirements!.Select(x => x with { Enabled = x.IsRequired }).ToArray() };
         var result = RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract("ES20260918"), value);
-        result.Requirements.Should().HaveCount(29).And.OnlyContain(x => x.IsRequired);
+        result.Requirements.Should().HaveCount(30).And.OnlyContain(x => x.IsRequired);
+    }
+
+    [Fact]
+    public void Published_spot_vix_configuration_resolves_to_required_front_vx_without_rewriting_the_payload()
+    {
+        var profile = Explicit();
+        var legacy = profile with
+        {
+            SignalRequirements = profile.SignalRequirements!.Select(row => row.Metric == RegimeDiscoverySignalMetric.VxFrontLevel
+                ? row with { Metric = RegimeDiscoverySignalMetric.VixLevel, CalculationConfigurationId = "VixLevel.v1", IsRequired = false }
+                : row).ToArray()
+        };
+        var request = RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract("ES20260918"), legacy);
+        request.Requirements.Should().NotContain(row => row.Metric == RegimeDiscoverySignalMetric.VixLevel);
+        request.Requirements.Should().ContainSingle(row => row.Metric == RegimeDiscoverySignalMetric.VxFrontLevel
+            && row.TimeFrame == TimeFrameType.Daily && row.IsRequired);
+        legacy.SignalRequirements.Should().Contain(row => row.Metric == RegimeDiscoverySignalMetric.VixLevel);
     }
     [Fact]
     public void Direct_runtime_request_cannot_bypass_mandatory_validation()

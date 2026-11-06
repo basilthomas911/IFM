@@ -10,11 +10,12 @@ internal static class ExitWorkflowAtomicPersistence
 {
     internal static async Task CommitAsync(ICommand command, DomainEventCollection pending, long expectedVersion,
         IEventSourceActorDbContext source, IDbContextFactory factory, IPostgresEventTransaction? transactions,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool projectWorkflow = true)
     {
+        if (pending.Count == 0) return;
         if (!string.Equals(source.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
-            || !string.Equals(factory.TradePlanDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
-            || PostgresDatabaseIdentity.Parse(source.ConnectionString) != PostgresDatabaseIdentity.Parse(factory.TradePlanDb.ConnectionString))
+            || projectWorkflow && (!string.Equals(factory.TradePlanDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
+                || PostgresDatabaseIdentity.Parse(source.ConnectionString) != PostgresDatabaseIdentity.Parse(factory.TradePlanDb.ConnectionString)))
             throw new InvalidOperationException("Exit workflow source and projection must share one PostgreSQL database/security identity.");
         var owner = transactions ?? throw new InvalidOperationException("Atomic exit workflow persistence requires the PostgreSQL transaction service.");
         await owner.ExecuteOnceAsync(async (transaction, token) =>
@@ -23,9 +24,10 @@ internal static class ExitWorkflowAtomicPersistence
             var version = expectedVersion;
             foreach (var sourceEvent in pending)
             {
-                var snapshot = ExitWorkflowSnapshotFacts.From(sourceEvent);
+                await ExitWorkflowReceiptStore.VerifyAsync(transaction, command, sourceEvent, token).ConfigureAwait(false);
                 await transaction.AppendAsync(command.StreamId, command.CommandId, sourceEvent, version++, token).ConfigureAwait(false);
-                await factory.TradePlanDb.ProjectExitWorkflowAsync(transaction, snapshot, token).ConfigureAwait(false);
+                if (projectWorkflow)
+                    await factory.TradePlanDb.ProjectExitWorkflowAsync(transaction, ExitWorkflowSnapshotFacts.From(sourceEvent), token).ConfigureAwait(false);
             }
             return true;
         }, cancellationToken).ConfigureAwait(false);

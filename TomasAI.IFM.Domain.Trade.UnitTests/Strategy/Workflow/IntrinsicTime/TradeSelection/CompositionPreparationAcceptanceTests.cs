@@ -1,5 +1,8 @@
 using TomasAI.IFM.Application.MarketData.Pricing;
+using NSubstitute;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
@@ -49,6 +52,28 @@ public sealed class CompositionPreparationAcceptanceTests
         if (change == "snapshot") reference = reference with { SnapshotId = Guid.NewGuid() };
         if (change == "horizon") prepared = Prepared(view, now, "Monthly");
         Assert.Throws<InvalidDataException>(() => CompositionPreparationAcceptance.Accept(view, prepared, reference, Guid.NewGuid(), now.UtcDateTime));
+    }
+
+    [Fact]
+    public async Task Owning_command_rejects_mismatched_producer_payload_without_reading_storage()
+    {
+        var fixture = await Reserved();
+        var view = fixture.State.CurrentView!;
+        var prepared = Prepared(view, fixture.Clock.GetUtcNow());
+        var command = new AcceptOrderCompositionPreparationCommand
+        {
+            CommandId = prepared.Snapshot.SnapshotId,
+            EntityId = view.EntityId,
+            WorkflowId = view.WorkflowId,
+            InputWorkflowRevision = view.WorkflowRevision,
+            Evidence = CompositionPreparationAcceptance.Reference(prepared) with { SnapshotId = Guid.NewGuid() },
+            PreparedMarketPayload = MessagePackBinarySerializer.Shared.Serialize(prepared)
+        };
+        var wire = MessagePackBinarySerializer.Shared.Deserialize<AcceptOrderCompositionPreparationCommand>(
+            MessagePackBinarySerializer.Shared.Serialize(command))!;
+        await Assert.ThrowsAsync<InvalidDataException>(() => wire.ExecuteAsync(fixture.Context, fixture.State).AsTask());
+        Assert.Equal(view.WorkflowRevision, fixture.State.CurrentView!.WorkflowRevision);
+        _ = fixture.Context.DidNotReceive().DbFactory;
     }
 
     static async Task<TradeSelectionHandoffTests.Fixture> Reserved()

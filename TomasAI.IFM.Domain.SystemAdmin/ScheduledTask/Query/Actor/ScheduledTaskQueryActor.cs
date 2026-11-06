@@ -12,7 +12,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Query.Actor;
-/// <summary>Routes seven concrete queries exclusively through persisted read models and timing preview.</summary>
+/// <summary>Routes scheduled task queries exclusively through persisted read models and timing preview.</summary>
 public sealed class ScheduledTaskQueryActor(IQueryActorContext<ScheduledTaskQueryActor> context)
     : BaseQueryActor<ScheduledTaskQueryActor>(context, ((ScheduledTaskQueryContext)context).Logger)
 {
@@ -35,16 +35,56 @@ public sealed class ScheduledTaskQueryActor(IQueryActorContext<ScheduledTaskQuer
     }.ToFrozenDictionary();
     private static readonly IReadOnlyDictionary<Type, Func<IQuery, ScheduledTaskQueryContext, IQueryActorContext<ScheduledTaskQueryActor>, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQuery, ScheduledTaskQueryContext, IQueryActorContext<ScheduledTaskQueryActor>, CancellationToken, ValueTask>>
     {
-        [typeof(GetScheduledTaskRunHistoryQuery)] = (query, owner, context, cancellationToken) => ((GetScheduledTaskRunHistoryQuery)query).ExecuteAsync(owner.ReadStore, context, cancellationToken),
-        [typeof(GetScheduledTaskOutputQuery)] = (query, owner, context, cancellationToken) => ((GetScheduledTaskOutputQuery)query).ExecuteAsync(owner.ReadStore, context, owner.OutputReader ?? throw new InvalidOperationException("ScheduledTask output reader is unavailable."), cancellationToken),
-        [typeof(GetScheduledMarketPositionsQuery)] = (query, owner, context, cancellationToken) => ((GetScheduledMarketPositionsQuery)query).ExecuteAsync(owner.TradeReads ?? throw new InvalidOperationException("Persisted position queries are unavailable."), context, cancellationToken),
-        [typeof(GetScheduledTaskCatalogQuery)] = (query, owner, context, cancellationToken) => ((GetScheduledTaskCatalogQuery)query).ExecuteAsync(owner.ReadStore, context, owner.Clock, cancellationToken),
-        [typeof(GetScheduledTasksDashboardQuery)] = (query, owner, context, cancellationToken) => ((GetScheduledTasksDashboardQuery)query).ExecuteAsync(owner.ReadStore, context, owner.Clock, cancellationToken),
-        [typeof(GetScheduledTaskQuery)] = (query, owner, context, cancellationToken) => ((GetScheduledTaskQuery)query).ExecuteAsync(owner.ReadStore, context, owner.Clock, cancellationToken),
-        [typeof(PreviewScheduledTaskScheduleQuery)] = (query, owner, context, cancellationToken) => ((PreviewScheduledTaskScheduleQuery)query).ExecuteAsync(owner.ReadStore, context, owner.Clock, cancellationToken),
-        [typeof(GetScheduledTaskRunQuery)] = (query, owner, context, cancellationToken) => ((GetScheduledTaskRunQuery)query).ExecuteAsync(owner.ReadStore, context, owner.Clock, cancellationToken),
-        [typeof(ListScheduledTaskRunsQuery)] = (query, owner, context, cancellationToken) => ((ListScheduledTaskRunsQuery)query).ExecuteAsync(owner.ReadStore, context, owner.Clock, cancellationToken),
-        [typeof(GetScheduledTaskHostHealthQuery)] = (query, owner, context, cancellationToken) => ((GetScheduledTaskHostHealthQuery)query).ExecuteAsync(owner.ReadStore, context, owner.Clock, cancellationToken),
+        [typeof(GetScheduledTaskRunHistoryQuery)] = static async (query, owner, context, cancellationToken) =>
+        {
+            var result = await ((GetScheduledTaskRunHistoryQuery)query).ExecuteAsync(owner.ReadStore, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetScheduledTaskOutputQuery)] = static async (query, owner, context, cancellationToken) =>
+        {
+            var result = await ((GetScheduledTaskOutputQuery)query).ExecuteAsync(owner.ReadStore, owner.OutputReader ?? throw new InvalidOperationException("ScheduledTask output reader is unavailable."), cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetScheduledMarketPositionsQuery)] = static async (query, owner, context, cancellationToken) =>
+        {
+            var result = await ((GetScheduledMarketPositionsQuery)query).ExecuteAsync(owner.TradeReads ?? throw new InvalidOperationException("Persisted position queries are unavailable."), cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetScheduledTaskCatalogQuery)] = static async (query, owner, context, cancellationToken) =>
+        {
+            var result = await ((GetScheduledTaskCatalogQuery)query).ExecuteAsync(owner.ReadStore, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetScheduledTasksDashboardQuery)] = static async (query, owner, context, cancellationToken) =>
+        {
+            var result = await ((GetScheduledTasksDashboardQuery)query).ExecuteAsync(owner.ReadStore, owner.Clock, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetScheduledTaskQuery)] = static async (query, owner, context, cancellationToken) =>
+        {
+            var result = await ((GetScheduledTaskQuery)query).ExecuteAsync(owner.ReadStore, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(PreviewScheduledTaskScheduleQuery)] = static async (query, owner, context, cancellationToken) =>
+        {
+            var result = await ((PreviewScheduledTaskScheduleQuery)query).ExecuteAsync(owner.Clock, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetScheduledTaskRunQuery)] = static async (query, owner, context, cancellationToken) =>
+        {
+            var result = await ((GetScheduledTaskRunQuery)query).ExecuteAsync(owner.ReadStore, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(ListScheduledTaskRunsQuery)] = static async (query, owner, context, cancellationToken) =>
+        {
+            var result = await ((ListScheduledTaskRunsQuery)query).ExecuteAsync(owner.ReadStore, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetScheduledTaskHostHealthQuery)] = static async (query, owner, context, cancellationToken) =>
+        {
+            var result = await ((GetScheduledTaskHostHealthQuery)query).ExecuteAsync(owner.ReadStore, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
     }.ToFrozenDictionary();
     private static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     /// <inheritdoc />

@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ProducerOperations;
-using TomasAI.IFM.Domain.MarketData.Feed.FeedSessionPreparation.Function.State;
+using TomasAI.IFM.Domain.MarketData.Feed.FeedSessionPreparation.Function;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -44,6 +45,28 @@ public class MarketDataFeedCommandActor(
     readonly ILogger<MarketDataFeedCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly IEventProjector<MarketDataFeedCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<MarketDataFeedCommandState> _repo = default!;
+    readonly SemaphoreSlim _sessionCommands = new(1);
+
+    public override async ValueTask HandleMessageAsync(
+        IActorMessage message, ActorThreadId threadId, CancellationToken cancellationToken)
+    {
+        if (message.Subject.Verb is not (StartMarketDataFeedCommand.Verb or StopMarketDataFeedCommand.Verb or ResetMarketDataFeedCommand.Verb))
+        {
+            await base.HandleMessageAsync(message, threadId, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        // Start arrives on "current" while stop and reset arrive on a dated mailbox.
+        await _sessionCommands.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await base.HandleMessageAsync(message, threadId, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _sessionCommands.Release();
+        }
+    }
 
     /// <summary>
     /// Performs initialization logic when the actor starts up.
@@ -146,27 +169,30 @@ public class MarketDataFeedCommandActor(
     /// <param name="cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
     protected override ValueTask OnValidateAsync(ICommandActorContext<MarketDataFeedCommandActor> context,
-        ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command, CancellationToken.None);
-
-    protected override async ValueTask OnValidateAsync(ICommandActorContext<MarketDataFeedCommandActor> context,
-        ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
+        ActorThreadId threadId, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(command);
-        cancellationToken.ThrowIfCancellationRequested();
         ValidateMappedCommand(command, _validationMap);
-        if (command is StartMarketDataFeedCommand start)
-            await ValidatePreparationAsync(context, start, cancellationToken).ConfigureAwait(false);
+        return ValueTask.CompletedTask;
     }
 
-    static async ValueTask ValidatePreparationAsync(ICommandActorContext<MarketDataFeedCommandActor> context,
-        StartMarketDataFeedCommand start, CancellationToken cancellationToken)
+    protected override async ValueTask<ICommand> ResolveCommandAsync(
+        ICommandActorContext<MarketDataFeedCommandActor> context, ICommand command, CancellationToken cancellationToken)
     {
+        if (command is not StartMarketDataFeedCommand start)
+            return command;
+
         var request = PrepareMarketDataFeedSessionCommand.ForOperation(start.CommandId);
-        var repository = context.Container.Resolve<IEventSourceFunctionStateRepository<
-            FeedSessionPreparationFunctionState, PrepareMarketDataFeedSessionCommand>>();
-        var preparation = await repository.LoadStateAsync(request, cancellationToken).ConfigureAwait(false);
-        start.ValidatePreparation(preparation.CompletedEvent);
+        var prepared = await request.ExecuteAsync(context.Container.Resolve<IValueDateProvider>(),
+            context.Container.Resolve<IMarketDataApi>(), cancellationToken).ConfigureAwait(false);
+        var entityId = new MarketDataFeedId(prepared.ValueDate);
+        return start with
+        {
+            EntityId = entityId,
+            Subject = new(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, entityId.Format()),
+            PreparedContracts = prepared.Contracts
+        };
     }
 
     /// <summary>

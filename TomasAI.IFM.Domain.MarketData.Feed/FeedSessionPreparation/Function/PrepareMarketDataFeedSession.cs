@@ -20,8 +20,7 @@ public static class PrepareMarketDataFeedSession
 
         public async ValueTask<FeedSessionPreparationCompletedEvent> ExecuteAsync(IValueDateProvider dates, IMarketDataApi marketData, CancellationToken token)
         {
-            var valueDate = dates is IMarketOpenValueDateInitializer opening
-                ? opening.InitializeMarketOpen() : dates.ValueDate;
+            var valueDate = dates.ValueDate;
             if (valueDate == default)
                 throw new InvalidOperationException("The API value-date provider has not been initialized.");
             var contracts = await marketData.PrepareSessionAsync(valueDate, token).ConfigureAwait(false);

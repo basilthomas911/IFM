@@ -2300,8 +2300,13 @@ internal static class SecuritiesDbContextExtensions
         {
             var row = await context.ReadReferenceVersionAsync(contractId, version, cancellationToken)
                 .ConfigureAwait(false);
-            if (row is null || !row.Value.Published) return null;
-            var value = row.Value.Value;
+            return row is null ? null : context.ValidatePublishedReferenceVersion(contractId, row.Value);
+        }
+
+        internal ReferenceContractVersion? ValidatePublishedReferenceVersion(string contractId, ReferenceVersionStorageRow row)
+        {
+            if (!row.Published) return null;
+            var value = row.Value;
             if (!string.Equals((value.Option?.ContractId ?? value.Future?.ContractId),contractId,StringComparison.Ordinal)
                 || value.Convention is not null && value.Convention != ReviewedOptionConvention.From(value.Option!))
                 throw new InvalidDataException("Reference version and pricing convention disagree.");
@@ -2374,11 +2379,7 @@ internal static class SecuritiesDbContextExtensions
                 .ConfigureAwait(false);
                 if(stored.Count==0) return null;
                 var item=stored.Single();
-                if(item.Payload.Length is 0 or > 131072) throw new InvalidDataException("Reference version payload exceeds its size bound.");
-                var value=MessagePackBinarySerializer.Shared.Deserialize<ReferenceContractVersion>(item.Payload)
-                    ?? throw new InvalidDataException("Reference version payload is missing.");
-                if(!string.Equals(value.CalculateReferenceVersionDigest(),item.Digest,StringComparison.Ordinal)) throw new InvalidDataException("Reference version checksum mismatch.");
-                return new(item.Digest,item.Published,value);
+                return context.DecodeReferenceVersion(item.Digest, item.Published, item.Payload);
             }
             var rows = (await context.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetReferenceVersion)}", SecuritiesDbCql.GetReferenceVersion)
                 .SetParameters(new GetReferenceVersion(contractId, version))
@@ -2389,6 +2390,17 @@ internal static class SecuritiesDbContextExtensions
             if (!string.Equals(row.Value.CalculateReferenceVersionDigest(),row.Digest,StringComparison.Ordinal))
                 throw new InvalidDataException("Reference version checksum mismatch.");
             return row;
+        }
+
+        internal ReferenceVersionStorageRow DecodeReferenceVersion(string digest, bool published, byte[] payload)
+        {
+            if (payload.Length is 0 or > 131072)
+                throw new InvalidDataException("Reference version payload exceeds its size bound.");
+            var value = MessagePackBinarySerializer.Shared.Deserialize<ReferenceContractVersion>(payload)
+                ?? throw new InvalidDataException("Reference version payload is missing.");
+            if (!string.Equals(value.CalculateReferenceVersionDigest(), digest, StringComparison.Ordinal))
+                throw new InvalidDataException("Reference version checksum mismatch.");
+            return new(digest, published, value);
         }
 
     }

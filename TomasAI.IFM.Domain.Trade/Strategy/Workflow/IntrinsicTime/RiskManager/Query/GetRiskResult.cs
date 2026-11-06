@@ -2,7 +2,6 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.O
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Query.Model;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Query;
@@ -13,15 +12,14 @@ public static class GetRiskResult
     extension(GetRiskResultQuery query)
     {
         /// <summary>Reads and returns the exact completed risk result.</summary>
-        public async ValueTask ExecuteAsync(IRiskQueryContext services, IQueryActorContext<RiskQueryActor> context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<RiskAssessmentResult>> ExecuteAsync(IRiskQueryContext services, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(services);
             var observation = await (RiskQueryModel.ExactAsync(services, query.Access, query.WorkflowId, query.InvocationId, cancellationToken)).ConfigureAwait(false);
             if (observation.Calculation is not { } result || result.ResultId != query.ResultId)
                 throw new KeyNotFoundException("Exact Risk result not found.");
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<RiskAssessmentResult>(result))).ConfigureAwait(false);
+            return new ServiceOk<RiskAssessmentResult>(result);
         }
     }
 }

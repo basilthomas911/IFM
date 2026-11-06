@@ -17,8 +17,16 @@ public sealed class BrokerOrderQueryActor(IQueryActorContext<BrokerOrderQueryAct
     }.ToFrozenDictionary(StringComparer.Ordinal);
     private static readonly IReadOnlyDictionary<Type, Func<IBrokerOrderQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IBrokerOrderQueryContext, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetBrokerOrderQuery)] = static (owner, query, token) => ((GetBrokerOrderQuery)query).ExecuteAsync(owner, token),
-        [typeof(GetBrokerOrdersForTradeOrderQuery)] = static (owner, query, token) => ((GetBrokerOrdersForTradeOrderQuery)query).ExecuteAsync(owner, token)
+        [typeof(GetBrokerOrderQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetBrokerOrderQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetBrokerOrdersForTradeOrderQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetBrokerOrdersForTradeOrderQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        }
     }.ToFrozenDictionary();
     private static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<BrokerOrderQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

@@ -1,4 +1,5 @@
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -31,7 +32,8 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext : IRealtimeActorC
 
     TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot? ParameterRuntime => null;
 
-    IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository { get; }
+    /// <summary>Reads the latest committed active-workflow projection for dispatch fencing.</summary>
+    Task<IntrinsicTimeStrategyWorkflowView?> ReadActiveWorkflowAsync(IntrinsicTimeStrategyWorkflowEntityId entityId, CancellationToken token = default);
 
     Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi => throw new InvalidOperationException("Financial API is not configured.");
 

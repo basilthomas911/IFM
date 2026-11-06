@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.Trade.BDDTests.TradeFlow;
 /// <summary>Executable actor-level trade lifecycle behavior.</summary>
 public sealed class TradeFlowBehaviorTests
 {
-    static readonly DateTime Now = new(2026, 9, 12, 15, 0, 0, DateTimeKind.Utc);
+    static readonly DateTime Now = new(2026, 9, 14, 15, 0, 0, DateTimeKind.Utc);
 
     [Fact]
     public void Approved_order_to_execution_to_option_trade_to_open_strategy_position()
@@ -88,8 +88,9 @@ public sealed class TradeFlowBehaviorTests
         routes.TryRoute(new PositionMarketTick(changedLeg.ContractId, 2.5m, 1, Now.AddSeconds(4)), out var destinations)
             .Should().Be(MarketRouteLookupOutcome.Routed);
         destinations.Should().ContainSingle();
-        position.UpdateLeg(destinations[0].TradeLegId, 2.5m, 1, Now.AddSeconds(4), destinations[0].Generation)
-            .Value!.PositionSequence.Should().Be(2);
+        var marked = position.UpdateLeg(destinations[0].TradeLegId, 2.5m, 1, Now.AddSeconds(4), destinations[0].Generation);
+        marked.Accepted.Should().BeTrue(marked.Detail);
+        marked.Value!.PositionSequence.Should().Be(2);
     }
 
     [Fact]

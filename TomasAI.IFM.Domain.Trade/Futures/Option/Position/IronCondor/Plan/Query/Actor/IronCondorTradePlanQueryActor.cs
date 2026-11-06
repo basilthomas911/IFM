@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
@@ -21,9 +21,21 @@ public sealed class IronCondorTradePlanQueryActor(IQueryActorContext<IronCondorT
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<IIronCondorTradePlanQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IIronCondorTradePlanQueryContext, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetCurrentIronCondorTradePlanQuery)] = static (c, q, t) => ((GetCurrentIronCondorTradePlanQuery)q).ExecuteAsync(c, t),
-        [typeof(GetIronCondorTradePlanChartQuery)] = static (c, q, t) => ((GetIronCondorTradePlanChartQuery)q).ExecuteAsync(c, t),
-        [typeof(GetIronCondorTradePlanHistoryQuery)] = static (c, q, t) => ((GetIronCondorTradePlanHistoryQuery)q).ExecuteAsync(c, t)
+        [typeof(GetCurrentIronCondorTradePlanQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetCurrentIronCondorTradePlanQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIronCondorTradePlanChartQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetIronCondorTradePlanChartQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIronCondorTradePlanHistoryQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetIronCondorTradePlanHistoryQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        }
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<IronCondorTradePlanQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

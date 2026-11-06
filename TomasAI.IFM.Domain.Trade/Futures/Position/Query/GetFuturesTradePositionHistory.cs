@@ -17,16 +17,16 @@ public static class GetFuturesTradePositionHistory
         /// Reads the requested history page and returns only futures outright position snapshots.
         /// </summary>
         ///
-        /// <param name = "context">The typed query context that provides storage and reply operations.</param>
+        /// <param name = "context">The typed query context that provides projection storage.</param>
         /// <param name = "cancellationToken">The token that cancels the storage operation.</param>
-        /// <returns>A task that completes after the typed query reply is sent.</returns>
-        public async ValueTask ExecuteAsync(IFuturesPositionQueryContext context, CancellationToken cancellationToken)
+        /// <returns>The typed projected result.</returns>
+        public async ValueTask<ServiceResult<StrategyPositionSnapshot[]>> ExecuteAsync(IFuturesPositionQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             var page = await context.DbFactory.TradeDb.GetStrategyPositionHistoryAsync(query.PositionId, query.FromUtc, query.ToUtc, query.PageSize, query.PagingState, cancellationToken).ConfigureAwait(false);
             var positions = page.Items.Where(static position => position.StrategyKind == TradeStrategyKind.FuturesOutright).ToArray();
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<StrategyPositionSnapshot[]>(positions)).ConfigureAwait(false);
+            return new ServiceResult<StrategyPositionSnapshot[]>(positions);
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
@@ -18,7 +18,11 @@ public sealed class StrategyTradePlanActivityQueryActor(IQueryActorContext<Strat
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<IStrategyTradePlanActivityQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IStrategyTradePlanActivityQueryContext, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetStrategyTradePlanActivityQuery)] = static (owner, query, token) => ((GetStrategyTradePlanActivityQuery)query).ExecuteAsync(owner, token)
+        [typeof(GetStrategyTradePlanActivityQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetStrategyTradePlanActivityQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        }
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<StrategyTradePlanActivityQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

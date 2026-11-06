@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
@@ -20,8 +20,16 @@ public sealed class FuturesTradePlanQueryActor(IQueryActorContext<FuturesTradePl
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<IFuturesTradePlanQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesTradePlanQueryContext, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetCurrentFuturesTradePlanQuery)] = static (c, q, t) => ((GetCurrentFuturesTradePlanQuery)q).ExecuteAsync(c, t),
-        [typeof(GetFuturesTradePlanHistoryQuery)] = static (c, q, t) => ((GetFuturesTradePlanHistoryQuery)q).ExecuteAsync(c, t)
+        [typeof(GetCurrentFuturesTradePlanQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetCurrentFuturesTradePlanQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetFuturesTradePlanHistoryQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetFuturesTradePlanHistoryQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        }
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<FuturesTradePlanQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

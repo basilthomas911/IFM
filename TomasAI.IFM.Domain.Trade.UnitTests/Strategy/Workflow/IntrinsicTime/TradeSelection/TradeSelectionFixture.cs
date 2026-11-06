@@ -26,7 +26,7 @@ internal static class TradeSelectionFixture
 {
     public static async Task<ExecuteTradeSelectionPipelineCommand> Command(string variantCode = "LongFuture", TimeFrameType horizon = TimeFrameType.Daily, DateTime? atUtc = null, string contractId = "ESZ6", int scopeId = 1, bool compositionReady = false, bool compositionIntegrationTiming = false,
         ExecuteMarketConditionAssessmentCommand? actualAssessmentCommand = null, StrategyStageResultEnvelope? actualAssessmentEnvelope = null,
-        TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskParameterSet? riskPolicy = null, int compositionLifetimeMilliseconds = 5000, bool cacheDefaults = false)
+        TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskParameterSet? riskPolicy = null, int compositionLifetimeMilliseconds = 5000, bool cacheDefaults = false, int policyId = 1)
     {
         var assessmentCommand = actualAssessmentCommand ?? AssessmentFixture.Command(horizon, atUtc, contractId);
         var at = actualAssessmentEnvelope is null ? assessmentCommand.RequestedAtUtc : DateTime.UtcNow;
@@ -188,7 +188,7 @@ internal static class TradeSelectionFixture
             WorkflowId = assessmentCommand.WorkflowId.Value,
             WorkflowRevision = 1,
             CorrelationId = assessmentCommand.CorrelationId,
-            Portfolio = new() { PortfolioId = scopeId, PortfolioVersion = 1, Name = "Portfolio", OperatingState = PortfolioOperatingState.Active, ActivePolicyId = 1, ActivePolicyVersion = 1, EffectiveFromUtc = at.AddDays(-1), CreatedOnUtc = at.AddDays(-1), CreatedBy = "fixture" },
+            Portfolio = new() { PortfolioId = scopeId, PortfolioVersion = 1, Name = "Portfolio", OperatingState = PortfolioOperatingState.Active, ActivePolicyId = policyId, ActivePolicyVersion = 1, EffectiveFromUtc = at.AddDays(-1), CreatedOnUtc = at.AddDays(-1), CreatedBy = "fixture" },
             Fund = new()
             {
                 PortfolioId = scopeId,
@@ -214,7 +214,7 @@ internal static class TradeSelectionFixture
             FinancialPolicy = new()
             {
                 PortfolioId = scopeId,
-                PolicyId = 1,
+                PolicyId = policyId,
                 PolicyVersion = 1,
                 Name = "Policy",
                 OperatingState = PortfolioFinancialPolicyState.Active,
@@ -230,8 +230,8 @@ internal static class TradeSelectionFixture
                 CreatedBy = "fixture",
                 TradeFamilyLimits = [new() { CatalogDeployment = deployment.Key, Enabled = true, MaximumRiskPerTrade = 100, MaximumAggregateRisk = 1000, MaximumMargin = 1000, MaximumGrossNotional = 10000, MaximumOpenPositions = 10 }]
             },
-            Allocation = new() { PortfolioId = scopeId, PortfolioVersion = 1, FundId = scopeId, FundMandateVersion = 1, AllocationVersion = 1, SourcePolicyId = 1, SourcePolicyVersion = 1, EffectiveFromUtc = at.AddDays(-1), CreatedOnUtc = at.AddDays(-1), CreatedBy = "fixture" },
-            RiskEnvelope = new() { PortfolioId = scopeId, PortfolioVersion = 1, FundId = scopeId, FundMandateVersion = 1, EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, SourcePolicyId = 1, SourcePolicyVersion = 1, CapacityState = FundCapacityState.Available, MaximumRiskPerTrade = 100, MaximumAggregateRisk = 1000, MaximumMargin = 1000, MaximumGrossNotional = 10000, MaximumOpenPositions = 10, EffectiveFromUtc = at.AddDays(-1), ExpiresAtUtc = at.AddMinutes(1), CreatedOnUtc = at.AddDays(-1), CreatedBy = "fixture" },
+            Allocation = new() { PortfolioId = scopeId, PortfolioVersion = 1, FundId = scopeId, FundMandateVersion = 1, AllocationVersion = 1, SourcePolicyId = policyId, SourcePolicyVersion = 1, EffectiveFromUtc = at.AddDays(-1), CreatedOnUtc = at.AddDays(-1), CreatedBy = "fixture" },
+            RiskEnvelope = new() { PortfolioId = scopeId, PortfolioVersion = 1, FundId = scopeId, FundMandateVersion = 1, EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, SourcePolicyId = policyId, SourcePolicyVersion = 1, CapacityState = FundCapacityState.Available, MaximumRiskPerTrade = 100, MaximumAggregateRisk = 1000, MaximumMargin = 1000, MaximumGrossNotional = 10000, MaximumOpenPositions = 10, EffectiveFromUtc = at.AddDays(-1), ExpiresAtUtc = at.AddMinutes(1), CreatedOnUtc = at.AddDays(-1), CreatedBy = "fixture" },
             Assignments = [new() { PortfolioId = scopeId, PortfolioVersion = 1, FundId = scopeId, FundMandateVersion = 1, SchemaVersion = 3, AssignmentVersion = 1, TradeStrategyFamily = permission, TradeTemplateId = deployment.Key.Id, TradeTemplateVersion = 1, Enabled = true, Priority = 1, DecisionHorizon = horizon.ToString(), UnderlyingUniverse = ["ES"], AssetType = asset, TradeFamily = family, TradeSelectionHintProfileId = common.ParameterSetId, TradeSelectionHintProfileVersion = 1, OrderCompositionProfileId = composition.ParameterSetId, OrderCompositionProfileVersion = 1, EffectiveFromUtc = at.AddDays(-1), CreatedOnUtc = at.AddDays(-1), CreatedBy = "fixture" }],
             ResolvedAtUtc = at,
             ValidUntilUtc = at.AddMinutes(1)

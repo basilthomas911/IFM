@@ -33,30 +33,18 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
     /// <exception cref="ArgumentNullException">Thrown when required arguments are null.</exception>
+    public Task<ServiceResult<Guid>> StartMarketDataFeedAsync() => StartMarketDataFeedAsync(CancellationToken.None);
+
+    /// <summary>Requests a feed start for the server's current value date.</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
-    public async Task<ServiceResult<Guid>> StartMarketDataFeedAsync()
+    public async Task<ServiceResult<Guid>> StartMarketDataFeedAsync(CancellationToken cancellationToken)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            var request = PrepareMarketDataFeedSessionCommand.ForOperation(cmdId);
-            var preparation = await RequestFunctionAsync<PrepareMarketDataFeedSessionCommand, ActorEntityId,
-                FunctionResult<FeedSessionPreparationCompletedEvent, FeedSessionPreparationFailedEvent>>(
-                request, request.EntityId, CancellationToken.None).ConfigureAwait(false);
-            if (preparation is not { Success: true, Value.Completed: { } prepared } || prepared.CommandId != cmdId)
-                return new ServiceFailed<Guid>(StartMarketDataFeedCommand.ErrorId,
-                    preparation.Value?.Failed?.ErrorMessage ?? preparation.ErrorMessage) { Value = cmdId };
-
-            var entityId = new MarketDataFeedId(prepared.ValueDate);
-            var command = new StartMarketDataFeedCommand
-            {
-                CommandId = cmdId,
-                EntityId = entityId,
-                Subject = new(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, entityId.Format()),
-                PreparedContracts = prepared.Contracts
-            };
-            serviceResult = await RequestCommandAsync(command, entityId).ConfigureAwait(false);
+            var command = StartMarketDataFeedCommand.ForCurrentSession(cmdId);
+            serviceResult = await RequestCommandAsync(command, command.EntityId, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

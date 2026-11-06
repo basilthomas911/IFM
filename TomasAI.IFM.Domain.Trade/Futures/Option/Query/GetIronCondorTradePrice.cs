@@ -11,12 +11,12 @@ public static class GetIronCondorTradePrice
     extension(GetIronCondorTradePriceQuery query)
     {
         /// <summary>Reads the legacy Iron Condor price projection.</summary>
-        public async ValueTask ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<TradePriceReadModel?>> ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             var result = await context.DbFactory.TradeDb.GetIronCondorTradePriceAsync(query.TradeId, query.ValueDate, cancellationToken).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<TradePriceReadModel?>(result)).ConfigureAwait(false);
+            return new ServiceResult<TradePriceReadModel?>(result);
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
@@ -20,8 +20,16 @@ public sealed class VerticalSpreadTradePlanQueryActor(IQueryActorContext<Vertica
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<IVerticalSpreadTradePlanQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IVerticalSpreadTradePlanQueryContext, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetCurrentVerticalSpreadTradePlanQuery)] = static (c, q, t) => ((GetCurrentVerticalSpreadTradePlanQuery)q).ExecuteAsync(c, t),
-        [typeof(GetVerticalSpreadTradePlanHistoryQuery)] = static (c, q, t) => ((GetVerticalSpreadTradePlanHistoryQuery)q).ExecuteAsync(c, t)
+        [typeof(GetCurrentVerticalSpreadTradePlanQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetCurrentVerticalSpreadTradePlanQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetVerticalSpreadTradePlanHistoryQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetVerticalSpreadTradePlanHistoryQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        }
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<VerticalSpreadTradePlanQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

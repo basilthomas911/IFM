@@ -30,6 +30,7 @@ public static class RegimeDiscoverySnapshotRequestFactory
         requirements.AddRange(TargetEvidenceRequiredMetrics.Select(metric => Requirement(metric, targetEvidenceTimeFrame, true, targetEvidenceMaximumAge, 1m)));
         requirements.Add(Requirement(RegimeDiscoverySignalMetric.VxFrontSecondRatio, TimeFrameType.Daily, true, TargetMaximumAge(TimeFrameType.Daily), parameterSet.Volatility.TermStructureWeight));
         requirements.Add(Requirement(RegimeDiscoverySignalMetric.VixLevel, TimeFrameType.Daily, false, TargetMaximumAge(TimeFrameType.Daily), parameterSet.Volatility.VixWeight));
+        requirements.Add(Requirement(RegimeDiscoverySignalMetric.VxFrontLevel, TimeFrameType.Daily, false, TargetMaximumAge(TimeFrameType.Daily), parameterSet.Volatility.VixWeight));
         requirements.Add(Requirement(RegimeDiscoverySignalMetric.BollingerWidth, targetEvidenceTimeFrame, false, targetEvidenceMaximumAge, 0m));
         foreach (var frame in parameterSet.Horizon.TimeFrames)
             requirements.Add(Requirement(RegimeDiscoverySignalMetric.Tdi, frame.TimeFrame, false, frame.MaximumAgeSeconds, frame.Weight));
@@ -57,6 +58,14 @@ public static class RegimeDiscoverySnapshotRequestFactory
             requirements = selected;
         }
 
+
+        // Older parameter payloads can still contain a spot-VIX row. Runtime
+        // volatility uses the front price carried by the VX term-structure producer.
+        var frontLevel = requirements.SingleOrDefault(row => row.Metric == RegimeDiscoverySignalMetric.VxFrontLevel);
+        requirements.RemoveAll(row => row.Metric is RegimeDiscoverySignalMetric.VixLevel or RegimeDiscoverySignalMetric.VxFrontLevel);
+        requirements.Add(Requirement(RegimeDiscoverySignalMetric.VxFrontLevel, TimeFrameType.Daily,
+            true, frontLevel?.MaximumAgeSeconds ?? requirements.Single(row => row.Metric == RegimeDiscoverySignalMetric.VxFrontSecondRatio
+                && row.TimeFrame == TimeFrameType.Daily).MaximumAgeSeconds, parameterSet.Volatility.VixWeight));
 
         return new RegimeDiscoveryMarketSignalSnapshotRequest
         {

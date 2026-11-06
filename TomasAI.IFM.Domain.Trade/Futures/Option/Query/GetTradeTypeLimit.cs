@@ -12,12 +12,12 @@ public static class GetTradeTypeLimit
     extension(GetTradeTypeLimitQuery query)
     {
         /// <summary>Reads the strategy-specific limit configuration for a legacy option trade.</summary>
-        public async ValueTask ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<TradeTypeLimitReadModel>> ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             var result = await context.DbFactory.GetTradeTypeLimitAsync(query.TradeId, query.TradeType, cancellationToken).ConfigureAwait(false) ?? new TradeTypeLimitReadModel();
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<TradeTypeLimitReadModel>(result)).ConfigureAwait(false);
+            return new ServiceResult<TradeTypeLimitReadModel>(result);
         }
     }
 }

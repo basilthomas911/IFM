@@ -1716,6 +1716,13 @@ LIMIT $3;
 """;
     internal const string ContextStatement1 = "SELECT payload,payload_sha256 FROM trade.market_condition_assessment WHERE workflow_id=$1;";
     internal const string ContextStatement2 = "SELECT payload,content_hash FROM trade.risk_management_invocation WHERE workflow_id=$1 AND invocation_id=$2 ORDER BY revision DESC LIMIT 1;";
+    internal const string ReadRiskCompletion = """
+        SELECT source_event_id,payload,content_hash FROM trade.risk_management_completion WHERE workflow_id=$1 AND invocation_id=$2;
+        """;
+    internal const string InsertRiskCompletion = """
+        INSERT INTO trade.risk_management_completion(workflow_id,invocation_id,source_event_id,payload,content_hash)
+        VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING;
+        """;
 
     internal const string ContextStatement4 = "SELECT payload FROM trade.trade_order WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 ORDER BY revision DESC LIMIT 1;";
     internal const string ContextStatement5 = "SELECT payload FROM trade.established_trade_history WHERE portfolioId=$1 AND fundId=$2 AND strategyKind=$3 AND establishedAtUtc>=$4 AND establishedAtUtc<=$5;";

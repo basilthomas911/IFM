@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Futures.Option.Position.Query.Actor;
+using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.Query.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
@@ -10,12 +10,12 @@ public static class GetIronCondorOptionTradePosition
 
     extension(GetIronCondorOptionTradePositionQuery query)
     {
-        /// <summary>Reads and replies with the requested IronCondor position data.</summary>
-        public ValueTask ExecuteAsync(IFuturesOptionPositionQueryContext context, CancellationToken cancellationToken)
+        /// <summary>Reads the requested IronCondor position snapshot.</summary>
+        public ValueTask<StrategyPositionSnapshot?> ExecuteAsync(ITradeDbReadContext tradeDb, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(context);
+            ArgumentNullException.ThrowIfNull(tradeDb);
             ArgumentNullException.ThrowIfNull(query);
-            return PositionQueryModel.OneAsync(query, context, TradeStrategyKind.IronCondor, cancellationToken);
+            return PositionQueryModel.OneAsync(query, tradeDb, TradeStrategyKind.IronCondor, cancellationToken);
         }
     }
 }

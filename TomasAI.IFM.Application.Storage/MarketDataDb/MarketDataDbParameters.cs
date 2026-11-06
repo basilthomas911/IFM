@@ -1314,6 +1314,14 @@ internal readonly record struct StoredTradeSessionBarKey(string ContractId, Time
         checked(Date.Year * 100 + Date.Month), End.UtcDateTime, ContractId, Date };
 }
 
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+internal readonly record struct StoredTradeSessionBarKeys(string ContractId, TimeFrameType Frame, DateOnly Date,
+    DateTimeOffset[] Ends) : IBindValue
+{
+    public object Bind() => new object?[] { MarketSeriesIdentity.ForContract(ContractId).Format(), Frame.ToString(),
+        checked(Date.Year * 100 + Date.Month), Ends.Select(end => end.UtcDateTime).ToArray(), ContractId, Date };
+}
+
 internal readonly record struct HistoricalObservationParameter(FuturesTradeSessionBarReadModel Value) : IBindValue
 {
     public object Bind() => new object?[]

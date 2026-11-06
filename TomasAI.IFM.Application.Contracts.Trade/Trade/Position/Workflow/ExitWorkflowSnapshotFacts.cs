@@ -5,6 +5,14 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 /// <summary>Maps only recorded accepted facts into a complete exit workflow read row.</summary>
 public static class ExitWorkflowSnapshotFacts
 {
+    /// <summary>The creation event and complete owner replacement stages eligible for snapshot replay.</summary>
+    public static IReadOnlyList<Type> CheckpointTypes { get; } =
+    [
+        typeof(ExitPositionWorkflowStartedEvent), typeof(ExitPositionWorkflowOrderComposedEvent),
+        typeof(ExitPositionWorkflowRiskRecordedEvent), typeof(ExitPositionWorkflowCompletedEvent),
+        typeof(ExitPositionWorkflowTerminatedEvent)
+    ];
+
     /// <summary>Uses the recorded stage snapshot, or constructs the initial row from the complete start event.</summary>
     /// <remarks>Never reads earlier rows or calls a calculator, actor, broker or financial service.</remarks>
     public static ExitPositionWorkflowProjection From(IEvent source)
@@ -21,6 +29,7 @@ public static class ExitWorkflowSnapshotFacts
             },
             ExitOrderCompositionCompletedEvent composed => composed.Projection,
             PositionExitRiskCompletedEvent risk => risk.Projection,
+            ExitPositionWorkflowLifecycleEvent stage => stage.Snapshot.Projection,
             _ => throw new ArgumentException("Unsupported exit workflow source event: " + source.GetType().Name, nameof(source))
         } ?? throw new InvalidOperationException("The older exit completion lacks recorded projection facts; use its verified migration baseline.");
     }

@@ -62,7 +62,7 @@ public class RegimeDiscoveryExecutionBenchmarks
         {
             AddFrame(observations, frame.TimeFrame);
         }
-        Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.VixLevel, 18m);
+        Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.VxFrontLevel, 18m);
         Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.AtrBaselineRatio, 1m);
         Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.VxFrontSecondRatio, 0.95m);
         Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.PriorVolatilityComposite, 0.35m);
@@ -154,7 +154,7 @@ public class RegimeDiscoveryExecutionBenchmarks
             RegimeDiscoverySignalMetric.AtrNormalizedRange => MarketAnalyticsSignalKind.Atr,
         RegimeDiscoverySignalMetric.BollingerWidth or RegimeDiscoverySignalMetric.BollingerWidthRatio or
             RegimeDiscoverySignalMetric.BollingerPosition => MarketAnalyticsSignalKind.BollingerBand,
-        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel =>
+        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VxFrontLevel =>
             MarketAnalyticsSignalKind.VxTermStructure,
         RegimeDiscoverySignalMetric.ItiDirection or RegimeDiscoverySignalMetric.ItiBandLevel or
             RegimeDiscoverySignalMetric.ItiReversalLevel or RegimeDiscoverySignalMetric.CurrentPrice =>

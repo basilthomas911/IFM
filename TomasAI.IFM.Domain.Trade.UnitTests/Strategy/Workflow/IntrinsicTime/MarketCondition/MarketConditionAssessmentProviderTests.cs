@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -54,6 +56,24 @@ public sealed class MarketConditionAssessmentProviderTests
         Assert.Equal(AssessmentAvailability.Available, result.Assessment.Availability);
     }
     [Fact]
+    public async Task Cold_atr_is_unavailable_without_failing_snapshot_capture()
+    {
+        var fixture = new Fixture();
+        fixture.Storage.MarketDataDb.GetLastFuturesAtrSignalAsync("ES-test", DateOnly.FromDateTime(fixture.At),
+            TimeFrameType.OneMinute, 14, Arg.Any<CancellationToken>()).Returns(new FuturesAtrSignalReadModel
+            {
+                IsWarm = false, AtrValue = 0, TrueRange = 2.5, Metadata = new() { IsValid = true }
+            });
+
+        var snapshot = await fixture.Capture();
+
+        snapshot.Observations.Single(observation => observation.SourceId == "NormalizedMovement")
+            .Availability.Should().Be(MarketSourceAvailability.Unavailable);
+        new MarketConditionAssessmentCalculator().Calculate(fixture.Command, snapshot, fixture.Command.CommandId)
+            .Assessment.Availability.Should().Be(AssessmentAvailability.Available);
+    }
+
+    [Fact]
     public async Task Changing_feed_generation_exhausts_bounded_capture_instead_of_sealing_mixed_sources()
     {
         var f = new Fixture(); var sequence = 0;
@@ -77,7 +97,7 @@ public sealed class MarketConditionAssessmentProviderTests
         public DateTime At => Command.RequestedAtUtc;
         public readonly IMarketDataApi Market = Substitute.For<IMarketDataApi>();
         public readonly IMarketConditionEventRiskAdapter Events = Substitute.For<IMarketConditionEventRiskAdapter>();
-        readonly IDbContextFactory storage = Substitute.For<IDbContextFactory>();
+        public readonly IDbContextFactory Storage = Substitute.For<IDbContextFactory>();
         readonly IMarketSessionCalendar calendar = Substitute.For<IMarketSessionCalendar>();
         public FuturesMarketHealthSnapshot Health => new(true, true, "test-generation", DateOnly.FromDateTime(At), new(At), 1);
         public Fixture()
@@ -94,6 +114,6 @@ public sealed class MarketConditionAssessmentProviderTests
                 DownloadEvidence = new() { CheckedAtUtc = At, CoverageConfirmed = true, ValidUntilUtc = At.AddHours(1) }
             });
         }
-        public ValueTask<MarketConditionAssessmentSnapshot> Capture() => new MarketConditionAssessmentSnapshotProvider(Market, storage, calendar, Events).CaptureAsync(Command.ParameterSet, At, default);
+        public ValueTask<MarketConditionAssessmentSnapshot> Capture() => new MarketConditionAssessmentSnapshotProvider(Market, Storage, calendar, Events).CaptureAsync(Command.ParameterSet, At, default);
     }
 }

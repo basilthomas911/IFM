@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
@@ -33,6 +33,7 @@ public sealed partial class TradeSelectionRuntimeTests
         await producer.StartAsync(new(ActorType.Realtime, $"RiskResize{Guid.NewGuid():N}"));
         try
         {
+            await host.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>().CreateAllAsync();
             // Initialize assertion diagnostics before opening the fixed one-second market window.
             true.Should().BeTrue();
             new RiskEvaluator().Calculate(await RiskFixture.Command());
@@ -81,12 +82,32 @@ public sealed partial class TradeSelectionRuntimeTests
             second.Result.SizedOrderHash.Should().NotBe(first.Result.SizedOrderHash);
             var repository = host.Services.GetRequiredService<SimpleInjector.Container>()
                 .GetInstance<IEventSourceFunctionStateRepository<RiskManagementFunctionState, ExecuteRiskManagementPipelineCommand>>();
+            var store = host.Services.GetRequiredService<IDbContextFactory>().TradeDb.DbReader;
+            var journal = host.Services.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.RiskHistoryJournal>();
             foreach (var (request, result) in new[] { (original, first), (resized, second) })
             {
                 var persisted = await repository.LoadStateAsync(request);
                 RiskContracts.Hash(persisted.CompletedEvent!.Result).Should().Be(RiskContracts.Hash(result.Result));
                 RiskContracts.Hash((await Execute(request)).Result).Should().Be(RiskContracts.Hash(result.Result));
+                var projected = await store.GetRiskCompletionAsync(request.WorkflowId.Value, request.CommandId);
+                projected.Should().NotBeNull("the completion and its read model must commit together");
+                projected!.EventId.Should().Be(persisted.CompletedEvent.EventId);
+                RiskContracts.Hash(projected.Result).Should().Be(RiskContracts.Hash(result.Result));
             }
+
+            // A legacy completion is reconstructed from verified committed history.
+            var postgres = host.Services.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction>();
+            await postgres.ExecuteAsync(async (db, token) =>
+            {
+                await db.ExecuteAsync("DELETE FROM trade.risk_management_completion WHERE workflow_id=$1 AND invocation_id=$2",
+                    [original.WorkflowId.Value, original.CommandId], token);
+                return true;
+            });
+            (await store.GetRiskCompletionAsync(original.WorkflowId.Value, original.CommandId)).Should().BeNull();
+            while (await journal.ProjectCompletionPageAsync() > 0) { }
+            var rebuilt = await store.GetRiskCompletionAsync(original.WorkflowId.Value, original.CommandId);
+            rebuilt.Should().NotBeNull();
+            RiskContracts.Hash(rebuilt!.Result).Should().Be(RiskContracts.Hash(first.Result));
         }
         finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); await producer.StopAsync(); }
     }
@@ -163,7 +184,8 @@ public sealed partial class TradeSelectionRuntimeTests
                 EntityId = input.WorkflowEntityId,
                 Subject = new(ActorType.Command, PrepareRiskManagementCommand.Actor, PrepareRiskManagementCommand.Verb, input.WorkflowEntityId.Format()),
                 WorkflowId = input.WorkflowId,
-                InputWorkflowRevision = 5
+                InputWorkflowRevision = 5,
+                EvidenceCollected = true
             };
             var view = new IntrinsicTimeStrategyWorkflowView
             {

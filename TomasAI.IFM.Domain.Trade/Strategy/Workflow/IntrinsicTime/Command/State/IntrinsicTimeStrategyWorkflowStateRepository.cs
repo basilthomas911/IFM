@@ -17,8 +17,8 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State
 /// Loads and saves the authoritative Intrinsic Time Strategy Workflow Command state through PostgreSQL event sourcing.
 /// </summary>
 /// <remarks>
-/// Runtime recovery applies only the latest <see cref = "WorkflowStrategyStateUpdatedEvent"/>. A non-empty stream
-/// without a safe snapshot, or with an event after that snapshot, fails closed. After an expected-version ACID batch
+/// Runtime recovery applies the newest complete checkpoint and its authoritative tail, or replays the original source facts.
+/// Non-empty legacy streams without a verified checkpoint and unsupported tail facts fail closed. An expected-version ACID batch
 /// commits source and required PostgreSQL read rows together, then queues committed notifications and actor handoffs.
 /// </remarks>
 /// <param name = "stateFactory">Factory that creates an empty workflow command-state shell before snapshot load.</param>
@@ -65,19 +65,23 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
         trace?.SetTag("ifm.workflow.snapshot_count", events.Count);
         using var decode = WorkflowTrace.Start("workflow.state.deserialize", null);
         decode?.SetTag("ifm.workflow.entity", command.Subject.EntityId);
-        var converted = events.Select(value => (Stream: value, Event: value.ToDomainEvent())).ToArray();
+        // The storage query retains row one as a stream boundary. A verified checkpoint carries
+        // both the complete workflow view and the private metadata needed to supersede that prefix.
+        var checkpointIndex = events.FindLastIndex(row => EventTypeRegistry.Default.Resolve(row.EventTypeName) ==
+            typeof(IntrinsicTimeStrategyWorkflowStateSnapshottedEvent));
+        var converted = events.Skip(Math.Max(checkpointIndex, 0))
+            .Select(value => (Stream: value, Event: value.ToDomainEvent())).ToArray();
         decode?.Stop();
         using var apply = WorkflowTrace.Start("workflow.state.apply", null);
         apply?.SetTag("ifm.workflow.entity", command.Subject.EntityId);
-        var snapshots = converted.Where(value => value.Event is WorkflowStrategyStateUpdatedEvent).ToArray();
-        if (snapshots.Length == 0)
+        if (checkpointIndex < 0 && !converted.Any(value => value.Event is WorkflowStrategyStateUpdatedEvent))
         {
             if (_logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
                 global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write29(_logger, nameof(IntrinsicTimeStrategyWorkflowStateRepository), nameof(LoadStateAsync), command.StreamId, events.Count);
             throw new LegacyWorkflowStreamException(command.StreamId, events.Count);
         }
 
-        if (converted.Any(value => value.Event is not (WorkflowStrategyStateUpdatedEvent or IntrinsicTimeStrategyWorkflowStateSnapshottedEvent)))
+        if (converted.Skip(checkpointIndex >= 0 ? 1 : 0).Any(value => value.Event is not WorkflowStrategyStateUpdatedEvent))
         {
             if (_logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
                 global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write30(_logger, nameof(IntrinsicTimeStrategyWorkflowStateRepository), nameof(LoadStateAsync), command.StreamId, events.Count);
@@ -88,17 +92,24 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
         {
             var restored = entry.Event switch
             {
-                WorkflowStrategyStateUpdatedEvent source => state.Apply(source, addEvent: false),
-                IntrinsicTimeStrategyWorkflowStateSnapshottedEvent snapshot => state.RestoreSnapshot(snapshot),
+                WorkflowStrategyStateUpdatedEvent source => IsOwned(source) && state.Apply(source, addEvent: false),
+                IntrinsicTimeStrategyWorkflowStateSnapshottedEvent snapshot =>
+                    snapshot.Latest is { } latest && IsOwned(latest) && latest.EventId < entry.Stream.EventVersion &&
+                    snapshot.AppliedEventCount < entry.Stream.StreamVersion && Enum.IsDefined(snapshot.LastStartDecision) &&
+                    state.RestoreSnapshot(snapshot),
                 _ => false
             };
             if (!restored)
                 throw new InvalidOperationException($"The workflow creation snapshot or tail in {command.StreamId} is invalid or cannot be applied.");
         }
         var head = events[^1].StreamVersion;
+        state.AcceptChanges();
         state.RestoreCommittedStreamVersion(head);
         state.SetPersistedStreamVersion(head);
         return state;
+
+        bool IsOwned(WorkflowStrategyStateUpdatedEvent source) => source.WorkflowId.Value != Guid.Empty && source.WorkflowRevision > 0 &&
+            string.Equals(source.EntityId.Format(), command.Subject.EntityId, StringComparison.Ordinal);
     }
 
     private static readonly Type[] CheckpointTypes = [typeof(IntrinsicTimeStrategyWorkflowStateSnapshottedEvent)];

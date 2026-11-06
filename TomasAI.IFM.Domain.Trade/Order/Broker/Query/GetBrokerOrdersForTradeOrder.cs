@@ -10,13 +10,13 @@ public static class GetBrokerOrdersForTradeOrder
     extension(GetBrokerOrdersForTradeOrderQuery query)
     {
         /// <summary>Returns every latest component order in stable execution/component order.</summary>
-        public async ValueTask ExecuteAsync(IBrokerOrderQueryContext context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<BrokerOrderDefinition[]>> ExecuteAsync(IBrokerOrderQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             cancellationToken.ThrowIfCancellationRequested();
             var values = context.Store.List(query.TradeOrderId);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<BrokerOrderDefinition[]>(values)).ConfigureAwait(false);
+            return new ServiceOk<BrokerOrderDefinition[]>(values);
         }
     }
 }

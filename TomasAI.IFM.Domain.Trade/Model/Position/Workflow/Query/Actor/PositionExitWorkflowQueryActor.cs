@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
@@ -19,8 +19,16 @@ public sealed class PositionExitWorkflowQueryActor(IQueryActorContext<PositionEx
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<IPositionExitWorkflowQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IPositionExitWorkflowQueryContext, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetPositionExitWorkflowQuery)] = static (owner, query, token) => ((GetPositionExitWorkflowQuery)query).ExecuteAsync(owner, token),
-        [typeof(GetPositionExitWorkflowTimelineQuery)] = static (owner, query, token) => ((GetPositionExitWorkflowTimelineQuery)query).ExecuteAsync(owner, token)
+        [typeof(GetPositionExitWorkflowQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetPositionExitWorkflowQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetPositionExitWorkflowTimelineQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetPositionExitWorkflowTimelineQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        }
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<PositionExitWorkflowQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

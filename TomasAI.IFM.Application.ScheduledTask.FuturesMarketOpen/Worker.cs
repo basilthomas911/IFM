@@ -31,10 +31,10 @@ public sealed class Worker(
                 logger.LogInformation("Development Market Open starting immediately; runtime admission checks are disabled.");
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             deadline.CancelAfter(TimeSpan.FromMinutes(10));
-            // Execution is explicit: the API resolves its own date and assignments, regardless of clock/session state.
+            // The command carries no date. Use the date returned in the server's completion for readiness.
             var started = await completion.ExecuteAsync<MarketDataFeedStartedCompleteEvent, MarketDataFeedStartedFailEvent>(
                 MarketDataFeedStartedCompleteEvent.Actor, MarketDataFeedStartedCompleteEvent.Verb, MarketDataFeedStartedFailEvent.Verb,
-                () => feedCommands.StartMarketDataFeedAsync(), deadline.Token);
+                () => feedCommands.StartMarketDataFeedAsync(deadline.Token), deadline.Token);
             var valueDate = started.EntityId.ValueDate;
             var startCommandId = started.CommandId;
             using var feedDeadline = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);

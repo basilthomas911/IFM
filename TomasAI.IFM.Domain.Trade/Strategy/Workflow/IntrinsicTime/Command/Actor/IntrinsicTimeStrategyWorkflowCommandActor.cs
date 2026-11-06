@@ -37,7 +37,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(ICommandActorConte
     static readonly FrozenDictionary<Type, Func<ICommand, CancellationToken, ValueTask<bool>>> _duplicateRetryMap = new Dictionary<Type, Func<ICommand, CancellationToken, ValueTask<bool>>>
     {
         [typeof(AdvanceRiskFinancialHandoffCommand)] = static (command, token) => ((AdvanceRiskFinancialHandoffCommand)command).ResumeAfterAuditAsync(token),
-        [typeof(PrepareRiskManagementCommand)] = static (command, token) => ((PrepareRiskManagementCommand)command).ResumeAfterAuditAsync(token)
+        [typeof(PrepareRiskManagementCommand)] = static (command, token) => ((PrepareRiskManagementCommand)command).ResumeAfterAuditAsync(token),
+        [typeof(AcceptOrderCompositionPreparationCommand)] = static (command, token) => ((AcceptOrderCompositionPreparationCommand)command).ResumeAfterAuditAsync(token)
     }.ToFrozenDictionary();
     protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, ICommand command, CancellationToken cancellationToken)
     {

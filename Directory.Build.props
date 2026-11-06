@@ -1,5 +1,5 @@
 <Project>
- <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('IntegrationTests')) Or $([System.String]::Copy('$(MSBuildProjectName)').EndsWith('IntegratedTests'))">
+ <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('IntegrationTests')) Or $([System.String]::Copy('$(MSBuildProjectName)').EndsWith('IntegratedTests')) Or '$(MSBuildProjectName)' == 'TomasAI.IFM.Domain.Trade.VerificationTests'">
    <!-- Integration hosts use shared process-wide infrastructure and must not run
         multiple test collections concurrently. -->
    <IFMSerialIntegrationTests>true</IFMSerialIntegrationTests>
@@ -33,6 +33,13 @@
    <AssemblyAttribute Include="Xunit.TestFrameworkAttribute">
      <_Parameter1>DomainActorIntegrationTestFramework</_Parameter1>
      <_Parameter2>$(AssemblyName)</_Parameter2>
+   </AssemblyAttribute>
+ </ItemGroup>
+
+ <ItemGroup Condition="'$(MSBuildProjectName)' == 'TomasAI.IFM.Domain.Trade.VerificationTests'">
+   <AssemblyAttribute Include="Xunit.TestFrameworkAttribute">
+     <_Parameter1>DomainActorIntegrationTestFramework</_Parameter1>
+     <_Parameter2>TomasAI.IFM.Domain.Trade.IntegratedTests</_Parameter2>
    </AssemblyAttribute>
  </ItemGroup>
  

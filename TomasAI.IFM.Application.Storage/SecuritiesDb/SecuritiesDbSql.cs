@@ -30,6 +30,12 @@ internal static class SecuritiesDbSql
         ORDER BY providerRoot,contractId;
         """;
 
+    public const string GetCachedOptionDefinitionPartitions = """
+        SELECT symbol,underlyingContractId,expiryDate,providerRoot,optionFamily,definitionPayload,refreshedAtUtc
+        FROM securities.option_contract_expiry_calendar WHERE symbol=$1 AND generation=$2 AND expiryDate=ANY($3::date[])
+        ORDER BY expiryDate,providerRoot,contractId;
+        """;
+
     /// <summary>Native PostgreSQL securities persistence.</summary>
     public const string GetFuturesContractRollover = """
         SELECT symbol, contractId, nextRolloverDate, updatedOn, updatedBy, createdOn, createdBy FROM securities.futures_contract_rollover WHERE symbol = $1 ORDER BY symbol;

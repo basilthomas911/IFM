@@ -23,9 +23,21 @@ public sealed class OrderCompositionQueryActor(IQueryActorContext<OrderCompositi
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<OrderCompositionQueryActor, IQueryActorContext<OrderCompositionQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<OrderCompositionQueryActor, IQueryActorContext<OrderCompositionQueryActor>, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetOrderCompositionInvocationQuery)] = static (a, c, q, t) => ((GetOrderCompositionInvocationQuery)q).ExecuteAsync(a.services, c, t),
-        [typeof(GetOrderCompositionResultQuery)] = static (a, c, q, t) => ((GetOrderCompositionResultQuery)q).ExecuteAsync(a.services, c, t),
-        [typeof(GetOrderCompositionHistoryPageQuery)] = static (a, c, q, t) => ((GetOrderCompositionHistoryPageQuery)q).ExecuteAsync(a.services, c, t),
+        [typeof(GetOrderCompositionInvocationQuery)] = static async (actor, context, query, token) =>
+        {
+            var result = await ((GetOrderCompositionInvocationQuery)query).ExecuteAsync(actor.services, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetOrderCompositionResultQuery)] = static async (actor, context, query, token) =>
+        {
+            var result = await ((GetOrderCompositionResultQuery)query).ExecuteAsync(actor.services, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetOrderCompositionHistoryPageQuery)] = static async (actor, context, query, token) =>
+        {
+            var result = await ((GetOrderCompositionHistoryPageQuery)query).ExecuteAsync(actor.services, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<OrderCompositionQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

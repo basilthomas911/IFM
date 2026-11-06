@@ -9,6 +9,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.E
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
@@ -29,14 +31,8 @@ public static class ExecuteRiskManagement
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(snapshot);
             using var trace = WorkflowTrace.Start("risk.dispatch", snapshot.State);
-            var read = new RedispatchCurrentStrategyPipelineCommand
-            {
-                EntityId = snapshot.EntityId,
-                Subject = new(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor, RedispatchCurrentStrategyPipelineCommand.Verb, snapshot.EntityId.Format())
-            };
-            var loaded = await context.WorkflowRepository.LoadStateAsync(read).ConfigureAwait(false);
             using var currentViewTrace = WorkflowTrace.Start("risk.dispatch.current_view", snapshot.State);
-            var view = loaded.CurrentView;
+            var view = await context.ReadActiveWorkflowAsync(snapshot.EntityId).ConfigureAwait(false);
             currentViewTrace?.Stop();
             if (view is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.RiskManagement } || view.WorkflowId != snapshot.WorkflowId || view.WorkflowRevision != snapshot.WorkflowRevision)
                 return;
@@ -61,8 +57,29 @@ public static class ExecuteRiskManagement
                     EntityId = view.EntityId,
                     Subject = new(ActorType.Command, PrepareRiskManagementCommand.Actor, PrepareRiskManagementCommand.Verb, view.EntityId.Format()),
                     WorkflowId = view.WorkflowId,
-                    InputWorkflowRevision = view.WorkflowRevision
+                    InputWorkflowRevision = view.WorkflowRevision,
+                    EvidenceCollected = true
                 };
+                var candidate = view.OrderComposition.Result!.ReadCompositionResult().Candidate!;
+                var reference = view.SelectionBinding!.CatalogDefinitions
+                    .Single(x => x.Key == candidate.DeploymentKey).PipelineParameters
+                    .SingleOrDefault(x => x.Kind == CatalogPipelineParameterKind.RiskManagement);
+                if (reference is not null)
+                {
+                    var policy = await context.ConfigurationDb.GetSelectionPipelinePolicyAsync(reference.Kind, reference.Id, reference.Version).ConfigureAwait(false);
+                    if (policy is not null)
+                    {
+                        var financial = await context.FinancialApi.GetFinancialAdmissionSnapshotAsync(
+                            new() { PortfolioId = candidate.PortfolioId, FundId = candidate.FundId, Access = new("IntrinsicTimeStrategyWorkflow", ["LedgerRead"], [candidate.PortfolioId]) },
+                            new(candidate.DeploymentKey, FinancialScopeKeys.Underlying(candidate.Product.Symbol, candidate.Product.Exchange, candidate.Product.Currency))).ConfigureAwait(false);
+                        prepare = prepare with
+                        {
+                            Policy = policy,
+                            Financial = financial.Success ? financial.Value : null,
+                            EvidenceCollectedAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime
+                        };
+                    }
+                }
                 await context.SendAsync<PrepareRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(prepare, view.EntityId).ConfigureAwait(false);
                 return;
             }

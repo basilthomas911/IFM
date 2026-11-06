@@ -22,7 +22,7 @@ public class DatabaseBackupSetQueryActor(
         IsArgumentNull.Named(Context as IDatabaseBackupSetQueryContext, nameof(Context))!;
 
     public const string Actor = "DatabaseBackupSetQuery";
-    readonly ISystemAdminDbContext _dbContext = Require(actorContext).DbContext;
+    readonly ISystemAdminDbReadContext _dbContext = Require(actorContext).DbContext;
 
     /// <summary>Gets the supported concrete query types.</summary>
     public static IReadOnlyCollection<Type> SupportedQueryTypes =>CachedSupportedQueryTypes.Value;
@@ -49,11 +49,14 @@ public class DatabaseBackupSetQueryActor(
         await receive(_dbContext, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupSetQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupSetQueryActor>, IQuery, CancellationToken, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbReadContext, IQueryActorContext<DatabaseBackupSetQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<ISystemAdminDbReadContext, IQueryActorContext<DatabaseBackupSetQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
-            [typeof(GetDatabaseBackupSetQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((GetDatabaseBackupSetQuery)query).ExecuteAsync(dbContext, context, cancellationToken)
+            [typeof(GetDatabaseBackupSetQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((GetDatabaseBackupSetQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            }
         };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

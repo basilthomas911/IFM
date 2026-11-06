@@ -13,8 +13,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Event.Actor;
 /// <summary>Routes committed projection completions to the owning Quartz host through durable actor messages.</summary>
-public sealed class ScheduledTaskEventActor(IEventActorContext<ScheduledTaskEventActor> context)
-    : BaseEventActor<ScheduledTaskEventActor>(context, ((ScheduledTaskEventContext)context).Logger)
+public sealed class ScheduledTaskEventActor(IEventActorContext<ScheduledTaskEventActor> context, ILogger<ScheduledTaskEventActor> logger)
+    : BaseEventActor<ScheduledTaskEventActor>(context, logger)
 {
     public const string Actor = "ScheduledTaskEvent";
     private readonly ScheduledTaskEventContext _owner = (ScheduledTaskEventContext)context;
@@ -57,54 +57,54 @@ public sealed class ScheduledTaskEventActor(IEventActorContext<ScheduledTaskEven
         [ScheduledTaskRunUncertainRecordedCompleteEvent.Verb] = message => message.AsEvent<ScheduledTaskRunUncertainRecordedCompleteEvent>()!,
         [ScheduledTaskRunUncertainRecordedFailEvent.Verb] = message => message.AsEvent<ScheduledTaskRunUncertainRecordedFailEvent>()!,
     }.ToFrozenDictionary();
-    private static readonly IReadOnlyDictionary<Type, Func<IEvent, ScheduledTaskEventContext, ValueTask>> _receiveMap = new Dictionary<Type, Func<IEvent, ScheduledTaskEventContext, ValueTask>>
+    private static readonly IReadOnlyDictionary<Type, Func<IEvent, ScheduledTaskEventContext, ILogger<ScheduledTaskEventActor>, ValueTask>> _receiveMap = new Dictionary<Type, Func<IEvent, ScheduledTaskEventContext, ILogger<ScheduledTaskEventActor>, ValueTask>>
     {
-        [typeof(ScheduledTaskCreatedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskCreatedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskCreatedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskCreatedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskScheduleChangedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskScheduleChangedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskScheduleChangedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskScheduleChangedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskEnabledCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskEnabledCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskEnabledFailEvent)] = (domainEvent, owner) => ((ScheduledTaskEnabledFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskDisabledCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskDisabledCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskDisabledFailEvent)] = (domainEvent, owner) => ((ScheduledTaskDisabledFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRemovedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRemovedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRemovedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRemovedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskInstallationRecordedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskInstallationRecordedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskInstallationRecordedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskInstallationRecordedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskInstallationFailureRecordedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskInstallationFailureRecordedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskInstallationFailureRecordedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskInstallationFailureRecordedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunAdmittedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunAdmittedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunAdmittedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunAdmittedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunReleasedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunReleasedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunReleasedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunReleasedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskCatalogProjectRegisteredCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskCatalogProjectRegisteredCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskCatalogProjectRegisteredFailEvent)] = (domainEvent, owner) => ((ScheduledTaskCatalogProjectRegisteredFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskCatalogHostCapabilityRecordedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskCatalogHostCapabilityRecordedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunRequestedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunRequestedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunRequestedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunRequestedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunAdmissionRecordedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunAdmissionRecordedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunAdmissionRecordedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunAdmissionRecordedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunStartedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunStartedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunStageRecordedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunStageRecordedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunStartedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunStartedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunStageRecordedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunStageRecordedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunCompletedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunCompletedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunCompletedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunCompletedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunFailedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunFailedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunFailedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunFailedFailEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunUncertainRecordedCompleteEvent)] = (domainEvent, owner) => ((ScheduledTaskRunUncertainRecordedCompleteEvent)domainEvent).ExecuteAsync(owner),
-        [typeof(ScheduledTaskRunUncertainRecordedFailEvent)] = (domainEvent, owner) => ((ScheduledTaskRunUncertainRecordedFailEvent)domainEvent).ExecuteAsync(owner),
+        [typeof(ScheduledTaskCreatedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskCreatedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskCreatedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskCreatedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskScheduleChangedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskScheduleChangedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskScheduleChangedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskScheduleChangedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskEnabledCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskEnabledCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskEnabledFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskEnabledFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskDisabledCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskDisabledCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskDisabledFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskDisabledFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRemovedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRemovedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRemovedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRemovedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskInstallationRecordedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskInstallationRecordedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskInstallationRecordedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskInstallationRecordedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskInstallationFailureRecordedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskInstallationFailureRecordedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskInstallationFailureRecordedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskInstallationFailureRecordedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunAdmittedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunAdmittedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunAdmittedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunAdmittedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunReleasedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunReleasedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunReleasedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunReleasedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskCatalogProjectRegisteredCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskCatalogProjectRegisteredCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskCatalogProjectRegisteredFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskCatalogProjectRegisteredFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskCatalogHostCapabilityRecordedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskCatalogHostCapabilityRecordedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunRequestedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunRequestedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunRequestedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunRequestedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunAdmissionRecordedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunAdmissionRecordedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunAdmissionRecordedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunAdmissionRecordedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunStartedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunStartedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunStageRecordedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunStageRecordedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunStartedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunStartedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunStageRecordedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunStageRecordedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunCompletedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunCompletedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunCompletedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunCompletedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunFailedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunFailedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunFailedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunFailedFailEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunUncertainRecordedCompleteEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunUncertainRecordedCompleteEvent)domainEvent).ExecuteAsync(owner, logger),
+        [typeof(ScheduledTaskRunUncertainRecordedFailEvent)] = static (domainEvent, owner, logger) => ((ScheduledTaskRunUncertainRecordedFailEvent)domainEvent).ExecuteAsync(owner, logger),
     }.ToFrozenDictionary();
     /// <inheritdoc />
     protected override IEvent ParseMessage(IEventActorContext<ScheduledTaskEventActor> context, IActorMessage message) => ParseMappedEvent(context, message, _parseMap);
     /// <inheritdoc />
-    protected override ValueTask ReceiveAsync(IEventActorContext<ScheduledTaskEventActor> context, IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)(@event, _owner);
+    protected override ValueTask ReceiveAsync(IEventActorContext<ScheduledTaskEventActor> context, IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)(@event, _owner, logger);
     /// <inheritdoc />
     protected override ValueTask OnExceptionAsync(IEventActorContext<ScheduledTaskEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
         ArgumentNullException.ThrowIfNull(@event);
-        global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write15(_owner.Logger, ex, nameof(ScheduledTaskEventActor), nameof(OnExceptionAsync), @event.EventName, threadId);
+        global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write15(logger, ex, nameof(ScheduledTaskEventActor), nameof(OnExceptionAsync), @event.EventName, threadId);
         return ValueTask.FromException(ex);
     }
 }

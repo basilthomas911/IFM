@@ -22,7 +22,7 @@ public class DatabaseBackupQueryActor(
         IsArgumentNull.Named(Context as IDatabaseBackupQueryContext, nameof(Context))!;
 
     public const string Actor = "DatabaseBackupQuery";
-    readonly ISystemAdminDbContext _dbContext = Require(actorContext).DbContext;
+    readonly ISystemAdminDbReadContext _dbContext = Require(actorContext).DbContext;
 
     /// <summary>Gets the supported concrete query types.</summary>
     public static IReadOnlyCollection<Type> SupportedQueryTypes =>CachedSupportedQueryTypes.Value;
@@ -51,15 +51,24 @@ public class DatabaseBackupQueryActor(
         await receive(_dbContext, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbReadContext, IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<ISystemAdminDbReadContext, IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
-            [typeof(GetDatabaseBackupOperationQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((GetDatabaseBackupOperationQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
-            [typeof(ListDatabaseBackupOperationsQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((ListDatabaseBackupOperationsQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
-            [typeof(GetLatestVerifiedDatabaseBackupQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((GetLatestVerifiedDatabaseBackupQuery)query).ExecuteAsync(dbContext, context, cancellationToken)
+            [typeof(GetDatabaseBackupOperationQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((GetDatabaseBackupOperationQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(ListDatabaseBackupOperationsQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((ListDatabaseBackupOperationsQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetLatestVerifiedDatabaseBackupQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((GetLatestVerifiedDatabaseBackupQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            }
         };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

@@ -10,12 +10,12 @@ public static class GetTradeEndOfDayDisplay
     extension(GetTradeEndOfDayDisplayQuery query)
     {
         /// <summary>Calculates display amounts only; EOD commands remain position-actor owned.</summary>
-        public async ValueTask ExecuteAsync(ITradeOrderQueryContext context, CancellationToken token)
+        public async ValueTask<ServiceResult<TradeEndOfDayDisplay>> ExecuteAsync(ITradeOrderQueryContext context, CancellationToken token)
         {
             token.ThrowIfCancellationRequested(); ServiceResult<TradeEndOfDayDisplay> response;
             try { response = new ServiceOk<TradeEndOfDayDisplay>(TradeEndOfDayDisplayCompute.Calculate(query.Request)); }
             catch (Exception error) when (error is ArgumentException or OverflowException) { response = new ServiceFailed<TradeEndOfDayDisplay>(400, error.Message); }
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, response).ConfigureAwait(false);
+            return response;
         }
     }
 }

@@ -1,8 +1,6 @@
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Lifecycle.Query.Actor;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Queries;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Lifecycle.Query;
 /// <summary>Reads persisted phase history and authorized retained host output.</summary>
@@ -12,21 +10,18 @@ public static class GetDatabaseBackupLog
     extension(GetDatabaseBackupLogQuery query)
     {
         /// <summary>Checks the persisted operation/source before reading its bounded output page.</summary>
-        public async ValueTask ExecuteAsync(ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupLifecycleQueryActor> context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<DatabaseBackupLogReadModel>> ExecuteAsync(ISystemAdminDbReadContext dbContext, IDatabaseBackupOutputReader? outputReader, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(dbContext);
             ArgumentNullException.ThrowIfNull(query);
             var operation = await (dbContext.GetBackupOperationAsync(new() { OperationId = query.OperationId }, cancellationToken)).ConfigureAwait(false);
             if (operation is null || operation.Source != query.Source)
-            {
-                await (context.ReplyAsync<DatabaseBackupLogReadModel>(query.Subject.ThreadId, query.Subject.Verb, new ServiceFailed<DatabaseBackupLogReadModel>(404, "DatabaseBackup operation was not found for this source."))).ConfigureAwait(false);
-                return;
-            }
+                return new ServiceFailed<DatabaseBackupLogReadModel>(404, "DatabaseBackup operation was not found for this source.");
             var phases = await (dbContext.GetBackupPhasesAsync(query, cancellationToken)).ConfigureAwait(false);
-            var output = (context as IDatabaseBackupLifecycleQueryContext)?.OutputReader is { } reader
-                ? await (reader.ReadAsync(query.Source, operation.OperationId.Value, query.OutputOffset, cancellationToken)).ConfigureAwait(false) : new DatabaseBackupLogReadModel();
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<DatabaseBackupLogReadModel>(output with { Phases = phases }))).ConfigureAwait(false);
+            var output = outputReader is null
+                ? new DatabaseBackupLogReadModel()
+                : await outputReader.ReadAsync(query.Source, operation.OperationId.Value, query.OutputOffset, cancellationToken).ConfigureAwait(false);
+            return new ServiceOk<DatabaseBackupLogReadModel>(output with { Phases = phases });
         }
     }
 }

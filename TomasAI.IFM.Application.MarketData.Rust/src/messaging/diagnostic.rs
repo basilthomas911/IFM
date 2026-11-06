@@ -58,6 +58,42 @@ mod tests {
     use crate::dataset::live::retain_diagnostic;
     use std::collections::VecDeque;
     #[test]
+    #[ignore = "Explicit paired provider diagnostic timing"]
+    fn diagnostic_encoding_before_after_timings() {
+        use sha2::{Digest, Sha256};
+        use std::{hint::black_box, time::Instant};
+        let records: Vec<_> = (0..256).map(|at| Diagnostic {
+            worker: [1; 16], lane: Lane::OptionsGlbx, attempt: 7, observed: at, replaced: 0,
+            event: Event::Error { code: 199, last: true, message: format!("provider recovery {at} {}", "detail ".repeat(20)) },
+        }).collect();
+        let mut pairs = Vec::new();
+        for pair in 0..5 {
+            for before in if pair % 2 == 0 { [true, false] } else { [false, true] } {
+                let mut samples = Vec::new();
+                for iteration in 0..34 {
+                    let started = Instant::now();
+                    for record in &records {
+                        let bytes = encode(record, record.worker).unwrap();
+                        black_box(Sha256::digest(&bytes));
+                        if before {
+                            black_box(encode(record, record.worker).unwrap());
+                        } else {
+                            black_box(bytes);
+                        }
+                    }
+                    if iteration >= 3 {
+                        samples.push(started.elapsed().as_nanos() as u64);
+                    }
+                }
+                samples.sort_unstable();
+                pairs.push(serde_json::json!({"pair":pair,"before":before,"recordsPerSample":records.len(),
+                    "p50Ns":samples[15],"p95Ns":samples[29],"p99Ns":samples[30],"samplesNs":samples}));
+            }
+        }
+        println!("DIAGNOSTIC_ENCODING_PERFORMANCE {}", serde_json::json!(pairs));
+    }
+
+    #[test]
     fn bounded_log_replacement_keeps_latest_full_error_and_exact_loss_count() {
         let mut queue = VecDeque::new();
         for at in 0..1000 {

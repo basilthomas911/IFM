@@ -22,7 +22,7 @@ public class DatabaseBackupRetentionQueryActor(
         IsArgumentNull.Named(Context as IDatabaseBackupRetentionQueryContext, nameof(Context))!;
 
     public const string Actor = "DatabaseBackupRetentionQuery";
-    readonly ISystemAdminDbContext _dbContext = Require(actorContext).DbContext;
+    readonly ISystemAdminDbReadContext _dbContext = Require(actorContext).DbContext;
 
     /// <summary>Gets the supported concrete query types.</summary>
     public static IReadOnlyCollection<Type> SupportedQueryTypes =>CachedSupportedQueryTypes.Value;
@@ -49,11 +49,14 @@ public class DatabaseBackupRetentionQueryActor(
         await receive(_dbContext, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupRetentionQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupRetentionQueryActor>, IQuery, CancellationToken, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbReadContext, IQueryActorContext<DatabaseBackupRetentionQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<ISystemAdminDbReadContext, IQueryActorContext<DatabaseBackupRetentionQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
-            [typeof(GetDatabaseRetentionForecastQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((GetDatabaseRetentionForecastQuery)query).ExecuteAsync(dbContext, context, cancellationToken)
+            [typeof(GetDatabaseRetentionForecastQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((GetDatabaseRetentionForecastQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            }
         };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

@@ -2,8 +2,6 @@ using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries;
-using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Query.Actor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Query;
 /// <summary>Enumerates current open positions solely from persisted ScyllaDB routes and projections.</summary>
@@ -13,10 +11,8 @@ public static class GetScheduledMarketPositions
     extension(GetScheduledMarketPositionsQuery query)
     {
         /// <summary>Reads a bounded route page, resolves current positions and returns the next continuation.</summary>
-        public async ValueTask ExecuteAsync(ITradeDbReadContext store,
-            IQueryActorContext<ScheduledTaskQueryActor> context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<ScheduledMarketPositionPage>> ExecuteAsync(ITradeDbReadContext store, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(store);
             var page = await (store.GetOpenPositionRoutePageAsync(query.PageSize, query.PagingState, cancellationToken)).ConfigureAwait(false);
@@ -27,8 +23,8 @@ public static class GetScheduledMarketPositions
                 var position = await (store.GetStrategyPositionAsync(id, cancellationToken)).ConfigureAwait(false);
                 if (position is { IsOpen: true } && (query.ValueDate == default || position.ValueDate <= query.ValueDate)) positions.Add(position);
             }
-            await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ScheduledMarketPositionPage>(new()
-            { Positions = positions.ToArray(), PagingState = page.PagingState }))).ConfigureAwait(false);
+            return new ServiceOk<ScheduledMarketPositionPage>(new()
+            { Positions = positions.ToArray(), PagingState = page.PagingState });
         }
     }
 }

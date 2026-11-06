@@ -48,6 +48,9 @@ public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, I
         }
     }
 
+    public Task<int> ProjectCompletionPageAsync(CancellationToken token)
+        => journal.ProjectCompletionPageAsync(token);
+
     public async Task<long> ProjectPageAsync(long after, bool synchronize, CancellationToken token)
     {
         var page = await (journal.PageAsync(after, token, RiskHistoryJournal.HistoryProjection)).ConfigureAwait(false);
@@ -66,7 +69,7 @@ public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, I
                 await (SynchronizeAndAcknowledgeAsync(snapshot, token)).ConfigureAwait(false);
         }
 
-        return Advance(after, page.Select(snapshot => snapshot.EventId).ToArray());
+        return page.Count == 0 ? 0 : Advance(after, page.Select(snapshot => snapshot.EventId).ToArray());
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A reconciliation delivery failure is logged without acknowledging it; cancellation propagates and the recovery worker remains available.")]

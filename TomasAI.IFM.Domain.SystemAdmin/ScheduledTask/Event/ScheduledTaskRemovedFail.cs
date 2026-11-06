@@ -13,13 +13,14 @@ public static class ScheduledTaskRemovedFail
     {
         /// <summary>Dispatches committed desired work or observes its explicit projection outcome.</summary>
         ///
-        /// <param name="context">Readonly durable transport and logging services.</param>
+        /// <param name="context">The event actor context.</param>
+        /// <param name="logger">The owning actor logger.</param>
         /// <returns>The bounded notification dispatch operation.</returns>
-        public ValueTask ExecuteAsync(ScheduledTaskEventContext context)
+        public ValueTask ExecuteAsync(ScheduledTaskEventContext context, ILogger<ScheduledTaskEventActor> logger)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(source);
-            global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write17(context.Logger, null, nameof(ScheduledTaskRemovedFail), nameof(ExecuteAsync), source.EventName, source.EntityId.Format(), source.CommandId, source.ErrorMessage);
+            global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write17(logger, null, nameof(ScheduledTaskRemovedFail), nameof(ExecuteAsync), source.EventName, source.EntityId.Format(), source.CommandId, source.ErrorMessage);
             return ValueTask.CompletedTask;
         }
     }

@@ -10,12 +10,12 @@ public static class GetTradeOrder
 
     extension(GetTradeOrderQuery query)
     {
-        public async ValueTask ExecuteAsync(ITradeOrderQueryContext context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<TradeOrderDefinition?>> ExecuteAsync(ITradeOrderQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             var value = await context.DbFactory.TradeDb.GetTradeOrderAsync(query.TradeOrderId, cancellationToken).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<TradeOrderDefinition?>(value)).ConfigureAwait(false);
+            return new ServiceResult<TradeOrderDefinition?>(value);
         }
     }
 }

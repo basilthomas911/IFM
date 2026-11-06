@@ -13,10 +13,6 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor
 /// <summary>Defines readonly services owned by the Intrinsic Time Strategy Workflow Command actor.</summary>
 public interface IIntrinsicTimeStrategyWorkflowCommandContext : ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>
 {
-    Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi PortfolioQueries => throw new InvalidOperationException("Portfolio queries are not configured.");
-
-    Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi => throw new InvalidOperationException("Portfolio financial API is not configured.");
-
     /// <summary>Gets the EventSourceDb context.</summary>
     IEventSourceActorDbContext DbEventSource { get; }
 

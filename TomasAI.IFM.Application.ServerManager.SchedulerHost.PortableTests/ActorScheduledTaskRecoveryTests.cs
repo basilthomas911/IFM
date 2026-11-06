@@ -2,8 +2,11 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Queries;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Hosting;
+using Npgsql;
 using NSubstitute;
 using Quartz;
+using TomasAI.IFM.Application.ServerManager.Contracts;
 using TomasAI.IFM.Application.ServerManager.SchedulerHost;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
@@ -13,6 +16,52 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Application.ServerManager.SchedulerHost.PortableTests;
 public sealed class ActorScheduledTaskRecoveryTests
 {
+    [SchedulerPostgresFact]
+    public async Task A_stale_duplicate_manual_trigger_does_not_submit_commands_or_launch_a_process()
+    {
+        var fire = new DateTimeOffset(2026, 10, 7, 22, 1, 0, TimeSpan.Zero);
+        var scheduleId = new ScheduledTaskId(Guid.NewGuid());
+        var runId = new ScheduledTaskId(Guid.NewGuid());
+        var operationId = Guid.NewGuid();
+        var options = new SchedulerHostOptions { SchedulerName = $"duplicate-trigger-{Guid.NewGuid():N}" };
+        options.TaskCatalog.Add(new() { TaskKey = ScheduledTaskKeys.FuturesMarketOpen });
+        await using var dataSource = NpgsqlDataSource.Create(Environment.GetEnvironmentVariable("IFM_SCHEDULER_TEST_PG")!);
+        await using var ownership = new SchedulerOwnershipLease(dataSource, options);
+        await ownership.AcquireAsync(CancellationToken.None);
+        var context = Substitute.For<IJobExecutionContext>();
+        context.MergedJobDataMap.Returns(new JobDataMap
+        {
+            [ScheduledTaskExecutionService.ScheduleDefinitionIdData] = scheduleId.Format(),
+            [ActorScheduleRuntime.DefinitionRevisionData] = "2",
+            [ScheduledTaskExecutionService.TaskKeyData] = ScheduledTaskKeys.FuturesMarketOpen,
+            [ScheduledTaskExecutionService.OriginData] = ScheduledRunOrigin.Manual.ToString(),
+            [ScheduledTaskExecutionService.RunIdData] = runId.Format(),
+            ["intendedFireUtc"] = fire.ToString("O"),
+            ["operationCommandId"] = operationId.ToString("D"),
+            ["runAlreadyRequested"] = "true"
+        });
+        var commands = Substitute.For<IScheduledTaskCommandApi>();
+        var queries = Substitute.For<IScheduledTaskQueryApi>();
+        queries.GetScheduledTaskRunAsync(Arg.Any<GetScheduledTaskRunQuery>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<ScheduledTaskRun>(new()
+            {
+                Id = runId, ScheduleId = scheduleId, OperationCommandId = operationId,
+                Manual = true, Status = ScheduledTaskRunStatus.Succeeded
+            }));
+        var active = new ActiveRunRegistry();
+        var coordinator = new ActorScheduledTaskRunCoordinator(options, ownership, new(options, dataSource),
+            new(options, NullLogger<ScheduledProcessRunner>.Instance), new(options, Substitute.For<IHttpClientFactory>()),
+            active, Substitute.For<IHostApplicationLifetime>(), commands, queries, NullLogger<ActorScheduledTaskRunCoordinator>.Instance);
+
+        await coordinator.ExecuteAsync(context);
+
+        await queries.Received(1).GetScheduledTaskRunAsync(
+            Arg.Is<GetScheduledTaskRunQuery>(query => query.EntityId == runId && query.ScheduleId == scheduleId &&
+                query.IntendedFireTimeUtc == fire), Arg.Any<CancellationToken>());
+        Assert.Empty(commands.ReceivedCalls());
+        Assert.False(active.Contains(runId.Value));
+    }
+
     [Theory]
     [InlineData(ScheduledTaskRunStatus.Succeeded, true, false)]
     [InlineData(ScheduledTaskRunStatus.Failed, true, false)]

@@ -188,7 +188,91 @@ fn reference() -> ifm_market_data_native::option_chain::context::Context {
     )
     .unwrap()
 }
+fn selection() -> Vec<serde_json::Value> {
+    use ifm_market_data_native::option_chain::{browser_window as browser, candidates};
+    let token = CancellationToken::new();
+    let mut samples = Vec::new();
+    for count in [128, 1024, 2048] {
+        let ids: Vec<_> = (0..count).map(|id| format!("ES-{id:04}")).collect();
+        let rows: Vec<_> = ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| browser::Row {
+                contract: id,
+                strike: (4000 + i) as f64,
+                kind: if i % 2 == 0 { "Call" } else { "Put" },
+            })
+            .collect();
+        let required = Default::default();
+        samples.push(measure(&format!("browser-nearest-{count}"), 16, || {
+            for _ in 0..16 {
+                black_box(
+                    browser::select(
+                        &rows,
+                        Some(decimal(4500)),
+                        browser::Method::Bollinger {
+                            deviation: None,
+                            multiplier: 2.,
+                        },
+                        &required,
+                        &token,
+                        Deadline::recovery(),
+                    )
+                    .unwrap(),
+                );
+            }
+        }));
+        let range = candidates::Range {
+            minimum: decimal(0),
+            target: Decimal {
+                bits: [25, 0, 0, 2 << 16],
+            },
+            maximum: decimal(1),
+        };
+        let policy = candidates::Policy {
+            put: range,
+            call: range,
+            put_widths: vec![decimal(10)],
+            call_widths: vec![decimal(10)],
+            age: 1000,
+            skew: 1000,
+            size: 1,
+            spread: decimal(5),
+            maximum: 8,
+        };
+        let candidates: Vec<_> = ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| candidates::Candidate {
+                id,
+                underlying: "ES",
+                expiration: AT + 10_000_000,
+                strike: decimal(4000 + i as u64),
+                call: i % 2 == 0,
+                delta: Some((i % 50) as f64 / 100.),
+                until: Some(AT + 10_000_000),
+                quote: Some(quote(100)),
+                future: Some(quote(4500)),
+            })
+            .collect();
+        samples.push(measure(&format!("candidate-top-eight-{count}"), 16, || {
+            for _ in 0..16 {
+                let result =
+                    candidates::select(&candidates, &policy, AT, &token, Deadline::recovery())
+                        .unwrap();
+                assert!(!result.is_empty());
+                black_box(result);
+            }
+        }));
+    }
+    samples
+}
+
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--selection") {
+        println!("{}", serde_json::json!(selection()));
+        return;
+    }
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

@@ -140,6 +140,8 @@ public sealed class TestableMarketDataFeedCommandActor(
     : MarketDataFeedCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext<MarketDataFeedCommandActor> context) => OnStartup(context);
+    public ValueTask<ICommand> InvokeResolveCommandAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ICommand command)
+        => ResolveCommandAsync(context, command, CancellationToken.None);
     public ICommand InvokeParseMessage(ICommandActorContext<MarketDataFeedCommandActor> context, NatsMsg<byte[]> message) => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<MarketDataFeedCommandActor> context, IActorState state, ICommand command)
         => ReceiveAsync(context, state, command);

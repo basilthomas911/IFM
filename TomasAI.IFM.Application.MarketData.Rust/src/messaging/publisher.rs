@@ -158,6 +158,11 @@ struct Packet {
     _charge: OwnedSemaphorePermit,
 }
 
+pub(crate) struct PreparedFrame {
+    subject: String,
+    pub(crate) bytes: Vec<u8>,
+}
+
 /// One bounded publication lane with explicit worker/socket lifetime.
 pub struct Publisher {
     incoming: mpsc::Sender<Packet>,
@@ -386,6 +391,19 @@ impl Publisher {
         self.try_packet(subject, bytes, None)
     }
 
+    /// Encodes the immutable frame once, so bounded admission can be retried
+    /// without repeating MessagePack framing or compression.
+    pub(crate) fn prepare_frame(&self, frame: &Frame) -> Result<PreparedFrame, &'static str> {
+        Ok(PreparedFrame {
+            subject: frame.subject(&self.scope)?,
+            bytes: frame.encode()?,
+        })
+    }
+
+    pub(crate) fn try_prepared_frame(&self, frame: &mut PreparedFrame) -> Result<(), &'static str> {
+        self.try_packet_owned(&mut frame.subject, &mut frame.bytes, None)
+    }
+
     /// Publishes one copied prepared-chain chunk on the existing cache subject.
     /// Use a dedicated cache writer: its flush count must not share actor IDs.
     ///
@@ -480,14 +498,22 @@ impl Publisher {
         value: &crate::dataset::live::Diagnostic,
         worker: [u8; 16],
     ) -> Result<(), &'static str> {
-        let role = if value.lane == crate::dataset::transport::Lane::OptionsGlbx {
+        self.try_diagnostic_bytes(value.lane, super::diagnostic::encode(value, worker)?)
+    }
+
+    pub(crate) fn try_diagnostic_bytes(
+        &self,
+        lane: crate::dataset::transport::Lane,
+        bytes: Vec<u8>,
+    ) -> Result<(), &'static str> {
+        let role = if lane == crate::dataset::transport::Lane::OptionsGlbx {
             "Options"
         } else {
             "Futures"
         };
         self.try_packet(
             format!("ifm.{}.marketdata.v1.diagnostics.{role}", self.scope),
-            super::diagnostic::encode(value, worker)?,
+            bytes,
             self.reply.clone(),
         )
     }
@@ -536,8 +562,17 @@ impl Publisher {
 
     fn try_packet(
         &self,
-        subject: String,
-        bytes: Vec<u8>,
+        mut subject: String,
+        mut bytes: Vec<u8>,
+        reply: Option<String>,
+    ) -> Result<(), &'static str> {
+        self.try_packet_owned(&mut subject, &mut bytes, reply)
+    }
+
+    fn try_packet_owned(
+        &self,
+        subject: &mut String,
+        bytes: &mut Vec<u8>,
         reply: Option<String>,
     ) -> Result<(), &'static str> {
         if self.stopping.is_cancelled() || self.status.borrow().stopped {
@@ -551,14 +586,15 @@ impl Publisher {
             .clone()
             .try_acquire_many_owned(bytes.len() as u32)
             .map_err(|_| "Native publication byte capacity exceeded")?;
-        self.incoming
-            .try_send(Packet {
-                subject,
-                bytes,
-                reply,
-                _charge: charge,
-            })
-            .map_err(|_| "Native publication queue unavailable")
+        let slot = self.incoming.try_reserve()
+            .map_err(|_| "Native publication queue unavailable")?;
+        slot.send(Packet {
+            subject: std::mem::take(subject),
+            bytes: std::mem::take(bytes),
+            reply,
+            _charge: charge,
+        });
+        Ok(())
     }
 
     /// Borrows only a copied queue port; explicit shutdown retains sole task
@@ -787,5 +823,60 @@ impl Drop for Publisher {
         // The run loop observes this signal while waiting on connect, queue,
         // publish or flush and explicitly joins both core broker workers. A
         // tracked parent's wait remains occupied through that cleanup.
+    }
+}
+
+
+#[cfg(test)]
+mod prepared_frames {
+    use super::*;
+    use crate::dataset::transport::Lane;
+
+    fn frame(sequence: i64) -> Frame {
+        Frame {
+            lane: Lane::FuturesGlbx,
+            value_date: 739915,
+            worker: [1; 16],
+            generation: [2; 16],
+            manifest_revision: 1,
+            sequence,
+            kind: 1,
+            payload: vec![0xc0; 256],
+        }
+    }
+
+    #[test]
+    fn full_queue_preserves_prepared_wire_bytes_and_releases_the_byte_charge() {
+        let (incoming, mut outgoing) = mpsc::channel(1);
+        let maximum_bytes = 4096;
+        let publisher = Publisher {
+            incoming,
+            bytes: Arc::new(Semaphore::new(maximum_bytes)),
+            maximum_bytes,
+            stopping: CancellationToken::new(),
+            task: None,
+            status: watch::channel(Status::default()).1,
+            scope: "test".into(),
+            reply: None,
+        };
+        let first = frame(1);
+        publisher.try_publish(&first).unwrap();
+        let second = frame(2);
+        let mut prepared = publisher.prepare_frame(&second).unwrap();
+        let expected_bytes = second.encode().unwrap();
+        let expected_subject = second.subject("test").unwrap();
+        let charge = publisher.retained_bytes();
+        assert_eq!(publisher.try_prepared_frame(&mut prepared), Err("Native publication queue unavailable"));
+        assert_eq!(publisher.retained_bytes(), charge);
+        assert_eq!(prepared.bytes, expected_bytes);
+        assert_eq!(prepared.subject, expected_subject);
+        assert_eq!(outgoing.try_recv().unwrap().bytes, first.encode().unwrap());
+        publisher.try_prepared_frame(&mut prepared).unwrap();
+        assert!(prepared.bytes.is_empty());
+        let submitted = outgoing.try_recv().unwrap();
+        assert_eq!(submitted.bytes, expected_bytes);
+        assert_eq!(submitted.subject, expected_subject);
+        drop(submitted);
+        assert_eq!(publisher.retained_bytes(), 0);
     }
 }

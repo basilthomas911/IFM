@@ -22,7 +22,7 @@ public class DatabaseBackupLifecycleQueryActor(
         IsArgumentNull.Named(Context as IDatabaseBackupLifecycleQueryContext, nameof(Context))!;
 
     public const string Actor = "DatabaseBackupLifecycleQuery";
-    readonly ISystemAdminDbContext _dbContext = Require(actorContext).DbContext;
+    readonly ISystemAdminDbReadContext _dbContext = Require(actorContext).DbContext;
 
     /// <summary>Gets the supported concrete query types.</summary>
     public static IReadOnlyCollection<Type> SupportedQueryTypes =>CachedSupportedQueryTypes.Value;
@@ -49,11 +49,14 @@ public class DatabaseBackupLifecycleQueryActor(
         await receive(_dbContext, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupLifecycleQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseBackupLifecycleQueryActor>, IQuery, CancellationToken, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbReadContext, IQueryActorContext<DatabaseBackupLifecycleQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<ISystemAdminDbReadContext, IQueryActorContext<DatabaseBackupLifecycleQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
-            [typeof(GetDatabaseBackupLogQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((GetDatabaseBackupLogQuery)query).ExecuteAsync(dbContext, context, cancellationToken)
+            [typeof(GetDatabaseBackupLogQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((GetDatabaseBackupLogQuery)query).ExecuteAsync(dbContext, (context as IDatabaseBackupLifecycleQueryContext)?.OutputReader, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            }
         };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

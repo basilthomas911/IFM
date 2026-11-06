@@ -54,7 +54,7 @@ public sealed partial class NativeMarketDataRuntime
     async Task DiscardHistoricalReadersAsync(){HistoricalOwner[] readers;lock(gate){readers=historyReaders.Values.ToArray();foreach(var reader in readers){reader.CancelInput();NativeMarketDataLibrary.Check(library.HistoryReaderClose(handle.Identity,reader.Operation),"discard historical reader");reader.Pulse.Writer.TryComplete();reader.InputPulse.Writer.TryComplete();}historyReaders.Clear();}await Task.WhenAll(readers.Select(x=>x.JoinInputAsync())).ConfigureAwait(false);}
     unsafe (int Count,bool Ended) DrainHistorical(ulong operation,NativeHistoricalRecord[] output)
     {
-        lock(gate){EnsureLiveAccess();uint count,ended;fixed(NativeHistoricalRecord* rows=output)NativeMarketDataLibrary.Check(library.HistoryRecords(handle.Identity,operation,rows,4096,out count,out ended),"read historical rows");if(count>4096||ended>1)throw new InvalidDataException("Malformed native historical batch.");return((int)count,ended==1);}
+        lock(gate){EnsureLiveAccess();uint count,ended;fixed(NativeHistoricalRecord* rows=output)NativeMarketDataLibrary.Check(library.HistoryRecords(handle.Identity,operation,rows,(uint)output.Length,out count,out ended),"read historical rows");if(count>output.Length||ended>1)throw new InvalidDataException("Malformed native historical batch.");return((int)count,ended==1);}
     }
     sealed class HistoricalReader(NativeMarketDataRuntime runtime,ulong operation,Task completed,int maximum,TimeSpan budget,CancellationToken operationToken):IHistoricalRecordReader,HistoricalOwner
     {
@@ -62,7 +62,10 @@ public sealed partial class NativeMarketDataRuntime
         public Channel<byte> Pulse{get;}=Channel.CreateBounded<byte>(new BoundedChannelOptions(1){FullMode=BoundedChannelFullMode.DropWrite,SingleReader=true,AllowSynchronousContinuations=false});
         public Channel<byte> InputPulse{get;}=Channel.CreateBounded<byte>(new BoundedChannelOptions(1){FullMode=BoundedChannelFullMode.DropWrite,SingleReader=true,AllowSynchronousContinuations=false});
         Task? input;
-        readonly Queue<NativeHistoricalRecord> rows=new(4096);
+        // Each reader owns its native output buffer. Refill only after the
+        // previous rows have been converted to independent managed records.
+        readonly NativeHistoricalRecord[] rows=new NativeHistoricalRecord[Math.Min(maximum,4096)];
+        int nextRow, availableRows;
         readonly SemaphoreSlim serial=new(1,1);
         readonly CancellationTokenSource stopping=new();
         readonly long started=Stopwatch.GetTimestamp();
@@ -92,14 +95,13 @@ public sealed partial class NativeMarketDataRuntime
         async Task<bool> Available(CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            while(rows.Count==0){
+            while(nextRow==availableRows){
                 token.ThrowIfCancellationRequested();if(input is{IsFaulted:true} failedInput)await failedInput.ConfigureAwait(false);if(completed.IsCanceled&&input is{} canceledInput){var remaining=budget-Stopwatch.GetElapsedTime(started);await canceledInput.WaitAsync(remaining>TimeSpan.Zero?remaining:TimeSpan.Zero,token).ConfigureAwait(false);}
                 if(completed.IsFaulted||completed.IsCanceled)await completed.ConfigureAwait(false);
                 if(ended){await completed.ConfigureAwait(false);if(input is{} source)await source.ConfigureAwait(false);return false;}
-                var buffer=ArrayPool<NativeHistoricalRecord>.Shared.Rent(4096);
-                try{var batch=runtime.DrainHistorical(operation,buffer);ended=batch.Ended;for(var i=0;i<batch.Count;i++)rows.Enqueue(buffer[i]);}
-                finally{ArrayPool<NativeHistoricalRecord>.Shared.Return(buffer,true);}
-                if(rows.Count>0)return true;
+                (availableRows,ended)=runtime.DrainHistorical(operation,rows);
+                nextRow=0;
+                if(availableRows>0)return true;
                 if(!ended)try{await Pulse.Reader.ReadAsync(token).ConfigureAwait(false);}catch(ChannelClosedException){await completed.ConfigureAwait(false);throw new ObjectDisposedException(nameof(HistoricalReader));}
             }return true;
         }
@@ -111,7 +113,7 @@ public sealed partial class NativeMarketDataRuntime
             try{
                 ObjectDisposedException.ThrowIf(stopping.IsCancellationRequested,this);if(finished)return null;
                 var result=new List<HistoricalProviderRecord>(maximum);
-                while(result.Count<maximum&&await Available(token).ConfigureAwait(false))result.Add(Convert(rows.Dequeue()));
+                while(result.Count<maximum&&await Available(token).ConfigureAwait(false))result.Add(Convert(in rows[nextRow++]));
                 finished=!await Available(token).ConfigureAwait(false);
                 var next=checked(ordinal++);return new(result.ToArray(),next,next.ToString(CultureInfo.InvariantCulture),finished);
             }finally{serial.Release();}
@@ -127,12 +129,19 @@ public sealed partial class NativeMarketDataRuntime
             remaining=budget-Stopwatch.GetElapsedTime(started);if(remaining<TimeSpan.Zero)remaining=TimeSpan.Zero;
             try{await completed.WaitAsync(remaining).ConfigureAwait(false);}catch when(completed.IsCompleted){_=completed.Exception;}
         }
-        static unsafe HistoricalProviderRecord Convert(NativeHistoricalRecord row)
+        static unsafe HistoricalProviderRecord Convert(in NativeHistoricalRecord row)
         {
             if(row.Size!=120||row.Abi!=1||row.Kind is not(2 or 3))throw new InvalidDataException("Malformed native historical row.");
-            for(var i=0;i<6;i++)if(row.Reserved[i]!=0)throw new InvalidDataException("Historical reserved bytes are nonzero.");
-            var length=0;while(length<32&&row.Symbol[length]!=0)length++;
-            return new(){Kind=(HistoricalProviderRecordKind)row.Kind,Symbol=Encoding.UTF8.GetString(new ReadOnlySpan<byte>(row.Symbol,length)),InstrumentId=row.Instrument.ToString(CultureInfo.InvariantCulture),PublisherId=row.Publisher.ToString(CultureInfo.InvariantCulture),EventTimestampUtc=DateTimeOffset.UnixEpoch.AddTicks(row.Event/100L),SourceSequence=row.Sequence,Open=row.Open/1_000_000_000m,High=row.High/1_000_000_000m,Low=row.Low/1_000_000_000m,CloseOrPrice=row.Price/1_000_000_000m,VolumeOrSize=checked((long)row.Quantity),Action=row.Action==(byte)'T'?NormalizedTradeAction.New:NormalizedTradeAction.Unknown,Side=row.Side==(byte)'B'?NormalizedTradeSide.Buy:row.Side==(byte)'A'?NormalizedTradeSide.Sell:NormalizedTradeSide.Unknown,Conditions=(NormalizedTradeConditionFlags)row.Conditions};
+            fixed(byte* reserved=row.Reserved)
+                for(var i=0;i<6;i++)if(reserved[i]!=0)throw new InvalidDataException("Historical reserved bytes are nonzero.");
+            string rawSymbol;
+            fixed(byte* symbol=row.Symbol)
+            {
+                var length=0;
+                while(length<32&&symbol[length]!=0)length++;
+                rawSymbol=Encoding.UTF8.GetString(new ReadOnlySpan<byte>(symbol,length));
+            }
+            return new(){Kind=(HistoricalProviderRecordKind)row.Kind,Symbol=rawSymbol,InstrumentId=row.Instrument.ToString(CultureInfo.InvariantCulture),PublisherId=row.Publisher.ToString(CultureInfo.InvariantCulture),EventTimestampUtc=DateTimeOffset.UnixEpoch.AddTicks(row.Event/100L),SourceSequence=row.Sequence,Open=row.Open/1_000_000_000m,High=row.High/1_000_000_000m,Low=row.Low/1_000_000_000m,CloseOrPrice=row.Price/1_000_000_000m,VolumeOrSize=checked((long)row.Quantity),Action=row.Action==(byte)'T'?NormalizedTradeAction.New:NormalizedTradeAction.Unknown,Side=row.Side==(byte)'B'?NormalizedTradeSide.Buy:row.Side==(byte)'A'?NormalizedTradeSide.Sell:NormalizedTradeSide.Unknown,Conditions=(NormalizedTradeConditionFlags)row.Conditions};
         }
     }
 }

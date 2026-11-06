@@ -13,11 +13,13 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class MarketDataApiNatsContractTests
 {
+    private static string BrokerUrl => Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_NATS_URL") ?? "nats://127.0.0.1:4222";
+
     [Fact(Timeout = 15000)]
     public async Task Existing_API_supports_nullable_owner_and_polymorphic_result_over_real_NATS()
     {
         await using var connections = new NatsConnectionManager();
-        var connection = new MarketDataHostConnection(connections, "nats://127.0.0.1:4222", "apitest" + Guid.NewGuid().ToString("N"));
+        var connection = new MarketDataHostConnection(connections, BrokerUrl, "apitest" + Guid.NewGuid().ToString("N"));
         var backend = Substitute.For<IMarketDataApi>();
         var owner = new TickerStreamOwner("Test", "1", "put");
         backend.StartStreamingFuturesTickDataAsync("ES", owner).Returns(true);
@@ -52,7 +54,7 @@ public sealed class MarketDataApiNatsContractTests
     public async Task Historical_availability_boundary_and_unsupported_null_cross_real_NATS()
     {
         await using var connections = new NatsConnectionManager();
-        var connection = new MarketDataHostConnection(connections, "nats://127.0.0.1:4222", "availabilitytest" + Guid.NewGuid().ToString("N"));
+        var connection = new MarketDataHostConnection(connections, BrokerUrl, "availabilitytest" + Guid.NewGuid().ToString("N"));
         var backend = Substitute.For<IMarketDataApi>();
         var request = new TomasAI.IFM.Application.MarketData.Contracts.Historical.MarketDataHistoricalRequest {
             DataLoadAttemptId = Guid.NewGuid(), Series = [], StartDate = new(2025,10,28), EndDate = new(2026,10,28),

@@ -14,6 +14,7 @@ var count=100000;var overlap=false;var hold=false;object?[]? lastDefinitionQuery
 var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 var securities=Proxy.Create<ISecuritiesDbContext>((method,input)=>method.Name switch{
     "GetOptionContractExpiriesAsync"=>ReadExpiries(),
+    "ReadPublishedOptionDefinitionsAsync"=>ReadRange(input),
     "GetCachedOptionContractDefinitionsAsync"=>Read(input),
     _=>throw new InvalidDataException("Unexpected storage operation: "+method.Name)
 });
@@ -21,6 +22,16 @@ Task<IReadOnlyList<OptionContractExpiryReadModel>> ReadExpiries(){expiryReads++;
     ?[new(){Symbol="ES",ContractId="ES20261218",ExpiryDate=new(2026,11,10)},new(){Symbol="ES",ContractId="ES20261218",ExpiryDate=new(2026,11,11)}]
     :[new(){Symbol="ES",ContractId="ES20261218",ExpiryDate=new(2026,11,10)}]);}
 async Task<IReadOnlyList<CachedOptionContractDefinitionReadModel>> Read(object?[]? input){lastDefinitionQuery=input;if(hold){entered.TrySetResult();await release.Task;}return new Rows(overlap && input?[2] is DateOnly expiry && expiry.Day==11 ? model with{StrikePrice=model.StrikePrice+1}:model,count);}
+async IAsyncEnumerable<CachedOptionContractDefinitionReadModel> ReadRange(object?[]? input)
+{
+    var token = (CancellationToken)input![5]!;
+    foreach (var expiry in await ReadExpiries())
+    {
+        token.ThrowIfCancellationRequested();
+        foreach (var row in await Read([input[0], expiry.ContractId, expiry.ExpiryDate, input[4], token]))
+            yield return row;
+    }
+}
 var factory=Proxy.Create<IDbContextFactory>((method,input)=>method.Name=="get_SecuritiesDb"?securities:throw new InvalidDataException("Unexpected database access."));
 var source=new NativeDefinitionFacts(factory);
 var paging=new TomasAI.IFM.Application.MarketData.Rust.Persistence.NativeReferenceStorage(new ReferenceFacts(source));

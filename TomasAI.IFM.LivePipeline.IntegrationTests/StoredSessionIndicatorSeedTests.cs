@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.Api.Server.Core.Startup.Application;
@@ -79,13 +80,15 @@ public sealed class StoredSessionIndicatorSeedTests
         var db = Substitute.For<IDbContextFactory>();
         var market = Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>();
         var windows = RsiHistoricalSeedWindowModel.Create(frame, 48, now, calendar);
-        foreach (var window in windows)
-        {
-            var saved = StoredSessionIndicatorSeedReader.Aggregate(contract, frame, window, now,
-                [Row(100m, 1, 1, window.StartUtc.AddMinutes(1)) with { ValueDate = window.ValueDate }])!;
-            db.MarketDataDb.GetStoredTradeSessionBarAsync(contract, frame, window.ValueDate, window.EndUtc, Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel?>(saved));
-        }
+        var saved = windows.Select(window => StoredSessionIndicatorSeedReader.Aggregate(contract, frame, window, now,
+            [Row(100m, 1, 1, window.StartUtc.AddMinutes(1)) with { ValueDate = window.ValueDate }])!).ToArray();
+        db.MarketDataDb.GetStoredTradeSessionBarsAsync(contract, frame, Arg.Any<DateOnly>(), Arg.Any<DateTimeOffset[]>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult<IReadOnlyList<FuturesTradeSessionBarReadModel>>(saved
+                .Where(bar => call.Arg<DateTimeOffset[]>().Contains(bar.IntervalEndUtc)).ToArray()));
+        db.MarketDataDb.GetStoredTradeSessionBarAsync(contract, frame, Arg.Any<DateOnly>(), Arg.Any<DateTimeOffset>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => saved.Single(bar => bar.IntervalEndUtc == call.Arg<DateTimeOffset>()));
 
         var restarted = new StoredSessionIndicatorSeedReader(db, calendar, new Clock(now), NullLogger<StoredSessionIndicatorSeedReader>.Instance, market);
         var restored = await restarted.ReadAsync(contract, frame, 48, default);
@@ -118,6 +121,48 @@ public sealed class StoredSessionIndicatorSeedTests
 
     static readonly DateOnly Date = new(2026, 11, 4);
     static readonly DateTimeOffset Start = new(2026, 11, 4, 0, 0, 0, TimeSpan.Zero);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Adjacent_short_intervals_keep_each_original_read_boundary(bool includesLegacyRow)
+    {
+        const string contract = "ES20261218";
+        var now = Start.AddHours(15).AddMinutes(30);
+        var calendar = new CmeFuturesMarketSessionCalendar();
+        var windows = RsiHistoricalSeedWindowModel.Create(TimeFrameType.OneMinute, 4, now, calendar);
+        var db = Substitute.For<IDbContextFactory>();
+        var ticks = Substitute.For<ITradeTickQuoteDbContext>();
+        db.TradeTickQuoteDb.Returns(ticks);
+        var rows = windows.Select((window, index) => Row(100m, 1, index + 1, window.StartUtc.AddSeconds(10)) with
+        {
+            AggregationTimeUtc = TimeOnly.FromDateTime(window.StartUtc.UtcDateTime.AddSeconds(20))
+        }).Append(Row(999m, 1, 5, windows[0].StartUtc.AddSeconds(15)) with
+        {
+            AggregationTimeUtc = includesLegacyRow ? null : TimeOnly.FromDateTime(windows[^1].StartUtc.UtcDateTime)
+        }).ToArray();
+        ticks.GetRawFuturesTradeWindowAsync(contract, Date, new TimeOnly(15, 25), new TimeOnly(15, 31), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<BootstrapTradeRow>>(rows));
+        if (includesLegacyRow)
+        {
+            for (var index = 0; index < windows.Length; index++)
+            {
+                var window = windows[index];
+                var lower = TimeOnly.FromDateTime(window.StartUtc.UtcDateTime.AddMinutes(-1));
+                var upper = TimeOnly.FromDateTime(window.EndUtc.UtcDateTime.AddMinutes(1));
+                ticks.GetRawFuturesTradeWindowAsync(contract, Date, lower, upper, Arg.Any<CancellationToken>())
+                    .Returns(Task.FromResult<IReadOnlyList<BootstrapTradeRow>>([rows[index]]));
+            }
+        }
+
+        var reader = new StoredSessionIndicatorSeedReader(db, calendar, new Clock(now), NullLogger<StoredSessionIndicatorSeedReader>.Instance);
+        var bars = await reader.ReadAsync(contract, TimeFrameType.OneMinute, 4, default);
+
+        Assert.Equal(4, bars.Length);
+        Assert.All(bars, bar => { Assert.Equal(1, bar.TradeCount); Assert.Equal(100m, bar.High); });
+        await ticks.Received(includesLegacyRow ? 5 : 1).GetRawFuturesTradeWindowAsync(contract, Date,
+            Arg.Any<TimeOnly>(), Arg.Any<TimeOnly>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public void Aggregation_preserves_original_ohlcv_and_lineage_without_duplicate_or_outside_trades()

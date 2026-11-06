@@ -22,7 +22,7 @@ public class DatabaseRecoveryQueryActor(
         IsArgumentNull.Named(Context as IDatabaseRecoveryQueryContext, nameof(Context))!;
 
     public const string Actor = "DatabaseRecoveryQuery";
-    readonly ISystemAdminDbContext _dbContext = Require(actorContext).DbContext;
+    readonly ISystemAdminDbReadContext _dbContext = Require(actorContext).DbContext;
 
     /// <summary>Gets the supported concrete query types.</summary>
     public static IReadOnlyCollection<Type> SupportedQueryTypes =>CachedSupportedQueryTypes.Value;
@@ -55,23 +55,44 @@ public class DatabaseRecoveryQueryActor(
         await receive(_dbContext, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseRecoveryQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<ISystemAdminDbContext, IQueryActorContext<DatabaseRecoveryQueryActor>, IQuery, CancellationToken, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<ISystemAdminDbReadContext, IQueryActorContext<DatabaseRecoveryQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<ISystemAdminDbReadContext, IQueryActorContext<DatabaseRecoveryQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
-            [typeof(ListDatabaseRestorePointsQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((ListDatabaseRestorePointsQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
-            [typeof(GetDatabaseRestorePointQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((GetDatabaseRestorePointQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
-            [typeof(GetLatestRestoreTestedDatabaseBackupQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((GetLatestRestoreTestedDatabaseBackupQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
-            [typeof(GetDatabaseRecoveryObjectiveComplianceQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((GetDatabaseRecoveryObjectiveComplianceQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
-            [typeof(GetDatabaseRestoreOperationQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((GetDatabaseRestoreOperationQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
-            [typeof(ListDatabaseRestoreDrillsQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((ListDatabaseRestoreDrillsQuery)query).ExecuteAsync(dbContext, context, cancellationToken),
-            [typeof(GetDatabaseRecoveryRunStatsQuery)] = static (dbContext, context, query, cancellationToken) =>
-                ((GetDatabaseRecoveryRunStatsQuery)query).ExecuteAsync(dbContext, context, cancellationToken)
+            [typeof(ListDatabaseRestorePointsQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((ListDatabaseRestorePointsQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetDatabaseRestorePointQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((GetDatabaseRestorePointQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetLatestRestoreTestedDatabaseBackupQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((GetLatestRestoreTestedDatabaseBackupQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetDatabaseRecoveryObjectiveComplianceQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((GetDatabaseRecoveryObjectiveComplianceQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetDatabaseRestoreOperationQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((GetDatabaseRestoreOperationQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(ListDatabaseRestoreDrillsQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((ListDatabaseRestoreDrillsQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            },
+            [typeof(GetDatabaseRecoveryRunStatsQuery)] = static async (dbContext, context, query, cancellationToken) =>
+            {
+                var result = await ((GetDatabaseRecoveryRunStatsQuery)query).ExecuteAsync(dbContext, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+            }
         };
 
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =

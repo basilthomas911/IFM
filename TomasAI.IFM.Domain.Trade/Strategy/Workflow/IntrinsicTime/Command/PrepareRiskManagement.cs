@@ -15,7 +15,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
-/// <summary>Queries authoritative services and commits a complete fifth-stage invocation before its notification can dispatch.</summary>
+/// <summary>Validates prepared evidence and commits a complete fifth-stage invocation before dispatch.</summary>
 public static class PrepareRiskManagement
 {
 
@@ -40,22 +40,22 @@ public static class PrepareRiskManagement
         /// <param name = "context">The authorized workflow services, clock, and logger.</param>
         /// <param name = "state">The authoritative workflow state.</param>
         /// <returns>The command acceptance or rejection.</returns>
-        public async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
+        public ValueTask<ServiceResult<GuidResult>> ExecuteAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(state);
             var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
-            var preparationResult = await PrepareWorkflowAsync(command, context, preparation).ConfigureAwait(false);
+            var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
-                return preparationResult;
+                return ValueTask.FromResult(preparationResult);
             var errorMsg = "IntrinsicTimeStrategyWorkflow.STATE.APPLY_FAILED: unable to apply PrepareRiskManagement event";
             var updated = command.Compute(preparation.Freeze(), out var workflowTransition) switch
             {
                 _ when workflowTransition.RejectionReason is not null => command.UpdateFailed(ref errorMsg, workflowTransition.RejectionReason),
                 _ => state.Update(command.CreateWorkflowLifecycleEvents(workflowTransition), command)
             };
-            return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
+            return ValueTask.FromResult<ServiceResult<GuidResult>>(updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg));
         }
 
         /// <summary>Prepares immutable workflow changes while preserving deadline, stale-result, and financial-read ordering.</summary>
@@ -63,14 +63,14 @@ public static class PrepareRiskManagement
         /// <param name = "context">The authorized actor services and logging context.</param>
         /// <param name = "state">The authoritative state or local preparation snapshot, as declared by the method.</param>
         /// <returns>The prepared business result or command acceptance.</returns>
-        internal async ValueTask<ServiceResult<GuidResult>> PrepareWorkflowAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
+        internal ServiceResult<GuidResult> PrepareWorkflow(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
         {
             using var trace = WorkflowTrace.Source.StartActivity("risk.prepare");
             trace?.SetTag("ifm.workflow.id", command.WorkflowId.ToString());
             trace?.SetTag("ifm.workflow.entity", command.EntityId.Format());
             try
             {
-                return await PrepareAsync(command, context, state).ConfigureAwait(false);
+                return Prepare(command, context, state);
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
@@ -104,12 +104,12 @@ public static class PrepareRiskManagement
     /// <param name = "context">The authorized actor services and logging context.</param>
     /// <param name = "state">The authoritative state or local preparation snapshot, as declared by the method.</param>
     /// <returns>The prepared business result or command acceptance.</returns>
-    static async ValueTask<ServiceResult<GuidResult>> PrepareAsync(PrepareRiskManagementCommand command, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
+    static ServiceResult<GuidResult> Prepare(PrepareRiskManagementCommand command, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
     {
         using var timing_risk_prepare_current_view = WorkflowTrace.Start("risk.prepare.current_view", null);
         var current = state.CurrentView;
         timing_risk_prepare_current_view?.Stop();
-        if (current is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.RiskManagement } || current.WorkflowId != command.WorkflowId || current.WorkflowRevision != command.InputWorkflowRevision || current.RiskExecution is not null)
+        if (current is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.RiskManagement } || current.WorkflowId != command.WorkflowId || current.WorkflowRevision != command.InputWorkflowRevision || current.RiskExecution is not null || command.EvidenceCollected != true)
             return new ServiceOk<GuidResult>(new(command.CommandId));
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
         using var timing_risk_prepare_candidate_decode = WorkflowTrace.Start("risk.prepare.candidate_decode", current);
@@ -117,20 +117,16 @@ public static class PrepareRiskManagement
         timing_risk_prepare_candidate_decode?.Stop();
         var deployment = current.SelectionBinding!.CatalogDefinitions.Single(x => x.Key == candidate.DeploymentKey);
         var reference = deployment.PipelineParameters.SingleOrDefault(x => x.Kind == CatalogPipelineParameterKind.RiskManagement) ?? throw new RiskCalculationException("RM.CONFIG.MISSING");
-        using var timing_risk_prepare_policy_read = WorkflowTrace.Start("risk.prepare.policy_read", current);
-        var row = await context.DbFactory.ConfigurationDb.GetSelectionPipelinePolicyAsync(reference.Kind, reference.Id, reference.Version).ConfigureAwait(false) ?? throw new RiskCalculationException("RM.CONFIG.MISSING");
-        timing_risk_prepare_policy_read?.Stop();
+        var row = command.Policy ?? throw new RiskCalculationException("RM.CONFIG.MISSING");
         TradeSelectionContracts.ValidatePipelinePolicy(row);
-        RiskUnitModel.Require(string.Equals(row.PayloadSha256, reference.Hash, StringComparison.Ordinal) && row.Status == CatalogLifecycleStatus.Published && row.EffectiveFromUtc is not null && row.EffectiveFromUtc <= now && !(row.RetiredAtUtc <= now), "RM.CONFIG.NOT_EFFECTIVE");
+        RiskUnitModel.Require(row.Kind == reference.Kind && row.Id == reference.Id && row.Version == reference.Version
+            && string.Equals(row.PayloadSha256, reference.Hash, StringComparison.Ordinal) && row.Status == CatalogLifecycleStatus.Published
+            && row.EffectiveFromUtc is not null && row.EffectiveFromUtc <= now && !(row.RetiredAtUtc <= now), "RM.CONFIG.NOT_EFFECTIVE");
         var policy = RiskParameterSet.Read(row.PayloadJson);
-        var owner = (IIntrinsicTimeStrategyWorkflowCommandContext)context;
-        using var timing_risk_prepare_admission_read = WorkflowTrace.Start("risk.prepare.admission_read", current);
-        var financial = await owner.FinancialApi.GetFinancialAdmissionSnapshotAsync(new() { PortfolioId = candidate.PortfolioId, FundId = candidate.FundId, Access = new("IntrinsicTimeStrategyWorkflow", ["LedgerRead"], [candidate.PortfolioId]) }, new(candidate.DeploymentKey, FinancialScopeKeys.Underlying(candidate.Product.Symbol, candidate.Product.Exchange, candidate.Product.Currency))).ConfigureAwait(false);
-        timing_risk_prepare_admission_read?.Stop();
-        RiskUnitModel.Require(financial.Success && financial.Value is not null, "RM.AUTHORITY.UNAVAILABLE");
-        now = context.TimeProvider.GetUtcNow().UtcDateTime;
+        var financial = command.Financial ?? throw new RiskCalculationException("RM.AUTHORITY.UNAVAILABLE");
         using var timing_risk_prepare_build_request = WorkflowTrace.Start("risk.prepare.build_request", current);
-        var request = RiskPreparation.Create(current, policy, financial.Value!, command.CommandId, now);
+        var request = RiskPreparation.Create(current, policy, financial, RiskPreparation.FunctionInvocationId(command.CommandId),
+            now, command.EvidenceCollectedAtUtc);
         timing_risk_prepare_build_request?.Stop();
         var next = current with
         {

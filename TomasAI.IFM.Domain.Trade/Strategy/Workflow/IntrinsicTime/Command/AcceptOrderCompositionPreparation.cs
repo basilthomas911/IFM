@@ -1,4 +1,6 @@
-using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.MarketData.Pricing;
+using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
@@ -12,7 +14,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
-/// <summary>Verifies Scylla evidence, then appends one workflow event containing the complete saved dispatch.</summary>
+/// <summary>Validates the committed market evidence supplied by the producer and records the complete dispatch.</summary>
 public static class AcceptOrderCompositionPreparation
 {
 
@@ -24,27 +26,34 @@ public static class AcceptOrderCompositionPreparation
     /// </param>
     extension(AcceptOrderCompositionPreparationCommand command)
     {
+        /// <summary>Allows retry of an audited request whose workflow transition never committed.</summary>
+        public ValueTask<bool> ResumeAfterAuditAsync(CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(true);
+        }
+
         /// <summary>Prepares the workflow decision, validates its immutable changes, and applies the source events.</summary>
         ///
         /// <param name = "context">The authorized workflow services, clock, and logger.</param>
         /// <param name = "state">The authoritative workflow state.</param>
         /// <returns>The command acceptance or rejection.</returns>
-        public async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
+        public ValueTask<ServiceResult<GuidResult>> ExecuteAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(state);
             var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
-            var preparationResult = await PrepareWorkflowAsync(command, context, preparation).ConfigureAwait(false);
+            var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
-                return preparationResult;
+                return ValueTask.FromResult(preparationResult);
             var errorMsg = "IntrinsicTimeStrategyWorkflow.STATE.APPLY_FAILED: unable to apply AcceptOrderCompositionPreparation event";
             var updated = command.Compute(preparation.Freeze(), out var workflowTransition) switch
             {
                 _ when workflowTransition.RejectionReason is not null => command.UpdateFailed(ref errorMsg, workflowTransition.RejectionReason),
                 _ => state.Update(command.CreateWorkflowLifecycleEvents(workflowTransition), command)
             };
-            return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
+            return ValueTask.FromResult<ServiceResult<GuidResult>>(updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg));
         }
 
         /// <summary>Prepares immutable workflow changes while preserving deadline, stale-result, and financial-read ordering.</summary>
@@ -52,7 +61,7 @@ public static class AcceptOrderCompositionPreparation
         /// <param name = "context">The authorized actor services and logging context.</param>
         /// <param name = "state">The authoritative state or local preparation snapshot, as declared by the method.</param>
         /// <returns>The prepared business result or command acceptance.</returns>
-        internal async ValueTask<ServiceResult<GuidResult>> PrepareWorkflowAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
+        internal ServiceResult<GuidResult> PrepareWorkflow(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
         {
             using var timing_composer_accept_current_view = WorkflowTrace.Start("composer.accept.current_view", null);
             var current = state.CurrentView;
@@ -60,9 +69,10 @@ public static class AcceptOrderCompositionPreparation
             if (current is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.OrderComposition } || current.WorkflowId != command.WorkflowId || current.WorkflowRevision != command.InputWorkflowRevision || current.CompositionDispatch is not null)
                 return new ServiceOk<GuidResult>(new(command.CommandId));
             using var acceptanceTrace = WorkflowTrace.Start("composer.acceptance", current);
-            using var timing_composer_accept_preparation_read = WorkflowTrace.Start("composer.accept.preparation_read", current);
-            var prepared = await context.DbFactory.MarketDataDb.DbReader.ReadAsync(CompositionPreparationAcceptance.Key(current), default).ConfigureAwait(false) ?? throw new InvalidDataException("Market preparation has not been durably saved.");
-            timing_composer_accept_preparation_read?.Stop();
+            if (command.PreparedMarketPayload is not { Length: > 0 and < TradeSelectionContracts.MaximumTransportBytes } payload)
+                throw new InvalidDataException("Committed market preparation payload is unavailable or too large.");
+            var prepared = MessagePackBinarySerializer.Shared.Deserialize<CompositionPreparation>(payload)
+                ?? throw new InvalidDataException("Committed market preparation payload is invalid.");
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;
             if (now >= current.ExpiresAtUtc)
                 throw new InvalidDataException("Workflow expired before composition acceptance.");

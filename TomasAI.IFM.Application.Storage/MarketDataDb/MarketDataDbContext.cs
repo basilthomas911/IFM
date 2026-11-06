@@ -3910,21 +3910,36 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         DateOnly valueDate, DateTimeOffset intervalEndUtc, CancellationToken cancellationToken = default)
         => this.Database.Use(nameof(MarketDataDbSql.GetStoredTradeSessionBar), MarketDataDbSql.GetStoredTradeSessionBar)
             .SetParameters(new StoredTradeSessionBarKey(contractId, frame, valueDate, intervalEndUtc))
-            .ExecuteSingleAsync<FuturesTradeSessionBarReadModel?>(row => new()
-            {
-                MarketSeriesIdentity = MarketSeriesIdentity.ForContract(contractId), ContractId = contractId,
-                TimeFrame = frame, ValueDate = valueDate, ObservationId = new(row.GetGuid(0)),
-                IntervalStartUtc = new(DateTime.SpecifyKind(row.GetDateTime(1), DateTimeKind.Utc)),
-                IntervalEndUtc = new(DateTime.SpecifyKind(row.GetDateTime(2), DateTimeKind.Utc)),
-                Open = row.GetDecimal(3), High = row.GetDecimal(4), Low = row.GetDecimal(5), Close = row.GetDecimal(6),
-                Volume = row.GetDecimal(7), TradeCount = row.GetLong(8), PriceVolumeSum = row.GetDecimal(9),
-                FirstSourceSequence = row.GetLong(10), LastSourceSequence = row.GetLong(11),
-                FirstMarketEventUtc = new(DateTime.SpecifyKind(row.GetDateTime(12), DateTimeKind.Utc)),
-                LastMarketEventUtc = new(DateTime.SpecifyKind(row.GetDateTime(13), DateTimeKind.Utc)),
-                CalculatedAtUtc = new(DateTime.SpecifyKind(row.GetDateTime(14), DateTimeKind.Utc)),
-                SchemaVersion = checked((ushort)row.GetInt(15)), CalculationVersion = row.GetString(16),
-                CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate, IsComplete = true, IsValid = true
-            }, cancellationToken);
+            .ExecuteSingleAsync<FuturesTradeSessionBarReadModel?>(row => MapStoredTradeSessionBar(row, contractId, frame, valueDate), cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> GetStoredTradeSessionBarsAsync(string contractId,
+        TimeFrameType frame, DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(intervalEndsUtc);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(intervalEndsUtc.Length, 64);
+        if (intervalEndsUtc.Length == 0) return [];
+        return (await this.Database.Use(nameof(MarketDataDbSql.GetStoredTradeSessionBars), MarketDataDbSql.GetStoredTradeSessionBars)
+            .SetParameters(new StoredTradeSessionBarKeys(contractId, frame, valueDate, intervalEndsUtc))
+            .ExecuteQueryAsync(row => MapStoredTradeSessionBar(row, contractId, frame, valueDate), cancellationToken).ConfigureAwait(false)).ToArray();
+    }
+
+    static FuturesTradeSessionBarReadModel MapStoredTradeSessionBar(IObjectDataRecord row, string contractId,
+        TimeFrameType frame, DateOnly valueDate) => new()
+    {
+        MarketSeriesIdentity = MarketSeriesIdentity.ForContract(contractId), ContractId = contractId,
+        TimeFrame = frame, ValueDate = valueDate, ObservationId = new(row.GetGuid(0)),
+        IntervalStartUtc = new(DateTime.SpecifyKind(row.GetDateTime(1), DateTimeKind.Utc)),
+        IntervalEndUtc = new(DateTime.SpecifyKind(row.GetDateTime(2), DateTimeKind.Utc)),
+        Open = row.GetDecimal(3), High = row.GetDecimal(4), Low = row.GetDecimal(5), Close = row.GetDecimal(6),
+        Volume = row.GetDecimal(7), TradeCount = row.GetLong(8), PriceVolumeSum = row.GetDecimal(9),
+        FirstSourceSequence = row.GetLong(10), LastSourceSequence = row.GetLong(11),
+        FirstMarketEventUtc = new(DateTime.SpecifyKind(row.GetDateTime(12), DateTimeKind.Utc)),
+        LastMarketEventUtc = new(DateTime.SpecifyKind(row.GetDateTime(13), DateTimeKind.Utc)),
+        CalculatedAtUtc = new(DateTime.SpecifyKind(row.GetDateTime(14), DateTimeKind.Utc)),
+        SchemaVersion = checked((ushort)row.GetInt(15)), CalculationVersion = row.GetString(16),
+        CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate, IsComplete = true, IsValid = true
+    };
 
     /// <inheritdoc />
     public async ValueTask<bool> TryWriteObservationAsync(FuturesTradeSessionBarReadModel observation, CancellationToken cancellationToken)

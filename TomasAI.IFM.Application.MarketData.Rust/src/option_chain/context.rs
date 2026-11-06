@@ -202,6 +202,16 @@ impl Context {
     pub fn valid_until(&self) -> i64 {
         self.valid_until
     }
+    pub(crate) fn validation_reuse_until(&self, at: i64) -> i64 {
+        // UTC dates and IANA offset transitions change only at whole seconds.
+        // An exchange rollover with fractional seconds must be checked afresh.
+        if !self.calendar.has_whole_second_rollover() {
+            return at;
+        }
+        let next_second = at.saturating_add(10_000_000 - at.rem_euclid(10_000_000));
+        self.valid_until.min(next_second)
+    }
+
     /// Exact current engine name, including its historical Managed version suffix.
     pub fn engine(&self) -> &'static str {
         self.contract.engine()

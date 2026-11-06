@@ -940,6 +940,21 @@ impl Coordinator {
             .map(|(id, scope)| (id.clone(), scope.clone()))
             .collect())
     }
+    /// Copies only the named scope when it still has an active claim.
+    pub(crate) fn active_scope(&self, id: &str) -> Result<Option<Scope>, String> {
+        let state = self.inner.state.lock()
+            .map_err(|_| "Native business claim state interrupted")?;
+        Ok(state.claims.contains(id).then(|| state.scopes.get(id).cloned()).flatten())
+    }
+
+    /// Finds the first active single-option monitoring scope in scope-key order.
+    pub(crate) fn active_single_monitor_scope(&self, instrument: u32) -> Result<Option<String>, String> {
+        let state = self.inner.state.lock()
+            .map_err(|_| "Native business claim state interrupted")?;
+        Ok(state.scopes.iter().find(|(id, scope)| {
+            scope.options.len() == 1 && scope.monitored.contains(&instrument) && state.claims.contains(id)
+        }).map(|(id, _)| id.clone()))
+    }
     /// Copied active scope names for diagnostics; this does not renew any claim.
     pub fn active(&self) -> Result<BTreeSet<String>, String> {
         Ok(self

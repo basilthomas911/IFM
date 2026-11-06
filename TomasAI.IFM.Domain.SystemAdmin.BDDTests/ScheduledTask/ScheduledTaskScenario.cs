@@ -35,9 +35,9 @@ internal sealed class ScheduledTaskScenario
     internal Guid OperationId { get; } = Guid.NewGuid();
     internal DateTimeOffset Fire => Now.AddSeconds(-10);
     internal string TaskKey { get; }
-    internal ScheduledTaskCommandState DefinitionState { get; } = new();
-    internal ScheduledTaskRunCommandState RunState { get; } = new();
-    internal ScheduledTaskCatalogCommandState CatalogState { get; } = new();
+    internal ScheduledTaskCommandState DefinitionState { get; private set; } = new();
+    internal ScheduledTaskRunCommandState RunState { get; private set; } = new();
+    internal ScheduledTaskCatalogCommandState CatalogState { get; private set; } = new();
     internal ScheduledTaskDefinition Definition => DefinitionState.ScheduledTaskDefinition!;
     internal ScheduledTaskRun Run => RunState.ScheduledTaskRun!;
     internal ScheduledTaskCatalog Catalog => CatalogState.ScheduledTaskCatalog!;
@@ -84,6 +84,21 @@ internal sealed class ScheduledTaskScenario
     internal ScheduledTaskScenario GivenRequestedRun() { Assert.True(Send(RequestRun()).Success); return this; }
     internal ScheduledTaskScenario GivenAdmittedRun() { GivenRequestedRun(); Assert.True(Send(RunAdmission()).Success); return this; }
     internal ScheduledTaskScenario GivenRunningRun() { GivenAdmittedRun(); Assert.True(Send(Start()).Success); return this; }
+
+    internal void RestartFromRecordedEvents()
+    {
+        DefinitionState = Restore(DefinitionState);
+        RunState = Restore(RunState);
+        CatalogState = Restore(CatalogState);
+
+        static TState Restore<TState>(TState previous) where TState : BaseEventSourceActorState<TState>, new()
+        {
+            var restored = new TState { Id = previous.Id };
+            restored.ReplayEvents(previous.Events.Select(source => (IEvent)MessagePackSerializer.Deserialize(source.GetType(),
+                MessagePackSerializer.Serialize(source.GetType(), source))!));
+            return restored;
+        }
+    }
 
     // Every scenario enters through the public concrete handler after deserializing its message.
     internal ServiceResult<GuidResult> Send(ICommand<ScheduledTaskId> command)

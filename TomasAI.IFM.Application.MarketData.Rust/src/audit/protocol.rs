@@ -15,6 +15,8 @@ pub struct Record {
     pub operation: String,
     /// Ordered fact number.
     pub sequence: u64,
+    /// Optional occurrence time retained for pending-age diagnostics.
+    pub(crate) occurred_ticks: Option<i64>,
 }
 impl Record {
     /// Validates retained files as rigorously as newly captured facts.
@@ -52,6 +54,10 @@ impl Record {
             .as_u64()
             .filter(|s| *s > 0)
             .ok_or("Invalid audit sequence")?;
+        let occurred_ticks = value["OccurredAtUtc"]
+            .as_str()
+            .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
+            .and_then(|at| at.timestamp_nanos_opt().map(|ns| ns / 100));
         let digest = format!("{:x}", Sha256::digest(payload.as_bytes()));
         Ok(Self {
             payload,
@@ -59,6 +65,7 @@ impl Record {
             id,
             operation,
             sequence,
+            occurred_ticks,
         })
     }
     /// Fresh attempt envelope. Occurrence time is never substituted for attempt time.

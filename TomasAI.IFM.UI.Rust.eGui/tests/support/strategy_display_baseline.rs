@@ -149,14 +149,46 @@ pub fn row(registry: &Registry, wire: &Value, action: u32) -> Result<Json, Strin
         let display = match (processing, decision) {
             ("Processing", _) => "Processing",
             ("Completed", "Proceed") => "Continued",
+            ("Completed", "Stop") if resolved == "NoTrade" => "No Trade",
             ("Completed", "Stop") => "Stopped",
             ("Completed", _) => "Processing",
             _ => "Stopped",
         };
-        let mut accessible = format!("{name}: {processing}; continuation {decision}");
+        let mut accessible = if display == "No Trade" {
+            let mut heading = format!("{name}: No Trade");
+            let mut reasons: Vec<_> = stage["ContinuationReasonCodes"].as_array()
+                .into_iter().flatten().filter_map(|code| code.as_str()).collect();
+            if name == &"Market Condition" && reasons.is_empty() {
+                reasons.extend(view["StopReasonCode"].as_str().filter(|code| !code.is_empty()));
+            }
+            if reasons.first() == Some(&"MC.ASSESSMENT.INHERITED_NO_NEW_TRADE") {
+                reasons.extend(view["RegimeDiscovery"]["Result"]["RegimeResult"]["Volatility"]["Reasons"]
+                    .as_array().into_iter().flatten().filter_map(|reason| reason["Code"].as_str()));
+                heading.push_str("\nReason: Regime Discovery blocked new trades.");
+                if reasons.contains(&"RD.VOL.BACKWARDATION") {
+                    heading.push_str(" VX futures were in backwardation.");
+                }
+                if reasons.contains(&"RD.VOL.EXTREME") {
+                    heading.push_str(" Volatility was extreme.");
+                } else if reasons.contains(&"RD.VOL.HIGH") {
+                    heading.push_str(" Volatility was high.");
+                }
+            } else if !reasons.is_empty() {
+                heading.push_str("\nReason: ");
+                heading.push_str(&reasons.join(", "));
+            }
+            heading
+        } else {
+            format!("{name}: {processing}; continuation {decision}")
+        };
         for (key, label) in [("CompletedAtUtc", "completed"), ("FailedAtUtc", "failed")] {
             if !stage[key].is_null() {
-                accessible.push_str(&format!("; {label} {}", time_text(&stage[key])?));
+                let at = time_text(&stage[key])?;
+                if display == "No Trade" && label == "completed" {
+                    accessible.push_str(&format!("\nCompleted: {at}"));
+                } else {
+                    accessible.push_str(&format!("; {label} {at}"));
+                }
             }
         }
         if !stage["Failure"].is_null() {

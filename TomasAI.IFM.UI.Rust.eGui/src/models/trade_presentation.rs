@@ -67,6 +67,62 @@ pub struct WorkspaceTabRow {
     pub active: bool,
 }
 
+/// Formats a tab caption from the established composition and its latest leg expiry.
+pub(crate) fn loaded_trade_tab_title(
+    order_id: i32,
+    trade_id: i32,
+    trade_type: &str,
+    trade: &EstablishedTradeDefinition,
+) -> String {
+    use std::fmt::Write;
+
+    let mut title = format!("{order_id}:{trade_id}");
+    let Some(legs) = trade.legs.as_deref().filter(|legs| !legs.is_empty()) else {
+        return title;
+    };
+    let strategy = trade.strategy_kind.as_ref().map(TradeStrategyKind::label);
+    let trade_type = if trade_type.is_empty() {
+        strategy.as_deref().unwrap_or("Trade")
+    } else {
+        trade_type
+    };
+    let strike = |right, long| {
+        let mut matches = legs.iter().filter(|leg| {
+            leg.put_call == Some(right)
+                && leg
+                    .signed_quantity
+                    .is_some_and(|qty| if long { qty > 0 } else { qty < 0 })
+        });
+        let value = matches.next().and_then(|leg| leg.strike.as_ref());
+        if matches.next().is_some() {
+            None
+        } else {
+            value.map(DecimalText::as_str)
+        }
+    };
+    let strikes = [
+        strike(1, true),
+        strike(1, false),
+        strike(2, false),
+        strike(2, true),
+    ];
+    let _ = write!(title, " {trade_type}");
+    if strikes.iter().any(Option::is_some) {
+        let [lc, sc, sp, lp] = strikes.map(|value| value.unwrap_or("—"));
+        let _ = write!(title, "={lc}:{sc}|{sp}:{lp}");
+    }
+    // Match EstablishedTradeDefinition.MaturityDate. An incomplete expiry
+    // list cannot establish a maturity date.
+    let maturity = legs.iter().try_fold(chrono::NaiveDate::MIN, |latest, leg| {
+        let expiry = chrono::NaiveDate::parse_from_str(leg.expiry.as_ref()?.as_str(), "%Y-%m-%d").ok()?;
+        Some(latest.max(expiry))
+    });
+    if let Some(maturity) = maturity {
+        let _ = write!(title, " {}", maturity.format("%y-%b-%d"));
+    }
+    title
+}
+
 /// Every retained monitor row has a concrete schema; arbitrary documents are not accepted.
 #[derive(Clone, Debug, Default)]
 pub enum TradeDisplayRow {
@@ -720,4 +776,42 @@ impl Cells for TradeInfoRow<'_> {
 pub trait PublishedIdentity {
     /// Checks that the published identity contains the required nonempty identifiers.
     fn published_is_valid(&self) -> bool;
+}
+
+#[cfg(test)]
+mod loaded_tab_tests {
+    use super::*;
+
+    #[test]
+    fn caption_uses_signed_leg_roles_exact_strikes_and_latest_expiry() {
+        let mut trade = EstablishedTradeDefinition {
+            legs: Some(vec![
+                leg(2, 1, "5800", "2026-11-20"),
+                leg(1, -2, "6050.25", "2026-11-20"),
+                leg(2, -2, "5850", "2026-11-20"),
+                leg(1, 1, "6100", "2026-11-27"),
+            ]),
+            ..Default::default()
+        };
+        assert_eq!(
+            loaded_trade_tab_title(1901, 1501, "ShortIronCondor", &trade),
+            "1901:1501 ShortIronCondor=6100:6050.25|5850:5800 26-Nov-27"
+        );
+
+        trade.legs.as_mut().unwrap()[0].expiry = None;
+        assert_eq!(
+            loaded_trade_tab_title(1901, 1501, "ShortIronCondor", &trade),
+            "1901:1501 ShortIronCondor=6100:6050.25|5850:5800"
+        );
+    }
+
+    fn leg(right: u8, quantity: i32, strike: &str, expiry: &str) -> TradeLegDefinition {
+        TradeLegDefinition {
+            put_call: Some(right),
+            signed_quantity: Some(quantity),
+            strike: Some(DecimalText(strike.into())),
+            expiry: Some(DateText(expiry.into())),
+            ..Default::default()
+        }
+    }
 }

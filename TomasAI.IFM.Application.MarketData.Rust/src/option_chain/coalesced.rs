@@ -156,6 +156,8 @@ pub struct IvObservation {
     pub at: i64,
 }
 type Iv = IvObservation;
+type PricingBatch = Vec<(u32, u128, Arc<Context>, Quote, Option<Iv>)>;
+
 struct Entry {
     reference: Option<Arc<super::context::Context>>,
     manifest: Option<Arc<super::manifest::Manifest>>,
@@ -171,11 +173,40 @@ struct Entry {
 struct State {
     entries: BTreeMap<u32, Entry>,
     memberships: Option<[Arc<Vec<u32>>; 2]>,
+    reference_validation: Option<ReferenceValidation>,
     selection_cursor: usize,
     risk_cursor: usize,
     observations: u64,
     selections: u64,
     solves: u64,
+}
+struct ReferenceValidation {
+    checked_at: i64,
+    reuse_until: i64,
+    valid_until: i64,
+}
+impl State {
+    fn reference_window(&mut self, at: i64) -> (bool, i64) {
+        if let Some(previous) = &self.reference_validation
+            && at >= previous.checked_at && at < previous.reuse_until
+        {
+            return (true, previous.valid_until);
+        }
+        let mut valid = true;
+        let mut valid_until = i64::MAX;
+        let mut reuse_until = i64::MAX;
+        for reference in self.entries.values().filter_map(|entry| entry.reference.as_deref()) {
+            valid &= reference.validate_at(at).is_ok();
+            valid_until = valid_until.min(reference.valid_until());
+            reuse_until = reuse_until.min(reference.validation_reuse_until(at));
+        }
+        self.reference_validation = valid.then_some(ReferenceValidation {
+            checked_at: at,
+            reuse_until,
+            valid_until,
+        });
+        (valid, valid_until)
+    }
 }
 /// Bounded native option scheduler state. It does not create detached tasks;
 /// the enclosing dataset owner drives sweeps using its tracked cancellation.
@@ -187,8 +218,8 @@ pub struct Coalesced {
     iv_ticks: i64,
     policy: [u64; 4],
     state: Mutex<State>,
-    selection_pass: AsyncMutex<()>,
-    risk_pass: AsyncMutex<()>,
+    selection_pass: AsyncMutex<PricingBatch>,
+    risk_pass: AsyncMutex<PricingBatch>,
     changes: tokio::sync::watch::Sender<u64>,
     reference_updates: tokio::sync::watch::Sender<u64>,
     reference_incident: Mutex<Option<Deadline>>,
@@ -233,14 +264,15 @@ impl Coalesced {
             state: Mutex::new(State {
                 entries: BTreeMap::new(),
                 memberships: None,
+                reference_validation: None,
                 selection_cursor: 0,
                 risk_cursor: 0,
                 observations: 0,
                 selections: 0,
                 solves: 0,
             }),
-            selection_pass: AsyncMutex::new(()),
-            risk_pass: AsyncMutex::new(()),
+            selection_pass: AsyncMutex::new(Vec::with_capacity(batch)),
+            risk_pass: AsyncMutex::new(Vec::with_capacity(batch)),
             changes: tokio::sync::watch::channel(0).0,
             reference_updates: tokio::sync::watch::channel(0).0,
             reference_incident: Mutex::new(None),
@@ -300,6 +332,7 @@ impl Coalesced {
             );
         }
         state.memberships = None;
+        state.reference_validation = None;
         Ok(())
     }
     /// Event-driven demand to rebuild expired native reference assumptions.
@@ -344,19 +377,9 @@ impl Coalesced {
     }
     /// Bounded complete reference status and next explicit validity boundary.
     pub fn reference_window(&self, at: i64) -> Result<(bool, i64), &'static str> {
-        let state = self
-            .state
-            .lock()
-            .map_err(|_| "Option registry writer interrupted")?;
-        let mut valid = true;
-        let mut until = i64::MAX;
-        for entry in state.entries.values() {
-            if let Some(reference) = &entry.reference {
-                valid &= reference.validate_at(at).is_ok();
-                until = until.min(reference.valid_until());
-            }
-        }
-        Ok((valid, until))
+        Ok(self.state.lock()
+            .map_err(|_| "Option registry writer interrupted")?
+            .reference_window(at))
     }
     /// Detached immutable-context fences for one complete native refresh.
     pub fn context_identities(&self) -> Result<BTreeMap<u32, u128>, &'static str> {
@@ -402,6 +425,7 @@ impl Coalesced {
             return Err("Native reference does not match numerical context");
         }
         entry.reference = Some(reference);
+        state.reference_validation = None;
         Ok(())
     }
     /// Atomically refreshes the entire qualified reference batch. Every compare,
@@ -537,6 +561,7 @@ impl Coalesced {
             entry.selection = None;
             entry.risk = None;
         }
+        state.reference_validation = None;
         self.changes
             .send_modify(|version| *version = version.saturating_add(1));
         Ok(())
@@ -771,6 +796,7 @@ impl Coalesced {
         {
             state.entries.remove(&instrument);
             state.memberships = None;
+            state.reference_validation = None;
         }
         Ok(())
     }
@@ -1212,21 +1238,16 @@ impl Coalesced {
         } else {
             &self.selection_pass
         };
-        let _pass = deadline
+        let mut batch = deadline
             .run(token, pass.lock())
             .await
             .map_err(|_| "Option pricing interrupted")?;
-        let batch = {
+        {
             let mut state = self
                 .state
                 .lock()
                 .map_err(|_| "Option registry writer interrupted")?;
-            if state.entries.values().any(|entry| {
-                entry
-                    .reference
-                    .as_ref()
-                    .is_some_and(|r| r.validate_at(at).is_err())
-            }) {
+            if !state.reference_window(at).0 {
                 self.begin_reference_recovery()?;
                 self.reference_updates
                     .send_modify(|version| *version = version.saturating_add(1));
@@ -1259,19 +1280,16 @@ impl Coalesced {
             let start = *cursor % ids.len();
             let count = maximum.min(ids.len());
             *cursor = (start + count) % ids.len();
-            (0..count)
-                .filter_map(|i| {
-                    let id = ids[(start + i) % ids.len()];
-                    let entry = &state.entries[&id];
-                    entry
-                        .quote
-                        .map(|quote| (id, entry.physical, entry.context.clone(), quote, entry.iv))
-                })
-                .collect::<Vec<_>>()
-        };
+            batch.extend((0..count).filter_map(|i| {
+                let id = ids[(start + i) % ids.len()];
+                let entry = &state.entries[&id];
+                entry.quote.map(|quote| (id, entry.physical, entry.context.clone(), quote, entry.iv))
+            }));
+        }
         // One coherent copied observation per underlying within this bounded batch.
         let mut underlyings = BTreeMap::new();
-        for (id, physical, context, option, prior_iv) in &batch {
+        let count = batch.len();
+        for (id, physical, context, option, prior_iv) in batch.drain(..) {
             let observed = match underlyings.entry(context.underlying) {
                 std::collections::btree_map::Entry::Occupied(entry) => *entry.get(),
                 std::collections::btree_map::Entry::Vacant(entry) => {
@@ -1283,9 +1301,9 @@ impl Coalesced {
                     .state
                     .lock()
                     .map_err(|_| "Option registry writer interrupted")?;
-                if let Some(entry) = state.entries.get_mut(id)
-                    && entry.physical == *physical
-                    && Arc::ptr_eq(&entry.context, context)
+                if let Some(entry) = state.entries.get_mut(&id)
+                    && entry.physical == physical
+                    && Arc::ptr_eq(&entry.context, &context)
                 {
                     entry.selection = None;
                     entry.risk = None;
@@ -1295,10 +1313,10 @@ impl Coalesced {
             let source = observed.unwrap_or_default();
             let mut value = Calculation {
                 context: context.identity,
-                source_generation: *physical,
+                source_generation: physical,
                 at,
                 underlying: source,
-                option: *option,
+                option,
                 iv_event: None,
                 iv: None,
                 time: 0.0,
@@ -1307,10 +1325,10 @@ impl Coalesced {
                 failure: if observed.is_none() {
                     Some(Failure::UnderlyingUnavailable)
                 } else {
-                    invalid(context, source, *option, at)
+                    invalid(&context, source, option, at)
                 },
             };
-            let mut iv = *prior_iv;
+            let mut iv = prior_iv;
             let mut solved = false;
             let mut selected = false;
             if value.failure.is_none() {
@@ -1348,7 +1366,7 @@ impl Coalesced {
                                     event: option.event,
                                     volatility: result.volatility,
                                     underlying: source,
-                                    option: *option,
+                                    option,
                                     at,
                                 })
                             }
@@ -1391,9 +1409,9 @@ impl Coalesced {
             if selected {
                 state.selections = state.selections.saturating_add(1)
             }
-            if let Some(entry) = state.entries.get_mut(id)
-                && entry.physical == *physical
-                && Arc::ptr_eq(&entry.context, context)
+            if let Some(entry) = state.entries.get_mut(&id)
+                && entry.physical == physical
+                && Arc::ptr_eq(&entry.context, &context)
             {
                 if risk {
                     // Keep the completed immutable source/result pair even if
@@ -1408,7 +1426,7 @@ impl Coalesced {
                     .send_modify(|version| *version = version.saturating_add(1));
             }
         }
-        Ok(batch.len())
+        Ok(count)
     }
 }
 fn invalid(context: &Context, underlying: Quote, option: Quote, at: i64) -> Option<Failure> {

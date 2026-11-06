@@ -86,9 +86,10 @@ impl Delivery {
                             // Source-time worker identity lives in the record;
                             // a replacement must not relabel old pending logs.
                             use sha2::{Digest,Sha256};
-                            let identity=format!("{:X}",Sha256::digest(super::diagnostic::encode(record,record.worker)
-                                .map_err(|error|format!("Internal native diagnostic encoding: {error}"))?));
-                            publisher.try_diagnostic(record,record.worker).map_err(str::to_owned)?;
+                            let bytes=super::diagnostic::encode(record,record.worker)
+                                .map_err(|error|format!("Internal native diagnostic encoding: {error}"))?;
+                            let identity=format!("{:X}",Sha256::digest(&bytes));
+                            publisher.try_diagnostic_bytes(record.lane,bytes).map_err(str::to_owned)?;
                             sequence=sequence.checked_add(1).ok_or("Native diagnostic ordinal exhausted")?;
                             Deadline::recovery().run(&stopping,async {
                                 let mut accepted=false;

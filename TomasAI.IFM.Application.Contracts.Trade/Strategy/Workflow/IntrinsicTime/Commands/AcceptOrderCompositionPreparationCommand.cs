@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Comman
 
 /// <summary>Asks the workflow to verify persisted market evidence and commit its exact composition dispatch.</summary>
 [MessagePackObject]
-public sealed record AcceptOrderCompositionPreparationCommand : ICommand<IntrinsicTimeStrategyWorkflowEntityId>
+public sealed record AcceptOrderCompositionPreparationCommand : ICommand<IntrinsicTimeStrategyWorkflowEntityId>, IAppendOnlyCommandRetryIdentity, IRecoverableCommandAudit
 {
     public AcceptOrderCompositionPreparationCommand() { }
 
@@ -17,11 +17,13 @@ public sealed record AcceptOrderCompositionPreparationCommand : ICommand<Intrins
     [SerializationConstructor]
     public AcceptOrderCompositionPreparationCommand(Guid commandId, ActorSubject subject, bool postEvents,
         IntrinsicTimeStrategyWorkflowEntityId entityId, int errorCode, BoundedContextName routeTo,
-        StrategyWorkflowId workflowId, long inputWorkflowRevision, CompositionEvidenceReference evidence)
+        StrategyWorkflowId workflowId, long inputWorkflowRevision, CompositionEvidenceReference evidence,
+        ReadOnlyMemory<byte>? preparedMarketPayload)
     {
         CommandId = commandId; Subject = subject; PostEvents = postEvents; EntityId = entityId;
         ErrorCode = errorCode; RouteTo = routeTo; WorkflowId = workflowId;
         InputWorkflowRevision = inputWorkflowRevision; Evidence = evidence;
+        PreparedMarketPayload = preparedMarketPayload;
     }
     public const string Actor = "IntrinsicTimeStrategyWorkflowCommand";
     public const string Verb = "AcceptOrderCompositionPreparation";
@@ -35,9 +37,13 @@ public sealed record AcceptOrderCompositionPreparationCommand : ICommand<Intrins
     [Key(6)] public StrategyWorkflowId WorkflowId { get; init; }
     [Key(7)] public long InputWorkflowRevision { get; init; }
     [Key(8)] public CompositionEvidenceReference Evidence { get; init; } = null!;
+    /// <summary>Typed MessagePack encoding of the committed market preparation matching Evidence.</summary>
+    [Key(9)] public ReadOnlyMemory<byte>? PreparedMarketPayload { get; init; }
     [IgnoreMember] public string CommandName => nameof(AcceptOrderCompositionPreparationCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    /// <summary>The evidence reference already binds the immutable payload digest.</summary>
+    public ICommand ForRetryIdentity() => this with { PreparedMarketPayload = null };
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]

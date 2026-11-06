@@ -1,3 +1,6 @@
+using System.Buffers.Binary;
+using System.Security.Cryptography;
+using System.Threading.Channels;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
@@ -11,8 +14,22 @@ namespace TomasAI.IFM.Application.MarketData.Rust.Host;
 public sealed class NativeMarketDataNatsService(IMarketDataApi api,MarketDataHostConnection connection,
     ILogger<NativeMarketDataNatsService> logger,TimeProvider clock):BackgroundService
 {
+    readonly MarketDataApiDispatcher dispatcher = new(api);
     readonly object gate=new();
-    sealed record Memo(string Path,string Digest,Task<MarketDataHostReply> Completion);
+    const string BulkHistoryPath = "api/" + nameof(IMarketDataApi.LoadHistoricalAsync);
+    readonly Channel<NatsMsg<MarketDataHostRequest>> bulkHistory = Channel.CreateBounded<NatsMsg<MarketDataHostRequest>>(
+        new BoundedChannelOptions(4) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
+    readonly record struct Memo(string Path, RequestDigest Digest, Task<MarketDataHostReply> Completion);
+    readonly record struct RequestDigest(UInt128 First, UInt128 Second)
+    {
+        public static RequestDigest Compute(ReadOnlySpan<byte> payload)
+        {
+            Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
+            SHA256.HashData(payload, hash);
+            return new(BinaryPrimitives.ReadUInt128LittleEndian(hash),
+                BinaryPrimitives.ReadUInt128LittleEndian(hash[16..]));
+        }
+    }
     readonly Dictionary<Guid,Memo> operations=[];
     readonly TaskCompletionSource readyCompletion=new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly Queue<Guid> completed=[];
@@ -23,7 +40,8 @@ public sealed class NativeMarketDataNatsService(IMarketDataApi api,MarketDataHos
     public Task Ready=>readyCompletion.Task;
     /// <inheritdoc/>
     protected override Task ExecuteAsync(CancellationToken stoppingToken)=>Task.WhenAll(
-        ListenAsync(".control",8,stoppingToken),ListenAsync(".stop",2,stoppingToken),ListenAsync(".observe",2,stoppingToken));
+        ListenAsync(".control",8,stoppingToken),ListenAsync(".stop",2,stoppingToken),ListenAsync(".observe",2,stoppingToken),
+        RunBulkHistoryAsync(stoppingToken));
     async Task ListenAsync(string suffix,int concurrency,CancellationToken token)
     {
         var client=await connection.GetClientAsync(token).ConfigureAwait(false);
@@ -34,27 +52,52 @@ public sealed class NativeMarketDataNatsService(IMarketDataApi api,MarketDataHos
         {
             await Parallel.ForEachAsync(subscriber.Msgs.ReadAllAsync(token),new ParallelOptions{MaxDegreeOfParallelism=concurrency,CancellationToken=token},async(message,ct)=>
             {
-                MarketDataHostReply reply;
-                try
+                if (suffix == ".control" && message.Data?.Path == BulkHistoryPath)
                 {
-                    var request=message.Data??throw new InvalidDataException("Missing market-data request.");
-                    // Emergency work never waits for ordinary deduplication capacity.
-                    reply=await (suffix==".stop"?DispatchAsync(request,ct):JoinAsync(request,ct)).ConfigureAwait(false);
+                    // Retain the original subject while moving long history
+                    // operations off the control slots used by startup seeds.
+                    if (!bulkHistory.Writer.TryWrite(message))
+                        await message.ReplyAsync(new MarketDataHostReply([], "Native Host bulk history capacity exhausted. Retry with the same operation identity."),
+                            serializer: NatsMessagePackSerializer<MarketDataHostReply>.Default, cancellationToken: ct).ConfigureAwait(false);
+                    return;
                 }
-                catch(Exception error)when(!ct.IsCancellationRequested)
-                {
-                    logger.LogError(error,"Native Host RPC failed");
-                    reply=new([],TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth.Redact(error.Message));
-                }
-                await message.ReplyAsync(reply,serializer:NatsMessagePackSerializer<MarketDataHostReply>.Default,cancellationToken:ct).ConfigureAwait(false);
+                await ReplyAsync(message, suffix == ".stop", ct).ConfigureAwait(false);
             }).ConfigureAwait(false);
         }
         finally{Interlocked.Decrement(ref ready);}
     }
+
+    async Task RunBulkHistoryAsync(CancellationToken token)
+    {
+        await foreach (var message in bulkHistory.Reader.ReadAllAsync(token).ConfigureAwait(false))
+        {
+            token.ThrowIfCancellationRequested();
+            await ReplyAsync(message, false, token).ConfigureAwait(false);
+        }
+    }
+
+    async Task ReplyAsync(NatsMsg<MarketDataHostRequest> message, bool emergency, CancellationToken token)
+    {
+        MarketDataHostReply reply;
+        try
+        {
+            var request = message.Data ?? throw new InvalidDataException("Missing market-data request.");
+            // Emergency work never waits for ordinary deduplication capacity.
+            reply = await (emergency ? DispatchAsync(request, token) : JoinAsync(request, token)).ConfigureAwait(false);
+        }
+        catch (Exception error) when (!token.IsCancellationRequested)
+        {
+            logger.LogError(error, "Native Host RPC failed");
+            reply = new([], TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth.Redact(error.Message));
+        }
+        await message.ReplyAsync(reply, serializer: NatsMessagePackSerializer<MarketDataHostReply>.Default,
+            cancellationToken: token).ConfigureAwait(false);
+    }
+
     Task<MarketDataHostReply> JoinAsync(MarketDataHostRequest request,CancellationToken token)
     {
         TaskCompletionSource<MarketDataHostReply> completion;
-        var digest=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(request.Payload));
+        var digest = RequestDigest.Compute(request.Payload);
         lock(gate)
         {
             if(operations.TryGetValue(request.OperationId,out var existing))return existing.Path==request.Path&&existing.Digest==digest?existing.Completion:Task.FromResult(new MarketDataHostReply([],"Market-data operation identity was reused with different input."));
@@ -89,9 +132,12 @@ public sealed class NativeMarketDataNatsService(IMarketDataApi api,MarketDataHos
             var call=MarketDataHostConnection.Decode<MarketDataApiCall>(request.Payload);
             // Reject envelope/signature mismatches before invoking a potentially
             // billable or mutating API operation.
-            if(!call.Signature.StartsWith(request.Path[4..]+"(",StringComparison.Ordinal))
+            var operation = request.Path.AsSpan(4);
+            var signature = call.Signature.AsSpan();
+            if (signature.Length <= operation.Length || signature[operation.Length] != '('
+                || !signature.StartsWith(operation, StringComparison.Ordinal))
                 throw new InvalidDataException("Market-data operation signature differs from its envelope.");
-            var payload=await new MarketDataApiDispatcher(api).InvokeAsync(call,deadline.Token).ConfigureAwait(false);
+            var payload=await dispatcher.InvokeAsync(call,deadline.Token).ConfigureAwait(false);
             return new(payload,null);
         }
         catch(Exception error)when(!token.IsCancellationRequested)

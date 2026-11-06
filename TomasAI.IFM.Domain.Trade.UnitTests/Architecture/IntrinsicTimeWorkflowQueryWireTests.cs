@@ -2,6 +2,7 @@ using System.Reflection;
 using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
 
@@ -54,6 +55,42 @@ public sealed class IntrinsicTimeWorkflowQueryWireTests
         copy.Items[0].Stages[1].Processing.Should().Be("Completed");
         copy.Items[0].Stages[1].Continuation.Should().Be("Proceed");
         MessagePackSerializer.ConvertToJson(bytes).Should().NotContain("Evidence excluded from grid");
+    }
+
+    [Fact]
+    public void Grid_stage_round_trips_compact_no_trade_reason()
+    {
+        const string reason = "MC.ASSESSMENT.INHERITED_NO_NEW_TRADE";
+        var view = new IntrinsicTimeStrategyWorkflowView
+        {
+            Outcome = StrategyWorkflowOutcome.NoTrade,
+            RegimeDiscovery = new StrategyWorkflowStageState
+            {
+                Result = new StrategyStageResultEnvelope
+                {
+                    RegimeResult = new RegimeDiscoveryResult
+                    {
+                        Volatility = new VolatilityRegimeResult
+                        {
+                            Reasons = [new RegimeDiscoveryReason { Code = RegimeDiscoveryReasonCodes.VolatilityBackwardation }]
+                        }
+                    }
+                }
+            },
+            MarketCondition = new StrategyWorkflowStageState
+            {
+                ProcessingStatus = StrategyActorProcessingStatus.Completed,
+                ContinuationDecision = StrategyWorkflowContinuationDecision.Stop,
+                ContinuationReasonCodes = [reason, reason]
+            }
+        };
+
+        var row = IntrinsicTimeStrategyUpdatesGridRow.FromView(view);
+        var roundTrip = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyUpdatesGridRow>(
+            MessagePackSerializer.Serialize(row));
+
+        roundTrip.Stages[1].DecisionReasons.Should().Equal(reason, RegimeDiscoveryReasonCodes.VolatilityBackwardation);
+        roundTrip.Stages[0].DecisionReasons.Should().BeNull();
     }
 
     public static TheoryData<Type> QueryTypes => new()

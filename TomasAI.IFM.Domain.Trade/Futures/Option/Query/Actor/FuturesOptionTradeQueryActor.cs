@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -42,26 +42,106 @@ public sealed class FuturesOptionTradeQueryActor(IQueryActorContext<FuturesOptio
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<IFuturesOptionTradeQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesOptionTradeQueryContext, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetTradeRealtimeSnapshotQuery)] = static (queryContext, query, token) => ((GetTradeRealtimeSnapshotQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetIronCondorOptionTradeQuery)] = static (queryContext, query, token) => ((GetIronCondorOptionTradeQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetVerticalSpreadOptionTradeQuery)] = static (queryContext, query, token) => ((GetVerticalSpreadOptionTradeQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetIronCondorOptionTradesQuery)] = static (queryContext, query, token) => ((GetIronCondorOptionTradesQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetVerticalSpreadOptionTradesQuery)] = static (queryContext, query, token) => ((GetVerticalSpreadOptionTradesQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetOptionTradeQuery)] = static (queryContext, query, token) => ((GetOptionTradeQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetOptionTradesQuery)] = static (queryContext, query, token) => ((GetOptionTradesQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetOptionTradeSpreadDataQuery)] = static (queryContext, query, token) => ((GetOptionTradeSpreadDataQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetOptionTradeSpreadBarDataQuery)] = static (queryContext, query, token) => ((GetOptionTradeSpreadBarDataQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetOptionLegContractIdsQuery)] = static (queryContext, query, token) => ((GetOptionLegContractIdsQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetIronCondorTradePriceQuery)] = static (queryContext, query, token) => ((GetIronCondorTradePriceQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetTradePositionsQuery)] = static (queryContext, query, token) => ((GetTradePositionsQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetTradePositionTradeTypesQuery)] = static (queryContext, query, token) => ((GetTradePositionTradeTypesQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetTradePlanActionQuery)] = static (queryContext, query, token) => ((GetTradePlanActionQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetIronCondorMDILimitQuery)] = static (queryContext, query, token) => ((GetIronCondorMDILimitQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetTradeHistoryQuery)] = static (queryContext, query, token) => ((GetTradeHistoryQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetTradeLimitQuery)] = static (queryContext, query, token) => ((GetTradeLimitQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetTradePositionQuery)] = static (queryContext, query, token) => ((GetTradePositionQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetTradeQuantityQuery)] = static (queryContext, query, token) => ((GetTradeQuantityQuery)query).ExecuteAsync(queryContext, token),
-        [typeof(GetTradeTypeLimitQuery)] = static (queryContext, query, token) => ((GetTradeTypeLimitQuery)query).ExecuteAsync(queryContext, token)
+        [typeof(GetTradeRealtimeSnapshotQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradeRealtimeSnapshotQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIronCondorOptionTradeQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetIronCondorOptionTradeQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetVerticalSpreadOptionTradeQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetVerticalSpreadOptionTradeQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIronCondorOptionTradesQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetIronCondorOptionTradesQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetVerticalSpreadOptionTradesQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetVerticalSpreadOptionTradesQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetOptionTradeQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetOptionTradeQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetOptionTradesQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetOptionTradesQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetOptionTradeSpreadDataQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetOptionTradeSpreadDataQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetOptionTradeSpreadBarDataQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetOptionTradeSpreadBarDataQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetOptionLegContractIdsQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetOptionLegContractIdsQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIronCondorTradePriceQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetIronCondorTradePriceQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradePositionsQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradePositionsQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradePositionTradeTypesQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradePositionTradeTypesQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradePlanActionQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradePlanActionQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetIronCondorMDILimitQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetIronCondorMDILimitQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradeHistoryQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradeHistoryQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradeLimitQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradeLimitQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradePositionQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradePositionQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradeQuantityQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradeQuantityQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradeTypeLimitQuery)] = static async (context, query, token) =>
+        {
+            var result = await ((GetTradeTypeLimitQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        }
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<FuturesOptionTradeQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

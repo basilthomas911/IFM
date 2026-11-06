@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Application.MarketData.Rust.Publication;
 namespace TomasAI.IFM.Application.MarketData.Rust.Host;
 
@@ -66,13 +67,6 @@ public sealed class NativeDefinitionFacts(IDbContextFactory databases,TimeProvid
             building++;
         }
         try{
-            (DateOnly ExpiryDate,string ContractId)[] expiries;
-            if(underlying is not null)expiries=[(first,underlying)];
-            else {
-                var saved=await databases.SecuritiesDb.GetOptionContractExpiriesAsync(root,first,last,token).ConfigureAwait(false);
-                if(saved.Count>2048)throw new InvalidDataException("Raw option expiry capacity exceeded.");
-                expiries=saved.Select(value=>(value.ExpiryDate,value.ContractId)).ToArray();
-            }
             var rows=new List<byte[]>();var count=0;
             // The existing C# universe builder uses TryAdd by canonical contract
             // across the entire expiry range. Calendar partitions may overlap;
@@ -80,17 +74,17 @@ public sealed class NativeDefinitionFacts(IDbContextFactory databases,TimeProvid
             // Rust still rejects duplicate identities in a supposedly unique wire snapshot.
             var identities=new HashSet<string>(StringComparer.Ordinal);
             using var digest=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            foreach(var expiry in expiries.Distinct()){
+            await foreach (var row in ReadSourceAsync(root, underlying, first, last, roots, token).ConfigureAwait(false))
+            {
                 token.ThrowIfCancellationRequested();
-                var cached=await databases.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(root,expiry.ContractId,expiry.ExpiryDate,roots,token).ConfigureAwait(false);
-                foreach(var row in cached){
-                    token.ThrowIfCancellationRequested();
-                    if(!identities.Add(row.Definition.ContractId))continue;
-                    var bytes=JsonSerializer.SerializeToUtf8Bytes(browser?NativeReferenceProjection.BrowserOption(row.Definition):NativeReferenceProjection.CoverageOption(row.Definition));
-                    count=checked(count+bytes.Length);
-                    if(rows.Count==MaximumRows||count>MaximumBytes)throw new InvalidDataException("Compact definition capacity exceeded.");
-                    rows.Add(bytes);
-                }
+                if (!identities.Add(row.Definition.ContractId)) continue;
+                var bytes = JsonSerializer.SerializeToUtf8Bytes(browser
+                    ? NativeReferenceProjection.BrowserOption(row.Definition)
+                    : NativeReferenceProjection.CoverageOption(row.Definition));
+                count = checked(count + bytes.Length);
+                if (rows.Count == MaximumRows || count > MaximumBytes)
+                    throw new InvalidDataException("Compact definition capacity exceeded.");
+                rows.Add(bytes);
             }
             var captured=rows.ToArray();
             for(var start=0;start<captured.Length;start+=PageRows)digest.AppendData(Page(captured,start));
@@ -104,6 +98,24 @@ public sealed class NativeDefinitionFacts(IDbContextFactory databases,TimeProvid
             return JsonSerializer.SerializeToUtf8Bytes(new{id=key,count=value.Rows.Length,digest=value.Digest});
         }finally{lock(gate)building--;}
     }
+    async IAsyncEnumerable<CachedOptionContractDefinitionReadModel> ReadSourceAsync(
+        string root, string? underlying, DateOnly first, DateOnly last, string[]? roots,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken token)
+    {
+        if (underlying is not null)
+        {
+            var exact = await databases.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(root, underlying, first, roots, token)
+                .ConfigureAwait(false);
+            foreach (var row in exact)
+                yield return row;
+            yield break;
+        }
+
+        await foreach (var row in databases.SecuritiesDb.ReadPublishedOptionDefinitionsAsync(root, first, last, 2048, roots, token)
+            .ConfigureAwait(false))
+            yield return row;
+    }
+
     static byte[] Page(byte[][] rows,int offset)
     {
         using var output=new MemoryStream();using(var writer=new Utf8JsonWriter(output)){

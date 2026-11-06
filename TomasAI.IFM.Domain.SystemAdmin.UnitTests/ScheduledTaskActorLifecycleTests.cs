@@ -5,14 +5,18 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events;
 using MessagePack;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.Model;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.State;
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Event.Actor;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.SystemAdmin.UnitTests;
 public sealed class ScheduledTaskActorLifecycleTests
@@ -142,28 +146,96 @@ public sealed class ScheduledTaskActorLifecycleTests
     }
 
     [Fact]
-    public async Task Only_persisted_EOD_completion_notification_advances_operational_date()
+    public async Task Only_the_successful_final_market_close_notification_advances_operational_date()
     {
         var clock = NSubstitute.Substitute.For<TimeProvider>();
         clock.GetUtcNow().Returns(Now);
         var authority = new TomasAI.IFM.Domain.MarketData.Shared.FuturesValueDateProvider(clock);
-        var context = new TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Event.Actor.ScheduledTaskEventContext(
-            NSubstitute.Substitute.For<TomasAI.IFM.Shared.EventModelActor.Contracts.IActorSupervisor>(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Event.Actor.ScheduledTaskEventActor>.Instance,
-            authority);
+        var context = new ScheduledTaskEventContext(Substitute.For<IActorSupervisor>(), authority);
+        var logger = NullLogger<ScheduledTaskEventActor>.Instance;
         var receipt = new TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunStageRecordedCompleteEvent
         {
             CommandId = Guid.NewGuid(), EntityId = new(Guid.NewGuid()),
-            ScheduledTaskRun = new() { TaskKey = ScheduledTaskKeys.FuturesMarketClose, Stage = "FeedsStopped" }
+            ScheduledTaskRun = new() { TaskKey = ScheduledTaskKeys.FuturesMarketClose, HostId = ScheduledTaskKeys.ApiMarketCloseHost, Stage = "FeedsStopped" }
         };
-        await TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Event.ScheduledTaskRunStageRecordedComplete.ExecuteAsync(receipt, context);
+        await receipt.ExecuteAsync(context, logger);
         Assert.Equal(new DateOnly(2026,10,7), authority.ValueDate);
         var finalized = receipt with { ScheduledTaskRun = receipt.ScheduledTaskRun with { Stage = "PositionsFinalized", CompletedEndOfDayValueDate = new DateOnly(2026,10,7) } };
-        await TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Event.ScheduledTaskRunStageRecordedComplete.ExecuteAsync(finalized, context);
+        await finalized.ExecuteAsync(context, logger);
+        Assert.Equal(new DateOnly(2026,10,7), authority.ValueDate);
+        var closed = new TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.ScheduledTaskRunCompletedCompleteEvent
+        {
+            CommandId = Guid.NewGuid(), EntityId = receipt.EntityId,
+            ScheduledTaskRun = finalized.ScheduledTaskRun with
+            {
+                Status = ScheduledTaskRunStatus.Succeeded, Stage = ScheduledTaskKeys.MarketClosedStage, ExitCode = 0
+            }
+        };
+        await (closed with { ScheduledTaskRun = closed.ScheduledTaskRun with { HostId = "development" } }).ExecuteAsync(context, logger);
+        Assert.Equal(new DateOnly(2026,10,7), authority.ValueDate);
+        await closed.ExecuteAsync(context, logger);
         Assert.Equal(new DateOnly(2026,10,8), authority.ValueDate);
         var valueDate = authority.ValueDate;
-        await TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Event.ScheduledTaskRunStageRecordedComplete.ExecuteAsync(finalized, context);
+        await closed.ExecuteAsync(context, logger);
         Assert.Equal(valueDate, authority.ValueDate);
+    }
+
+    [Fact]
+    public async Task Desired_definition_completion_routes_to_its_host_and_keeps_the_same_delivery_identity()
+    {
+        var supervisor = Substitute.For<IActorSupervisor>();
+        var producer = Substitute.For<IJSActorProducer>();
+        var context = new ScheduledTaskEventContext(supervisor);
+        supervisor.GetJSProducer(context.ActorId).Returns(producer);
+        IEventActor<ScheduledTaskEventActor> actor = new ScheduledTaskEventActor(context, NullLogger<ScheduledTaskEventActor>.Instance);
+        var definition = Installed with { Schedule = Schedule with { Environment = "Development", HostId = "host-b" } };
+        var source = new ScheduledTaskCreatedCompleteEvent
+        {
+            CommandId = Guid.NewGuid(), OperationCommandId = Guid.NewGuid(), EntityId = definition.Id,
+            ScheduledTaskDefinition = definition
+        };
+        var runtime = ScheduledTaskIdentities.RuntimeActor("Development", "host-b");
+        var subject = new ActorSubject(ActorType.Event, runtime, ApplyScheduledTaskRuntimeEvent.Verb, definition.Id.Format());
+
+        await actor.ReceiveAsync(context, source);
+        await actor.ReceiveAsync(context, source);
+        await actor.ReceiveAsync(context, new ScheduledTaskRunRequestedCompleteEvent
+        {
+            EntityId = new(Guid.NewGuid()), ScheduledTaskRun = new() { Manual = true, Environment = "Development", HostId = "host-b" }
+        });
+
+        await producer.Received(2).SendAsync<ApplyScheduledTaskRuntimeEvent, ScheduledTaskId>(subject,
+            Arg.Is<ApplyScheduledTaskRuntimeEvent>(request => request.Id == source.Id && request.CommandId == source.CommandId &&
+                request.OperationCommandId == source.OperationCommandId && request.ScheduledTaskDefinition == definition));
+        Assert.Equal(2, producer.ReceivedCalls().Count());
+    }
+
+    [Fact]
+    public async Task Redelivered_operator_resolution_releases_the_same_run_with_the_same_command_id()
+    {
+        var supervisor = Substitute.For<IActorSupervisor>();
+        var producer = Substitute.For<IActorProducer>();
+        var context = new ScheduledTaskEventContext(supervisor);
+        supervisor.GetProducer(context.ActorId).Returns(producer);
+        IEventActor<ScheduledTaskEventActor> actor = new ScheduledTaskEventActor(context, NullLogger<ScheduledTaskEventActor>.Instance);
+        var run = new ScheduledTaskRun { Id = new(Guid.NewGuid()), ScheduleId = Id, OperationCommandId = Guid.NewGuid(), Stage = "OperatorResolved" };
+        var source = new ScheduledTaskRunFailedCompleteEvent { EntityId = run.Id, ScheduledTaskRun = run };
+        var subject = new ActorSubject(ActorType.Command, RecordScheduledTaskRunCompletionCommand.Actor, RecordScheduledTaskRunCompletionCommand.Verb, Id.Format());
+        var commandId = ScheduledTaskIdentities.OperatorResolutionRelease(run.Id);
+        producer.RequestAsync<RecordScheduledTaskRunCompletionCommand, ScheduledTaskId, GuidResult>(
+            subject, Arg.Any<RecordScheduledTaskRunCompletionCommand>(), Id).Returns(
+                new ValueTask<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(503, "Unavailable")),
+                new ValueTask<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(commandId))));
+
+        await actor.ReceiveAsync(context, source with { ScheduledTaskRun = run with { Stage = "ProcessFailed" } });
+        await actor.ReceiveAsync(context, source);
+        await actor.ReceiveAsync(context, source);
+        await actor.ReceiveAsync(context, new ScheduledTaskRunFailedFailEvent { EntityId = run.Id, ErrorMessage = "Projection failed" });
+
+        await producer.Received(2).RequestAsync<RecordScheduledTaskRunCompletionCommand, ScheduledTaskId, GuidResult>(
+            subject, Arg.Is<RecordScheduledTaskRunCompletionCommand>(command => command.CommandId == commandId &&
+                command.RunId == run.Id.Value && command.OperationCommandId == run.OperationCommandId), Id);
+        Assert.Equal(2, producer.ReceivedCalls().Count());
     }
     [Fact]
     public void Process_completion_preserves_the_finalized_business_value_date()

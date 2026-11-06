@@ -21,8 +21,9 @@ public sealed class MarketCloseCoordinator(IFuturesMarketSessionAuthority sessio
             var now = time.GetUtcNow().UtcDateTime;
             var date = FuturesTradingValueDate.GetOperational(new DateTimeOffset(now));
             if (!session.IsValid) throw new InvalidOperationException("The API market session is not initialized.");
-            var completed = await operations.GetCompletedDateAsync(token).ConfigureAwait(false);
-            if (completed is { } prior && prior >= date)
+            var finalizedDate = await operations.GetCompletedDateAsync(token).ConfigureAwait(false);
+            var positionsAlreadyFinalized = finalizedDate is { } prior && prior >= date;
+            if (positionsAlreadyFinalized && await operations.GetCompletedCloseDateAsync(token).ConfigureAwait(false) is { } closedDate && closedDate >= date)
             {
                 // Every close stops ingestion, including a feed restarted after financial EOD.
                 await operations.StopFeedsAsync(date, token).ConfigureAwait(false);
@@ -40,19 +41,25 @@ public sealed class MarketCloseCoordinator(IFuturesMarketSessionAuthority sessio
             logger.LogInformation("MarketClose FeedsStopped RunId={RunId} ValueDate={ValueDate}", runId, date);
             byte[]? cursor = null;
             var finalized = new HashSet<Guid>();
-            do
+            if (!positionsAlreadyFinalized)
             {
-                var page = await operations.LoadPositionsAsync(date, cursor, token).ConfigureAwait(false);
-                foreach (var position in page.Positions)
+                do
                 {
-                    if (!finalized.Add(position.Id.PositionId)) continue;
-                    if (position.LatestSealedValueDate < date)
-                        await operations.FinalizePositionAsync(position, date, boundary, token).ConfigureAwait(false);
-                    logger.LogInformation("MarketClose PositionFinalized RunId={RunId} PositionId={PositionId} ValueDate={ValueDate}", runId, position.Id.Format(), date);
-                }
-                cursor = page.PagingState;
-            } while (cursor is { Length: > 0 });
-            await operations.RecordStageAsync(runId, date, "PositionsFinalized", $"All {finalized.Count} positions finalized; EOD source commitments confirmed.", token).ConfigureAwait(false);
+                    var page = await operations.LoadPositionsAsync(date, cursor, token).ConfigureAwait(false);
+                    foreach (var position in page.Positions)
+                    {
+                        if (!finalized.Add(position.Id.PositionId)) continue;
+                        if (position.LatestSealedValueDate < date)
+                            await operations.FinalizePositionAsync(position, date, boundary, token).ConfigureAwait(false);
+                        logger.LogInformation("MarketClose PositionFinalized RunId={RunId} PositionId={PositionId} ValueDate={ValueDate}", runId, position.Id.Format(), date);
+                    }
+                    cursor = page.PagingState;
+                } while (cursor is { Length: > 0 });
+            }
+            var detail = positionsAlreadyFinalized
+                ? "EOD source commitments confirmed by the prior close attempt."
+                : $"All {finalized.Count} positions finalized; EOD source commitments confirmed.";
+            await operations.RecordStageAsync(runId, date, "PositionsFinalized", detail, token).ConfigureAwait(false);
             logger.LogInformation("MarketClose EndOfDayCommitted RunId={RunId} ValueDate={ValueDate} Positions={Positions}", runId, date, finalized.Count);
             await operations.PurgeCompletedMessagesAsync(token).ConfigureAwait(false);
             await operations.CompleteAsync(runId, token).ConfigureAwait(false);

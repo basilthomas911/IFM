@@ -1,5 +1,7 @@
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
+using TomasAI.IFM.Application.Storage.TradeDb;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 namespace TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -83,16 +85,31 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
             return true;
         }, token);
 
-    public Task<IEvent?> ByCommandAsync(Guid command, CancellationToken token = default)
+    public Task<int> ProjectCompletionPageAsync(CancellationToken token = default)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
-            var rows = await (db.QueryAsync("""
+            const string projection = "risk-completion-v1";
+            var rows = await db.QueryAsync("""
                 SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
                 FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
-                WHERE e.commandid=$1 AND n.eventname IN ('WorkflowStrategyStateUpdatedEvent','RiskManagementFunctionCompletedEvent')
-                ORDER BY e.eventversion DESC LIMIT 1;
-                """, [command], Read, ct)).ConfigureAwait(false);
-            return rows.Count == 0 ? null : rows[0].ToDomainEvent();
+                WHERE n.eventname=$1
+                  AND NOT EXISTS(
+                    SELECT 1 FROM risk_history_projection_receipt r
+                    WHERE r.projection_name=$2 AND r.event_id=e.eventversion)
+                ORDER BY e.eventversion LIMIT 32;
+                """, [nameof(RiskManagementFunctionCompletedEvent), projection], Read, ct).ConfigureAwait(false);
+            foreach (var row in rows)
+            {
+                var completed = (RiskManagementFunctionCompletedEvent)row.ToDomainEvent();
+                if (completed.CommandId != row.CommandId)
+                    throw new InvalidDataException("Risk completion does not match its committed command identity.");
+                await RiskCompletionProjection.WriteAsync(db, completed, ct).ConfigureAwait(false);
+                await db.ExecuteAsync(
+                    "INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;",
+                    [projection, completed.EventId], ct).ConfigureAwait(false);
+            }
+
+            return rows.Count;
         }, token);
 
     static EventLogReadModel Read(System.Data.Common.DbDataReader r) => new(r.GetInt64(0), r.GetString(1), r.GetString(2),

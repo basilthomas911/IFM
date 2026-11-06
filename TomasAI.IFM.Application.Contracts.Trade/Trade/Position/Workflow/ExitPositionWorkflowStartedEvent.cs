@@ -3,13 +3,14 @@ using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 
 /// <summary>The durable start snapshot for one strategy-position exit decision.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record ExitPositionWorkflowStartedEvent : IEvent<ExitPositionWorkflowId>
+public sealed record ExitPositionWorkflowStartedEvent : IEvent<ExitPositionWorkflowId>, IRequireDurableProjection
 {
 
     /// <summary>Creates an empty event for serialization and existing callers.</summary>
@@ -27,8 +28,9 @@ public sealed record ExitPositionWorkflowStartedEvent : IEvent<ExitPositionWorkf
     /// <param name="exitPlan">The ExitPlan field.</param>
     /// <param name="strategyKind">The StrategyKind field.</param>
     /// <param name="sourcePlanEventId">The SourcePlanEventId field.</param>
+    /// <param name="lifecycleVersion">Zero for historical starts and one for owner-coordinated starts.</param>
     [SerializationConstructor]
-    public ExitPositionWorkflowStartedEvent(ActorSubject subject, Guid id, ExitPositionWorkflowId entityId, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, StrategyTradePlanSnapshot exitPlan, TradeStrategyKind strategyKind, Guid sourcePlanEventId)
+    public ExitPositionWorkflowStartedEvent(ActorSubject subject, Guid id, ExitPositionWorkflowId entityId, long eventId, Guid commandId, string aggregateId, string eventSource, DateTime receivedOn, StrategyTradePlanSnapshot exitPlan, TradeStrategyKind strategyKind, Guid sourcePlanEventId, ushort lifecycleVersion = 0)
     {
         Subject = subject;
         Id = id;
@@ -41,6 +43,7 @@ public sealed record ExitPositionWorkflowStartedEvent : IEvent<ExitPositionWorkf
         ExitPlan = exitPlan;
         StrategyKind = strategyKind;
         SourcePlanEventId = sourcePlanEventId;
+        LifecycleVersion = lifecycleVersion;
     }
     public const string Verb = "ExitPositionWorkflowStarted";
     [Key(0)] public ActorSubject Subject { get; init; }
@@ -54,7 +57,10 @@ public sealed record ExitPositionWorkflowStartedEvent : IEvent<ExitPositionWorkf
     [Key(8)] public StrategyTradePlanSnapshot ExitPlan { get; init; } = new();
     [Key(9)] public TradeStrategyKind StrategyKind { get; init; }
     [Key(10)] public Guid SourcePlanEventId { get; init; }
+    [Key(11)] public ushort LifecycleVersion { get; init; }
     [IgnoreMember] public string UserName => "TradePlan";
     [IgnoreMember] public string EventName => nameof(ExitPositionWorkflowStartedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
+    [IgnoreMember] public bool RequiresDurableProjection => true;
+    [IgnoreMember] public DurableProjectionRequirement RequiredProjection => ExitPositionWorkflowActorNames.DurableProjection(StrategyKind);
 }

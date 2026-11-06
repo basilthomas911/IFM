@@ -35,4 +35,10 @@ public sealed record ScheduledTaskRun
     [Key(21)] public string StandardErrorTail { get; init; } = "";
     /// <summary>Gets the relative artifact directory under the owning host task-run root.</summary>
     [Key(22)] public string OutputDirectory { get; init; } = "";
+
+    /// <summary>Returns the session whose API-owned close finished successfully.</summary>
+    public DateOnly? GetCompletedMarketCloseDate()
+        => this is { TaskKey: ScheduledTaskKeys.FuturesMarketClose, HostId: ScheduledTaskKeys.ApiMarketCloseHost,
+            Status: ScheduledTaskRunStatus.Succeeded, Stage: ScheduledTaskKeys.MarketClosedStage, ExitCode: 0 }
+            ? CompletedEndOfDayValueDate : null;
 }

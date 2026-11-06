@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
@@ -65,7 +65,12 @@ public sealed class RiskManagementFunctionActor(IRiskManagementFunctionContext a
 
     /// <summary>Maps lifecycle policy requests without interpreting actor-specific deadlines or settings.</summary>
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(ExecuteRiskManagementPipelineCommand request, FunctionFailureStage stage)
-        => DispatchMappedExecutionPolicy(request, stage, _context, _executionPolicyMap);
+    {
+        var policy = DispatchMappedExecutionPolicy(request, stage, _context, _executionPolicyMap);
+        return _context.StateRepository is global::TomasAI.IFM.Domain.Trade.Persistence.INativeTradeFunctionRepository { UsesAtomicPersistence: true }
+            ? new FunctionExecutionPolicy(policy.Clock, policy.DeadlineUtc, FunctionCompletionMode.AtomicBusinessAndEvent)
+            : policy;
+    }
 
     protected override ExecuteRiskManagementPipelineCommand ParseMessage(
         IFunctionActorContext<RiskManagementFunctionActor> context, IActorMessage message)

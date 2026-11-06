@@ -140,13 +140,13 @@ public sealed class RiskFinancialHandoffTests
             WorkflowId = view.WorkflowId,
             WorkflowRevision = view.WorkflowRevision
         }, false).Should().BeTrue();
-        var api = Substitute.For<IPortfolioFinancialApi>();
         var accepted = new FundRiskAuthorizationEvidence(fundCommand, Guid.NewGuid(), authorization);
-        api.GetFundRiskAuthorizationAsync(Arg.Any<FinancialReadScope>(), Arg.Any<GetFundRiskAuthorizationRequest>(), Arg.Any<CancellationToken>())
-            .Returns(new ServiceOk<FinancialRead<FundRiskAuthorizationEvidence>>(new(FinancialReadStatus.Found, accepted, 14, request.RequestedAtUtc)));
         var context = Substitute.For<IIntrinsicTimeStrategyWorkflowCommandContext>();
-        context.FinancialApi.Returns(api); context.TimeProvider.Returns(new FixedClock(request.RequestedAtUtc));
-        var advance = RiskFinancialHandoff.Advance(view);
+        context.TimeProvider.Returns(new FixedClock(request.RequestedAtUtc));
+        var advance = RiskFinancialHandoff.Advance(view) with
+        {
+            FundReceipt = new(FinancialReadStatus.Found, accepted, 14, request.RequestedAtUtc)
+        };
         await advance.ExecuteAsync(context, state);
         var completed = state.CurrentView!;
         completed.Status.Should().Be(WorkflowStrategyMachineStatus.Completed);
@@ -162,6 +162,7 @@ public sealed class RiskFinancialHandoffTests
         MessagePackBinarySerializer.Shared.Serialize(state.CurrentView).Should().Equal(saved);
         var wire = MessagePackBinarySerializer.Shared.Deserialize<IntrinsicTimeStrategyWorkflowView>(saved)!;
         wire.FinancialHandoff!.Phase.Should().Be(RiskFinancialHandoffPhase.Authorized);
+        _ = context.DidNotReceive().DbFactory;
     }
 
     [Theory]

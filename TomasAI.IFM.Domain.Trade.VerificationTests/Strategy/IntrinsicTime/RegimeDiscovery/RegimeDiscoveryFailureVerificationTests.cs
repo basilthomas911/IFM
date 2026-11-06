@@ -2,15 +2,24 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NSubstitute;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.VerificationTests.Strategy.IntrinsicTime.RegimeDiscovery;
@@ -54,7 +63,7 @@ public sealed class RegimeDiscoveryFailureVerificationTests(TomasAI.IFM.Integrat
             {
                 Observations = input.Snapshot.Observations.Select(observation =>
                     observation.Metric == RegimeDiscoverySignalMetric.Ema200 &&
-                    observation.SignalKey.TimeFrame == TimeFrameType.FifteenMinutes
+                    observation.SignalKey.TimeFrame == TimeFrameType.Daily
                         ? observation with
                         {
                             Availability = availability,
@@ -136,27 +145,109 @@ public sealed class RegimeDiscoveryFailureVerificationTests(TomasAI.IFM.Integrat
     }
 
     [Fact]
-    public async Task Projector_exception_is_translated_to_failure_and_cannot_advance_workflow()
+    public async Task Concurrent_native_completion_returns_the_original_event_and_rejects_divergent_input()
     {
-        await using var fixture = await RegimeDiscoveryVerificationFixture.StartAsync(sourceFactory, services =>
+        var services = sourceFactory.Services;
+        var repository = (RegimeDiscoveryFunctionStateRepository)services.GetRequiredService<SimpleInjector.Container>()
+            .GetInstance<IEventSourceFunctionStateRepository<RegimeDiscoveryFunctionState, ExecuteRegimeDiscoveryPipelineCommand>>();
+        var input = RegimeDiscoveryScenarioDataBuilder.CreateInput(
+            RegimeDiscoveryScenarioCatalog.TrendingUp, TimeFrameType.Daily)
+            with { WorkflowId = StrategyWorkflowId.New(TimeProvider.System) };
+        var entity = RegimeDiscoveryExecutionEntityId.Create(input.EntityId, input.WorkflowId);
+        var request = new ExecuteRegimeDiscoveryPipelineCommand
         {
-            services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
-            {
-                Enabled = true
-            });
-            services.RemoveAll<IFunctionProjector<RegimeDiscoveryPipelineCompletedEvent>>();
-            services.AddSingleton<IFunctionProjector<RegimeDiscoveryPipelineCompletedEvent>, ThrowingProjector>();
-        });
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Function, ExecuteRegimeDiscoveryPipelineCommand.Actor,
+                ExecuteRegimeDiscoveryPipelineCommand.Verb, entity.Format()),
+            EntityId = entity,
+            InputWorkflowRevision = 1,
+            TriggerEvent = input.TriggerEvent,
+            CorrelationId = Guid.NewGuid(),
+            CausationId = input.TriggerEventId,
+            RequestedAtUtc = input.ProducedAtUtc,
+            ExpiresAtUtc = input.ProducedAtUtc.AddMinutes(2),
+            ParameterSet = input.ParameterSet,
+            ParameterPayloadSha256 = RegimeDiscoveryParameterPayload.ComputeSha256(input.ParameterSet),
+            TargetHorizon = TimeFrameType.Daily,
+            Snapshot = input.Snapshot
+        };
+        var result = await new RegimeDiscoveryCalculationModel().CalculateAsync(input);
+        var candidate = new RegimeDiscoveryPipelineCompletedEvent
+        {
+            Subject = new(ActorType.Function, ExecuteRegimeDiscoveryPipelineCommand.Actor,
+                RegimeDiscoveryPipelineCompletedEvent.Verb, entity.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = request.WorkflowEntityId,
+            CommandId = request.CommandId,
+            AggregateId = entity.Format(),
+            EventSource = request.EventSource,
+            ReceivedOn = result.ProducedAtUtc,
+            WorkflowId = request.WorkflowId,
+            InputWorkflowRevision = request.InputWorkflowRevision,
+            CorrelationId = request.CorrelationId,
+            CausationId = request.CausationId,
+            PipelineStage = StrategyWorkflowStage.RegimeDiscovery,
+            Result = StrategyStageResultEnvelope.CreateRegime(result),
+            CompletedAtUtc = result.ProducedAtUtc,
+            ExpiresAtUtc = request.ExpiresAtUtc,
+            ParameterPayloadSha256 = request.ParameterPayloadSha256,
+            SignalSnapshotId = request.Snapshot.SnapshotId,
+            ParameterSet = request.ParameterSet
+        };
+        var context = Substitute.For<IFunctionActorContext>();
+
+        var returned = await Task.WhenAll(
+            repository.CommitAsync(context, request, candidate).AsTask(),
+            repository.CommitAsync(context, request, candidate with { Id = Guid.NewGuid() }).AsTask());
+
+        returned[0].EventId.Should().BeGreaterThan(0);
+        returned[1].Should().BeEquivalentTo(returned[0]);
+        var stored = await repository.LoadStateAsync(request);
+        stored.CompletedEvent.Should().BeEquivalentTo(returned[0]);
+        var projection = await services.GetRequiredService<IDbContextFactory>().TradeDb
+            .GetRegimeDiscoveryAsync(request.WorkflowId);
+        projection!.SourceEventId.Should().Be(returned[0].Id);
+
+        var conflict = async () => await repository.CommitAsync(context,
+            request with { RequestedAtUtc = request.RequestedAtUtc.AddTicks(1) }, candidate with { Id = Guid.NewGuid() });
+        await conflict.Should().ThrowAsync<CommandAuditPayloadConflictException>();
+        var source = services.GetRequiredService<IEventSourceActorDbContext>();
+        var stream = await source.GetEventStreamIdFromDbAsync(request.StreamId);
+        (await source.GetCommittedStreamVersionAsync(stream!.EventStreamId)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Projection_write_failure_rolls_back_and_cannot_advance_workflow()
+    {
+        await using var fixture = await RegimeDiscoveryVerificationFixture.StartAsync(sourceFactory);
         var execution = RegimeDiscoveryVerificationFixture.Execution(
             RegimeDiscoveryScenarioCatalog.TrendingUp, TimeFrameType.Daily, "PROJECTOR");
         await fixture.PrepareAsync([execution]);
 
-        await fixture.PublishAsync(execution.EntityId);
-        var terminal = await fixture.WaitForTerminalAsync(
-            execution.EntityId, StrategyWorkflowOutcome.PipelineFailed);
+        var transactions = fixture.Services.GetRequiredService<IPostgresEventTransaction>();
+        await transactions.ExecuteAsync((db, token) => db.ExecuteAsync("""
+            ALTER TABLE trade.regime_discovery ADD CONSTRAINT verification_reject_regime_projection
+            CHECK (position('-PROJECTOR-' in workflowEntityId) = 0) NOT VALID;
+            """, [], token));
+        try
+        {
+            await fixture.PublishAsync(execution.EntityId);
+            var terminal = await fixture.WaitForTerminalAsync(
+                execution.EntityId, StrategyWorkflowOutcome.PipelineFailed);
 
-        (await fixture.Database.TradeDb.GetRegimeDiscoveryAsync(terminal.WorkflowId)).Should().BeNull();
-        fixture.Probe.Count(execution.EntityId).Should().Be(0);
+            (await fixture.Database.TradeDb.GetRegimeDiscoveryAsync(terminal.WorkflowId)).Should().BeNull();
+            var invocationCount = await transactions.ExecuteAsync((db, token) => db.ScalarAsync(
+                "SELECT count(*) FROM trade.regime_discovery_invocation WHERE workflow_id=$1;",
+                [terminal.WorkflowId.Value], token));
+            invocationCount.Should().Be(0L);
+            fixture.Probe.Count(execution.EntityId).Should().Be(0);
+        }
+        finally
+        {
+            await transactions.ExecuteAsync((db, token) => db.ExecuteAsync(
+                "ALTER TABLE trade.regime_discovery DROP CONSTRAINT verification_reject_regime_projection;",
+                [], token));
+        }
     }
 
     sealed class BlockingSnapshotProvider : IRegimeDiscoveryMarketSignalSnapshotProvider
@@ -168,13 +259,5 @@ public sealed class RegimeDiscoveryFailureVerificationTests(TomasAI.IFM.Integrat
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             throw new InvalidOperationException("The timeout owner should cancel this worker.");
         }
-    }
-
-    sealed class ThrowingProjector : IFunctionProjector<RegimeDiscoveryPipelineCompletedEvent>
-    {
-        public ValueTask ProjectAsync(
-            RegimeDiscoveryPipelineCompletedEvent completedEvent,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromException(new InvalidOperationException("Injected verification projector failure."));
     }
 }

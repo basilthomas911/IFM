@@ -60,11 +60,8 @@ public sealed class NativeContractCatalog : IDatabentoMarketDataCatalog
             async IAsyncEnumerable<CatalogSourceLine> Lines([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken token = default)
             {
                 foreach (var query in queries)
-                    for (var index = 0; index < query.Snapshot.Count; index++)
-                    {
-                        token.ThrowIfCancellationRequested();
-                        yield return new(query.Dataset, query.Snapshot.ReadSource(index));
-                    }
+                    foreach (var source in query.Snapshot.ReadSources(token))
+                        yield return new(query.Dataset, source);
                 await Task.CompletedTask.ConfigureAwait(false);
             }
             await runtime.HydrateCatalogAsync(Lines(stopping.Token), stopping.Token).ConfigureAwait(false);
@@ -92,8 +89,7 @@ public sealed class NativeContractCatalog : IDatabentoMarketDataCatalog
             throw new ArgumentException("Configured domain contract IDs must be nonempty and unique.", nameof(options));
         this.runtime = runtime; this.clock = clock; queryBudget = TimeSpan.FromMinutes(2);
         using var snapshot = runtime.OpenCatalogSnapshot();
-        var rows = new NativeContractDefinition[snapshot.Count];
-        for (var index = 0; index < rows.Length; index++) rows[index] = snapshot.ReadDefinition(index);
+        var rows = snapshot.ReadDefinitions().ToArray();
         var providerIdentities = new HashSet<(string Dataset, string Symbol)>();
         foreach (var registration in options.Contracts)
         {
@@ -156,18 +152,26 @@ public sealed class NativeContractCatalog : IDatabentoMarketDataCatalog
     NativeOptionModelUnderlying[] UnderlyingMappings(string dataset)=>underlyingIds
         .Where(pair=>string.Equals(pair.Key.Dataset,dataset,StringComparison.Ordinal))
         .Select(pair=>new NativeOptionModelUnderlying(pair.Key.Provider,pair.Value,resolved[pair.Value].Detail.Publisher)).ToArray();
-    NativeContractDefinition[] Read(NativeCatalogSnapshot snapshot)
+    static IEnumerable<NativeContractDefinition> Read(NativeCatalogSnapshot snapshot, CancellationToken token = default)
     {
-        var rows = new NativeContractDefinition[snapshot.Count];
-        for (var i = 0; i < rows.Length; i++) { rows[i] = snapshot.ReadDefinition(i); ValidateQueryDetail(rows[i]); }
-        return rows;
+        foreach (var row in snapshot.ReadDefinitions(token))
+        {
+            ValidateQueryDetail(row);
+            yield return row;
+        }
+    }
+
+    static void ValidateDefinitions(NativeCatalogSnapshot snapshot)
+    {
+        foreach (var row in snapshot.ReadDefinitions())
+            ValidateQueryDetail(row);
     }
     /// <inheritdoc/>
     public async Task<FuturesOptionContractReadModel[]> GetOptionChainAsync(string futuresContractId, DateOnly maturityDate)
     {
         if (!resolved.TryGetValue(futuresContractId, out var underlying) || underlying.Future is null) throw new MarketDataContractNotFoundException(futuresContractId);
         using var source = await runtime.AcquireDefinitionSnapshotAsync(underlying.Detail.Dataset, [underlying.Detail.Asset + ".OPT"], queryBudget).ConfigureAwait(false);
-        _ = Read(source); // Current provider conversion rejects any malformed detail before filtering.
+        ValidateDefinitions(source); // Current provider conversion rejects any malformed detail before filtering.
         using var selected = source.SelectChain(maturityDate, underlying.Detail.Symbol, futuresContractId);
         return selected.ReadOptionModels(underlying.Future.Currency,UnderlyingMappings(underlying.Detail.Dataset));
     }
@@ -177,7 +181,7 @@ public sealed class NativeContractCatalog : IDatabentoMarketDataCatalog
         ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
         var underlying = Underlying(symbol);
         using var source = await runtime.AcquireDefinitionSnapshotAsync(underlying.Detail.Dataset, [symbol.Trim().ToUpperInvariant() + ".OPT"], queryBudget).ConfigureAwait(false);
-        _ = Read(source);
+        ValidateDefinitions(source);
         using var selected = source.SelectChain(maturityDate, symbol, underlying.Future!.ContractId, policy: 1);
         return selected.ReadOptionModels(underlying.Future.Currency,UnderlyingMappings(underlying.Detail.Dataset));
     }
@@ -210,7 +214,7 @@ public sealed class NativeContractCatalog : IDatabentoMarketDataCatalog
             try { source = await runtime.AcquireDefinitionSnapshotAsync(futures[0].Detail.Dataset, [root + ".OPT"], remaining, cancellationToken).ConfigureAwait(false); }
             catch (DatabentoFeedException error) when (error.Message.Contains("Could not resolve smart symbols", StringComparison.OrdinalIgnoreCase)) { continue; }
             using var sourceOwnership = source;
-            foreach (var group in Read(source).Where(d => d.Kind is 2 or 3 && d.QueryMaturity >= from && d.QueryMaturity <= through).GroupBy(d => d.QueryMaturity!.Value))
+            foreach (var group in Read(source, cancellationToken).Where(d => d.Kind is 2 or 3 && d.QueryMaturity >= from && d.QueryMaturity <= through).GroupBy(d => d.QueryMaturity!.Value))
             {
                 var representative = group.First();
                 var contractId = underlyingIds.GetValueOrDefault((representative.Dataset, representative.Underlying))

@@ -4,13 +4,18 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
+using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventSourcing.ViewModels;
+using TomasAI.IFM.Shared.Exceptions;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.State;
 /// <summary>Commits position source events and publishes current marks independently of history projection.</summary>
@@ -34,17 +39,104 @@ public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFact
             var state = await LoadStateFromLatestSnapshotsAsync<IronCondorPositionCommandState,
                 IronCondorPositionChangedEvent, IronCondorMonitoringInitializedEvent>(
                 command, cancellationToken).ConfigureAwait(false);
-            if (databases is not null && state.Current is { OpeningCommission: null } position)
-            {
-                var trade = await databases.TradeDb.GetEstablishedTradeAsync(position.Id.Trade, cancellationToken).ConfigureAwait(false);
-                if (trade is not null) state.RestoreCurrencyEvidence(trade);
-            }
             // Source ordering preserves limits whether initialization precedes or
             // follows the latest position snapshot.
             step.Complete();
             return state;
         }
         catch (Exception error) { step.Fail(error); throw; }
+    }
+
+    /// <summary>Explicitly records missing legacy currency evidence using the owning Trade stream.</summary>
+    public async Task<IronCondorCurrencyEvidenceReconciliation> ReconcileLegacyCurrencyEvidenceAsync(
+        ReconcileIronCondorPositionCurrencyEvidenceCommand command, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.CommandId == Guid.Empty || !command.EntityId.IsValid || command.ExpectedStreamVersion <= 0 ||
+            command.Subject != new ActorSubject(ActorType.Command, FuturesIronCondorTradePositionCommandActor.ActorName,
+                ReconcileIronCondorPositionCurrencyEvidenceCommand.Verb, command.EntityId.Format()))
+            throw new ArgumentException("Legacy position reconciliation requires its exact command route and expected version.", nameof(command));
+        if (transactions is null || databases?.TradeDb is not { ProviderName: "System.Data.Postgres" } tradeDb
+            || !string.Equals(EventSourceDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
+            || PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString) != PostgresDatabaseIdentity.Parse(tradeDb.ConnectionString)
+            || tradeDb.Database is not IEnlistedTradeDbWriter writer)
+            throw new InvalidOperationException("Legacy position reconciliation requires enlisted PostgreSQL storage.");
+
+        var state = await LoadStateAsync(command, token).ConfigureAwait(false);
+        if (state.Current is not { } position || position.Id != command.EntityId)
+            return IronCondorCurrencyEvidenceReconciliation.Unavailable;
+        if (HasCurrencyEvidence(position)) return IronCondorCurrencyEvidenceReconciliation.AlreadyPresent;
+        if (state.CommittedStreamVersion != command.ExpectedStreamVersion)
+            throw new ConcurrencyException("The position stream changed before currency evidence reconciliation.");
+
+        try
+        {
+            return await transactions.ExecuteOnceAsync(async (transaction, ct) =>
+            {
+                var tradeStream = new ActorSubject(ActorType.Command, FuturesOptionTradeActorNames.Command,
+                    string.Empty, position.Id.Trade.Format()).StreamId;
+                var evidenceRows = await transaction.QueryAsync("""
+                    SELECT e.EventVersion,n.EventTypeName,e.StreamVersion,e.EventPayload
+                    FROM event_stream_id s
+                    JOIN event_log e ON e.EventStreamId=s.EventStreamId AND e.StreamVersion=s.CurrentVersion
+                    JOIN event_name_id n ON n.EventNameId=e.EventNameId
+                    WHERE s.EventStream=$1 FOR SHARE OF s;
+                    """, [tradeStream], row => new EventStreamReadModel
+                    {
+                        EventVersion = row.GetInt64(0), EventTypeName = row.GetString(1), StreamVersion = row.GetInt64(2),
+                        EventData = row.GetFieldValue<byte[]>(3)
+                    }, ct).ConfigureAwait(false);
+                if (evidenceRows.SingleOrDefault()?.ToDomainEvent() is not OptionTradeChangedEvent evidence ||
+                    evidence.EventId <= 0 || evidence.EntityId != position.Id.Trade ||
+                    !Qualifies(position, evidence.EstablishedTradeDefinition))
+                    return IronCondorCurrencyEvidenceReconciliation.Unavailable;
+
+                var repaired = StrategyPositionCurrencyPnl.Apply(position, evidence.EstablishedTradeDefinition);
+                if (!HasCurrencyEvidence(repaired) || repaired.DailyPnl is null)
+                    return IronCondorCurrencyEvidenceReconciliation.Unavailable;
+                var fact = new IronCondorPositionChangedEvent
+                {
+                    Id = command.CommandId, CommandId = command.CommandId, EntityId = command.EntityId,
+                    Subject = new(ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb,
+                        command.EntityId.Format()),
+                    EventSource = command.EventSource, ReceivedOn = DateTime.UtcNow,
+                    CurrencyEvidenceEventId = evidence.EventId,
+                    PositionSnapshot = repaired with
+                    {
+                        PositionSequence = checked(position.PositionSequence + 1),
+                        HistoryPositionSequence = position.HistoryPositionSequence == 0
+                            ? position.PositionSequence : position.HistoryPositionSequence
+                    }
+                };
+                await transaction.ReserveCommandAsync(command, ct).ConfigureAwait(false);
+                await transaction.AppendAsync(command.StreamId, command.CommandId, fact, command.ExpectedStreamVersion, ct)
+                    .ConfigureAwait(false);
+                await writer.ProjectPositionAsync(transaction, fact.PositionSnapshot, ct).ConfigureAwait(false);
+                return IronCondorCurrencyEvidenceReconciliation.Reconciled;
+            }, token).ConfigureAwait(false);
+        }
+        catch (CommandAuditDuplicateException exception) when (exception.CommandId == command.CommandId && exception.HasCommittedEvents)
+        {
+            return IronCondorCurrencyEvidenceReconciliation.AlreadyPresent;
+        }
+    }
+
+    static bool HasCurrencyEvidence(StrategyPositionSnapshot position) => position.OpeningCommission is >= 0
+        && position.OpeningValueDate.HasValue && position.ContractCashMultiplier is > 0;
+
+    static bool Qualifies(StrategyPositionSnapshot position, EstablishedTradeDefinition trade)
+    {
+        if (trade.Id != position.Id.Trade || trade.AssetFamily != TradeAssetFamily.FuturesOption ||
+            trade.StrategyKind != TradeStrategyKind.IronCondor || position.StrategyKind != TradeStrategyKind.IronCondor ||
+            trade.OpeningCommission < 0 || trade.EstablishedAtUtc.Kind != DateTimeKind.Utc || trade.TradeDate is null ||
+            position.OpeningCommission is { } commission && commission != trade.OpeningCommission ||
+            position.OpeningValueDate is { } date && date != trade.TradeDate ||
+            position.Legs.Length != 4 || trade.Legs.Length != 4 ||
+            trade.Legs.Select(leg => leg.TradeLegId).Distinct().Count() != 4)
+            return false;
+        return position.Legs.Select(leg => leg.TradeLegId).Distinct().Count() == 4 &&
+            position.Legs.All(leg => leg.TradeLegId != Guid.Empty && !string.IsNullOrWhiteSpace(leg.ContractId) &&
+                trade.Legs.Any(source => source.TradeLegId == leg.TradeLegId && source.ContractId == leg.ContractId));
     }
     /// <summary>Commits a financial position transition before admitting its projections.</summary>
     /// <param name = "context">The command publication capability.</param><param name = "state">The command-owned position state.</param>
@@ -138,4 +230,11 @@ public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFact
 
     /// <summary>Admits independently persisted history and financial-boundary projections.</summary>
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents) => projector.DomainEventsProjectionAsync(domainEvents);
+}
+
+public enum IronCondorCurrencyEvidenceReconciliation
+{
+    Unavailable,
+    AlreadyPresent,
+    Reconciled
 }

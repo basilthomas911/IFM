@@ -13,24 +13,38 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.Actor;
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Event;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Command.EventProjector;
 /// <summary>Projects committed administrative source events into revision-fenced read models; PostgreSQL rows already committed with the source.</summary>
-public sealed class ScheduledTaskRunEventProjector(IScheduledTaskProjectionWriter writer, IDurableReplayQueue queue,
-    IEventSourceActorDbContext eventSource, IBlackboardService blackboard, ILogger<ScheduledTaskRunEventProjector> logger,
-    EventProjectorReliabilityOptions? options = null)
-    : ConventionalEventProjector<ScheduledTaskRunCommandActor>(queue, eventSource, blackboard, logger, options)
+public sealed class ScheduledTaskRunEventProjector : ConventionalEventProjector<ScheduledTaskRunCommandActor>
 {
+    /// <summary>Initializes the durable run projections and their live host publication.</summary>
+    public ScheduledTaskRunEventProjector(IScheduledTaskProjectionWriter writer, IDurableReplayQueue queue,
+        IEventSourceActorDbContext eventSource, IBlackboardService blackboard, ILogger<ScheduledTaskRunEventProjector> logger,
+        EventProjectorReliabilityOptions? options = null)
+        : base(queue, eventSource, blackboard, logger, options)
+        => ProjectionDescriptors = CreateDescriptors(writer);
+
     /// <inheritdoc />
-    public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors { get; } =
+    public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors { get; }
+
+    IReadOnlyCollection<EventProjectionDescriptor> CreateDescriptors(IScheduledTaskProjectionWriter writer) =>
     [
         new EventProjectionDescriptor(typeof(ScheduledTaskRunRequestedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             async (domainEvent, execution) =>
             {
+                var source = (ScheduledTaskRunRequestedEvent)domainEvent;
+                var run = source.ScheduledTaskRun ?? throw new InvalidDataException("Missing committed scheduled-task request.");
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskRunRequestedEvent)domainEvent).ScheduledTaskRun!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(run, execution.CancellationToken).ConfigureAwait(false);
+                // Leave the durable apply stage pending until the owning host's publication has been acknowledged.
+                if (run is { Manual: true, Status: ScheduledTaskRunStatus.Requested })
+                    await Context.SendAsync<ExecuteScheduledTaskRuntimeRunEvent, ScheduledTaskId>(
+                        ScheduledTaskRuntimeDispatch.CreateManualRunRequest(source, run, source.OperationCommandId),
+                        execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {

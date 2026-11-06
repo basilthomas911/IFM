@@ -89,6 +89,12 @@ public static class TradeSchemaSql
         );
         
         CREATE INDEX IF NOT EXISTS risk_management_invocation_ordered ON trade.risk_management_invocation (workflow_id, invocation_id, revision DESC);
+
+        CREATE TABLE IF NOT EXISTS trade.risk_management_completion (
+            workflow_id uuid NOT NULL, invocation_id uuid NOT NULL,
+            source_event_id bigint NOT NULL CHECK(source_event_id > 0), payload bytea NOT NULL, content_hash text NOT NULL,
+            PRIMARY KEY (workflow_id, invocation_id)
+        );
         
         CREATE TABLE IF NOT EXISTS trade.risk_management_history (
         portfolio_id int,fund_id int,value_date date,evaluated_at_utc timestamptz,invocation_id uuid,revision bigint,payload bytea,PRIMARY KEY (portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id)

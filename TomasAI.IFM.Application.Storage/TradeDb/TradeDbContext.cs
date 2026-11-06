@@ -1177,6 +1177,15 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     }
 
     /// <inheritdoc/>
+    public Task<RiskManagementFunctionCompletedEvent?> GetRiskCompletionAsync(Guid workflow, Guid invocation, CancellationToken token = default)
+    {
+        workflow.RequireInvocation(invocation, "Exact Risk identities required.");
+        return this.Use("RiskHistory.Calculation", TradeDbSql.ReadRiskCompletion)
+            .SetParameters(new RiskValues([workflow, invocation]))
+            .ExecuteSingleAsync(row => RiskCompletionProjection.Read(workflow, invocation, row.GetLong(0), row.GetBytes(1), row.GetString(2)), token);
+    }
+
+    /// <inheritdoc/>
     public Task<QueryPage<RiskHistoryRow>> GetRiskHistoryAsync(int portfolio, int fund, DateOnly date, int size, byte[]? cursor, CancellationToken token = default)
     {
         portfolio.RequireHistoryScope(fund, date, size, 100, "Invalid Risk history scope.");

@@ -1,4 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text.Json;
+using System.Threading;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using Xunit.Abstractions;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
@@ -15,7 +22,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb;
 
 [Collection("PostgreSQL plan atomicity")]
 [Trait("Infrastructure", "SelfContained")]
-public sealed class PostgresSecuritiesReferenceTests(PostgresTradePlanFixture fixture)
+public sealed class PostgresSecuritiesReferenceTests(PostgresTradePlanFixture fixture, ITestOutputHelper output)
 {
     [Fact]
     public async Task Immutable_bundle_context_reads_saved_payload_and_refuses_conflicting_content()
@@ -81,6 +88,110 @@ public sealed class PostgresSecuritiesReferenceTests(PostgresTradePlanFixture fi
         (await context.GetCachedOptionContractDefinitionsAsync(symbol,"underlying",expiry)).Should().ContainSingle();
         await context.ReplaceOptionContractDefinitionsAsync(symbol,expiry,expiry,[]);
         (await context.GetCachedOptionContractDefinitionsAsync(symbol,"underlying",expiry)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Batched_definitions_match_serial_order_and_pin_the_generation_across_refresh()
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(SecuritiesSchemaSql.Create, [], ct));
+        var settings = new DbConnectionSettings().Add(SecuritiesDbContext.SecuritiesDbConnection, fixture.Connection, "System.Data.Postgres");
+        var symbol = "BATCH" + Guid.NewGuid().ToString("N");
+        var first = new DateOnly(2026, 11, 20);
+        const int expiryCount = 16;
+        const int definitionsPerExpiry = 12;
+        var last = first.AddDays(expiryCount - 2); // Include the nearest published expiry after the requested range.
+        var rows = Enumerable.Range(0, expiryCount).SelectMany(day =>
+            Enumerable.Range(0, definitionsPerExpiry).Select(strike =>
+            {
+                var expiry = first.AddDays(day);
+                var definition = new FuturesOptionContractReadModel($"option-{day}-{strike}", "Saved option", symbol,
+                    "local", "FOP", "USD", "CME", "50", expiry, 6000 + strike, "Put");
+                return new CachedOptionContractDefinitionReadModel
+                {
+                    Symbol = symbol, UnderlyingContractId = strike % 3 == 0 ? "future-a" : "future-b",
+                    ExpiryDate = expiry, ProviderRoot = strike % 2 == 0 ? "EW" : "ES", OptionFamily = "weekly",
+                    Definition = definition, RefreshedAtUtc = DateTime.UtcNow
+                };
+            })).ToArray();
+        var setup = Open();
+        await setup.ReplaceOptionContractDefinitionsAsync(symbol, first, first.AddDays(expiryCount - 1), rows);
+        var expected = await SerialAsync(Open(), null);
+        Assert.Equal(rows.Length, expected.Count);
+        Assert.Equal(expected, await BatchedAsync(Open(), null));
+        Assert.Equal(await SerialAsync(Open(), ["ew"]), await BatchedAsync(Open(), ["ew"]));
+
+        var timings = new List<object>();
+        var warmBefore = Open();
+        var warmAfter = Open();
+        await SerialAsync(warmBefore, null);
+        await BatchedAsync(warmAfter, null);
+        for (var pair = 0; pair < 5; pair++)
+        {
+            var coldBefore = Open();
+            var coldAfter = Open();
+            foreach (var (mode, before, after) in new[]
+                     { ("cold", coldBefore, coldAfter), ("warm", warmBefore, warmAfter) })
+            {
+                var reversed = pair % 2 == 1;
+                var firstMs = await TimeAsync(reversed ? () => BatchedAsync(after, null) : () => SerialAsync(before, null));
+                var secondMs = await TimeAsync(reversed ? () => SerialAsync(before, null) : () => BatchedAsync(after, null));
+                timings.Add(new { mode, beforeMs = reversed ? secondMs : firstMs, afterMs = reversed ? firstMs : secondMs });
+            }
+        }
+        output.WriteLine("reference-definition-timings " + JsonSerializer.Serialize(timings));
+
+        await using (var inFlight = Open().ReadPublishedOptionDefinitionsAsync(symbol, first, last, 2048).GetAsyncEnumerator())
+        {
+            Assert.True(await inFlight.MoveNextAsync());
+            var oldGeneration = new List<string> { inFlight.Current.Definition.ContractId };
+            await setup.ReplaceOptionContractDefinitionsAsync(symbol, first, first.AddDays(expiryCount - 1),
+                [rows[0] with { Definition = rows[0].Definition with { ContractId = "replacement" } }]);
+            while (await inFlight.MoveNextAsync())
+                oldGeneration.Add(inFlight.Current.Definition.ContractId);
+            Assert.Equal(expected, oldGeneration);
+        }
+        Assert.Equal(["replacement"], await BatchedAsync(warmAfter, null));
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var row in Open().ReadPublishedOptionDefinitionsAsync(symbol, first, last, 2048,
+                cancellationToken: cancellation.Token))
+                _ = row;
+        });
+
+        SecuritiesDbContext Open()
+        {
+            var factory = new Mock<IDbContextFactory>();
+            var context = new SecuritiesDbContext(settings, factory.Object, NullLogger<DbProvider>.Instance);
+            factory.SetupGet(x => x.SecuritiesDb).Returns(context);
+            return context;
+        }
+        async Task<List<string>> SerialAsync(SecuritiesDbContext db, string[]? roots)
+        {
+            var result = new List<string>();
+            var expiries = await db.GetOptionContractExpiriesAsync(symbol, first, last);
+            foreach (var (expiry, underlying) in expiries.Select(x => (x.ExpiryDate, x.ContractId)).Distinct())
+                result.AddRange((await db.GetCachedOptionContractDefinitionsAsync(symbol, underlying, expiry, roots))
+                    .Select(row => row.Definition.ContractId));
+            return result;
+        }
+        async Task<List<string>> BatchedAsync(SecuritiesDbContext db, string[]? roots)
+        {
+            var result = new List<string>();
+            await foreach (var row in db.ReadPublishedOptionDefinitionsAsync(symbol, first, last, 2048, roots))
+                result.Add(row.Definition.ContractId);
+            return result;
+        }
+        async Task<double> TimeAsync(Func<Task<List<string>>> run)
+        {
+            var start = Stopwatch.GetTimestamp();
+            var actual = await run();
+            var elapsed = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+            Assert.Equal(expected, actual);
+            return elapsed;
+        }
     }
 
     [Fact]

@@ -1,5 +1,4 @@
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Event.Actor;
@@ -23,18 +22,16 @@ public static class ScheduledTaskRuntimeDispatch
         };
         return owner.Producer.SendAsync<ApplyScheduledTaskRuntimeEvent, ScheduledTaskId>(request.Subject, request);
     }
-    /// <summary>Requests one manual occurrence only after its run source event and projection are committed.</summary>
-    public static ValueTask RequestManualRunAsync(ScheduledTaskRunRequestedCompleteEvent source, ScheduledTaskRun run, ScheduledTaskEventContext owner)
+    /// <summary>Creates the same host-specific manual request on every projection attempt.</summary>
+    public static ExecuteScheduledTaskRuntimeRunEvent CreateManualRunRequest(IEvent source, ScheduledTaskRun run, Guid operationCommandId)
     {
-        ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(source);
-        var request = new ExecuteScheduledTaskRuntimeRunEvent
+        return new ExecuteScheduledTaskRuntimeRunEvent
         {
             Id = source.Id, CommandId = source.CommandId, EntityId = run.Id, AggregateId = run.Id.Format(),
-            OperationCommandId = source.OperationCommandId, ScheduledTaskRun = run,
+            OperationCommandId = operationCommandId, ScheduledTaskRun = run,
             Subject = new(ActorType.Event, ScheduledTaskIdentities.RuntimeActor(run.Environment, run.HostId), ExecuteScheduledTaskRuntimeRunEvent.Verb, run.Id.Format())
         };
-        return owner.Producer.SendAsync<ExecuteScheduledTaskRuntimeRunEvent, ScheduledTaskId>(request.Subject, request);
     }
 }

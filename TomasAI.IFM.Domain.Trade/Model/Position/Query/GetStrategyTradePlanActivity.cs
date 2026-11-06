@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Model.Position.Query.Actor;
 
@@ -16,10 +17,10 @@ public static class GetStrategyTradePlanActivity
         /// <param name = "context">The typed query-actor context.</param>
         /// <param name = "cancellationToken">Cancels storage access.</param>
         /// <returns>A task that completes after the reply is sent.</returns>
-        public ValueTask ExecuteAsync(IStrategyTradePlanActivityQueryContext context, CancellationToken cancellationToken)
+        public ValueTask<ServiceResult<StrategyTradePlanActivityPage>> ExecuteAsync(IStrategyTradePlanActivityQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
-            return StrategyTradePlanQueryExecution.ReplyActivityAsync(context, context.DbFactory, query, cancellationToken);
+            return StrategyTradePlanQueryExecution.ReadActivityAsync(context.DbFactory, query, cancellationToken);
         }
     }
 }

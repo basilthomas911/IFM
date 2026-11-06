@@ -11,12 +11,12 @@ public static class GetOptionTradeSpreadBarData
     extension(GetOptionTradeSpreadBarDataQuery query)
     {
         /// <summary>Reads legacy option spread bars for the requested date range.</summary>
-        public async ValueTask ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<OptionTradeSpreadBarsDataModel[]>> ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             OptionTradeSpreadBarsDataModel[] result = [.. await context.DbFactory.TradeDb.GetOptionTradeSpreadBarDataAsync(query.OrderId, query.TradeId, query.ValueDate, query.TradeType, query.StartDate, query.EndDate, cancellationToken).ConfigureAwait(false)];
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<OptionTradeSpreadBarsDataModel[]>(result)).ConfigureAwait(false);
+            return new ServiceResult<OptionTradeSpreadBarsDataModel[]>(result);
         }
     }
 }

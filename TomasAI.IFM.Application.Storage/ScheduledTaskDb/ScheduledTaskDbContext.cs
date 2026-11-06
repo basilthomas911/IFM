@@ -34,6 +34,24 @@ public sealed class ScheduledTaskDbContext(IDbConnectionSettings settings, ILogg
     }
 
     /// <inheritdoc/>
+    public async ValueTask<DateOnly?> GetCompletedMarketCloseAsync(string environment, CancellationToken cancellationToken = default)
+    {
+        var host = ScheduledTaskKeys.ApiMarketCloseHost;
+        var schedule = ScheduledTaskIdentities.Catalog(environment, host);
+        byte[]? cursor = null;
+        do
+        {
+            var page = await GetRunHistoryAsync(environment, host, schedule, 8, cursor, cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var run in page.Runs)
+                if (run.GetCompletedMarketCloseDate() is { } completed)
+                    return completed;
+            cursor = page.PagingState;
+        } while (cursor is not null);
+        return null;
+    }
+
+    /// <inheritdoc/>
     public async ValueTask<ScheduledTaskDefinition?> GetDefinitionAsync(string environment, string hostId, ScheduledTaskId id, CancellationToken cancellationToken = default) => await Use("ScheduledTask.Definition", ScheduledTaskDbSql.Definition)
             .SetParameters(new ScheduledTaskDbParameters([environment, hostId, id.Value]))
             .ExecuteSingleAsync(MapToSnapshot<ScheduledTaskDefinition>, cancellationToken)

@@ -92,15 +92,14 @@ public sealed partial class TradeSelectionRuntimeTests
             (await api.GetHistoryAsync(row.PortfolioId, row.FundId + 100, row.ValueDate, 1)).Success.Should().BeFalse();
             (await api.GetHistoryAsync(row.PortfolioId, row.FundId, row.ValueDate, 101)).Success.Should().BeFalse();
             var events = host.Services.GetRequiredService<IEventSourceActorDbContext>();
-            await events.SaveEventsAsync($"RiskHistoryTest.{last.CommandId}", last.CommandId, new DomainEventCollection([last]), 0, CancellationToken.None);
+            var saved = await events.SaveEventsAsync($"RiskHistoryTest.{last.CommandId}", last.CommandId, new DomainEventCollection([last]), 0, CancellationToken.None);
             var journal = new RiskHistoryJournal(host.Services.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction>());
-            var committed = await journal.ByCommandAsync(last.CommandId);
-            committed.Should().BeOfType<WorkflowStrategyStateUpdatedEvent>();
+            var committed = saved.Should().ContainSingle().Subject.Should().BeOfType<WorkflowStrategyStateUpdatedEvent>().Subject;
             var originalCursor = await journal.LoadCursorAsync();
             var fundCursor = await journal.LoadCursorAsync(default, "risk-fund-outcomes-v1");
             try
             {
-                await journal.SaveCursorAsync(committed!.EventId);
+                await journal.SaveCursorAsync(committed.EventId);
                 (await journal.LoadCursorAsync(default, "risk-fund-outcomes-v1")).Should().Be(fundCursor);
                 (await new RiskHistoryJournal(host.Services.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction>()).LoadCursorAsync()).Should().Be(committed.EventId);
                 // PageAsync is receipt-based, not an event-ID range query. A previously
@@ -108,7 +107,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 (await journal.PageAsync(committed.EventId - 1)).Should().HaveCountLessThanOrEqualTo(32);
             }
             finally { await journal.SaveCursorAsync(originalCursor); }
-            await db.UpsertRiskHistoryAsync((WorkflowStrategyStateUpdatedEvent)committed!);
+            await db.UpsertRiskHistoryAsync(committed);
             (await db.GetRiskInvocationAsync(input.WorkflowId.Value, input.CommandId))!.State.StopReasonCode.Should().Be("terminal");
         }
         finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); await producer.StopAsync(); }

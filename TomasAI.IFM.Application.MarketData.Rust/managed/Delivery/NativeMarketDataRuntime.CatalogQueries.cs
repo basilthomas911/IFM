@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using TomasAI.IFM.Application.MarketData.Rust.Interop;
@@ -31,6 +32,66 @@ public sealed class NativeCatalogSnapshot : IDisposable
         ArgumentOutOfRangeException.ThrowIfNegative(index); ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Count);
         return runtime.ReadCatalogQueryProjection(token, (uint)index);
     }
+    /// <summary>Reads immutable native projections in bounded pages using one caller buffer.</summary>
+    public IEnumerable<NativeContractDefinition> ReadDefinitions(CancellationToken cancellationToken = default)
+        => ReadRows(1, ReadDefinition, static (buffer, offset, count) =>
+            JsonSerializer.Deserialize<NativeContractDefinition>(buffer.AsSpan(offset, count))
+                ?? throw new InvalidDataException("Missing native definition projection."), cancellationToken);
+
+    /// <summary>Reads untouched provider source rows in bounded pages using one caller buffer.</summary>
+    public IEnumerable<string> ReadSources(CancellationToken cancellationToken = default)
+        => ReadRows(0, ReadSource, static (buffer, offset, count) =>
+            NativeMarketDataRuntime.DecodeCatalogSource(buffer, offset, count), cancellationToken);
+
+    IEnumerable<T> ReadRows<T>(uint format, Func<int, T> readOne, Func<byte[], int, int, T> decode,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+        if (!runtime.SupportsCatalogPages || Count <= 1)
+        {
+            for (var index = 0; index < Count; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return readOne(index);
+            }
+            yield break;
+        }
+
+        var buffer = ArrayPool<byte>.Shared.Rent(NativeMarketDataRuntime.CatalogPageCapacity);
+        try
+        {
+            for (var start = 0; start < Count;)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+                var requested = Math.Min(64, Count - start);
+                var (length, rows) = runtime.ReadCatalogQueryPage(token, start, requested, format, buffer);
+                var offset = 0;
+                for (var row = 0; row < rows; row++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+                    if (length - offset < sizeof(uint))
+                        throw new InvalidDataException("Native catalog page has a truncated row length.");
+                    var count = BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(offset, sizeof(uint)));
+                    offset += sizeof(uint);
+                    if (count == 0 || count > length - offset)
+                        throw new InvalidDataException("Native catalog page has an invalid row length.");
+                    yield return decode(buffer, offset, (int)count);
+                    offset += (int)count;
+                }
+                if (offset != length)
+                    throw new InvalidDataException("Native catalog page contains trailing data.");
+                start += rows;
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
     /// <summary>Requests native current/term-structure selection. This object
     /// pins copied definitions only, with no live provider resource.</summary>
     public TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel[] SelectCurrentFutures(
@@ -183,6 +244,28 @@ public sealed partial class NativeMarketDataRuntime
             }
         }
     }
+    internal const int CatalogPageCapacity = 262_148;
+    internal bool SupportsCatalogPages => library.CatalogQueryPage is not null;
+    internal static string DecodeCatalogSource(byte[] buffer, int offset, int count)
+        => CatalogUtf8.GetString(buffer.AsSpan(offset, count));
+
+    internal unsafe (int Length, int Rows) ReadCatalogQueryPage(ulong token, int start, int count, uint format, byte[] buffer)
+    {
+        lock (gate)
+        {
+            EnsureLiveAccess();
+            var read = library.CatalogQueryPage ?? throw new InvalidOperationException("Native catalog pages are unavailable.");
+            fixed (byte* output = buffer)
+            {
+                NativeMarketDataLibrary.Check(read(handle.Identity, token, (uint)start, (uint)count,
+                    format, output, CatalogPageCapacity, out var length, out var rows), "catalog query page");
+                if (length > CatalogPageCapacity || rows == 0 || rows > count)
+                    throw new InvalidDataException("Native catalog page exceeded its caller buffer or row limit.");
+                return ((int)length, (int)rows);
+            }
+        }
+    }
+
     internal unsafe NativeContractDefinition ReadCatalogQueryProjection(ulong token, uint index)
     {
         var buffer = ArrayPool<byte>.Shared.Rent(262_144);

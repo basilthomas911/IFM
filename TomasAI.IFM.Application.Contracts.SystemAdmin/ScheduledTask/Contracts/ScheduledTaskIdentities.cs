@@ -11,6 +11,8 @@ public static class ScheduledTaskIdentities
     public static ScheduledTaskId Occurrence(ScheduledTaskId scheduleId, DateTimeOffset intendedFireTimeUtc) => Hash($"Occurrence:{scheduleId.Format()}:{intendedFireTimeUtc.UtcTicks}");
     /// <summary>Formats a host-specific runtime mailbox to avoid cross-host control consumption.</summary>
     public static string RuntimeActor(string environment, string hostId) => $"ScheduledTaskRuntime{Catalog(environment, hostId).Format()}";
+    /// <summary>Identifies the operator-resolution release across duplicate completion deliveries.</summary>
+    public static Guid OperatorResolutionRelease(ScheduledTaskId runId) => Hash($"OperatorResolutionRelease:{runId.Format()}").Value;
     /// <summary>Derives a fixed 128-bit route identity from a namespaced SHA-256 value.</summary>
     private static ScheduledTaskId Hash(string value) => new(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes("IFM.ScheduledTask:" + value)).AsSpan(0, 16)));
 }

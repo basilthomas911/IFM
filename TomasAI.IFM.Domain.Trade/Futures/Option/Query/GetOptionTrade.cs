@@ -11,12 +11,12 @@ public static class GetOptionTrade
     extension(GetOptionTradeQuery query)
     {
         /// <summary>Reads one legacy option-trade projection by order and trade identifier.</summary>
-        public async ValueTask ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<OptionTradeReadModel?>> ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             var result = await context.DbFactory.TradeDb.GetOptionTradeAsync(query.OrderId, query.TradeId, cancellationToken).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<OptionTradeReadModel?>(result)).ConfigureAwait(false);
+            return new ServiceResult<OptionTradeReadModel?>(result);
         }
     }
 }

@@ -605,14 +605,19 @@ impl StrategyWorkspace {
                                                             ),
                                                         );
                                                         response.on_hover_text(&actor.value);
-                                                        if color == egui::Color32::RED {
-                                                            break;
-                                                        }
                                                     }
                                                 });
                                             });
                                             table_row.col(|ui| {
-                                                ui.trading_label(&row.end_state);
+                                                let mut label = egui::RichText::new(&row.end_state);
+                                                match row.end_state.as_str() {
+                                                    "No Trade" => label = label.color(pipeline_color("No Trade")),
+                                                    "Pipeline Failed" | "Invalid Result" | "Timed Out" | "Consistency Fault" => {
+                                                        label = label.color(egui::Color32::RED);
+                                                    }
+                                                    _ => {}
+                                                }
+                                                ui.trading_label(label);
                                             });
                                             if table_row.response().clicked() {
                                                 action = Some(row.action);
@@ -668,15 +673,16 @@ pub fn pipeline_color(state: &str) -> egui::Color32 {
     match state {
         "Processing" => egui::Color32::YELLOW,
         "Continued" | "Continue" => egui::Color32::GREEN,
+        "No Trade" => egui::Color32::from_rgb(90, 155, 255),
         _ => egui::Color32::RED,
     }
 }
 
 
-/// Return the number of actor indicators through the first failed stage, including that stage.
+/// Return the number of indicators through the first terminal decision, including that stage.
 pub fn visible_pipeline_count(actors: &[WorkflowActor]) -> usize {
     actors
         .iter()
-        .position(|actor| pipeline_color(&actor.state) == egui::Color32::RED)
+        .position(|actor| !matches!(actor.state.as_str(), "Processing" | "Continued" | "Continue"))
         .map_or(actors.len(), |index| index + 1)
 }

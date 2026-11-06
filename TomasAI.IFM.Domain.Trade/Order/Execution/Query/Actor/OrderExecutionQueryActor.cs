@@ -14,20 +14,22 @@ namespace TomasAI.IFM.Domain.Trade.Order.Execution.Query.Actor;
 public sealed class OrderExecutionQueryActor(IQueryActorContext<OrderExecutionQueryActor> context) : BaseQueryActor<OrderExecutionQueryActor>(context, T(context).Logger)
 {
     public const string ActorName = OrderExecutionActorNames.Query;
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>
-(StringComparer.Ordinal)    {
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
-            GetOrderExecutionQuery.Verb,
-            m => m.AsQuery<GetOrderExecutionQuery, OrderExecutionDefinition>()!
-        }
-    }.ToFrozenDictionary();
-    static readonly IReadOnlyDictionary<Type, Func<IOrderExecutionQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IOrderExecutionQueryContext, IQuery, CancellationToken, ValueTask>>
-    {
+            [GetOrderExecutionQuery.Verb] = static message => message.AsQuery<GetOrderExecutionQuery, OrderExecutionDefinition>()!
+        }.ToFrozenDictionary(StringComparer.Ordinal);
+    static readonly IReadOnlyDictionary<Type, Func<IOrderExecutionQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IOrderExecutionQueryContext, IQuery, CancellationToken, ValueTask>>
         {
-            typeof(GetOrderExecutionQuery),
-            static (c, q, t) => ((GetOrderExecutionQuery)q).ExecuteAsync(c, t)
-        }
-    }.ToFrozenDictionary();
+            [typeof(GetOrderExecutionQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetOrderExecutionQuery)query).ExecuteAsync(context.DbFactory.TradeDb, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+                    new ServiceResult<OrderExecutionDefinition?>(result)).ConfigureAwait(false);
+            }
+        }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<OrderExecutionQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IQueryActorContext<OrderExecutionQueryActor> context, IQuery query) => ReceiveAsync(context, query, CancellationToken.None);

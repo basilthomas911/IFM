@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Backup.Query.Actor;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Lifecycle.Query.Actor;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Queries;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels;
@@ -31,6 +32,13 @@ public sealed class DatabaseBackupQueryActorTests
             => base.ReceiveAsync(context, query, cancellationToken);
     }
 
+    sealed class TestableLifecycleQueryActor(IDatabaseBackupLifecycleQueryContext context)
+        : DatabaseBackupLifecycleQueryActor(context)
+    {
+        public ValueTask Receive(CancellationToken cancellationToken, IQuery query)
+            => base.ReceiveAsync(context, query, cancellationToken);
+    }
+
     [Fact]
     public async Task Query_handler_validates_reads_projection_and_replies_with_typed_result()
     {
@@ -43,10 +51,16 @@ public sealed class DatabaseBackupQueryActorTests
             Request = Request(),
             Subject = new ActorSubject(ActorType.Query, DatabaseBackupQueryRoute.Service, "GetServiceHealth", Guid.NewGuid().ToString("N"))
         };
-        db.GetServiceHealthAsync(Arg.Any<GetDatabaseBackupServiceHealthQuery>(), CancellationToken.None).Returns(ValueTask.FromResult(rows));
+        var projection = new TaskCompletionSource<DatabaseBackupHealthReadModel[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        db.GetServiceHealthAsync(Arg.Any<GetDatabaseBackupServiceHealthQuery>(), CancellationToken.None)
+            .Returns(new ValueTask<DatabaseBackupHealthReadModel[]>(projection.Task));
         var actor = new TestableServiceQueryActor(db, Substitute.For<ILogger<DatabaseBackupServiceQueryActor>>());
 
-        await actor.Receive(context, query, CancellationToken.None);
+        var handling = actor.Receive(context, query, CancellationToken.None);
+        await context.DidNotReceive().ReplyAsync(
+            query.Subject.ThreadId, query.Verb, Arg.Any<ServiceResult<DatabaseBackupHealthReadModel[]>>());
+        projection.SetResult(rows);
+        await handling;
 
         await db.Received(1).GetServiceHealthAsync(
             Arg.Is<GetDatabaseBackupServiceHealthQuery>(legacy => legacy.EntityId == query.EntityId && legacy.Request.RequestId == query.Request.RequestId),
@@ -54,6 +68,55 @@ public sealed class DatabaseBackupQueryActorTests
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId, query.Verb,
             Arg.Is<ServiceResult<DatabaseBackupHealthReadModel[]>>(result => result.Success && result.Value == rows));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Backup_log_reply_reads_retained_output_only_for_the_projected_source(bool sourceMatches)
+    {
+        var db = Substitute.For<ISystemAdminDbContext>();
+        var reader = Substitute.For<IDatabaseBackupOutputReader>();
+        var context = Substitute.For<IDatabaseBackupLifecycleQueryContext>();
+        context.DbContext.Returns(db);
+        context.OutputReader.Returns(reader);
+        context.Logger.Returns(Substitute.For<ILogger<DatabaseBackupLifecycleQueryActor>>());
+        var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var query = new GetDatabaseBackupLogQuery
+        {
+            EntityId = operationId,
+            OperationId = operationId,
+            Request = Request(),
+            Source = BackupSource.LocalWorkstation,
+            Subject = new(ActorType.Query, DatabaseBackupLifecycleQueryActor.Actor, "GetBackupLog", operationId.Format()),
+            OutputOffset = 32
+        };
+        db.GetBackupOperationAsync(Arg.Is<GetDatabaseBackupOperationQuery>(request => request.OperationId == operationId), CancellationToken.None)
+            .Returns(ValueTask.FromResult<DatabaseBackupOperationReadModel?>(new()
+            {
+                OperationId = operationId,
+                Source = sourceMatches ? query.Source : default
+            }));
+        DatabaseBackupPhaseReadModel[] phases = [new()];
+        db.GetBackupPhasesAsync(query, CancellationToken.None).Returns(ValueTask.FromResult(phases));
+        var retained = new DatabaseBackupLogReadModel { Output = "retained output", NextOutputOffset = 47, OutputAvailable = true };
+        reader.ReadAsync(query.Source, operationId.Value, query.OutputOffset, CancellationToken.None).Returns(ValueTask.FromResult(retained));
+
+        await new TestableLifecycleQueryActor(context).Receive(CancellationToken.None, query);
+
+        if (sourceMatches)
+        {
+            var expected = retained with { Phases = phases };
+            await reader.Received(1).ReadAsync(query.Source, operationId.Value, query.OutputOffset, CancellationToken.None);
+            await context.Received(1).ReplyAsync(query.Subject.ThreadId, query.Verb,
+                Arg.Is<ServiceResult<DatabaseBackupLogReadModel>>(result => result.Success && result.Value == expected));
+        }
+        else
+        {
+            await reader.DidNotReceive().ReadAsync(query.Source, operationId.Value, query.OutputOffset, CancellationToken.None);
+            await context.Received(1).ReplyAsync(query.Subject.ThreadId, query.Verb,
+                Arg.Is<ServiceResult<DatabaseBackupLogReadModel>>(result => !result.Success && result.ErrorCode == 404));
+        }
     }
 
     [Fact]

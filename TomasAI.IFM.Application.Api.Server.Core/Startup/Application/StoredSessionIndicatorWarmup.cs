@@ -1,5 +1,6 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -16,22 +17,68 @@ namespace TomasAI.IFM.Application.Api.Server.Core.Startup.Application;
 
 /// <summary>Restores the Daily, Weekly and Monthly strategy inputs through normal indicator actors and qualified original history.</summary>
 public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReader reader, IActorService actors,
-    IMarketDataApi market, IDbContextFactory databases, ILogger<StoredSessionIndicatorWarmup> logger)
+    IMarketDataApi market, IDbContextFactory databases, IMarketSessionCalendar calendar, TimeProvider clock,
+    ILogger<StoredSessionIndicatorWarmup> logger)
 {
-    readonly HashSet<(DateOnly Date, TimeFrameType Frame)> completed = [];
+    readonly Dictionary<(DateOnly Date, string ContractId, TimeFrameType Frame), DateTimeOffset> completed = [];
+    readonly System.Collections.Concurrent.ConcurrentDictionary<(DateOnly Date, string ContractId, TimeFrameType Frame), byte> shortSeeds = new();
+    readonly SemaphoreSlim fifteenSecondSeed = new(1, 1);
+    readonly SemaphoreSlim oneMinuteSeed = new(1, 1);
 
-    /// <summary>Initializes each required intraday/Daily family once per session; missing history remains explicit and retryable.</summary>
+    /// <summary>Seeds a fast timeframe before its live processors attach.</summary>
+    public async Task<bool> WarmShortFrameAsync(string contractId, DateOnly date, TimeFrameType frame, CancellationToken token)
+    {
+        var gate = frame switch
+        {
+            TimeFrameType.FifteenSeconds => fifteenSecondSeed,
+            TimeFrameType.OneMinute => oneMinuteSeed,
+            _ => throw new ArgumentOutOfRangeException(nameof(frame))
+        };
+        await gate.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            var key = (date, contractId, frame);
+            if (shortSeeds.ContainsKey(key)) return true;
+            using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+            budget.CancelAfter(TimeSpan.FromSeconds(90));
+            if (!await WarmFrameAsync(contractId, date, frame, budget.Token, seedShortFrame: true).ConfigureAwait(false))
+                return false;
+            shortSeeds.TryAdd(key, 0);
+            logger.LogInformation("Historical startup seed verified for {ContractId} {TimeFrame} on {ValueDate}: RSI13/14, ADX, ATR, MACD and Bollinger state.",
+                contractId, frame, date);
+            return true;
+        }
+        catch (Exception error) when (!token.IsCancellationRequested)
+        {
+            logger.LogWarning(error, "Historical startup seed failed for {ContractId} {TimeFrame} on {ValueDate}.", contractId, frame, date);
+            return false;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>Restores session baselines and reconciles each newly closed 15-minute and hourly interval.</summary>
     public async Task<bool> WarmAsync(DateOnly date, CancellationToken token)
     {
         if (!market.TryGetOnTheRunFuturesContract("ES", out var contract)) return false;
         // At most four independent timeframe attempts run at once. Each attempt
         // still sends its own indicator commands in order.
         TimeFrameType[] frames = [TimeFrameType.FifteenMinutes, TimeFrameType.OneHour, TimeFrameType.Daily, TimeFrameType.FourHours];
-        var pending = frames.Where(frame => !completed.Contains((date, frame))).ToArray();
-        var results = await Task.WhenAll(pending.Select(TryWarmFrameAsync)).ConfigureAwait(false);
+        var cutoff = clock.GetUtcNow().AddSeconds(-30);
+        var pending = frames.Select(frame => (Frame: frame, Through: frame is TimeFrameType.FifteenMinutes or TimeFrameType.OneHour
+                ? RsiHistoricalSeedWindowModel.Create(frame, 1, cutoff, calendar).LastOrDefault().EndUtc
+                : DateTimeOffset.MinValue))
+            .Where(target => !completed.TryGetValue((date, contract.ContractId, target.Frame), out var through)
+                || target.Through > through).ToArray();
+        var fastFrames = Task.WhenAll(
+            WarmShortFrameAsync(contract.ContractId, date, TimeFrameType.FifteenSeconds, token),
+            WarmShortFrameAsync(contract.ContractId, date, TimeFrameType.OneMinute, token));
+        var results = await Task.WhenAll(pending.Select(target => TryWarmFrameAsync(target.Frame))).ConfigureAwait(false);
         for (var index = 0; index < pending.Length; index++)
-            if (results[index]) completed.Add((date, pending[index]));
-        return results.All(static result => result);
+            if (results[index]) completed[(date, contract.ContractId, pending[index].Frame)] = pending[index].Through;
+        return (await fastFrames.ConfigureAwait(false)).All(static result => result) && results.All(static result => result);
 
         async Task<bool> TryWarmFrameAsync(TimeFrameType frame)
         {
@@ -55,7 +102,7 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         }
     }
 
-    async Task<bool> WarmFrameAsync(string contractId, DateOnly date, TimeFrameType frame, CancellationToken token)
+    async Task<bool> WarmFrameAsync(string contractId, DateOnly date, TimeFrameType frame, CancellationToken token, bool seedShortFrame = false)
     {
         if (frame == TimeFrameType.Daily)
         {
@@ -65,7 +112,7 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
                 RegimeDiscoverySignalCacheAdapter.Publish(vx);
         }
         FuturesTradeSessionBarReadModel[]? acquiredSeed = null;
-        if (await RestoreCommittedIndicatorsAsync(databases, contractId, date, frame, token).ConfigureAwait(false) is { } oldestObservation)
+        if (!seedShortFrame && await RestoreCommittedIndicatorsAsync(databases, contractId, date, frame, token).ConfigureAwait(false) is { } oldestObservation)
         {
             // Market structure needs the current bar and the preceding 20 completed bars.
             var structure = await reader.ReadAsync(contractId, frame, 21, token).ConfigureAwait(false);
@@ -132,6 +179,9 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         if (atr is not { IsWarm: true, AtrRatio: not null })
             throw new InvalidOperationException("Stored ATR initialization has not produced a warm read model.");
         RegimeDiscoverySignalCacheAdapter.Publish(atr);
+        if (seedShortFrame)
+            logger.LogInformation("Historical ATR seed committed for {ContractId} {TimeFrame} on {ValueDate}: {Count} bars through {Through}, ATR {Atr}, baseline {Baseline}.",
+                contractId, frame, date, bars.Length, bars[^1].IntervalEndUtc, atr.AtrValue, atr.AtrBaseline);
         RegimeDiscoverySignalCacheAdapter.RestoreBars(bars);
         var minimumBandAsOf = frame == TimeFrameType.Daily ? (DateTimeOffset?)null : bars[^1].IntervalStartUtc;
         if (await RestoreBollingerAsync(databases, contractId, date, frame, token, minimumBandAsOf).ConfigureAwait(false))

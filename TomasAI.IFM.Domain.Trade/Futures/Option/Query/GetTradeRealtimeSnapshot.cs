@@ -9,13 +9,13 @@ public static class GetTradeRealtimeSnapshot
 
     extension(GetTradeRealtimeSnapshotQuery query)
     {
-        public async ValueTask ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken token)
+        public async ValueTask<ServiceResult<TradeRealtimeSnapshot?>> ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
             var cache = context.RealtimeCache?.Find(query.TradeId);
             var snapshot = cache?.Read();
             if (snapshot?.ValueDate != query.ValueDate) snapshot = null;
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<TradeRealtimeSnapshot?>(snapshot)).ConfigureAwait(false);
+            return new ServiceResult<TradeRealtimeSnapshot?>(snapshot);
         }
     }
 }

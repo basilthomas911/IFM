@@ -58,22 +58,22 @@ public static class AdvanceRiskFinancialHandoff
         /// <param name = "context">The authorized workflow services, clock, and logger.</param>
         /// <param name = "state">The authoritative workflow state.</param>
         /// <returns>The command acceptance or rejection.</returns>
-        public async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
+        public ValueTask<ServiceResult<GuidResult>> ExecuteAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(state);
             var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
-            var preparationResult = await PrepareWorkflowAsync(command, context, preparation).ConfigureAwait(false);
+            var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
-                return preparationResult;
+                return ValueTask.FromResult(preparationResult);
             var errorMsg = "IntrinsicTimeStrategyWorkflow.STATE.APPLY_FAILED: unable to apply AdvanceRiskFinancialHandoff event";
             var updated = command.Compute(preparation.Freeze(), out var workflowTransition) switch
             {
                 _ when workflowTransition.RejectionReason is not null => command.UpdateFailed(ref errorMsg, workflowTransition.RejectionReason),
                 _ => state.Update(command.CreateWorkflowLifecycleEvents(workflowTransition), command)
             };
-            return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
+            return ValueTask.FromResult<ServiceResult<GuidResult>>(updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg));
         }
 
         /// <summary>Prepares immutable workflow changes while preserving deadline, stale-result, and financial-read ordering.</summary>
@@ -81,7 +81,7 @@ public static class AdvanceRiskFinancialHandoff
         /// <param name = "context">The authorized actor services and logging context.</param>
         /// <param name = "state">The authoritative state or local preparation snapshot, as declared by the method.</param>
         /// <returns>The prepared business result or command acceptance.</returns>
-        internal async ValueTask<ServiceResult<GuidResult>> PrepareWorkflowAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
+        internal ServiceResult<GuidResult> PrepareWorkflow(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
         {
             using var timing_authorization_verify_current_view = WorkflowTrace.Start("authorization.verify.current_view", null);
             var view = state.CurrentView;
@@ -95,14 +95,6 @@ public static class AdvanceRiskFinancialHandoff
             RiskUnitModel.Require(command.CommandId == expected.CommandId, "RM.HANDOFF.IDENTITY");
             var risk = view.RiskManagement.Result?.RiskResult ?? throw new RiskCalculationException("RM.HANDOFF.NO_RESULT");
             RiskUnitModel.Require(risk.Outcome == RiskAssessmentOutcome.Approved && view.RiskExecution is not null, "RM.HANDOFF.NOT_APPROVED");
-            var owner = (IIntrinsicTimeStrategyWorkflowCommandContext)context;
-            var api = owner.FinancialApi;
-            var scope = new FinancialReadScope
-            {
-                PortfolioId = risk.PortfolioId,
-                FundId = risk.FundId,
-                Access = new("IntrinsicTimeStrategyWorkflow", ["LedgerRead"], [risk.PortfolioId])
-            };
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;
             var eventId = Guid.CreateVersion7(new DateTimeOffset(now));
             var handoff = view.FinancialHandoff;
@@ -111,67 +103,53 @@ public static class AdvanceRiskFinancialHandoff
             {
                 case RiskFinancialHandoffPhase.None:
                     {
-                        using var timing_authorization_verify_order_read = WorkflowTrace.Start("authorization.verify.order_read", view);
-                        var order = await owner.PortfolioQueries.GetOrderAsync(checked((int)risk.OrderId)).ConfigureAwait(false);
-                        timing_authorization_verify_order_read?.Stop();
-                        RiskUnitModel.Require(order.Success && order.Value is { Status: "RiskPending" } && order.Value.PortfolioId == risk.PortfolioId && order.Value.FundId == risk.FundId && order.Value.WorkflowId == risk.WorkflowId.Value && string.Equals(order.Value.CompositionResultHash, risk.CompositionResultHash, StringComparison.Ordinal), "RM.HANDOFF.FUND_NOT_READY");
-                        using var timing_authorization_verify_decode_candidate = WorkflowTrace.Start("authorization.verify.decode_candidate", view);
-                        var candidate = view.OrderComposition.Result!.ReadCompositionResult().Candidate!;
-                        timing_authorization_verify_decode_candidate?.Stop();
-                        using var timing_authorization_verify_admission_read = WorkflowTrace.Start("authorization.verify.admission_read", view);
-                        var financial = await api.GetFinancialAdmissionSnapshotAsync(scope, new(risk.Authority.DeploymentKey, FinancialScopeKeys.Underlying(candidate.Product.Symbol, candidate.Product.Exchange, candidate.Product.Currency))).ConfigureAwait(false);
-                        timing_authorization_verify_admission_read?.Stop();
-                        RiskUnitModel.Require(financial.Success && financial.Value is not null, "RM.HANDOFF.AUTHORITY_UNAVAILABLE");
-                        now = context.TimeProvider.GetUtcNow().UtcDateTime;
-                        if (RiskResizing.Changed(view.RiskExecution!, RiskResizing.Authority(view.RiskExecution!, financial.Value!, now)))
+                        var order = command.FundOrder;
+                        RiskUnitModel.Require(order is { Status: "RiskPending", AggregateVersion: > 0 } && order.OrderId == risk.OrderId && order.PortfolioId == risk.PortfolioId && order.FundId == risk.FundId && order.WorkflowId == risk.WorkflowId.Value && string.Equals(order.CompositionResultHash, risk.CompositionResultHash, StringComparison.Ordinal), "RM.HANDOFF.FUND_NOT_READY");
+                        var financial = command.Financial ?? throw new RiskCalculationException("RM.HANDOFF.AUTHORITY_UNAVAILABLE");
+                        if (RiskResizing.Changed(view.RiskExecution!, RiskResizing.Authority(view.RiskExecution!, financial, now)))
                         {
-                            resized = RiskResizing.Next(view, financial.Value!, now);
+                            resized = RiskResizing.Next(view, financial, now);
                             break;
                         }
 
                         handoff = new()
                         {
                             Phase = RiskFinancialHandoffPhase.ReservePending,
-                            ReservationRequest = RiskFinancialHandoff.Reserve(view, risk, financial.Value!, now),
+                            ReservationRequest = RiskFinancialHandoff.Reserve(view, risk, financial, now),
                             FundCommandId = RiskFinancialHandoff.Identity(risk.InvocationId, "Fund"),
-                            FundOrderVersion = order.Value!.AggregateVersion
+                            FundOrderVersion = order!.AggregateVersion
                         };
                         break;
                     }
 
                 case RiskFinancialHandoffPhase.ReservePending:
                     {
-                        using var timing_authorization_verify_reservation_receipt = WorkflowTrace.Start("authorization.verify.reservation_receipt", view);
-                        var read = await api.GetPostingReceiptAsync(scope, new(handoff!.ReservationRequest.OperationId)).ConfigureAwait(false);
-                        timing_authorization_verify_reservation_receipt?.Stop();
-                        var grant = read.Value?.Value?.Reservation;
-                        if (read.Success && read.Value is not null && RiskResizing.IsFencedOut(handoff.ReservationRequest, read.Value))
+                        var read = command.ReservationReceipt;
+                        RiskUnitModel.Require(read is null || command.ReservationReceiptOperationId == handoff!.ReservationRequest.OperationId,
+                            "RM.HANDOFF.RESERVATION_MISMATCH");
+                        var grant = read?.Value?.Reservation;
+                        if (read is not null && RiskResizing.IsFencedOut(handoff!.ReservationRequest, read))
                         {
-                            var financial = await api.GetFinancialAdmissionSnapshotAsync(scope, new(risk.Authority.DeploymentKey, view.RiskExecution!.SizingAuthority.UnderlyingId)).ConfigureAwait(false);
-                            RiskUnitModel.Require(financial.Success && financial.Value is not null, "RM.HANDOFF.AUTHORITY_UNAVAILABLE");
-                            now = context.TimeProvider.GetUtcNow().UtcDateTime;
-                            resized = RiskResizing.Next(view, financial.Value!, now, read.Value);
+                            var financial = command.Financial ?? throw new RiskCalculationException("RM.HANDOFF.AUTHORITY_UNAVAILABLE");
+                            resized = RiskResizing.Next(view, financial, now, read);
                             break;
                         }
 
-                        RiskUnitModel.Require(read.Success && read.Value?.Status == FinancialReadStatus.Found && grant is not null, "RM.HANDOFF.GRANT_UNAVAILABLE");
-                        handoff = handoff with
+                        RiskUnitModel.Require(read?.Status == FinancialReadStatus.Found && grant is not null, "RM.HANDOFF.GRANT_UNAVAILABLE");
+                        handoff = handoff! with
                         {
                             Phase = RiskFinancialHandoffPhase.FundPending,
                             Reservation = grant,
-                            Authorization = RiskFinancialHandoff.Authorize(handoff.ReservationRequest, grant!)
+                            Authorization = RiskFinancialHandoff.Authorize(handoff!.ReservationRequest, grant!)
                         };
                         break;
                     }
 
                 case RiskFinancialHandoffPhase.FundPending:
                     {
-                        using var timing_authorization_verify_fund_receipt = WorkflowTrace.Start("authorization.verify.fund_receipt", view);
-                        var read = await api.GetFundRiskAuthorizationAsync(scope, new(handoff!.FundCommandId)).ConfigureAwait(false);
-                        timing_authorization_verify_fund_receipt?.Stop();
-                        var accepted = read.Value?.Value;
-                        now = context.TimeProvider.GetUtcNow().UtcDateTime;
-                        RiskUnitModel.Require(read.Success && read.Value?.Status == FinancialReadStatus.Found && accepted is not null && accepted.CommandId == handoff.FundCommandId && accepted.EventId != Guid.Empty && accepted.Authorization == handoff.Authorization && now < handoff.Authorization!.ValidUntilUtc, "RM.HANDOFF.FUND_AUTHORIZATION");
+                        var read = command.FundReceipt;
+                        var accepted = read?.Value;
+                        RiskUnitModel.Require(read?.Status == FinancialReadStatus.Found && accepted is not null && accepted.CommandId == handoff!.FundCommandId && accepted.EventId != Guid.Empty && accepted.Authorization == handoff.Authorization && now < handoff.Authorization!.ValidUntilUtc, "RM.HANDOFF.FUND_AUTHORIZATION");
                         using var timing_authorization_verify_build_order = WorkflowTrace.Start("authorization.verify.build_order", view);
                         var order = RiskFinancialHandoff.Order(view, command.CommandId);
                         timing_authorization_verify_build_order?.Stop();
@@ -182,7 +160,7 @@ public static class AdvanceRiskFinancialHandoff
                             PortfolioId = risk.PortfolioId,
                             FundId = risk.FundId,
                             OrderId = checked((int)risk.OrderId),
-                            ReservationId = handoff.Authorization!.ReservationId,
+                            ReservationId = handoff!.Authorization!.ReservationId,
                             SizedOrderHash = risk.SizedOrderHash,
                             RequirementsHash = risk.Requirements!.ContentHash,
                             Environment = risk.Environment,

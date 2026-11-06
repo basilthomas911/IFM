@@ -131,24 +131,27 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
     }
 
     [Fact]
-    public async Task Iti_vix_futures_input_is_published_as_front_vx_not_spot_vix()
+    public async Task Qualified_term_structure_supplies_front_vx_without_spot_vix_or_an_iti_price()
     {
         var provider = new RegimeDiscoveryMarketSignalSnapshotProvider();
         var contract = $"ES-{Guid.NewGuid():N}";
         var now = DateTime.UtcNow.AddSeconds(-1);
-        RegimeDiscoverySignalCacheAdapter.Publish(new FuturesItiSignalV2ReadModel
+        var vxContract = $"VX-{Guid.NewGuid():N}";
+        RegimeDiscoverySignalCacheAdapter.Publish(new TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal.FuturesVxTermStructureSignalReadModel
         {
-            ContractId = contract,
+            FrontVxContractId = vxContract,
             ValueDate = DateOnly.FromDateTime(now),
-            TimeFrameStartValueDate = DateOnly.FromDateTime(now),
-            TimePeriod = TimeFrameType.Daily,
-            IntrinsicTime = now,
-            IntrinsicPrice = 100,
-            IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend
-        }, 11, now, 21m);
+            FrontSourceTimestampUtc = now,
+            CalculatedAtUtc = now,
+            FrontSourceSequence = 11,
+            FrontVxPrice = 21m,
+            FrontBackRatio = 0.95m,
+            IsWarm = true,
+            IsValid = true
+        });
 
         var frontVx = await provider.CaptureAsync(SingleMetricRequest(
-            contract, RegimeDiscoverySignalMetric.VxFrontLevel,
+            vxContract, RegimeDiscoverySignalMetric.VxFrontLevel,
             TimeFrameType.Daily));
         var spotVix = await provider.CaptureAsync(SingleMetricRequest(
             contract, RegimeDiscoverySignalMetric.VixLevel,

@@ -13,13 +13,13 @@ public static class GetIronCondorTradePlanChart
 
     extension(GetIronCondorTradePlanChartQuery query)
     {
-        public async ValueTask ExecuteAsync(IIronCondorTradePlanQueryContext context, CancellationToken token)
+        public async ValueTask<ServiceResult<StrategyTradePlanChartSeries>> ExecuteAsync(IIronCondorTradePlanQueryContext context, CancellationToken token)
         {
             var series = await LoadSeriesAsync(context.DbFactory.TradeDb, context.DbFactory.TradePlanDb.DbReader,
                 query.PlanId.Position, query.PlanId.ValueDate, context.Clock.GetUtcNow(), token).ConfigureAwait(false);
             context.Logger.LogInformation("Iron Condor lifetime chart loaded; PositionId={PositionId}; ValueDate={ValueDate}; Samples={Samples}",
                 query.PlanId.Position.Format(), query.PlanId.ValueDate, series.Points.Length);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<StrategyTradePlanChartSeries>(series)).ConfigureAwait(false);
+            return new ServiceResult<StrategyTradePlanChartSeries>(series);
         }
     }
 

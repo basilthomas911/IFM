@@ -25,12 +25,36 @@ public sealed class MarketConditionQueryActor(IQueryActorContext<MarketCondition
     };
     static readonly IReadOnlyDictionary<Type, Func<IMarketConditionQueryContext, IQueryActorContext<MarketConditionQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IMarketConditionQueryContext, IQueryActorContext<MarketConditionQueryActor>, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetMarketConditionAssessmentQuery)] = static (services, context, query, cancellationToken) => ((GetMarketConditionAssessmentQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetMarketConditionAssessmentReferenceQuery)] = static (services, context, query, cancellationToken) => ((GetMarketConditionAssessmentReferenceQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetMarketConditionAssessmentHistoryQuery)] = static (services, context, query, cancellationToken) => ((GetMarketConditionAssessmentHistoryQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetMarketConditionQuery)] = static (services, context, query, cancellationToken) => ((GetMarketConditionQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetLatestMarketConditionQuery)] = static (services, context, query, cancellationToken) => ((GetLatestMarketConditionQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetMarketConditionHistoryQuery)] = static (services, context, query, cancellationToken) => ((GetMarketConditionHistoryQuery)query).ExecuteAsync(services, context, cancellationToken)
+        [typeof(GetMarketConditionAssessmentQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetMarketConditionAssessmentQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetMarketConditionAssessmentReferenceQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetMarketConditionAssessmentReferenceQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetMarketConditionAssessmentHistoryQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetMarketConditionAssessmentHistoryQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetMarketConditionQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetMarketConditionQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetLatestMarketConditionQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetLatestMarketConditionQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetMarketConditionHistoryQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetMarketConditionHistoryQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        }
     };
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<MarketConditionQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

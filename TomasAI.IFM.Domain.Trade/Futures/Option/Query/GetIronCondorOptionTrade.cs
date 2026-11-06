@@ -17,10 +17,10 @@ public static class GetIronCondorOptionTrade
         /// Reads one established trade and returns it only when it is an Iron Condor.
         /// </summary>
         ///
-        /// <param name = "context">The typed query context that provides storage and reply operations.</param>
+        /// <param name = "context">The typed query context that provides projection storage.</param>
         /// <param name = "cancellationToken">The token that cancels the storage operation.</param>
-        /// <returns>A task that completes after the typed query reply is sent.</returns>
-        public async ValueTask ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
+        /// <returns>The typed projected result.</returns>
+        public async ValueTask<ServiceResult<EstablishedTradeDefinition?>> ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
@@ -28,7 +28,7 @@ public static class GetIronCondorOptionTrade
             if (trade?.StrategyKind != TradeStrategyKind.IronCondor)
                 trade = null;
             if (trade is not null) trade = StrategyPositionHistoryProjection.EnrichTrade(trade);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<EstablishedTradeDefinition?>(trade)).ConfigureAwait(false);
+            return new ServiceResult<EstablishedTradeDefinition?>(trade);
         }
     }
 }

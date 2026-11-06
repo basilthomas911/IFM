@@ -52,6 +52,23 @@ public interface ISecuritiesDbReadContext : ICurrentFuturesContractCatalog, IOpt
         string symbol, string underlyingContractId, DateOnly expiryDate,
         IReadOnlyCollection<string>? providerRoots = null,
         CancellationToken cancellationToken = default);
+    /// <summary>Reads the qualified expiry range from one published definition generation.</summary>
+    async IAsyncEnumerable<CachedOptionContractDefinitionReadModel> ReadPublishedOptionDefinitionsAsync(
+        string symbol, DateOnly first, DateOnly last, int maximumExpiries,
+        IReadOnlyCollection<string>? providerRoots = null,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var expiries = await GetOptionContractExpiriesAsync(symbol, first, last, cancellationToken).ConfigureAwait(false);
+        if (expiries.Count > maximumExpiries)
+            throw new InvalidDataException("Raw option expiry capacity exceeded.");
+        foreach (var expiry in expiries.Select(row => (row.ExpiryDate, row.ContractId)).Distinct())
+        {
+            var rows = await GetCachedOptionContractDefinitionsAsync(symbol, expiry.ContractId, expiry.ExpiryDate,
+                providerRoots, cancellationToken).ConfigureAwait(false);
+            foreach (var row in rows)
+                yield return row;
+        }
+    }
     Task<FuturesContractV3ReadModel?> GetOnTheRunFuturesContractAsync(string symbol);
     Task<FuturesContractV3ReadModel?> GetOnTheRunFuturesContractAsync(string symbol, CancellationToken cancellationToken);
     Task<ICollection<FuturesContractV3ReadModel>> GetRolloverFuturesContractsAsync(string symbol);

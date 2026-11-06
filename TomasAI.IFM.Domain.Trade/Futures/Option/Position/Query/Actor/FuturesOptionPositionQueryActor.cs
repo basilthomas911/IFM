@@ -14,44 +14,46 @@ public sealed class FuturesOptionPositionQueryActor(IQueryActorContext<FuturesOp
 {
     public const string ActorName = PositionActorNames.Query;
     readonly IFuturesOptionPositionQueryContext s = T(context);
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>
-(StringComparer.Ordinal)    {
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
-            GetIronCondorOptionTradePositionQuery.Verb,
-            m => m.AsQuery<GetIronCondorOptionTradePositionQuery, StrategyPositionSnapshot>()!
-        },
+            [GetIronCondorOptionTradePositionQuery.Verb] = static message => message.AsQuery<GetIronCondorOptionTradePositionQuery, StrategyPositionSnapshot>()!,
+            [GetVerticalSpreadOptionTradePositionQuery.Verb] = static message => message.AsQuery<GetVerticalSpreadOptionTradePositionQuery, StrategyPositionSnapshot>()!,
+            [GetIronCondorOptionTradePositionHistoryQuery.Verb] = static message => message.AsQuery<GetIronCondorOptionTradePositionHistoryQuery, StrategyPositionSnapshot[]>()!,
+            [GetVerticalSpreadOptionTradePositionHistoryQuery.Verb] = static message => message.AsQuery<GetVerticalSpreadOptionTradePositionHistoryQuery, StrategyPositionSnapshot[]>()!
+        }.ToFrozenDictionary(StringComparer.Ordinal);
+    static readonly IReadOnlyDictionary<Type, Func<IFuturesOptionPositionQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IFuturesOptionPositionQueryContext, IQuery, CancellationToken, ValueTask>>
         {
-            GetVerticalSpreadOptionTradePositionQuery.Verb,
-            m => m.AsQuery<GetVerticalSpreadOptionTradePositionQuery, StrategyPositionSnapshot>()!
-        },
-        {
-            GetIronCondorOptionTradePositionHistoryQuery.Verb,
-            m => m.AsQuery<GetIronCondorOptionTradePositionHistoryQuery, StrategyPositionSnapshot[]>()!
-        },
-        {
-            GetVerticalSpreadOptionTradePositionHistoryQuery.Verb,
-            m => m.AsQuery<GetVerticalSpreadOptionTradePositionHistoryQuery, StrategyPositionSnapshot[]>()!
-        }
-    }.ToFrozenDictionary();
-    static readonly IReadOnlyDictionary<Type, Func<IFuturesOptionPositionQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesOptionPositionQueryContext, IQuery, CancellationToken, ValueTask>>
-    {
-        {
-            typeof(GetIronCondorOptionTradePositionQuery),
-            static (c, q, t) => ((GetIronCondorOptionTradePositionQuery)q).ExecuteAsync(c, t)
-        },
-        {
-            typeof(GetVerticalSpreadOptionTradePositionQuery),
-            static (c, q, t) => ((GetVerticalSpreadOptionTradePositionQuery)q).ExecuteAsync(c, t)
-        },
-        {
-            typeof(GetIronCondorOptionTradePositionHistoryQuery),
-            static (c, q, t) => ((GetIronCondorOptionTradePositionHistoryQuery)q).ExecuteAsync(c, t)
-        },
-        {
-            typeof(GetVerticalSpreadOptionTradePositionHistoryQuery),
-            static (c, q, t) => ((GetVerticalSpreadOptionTradePositionHistoryQuery)q).ExecuteAsync(c, t)
-        }
-    }.ToFrozenDictionary();
+            [typeof(GetIronCondorOptionTradePositionQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetIronCondorOptionTradePositionQuery)query).ExecuteAsync(context.DbFactory.TradeDb, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+                    new ServiceResult<StrategyPositionSnapshot?>(result)).ConfigureAwait(false);
+            },
+            [typeof(GetVerticalSpreadOptionTradePositionQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetVerticalSpreadOptionTradePositionQuery)query).ExecuteAsync(context.DbFactory.TradeDb, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+                    new ServiceResult<StrategyPositionSnapshot?>(result)).ConfigureAwait(false);
+            },
+            [typeof(GetIronCondorOptionTradePositionHistoryQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetIronCondorOptionTradePositionHistoryQuery)query).ExecuteAsync(context.DbFactory.TradeDb, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+                    new ServiceResult<StrategyPositionSnapshot[]>(result)).ConfigureAwait(false);
+            },
+            [typeof(GetVerticalSpreadOptionTradePositionHistoryQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetVerticalSpreadOptionTradePositionHistoryQuery)query).ExecuteAsync(context.DbFactory.TradeDb, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+                    new ServiceResult<StrategyPositionSnapshot[]>(result)).ConfigureAwait(false);
+            }
+        }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<FuturesOptionPositionQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IQueryActorContext<FuturesOptionPositionQueryActor> context, IQuery query) => ReceiveAsync(context, query, CancellationToken.None);

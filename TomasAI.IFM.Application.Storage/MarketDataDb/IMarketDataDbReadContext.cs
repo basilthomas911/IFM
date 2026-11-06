@@ -26,6 +26,9 @@ public interface IMarketDataDbReadContext
     /// <summary>Reads one completed, immutable contract interval for indicator restart without reacquiring provider history.</summary>
     Task<FuturesTradeSessionBarReadModel?> GetStoredTradeSessionBarAsync(string contractId, TimeFrameType frame,
         DateOnly valueDate, DateTimeOffset intervalEndUtc, CancellationToken cancellationToken = default);
+    /// <summary>Reads the latest qualified bar for each requested interval end under one contract, date and timeframe.</summary>
+    Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> GetStoredTradeSessionBarsAsync(string contractId, TimeFrameType frame,
+        DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, CancellationToken cancellationToken = default);
     /// <summary>Checks usable PostgreSQL canonical query indexes; raw tick readiness belongs to TradeTickQuoteDb.</summary>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>

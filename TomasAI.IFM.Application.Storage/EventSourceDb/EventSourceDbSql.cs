@@ -7,6 +7,43 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// </summary>
 public static class EventSourceDbSql
 {
+    internal const string ReadConcernCheckpointWindow = """
+        WITH streams AS MATERIALIZED (
+            SELECT EventStreamId, CurrentVersion, EventStream=$1 AS is_concern
+            FROM event_stream_id WHERE EventStream IN ($1,$2)
+        ), heads AS MATERIALIZED (
+            SELECT coalesce(max(CurrentVersion) FILTER (WHERE is_concern),0) AS concern_head,
+                   coalesce(max(CurrentVersion) FILTER (WHERE NOT is_concern),0) AS legacy_head
+            FROM streams
+        ), checkpoint AS MATERIALIZED (
+            SELECT max(latest.StreamVersion) AS stream_version
+            FROM streams s CROSS JOIN event_name_id n
+            CROSS JOIN LATERAL (
+                SELECT e.StreamVersion FROM event_log e
+                WHERE e.EventStreamId=s.EventStreamId AND e.EventNameId=n.EventNameId
+                  AND e.StreamVersion>1 AND e.StreamVersion<=s.CurrentVersion
+                ORDER BY e.EventVersion DESC LIMIT 1
+            ) latest
+            WHERE $4 AND s.is_concern AND n.EventTypeName=ANY($3)
+        ), selected AS (
+            SELECT NOT s.is_concern AS is_legacy,e.EventVersion,e.EventNameId,e.StreamVersion,e.EventPayload
+            FROM streams s CROSS JOIN checkpoint c JOIN event_log e ON e.EventStreamId=s.EventStreamId
+            WHERE e.StreamVersion<=s.CurrentVersion
+              AND e.StreamVersion>=coalesce(c.stream_version,1)
+              AND (s.is_concern OR c.stream_version IS NULL)
+            UNION ALL
+            SELECT false,e.EventVersion,e.EventNameId,e.StreamVersion,e.EventPayload
+            FROM streams s CROSS JOIN checkpoint c JOIN event_log e ON e.EventStreamId=s.EventStreamId
+            WHERE s.is_concern AND c.stream_version IS NOT NULL AND e.StreamVersion=1
+        )
+        SELECT h.concern_head,h.legacy_head,coalesce(c.stream_version,0),coalesce(e.is_legacy,false),
+               coalesce(n.EventTypeName=ANY($3),false),
+               e.EventVersion,n.EventTypeName,e.StreamVersion,e.EventPayload
+        FROM heads h CROSS JOIN checkpoint c LEFT JOIN selected e ON true
+        LEFT JOIN event_name_id n ON n.EventNameId=e.EventNameId
+        ORDER BY e.is_legacy DESC,e.StreamVersion;
+        """;
+
     internal const string ReadAggregateCheckpointWindow = """
         WITH source AS MATERIALIZED (
             SELECT EventStreamId, LEAST(CurrentVersion, $3) AS Head

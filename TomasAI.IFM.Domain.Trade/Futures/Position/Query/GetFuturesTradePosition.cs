@@ -17,17 +17,17 @@ public static class GetFuturesTradePosition
         /// Reads the current strategy-position snapshot and returns it only when it is a futures outright position.
         /// </summary>
         ///
-        /// <param name = "context">The typed query context that provides storage and reply operations.</param>
+        /// <param name = "context">The typed query context that provides projection storage.</param>
         /// <param name = "cancellationToken">The token that cancels the storage operation.</param>
-        /// <returns>A task that completes after the typed query reply is sent.</returns>
-        public async ValueTask ExecuteAsync(IFuturesPositionQueryContext context, CancellationToken cancellationToken)
+        /// <returns>The typed projected result.</returns>
+        public async ValueTask<ServiceResult<StrategyPositionSnapshot?>> ExecuteAsync(IFuturesPositionQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             var position = await context.DbFactory.TradeDb.GetStrategyPositionAsync(query.PositionId, cancellationToken).ConfigureAwait(false);
             if (position?.StrategyKind != TradeStrategyKind.FuturesOutright)
                 position = null;
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<StrategyPositionSnapshot?>(position)).ConfigureAwait(false);
+            return new ServiceResult<StrategyPositionSnapshot?>(position);
         }
     }
 }

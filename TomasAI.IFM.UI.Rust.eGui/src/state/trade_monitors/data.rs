@@ -14,6 +14,8 @@ pub(super) struct Monitor {
     pub scope: Scope,
     /// Established trade definition that anchors this monitor's identity and original composition.
     pub trade: typed::EstablishedTradeDefinition,
+    /// Caption derived once from the saved trade composition.
+    pub tab_title: String,
     /// Published strategy type used when selecting monitor and history representations.
     pub trade_type: String,
     /// Published opening/closing action associated with the selected trade.
@@ -100,10 +102,17 @@ impl Monitor {
     ) -> Result<Self, String> {
         let realtime = Realtime::new(request.scope, context.value_date, &trade)?;
         let history = History::new(trade.clone(), request.trade_type.clone());
+        let tab_title = crate::models::trade_presentation::loaded_trade_tab_title(
+            request.scope.order,
+            request.scope.trade,
+            &request.trade_type,
+            &trade,
+        );
         Ok(Self {
             incarnation: uuid::Uuid::new_v4(),
             scope: request.scope,
             trade,
+            tab_title,
             trade_type: request.trade_type,
             trade_action: request.trade_action,
             fund_name: request.fund_name,

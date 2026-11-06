@@ -1,3 +1,8 @@
+using TomasAI.IFM.Application.MarketData.Databento.Historical;
+using TomasAI.IFM.Application.MarketData.Historical;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -18,6 +23,79 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 /// <summary>Qualifies required Regime Discovery cache evidence after restart without another EMA-generated event.</summary>
 public sealed class StoredBollingerRestoreTests
 {
+    [Theory]
+    [InlineData(TimeFrameType.FifteenSeconds)]
+    [InlineData(TimeFrameType.OneMinute)]
+    public async Task Fast_frame_startup_passes_original_history_to_all_accumulators_once(TimeFrameType frame)
+    {
+        const string contract = "ES20261218";
+        var date = new DateOnly(2026, 11, 6);
+        var now = new DateTimeOffset(2026, 11, 6, 0, 15, 0, TimeSpan.Zero);
+        var calendar = new CmeFuturesMarketSessionCalendar();
+        var clock = new FixedClock(now);
+        var series = MarketSeriesIdentity.ForContract(contract);
+        var windows = RsiHistoricalSeedWindowModel.Create(frame, 48, now, calendar);
+        var bars = windows.Select((window, index) => new FuturesTradeSessionBarReadModel
+        {
+            MarketSeriesIdentity = series, ContractId = contract, TimeFrame = frame, ValueDate = window.ValueDate,
+            ObservationId = FuturesTradeSessionBarId.Create(series, frame, window.EndUtc, index + 1),
+            IntervalStartUtc = window.StartUtc, IntervalEndUtc = window.EndUtc,
+            Open = 5000, High = 5001, Low = 4999, Close = 5000, Volume = 1, TradeCount = 1, PriceVolumeSum = 5000,
+            FirstSourceSequence = index + 1, LastSourceSequence = index + 1,
+            FirstMarketEventUtc = window.StartUtc, LastMarketEventUtc = window.EndUtc.AddMilliseconds(-1),
+            CalculatedAtUtc = now, IsComplete = true, IsValid = true, SchemaVersion = 1, CalculationVersion = "test",
+            CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
+        }).ToArray();
+        var databases = Substitute.For<IDbContextFactory>();
+        var db = databases.MarketDataDb;
+        db.GetStoredTradeSessionBarsAsync(contract, frame, Arg.Any<DateOnly>(), Arg.Any<DateTimeOffset[]>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult<IReadOnlyList<FuturesTradeSessionBarReadModel>>(
+                bars.Where(bar => call.Arg<DateTimeOffset[]>().Contains(bar.IntervalEndUtc)).ToArray()));
+        db.GetLastFuturesAtrSignalAsync(contract, date, frame, 14, Arg.Any<CancellationToken>())
+            .Returns(new FuturesAtrSignalReadModel
+            {
+                ContractId = contract, TimePeriod = frame, ValueDate = date,
+                Timestamp = TimeOnly.FromDateTime(now.UtcDateTime),
+                IsWarm = true, AtrValue = 2, AtrBaseline = 2, AtrRatio = 1
+            });
+        db.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(series, date, frame, Arg.Any<CancellationToken>())
+            .Returns(new FuturesBbSignalReadModel
+            {
+                Metadata = new() { ContractId = contract, SignalKey = new(series, MarketAnalyticsSignalKind.BollingerBand, frame, "bb"),
+                    ValueDate = date, MarketDataAsOfUtc = now, CalculatedAtUtc = now, SourceSequence = 48,
+                    IsValid = true, SchemaVersion = 1, CalculationVersion = "test" },
+                IsWarm = true, Width20 = 80, Width20Ratio = 1.25m, Position20 = 0.6m
+            });
+        var actors = Substitute.For<IActorService>();
+        var accepted = new ServiceOk<Guid>(Guid.NewGuid());
+        actors.RequestAsync<StartFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(Arg.Any<StartFuturesRsiSignalCommand>(), Arg.Any<CancellationToken>()).Returns(accepted);
+        actors.RequestAsync<StartFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(Arg.Any<StartFuturesAdxSignalCommand>(), Arg.Any<CancellationToken>()).Returns(accepted);
+        actors.RequestAsync<StartFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(Arg.Any<StartFuturesAtrSignalCommand>(), Arg.Any<CancellationToken>()).Returns(accepted);
+        actors.RequestAsync<StartFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(Arg.Any<StartFuturesMacdSignalCommand>(), Arg.Any<CancellationToken>()).Returns(accepted);
+        var market = Substitute.For<IMarketDataApi>();
+        var reader = new StoredSessionIndicatorSeedReader(databases, calendar, clock, NullLogger<StoredSessionIndicatorSeedReader>.Instance, market);
+        var warmup = new StoredSessionIndicatorWarmup(reader, actors, market, databases, calendar, clock,
+            NullLogger<StoredSessionIndicatorWarmup>.Instance);
+
+        Assert.True(await warmup.WarmShortFrameAsync(contract, date, frame, default));
+        Assert.True(await warmup.WarmShortFrameAsync(contract, date, frame, default));
+
+        foreach (var period in new[] { 13, 14 })
+            await actors.Received(1).RequestAsync<StartFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(
+                Arg.Is<StartFuturesRsiSignalCommand>(command => command.EntityId.PeriodLength == period && command.HistoricalSeed!.Observations.SequenceEqual(bars)), Arg.Any<CancellationToken>());
+        await actors.Received(1).RequestAsync<StartFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(
+            Arg.Is<StartFuturesAdxSignalCommand>(command => command.HistoricalSeed!.SequenceEqual(bars)), Arg.Any<CancellationToken>());
+        await actors.Received(1).RequestAsync<StartFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(
+            Arg.Is<StartFuturesAtrSignalCommand>(command => command.HistoricalSeed!.SequenceEqual(bars)), Arg.Any<CancellationToken>());
+        await actors.Received(1).RequestAsync<StartFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(
+            Arg.Is<StartFuturesMacdSignalCommand>(command => command.HistoricalSeed!.SequenceEqual(bars)), Arg.Any<CancellationToken>());
+    }
+
+    sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
     [Fact]
     public async Task Four_hour_restore_starts_while_one_hour_restore_is_blocked()
     {
@@ -38,6 +116,7 @@ public sealed class StoredBollingerRestoreTests
                 new InvalidOperationException("Simulated restore failure."));
         });
         var warmup = new StoredSessionIndicatorWarmup(null!, Substitute.For<IActorService>(), market, databases,
+            new TomasAI.IFM.Application.MarketData.Databento.Historical.CmeFuturesMarketSessionCalendar(), TimeProvider.System,
             NullLogger<StoredSessionIndicatorWarmup>.Instance);
         var attempt = warmup.WarmAsync(new DateOnly(2026, 11, 4), default);
         try

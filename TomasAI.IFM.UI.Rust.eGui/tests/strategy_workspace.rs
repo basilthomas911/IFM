@@ -168,17 +168,18 @@ fn wrapped_legend_does_not_expand_graph_over_successive_frames() {
 }
 
 
-/// Verifies that pipeline circles stop at first red and use requested colors.
+/// Verifies terminal decisions use distinct colors and end the indicator sequence.
 #[test]
-fn pipeline_circles_stop_at_first_red_and_use_requested_colors() {
+fn pipeline_circles_distinguish_no_trade_from_errors() {
     use eframe::egui::Color32;
     use ifm_ui_egui::strategy_workspace::{WorkflowActor, pipeline_color, visible_pipeline_count};
     assert_eq!(pipeline_color("Processing"), Color32::YELLOW);
     assert_eq!(pipeline_color("Continued"), Color32::GREEN);
+    assert_eq!(pipeline_color("No Trade"), Color32::from_rgb(90, 155, 255));
     for state in ["Stopped", "Failed", "Failure"] {
         assert_eq!(pipeline_color(state), Color32::RED);
     }
-    let actors: Vec<_> = ["Continued", "Processing", "Stopped", "Continued"]
+    let mut actors: Vec<_> = ["Continued", "Processing", "Stopped", "Continued"]
         .iter()
         .map(|state| WorkflowActor {
             name: "actor".into(),
@@ -186,6 +187,8 @@ fn pipeline_circles_stop_at_first_red_and_use_requested_colors() {
             state: (*state).into(),
         })
         .collect();
+    assert_eq!(visible_pipeline_count(&actors), 3);
+    actors[2].state = "No Trade".into();
     assert_eq!(visible_pipeline_count(&actors), 3);
     assert_eq!(visible_pipeline_count(&actors[..2]), 2);
     assert_eq!(visible_pipeline_count(&[]), 0);

@@ -2,7 +2,13 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using MessagePack;
+using TomasAI.IFM.Application.Api.Server.Core.HostedServices;
+using TomasAI.IFM.Application.Api.Server.Core.MarketData.Treasury;
+using TomasAI.IFM.Application.MarketData.Remote;
+using TomasAI.IFM.IntegrationTesting;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
@@ -71,28 +77,35 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
             // These scenarios publish and verify their own effective parameter sets. Keep this child host on the
             // database-backed resolution path so the immutable Development startup snapshot cannot select a
             // different parameter identity than the signal cache prepared below.
-            builder.UseSetting("ParameterSets:SingleUserDevelopmentEnabled", "false");
+            builder.UseSetting("ParameterSets:SingleUserDevelopmentEnabled", "false")
+                .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics");
             builder.ConfigureServices(services =>
             {
-            services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
-            services.AddSingleton<IMarketConditionAssessmentSnapshotProvider, BlockingAssessmentSnapshotProvider>();
-            var container = (SimpleInjector.Container)services.Single(descriptor =>
-                descriptor.ServiceType == typeof(SimpleInjector.Container)).ImplementationInstance!;
-            container.Register<MarketConditionAssessmentStateRepository>();
-            probe = new MarketConditionPipelineCommandProbe(
-                () => container.GetInstance<MarketConditionAssessmentStateRepository>());
-            var allowOverrides = container.Options.AllowOverridingRegistrations;
-            try
-            {
-                container.Options.AllowOverridingRegistrations = true;
-                container.RegisterInstance<IEventSourceFunctionStateRepository<MarketConditionAssessmentState,
-                    ExecuteMarketConditionAssessmentCommand>>(probe);
-            }
-            finally
-            {
-                container.Options.AllowOverridingRegistrations = allowOverrides;
-            }
+                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
+                services.AddSingleton<IMarketConditionAssessmentSnapshotProvider, BlockingAssessmentSnapshotProvider>();
+                var container = (SimpleInjector.Container)services.Single(descriptor =>
+                    descriptor.ServiceType == typeof(SimpleInjector.Container)).ImplementationInstance!;
+                container.Register<MarketConditionAssessmentStateRepository>();
+                probe = new MarketConditionPipelineCommandProbe(
+                    () => container.GetInstance<MarketConditionAssessmentStateRepository>());
+                var allowOverrides = container.Options.AllowOverridingRegistrations;
+                try
+                {
+                    container.Options.AllowOverridingRegistrations = true;
+                    container.RegisterInstance<IEventSourceFunctionStateRepository<MarketConditionAssessmentState,
+                        ExecuteMarketConditionAssessmentCommand>>(probe);
+                }
+                finally
+                {
+                    container.Options.AllowOverridingRegistrations = allowOverrides;
+                }
                 configure?.Invoke(services);
+            });
+            builder.ConfigureTestServices(services =>
+            {
+                HostedServiceOverrides.Suppress<MarketDataClientReceiver>(services);
+                HostedServiceOverrides.Suppress<OptionFeedRecoveryNotificationService>(services);
+                HostedServiceOverrides.Suppress<UsTreasuryRefreshHostedService>(services);
             });
         });
         _ = factory.CreateClient();
@@ -110,7 +123,7 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
         Services.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>().MarketConditionAssessmentProfileId = profile;
         var values = executions.ToArray();
         await Services.GetRequiredService<ConfigurationSchemaDb>().CreateAllAsync();
-        await Services.GetRequiredService<TradeSchemaDb>().CreateAsync(["regime_discovery"]);
+        await Services.GetRequiredService<TradeSchemaDb>().CreateAllAsync();
         var configuration = Services.GetRequiredService<IConfigurationDbContext>();
         var parameterSets = new Dictionary<TimeFrameType, RegimeDiscoveryParameterSet>();
         foreach (var horizon in values.Select(value => value.EntityId.ItiSignalEntityId.TimePeriod).Distinct())
@@ -258,6 +271,17 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
             var match = rows.FirstOrDefault(row => row.WorkflowRevision == revision &&
                                                    (stage is null || row.CurrentStage == stage));
             if (match is not null) return match;
+            if (rows.FirstOrDefault() is { TerminalAtUtc: not null } terminal)
+            {
+                var detail = await Database.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(terminal.WorkflowId);
+                var failure = detail is null
+                    ? null
+                    : MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(detail.StatePayload)
+                        .RegimeDiscovery.Failure;
+                throw new InvalidOperationException(
+                    $"Workflow {entityId.Format()} stopped before revision {revision}/{stage}; {last}; " +
+                    $"{failure?.ErrorType}: {failure?.ErrorMessage} {failure?.ErrorData}");
+            }
             await Task.Delay(50);
         }
         throw new TimeoutException(
@@ -351,12 +375,7 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
             scenario);
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        Services.GetRequiredService<IRegimeDiscoveryMarketSignalCache>().Clear();
-        await publisher.StopAsync();
-        await factory.DisposeAsync();
-    }
+    public ValueTask DisposeAsync() => factory.DisposeAsync();
 
     sealed class BlockingAssessmentSnapshotProvider : IMarketConditionAssessmentSnapshotProvider
     {

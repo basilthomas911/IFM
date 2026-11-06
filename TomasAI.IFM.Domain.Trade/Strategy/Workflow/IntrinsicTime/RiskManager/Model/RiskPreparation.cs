@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections.Immutable;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
@@ -12,7 +13,11 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.M
 /// <summary>Freezes server-resolved policy, coherent financial revision and explicit emulator quotes into one durable invocation.</summary>
 public static class RiskPreparation
 {
-    public static ExecuteRiskManagementPipelineCommand Create(IntrinsicTimeStrategyWorkflowView view, RiskParameterSet parameters, FinancialRead<FinancialAdmissionSnapshot> read, Guid invocationId, DateTime now)
+    internal static Guid FunctionInvocationId(Guid preparationCommandId) =>
+        TradeHandoffIdentity.Create("risk-management-function", preparationCommandId.ToString("N"));
+
+    public static ExecuteRiskManagementPipelineCommand Create(IntrinsicTimeStrategyWorkflowView view, RiskParameterSet parameters,
+        FinancialRead<FinancialAdmissionSnapshot> read, Guid invocationId, DateTime now, DateTime? evidenceCollectedAtUtc = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(read);
@@ -23,7 +28,9 @@ public static class RiskPreparation
         var candidate = composition.Candidate ?? throw new RiskCalculationException("RM.INPUT.NO_CANDIDATE");
         var market = view.CompositionExecution?.MarketSnapshot ?? throw new RiskCalculationException("RM.INPUT.NO_SNAPSHOT");
         var financial = read.Value;
-        RiskUnitModel.Require(read.Status == FinancialReadStatus.Found && read.FinancialRevision > 0 && financial is not null && financial.CanPrepareAdmission && financial.MigrationQualified && string.Equals(financial.OperatingState, "Active", StringComparison.Ordinal) && financial.PortfolioId == candidate.PortfolioId && financial.FundId == candidate.FundId && financial.Authority.DeploymentKey == candidate.DeploymentKey && string.Equals(financial.Environment, parameters.Environment, StringComparison.Ordinal) && read.ObservedAtUtc <= now && (now - read.ObservedAtUtc).TotalSeconds <= 1, "RM.AUTHORITY.UNAVAILABLE");
+        // Check freshness at capture and enforce the hard expiry again at the owning actor.
+        var collectedAt = evidenceCollectedAtUtc ?? now;
+        RiskUnitModel.Require(read.Status == FinancialReadStatus.Found && read.FinancialRevision > 0 && financial is not null && financial.CanPrepareAdmission && financial.MigrationQualified && string.Equals(financial.OperatingState, "Active", StringComparison.Ordinal) && financial.PortfolioId == candidate.PortfolioId && financial.FundId == candidate.FundId && financial.Authority.DeploymentKey == candidate.DeploymentKey && string.Equals(financial.Environment, parameters.Environment, StringComparison.Ordinal) && collectedAt.Kind == DateTimeKind.Utc && read.ObservedAtUtc <= collectedAt && collectedAt <= now && (collectedAt - read.ObservedAtUtc).TotalSeconds <= 1, "RM.AUTHORITY.UNAVAILABLE");
         DateTime expiry = new[]
         {
             view.ExpiresAtUtc,

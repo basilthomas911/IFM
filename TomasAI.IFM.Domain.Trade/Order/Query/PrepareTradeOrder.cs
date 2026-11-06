@@ -16,13 +16,13 @@ public static class PrepareTradeOrder
 
     extension(PrepareTradeOrderQuery query)
     {
-        public async ValueTask ExecuteAsync(ITradeOrderQueryContext context, CancellationToken token)
+        public async ValueTask<ServiceResult<TradeOrderPreparation>> ExecuteAsync(ITradeOrderQueryContext context, CancellationToken token)
         {
             ServiceResult<TradeOrderPreparation> response;
             try { response = new ServiceOk<TradeOrderPreparation>(await PrepareAsync(query.Request, context, token).ConfigureAwait(false)); }
             catch (Exception error) when (error is ArgumentException or InvalidOperationException or OverflowException)
             { response = new ServiceFailed<TradeOrderPreparation>(400, $"TradeOrder.Preparation: {error.Message}"); }
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, response).ConfigureAwait(false);
+            return response;
         }
     }
 

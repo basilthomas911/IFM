@@ -24,9 +24,21 @@ public sealed class TradeSelectionQueryActor(IQueryActorContext<TradeSelectionQu
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ITradeSelectionQueryContext, IQueryActorContext<TradeSelectionQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<ITradeSelectionQueryContext, IQueryActorContext<TradeSelectionQueryActor>, IQuery, CancellationToken, ValueTask>>
     {
-        [typeof(GetTradeSelectionInvocationQuery)] = static (services, context, query, cancellationToken) => ((GetTradeSelectionInvocationQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetTradeSelectionResultQuery)] = static (services, context, query, cancellationToken) => ((GetTradeSelectionResultQuery)query).ExecuteAsync(services, context, cancellationToken),
-        [typeof(GetTradeSelectionHistoryPageQuery)] = static (services, context, query, cancellationToken) => ((GetTradeSelectionHistoryPageQuery)query).ExecuteAsync(services, context, cancellationToken)
+        [typeof(GetTradeSelectionInvocationQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetTradeSelectionInvocationQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradeSelectionResultQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetTradeSelectionResultQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        },
+        [typeof(GetTradeSelectionHistoryPageQuery)] = static async (services, context, query, cancellationToken) =>
+        {
+            var result = await ((GetTradeSelectionHistoryPageQuery)query).ExecuteAsync(services, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
+        }
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
     protected override IQuery ParseMessage(IQueryActorContext<TradeSelectionQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Npgsql;
@@ -12,11 +13,12 @@ using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 
 /// <summary>Checks durable restart lookup using the original trading-date month and exact interval identity.</summary>
-public sealed class StoredSessionBarTests(EventSourceActorSnapshotRangeFixture fixture) : IClassFixture<EventSourceActorSnapshotRangeFixture>
+public sealed class StoredSessionBarTests(EventSourceActorSnapshotRangeFixture fixture, ITestOutputHelper output) : IClassFixture<EventSourceActorSnapshotRangeFixture>
 {
     [Theory]
     [InlineData(TimeFrameType.FifteenMinutes, 15)]
@@ -45,11 +47,57 @@ public sealed class StoredSessionBarTests(EventSourceActorSnapshotRangeFixture f
         Assert.False(await db.TryWriteObservationAsync(bar, default));
         var restarted = new MarketDataDbContext(settings, factory, Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
         var restored = await restarted.GetStoredTradeSessionBarAsync(contract, bar.TimeFrame, date, end);
+        var batch = await restarted.GetStoredTradeSessionBarsAsync(contract, frame, date, [end, end, end.AddMinutes(15)]);
+        Assert.Equal(restored, Assert.Single(batch));
+        Assert.Empty(await restarted.GetStoredTradeSessionBarsAsync(contract, frame, date.AddDays(-1), [end]));
         Assert.Equal(bar.ObservationId, restored!.ObservationId);
         Assert.Equal(bar.High, restored.High); Assert.Equal(bar.Volume, restored.Volume);
         Assert.Equal(bar.ValueDate, restored.ValueDate); Assert.Equal(bar.LastMarketEventUtc, restored.LastMarketEventUtc);
         Assert.Null(await db.GetStoredTradeSessionBarAsync(contract, bar.TimeFrame, date.AddDays(-1), end));
         Assert.Null(await db.GetStoredTradeSessionBarAsync(contract, TimeFrameType.OneHour, date, end));
         Assert.Null(await db.GetStoredTradeSessionBarAsync(contract, bar.TimeFrame, date, end.AddMinutes(15)));
+
+        var corrected = bar with
+        {
+            ObservationId = FuturesTradeSessionBarId.Create(series, frame, end, 10),
+            LastSourceSequence = 10, CalculatedAtUtc = end.AddSeconds(1), Close = 102
+        };
+        Assert.True(await db.TryWriteObservationAsync(corrected, default));
+        Assert.Equal(corrected.ObservationId,
+            Assert.Single(await restarted.GetStoredTradeSessionBarsAsync(contract, frame, date, [end])).ObservationId);
+
+        if (frame == TimeFrameType.FifteenMinutes && Environment.GetEnvironmentVariable("IFM_TIME_STORED_BARS") == "1")
+            await TimeLookupsAsync(restarted, bar);
+    }
+
+    async Task TimeLookupsAsync(MarketDataDbContext db, FuturesTradeSessionBarReadModel original)
+    {
+        var ends = Enumerable.Range(0, 48).Select(index => original.IntervalEndUtc.AddMinutes(15 * index)).ToArray();
+        foreach (var end in ends.Skip(1))
+        {
+            var offset = end - original.IntervalEndUtc;
+            Assert.True(await db.TryWriteObservationAsync(original with
+            {
+                ObservationId = FuturesTradeSessionBarId.Create(original.MarketSeriesIdentity, original.TimeFrame, end, original.LastSourceSequence),
+                IntervalStartUtc = original.IntervalStartUtc.Add(offset), IntervalEndUtc = end,
+                FirstMarketEventUtc = original.FirstMarketEventUtc.Add(offset), LastMarketEventUtc = original.LastMarketEventUtc.Add(offset),
+                CalculatedAtUtc = end
+            }, default));
+        }
+
+        for (var sample = 0; sample <= 20; sample++)
+        {
+            var started = Stopwatch.GetTimestamp();
+            var singular = new List<FuturesTradeSessionBarReadModel?>();
+            foreach (var end in ends)
+                singular.Add(await db.GetStoredTradeSessionBarAsync(original.ContractId, original.TimeFrame, original.ValueDate, end));
+            var before = Stopwatch.GetElapsedTime(started);
+
+            started = Stopwatch.GetTimestamp();
+            var batch = await db.GetStoredTradeSessionBarsAsync(original.ContractId, original.TimeFrame, original.ValueDate, ends);
+            var after = Stopwatch.GetElapsedTime(started);
+            Assert.Equal(singular, batch);
+            if (sample > 0) output.WriteLine($"STORED_BARS_TIMING beforeMs={before.TotalMilliseconds:F3} afterMs={after.TotalMilliseconds:F3}");
+        }
     }
 }

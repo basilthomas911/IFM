@@ -13,13 +13,13 @@ public static class GetIronCondorMDILimit
     extension(GetIronCondorMDILimitQuery query)
     {
         /// <summary>Reads the current legacy Iron Condor market-data limit from the blackboard.</summary>
-        public async ValueTask ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
+        public async ValueTask<ServiceResult<IronCondorMDILimitDataModel?>> ExecuteAsync(IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             cancellationToken.ThrowIfCancellationRequested();
             var result = context.BlackboardService.Trade.IronCondorMDILimit.Get(new OptionTradeEntityId(query.OrderId, query.TradeId), query.ValueDate);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<IronCondorMDILimitDataModel?>(result)).ConfigureAwait(false);
+            return new ServiceResult<IronCondorMDILimitDataModel?>(result);
         }
     }
 }

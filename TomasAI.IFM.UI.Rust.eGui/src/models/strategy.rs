@@ -35,6 +35,8 @@ pub struct StageHeader {
     pub failed: Option<chrono::DateTime<chrono::Utc>>,
     /// Optional failure; `None` represents an absent value.
     pub failure: Option<StageFailure>,
+    /// Recorded reasons for a terminal continuation decision.
+    pub decision_reasons: Vec<String>,
 }
 
 /// Stage Failure used by the strategy component.
@@ -188,6 +190,8 @@ impl WorkflowHeader {
             .as_i64()
             .filter(|value| *value > 0)
             .ok_or("Invalid workflow revision")? as u64;
+        let outcome = text(r, VIEW, wire, "Outcome")?;
+        let stop_reason = text(r, VIEW, wire, "StopReasonCode")?;
         let mut stages = Vec::with_capacity(5);
         for (name, _, _) in STAGES {
             let stage = value(r, VIEW, wire, name)?;
@@ -202,12 +206,29 @@ impl WorkflowHeader {
                     error_message: text(r, kind, failure, "ErrorMessage")?,
                 })
             };
+            let mut decision_reasons: Vec<String> = value(r, STAGE, stage, "ContinuationReasonCodes")?
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect();
+            let continuation = text(r, STAGE, stage, "ContinuationDecision")?;
+            if name == "MarketCondition" && outcome == "NoTrade" && continuation == "Stop" {
+                if decision_reasons.is_empty() && !stop_reason.is_empty() {
+                    decision_reasons.push(stop_reason.clone());
+                }
+                if decision_reasons.iter().any(|code| code == "MC.ASSESSMENT.INHERITED_NO_NEW_TRADE") {
+                    decision_reasons.extend(regime_volatility_reasons(r, wire).unwrap_or_default());
+                }
+            }
             stages.push(StageHeader {
                 processing: text(r, STAGE, stage, "ProcessingStatus")?,
-                continuation: text(r, STAGE, stage, "ContinuationDecision")?,
+                continuation,
                 completed: optional_instant(r, STAGE, stage, "CompletedAtUtc")?,
                 failed: optional_instant(r, STAGE, stage, "FailedAtUtc")?,
                 failure,
+                decision_reasons,
             });
         }
         Ok(Self {
@@ -228,9 +249,9 @@ impl WorkflowHeader {
             definition_version: text(r, VIEW, wire, "WorkflowDefinitionVersion")?,
             revision,
             status: text(r, VIEW, wire, "Status")?,
-            outcome: text(r, VIEW, wire, "Outcome")?,
+            outcome,
             current_stage: text(r, VIEW, wire, "CurrentStage")?,
-            stop_reason: text(r, VIEW, wire, "StopReasonCode")?,
+            stop_reason,
             started: instant(r, VIEW, wire, "StartedAtUtc")?,
             updated: instant(r, VIEW, wire, "UpdatedAtUtc")?,
             expires: instant(r, VIEW, wire, "ExpiresAtUtc")?,
@@ -432,18 +453,27 @@ pub fn workflow_grid_row(
         let state = match (stage.processing.as_str(), stage.continuation.as_str()) {
             ("Processing", _) => "Processing",
             ("Completed", "Proceed") => "Continued",
+            ("Completed", "Stop") if resolved == "NoTrade" => "No Trade",
             ("Completed", "Stop") => "Stopped",
             ("Completed", _) => "Processing",
             _ => "Stopped",
-        }
-        .into();
-        let mut value = format!(
-            "{title}: {}; continuation {}",
-            stage.processing, stage.continuation
-        );
+        };
+        let mut value = if state == "No Trade" {
+            let heading = format!("{title}: No Trade");
+            match no_trade_reason(&stage.decision_reasons) {
+                Some(reason) => format!("{heading}\nReason: {reason}"),
+                None => heading,
+            }
+        } else {
+            format!("{title}: {}; continuation {}", stage.processing, stage.continuation)
+        };
         for (label, at) in [("completed", stage.completed), ("failed", stage.failed)] {
             if let Some(at) = at {
-                value.push_str(&format!("; {label} {}", utc_roundtrip(at)));
+                if state == "No Trade" && label == "completed" {
+                    value.push_str(&format!("\nCompleted: {}", utc_roundtrip(at)));
+                } else {
+                    value.push_str(&format!("; {label} {}", utc_roundtrip(at)));
+                }
             }
         }
         if let Some(failure) = &stage.failure {
@@ -455,7 +485,7 @@ pub fn workflow_grid_row(
         actors.push(WorkflowActor {
             name: short.into(),
             value,
-            state,
+            state: state.into(),
         });
     }
     Ok(WorkflowRow {
@@ -476,4 +506,40 @@ pub fn workflow_grid_row(
         end_state,
         actors,
     })
+}
+
+fn regime_volatility_reasons(r: &Registry, wire: &Value) -> Result<Vec<String>, String> {
+    let stage = value(r, VIEW, wire, "RegimeDiscovery")?;
+    let envelope = value(r, STAGE, stage, "Result")?;
+    let envelope_kind = r.field_kind(STAGE, "Result")?;
+    let regime = value(r, envelope_kind, envelope, "RegimeResult")?;
+    let regime_kind = r.field_kind(envelope_kind, "RegimeResult")?;
+    let volatility = value(r, regime_kind, regime, "Volatility")?;
+    let volatility_kind = r.field_kind(regime_kind, "Volatility")?;
+    let reasons = value(r, volatility_kind, volatility, "Reasons")?;
+    let reason_kind = r.field_kind(volatility_kind, "Reasons")?.trim_end_matches("[]");
+    reasons
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|reason| text(r, reason_kind, reason, "Code"))
+        .collect()
+}
+
+fn no_trade_reason(codes: &[String]) -> Option<String> {
+    let first = codes.first()?;
+    if first == "MC.ASSESSMENT.INHERITED_NO_NEW_TRADE" {
+        let mut reason = String::from("Regime Discovery blocked new trades.");
+        let has = |code| codes.iter().any(|item| item == code);
+        if has("RD.VOL.BACKWARDATION") {
+            reason.push_str(" VX futures were in backwardation.");
+        }
+        if has("RD.VOL.EXTREME") {
+            reason.push_str(" Volatility was extreme.");
+        } else if has("RD.VOL.HIGH") {
+            reason.push_str(" Volatility was high.");
+        }
+        return Some(reason);
+    }
+    Some(codes.join(", "))
 }

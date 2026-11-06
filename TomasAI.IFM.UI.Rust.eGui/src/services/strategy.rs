@@ -220,7 +220,13 @@ pub async fn workflow_page(
                     error_type,
                     error_code,
                     message,
-                ] = fields::<7>(stage)?;
+                    extra @ ..,
+                ] = stage.as_array().map(Vec::as_slice)
+                    .filter(|values| (7..=8).contains(&values.len()))
+                    .ok_or("Invalid Strategy Updates stage wire layout")?
+                else {
+                    return Err("Invalid Strategy Updates stage wire layout".into());
+                };
                 let optional_time =
                     |value: &Value| (!value.is_nil()).then(|| timestamp(value)).transpose();
                 Ok::<_, String>(StageHeader {
@@ -233,6 +239,9 @@ pub async fn workflow_page(
                         error_code: error_code.as_str().unwrap_or_default().into(),
                         error_message: message.into(),
                     }),
+                    decision_reasons: extra.first().and_then(Value::as_array)
+                        .into_iter().flatten().filter_map(Value::as_str)
+                        .map(str::to_owned).collect(),
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;

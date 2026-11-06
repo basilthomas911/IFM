@@ -13,20 +13,23 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.Command.State;
 public sealed class IronCondorExitPositionWorkflowStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<IronCondorExitPositionWorkflowCommandActor> projector, ILogger<IronCondorExitPositionWorkflowStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<IronCondorExitPositionWorkflowCommandState>
 {
-    public ValueTask<IronCondorExitPositionWorkflowCommandState> LoadStateAsync(ICommand command) => new(LoadStateFromLatestCheckpointAsync<IronCondorExitPositionWorkflowCommandState, ExitPositionWorkflowStartedEvent>(
-        command, static fact => fact.ExitPlan is not null));
-    public async ValueTask SaveStateAsync(ICommandActorContext context, IronCondorExitPositionWorkflowCommandState state, ICommand command)
+    public ValueTask<IronCondorExitPositionWorkflowCommandState> LoadStateAsync(ICommand command) => LoadStateAsync(command, CancellationToken.None);
+    public ValueTask<IronCondorExitPositionWorkflowCommandState> LoadStateAsync(ICommand command, CancellationToken token) => new(LoadStateFromLatestCheckpointAsync<IronCondorExitPositionWorkflowCommandState>(
+        command, ExitWorkflowSnapshotFacts.CheckpointTypes, static (state, source, _) => state.ApplyCommittedSnapshot(source), token));
+    public ValueTask SaveStateAsync(ICommandActorContext context, IronCondorExitPositionWorkflowCommandState state, ICommand command) =>
+        SaveStateAsync(context, state, command, CancellationToken.None);
+    public async ValueTask SaveStateAsync(ICommandActorContext context, IronCondorExitPositionWorkflowCommandState state, ICommand command, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (string.Equals(dbFactory?.TradePlanDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
         {
             var pending = new DomainEventCollection(state.Events);
-            await ExitWorkflowAtomicPersistence.CommitAsync(command, pending, state.CommittedStreamVersion, EventSourceDb, dbFactory, transactions).ConfigureAwait(false);
+            await ExitWorkflowAtomicPersistence.CommitAsync(command, pending, state.CommittedStreamVersion, EventSourceDb, dbFactory, transactions, token).ConfigureAwait(false);
             state.AcceptChanges();
-            await projector.DomainEventsProjectionAsync(pending).ConfigureAwait(false);
+            await ExitWorkflowProjectionSubmission.SubmitAsync(projector.DomainEventsProjectionAsync, pending, logger).ConfigureAwait(false);
             return;
         }
-        await SaveStateAndDenormalizeEventsAsync(context, state, command).ConfigureAwait(false);
+        await SaveStateAndDenormalizeEventsAsync(context, state, command, token).ConfigureAwait(false);
     }
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents) => projector.DomainEventsProjectionAsync(domainEvents);
 }

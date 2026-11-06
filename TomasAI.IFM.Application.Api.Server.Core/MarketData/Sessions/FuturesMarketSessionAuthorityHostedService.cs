@@ -88,7 +88,7 @@ public sealed class FuturesMarketSessionAuthorityHostedService(
         deadline.CancelAfter(TimeSpan.FromSeconds(5));
         try
         {
-            var completed = await taskReads.GetCompletedEndOfDayAsync(environment.EnvironmentName, deadline.Token).ConfigureAwait(false);
+            var completed = await taskReads.GetCompletedMarketCloseAsync(environment.EnvironmentName, deadline.Token).ConfigureAwait(false);
             if (completed is { } valueDate) authority.ApplyCompletedEndOfDay(valueDate);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }

@@ -193,6 +193,10 @@ impl Calendar {
             ),
         ])
     }
+    pub(crate) fn has_whole_second_rollover(&self) -> bool {
+        self.rollover % 10_000_000 == 0
+    }
+
     /// Counts reviewed exchange dates in (valuation ValueDate, expiration ValueDate].
     /// The expiry date itself must be a covered trading date, as in current C#.
     ///

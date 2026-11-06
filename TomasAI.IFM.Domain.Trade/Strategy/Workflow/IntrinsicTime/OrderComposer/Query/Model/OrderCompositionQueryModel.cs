@@ -1,14 +1,11 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Query.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Query.Model;
 /// <summary>Provides shared authorization and exact-read calculations for order-composition queries.</summary>
@@ -29,14 +26,10 @@ internal static class OrderCompositionQueryModel
         var completed = await (services.DbFactory.TradeDb.GetOrderCompositionInvocationAsync(workflowId, invocationId, token)).ConfigureAwait(false) ?? throw new KeyNotFoundException("Exact composition invocation not found.");
         var result = OrderCompositionContracts.ReadResult(completed.Result);
         await (AuthorizeAsync(services, access, result.DecisionContext.PortfolioId, result.DecisionContext.FundId, token)).ConfigureAwait(false);
-        var read = new RedispatchCurrentStrategyPipelineCommand
-        {
-            EntityId = completed.EntityId,
-            Subject = new(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor, RedispatchCurrentStrategyPipelineCommand.Verb, completed.EntityId.Format())
-        };
-        var state = await (services.WorkflowRepository.LoadStateAsync(read, token)).ConfigureAwait(false);
-        var view = state.CurrentView?.WorkflowId == workflowId ? state.CurrentView : null;
-        var accepted = string.Equals(view?.OrderComposition.Result?.PayloadSha256, completed.Result.PayloadSha256, StringComparison.Ordinal) && view.OrderComposition.SourceEventId == completed.Id;
+        var current = await ProjectedWorkflowView.ReadCurrentAsync(services.DbFactory.TradeDb.DbReader, completed.EntityId.Format(), token).ConfigureAwait(false);
+        var view = current?.WorkflowId == workflowId ? current : null;
+        var accepted = view?.OrderComposition.SourceEventId == completed.Id
+            && string.Equals(view.OrderComposition.Result?.PayloadSha256, completed.Result.PayloadSha256, StringComparison.Ordinal);
         return new(completed, accepted, view is null, !accepted && view is { Status: not WorkflowStrategyMachineStatus.Started });
     }
 }

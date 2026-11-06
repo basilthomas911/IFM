@@ -58,7 +58,7 @@ public sealed class RegimeDiscoveryCalculationModelTests
     [Fact]
     public void Extreme_volatility_restricts_new_trades()
     {
-        var input = Replace(CreateInput(), RegimeDiscoverySignalMetric.VixLevel, TimeFrameType.Daily, 35m);
+        var input = Replace(CreateInput(), RegimeDiscoverySignalMetric.VxFrontLevel, TimeFrameType.Daily, 35m);
         input = Replace(input, RegimeDiscoverySignalMetric.VxFrontSecondRatio, TimeFrameType.Daily, 1.08m);
 
         var result = new VolatilityRegimeCalculationModel().Calculate(input);
@@ -66,6 +66,22 @@ public sealed class RegimeDiscoveryCalculationModelTests
         result.IsComplete.Should().BeTrue();
         result.NoNewTrade.Should().BeTrue();
         result.Reasons.Should().Contain(reason => reason.Code == RegimeDiscoveryReasonCodes.VolatilityExtreme);
+    }
+
+    [Fact]
+    public void Legacy_spot_value_cannot_replace_missing_front_vx()
+    {
+        var input = CreateInput();
+        var observations = input.Snapshot.Observations
+            .Where(observation => observation.Metric != RegimeDiscoverySignalMetric.VxFrontLevel).ToList();
+        Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.VixLevel, 18m);
+
+        var result = new VolatilityRegimeCalculationModel().Calculate(input with
+        {
+            Snapshot = input.Snapshot with { Observations = observations.ToArray() }
+        });
+
+        result.IsComplete.Should().BeFalse();
     }
 
     /// <summary>Confirms breakout classification has precedence over expansion and trend classifications.</summary>
@@ -296,7 +312,7 @@ public sealed class RegimeDiscoveryCalculationModelTests
             Add(observations, frame.TimeFrame, RegimeDiscoverySignalMetric.Atr14, 2m);
         }
         Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.CurrentPrice, 105m);
-        Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.VixLevel, 18m);
+        Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.VxFrontLevel, 18m);
         Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.AtrBaselineRatio, 1m);
         Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.VxFrontSecondRatio, 0.95m);
         Add(observations, TimeFrameType.Daily, RegimeDiscoverySignalMetric.PriorVolatilityComposite, 0.35m);

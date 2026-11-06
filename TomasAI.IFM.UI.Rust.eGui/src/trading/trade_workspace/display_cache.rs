@@ -507,10 +507,11 @@ impl TradeDisplayData {
                 let id = trade.id.as_ref();
                 model.tabs.push(PreparedTab::new(WorkspaceTabRow {
                     key: format!("{:?}", trade.id),
-                    title: format!(
-                        "{}:{}",
+                    title: crate::models::trade_presentation::loaded_trade_tab_title(
                         id.and_then(|id| id.order_id).unwrap_or_default(),
-                        id.and_then(|id| id.trade_id).unwrap_or_default()
+                        id.and_then(|id| id.trade_id).unwrap_or_default(),
+                        s.result.context.get("compositionType").map(String::as_str).unwrap_or_default(),
+                        trade,
                     ),
                     kind: "trade".into(),
                     active: true,

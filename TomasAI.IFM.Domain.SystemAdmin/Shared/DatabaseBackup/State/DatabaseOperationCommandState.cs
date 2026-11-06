@@ -41,6 +41,9 @@ public abstract class DatabaseOperationCommandState<TState> : BaseEventSourceAct
         (Operation.Exists ? Operation.OperationId == operation.OperationId : true) &&
         HasConcernSnapshot(snapshot);
 
+    internal static bool IsAuthoritativeFact(IEvent fact) => fact is DatabaseBackupEventContract &&
+        fact.GetType().Namespace?.EndsWith(".Events.Domain", StringComparison.Ordinal) == true;
+
     protected virtual DatabaseOperationStateSnapshottedEvent CaptureConcern(DatabaseOperationStateSnapshottedEvent snapshot) => snapshot;
     protected virtual bool HasConcernSnapshot(DatabaseOperationStateSnapshottedEvent snapshot) => true;
     protected virtual bool RestoreConcern(DatabaseOperationStateSnapshottedEvent snapshot) => true;
@@ -58,7 +61,7 @@ public abstract class DatabaseOperationCommandState<TState> : BaseEventSourceAct
             return true;
         }
 
-        if (domainEvent is not DatabaseBackupEventContract e || e.GetType().Namespace?.EndsWith(".Events.Domain", StringComparison.Ordinal) != true) return false;
+        if (domainEvent is not DatabaseBackupEventContract e || !IsAuthoritativeFact(e)) return false;
         Operation = Operation.Apply(e);
         ApplyConcern(e);
         if (e.Source.ProducingHostId is not null)

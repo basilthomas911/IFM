@@ -78,8 +78,12 @@ public sealed class FunctionExecutionPolicyConventionTests
         var marketPolicy = Resolve(new MarketConditionFunctionActor(mc), market, stage);
         var regimePolicy = Resolve(new RegimeDiscoveryFunctionActor(rc), regime, stage);
         selectionPolicy.Clock.Should().BeSameAs(clock); marketPolicy.Clock.Should().BeSameAs(clock); regimePolicy.Clock.Should().BeSameAs(clock);
-        selectionPolicy.DeadlineUtc.Should().Be(stage == FunctionFailureStage.Loading
-            ? clock.Now.AddMilliseconds(TradeSelectionContracts.CommonPolicy(selection.SelectionBinding).MaximumExecutionMilliseconds) : selection.ExpiresAtUtc);
+        selectionPolicy.DeadlineUtc.Should().Be(stage switch
+        {
+            FunctionFailureStage.Loading => clock.Now.AddMilliseconds(TradeSelectionContracts.CommonPolicy(selection.SelectionBinding).MaximumExecutionMilliseconds),
+            FunctionFailureStage.Persistence => new[] { selection.ExpiresAtUtc.AddSeconds(2), selection.WorkflowView.ExpiresAtUtc }.Min(),
+            _ => selection.ExpiresAtUtc
+        });
         marketPolicy.DeadlineUtc.Should().Be(stage == FunctionFailureStage.Loading
             ? clock.Now.AddMilliseconds(market.ParameterSet.MaximumExecutionMilliseconds) : market.ExpiresAtUtc);
         regimePolicy.DeadlineUtc.Should().Be(stage == FunctionFailureStage.Execution ? regime.ExpiresAtUtc : null);

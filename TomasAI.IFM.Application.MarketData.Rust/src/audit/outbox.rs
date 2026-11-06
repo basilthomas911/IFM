@@ -479,7 +479,7 @@ pub fn start(
                     attempts.retain(|id,_|records.iter().any(|record|&record.id==id));
                     delivery_health.rejected.store(spool.rejected_entries.load(Ordering::Relaxed),Ordering::Relaxed);
                     let now=clock.utc_ticks().ok();
-                    let oldest=records.iter().filter_map(|record|serde_json::from_str::<serde_json::Value>(&record.payload).ok()).filter_map(|value|value["OccurredAtUtc"].as_str().and_then(|at|chrono::DateTime::parse_from_rfc3339(at).ok())).filter_map(|at|at.timestamp_nanos_opt().map(|n|n/100)).min();
+                    let oldest=records.iter().filter_map(|record|record.occurred_ticks).min();
                     let age=if records.is_empty(){0}else{now.zip(oldest).and_then(|(now,oldest)|u64::try_from(now.saturating_sub(oldest)/10_000).ok()).unwrap_or(u64::MAX)};
                     delivery_health.oldest_age_ms.store(age,Ordering::Relaxed);
                     delivery_health.pending.store(records.len() as u64,Ordering::Relaxed);

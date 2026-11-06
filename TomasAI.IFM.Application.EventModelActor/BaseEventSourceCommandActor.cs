@@ -267,6 +267,10 @@ public abstract class BaseEventSourceCommandActor<TActor>(
                         stageStarted = ActorRuntimeMetrics.StartStage();
                         try
                         {
+                            var input = command;
+                            command = await ResolveCommandAsync(_context!, input, cancellationToken).ConfigureAwait(false);
+                            if (command.Subject != input.Subject)
+                                threadId = command.Subject.ThreadId;
                             if (cancellationToken.CanBeCanceled)
                                 await OnValidateAsync(_context!, threadId, command, cancellationToken).ConfigureAwait(false);
                             else
@@ -526,6 +530,11 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         cancellationToken.ThrowIfCancellationRequested();
         return ReceiveAsync(context, state, command);
     }
+    /// <summary>Resolves server-owned inputs before validating and loading command state.</summary>
+    protected virtual ValueTask<ICommand> ResolveCommandAsync(
+        ICommandActorContext<TActor> context, ICommand command, CancellationToken cancellationToken)
+        => ValueTask.FromResult(command);
+
     protected virtual ValueTask OnValidateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command) => ValueTask.CompletedTask;
     protected virtual ValueTask OnValidateAsync(
         ICommandActorContext<TActor> context,

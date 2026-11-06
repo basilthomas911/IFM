@@ -28,15 +28,19 @@ public sealed class NativeReferenceFacts(IDbContextFactory databases,IOptionPric
                 if(value.TryGetProperty("contracts",out var batch))
                 {
                     if(batch.ValueKind!=JsonValueKind.Array || batch.GetArrayLength() is <1 or >16)throw new InvalidDataException("Invalid raw convention batch.");
-                    var result=new List<object?>();
-                    foreach(var entry in batch.EnumerateArray())
+                    var identities = new (string ContractId, string Version)[batch.GetArrayLength()];
+                    var index = 0;
+                    foreach (var entry in batch.EnumerateArray())
                     {
-                        var id=entry.GetProperty("contract").GetString();var requested=entry.GetProperty("version").GetString();
-                        if(string.IsNullOrWhiteSpace(id)||id.Length>128||string.IsNullOrWhiteSpace(requested)||requested.Length>512)throw new InvalidDataException("Invalid raw convention identity.");
-                        var exact=await conventions.GetAsync(id,requested,cancellationToken).ConfigureAwait(false);
-                        result.Add(exact is null?null:NativeReferenceProjection.Convention(exact));
+                        var id = entry.GetProperty("contract").GetString();
+                        var requested = entry.GetProperty("version").GetString();
+                        if (string.IsNullOrWhiteSpace(id) || id.Length > 128 || string.IsNullOrWhiteSpace(requested) || requested.Length > 512)
+                            throw new InvalidDataException("Invalid raw convention identity.");
+                        identities[index++] = (id, requested);
                     }
-                    return JsonSerializer.SerializeToUtf8Bytes(result);
+                    var resolved = await conventions.GetManyAsync(identities, cancellationToken).ConfigureAwait(false);
+                    return JsonSerializer.SerializeToUtf8Bytes(resolved.Select(exact => exact is null
+                        ? null : NativeReferenceProjection.Convention(exact)));
                 }
                 var contract=value.GetProperty("contract").GetString();var version=value.GetProperty("version").GetString();
                 if(string.IsNullOrWhiteSpace(contract)||contract.Length>128||string.IsNullOrWhiteSpace(version)||version.Length>512)throw new InvalidDataException("Invalid raw convention identity.");
@@ -66,17 +70,13 @@ public sealed class NativeReferenceFacts(IDbContextFactory databases,IOptionPric
                 var root=value.GetProperty("root").GetString();
                 var first=DateOnly.FromDayNumber(value.GetProperty("from").GetInt32());var last=DateOnly.FromDayNumber(value.GetProperty("until").GetInt32());
                 if(string.IsNullOrWhiteSpace(root)||root.Length>60||last<first||last.DayNumber-first.DayNumber>2000)throw new InvalidDataException("Invalid raw option definition range.");
-                var expiries=await databases.SecuritiesDb.GetOptionContractExpiriesAsync(root,first,last,cancellationToken).ConfigureAwait(false);
-                if(expiries.Count>2048)throw new InvalidDataException("Raw option expiry capacity exceeded.");
-                var definitions=new List<object?[]>();
-                foreach(var expiry in expiries.Select(e=>(e.ExpiryDate,e.ContractId)).Distinct())
+                var definitions = new List<object?[]>();
+                await foreach (var row in databases.SecuritiesDb.ReadPublishedOptionDefinitionsAsync(
+                    root, first, last, 2048, cancellationToken: cancellationToken).ConfigureAwait(false))
                 {
-                    var cached=await databases.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(root,expiry.ContractId,expiry.ExpiryDate,null,cancellationToken).ConfigureAwait(false);
-                    foreach(var row in cached)
-                    {
-                        if(definitions.Count==2048)throw new InvalidDataException("Raw option definition capacity exceeded.");
-                        definitions.Add(NativeReferenceProjection.Option(row.Definition));
-                    }
+                    if (definitions.Count == 2048)
+                        throw new InvalidDataException("Raw option definition capacity exceeded.");
+                    definitions.Add(NativeReferenceProjection.Option(row.Definition));
                 }
                 return JsonSerializer.SerializeToUtf8Bytes(definitions);
             case 6:

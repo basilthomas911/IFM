@@ -159,9 +159,77 @@ fn query_abi_failure_preserves_buffers_and_invalidates_only_closed_identities() 
         assert_eq!(projection["Instrument"], 42);
         assert_eq!(projection["Strike"], serde_json::Value::Null);
         assert_eq!(projection["CanonicalId"], "ES20261225");
+        bytes.fill(77);
+        length = 999;
+        let mut rows = 999;
+        assert_eq!(
+            ifm_market_data_catalog_query_page_v1(
+                handle,
+                result.token,
+                0,
+                65,
+                0,
+                bytes.as_mut_ptr(),
+                262_144,
+                &mut length,
+                &mut rows,
+            ),
+            1
+        );
+        assert_eq!((bytes[0], length, rows), (77, 999, 999));
+        assert_eq!(
+            ifm_market_data_catalog_query_page_v1(
+                handle,
+                result.token,
+                0,
+                1,
+                0,
+                bytes.as_mut_ptr(),
+                4,
+                &mut length,
+                &mut rows,
+            ),
+            4
+        );
+        assert_eq!((bytes[0], length, rows), (77, 999, 999));
+        assert_eq!(
+            ifm_market_data_catalog_query_page_v1(
+                handle,
+                result.token,
+                0,
+                64,
+                0,
+                bytes.as_mut_ptr(),
+                262_144,
+                &mut length,
+                &mut rows,
+            ),
+            0
+        );
+        assert_eq!(rows, 1);
+        assert_eq!(length as usize, json.len() + 4);
+        assert_eq!(
+            u32::from_le_bytes(bytes[..4].try_into().unwrap()) as usize,
+            json.len()
+        );
+        assert_eq!(&bytes[4..length as usize], json.as_bytes());
         assert_eq!(
             ifm_market_data_catalog_query_close_v1(handle, result.token),
             0
+        );
+        assert_eq!(
+            ifm_market_data_catalog_query_page_v1(
+                handle,
+                result.token,
+                0,
+                1,
+                0,
+                bytes.as_mut_ptr(),
+                262_144,
+                &mut length,
+                &mut rows,
+            ),
+            1
         );
         assert_eq!(
             ifm_market_data_catalog_query_close_v1(handle, result.token),
@@ -169,5 +237,95 @@ fn query_abi_failure_preserves_buffers_and_invalidates_only_closed_identities() 
         );
         assert_eq!(ifm_market_data_runtime_stop_v1(handle), 0);
         assert_eq!(ifm_market_data_runtime_release_v1(handle), 0);
+    }
+}
+
+fn legacy_projection(row: &Definition) -> Vec<u8> {
+    use ifm_market_data_native::catalog::selection;
+
+    let value = serde_json::json!({
+        "Dataset": row.dataset, "Publisher": row.publisher, "Instrument": row.instrument,
+        "Symbol": row.symbol, "Asset": row.asset, "Kind": row.kind, "Class":row.class, "Currency": row.currency,
+        "Exchange": row.exchange, "SettlementCurrency": row.settlement_currency,
+        "Underlying": row.underlying, "UnderlyingInstrument": row.underlying_instrument,
+        "ReceivedNanoseconds": row.received_ns, "EventNanoseconds": row.event_ns,
+        "Deleted": row.deleted, "Activation": row.activation, "Expiration": row.expiration,
+        "Maturity": row.maturity.map(|v| v.to_string()), "Strike": row.strike,
+        "Tick": row.tick, "TickAmount": row.tick_amount, "Multiplier": row.multiplier,
+        "MaturityWeek": row.maturity_week, "CanonicalId": selection::format(row).ok(),
+        "QueryMaturity": row.query_maturity.map(|v| v.to_string()),
+        "QueryMaturityInvalid": row.query_maturity_invalid,
+        "SecurityType": row.security_type, "Cfi": row.cfi, "UnitOfMeasure": row.unit
+    });
+    serde_json::to_vec(&value).unwrap()
+}
+
+fn projection_rows() -> Vec<Definition> {
+    let corpus: serde_json::Value =
+        serde_json::from_str(include_str!("../baseline/DefinitionOracle.json")).unwrap();
+    corpus
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| row["valid"].as_bool().unwrap())
+        .map(|row| Definition::parse("GLBX.MDP3", row["json"].as_str().unwrap()).unwrap())
+        .collect()
+}
+
+#[test]
+fn typed_catalog_projection_preserves_legacy_abi_bytes() {
+    use ifm_market_data_native::catalog::queries::project;
+
+    let mut rows = projection_rows();
+    let mut exact = rows[0].clone();
+    exact.symbol = "ES\\\"\t\nλ".into();
+    exact.received_ns = u64::MAX - 1;
+    exact.strike = Some(i64::MIN);
+    rows.push(exact);
+    for row in rows {
+        assert_eq!(project(&row).unwrap(), legacy_projection(&row));
+    }
+    let mut oversized = projection_rows().remove(0);
+    oversized.symbol = "a".repeat(262_144);
+    assert!(matches!(
+        project(&oversized),
+        Err(ifm_market_data_native::catalog::Failure::Capacity)
+    ));
+}
+
+#[test]
+#[ignore = "paired catalog serializer qualification"]
+fn measure_catalog_projection() {
+    use ifm_market_data_native::catalog::queries::project;
+    use std::{hint::black_box, time::Instant};
+
+    const REPETITIONS: usize = 100;
+    let rows = projection_rows();
+    let measure = |encode: &dyn Fn(&Definition) -> Vec<u8>| {
+        let start = Instant::now();
+        let mut total = 0usize;
+        for _ in 0..REPETITIONS {
+            for row in &rows {
+                total += black_box(encode(black_box(row))).len();
+            }
+        }
+        (start.elapsed().as_secs_f64() * 1_000.0, total)
+    };
+    let typed = |row: &Definition| project(row).unwrap();
+    measure(&legacy_projection);
+    measure(&typed);
+    for sample in 1..=7 {
+        let (before, after) = if sample % 2 == 1 {
+            (measure(&legacy_projection), measure(&typed))
+        } else {
+            let after = measure(&typed);
+            (measure(&legacy_projection), after)
+        };
+        assert_eq!(before.1, after.1);
+        println!(
+            "CATALOG_PROJECTION_PERFORMANCE {}",
+            serde_json::json!({"sample":sample,"rowsPerSample":rows.len() * REPETITIONS,
+                "beforeMs":before.0,"afterMs":after.0,"encodedBytes":after.1})
+        );
     }
 }

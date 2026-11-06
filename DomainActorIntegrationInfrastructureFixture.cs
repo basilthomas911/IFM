@@ -79,6 +79,9 @@ public static class DomainActorIntegrationInfrastructureFixture
 
     internal static async Task InitializeAsync(string testAssemblyName)
     {
+        var isTradeIntegration = testAssemblyName.Contains("TomasAI.IFM.Domain.Trade.IntegratedTests", StringComparison.Ordinal);
+        var isTrade = isTradeIntegration
+            || testAssemblyName.Contains("TomasAI.IFM.Domain.Trade.VerificationTests", StringComparison.Ordinal);
         var backtestConnection = Environment.GetEnvironmentVariable("IFM_BACKTEST_POSTGRES_CONNECTION");
         var backtestCredentials = Environment.GetEnvironmentVariable("POSTGRES_DEV_KEY");
         if (backtestConnection is not null)
@@ -118,7 +121,7 @@ public static class DomainActorIntegrationInfrastructureFixture
 
         SetEnvironment("DOTNET_ENVIRONMENT", "Development");
         SetEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
-        if (testAssemblyName.Contains("Trade.IntegratedTests", StringComparison.Ordinal))
+        if (isTrade)
         {
             SetEnvironment("DOTNET_ENVIRONMENT", "Test");
             SetEnvironment("ASPNETCORE_ENVIRONMENT", "Test");
@@ -249,9 +252,18 @@ public static class DomainActorIntegrationInfrastructureFixture
                 await lifecycle.Completion.WaitAsync(TimeSpan.FromMinutes(1)).ConfigureAwait(false);
             });
 
+        if (isTrade)
+            KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>
+                .ConfigureSharedServices(services =>
+                {
+                    // Trade hosts supply frozen market inputs and can omit Feed actor mailboxes.
+                    TomasAI.IFM.IntegrationTesting.HostedServiceOverrides.Suppress<TomasAI.IFM.Application.MarketData.Databento.Resiliency.DatabentoMarketDataWatchdogService>(services);
+                    TomasAI.IFM.IntegrationTesting.HostedServiceOverrides.Suppress<TomasAI.IFM.Application.MarketData.Remote.MarketDataClientReceiver>(services);
+                });
+
         if (testAssemblyName.Contains("Portfolio.IntegrationTests", StringComparison.Ordinal)
             || testAssemblyName.Contains("MarketData.Feed.IntegrationTests", StringComparison.Ordinal)
-            || testAssemblyName.Contains("Trade.IntegratedTests", StringComparison.Ordinal))
+            || isTradeIntegration)
         {
             if (testAssemblyName.Contains("MarketData.Feed.IntegrationTests", StringComparison.Ordinal))
             {
@@ -286,16 +298,6 @@ public static class DomainActorIntegrationInfrastructureFixture
                                 lifecycleServiceType, lifecycleImplementationType));
                     });
             }
-            if (testAssemblyName.Contains("Trade.IntegratedTests", StringComparison.Ordinal))
-                KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>
-                    .ConfigureSharedServices(services =>
-                    {
-                        // Trade qualification does not start or stop an external feed worker.
-                        TomasAI.IFM.IntegrationTesting.HostedServiceOverrides.Suppress<TomasAI.IFM.Application.MarketData.Databento.Resiliency.DatabentoMarketDataWatchdogService>(services);
-                        // Configured Trade hosts deliberately omit Feed actors and supply
-                        // frozen market inputs. A remote receiver cannot own a Feed mailbox there.
-                        TomasAI.IFM.IntegrationTesting.HostedServiceOverrides.Suppress<TomasAI.IFM.Application.MarketData.Remote.MarketDataClientReceiver>(services);
-                    });
             var services = KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>.StartShared();
             var initializer = (TomasAI.IFM.Application.Api.Server.Core.Startup.Schema.ApplicationSchemaInitializer?)services.GetService(
                 typeof(TomasAI.IFM.Application.Api.Server.Core.Startup.Schema.ApplicationSchemaInitializer))

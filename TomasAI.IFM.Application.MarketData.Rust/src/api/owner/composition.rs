@@ -48,11 +48,9 @@ impl MarketData {
         let view = self
             .options_current()
             .ok_or_else(|| failed("Recovering", "GenerationId"))?;
-        let scope = if let Some((_, scope)) = claims
-            .active_scopes()
+        let scope = if let Some(scope) = claims
+            .active_scope(&request.scope)
             .map_err(|_| failed("Recovering", "ScopeId"))?
-            .into_iter()
-            .find(|(id, _)| *id == request.scope)
         {
             scope
         } else if let Some(definition) = view.definitions.iter().find(|definition| {
@@ -434,17 +432,11 @@ impl MarketData {
                     && view.monitored.contains(&definition.instrument)
             })
             .ok_or_else(|| failed("LeaseEnded", "ScopeId"))?;
-        let scopes = self
+        let scope = self
             .option_claims()
             .ok_or_else(|| failed("LeaseEnded", "ScopeId"))?
-            .active_scopes()
-            .map_err(|_| failed("Recovering", "ScopeId"))?;
-        let scope = scopes
-            .into_iter()
-            .find(|(_, scope)| {
-                scope.options.len() == 1 && scope.monitored.contains(&definition.instrument)
-            })
-            .map(|(id, _)| id)
+            .active_single_monitor_scope(definition.instrument)
+            .map_err(|_| failed("Recovering", "ScopeId"))?
             .or_else(|| {
                 self.options.control.intent().and_then(|intent| {
                     intent.background.as_ref().and_then(|background| {

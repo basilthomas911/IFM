@@ -11,4 +11,6 @@ public sealed record IronCondorPositionChangedEvent : PositionChangedEvent
 {
     /// <summary>Identifies replaceable quote-driven marks; execution/fill transitions never set this flag.</summary>
     [Key(9)] public bool IsRealtimeMarketObservation { get; init; }
+    /// <summary>Identifies the committed Trade fact used by an explicit legacy currency repair.</summary>
+    [Key(10)] public long? CurrencyEvidenceEventId { get; init; }
 }

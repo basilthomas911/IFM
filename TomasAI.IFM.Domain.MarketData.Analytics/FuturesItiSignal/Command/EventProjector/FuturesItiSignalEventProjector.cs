@@ -41,7 +41,7 @@ public sealed class FuturesItiSignalEventProjector(
                 };
                 if (!string.Equals(db.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) await db.InsertFuturesItiSignalAsync(signal).ConfigureAwait(false);
                 RegimeDiscoverySignalCacheAdapter.Publish(signal, signal.SequenceId,
-                    e.CreatedOn == default ? e.ReceivedOn : e.CreatedOn, (decimal)e.VixFuturesPrice);
+                    e.CreatedOn == default ? e.ReceivedOn : e.CreatedOn);
                 telemetry?.RecordProjectionCompleted();
                 FuturesItiSignalEventLogging.ProjectionCompleted(
                     logger, e.Id, signal.ContractId, signal.ValueDate, signal.TimePeriod, signal.SequenceId);

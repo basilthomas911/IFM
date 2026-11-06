@@ -7,7 +7,7 @@ use super::{
     codec,
     current::Current,
     futures::Futures,
-    publisher::{BrokerSettings, Publisher},
+    publisher::{BrokerSettings, PreparedFrame, Publisher},
     wire::Frame,
 };
 use crate::{
@@ -282,7 +282,7 @@ impl Delivery {
         let mut submitted = 0u64;
         // At most one source record is assembled ahead of broker admission.
         // A full broker queue pauses this consumer, never the provider reader.
-        let mut waiting = std::collections::VecDeque::<(Frame, u128)>::new();
+        let mut waiting = std::collections::VecDeque::<(PreparedFrame, u128)>::new();
         let mut first_current: Option<(u128, u64)> = None;
         loop {
             if stop.is_cancelled() {
@@ -378,12 +378,12 @@ impl Delivery {
                     // Retry the detached record before consuming another. The
                     // upstream quote FIFO stays bounded by evicting old quotes;
                     // executions and replay checkpoints are never discarded.
-                    while let Some((frame, physical)) = waiting.front() {
+                    while let Some((frame, physical)) = waiting.front_mut() {
                         if data.generation(config.lane).ok().flatten() != Some(*physical) {
                             waiting.pop_front();
                             continue;
                         }
-                        match publisher.try_publish(frame) {
+                        match publisher.try_prepared_frame(frame) {
                             Ok(()) => {
                                 submitted = submitted.saturating_add(1);
                                 if first_current.is_none_or(|(old, _)| old != *physical) {
@@ -394,10 +394,12 @@ impl Delivery {
                             Err(
                                 error @ ("Native publication queue unavailable"
                                 | "Native publication byte capacity exceeded"),
-                            ) => match frame.encode() {
-                                Ok(bytes) if bytes.len() <= config.bytes => break 'drain,
-                                _ => return Some(error.into()),
-                            },
+                            ) => {
+                                if frame.bytes.len() <= config.bytes {
+                                    break 'drain;
+                                }
+                                return Some(error.into());
+                            }
                             Err(error) => return Some(error.into()),
                         }
                     }
@@ -450,7 +452,11 @@ impl Delivery {
                         {
                             return Some(error.into());
                         }
-                        waiting.push_back((frame, next.generation));
+                        let prepared = match publisher.prepare_frame(&frame) {
+                            Ok(prepared) => prepared,
+                            Err(error) => return Some(error.into()),
+                        };
+                        waiting.push_back((prepared, next.generation));
                     }
                 }
             }
