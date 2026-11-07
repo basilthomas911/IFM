@@ -141,7 +141,7 @@ async fn trade_manual_commands_use_backend_ids_versions_and_projection_receipts(
         &registry,
         p.generation,
         "create-trade",
-        json!({"tradeType":"FuturesOutright","baseContract":"forged","effectiveDate":"2026-10-26"}),
+        json!({"tradeType":"FuturesOutright","baseContract":"forged","effectiveDate":"2026-10-26","tradeReference":"  Buy saved trade — edited reference  "}),
         Some("123"),
     )
     .await;
@@ -155,6 +155,8 @@ async fn trade_manual_commands_use_backend_ids_versions_and_projection_receipts(
     ).unwrap();
     assert_eq!(added["MaturityDate"], "2026-10-28");
     assert_eq!(added["TradeType"], "LongIronCondor");
+    assert_eq!(added["TradeReference"], "Buy saved trade — edited reference");
+    assert_eq!(added["InstructionReference"], "ESZ6 @ 20261026 - 20261028");
     assert_eq!(count(&backend).await, 2);
     p = act(
         &mut state,
@@ -162,12 +164,17 @@ async fn trade_manual_commands_use_backend_ids_versions_and_projection_receipts(
         &registry,
         p.generation,
         "remove-trade",
-        json!({}),
+        json!({"removeTradeId":"201"}),
         Some("123"),
     )
     .await;
     assert_eq!(p.outcomes[0].state, "Completed", "{}", p.status);
-    assert!(state.data.trades.is_empty());
+    assert_eq!(state.data.trades.len(), 1);
+    let remaining = registry.project(
+        "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel",
+        &state.data.trades[0],
+    ).unwrap();
+    assert_eq!(remaining["TradeId"], 456);
     assert_eq!(count(&backend).await, 3);
     p = act(
         &mut state,

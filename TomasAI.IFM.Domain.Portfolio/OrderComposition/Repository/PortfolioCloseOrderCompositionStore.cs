@@ -6,10 +6,11 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
+using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository;
 
-/// <summary>Atomically accepts one reduce-only order and its canonical completed event.</summary>
+/// <summary>Atomically accepts a reduce-only order and its canonical completed event.</summary>
 public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null)
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
@@ -42,8 +43,8 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
             var priorClose = await db.ScalarAsync(
                 PortfolioDbSql.OrderComposition.SelectAcceptedClose,
                 [positionId.Format()], token).ConfigureAwait(false);
-            if (priorClose is Guid priorOperation && priorOperation != request.OperationId)
-                throw new InvalidOperationException("A close Trade Order has already been accepted for this position.");
+            if (priorClose is int priorOrder)
+                await RequireSettledPartialCloseAsync(db, request.Body.Position, priorOrder, token).ConfigureAwait(false);
 
             var openingJson = await db.ScalarAsync(
                 PortfolioDbSql.OrderComposition.SelectOpeningOrder,
@@ -85,6 +86,40 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
             await (LedgerFinancialProjection.RecordAppliedAsync(db,completed,receipt.FinancialRevision,token)).ConfigureAwait(false);
             return completed;
         }, cancellationToken);
+
+    /// <summary>Requires terminal execution and its applied fills before accepting a new close.</summary>
+    private static async Task RequireSettledPartialCloseAsync(EnlistedEventTransaction db,
+        PortfolioPositionSnapshot requested, int priorOrder, CancellationToken token)
+    {
+        var id = requested.Id;
+        var target = new StrategyPositionId(new TradeEntityId(id.PortfolioId, id.FundId, id.OrderId, id.TradeId), id.PositionId);
+        var priorPayload = await db.ScalarAsync(PortfolioDbSql.OrderComposition.SelectPriorCloseExecution,
+            [id.PortfolioId, id.FundId, priorOrder], token).ConfigureAwait(false);
+        var prior = priorPayload is byte[] bytes
+            ? MessagePackBinarySerializer.Shared.Deserialize<OrderExecutionDefinition>(bytes)
+            : null;
+        var unfilledTerminal = prior is not null
+            && prior.Status is OrderExecutionStatus.Rejected or OrderExecutionStatus.Cancelled
+            && prior.CumulativeFilledQuantity == 0 && prior.Fills.Length == 0;
+        var cancelledPartial = prior is not null && prior.Status == OrderExecutionStatus.Cancelled
+            && prior.CumulativeFilledQuantity > 0 && prior.CumulativeFilledQuantity < prior.OrderQuantity
+            && prior.Fills.Length > 0;
+        if (prior is null || prior.TargetPositionId != target || (!unfilledTerminal && !cancelledPartial))
+            throw new InvalidOperationException("The previous close must be terminal with zero fills or a settled partial cancellation.");
+
+        var positionPayload = await db.ScalarAsync(PortfolioDbSql.OrderComposition.SelectCurrentClosePosition,
+            [id.PortfolioId, id.FundId, id.OrderId, id.TradeId, id.PositionId], token).ConfigureAwait(false);
+        var current = positionPayload is byte[] positionBytes
+            ? MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>(positionBytes)
+            : null;
+        if (current is null || current.Id != target || !current.IsOpen ||
+            prior.Fills.Any(fill => !current.ClosingFills.Any(applied => applied.ExecutionFillId == fill.ExecutionFillId)) ||
+            current.Legs.Length != requested.Legs.Length ||
+            current.Legs.Any(leg => !requested.Legs.Any(candidate => candidate.TradeLegId == leg.TradeLegId &&
+                string.Equals(candidate.ContractId, leg.ContractId, StringComparison.Ordinal) &&
+                candidate.SignedQuantity == leg.SignedQuantity)))
+            throw new InvalidOperationException("The previous close fills must be applied to the current remaining position.");
+    }
 
     /// <summary>Restores the recorded reduce-only order and exact close claim without invoking execution.</summary>
     internal static async Task ProjectMaterialAsync(EnlistedEventTransaction db,PortfolioCloseOrderCompositionCompletedEvent completed,CancellationToken token)

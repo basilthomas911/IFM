@@ -107,7 +107,7 @@ pub async fn save(operation: &Operation, phase: u8, message: &str) -> Result<(),
     let directory = directory()?;
     let id = operation.id;
     let wire = codec::encode(&operation.body)?;
-    let value = json!({"Schema":1,"Request":{"OperationId":id.to_string(),"InputSha256":operation.hash,"PortfolioId":operation.portfolio},"WireSha256":format!("{:x}",Sha256::digest(&wire)),"CommandWire":wire,"Phase":phase,"Message":message,"AcceptedOrders":operation.accepted,"Completion":operation.completed,"Dispatched":operation.dispatched,"Channel":operation.channel,"Confirmed":operation.confirmed});
+    let value = json!({"Schema":1,"Request":{"OperationId":id.to_string(),"InputSha256":operation.hash,"PortfolioId":operation.portfolio},"WireSha256":format!("{:x}",Sha256::digest(&wire)),"CommandWire":wire,"Phase":phase,"Message":message,"AcceptedOrders":operation.accepted,"Completion":operation.completed,"Dispatched":operation.dispatched,"Channel":operation.channel,"Confirmed":operation.confirmed,"Rejection":operation.rejection});
     tokio::task::spawn_blocking(move || {
         Journal::new(directory)
             .save(id, &value, &validate, &|| false)
@@ -118,17 +118,13 @@ pub async fn save(operation: &Operation, phase: u8, message: &str) -> Result<(),
 }
 
 
-/// Provides pending for the order submission store implementation.
-pub async fn pending() -> Result<Vec<Json>, String> {
+/// Reads submissions that have recovery work or evidence for the workspace.
+pub async fn retained() -> Result<Vec<Json>, String> {
     let directory = directory()?;
     tokio::task::spawn_blocking(move || {
         Journal::new(directory).list(&validate).map(|rows| {
             rows.into_iter()
-                .filter(|v| {
-                    v["Phase"] == 1
-                        || v["Phase"] == 2
-                            && !v["AcceptedOrders"].as_array().is_none_or(|a| a.is_empty())
-                })
+                .filter(is_retained)
                 .collect()
         })
     })
@@ -136,7 +132,21 @@ pub async fn pending() -> Result<Vec<Json>, String> {
     .map_err(|e| e.to_string())?
 }
 
+fn is_retained(value: &Json) -> bool {
+    value["Phase"] == 1
+        || value["Phase"] == 2 && !value["AcceptedOrders"].as_array().is_none_or(|a| a.is_empty())
+        || recorded_rejection(value).is_some()
+}
 
+fn recorded_rejection(value: &Json) -> Option<&str> {
+    if value["Phase"] != 3 || value["AcceptedOrders"].as_array().is_none_or(|orders| orders.is_empty()) {
+        return None;
+    }
+    // Older direct rejections saved the broker reason only in Message.
+    value["Rejection"].as_str().or_else(|| {
+        value["Message"].as_str().filter(|message| super::order_submission_ack::is_rejection(message))
+    })
+}
 /// Restores order submission store for order submission store.
 pub fn restore(registry: &Registry, value: &Json) -> Result<Operation, String> {
     validate(value)?;
@@ -212,5 +222,26 @@ pub fn restore(registry: &Registry, value: &Json) -> Result<Operation, String> {
         dispatched,
         channel,
         confirmed: value["Confirmed"] == true,
+        rejection: recorded_rejection(value).map(str::to_owned),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retained_broker_rejection_restores_evidence_without_reopening_pending_phase() {
+        let reason = "Broker rejected the accepted order: EM.EXPIRED: Approval expired.";
+        let legacy = json!({"Phase":3,"AcceptedOrders":[{"Id":{"OrderId":2001}}],"Message":reason});
+        let mut saved = legacy.clone();
+        saved["Rejection"] = json!(reason);
+        saved["Message"] = json!("Recorded terminal broker decision");
+        for record in [&legacy, &saved] {
+            assert!(is_retained(record));
+            assert_eq!(recorded_rejection(record), Some(reason));
+        }
+        assert!(!is_retained(&json!({"Phase":3,"AcceptedOrders":[],"Message":"Portfolio declined"})));
+        assert_eq!(recorded_rejection(&json!({"Phase":1,"AcceptedOrders":[{}],"Message":reason})), None);
+    }
 }

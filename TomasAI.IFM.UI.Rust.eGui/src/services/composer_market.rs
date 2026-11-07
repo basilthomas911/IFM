@@ -353,6 +353,7 @@ impl Market {
         backend: &Backend,
         registry: &Registry,
         live: bool,
+        keep_selection: bool,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
         if !self.development {
@@ -360,8 +361,12 @@ impl Market {
         }
         if live != self.live {
             self.lease.release(backend, registry, deadline).await?;
-            if self.fixed_expiry.is_none() {
+            if !keep_selection && self.fixed_expiry.is_none() {
                 self.draft = Default::default();
+            } else {
+                self.draft.raw = None;
+                self.draft.display = None;
+                self.draft.clear_live_quotes();
             }
             self.draft.entered_price = None;
         }
@@ -378,6 +383,7 @@ impl Market {
         expiry: chrono::NaiveDate,
         live: bool,
         defaults: Defaults,
+        keep_selection: bool,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
         if self.fixed_expiry.is_some_and(|fixed| fixed != expiry) {
@@ -422,8 +428,12 @@ impl Market {
         }
         if expiry != self.expiry || live != self.live {
             self.lease.release(backend, registry, deadline).await?;
-            if self.fixed_expiry.is_none() {
+            if self.fixed_expiry.is_none() && (!keep_selection || expiry != self.expiry) {
                 self.draft = Default::default();
+            } else {
+                self.draft.raw = None;
+                self.draft.display = None;
+                self.draft.clear_live_quotes();
             }
             self.draft.entered_price = None;
         }

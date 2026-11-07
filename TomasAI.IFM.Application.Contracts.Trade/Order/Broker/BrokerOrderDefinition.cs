@@ -22,4 +22,5 @@ public sealed record BrokerOrderDefinition
     [Key(12)] public BrokerOrderStatus StatusBeforeMutation { get; init; }
     [Key(13)] public int BrokerRevision { get; init; }
     [Key(14)] public Guid PriorOperationId { get; init; }
+    [Key(15)] public decimal? RequestedSignedNetDebitLimit { get; init; }
 }

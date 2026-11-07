@@ -22,7 +22,8 @@ public sealed class BrokerOrderCommandActor(ICommandActorContext<BrokerOrderComm
         [RecordBrokerDispatchCommand.Verb] = message => message.AsCommand<RecordBrokerDispatchCommand>()!,
         [RecordBrokerOrderObservationCommand.Verb] = message => message.AsCommand<RecordBrokerOrderObservationCommand>()!,
         [RequestBrokerOrderLimitUpdateCommand.Verb] = message => message.AsCommand<RequestBrokerOrderLimitUpdateCommand>()!,
-        [RequestBrokerOrderCancelCommand.Verb] = message => message.AsCommand<RequestBrokerOrderCancelCommand>()!
+        [RequestBrokerOrderCancelCommand.Verb] = message => message.AsCommand<RequestBrokerOrderCancelCommand>()!,
+        [ReconcileBrokerOrderCommand.Verb] = message => message.AsCommand<ReconcileBrokerOrderCommand>()!
     }.ToFrozenDictionary(StringComparer.Ordinal);
     private static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
@@ -46,19 +47,25 @@ public sealed class BrokerOrderCommandActor(ICommandActorContext<BrokerOrderComm
             var typed = (RequestBrokerOrderLimitUpdateCommand)command;
             return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateBrokerOrderId(typed.EntityId, typed.CommandName).ValidateBrokerOrderCommand(typed);
         },
+        [typeof(ReconcileBrokerOrderCommand)] = static command =>
+        {
+            var typed = (ReconcileBrokerOrderCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateBrokerOrderId(typed.EntityId, typed.CommandName).ValidateBrokerOrderCommand(typed);
+        },
         [typeof(RequestBrokerOrderCancelCommand)] = static command =>
         {
             var typed = (RequestBrokerOrderCancelCommand)command;
             return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateBrokerOrderId(typed.EntityId, typed.CommandName).ValidateBrokerOrderCommand(typed);
         }
     }.ToFrozenDictionary();
-    private static readonly IReadOnlyDictionary<Type, Func<ICommand, IBrokerOrderCommandContext, BrokerOrderCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, IBrokerOrderCommandContext, BrokerOrderCommandState, ServiceResult<GuidResult>>>
+    private static readonly IReadOnlyDictionary<Type, Func<ICommand, IBrokerOrderCommandContext, BrokerOrderCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, IBrokerOrderCommandContext, BrokerOrderCommandState, ValueTask<ServiceResult<GuidResult>>>>
     {
-        [typeof(CreateBrokerOrderCommand)] = static (command, owner, state) => ((CreateBrokerOrderCommand)command).Execute(state),
-        [typeof(RecordBrokerDispatchCommand)] = static (command, _, state) => ((RecordBrokerDispatchCommand)command).Execute(state),
-        [typeof(RecordBrokerOrderObservationCommand)] = static (command, _, state) => ((RecordBrokerOrderObservationCommand)command).Execute(state),
-        [typeof(RequestBrokerOrderLimitUpdateCommand)] = static (command, _, state) => ((RequestBrokerOrderLimitUpdateCommand)command).Execute(state),
-        [typeof(RequestBrokerOrderCancelCommand)] = static (command, _, state) => ((RequestBrokerOrderCancelCommand)command).Execute(state)
+        [typeof(CreateBrokerOrderCommand)] = static (command, _, state) => ValueTask.FromResult(((CreateBrokerOrderCommand)command).Execute(state)),
+        [typeof(RecordBrokerDispatchCommand)] = static (command, _, state) => ValueTask.FromResult(((RecordBrokerDispatchCommand)command).Execute(state)),
+        [typeof(RecordBrokerOrderObservationCommand)] = static (command, _, state) => ValueTask.FromResult(((RecordBrokerOrderObservationCommand)command).Execute(state)),
+        [typeof(RequestBrokerOrderLimitUpdateCommand)] = static (command, _, state) => ValueTask.FromResult(((RequestBrokerOrderLimitUpdateCommand)command).Execute(state)),
+        [typeof(RequestBrokerOrderCancelCommand)] = static (command, _, state) => ValueTask.FromResult(((RequestBrokerOrderCancelCommand)command).Execute(state)),
+        [typeof(ReconcileBrokerOrderCommand)] = static (command, owner, state) => ((ReconcileBrokerOrderCommand)command).ExecuteAsync(owner, state)
     }.ToFrozenDictionary();
     protected override async ValueTask OnStartup(ICommandActorContext<BrokerOrderCommandActor> context)
     {
@@ -81,7 +88,7 @@ public sealed class BrokerOrderCommandActor(ICommandActorContext<BrokerOrderComm
 
     protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<BrokerOrderCommandActor> context, ActorThreadId threadId, ICommand command) => await (_services.StateRepository.LoadStateAsync(command)).ConfigureAwait(false);
     protected override async ValueTask OnSaveStateAsync(ICommandActorContext<BrokerOrderCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command) => await (_services.StateRepository.SaveStateAsync(context, (BrokerOrderCommandState)state, command)).ConfigureAwait(false);
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<BrokerOrderCommandActor> context, IActorState state, ICommand command) => ValueTask.FromResult(ResolveMappedCommandHandler(command, _receiveMap)(command, _services, (BrokerOrderCommandState)state));
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<BrokerOrderCommandActor> context, IActorState state, ICommand command) => ResolveMappedCommandHandler(command, _receiveMap)(command, _services, (BrokerOrderCommandState)state);
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<BrokerOrderCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
         ArgumentNullException.ThrowIfNull(command);

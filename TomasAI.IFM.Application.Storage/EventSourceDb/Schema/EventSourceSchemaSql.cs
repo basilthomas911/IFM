@@ -5,6 +5,8 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 
 public static class EventSourceSchemaSql
 {
+    internal const string AggregateCheckpointSchemaObject = "event_aggregate_checkpoint_v1";
+
     public const string CreateBusinessSubscriptionJournal = """
         CREATE TABLE IF NOT EXISTS business_subscription_projection_receipt(
           event_id bigint PRIMARY KEY REFERENCES event_log(eventVersion) ON DELETE CASCADE,
@@ -355,7 +357,7 @@ public static class EventSourceSchemaSql
         definitions.AddRange([
             new("event_log_snapshot_lookup_v4", CreateSnapshotLookupIndex,
                 "DROP INDEX IF EXISTS public.ix_event_log_stream_name_version;"),
-            new("event_aggregate_checkpoint_v1", """
+            new(AggregateCheckpointSchemaObject, """
                 CREATE TABLE IF NOT EXISTS public.event_aggregate_checkpoint (
                     source_stream_id bigint NOT NULL REFERENCES public.event_stream_id(EventStreamId) ON DELETE CASCADE,
                     source_revision bigint NOT NULL CHECK (source_revision > 0),

@@ -872,6 +872,16 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
             throw;
         }
     }
+    /// <summary>Reads one historical quote session without mixing dates or including quotes after the cutoff.</summary>
+    public async Task<ICollection<FuturesOptionTickDataV2ReadModel>> GetLatestFuturesOptionChainQuoteDataAsync(
+        string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, DateTimeOffset notAfterUtc,
+        CancellationToken cancellationToken = default)
+        => await _dbFactory.MarketDataDb.Use(nameof(MarketDataDbSql.GetLatestFuturesOptionChainQuoteData),
+                MarketDataDbSql.GetLatestFuturesOptionChainQuoteData)
+            .SetParameters(new GetLatestFuturesOptionChainQuoteData(underlyingContractId, expiryDate, valueDate,
+                checked((notAfterUtc - DateTimeOffset.UnixEpoch).Ticks * 100)))
+            .ExecuteQueryAsync(MapToOptionChainQuote!, cancellationToken).ConfigureAwait(false);
+
     /// <summary>Reads the latest available saved volume and open interest independently, excluding future reference dates.</summary>
     /// <param name="underlyingContractId">The exact underlying futures contract.</param>
     /// <param name="expiryDate">The option expiry whose statistics are read.</param>

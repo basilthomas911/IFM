@@ -5,6 +5,8 @@ using System.Security.Cryptography;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
+using TomasAI.IFM.Application.Storage.TradeDb;
+using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.OrderComposition.Model;
 using TomasAI.IFM.Domain.Portfolio.Identity;
@@ -13,6 +15,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -198,13 +201,27 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
         after.Revision.Should().Be(before.Revision); after.Working.Should().Be(before.Working);
     }
 
-    [Fact]
-    public async Task Accepted_close_allocates_one_new_order_retains_trade_identity_and_commits_once()
+    [Theory]
+    [InlineData(OrderExecutionStatus.Cancelled, 1)]
+    [InlineData(OrderExecutionStatus.Cancelled, 0)]
+    [InlineData(OrderExecutionStatus.Rejected, 0)]
+    public async Task Accepted_close_allocates_one_new_order_retains_trade_identity_and_commits_once(
+        OrderExecutionStatus previousStatus, int previousFilled)
     {
         _ = fixture;
         await InitializePortfolioSchema();
         var book = await CreateOrderBook();
-        var opening = await EvaluateAsync(new PortfolioOrderCompositionStore(Transactions()), Request(book));
+        var openingRequest = Request(book);
+        var component = openingRequest.Body.Components.Single();
+        openingRequest = openingRequest with
+        {
+            Body = openingRequest.Body with
+            {
+                Components = [component with { Legs = [component.Legs.Single() with { SignedQuantity = 2 }] }]
+            }
+        };
+        openingRequest = openingRequest with { InputSha256 = FinancialCanonicalHash.Request(openingRequest) };
+        var opening = await EvaluateAsync(new PortfolioOrderCompositionStore(Transactions()), openingRequest);
         var openingOrder = opening.Receipt.TradeOrders.Single();
         var openingComponent = openingOrder.Components.Single();
         var positionId = new StrategyPositionId(new TradeEntityId(
@@ -287,6 +304,80 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
         counts.CloseRows.Should().Be(1L);
         counts.Events.Should().Be(1L);
         await VerifySourceOnlyRebuildAsync(first);
+
+        var settings = new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,
+            Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")!, "System.Data.Postgres");
+        await new TradeSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
+        var nextOperation = Guid.NewGuid();
+        var followUp = close with
+        {
+            OperationId = nextOperation,
+            CommandId = nextOperation,
+            EntityId = new(book.PortfolioId, nextOperation),
+            Subject = new(ActorType.Function, EvaluatePortfolioCloseOrderCompositionCommand.Actor,
+                EvaluatePortfolioCloseOrderCompositionCommand.Verb,
+                new FinancialExecutionId(book.PortfolioId, nextOperation).Format()),
+            Body = close.Body with
+            {
+                CompositionId = Guid.NewGuid(),
+                Position = close.Body.Position with
+                {
+                    Legs = [close.Body.Position.Legs.Single() with { SignedQuantity = 2 - previousFilled }]
+                },
+                Component = close.Body.Component with
+                {
+                    Legs = [close.Body.Component.Legs.Single() with { SignedQuantity = -(2 - previousFilled) }]
+                }
+            }
+        };
+        followUp = followUp with { InputSha256 = FinancialCanonicalHash.Request(followUp) };
+        Task<PortfolioCloseOrderCompositionCompletedEvent> EvaluateClose(EvaluatePortfolioCloseOrderCompositionCommand request) =>
+            store.EvaluateAsync(request, (input, authority, revision, order, token) =>
+                PortfolioCloseOrderCompositionModel.EvaluateAsync(input, authority, revision, order,
+                    new TestIdentityAllocator(input.OperationId), token));
+        await FluentActions.Awaiting(() => EvaluateClose(followUp)).Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*previous close must be terminal*");
+
+        var attempt = Guid.NewGuid();
+        var positionLeg = openingComponent.Legs.Single();
+        var fill = new ExecutionFillEvidence
+        {
+            ExecutionFillId = Guid.NewGuid(), ExecutionAttemptId = attempt,
+            TradeLegId = positionLeg.TradeLegId, ContractId = positionLeg.ContractId,
+            SignedQuantity = -1
+        };
+        var cancelled = new OrderExecutionDefinition
+        {
+            ExecutionAttemptId = attempt, Status = previousStatus,
+            TargetPositionId = positionId, OrderQuantity = 2, CumulativeFilledQuantity = previousFilled,
+            Fills = previousFilled == 0 ? [] : [fill]
+        };
+        var remaining = new StrategyPositionSnapshot
+        {
+            Id = positionId, IsOpen = true,
+            Legs = [new StrategyPositionLeg { TradeLegId = positionLeg.TradeLegId, ContractId = positionLeg.ContractId, SignedQuantity = 2 - previousFilled }],
+            ClosingFills = previousFilled == 0 ? [] : [fill]
+        };
+        await Transactions().ExecuteOnceAsync(async (db, token) =>
+        {
+            await db.ExecuteAsync("INSERT INTO trade.order_execution(portfolioid,fundid,orderid,executionattemptid,status,payload) VALUES($1,$2,$3,$4,$5,$6);",
+                [book.PortfolioId, portfolioPositionId.FundId, first.Receipt.TradeOrder.Id.OrderId, attempt,
+                    previousStatus.ToString(), MessagePackBinarySerializer.Shared.Serialize(cancelled)], token);
+            return true;
+        });
+        await FluentActions.Awaiting(() => EvaluateClose(followUp)).Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*must be applied to the current remaining position*");
+        await Transactions().ExecuteOnceAsync(async (db, token) =>
+        {
+            await db.ExecuteAsync("INSERT INTO trade.strategy_position_current(portfolioid,fundid,orderid,tradeid,positionid,isopen,payload) VALUES($1,$2,$3,$4,$5,$6,$7);",
+                [book.PortfolioId, portfolioPositionId.FundId, portfolioPositionId.OrderId, portfolioPositionId.TradeId,
+                    portfolioPositionId.PositionId, true, MessagePackBinarySerializer.Shared.Serialize(remaining)], token);
+            return true;
+        });
+        var second = await EvaluateClose(followUp);
+        second.Receipt.TradeOrder!.Id.OrderId.Should().NotBe(first.Receipt.TradeOrder.Id.OrderId);
+        (await EvaluateClose(followUp)).Id.Should().Be(second.Id);
+        await VerifySourceOnlyRebuildAsync(second);
     }
 
     // Deletes only this fixture operation's read rows in the explicitly isolated test database. Source bytes stay intact.

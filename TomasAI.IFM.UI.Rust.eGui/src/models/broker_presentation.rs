@@ -88,6 +88,9 @@ pub struct LegDisplay {
     pub multiplier: Option<DecimalText>,
     /// Optional quote at utc; `None` represents an absent value.
     pub quote_at_utc: Option<OffsetText>,
+    /// The displayed bid and ask are last-known values.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stale: Option<bool>,
     /// Optional frozen; `None` represents an absent value.
     pub frozen: Option<bool>,
     /// Optional is future; `None` represents an absent value.
@@ -430,6 +433,12 @@ pub struct SetupTradeDisplay {
     pub trade_state: Option<String>,
     /// Optional trade action; `None` represents an absent value.
     pub trade_action: Option<String>,
+    /// Optional broker outcome detail for the setup trade.
+    pub trade_status: Option<String>,
+    /// Editable operator reference.
+    pub trade_reference: Option<String>,
+    /// Generated instruction reference.
+    pub instruction_reference: Option<String>,
     /// Optional base contract id; `None` represents an absent value.
     pub base_contract_id: Option<String>,
 }
@@ -445,6 +454,9 @@ impl Cells for SetupTradeDisplay {
             "MaturityDate" | "maturityDate" => self.maturity_date.scalar_cell(),
             "TradeState" | "tradeState" => self.trade_state.scalar_cell(),
             "TradeAction" | "tradeAction" => self.trade_action.scalar_cell(),
+            "TradeStatus" | "tradeStatus" => self.trade_status.scalar_cell(),
+            "TradeReference" | "tradeReference" => self.trade_reference.scalar_cell(),
+            "InstructionReference" | "instructionReference" => self.instruction_reference.scalar_cell(),
             "BaseContractId" | "baseContractId" => self.base_contract_id.scalar_cell(),
             _ => Cell::Missing,
         }

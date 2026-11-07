@@ -1,0 +1,67 @@
+//! Opt-in, read-only regression check of a completed Development close.
+use ifm_ui_egui::{backend::{schema::Registry, transport::*}, state::trades::TradeController};
+use serde_json::{json, Value};
+use std::time::Duration;
+
+/// Loads the completed close through the real controller without issuing broker commands.
+#[tokio::test]
+#[ignore = "Requires an existing Development emulator closing setup and explicit IFM_VERIFY_* configuration"]
+async fn closed_setup_loads_original_position_and_chart_without_order_submission() {
+    let setting = |key: &str| std::env::var(key).unwrap_or_else(|_| panic!("Set {key}"));
+    let portfolio: i64 = setting("IFM_VERIFY_PORTFOLIO").parse().unwrap();
+    let fund: i64 = setting("IFM_VERIFY_FUND").parse().unwrap();
+    let order = setting("IFM_VERIFY_ORDER");
+    let trade: i64 = setting("IFM_VERIFY_TRADE").parse().unwrap();
+    let backend = Backend::connect(Settings {
+        url: setting("IFM_VERIFY_NATS_URL"), credentials_file: None, token: None,
+        request_timeout: Duration::from_secs(30),
+    }).await.unwrap();
+    let registry = Registry::compiled().unwrap();
+    let mut state = TradeController::default();
+    let mut generation = 0;
+    async fn act(state: &mut TradeController, backend: &Backend, registry: &Registry,
+        generation: &mut u64, action: &str, fields: Value, order: Option<&str>)
+        -> ifm_ui_egui::contract_editor::ContractPublication {
+        let result = state.execute(backend, registry, &json!({
+            "schema":1,"view":"trade-orders","requestId":uuid::Uuid::new_v4().to_string(),
+            "intent":action,"expectedGeneration":*generation,"fields":fields,"originalId":order,
+        })).await.unwrap();
+        *generation = result.generation;
+        assert!(result.outcomes.iter().all(|outcome| outcome.state == "Completed"),
+            "{action}: {:?}", result.outcomes.iter().map(|outcome| &outcome.message).collect::<Vec<_>>());
+        result
+    }
+    act(&mut state, &backend, &registry, &mut generation, "load", json!({}), None).await;
+    let index = |rows: &[rmpv::Value], kind: &str, key: &str, id: i64| rows.iter().position(|row|
+        registry.project(&ifm_ui_egui::services::trade_orders::kind(kind), row)
+            .unwrap()[key].as_i64() == Some(id)).unwrap();
+    let selected = index(&state.data.portfolios, "PortfolioReadModel", "PortfolioId", portfolio);
+    act(&mut state, &backend, &registry, &mut generation, "portfolio", json!({"index":selected.to_string()}), None).await;
+    let selected = index(&state.data.funds, "FundMandateReadModel", "FundId", fund);
+    act(&mut state, &backend, &registry, &mut generation, "fund", json!({"index":selected.to_string()}), None).await;
+    act(&mut state, &backend, &registry, &mut generation, "order", json!({}), Some(&order)).await;
+    let selected = index(&state.data.trades, "FundOrderTradeProjectionReadModel", "TradeId", trade);
+    act(&mut state, &backend, &registry, &mut generation, "trade", json!({"index":selected.to_string()}), Some(&order)).await;
+    let started = std::time::Instant::now();
+    act(&mut state, &backend, &registry, &mut generation, "load-trade", json!({}), Some(&order)).await;
+    let expected = format!("{}.{}.{}.{}", portfolio, fund,
+        setting("IFM_VERIFY_OPENING_ORDER"), setting("IFM_VERIFY_OPENING_TRADE"));
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    loop {
+        let publication = state.monitors.current();
+        assert_eq!(publication.result.context["activeTradeTab"], expected);
+        if publication.result.context["chartLoading"] == "False"
+            && publication.result.context["observationsLoading"] == "False" {
+            assert_eq!(publication.result.context["chartError"], "");
+            assert_eq!(publication.result.context["observationsError"], "");
+            let details = publication.result.rows.iter().find(|row| row.fields.get("kind").is_some_and(|v| v == "position-details")).unwrap();
+            let position: Value = ifm_ui_egui::wire::decode(details.data.as_ref().unwrap()).unwrap();
+            assert_eq!(position["isOpen"], false, "Expected completed close: {position}");
+            println!("Closed setup {trade} loaded original position {expected} including chart and details in {:?}", started.elapsed());
+            break;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "History did not finish: {:?}", publication.result.context);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    state.monitors.close(&expected).unwrap();
+}

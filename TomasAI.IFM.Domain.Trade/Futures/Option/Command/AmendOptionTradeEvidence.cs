@@ -46,7 +46,29 @@ public static class AmendOptionTradeEvidence
         /// <param name="command">The originating evidence-amendment command.</param>
         /// <param name="current">The current established option-trade state.</param>
         /// <returns>The immutable proposed established trade change.</returns>
-        EstablishedTradeChange CalculateTradeChange(EstablishedTradeDefinition current) => new(current with { OpeningCommission = current.OpeningCommission + command.CommissionDelta, EvidenceRevision = checked(current.EvidenceRevision + 1), Status = EstablishedTradeStatus.Corrected }, false);
+        EstablishedTradeChange CalculateTradeChange(EstablishedTradeDefinition current)
+        {
+            if (command.CorrectedLegs.Length == 0)
+                return new(current with { OpeningCommission = current.OpeningCommission + command.CommissionDelta,
+                    EvidenceRevision = checked(current.EvidenceRevision + 1), Status = EstablishedTradeStatus.Corrected }, false);
+            if (command.ExpectedEvidenceRevision != current.EvidenceRevision || command.CommissionDelta != 0
+                || string.IsNullOrWhiteSpace(command.ReconciliationReason) || string.IsNullOrWhiteSpace(command.ReconciliationEvidence)
+                || current.Status is EstablishedTradeStatus.Closing or EstablishedTradeStatus.Closed
+                || current.ClosingFills.Length != 0 || command.CorrectedLegs.Length > current.Legs.Length
+                || command.CorrectedLegs.Select(leg => leg.TradeLegId).Distinct().Count() != command.CorrectedLegs.Length)
+                return new(null, RejectionReason: "TRADE.INVALID_MULTIPLIER_RECONCILIATION;Current unclosed evidence, exact revision and audited reference are required.");
+            foreach (var corrected in command.CorrectedLegs)
+            {
+                var original = current.Legs.SingleOrDefault(leg => leg.TradeLegId == corrected.TradeLegId);
+                if (original is null || corrected.CashMultiplier <= 0 || corrected.CashMultiplier == original.CashMultiplier
+                    || corrected != original with { CashMultiplier = corrected.CashMultiplier })
+                    return new(null, RejectionReason: "TRADE.INVALID_MULTIPLIER_RECONCILIATION;Only the verified cash multiplier of an existing leg may change.");
+            }
+            return new(current with {
+                Legs = current.Legs.Select(leg => command.CorrectedLegs.SingleOrDefault(change => change.TradeLegId == leg.TradeLegId) ?? leg).ToArray(),
+                EvidenceRevision = checked(current.EvidenceRevision + 1), Status = EstablishedTradeStatus.Corrected
+            }, false);
+        }
 
         /// <summary>Computes an established trade definition without changing state.</summary>
         ///

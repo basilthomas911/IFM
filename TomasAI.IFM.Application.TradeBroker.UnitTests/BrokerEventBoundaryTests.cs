@@ -63,9 +63,9 @@ public sealed class BrokerEventBoundaryTests
     [Fact]
     public void Broker_actor_maps_have_exact_role_parity_and_dedicated_single_message_handlers()
     {
-        AssertMapCount(typeof(BrokerOrderCommandActor), "_parseMap", 5);
-        AssertMapCount(typeof(BrokerOrderCommandActor), "_validationMap", 5);
-        AssertMapCount(typeof(BrokerOrderCommandActor), "_receiveMap", 5);
+        AssertMapCount(typeof(BrokerOrderCommandActor), "_parseMap", 6);
+        AssertMapCount(typeof(BrokerOrderCommandActor), "_validationMap", 6);
+        AssertMapCount(typeof(BrokerOrderCommandActor), "_receiveMap", 6);
         AssertMapCount(typeof(BrokerOrderQueryActor), "_parseMap", 2);
         AssertMapCount(typeof(BrokerOrderQueryActor), "_receiveMap", 2);
         AssertMapCount(typeof(BrokerOrderQueryActor), "_exceptionMap", 2);
@@ -76,7 +76,7 @@ public sealed class BrokerEventBoundaryTests
         {
             typeof(CreateBrokerOrder), typeof(RecordBrokerDispatch),
             typeof(RecordBrokerOrderObservation), typeof(RequestBrokerOrderLimitUpdate),
-            typeof(RequestBrokerOrderCancel), typeof(GetBrokerOrder), typeof(GetBrokerOrdersForTradeOrder),
+            typeof(RequestBrokerOrderCancel), typeof(ReconcileBrokerOrder), typeof(GetBrokerOrder), typeof(GetBrokerOrdersForTradeOrder),
             typeof(FuturesTickQuoteDataChanged)
         })
             AssertSingleHandler(handler);

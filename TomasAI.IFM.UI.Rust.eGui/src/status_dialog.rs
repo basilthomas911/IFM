@@ -11,6 +11,8 @@ pub enum Severity {
     Success,
     /// A warning that does not assert success or failure.
     Warning,
+    /// A question requiring an explicit Yes or No decision.
+    Question,
 }
 impl Severity {
     /// Screen-reader/visible status name.
@@ -19,6 +21,7 @@ impl Severity {
             Self::Error => "Application Error",
             Self::Success => "Recovery Completed",
             Self::Warning => "Application Warning",
+            Self::Question => "Confirmation",
         }
     }
 }
@@ -46,6 +49,10 @@ pub struct Layout {
     pub ok: Rect,
     /// Whether the user acknowledged this dialog in the current frame.
     pub acknowledged: bool,
+    /// The No button for a confirmation.
+    pub no: Option<Rect>,
+    /// Whether the user selected No.
+    pub declined: bool,
 }
 
 
@@ -87,6 +94,12 @@ pub fn icon(ui: &mut egui::Ui, severity: Severity) -> Rect {
             );
             painter.circle_filled(Pos2::new(x, area.bottom() - 7.0), 2.5, Color32::BLACK);
         }
+        Severity::Question => {
+            painter.circle_stroke(area.center(), area.width() * 0.5,
+                Stroke::new(3.0_f32, Color32::from_rgb(65, 155, 245)));
+            painter.text(area.center(), egui::Align2::CENTER_CENTER, "?",
+                egui::FontId::proportional(42.0), Color32::from_rgb(65, 155, 245));
+        }
     }
     rect
 }
@@ -95,7 +108,31 @@ pub fn icon(ui: &mut egui::Ui, severity: Severity) -> Rect {
 /// Fits the message's longest line plus its icon, with room for the title and OK.
 /// Long messages wrap only when that natural width exceeds the window bounds.
 pub fn body(ui: &mut egui::Ui, message: &str, severity: Severity) -> Layout {
-    let title = crate::presentation::dialog_title(severity.title());
+    message_body(ui, severity.title(), message, severity, None)
+}
+
+
+/// Uses the status dialog layout for a question with centered Yes and No buttons.
+pub fn confirmation(
+    ui: &mut egui::Ui,
+    title: &str,
+    message: &str,
+    yes_enabled: bool,
+    no_enabled: bool,
+) -> Layout {
+    message_body(ui, title, message, Severity::Question, Some((yes_enabled, no_enabled)))
+}
+
+
+/// Measures and draws the common title, message, icon and button row.
+fn message_body(
+    ui: &mut egui::Ui,
+    title: &str,
+    message: &str,
+    severity: Severity,
+    confirmation: Option<(bool, bool)>,
+) -> Layout {
+    let title = crate::presentation::dialog_title(title);
     let message_width = egui::WidgetText::from(message)
         .into_galley(
             ui,
@@ -118,7 +155,7 @@ pub fn body(ui: &mut egui::Ui, message: &str, severity: Severity) -> Layout {
     let available = (ui.ctx().input(|input| input.screen_rect().width()) - 64.0).max(1.0);
     let width = (message_width + gap + 56.0)
         .max(title_width)
-        .max(90.0)
+        .max(if confirmation.is_some() { 180.0 + gap } else { 90.0 })
         .min(available)
         .ceil();
     ui.set_width(width);
@@ -134,17 +171,27 @@ pub fn body(ui: &mut egui::Ui, message: &str, severity: Severity) -> Layout {
         icon_rect = icon(ui, severity);
     });
     ui.add_space(14.0);
-    let button = ui
-        .horizontal(|ui| {
-            ui.add_space((width - 90.0) * 0.5);
-            ui.add_sized([90.0, 30.0], egui::Button::new("OK"))
-        })
-        .inner;
+    let buttons_width = if confirmation.is_some() { 180.0 + gap } else { 90.0 };
+    let (row, _) = ui.allocate_exact_size(Vec2::new(width, 30.0), egui::Sense::hover());
+    let first = Rect::from_min_size(
+        Pos2::new(row.center().x - buttons_width * 0.5, row.top()), Vec2::new(90.0, 30.0),
+    );
+    let (button, no) = match confirmation {
+        Some((yes_enabled, no_enabled)) => {
+            let yes = ui.add_enabled_ui(yes_enabled, |ui| ui.put(first, egui::Button::new("Yes"))).inner;
+            let second = first.translate(Vec2::new(90.0 + gap, 0.0));
+            let no = ui.add_enabled_ui(no_enabled, |ui| ui.put(second, egui::Button::new("No"))).inner;
+            (yes, Some(no))
+        }
+        None => (ui.put(first, egui::Button::new("OK")), None),
+    };
     Layout {
         content: Rect::from_min_max(start, Pos2::new(start.x + width, ui.cursor().min.y)),
         message: message_rect,
         icon: icon_rect,
         ok: button.rect,
         acknowledged: button.clicked(),
+        no: no.as_ref().map(|button| button.rect),
+        declined: no.is_some_and(|button| button.clicked()),
     }
 }

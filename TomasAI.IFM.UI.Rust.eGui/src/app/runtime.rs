@@ -3,7 +3,92 @@ use super::super::Update;
 use eframe::egui;
 use ifm_ui_egui::{Catalog, Snapshot, backend::transport::*};
 use ifm_ui_egui::{backend::schema::Registry, state::lookup::LookupController};
+use ifm_ui_egui::services::business_context::BusinessContext;
 use std::{sync::mpsc, time::Duration};
+
+/// Rechecks the API at session boundaries and reconciles changes between them.
+async fn watch_market_session(
+    backend: Backend,
+    session: tokio::sync::watch::Sender<Option<BusinessContext>>,
+) {
+    while !session.is_closed() {
+        let delay = match BusinessContext::load_with_transition(&backend).await {
+            Ok((context, transition)) => {
+                let cadence = if context.is_live_trading() { 5 } else { 60 };
+                let boundary_delay = (transition - context.as_of_utc)
+                    .to_std()
+                    .unwrap_or_default()
+                    .saturating_add(Duration::from_millis(100));
+                session.send_replace(Some(context));
+                boundary_delay.min(Duration::from_secs(cadence))
+            }
+            Err(_) => {
+                session.send_replace(None);
+                Duration::from_secs(5)
+            }
+        };
+        tokio::select! {
+            _ = tokio::time::sleep(delay) => {},
+            _ = session.closed() => return,
+        }
+    }
+}
+
+
+/// Runs a refresh immediately on entry to each state, with a timer only while trading.
+async fn poll_market_view<F, Refresh>(
+    mut session: tokio::sync::watch::Receiver<Option<BusinessContext>>,
+    cadence: Duration,
+    mut refresh: F,
+) where
+    F: FnMut(Option<BusinessContext>) -> Refresh,
+    Refresh: std::future::Future<Output = ()>,
+{
+    loop {
+        let current = session.borrow_and_update().clone();
+        if !current.as_ref().is_some_and(BusinessContext::is_live_trading) {
+            let was_known = current.is_some();
+            let changed = async {
+                session.wait_for(|next| {
+                    next.is_some() != was_known
+                        || next.as_ref().is_some_and(BusinessContext::is_live_trading)
+                }).await.is_ok()
+            };
+            tokio::pin!(changed);
+            let keep_running = tokio::select! {
+                biased;
+                next = &mut changed => next,
+                _ = refresh(current) => changed.await,
+            };
+            if !keep_running {
+                return;
+            }
+            continue;
+        }
+
+        let mut active_session = session.clone();
+        let refresh_while_trading = async {
+            let mut timer = tokio::time::interval(cadence);
+            timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            loop {
+                timer.tick().await;
+                let current = active_session.borrow_and_update().clone();
+                if current.as_ref().is_some_and(BusinessContext::is_live_trading) {
+                    refresh(current).await;
+                }
+            }
+        };
+        tokio::select! {
+            biased;
+            paused = session.wait_for(|next| !next.as_ref().is_some_and(BusinessContext::is_live_trading)) => {
+                if paused.is_err() {
+                    return;
+                }
+            }
+            _ = refresh_while_trading => {},
+        }
+    }
+}
 
 
 /// Owns the native async runtime, dispatches UI intents and delivers bounded result batches until
@@ -46,7 +131,7 @@ pub(crate) fn run(
                 let deadline = tokio::time::Instant::now() + settings.request_timeout;
                 let backend = tokio::time::timeout_at(deadline, Backend::connect(settings))
                     .await.map_err(|_| "Native API startup deadline expired".to_string())??;
-                let session = ifm_ui_egui::services::business_context::BusinessContext::await_ready(&backend,deadline).await?;
+                let session = BusinessContext::await_ready(&backend,deadline).await?;
                 let date=session.value_date;
                 let catalog: Catalog = serde_json::from_str(include_str!("../../catalog/strings.en.json")).map_err(|e| e.to_string())?;
                 let snapshot: Snapshot = serde_json::from_value(serde_json::json!({
@@ -59,7 +144,7 @@ pub(crate) fn run(
                     status: format!("API ValueDate {date}"),
                     ..Default::default()
                 })).await.map_err(|_| "UI closed")?;
-                Ok::<_,String>(backend)
+                Ok::<_,String>((backend, session))
             }.await;
             if let Err(error) = &result { let _ = initial.send(Update::Error(error.clone())).await; }
             result
@@ -115,7 +200,7 @@ pub(crate) fn run(
             if stopping.load(std::sync::atomic::Ordering::Acquire) { break; }
             if let Some(outcome) = completed_startup {
                     match outcome {
-                        Ok(Ok(client)) => {
+                        Ok(Ok((client, initial_session))) => {
                             let (strategy_sender,strategy_receiver)=tokio::sync::mpsc::channel(32);strategy_actions=Some(strategy_sender);
                             let (strategy_updates,mut strategy_received)=tokio::sync::mpsc::channel(8);
                             let strategy_backend=client.clone();let strategy_registry=registry.clone();let strategy_results=results.clone();
@@ -135,28 +220,36 @@ pub(crate) fn run(
                                     let _ = results.send(Update::Warning(error)).await;
                                 }
                             });
-                            operations.spawn(async move {
-                                // Chart histories are independent read-only polling. Dropping
-                                // this task on shutdown cancels any in-flight query immediately.
-                                let mut timer=tokio::time::interval(Duration::from_secs(15));
-                                timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-                                loop{
-                                    timer.tick().await;
-                                    let charts=ifm_ui_egui::services::market_history::load(&chart_backend,&chart_registry).await.unwrap_or_else(|error|{
-                                        ["ES","VX","ES-BB"].into_iter().map(|key|(key.into(),ifm_ui_egui::market_charts::ChartSnapshot{status:error.clone(),..Default::default()})).collect()
-                                    });
-                                    if chart_results.send(Update::MarketCharts(charts)).await.is_err(){break;}
-                                }
-                            });
-                            operations.spawn(async move{
-                                let mut timer=tokio::time::interval(Duration::from_secs(5));
-                                timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-                                loop{
-                                    timer.tick().await;
-                                    let outlook=ifm_ui_egui::services::outlook::load(&outlook_backend,&outlook_registry).await;
-                                    if outlook_results.send(Update::MarketOutlook(outlook)).await.is_err(){break;}
-                                }
-                            });
+                            let (session_sender, session) = tokio::sync::watch::channel(Some(initial_session));
+                            operations.spawn(watch_market_session(client.clone(), session_sender));
+                            operations.spawn(poll_market_view(
+                                session.clone(), Duration::from_secs(15), move |session| {
+                                    let backend = chart_backend.clone();
+                                    let registry = chart_registry.clone();
+                                    let results = chart_results.clone();
+                                    async move {
+                                        if let Some(session) = session {
+                                            let charts = ifm_ui_egui::services::market_history::load_for_session(
+                                                &backend, &registry, &session,
+                                            ).await;
+                                            let _ = results.send(Update::MarketCharts(charts)).await;
+                                        }
+                                    }
+                                },
+                            ));
+                            operations.spawn(poll_market_view(
+                                session, Duration::from_secs(5), move |session: Option<BusinessContext>| {
+                                    let backend = outlook_backend.clone();
+                                    let registry = outlook_registry.clone();
+                                    let results = outlook_results.clone();
+                                    async move {
+                                        let outlook = ifm_ui_egui::services::outlook::load_for_session(
+                                            &backend, &registry, session.as_ref(),
+                                        ).await;
+                                        let _ = results.send(Update::MarketOutlook(outlook)).await;
+                                    }
+                                },
+                            ));
                             operations.spawn(async move{
                                 let client=ifm_ui_egui::services::dashboard_health::DashboardHealth::from_env();
                                 let mut timer=tokio::time::interval(Duration::from_secs(5));
@@ -437,6 +530,49 @@ pub(crate) fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    #[tokio::test]
+    async fn market_view_stops_on_close_and_restarts_only_in_live_trading() {
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 11, 6).unwrap();
+        let context = |market_state| BusinessContext {
+            value_date: date,
+            active_value_date: (market_state != 0).then_some(date),
+            as_of_utc: "2026-11-06T21:59:00Z".parse().unwrap(),
+            revision: 1,
+            market_state,
+            allow_development_emulator: false,
+        };
+        let (session, receiver) = tokio::sync::watch::channel(Some(context(2)));
+        let (refresh, mut refreshed) = tokio::sync::mpsc::unbounded_channel();
+        let task = tokio::spawn(poll_market_view(
+            receiver,
+            Duration::from_millis(20),
+            move |context| {
+                refresh.send(context.map(|session| session.market_state)).unwrap();
+                std::future::ready(())
+            },
+        ));
+        async fn next(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<Option<i64>>) -> Option<i64> {
+            tokio::time::timeout(Duration::from_secs(2), receiver.recv())
+                .await.unwrap().unwrap()
+        }
+        assert_eq!(next(&mut refreshed).await, Some(2));
+        assert_eq!(next(&mut refreshed).await, Some(2));
+
+        session.send_replace(Some(context(0)));
+        assert_eq!(next(&mut refreshed).await, Some(0));
+        session.send_replace(Some(context(1)));
+        assert!(tokio::time::timeout(Duration::from_millis(80), refreshed.recv()).await.is_err());
+
+        session.send_replace(Some(context(2)));
+        assert_eq!(next(&mut refreshed).await, Some(2));
+        session.send_replace(None);
+        assert_eq!(next(&mut refreshed).await, None);
+        assert!(tokio::time::timeout(Duration::from_millis(80), refreshed.recv()).await.is_err());
+        drop(session);
+        task.await.unwrap();
+    }
 
 
     /// Verifies that shutdown does not wait for space in a full action or publication queue.

@@ -56,7 +56,8 @@ public static class TradeBrokerMapper
         SourceSequence = x.SourceSequence,
         OccurredAtUtc = x.OccurredAtUtc,
         Category = x.Category,
-        Detail = x.Detail
+        Detail = x.Detail,
+        ExecutionFinal = x.ExecutionFinal
     };
     }
     public static BrokerAccountSnapshot ToApplication(FrameworkAccountSnapshot x) 

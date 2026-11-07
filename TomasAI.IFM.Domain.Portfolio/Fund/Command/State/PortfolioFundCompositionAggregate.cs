@@ -200,10 +200,12 @@ public sealed class PortfolioFundCompositionAggregate
         var trades = _trades[order.OrderId];
         var trade = trades.SingleOrDefault(x => x.TradeId == request.TradeId)
             ?? throw new KeyNotFoundException($"FundOrderTrade {request.TradeId} was not found.");
-        if (trades.Length >= 2 ||
-            !Enum.TryParse<TradeState>(trade.TradeState, out var state) ||
-            state != TradeState.NewTrade ||
-            trades.Any(x => x.TradeState is nameof(TradeState.TradeToClose) or nameof(TradeState.OrderCompleted)))
+        var rejectedWithoutExposure = trade.TradeState is nameof(TradeState.Rejected) or nameof(TradeState.OrderCancelled)
+            && trade.ExecutionOrderId == 0 && trade.ExecutionTradeId == 0
+            && (trades.Length == 1 || (!trade.PrimaryTrade && trades.Length == 2
+                && trades.Any(x => x.PrimaryTrade && x.TradeState == nameof(TradeState.Open))));
+        if (!rejectedWithoutExposure &&
+            (trades.Length != 1 || trade.TradeState != nameof(TradeState.NewTrade)))
             throw new InvalidOperationException("The trade has economic evidence or participates in a closing pair.");
 
         var nextVersion = checked(order.AggregateVersion + 1);
@@ -277,21 +279,43 @@ public sealed class PortfolioFundCompositionAggregate
         var primary = trades.Single(x => x.PrimaryTrade);
         if (evidence.ClosingExecution && (evidence.OpeningExecutionTradeId is null || primary.ExecutionTradeId != evidence.OpeningExecutionTradeId))
             throw new InvalidOperationException("Closing execution does not target the linked opening trade.");
-        if (string.Equals(order.Status,nameof(FundCompositionState.Executed),StringComparison.Ordinal))
+        if (order.Status is nameof(FundCompositionState.Executed) or nameof(FundCompositionState.Closed))
         {
             if (closing && trade.ExecutionAttemptId == evidence.ExecutionAttemptId) return SaveReservation(order, trades);
             throw new InvalidOperationException("Completed setup cannot accept another execution transition.");
         }
-        if (!string.Equals(order.Status,nameof(FundCompositionState.Draft),StringComparison.Ordinal))
+        if (order.Status is not (nameof(FundCompositionState.Draft) or nameof(FundCompositionState.Opening)
+            or nameof(FundCompositionState.Opened) or nameof(FundCompositionState.Closing)
+            or nameof(FundCompositionState.Rejected) or nameof(FundCompositionState.Cancelled)))
             throw new InvalidOperationException("Execution setup is not an active draft.");
         // A workflow close without a separate closing setup must retain the opening identity for Load Trade.
         var closesPrimary = evidence.ClosingExecution && trade.PrimaryTrade;
         if (closesPrimary && (!closing || !evidence.FullyClosed)) return SaveReservation(order, trades);
-        var replacingPartial = !opening && !closing && !release && evidence.ClosingExecution && string.Equals(trade.TradeState,nameof(TradeState.OrderPartiallyFilled),StringComparison.Ordinal);
-        if (!closesPrimary && !replacingPartial && trade.ExecutionAttemptId != Guid.Empty &&
+        var rejected = trade.TradeState == nameof(TradeState.Rejected);
+        if (!opening && !closing && !release && trade.ExecutionAttemptId == evidence.ExecutionAttemptId
+            && trade.TradeState == nameof(TradeState.OrderPartiallyFilled)
+            && evidence.ExecutionStatus != nameof(OrderExecutionStatus.Filled)
+            && (evidence.ExecutionStatus != nameof(OrderExecutionStatus.PartiallyFilled)
+                || order.Status == nameof(FundCompositionState.Opened)))
+            return SaveReservation(order, trades);
+        if (!opening && !closing && !release && trade.ExecutionAttemptId == evidence.ExecutionAttemptId
+            && trade.TradeState == nameof(TradeState.OrderFilled))
+            return SaveReservation(order, trades);
+        if (rejected && trade.ExecutionAttemptId == evidence.ExecutionAttemptId && !opening && !closing)
+            return SaveReservation(order, trades);
+        var replacingPartial = !opening && !closing && !release && evidence.ClosingExecution
+            && order.Status == nameof(FundCompositionState.Opened)
+            && string.Equals(trade.TradeState,nameof(TradeState.OrderPartiallyFilled),StringComparison.Ordinal);
+        if (!closesPrimary && !replacingPartial && !rejected && trade.ExecutionAttemptId != Guid.Empty &&
             (trade.ExecutionAttemptId != evidence.ExecutionAttemptId || trade.ExecutionOrderId != evidence.ExecutionOrderId || trade.ExecutionTradeId != evidence.ExecutionTradeId))
             throw new InvalidOperationException("Stale or conflicting execution identity.");
-        if (release && !string.Equals(trade.TradeState,nameof(TradeState.OrderSubmitted),StringComparison.Ordinal))
+        // A historical rejected close may predate a Fund submission binding. The
+        // linked opening identity was already verified above; retain that opening.
+        var unboundClosingRejection = release && evidence.RejectionDetail is not null
+            && evidence.ClosingExecution && !trade.PrimaryTrade && trade.TradeState == nameof(TradeState.NewTrade)
+            && trade.ExecutionAttemptId == Guid.Empty && trade.ExecutionOrderId == 0 && trade.ExecutionTradeId == 0;
+        if (release && !unboundClosingRejection && trade.TradeState is not
+            (nameof(TradeState.OrderSubmitted) or nameof(TradeState.OrderPlaced)))
             return SaveReservation(order, trades); // Never roll back an established trade.
         if (!opening && !closing && !release && trade.TradeState is nameof(TradeState.Open) or nameof(TradeState.Closed))
             return SaveReservation(order, trades); // Delayed submission cannot regress completed execution.
@@ -299,7 +323,9 @@ public sealed class PortfolioFundCompositionAggregate
         var changed = trades.Select(x => ApplyExecutionToTrade(x, trade.TradeId, evidence,
             opening, closing, release, closesPrimary, nextVersion)).ToArray();
         return SaveReservation(order with { AggregateVersion = nextVersion,
-            Status = closing && evidence.FullyClosed ? nameof(FundCompositionState.Executed) : order.Status,
+            Status = closing ? (evidence.FullyClosed ? nameof(FundCompositionState.Closed)
+                : evidence.ExecutionStatus is null or nameof(OrderExecutionStatus.Cancelled)
+                    ? nameof(FundCompositionState.Opened) : nameof(FundCompositionState.Closing)) : order.Status,
             StopReason = closing && evidence.FullyClosed ? "Confirmed closing execution completed." : order.StopReason }, changed);
     }
 
@@ -308,26 +334,38 @@ public sealed class PortfolioFundCompositionAggregate
         int selectedTradeId, FundTradeExecutionEvidence evidence, bool opening, bool closing, bool release,
         bool closesPrimary, long nextVersion)
     {
-            if (closing && evidence.FullyClosed && x.PrimaryTrade)
-                return x with { TradeState = nameof(TradeState.Closed), AggregateVersion = nextVersion,
-                    ExecutionAttemptId = closesPrimary ? evidence.ExecutionAttemptId : x.ExecutionAttemptId };
-            if (x.TradeId != selectedTradeId) return x with { AggregateVersion = nextVersion };
+        const string closed = "Closing execution completed.";
+        if (closing && evidence.FullyClosed && x.PrimaryTrade)
             return x with
             {
-                TradeState = (closing) switch
-{
-    true => evidence.FullyClosed ? nameof(TradeState.Closed) : nameof(TradeState.OrderPartiallyFilled),
-    false => (opening) switch
-    {
-        true => nameof(TradeState.Open),
-        false => release ? nameof(TradeState.NewTrade) : nameof(TradeState.OrderSubmitted)}},
-                ExecutionOrderId = release ? 0 : evidence.ExecutionOrderId,
-                ExecutionTradeId = release ? 0 : evidence.ExecutionTradeId,
-                ExecutionAttemptId = release ? Guid.Empty : evidence.ExecutionAttemptId,
-                TradeDate = opening ? evidence.TradeDate : x.TradeDate,
-                MaturityDate = opening ? evidence.MaturityDate : x.MaturityDate,
-                AggregateVersion = nextVersion
+                TradeState = nameof(TradeState.Closed), TradeStatus = closed, AggregateVersion = nextVersion,
+                ExecutionAttemptId = closesPrimary ? evidence.ExecutionAttemptId : x.ExecutionAttemptId
             };
+        if (x.TradeId != selectedTradeId) return x with { AggregateVersion = nextVersion };
+        var (state, status) = (release, evidence.RejectionDetail, closing, evidence.FullyClosed, opening) switch
+        {
+            (true, { } detail, _, _, _) => (TradeState.Rejected, detail),
+            (true, null, _, _, _) => (TradeState.OrderCancelled, "Order cancelled with no fills."),
+            (_, _, true, true, _) => (TradeState.Closed, closed),
+            (_, _, true, false, _) => (TradeState.OrderPartiallyFilled, "Closing order partially filled."),
+            (_, _, _, _, true) => (TradeState.Open, "Opening execution completed."),
+            _ when evidence.ExecutionStatus == nameof(OrderExecutionStatus.Filled) =>
+                (TradeState.OrderFilled, "Broker fills complete; awaiting financial and position settlement."),
+            _ when evidence.ExecutionStatus == nameof(OrderExecutionStatus.PartiallyFilled) =>
+                (TradeState.OrderPartiallyFilled, "Order partially filled; remaining quantity is pending."),
+            _ => (TradeState.OrderSubmitted, "Order submitted for execution.")
+        };
+        return x with
+        {
+            TradeState = state.ToString(),
+            TradeStatus = status,
+            ExecutionOrderId = release ? 0 : evidence.ExecutionOrderId,
+            ExecutionTradeId = release ? 0 : evidence.ExecutionTradeId,
+            ExecutionAttemptId = release && state != TradeState.Rejected ? Guid.Empty : evidence.ExecutionAttemptId,
+            TradeDate = opening ? evidence.TradeDate : x.TradeDate,
+            MaturityDate = opening ? evidence.MaturityDate : x.MaturityDate,
+            AggregateVersion = nextVersion
+        };
     }
 
     public FundCompositionReservationResult CreateManualDraft(
@@ -515,7 +553,9 @@ public sealed class PortfolioFundCompositionAggregate
 
     FundOrderProjectionReadModel Transition(int orderId, long expectedVersion, FundCompositionState desired, FundCompositionState[] allowed)
     {
-        if (desired is FundCompositionState.ExecutionRequested or FundCompositionState.Executing or FundCompositionState.Executed or FundCompositionState.ExecutionFailed)
+        if (desired is FundCompositionState.ExecutionRequested or FundCompositionState.Executing or FundCompositionState.Executed or FundCompositionState.ExecutionFailed
+            or FundCompositionState.Opening or FundCompositionState.Opened or FundCompositionState.Closing
+            or FundCompositionState.Closed or FundCompositionState.Rejected)
             throw new InvalidOperationException("Execution states are outside the Portfolio implementation boundary.");
         var current = RequireOrder(orderId, expectedVersion);
         if (!allowed.Any(x => string.Equals(current.Status,x.ToString(),StringComparison.Ordinal))) throw InvalidTransition(current.Status, desired);
@@ -537,7 +577,9 @@ public sealed class PortfolioFundCompositionAggregate
         if (order.PortfolioId != portfolioId) throw new InvalidOperationException("Portfolio ownership does not match.");
         if (order.FundId != fundId) throw new InvalidOperationException("Fund ownership does not match.");
         if (order.Origin != CompositionOrigin.ManualUi) throw new InvalidOperationException("Automated orders are read-only.");
-        if (!string.Equals(order.Status,nameof(FundCompositionState.Draft),StringComparison.Ordinal)) throw new InvalidOperationException("Only an open manual order can be changed.");
+        if (order.Status is not (nameof(FundCompositionState.Draft) or nameof(FundCompositionState.Opened)
+            or nameof(FundCompositionState.Rejected) or nameof(FundCompositionState.Cancelled)))
+            throw new InvalidOperationException("Only a settled manual order can be changed.");
         return order;
     }
 
@@ -566,6 +608,7 @@ public sealed class PortfolioFundCompositionAggregate
     FundCompositionReservationResult SaveReservation(
         FundOrderProjectionReadModel order, FundOrderTradeProjectionReadModel[] trades)
     {
+        order = order with { Status = DeriveOrderStatus(order, trades) };
         _orders[order.OrderId] = order;
         _trades[order.OrderId] = trades;
         var updated = _reservations[order.IdempotencyKey] with
@@ -576,6 +619,28 @@ public sealed class PortfolioFundCompositionAggregate
         };
         _reservations[order.IdempotencyKey] = updated;
         return updated;
+    }
+
+    /// <summary>Derives the order lifecycle from its current trades; removed attempts never contribute.</summary>
+    static string DeriveOrderStatus(FundOrderProjectionReadModel order, FundOrderTradeProjectionReadModel[] trades)
+    {
+        var primary = trades.SingleOrDefault(trade => trade.PrimaryTrade);
+        if (primary?.TradeState == nameof(TradeState.Closed)) return nameof(FundCompositionState.Closed);
+        var closing = trades.SingleOrDefault(trade => !trade.PrimaryTrade);
+        if (primary?.TradeState == nameof(TradeState.Open))
+        {
+            if (closing?.TradeState is nameof(TradeState.OrderSubmitted) or nameof(TradeState.OrderPlaced) or nameof(TradeState.OrderFilled))
+                return nameof(FundCompositionState.Closing);
+            if (closing?.TradeState == nameof(TradeState.OrderPartiallyFilled))
+                return order.Status == nameof(FundCompositionState.Opened) ? nameof(FundCompositionState.Opened)
+                    : nameof(FundCompositionState.Closing);
+            return nameof(FundCompositionState.Opened);
+        }
+        if (primary?.TradeState is nameof(TradeState.OrderSubmitted) or nameof(TradeState.OrderPlaced) or nameof(TradeState.OrderFilled)
+            or nameof(TradeState.OrderPartiallyFilled)) return nameof(FundCompositionState.Opening);
+        if (primary?.TradeState == nameof(TradeState.Rejected)) return nameof(FundCompositionState.Rejected);
+        if (primary?.TradeState == nameof(TradeState.OrderCancelled)) return nameof(FundCompositionState.Cancelled);
+        return order.Origin == CompositionOrigin.ManualUi ? nameof(FundCompositionState.Draft) : order.Status;
     }
 
     static void ValidateManualTrade(AddManualFundOrderTradeRequest request)
@@ -637,6 +702,7 @@ public sealed class PortfolioFundCompositionAggregate
             TradeId = request.TradeId,
             TradeFamily = request.TradeType,
             TradeType = request.TradeType,
+            TradeReference = request.Reference.Trim(),
             InstructionReference = FundOrderTradeReference.Create(
             request.BaseContractId,
             request.SetupEffectiveDate,
@@ -649,6 +715,7 @@ public sealed class PortfolioFundCompositionAggregate
             RequestedMaturityDate = request.MaturityDate,
             TradeDate = null, MaturityDate = null,
             TradeState = request.TradeState,
+            TradeStatus = request.TradeState == nameof(TradeState.NewTrade) ? "Ready to prepare." : request.TradeState,
             PrimaryTrade = request.PrimaryTrade,
             BaseContractSymbol = request.BaseContractSymbol.Trim(),
             BaseContractId = request.BaseContractId.Trim(),

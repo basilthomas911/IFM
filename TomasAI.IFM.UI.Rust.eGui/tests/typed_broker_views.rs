@@ -1,7 +1,8 @@
 use ifm_ui_egui::{
+    backend::schema::Registry,
     contract_editor::ContractRow,
     models::{backend_document::request_document, trade_contracts::*},
-    services::{broker_market_display, broker_order_ui as ui},
+    services::{broker_market_display, broker_order_commands, broker_order_ui as ui},
     wire,
 };
 #[allow(dead_code)]
@@ -16,6 +17,21 @@ fn rows() -> Vec<ContractRow> {
         "fixtures/backend/broker-evidence-rows.msgpack"
     ))
     .unwrap()
+}
+
+#[test]
+fn reconcile_targets_the_existing_broker_order_without_mutation_fields() {
+    let row = rows()
+        .into_iter()
+        .find(|row| row.fields.get("kind").is_some_and(|kind| kind == "broker-order"))
+        .unwrap();
+    let order: BrokerOrderDefinition = wire::decode(row.data.as_ref().unwrap()).unwrap();
+    let registry = Registry::compiled().unwrap();
+    let request = broker_order_commands::prepare_reconcile(&registry, &order, uuid::Uuid::new_v4()).unwrap();
+    assert_eq!(request.subject.name, "BrokerOrderCommand");
+    assert_eq!(request.subject.verb, "ReconcileBrokerOrder");
+    assert_eq!(request.subject.entity, ifm_ui_egui::services::broker_reads::typed_identity(order.id.as_ref().unwrap()).unwrap());
+    assert_eq!(request.body.as_array().unwrap().len(), 4);
 }
 
 

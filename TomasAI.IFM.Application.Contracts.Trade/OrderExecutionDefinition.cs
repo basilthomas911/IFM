@@ -26,5 +26,6 @@ public sealed record OrderExecutionDefinition
     [Key(13)] public PendingExecutionCostEvidence[] PendingFillCosts { get; init; } = [];
     [Key(14)] public int OrderQuantity { get; init; }
     [Key(15)] public int CumulativeFilledQuantity { get; init; }
+    [Key(16)] public string? RejectionDetail { get; init; }
     [IgnoreMember] public OrderExecutionId Id => new(TradeOrderId, ExecutionAttemptId);
 }

@@ -133,11 +133,12 @@ struct LaneConfig {
     gateway: Gateway,
     deadline: Deadline,
     provider: Option<watch::Sender<crate::runtime::owner::ProviderState>>,
+    optional_quote_replay: bool,
 }
 enum Ownership<'a> {
     Untracked,
     Root(crate::runtime::owner::Child),
-    Nested(&'a crate::runtime::owner::Child),
+    Nested(&'a crate::runtime::owner::Child, bool),
 }
 
 /// Owns at most the three supported lane tasks. A lane cannot be replaced by a
@@ -249,13 +250,30 @@ impl Lanes {
     where
         P: FnMut(u64, &Event) -> Result<bool, String> + Send + 'static,
     {
+        self.start_nested_with_quote_replay(plan, key, gateway, processor, deadline, parent, false)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn start_nested_with_quote_replay<P>(
+        &mut self,
+        plan: SessionPlan,
+        key: String,
+        gateway: Gateway,
+        processor: P,
+        deadline: Deadline,
+        parent: &crate::runtime::owner::Child,
+        optional_quote_replay: bool,
+    ) -> Result<watch::Receiver<Status>, Failure>
+    where
+        P: FnMut(u64, &Event) -> Result<bool, String> + Send + 'static,
+    {
         self.start_owned(
             plan,
             key,
             gateway,
             processor,
             deadline,
-            Ownership::Nested(parent),
+            Ownership::Nested(parent, optional_quote_replay),
         )
     }
     fn start_owned<P>(
@@ -281,10 +299,12 @@ impl Lanes {
             ));
         }
         let lane = plan.lane;
-        let (ownership, parent) = match ownership {
-            Ownership::Untracked => (None, None),
-            Ownership::Root(child) => (Some(child), None),
-            Ownership::Nested(parent) => (None, Some(parent)),
+        let (ownership, parent, optional_quote_replay) = match ownership {
+            Ownership::Untracked => (None, None, false),
+            Ownership::Root(child) => (Some(child), None, false),
+            Ownership::Nested(parent, optional_quote_replay) => {
+                (None, Some(parent), optional_quote_replay)
+            }
         };
         let stop = if let Some(parent) = parent {
             parent.cancellation().child_token()
@@ -333,6 +353,7 @@ impl Lanes {
                     gateway,
                     deadline,
                     provider,
+                    optional_quote_replay,
                 },
                 processor,
                 &task_stop,
@@ -506,6 +527,7 @@ async fn run_lane<P>(
         gateway,
         deadline: initial_deadline,
         provider,
+        optional_quote_replay,
     } = config;
     let mut deadline = Some(initial_deadline);
     loop {
@@ -589,7 +611,10 @@ async fn run_lane<P>(
         let mut replay: BTreeSet<u16> = plan
             .subscriptions
             .iter()
-            .filter(|s| s.replay_start_ns.is_some())
+            .filter(|s| {
+                s.replay_start_ns.is_some()
+                    && !(optional_quote_replay && s.schema == databento::dbn::Schema::Mbp1)
+            })
             .map(|s| s.schema as u16)
             .collect();
         let mut workload_ready = false;

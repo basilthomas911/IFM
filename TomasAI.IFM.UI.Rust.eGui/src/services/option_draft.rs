@@ -40,8 +40,16 @@ impl Selected {
                 strike: Some(c.strike),
                 is_call: c.is_call,
                 is_future: false,
-                bid: decimal(row, "Bid")?,
-                ask: decimal(row, "Ask")?,
+                bid: if row.is_stale == Some(true) && !frozen {
+                    None
+                } else {
+                    decimal(row, "Bid")?
+                },
+                ask: if row.is_stale == Some(true) && !frozen {
+                    None
+                } else {
+                    decimal(row, "Ask")?
+                },
                 delta: c.delta,
                 vega: row.vega,
                 multiplier: Some(multiplier.clone()),
@@ -179,6 +187,28 @@ pub(crate) fn validate(settings: &Settings) -> Result<(), String> {
     Ok(())
 }
 impl Draft {
+    /// Drops live order inputs that have expired since the last chain refresh.
+    pub fn expire_live_quotes(&mut self, as_of: chrono::DateTime<chrono::Utc>) {
+        for leg in &mut self.legs {
+            let current = leg.quote_at.as_ref()
+                .and_then(|at| chrono::DateTime::parse_from_rfc3339(at.as_str()).ok())
+                .is_some_and(|at| as_of.signed_duration_since(at) < chrono::TimeDelta::seconds(5));
+            if !leg.quote.is_future && !current {
+                leg.quote.bid = None;
+                leg.quote.ask = None;
+            }
+        }
+    }
+
+    /// Invalidates order inputs when the live source or snapshot is unavailable.
+    pub fn clear_live_quotes(&mut self) {
+        for leg in &mut self.legs {
+            leg.quote.bid = None;
+            leg.quote.ask = None;
+            leg.quote_at = None;
+        }
+    }
+
     /// Retains a deliberate limit edit without pinning an automatically displayed midpoint
     /// when another execution control republishes the form. Clearing the field restores pricing at mid.
     pub fn update_order_price(
@@ -211,6 +241,11 @@ impl Draft {
             .map(Contract::from_backend)
             .collect::<Result<Vec<_>, _>>()?;
         let underlying = decimal(incoming.as_ref(), "UnderlyingPrice")?;
+        // Only the explicitly requested Development emulator chain may price from stale observations.
+        let frozen = !settings.live
+            && settings.development
+            && incoming.window_method.as_deref().unwrap_or_default()
+                .starts_with("Frozen emulator preview");
         let display = if self
             .display
             .as_deref()
@@ -243,13 +278,6 @@ impl Draft {
                 } else {
                     settings.put_delta
                 };
-                let frozen = !settings.live
-                    && settings.development
-                    && incoming
-                        .window_method
-                        .as_deref()
-                        .unwrap_or_default()
-                        .starts_with("Frozen emulator preview");
                 let side: Vec<_> = contracts
                     .iter()
                     .filter(|c| c.is_call == is_call)
@@ -282,7 +310,7 @@ impl Draft {
                             row,
                             role,
                             settings.multiplier,
-                            !settings.live,
+                            frozen,
                         )?);
                     }
                     break;
@@ -307,10 +335,14 @@ impl Draft {
                             row,
                             &leg.role,
                             settings.multiplier,
-                            !settings.live,
+                            frozen,
                         )?
                     } else {
-                        leg.clone()
+                        let mut missing = leg.clone();
+                        missing.quote.bid = None;
+                        missing.quote.ask = None;
+                        missing.quote_at = None;
+                        missing
                     },
                 );
             }
@@ -383,7 +415,9 @@ impl Draft {
             row,
             role,
             settings.multiplier,
-            !settings.live,
+            !settings.live && settings.development
+                && self.raw.as_ref().and_then(|chain| chain.window_method.as_deref())
+                    .is_some_and(|method| method.starts_with("Frozen emulator preview")),
         )?);
         if self.legs.len() == required {
             for call in [true, false] {

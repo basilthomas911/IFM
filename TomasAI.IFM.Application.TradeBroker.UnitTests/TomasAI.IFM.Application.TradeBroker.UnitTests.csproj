@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.TradeBroker\TomasAI.IFM.Application.TradeBroker.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Trade\TomasAI.IFM.Application.Contracts.Trade.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.BrokerAccount\TomasAI.IFM.Application.Contracts.BrokerAccount.csproj" />

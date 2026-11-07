@@ -25,6 +25,9 @@ using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Supervisor.Shared.Service.Health;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 
@@ -34,6 +37,7 @@ public sealed partial class ApiServerLifecycle
 {
     static async Task RunServerAsync(WebApplication app, string[] args, Microsoft.Extensions.Logging.ILogger logger, IApiFatalRecoveryShutdown? fatalRecoveryShutdown)
     {
+        DevelopmentExecutionProjectionRecovery.Map(app);
         if (EventLogQualification.Active is { } qualification)
         {
             await app.Services.GetRequiredService<ApplicationSchemaInitializer>()
@@ -44,6 +48,22 @@ public sealed partial class ApiServerLifecycle
         var preflightFailures = new System.Collections.Concurrent.ConcurrentQueue<Exception>();
         var configurationReady = false;
         await Task.WhenAll(
+            RunPreflightAsync("Aggregate checkpoint schema", async () =>
+            {
+                using var schemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await app.Services.GetRequiredService<EventSourceSchemaDb>()
+                    .EnsureAggregateCheckpointSchemaAsync(schemaDeadline.Token);
+            }),
+            RunPreflightAsync("Broker order projection", async () =>
+            {
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(app.Lifetime.ApplicationStopping);
+                deadline.CancelAfter(TimeSpan.FromSeconds(30));
+                var container = app.Services.GetRequiredService<SimpleInjector.Container>();
+                var store = container.GetInstance<IBrokerOrderReadStore>();
+                var rebuilder = new BrokerOrderReadModelRebuilder(app.Services.GetRequiredService<IPostgresEventTransaction>());
+                var restored = await rebuilder.RebuildAsync(store, deadline.Token);
+                logger.LogInformation("Restored {Count} broker-order definitions from committed snapshots.", restored);
+            }),
             RunPreflightAsync("Recovery schema", async () =>
             {
                 // Normal startup does not run full deployment schema initialization. Recovery readers

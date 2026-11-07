@@ -25,6 +25,7 @@ public sealed class TradeDirectMessageWireTests
         System.Reflection.Assembly.Load("TomasAI.IFM.Application.Contracts.Trade").GetType("TomasAI.IFM.Domain.Trade.Shared.Order.Broker.RecordBrokerOrderObservationCommand")!,
         System.Reflection.Assembly.Load("TomasAI.IFM.Application.Contracts.Trade").GetType("TomasAI.IFM.Domain.Trade.Shared.Order.Broker.RequestBrokerOrderLimitUpdateCommand")!,
         System.Reflection.Assembly.Load("TomasAI.IFM.Application.Contracts.Trade").GetType("TomasAI.IFM.Domain.Trade.Shared.Order.Broker.RequestBrokerOrderCancelCommand")!,
+        typeof(TomasAI.IFM.Domain.Trade.Shared.Order.Broker.ReconcileBrokerOrderCommand),
         System.Reflection.Assembly.Load("TomasAI.IFM.Application.Contracts.Trade").GetType("TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderObservationReceivedEvent")!,
         System.Reflection.Assembly.Load("TomasAI.IFM.Application.Contracts.Trade").GetType("TomasAI.IFM.Domain.Trade.Shared.Order.Execution.StartOrderExecutionCommand")!,
         System.Reflection.Assembly.Load("TomasAI.IFM.Application.Contracts.Trade").GetType("TomasAI.IFM.Domain.Trade.Shared.Order.CreateTradeOrderCommand")!,

@@ -64,7 +64,8 @@ public sealed class BrokerOrderObservationBridge(ITradeBroker broker, IActorSupe
         }
     }
 
-    private async ValueTask RouteAsync(BrokerOrderId brokerOrderId, BrokerObservation observation)
+    private async ValueTask RouteAsync(BrokerOrderId brokerOrderId, BrokerObservation observation,
+        CancellationToken cancellationToken = default)
     {
         if (observation.Kind is BrokerObservationKind.AccountSnapshot or
             BrokerObservationKind.GateChanged or BrokerObservationKind.ConnectionChanged)
@@ -98,7 +99,8 @@ public sealed class BrokerOrderObservationBridge(ITradeBroker broker, IActorSupe
             OccurredAtUtc = observation.OccurredAtUtc,
             Category = observation.Category,
             Detail = observation.Detail,
-            ContentHash = ContentHash(observation)
+            ContentHash = ContentHash(observation),
+            ExecutionFinal = observation.ExecutionFinal
         };
         var eventId = DeterministicId("broker-observation", observation.ObservationId.ToString("N"));
         var domainEvent = new BrokerOrderObservationReceivedEvent
@@ -115,7 +117,33 @@ public sealed class BrokerOrderObservationBridge(ITradeBroker broker, IActorSupe
         };
         var producer = supervisor.GetJSProducer(new ActorMailboxId(ActorType.Event, BrokerOrderEventActor.ActorName));
         await producer.SendAsync<BrokerOrderObservationReceivedEvent, BrokerOrderId>(
-            domainEvent.Subject, domainEvent).ConfigureAwait(false);
+            domainEvent.Subject, domainEvent, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Fetches and republishes exact broker facts with the same identities as the live observation stream.</summary>
+    public async ValueTask<BrokerObservation[]> ReconcileAsync(BrokerOrderDefinition order, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        var brokerOrderId = order.Id.Format();
+        if (!string.Equals(broker.AccountAlias, order.Order.BrokerAccountAlias, StringComparison.Ordinal) ||
+            (byte)broker.Environment != (byte)order.Order.BrokerEnvironment)
+            throw new InvalidOperationException("BrokerOrder.RECONCILE_ACCOUNT_MISMATCH");
+
+        var observations = await broker.ReconcileOrderAsync(brokerOrderId, cancellationToken).AsTask()
+            .WaitAsync(cancellationToken).ConfigureAwait(false);
+        var facts = observations.Where(static observation => observation.Kind is not
+            (BrokerObservationKind.AccountSnapshot or BrokerObservationKind.GateChanged or BrokerObservationKind.ConnectionChanged)).ToArray();
+        if (facts.Any(fact => !string.Equals(fact.BrokerOrderId, brokerOrderId, StringComparison.Ordinal) ||
+            !string.Equals(fact.AccountAlias, broker.AccountAlias, StringComparison.Ordinal) || fact.ComponentId != order.Id.ComponentId))
+            throw new InvalidOperationException("BrokerOrder.RECONCILE_IDENTITY_MISMATCH");
+
+        foreach (var fact in facts)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await RouteAsync(order.Id, fact, cancellationToken).ConfigureAwait(false);
+        }
+
+        return facts;
     }
 
     private static bool TryParse(string value, out BrokerOrderId id)
@@ -132,13 +160,14 @@ public sealed class BrokerOrderObservationBridge(ITradeBroker broker, IActorSupe
 
     private static Guid DeterministicId(params string[] parts) => new(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('|', parts)))[..16]);
 
-    private static string ContentHash(BrokerObservation observation) => Convert.ToHexString(SHA256.HashData(
+    internal static string ContentHash(BrokerObservation observation) => Convert.ToHexString(SHA256.HashData(
         Encoding.UTF8.GetBytes(string.Join('|', observation.Kind, observation.AccountAlias,
             observation.BrokerOrderId, observation.OperationId, observation.ComponentId,
             observation.LegId, observation.ContractId, observation.ExternalExecutionId,
             observation.SignedQuantity, observation.Price, observation.Commission,
             observation.OrderRevision, observation.SourceEpoch, observation.SourceSequence,
-            observation.OccurredAtUtc.Ticks, observation.Category, observation.Detail))));
+            observation.OccurredAtUtc.Ticks, observation.Category, observation.Detail) +
+            (observation.ExecutionFinal ? "|execution-final" : string.Empty))));
 
     /// <summary>Stops and releases the bridge.</summary>
     public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);

@@ -19,8 +19,22 @@ pub struct BusinessContext {
     pub allow_development_emulator: bool,
 }
 impl BusinessContext {
+    /// Whether the API has confirmed that live trading hours are active.
+    pub fn is_live_trading(&self) -> bool {
+        self.market_state == 2
+    }
+
+
     /// Loads business context for business context.
     pub async fn load(backend: &Backend) -> Result<Self, String> {
+        Self::load_with_transition(backend).await.map(|(context, _)| context)
+    }
+
+
+    /// Loads the authoritative session and its next scheduled transition together.
+    pub async fn load_with_transition(
+        backend: &Backend,
+    ) -> Result<(Self, chrono::DateTime<chrono::Utc>), String> {
         let subject = ActorSubject::query("MarketDataQuery", "GetMarketSession", "marketSession");
         let reply = backend
             .request(
@@ -58,14 +72,15 @@ impl BusinessContext {
         }
         let start = timestamp(&session[4])?;
         let end = timestamp(&session[5])?;
+        let next_transition = timestamp(&session[6])?;
         if start.year() <= 1
             || end <= start
-            || timestamp(&session[6])?.year() <= 1
+            || next_transition.year() <= 1
             || context.as_of_utc.year() <= 1
         {
             return Err("Invalid API market-session timing".into());
         }
-        Ok(context)
+        Ok((context, next_transition))
     }
 
 

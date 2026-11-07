@@ -143,6 +143,30 @@ impl TradeController {
                     .filter(|v| *v > 0)
                     .ok_or("Invalid allocated trade identity")?,
             );
+            self.prepared_trade_label = None;
+            use crate::models::{trade_contracts::FundOrderTradeProjectionReadModel, wire_types::FromBackend};
+            let primary = self.data.trades.iter()
+                .map(FundOrderTradeProjectionReadModel::from_backend)
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter().find(|trade| trade.primary_trade == Some(true));
+            if let Some(primary) = primary
+                && let Ok(scope) = crate::services::order_close::primary_scope(&primary)
+            {
+                let trade_type = primary.trade_type.as_deref().unwrap_or_default();
+                let strategy = if trade_type.contains("IronCondor") {
+                    "IronCondor"
+                } else if trade_type == "FuturesOutright" {
+                    "FuturesOutright"
+                } else {
+                    "VerticalSpread"
+                };
+                let trade = crate::services::trade_monitor_queries::established(
+                    backend, registry, scope, strategy, deadline,
+                ).await?;
+                self.prepared_trade_label = Some(crate::models::trade_presentation::loaded_trade_tab_title(
+                    scope.order, scope.trade, trade_type, &trade,
+                ));
+            }
             self.data.context = Some(context);
             return Ok("Trade identity allocated".into());
         }
@@ -208,11 +232,12 @@ impl TradeController {
                         &contract,
                         effective,
                         maturity,
+                        field(intent, "tradeReference"),
                         correlation,
                     )?
                 } else {
                     let trade = if action == "remove-trade" {
-                        Some(positive(
+                        let selected_trade = positive(
                             &selected(
                                 registry,
                                 "FundOrderTradeProjectionReadModel",
@@ -222,7 +247,11 @@ impl TradeController {
                             )?
                             .ok_or("Select a trade")?,
                             "TradeId",
-                        )?)
+                        )?;
+                        if field(intent, "removeTradeId").parse::<i32>().ok() != Some(selected_trade) {
+                            return Err("The selected trade changed; reopen Remove Trade to confirm.".into());
+                        }
+                        Some(selected_trade)
                     } else {
                         None
                     };
@@ -277,7 +306,7 @@ impl TradeController {
         self.message =
             success_message.unwrap_or_else(|| format!("Manual Portfolio order {order} created."));
         self.data.load_orders(backend, registry, deadline).await?;
-        if matches!(action, "create-order" | "create-trade") {
+        if matches!(action, "create-order" | "create-trade" | "remove-trade") {
             let selected = if action == "create-order" {
                 self.data.order
             } else {

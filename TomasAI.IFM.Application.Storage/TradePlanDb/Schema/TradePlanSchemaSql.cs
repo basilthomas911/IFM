@@ -180,6 +180,11 @@ ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS currency 
 ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS riskParameterSetId uuid;
 ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS riskParameterSetVersion integer;
 ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS riskParameterSetHash text;
+-- The daily latest observation and intraday chart use time, not revision order.
+CREATE INDEX IF NOT EXISTS iron_condor_trade_plan_observation_time
+    ON trade_plan.iron_condor_trade_plan
+    (portfolioId,fundId,orderId,tradeId,positionId,valueDate,calculatedAtUtc DESC,planRevision DESC)
+    INCLUDE (combinedSpreadPrice,combinedForwardPrice,calculationVersion);
 CREATE INDEX IF NOT EXISTS position_trade_plan_activity_recent ON trade_plan.position_trade_plan_activity_by_date (valueDate,calculatedAtUtc DESC,portfolioId DESC,fundId DESC,orderId DESC,tradeId DESC,positionId DESC,planRevision DESC);
 """;
     /// <summary>Explicit schema removal for administrative teardown.</summary>

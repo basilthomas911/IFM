@@ -54,6 +54,17 @@ pub fn inherit_opening_trade(
     Ok(Some(primary.clone()))
 }
 
+/// Resolve either lifecycle row to the established opening without changing
+/// the selected closing row's execution identity or persisted evidence.
+pub fn monitor_trade(
+    selected: &crate::models::trade_contracts::FundOrderTradeProjectionReadModel,
+    trades: &[crate::models::trade_contracts::FundOrderTradeProjectionReadModel],
+) -> Result<crate::models::trade_contracts::FundOrderTradeProjectionReadModel, String> {
+    let mut selected = selected.clone();
+    Ok(inherit_opening_trade(&mut selected, trades)?.unwrap_or(selected))
+}
+
+
 pub fn primary_scope(
     primary: &crate::models::trade_contracts::FundOrderTradeProjectionReadModel,
 ) -> Result<Scope, String> {

@@ -19,4 +19,9 @@ public enum FundCompositionState
     Executing = 13,
     Executed = 14,
     ExecutionFailed = 15,
+    Opening = 16,
+    Opened = 17,
+    Closing = 18,
+    Closed = 19,
+    Rejected = 20,
 }

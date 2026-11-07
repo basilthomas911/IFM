@@ -53,8 +53,18 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
             return;
         }
 
+        if (changed.OrderExecutionDefinition.Status == OrderExecutionStatus.PartiallyFilled)
+        {
+            await FundExecutionLifecycle.ProgressAsync(context.ActorService, changed.OrderExecutionDefinition,
+                changed.Id == Guid.Empty ? changed.CommandId : changed.Id, changed.ReceivedOn).ConfigureAwait(false);
+            return;
+        }
         if (changed.OrderExecutionDefinition.Status is not (OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled) || changed.OrderExecutionDefinition.Fills.Length == 0)
             return;
+        // Broker completion is known even if accounting or position settlement must be reconciled.
+        if (changed.OrderExecutionDefinition.Status == OrderExecutionStatus.Filled)
+            await FundExecutionLifecycle.ProgressAsync(context.ActorService, changed.OrderExecutionDefinition,
+                changed.Id == Guid.Empty ? changed.CommandId : changed.Id, changed.OrderExecutionDefinition.CompletedAtUtc ?? changed.ReceivedOn).ConfigureAwait(false);
         // Completion evidence also supports persisted events whose older envelope omitted ReceivedOn.
         var confirmedAt = changed.OrderExecutionDefinition.CompletedAtUtc ?? changed.ReceivedOn;
         if (confirmedAt == default)
@@ -70,7 +80,8 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
         foreach (var closedPosition in changed.ClosedPositions)
         {
             await CloseAsync(closedPosition).ConfigureAwait(false);
-            await FundExecutionLifecycle.ClosedAsync(context.ActorService, changed.OrderExecutionDefinition.Order, closedPosition).ConfigureAwait(false);
+            await FundExecutionLifecycle.ClosedAsync(context.ActorService, changed.OrderExecutionDefinition.Order,
+                closedPosition, changed.OrderExecutionDefinition.Status).ConfigureAwait(false);
         }
 
         var complete = new CompleteTradeOrderCommand
@@ -100,14 +111,6 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
             context.Logger.LogInformation("OrderSubmission BrokerOrderCreateRequested ExecutionId={ExecutionId} BrokerOrderId={BrokerOrderId} OperationId={OperationId} CommandId={CommandId}", changed.EntityId.Format(), brokerOrderId.Format(), operationId, create.CommandId);
             Ensure(await context.ActorService.RequestAsync<CreateBrokerOrderCommand, BrokerOrderId>(create).ConfigureAwait(false));
         }
-
-        var submit = new SubmitOrderExecutionCommand
-        {
-            CommandId = TradeHandoffIdentity.Create("submit-order-execution", changed.EntityId.Format()),
-            Subject = new(ActorType.Command, OrderExecutionCommandActor.ActorName, SubmitOrderExecutionCommand.Verb, changed.EntityId.Format()),
-            EntityId = changed.EntityId
-        };
-        Ensure(await context.ActorService.SendAsync<SubmitOrderExecutionCommand, OrderExecutionId>(submit, submit.EntityId).ConfigureAwait(false));
     }
 
     async ValueTask ReleaseTradeOrderAsync(OrderExecutionChangedEvent changed)

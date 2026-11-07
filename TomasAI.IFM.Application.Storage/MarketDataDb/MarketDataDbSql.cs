@@ -430,6 +430,17 @@ public static partial class MarketDataDbSql
         SELECT contractId AS "ContractId", valueDate AS "ValueDate", tickId AS "TickId", tickTime AS "TickTime", optionPrice AS "OptionPrice", bidPrice AS "BidPrice", askPrice AS "AskPrice", bidSize AS "BidSize", askSize AS "AskSize", impliedVolatility AS "ImpliedVolatility", underlyingPrice AS "UnderlyingPrice", delta AS "Delta", gamma AS "Gamma", vega AS "Vega", theta AS "Theta", rho AS "Rho", volume AS "Volume", openInterest AS "OpenInterest", volumeValueDate AS "VolumeValueDate", openInterestValueDate AS "OpenInterestValueDate" FROM market_data.futures_option_chain_quote_data WHERE underlyingContractId = $1 AND expiryDate = $2 AND valueDate = $3 ORDER BY contractId;
         """;
 
+    public const string GetLatestFuturesOptionChainQuoteData = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate", tickId AS "TickId", tickTime AS "TickTime", optionPrice AS "OptionPrice", bidPrice AS "BidPrice", askPrice AS "AskPrice", bidSize AS "BidSize", askSize AS "AskSize", impliedVolatility AS "ImpliedVolatility", underlyingPrice AS "UnderlyingPrice", delta AS "Delta", gamma AS "Gamma", vega AS "Vega", theta AS "Theta", rho AS "Rho", volume AS "Volume", openInterest AS "OpenInterest", volumeValueDate AS "VolumeValueDate", openInterestValueDate AS "OpenInterestValueDate"
+        FROM market_data.futures_option_chain_quote_data
+        WHERE underlyingContractId=$1 AND expiryDate=$2 AND tickId <= $4
+          AND bidPrice > 0 AND askPrice >= bidPrice
+          AND valueDate=(SELECT MAX(valueDate) FROM market_data.futures_option_chain_quote_data
+              WHERE underlyingContractId=$1 AND expiryDate=$2 AND valueDate <= $3
+                AND tickId <= $4 AND bidPrice > 0 AND askPrice >= bidPrice)
+        ORDER BY contractId;
+        """;
+
     public const string InsertRateOfReturn = """
         INSERT INTO market_data.rate_of_return (symbol, valueDate, rateOfReturn) VALUES ($1, $2, $3) ON CONFLICT (symbol,valueDate) DO UPDATE SET rateOfReturn=EXCLUDED.rateOfReturn;
         """;

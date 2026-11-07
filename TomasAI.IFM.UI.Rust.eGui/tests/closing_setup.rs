@@ -97,3 +97,26 @@ fn close_reverses_original_contracts_quantities_and_strikes_without_delta_resele
             .is_err()
     );
 }
+
+#[test]
+fn closed_close_loads_original_position_without_replacing_close_execution() {
+    let mut primary = trade(true, 1201);
+    primary.execution_order_id = Some(1901);
+    primary.execution_trade_id = Some(1501);
+    primary.trade_state = Some("Closed".into());
+    let mut close = trade(false, 4202);
+    close.execution_order_id = Some(3901);
+    close.execution_trade_id = Some(1501);
+    close.trade_state = Some("Closed".into());
+    let monitored = order_close::monitor_trade(&close, &[primary.clone(), close.clone()]).unwrap();
+    let scope = order_close::primary_scope(&monitored).unwrap();
+    assert_eq!((scope.order, scope.trade), (1901, 1501));
+    assert_eq!(monitored.trade_type.as_deref(), Some("ShortIronCondor"));
+    assert_eq!(close.execution_order_id, Some(3901));
+    assert_eq!(close.trade_id, Some(4202));
+    let opening = order_close::monitor_trade(&primary, &[]).unwrap();
+    assert_eq!(order_close::primary_scope(&opening).unwrap().order, 1901);
+    assert!(order_close::monitor_trade(&close, &[]).is_err());
+    primary.fund_id = Some(999);
+    assert!(order_close::monitor_trade(&close, &[primary]).is_err());
+}

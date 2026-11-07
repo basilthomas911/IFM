@@ -243,7 +243,7 @@ public sealed class PortfolioWorkflowTests
         var finalized = aggregate.RecordFundTradeClosing(closing);
         finalized.Trades.Single(x => x.TradeId == 17002).TradeState.Should().Be(nameof(TradeState.Closed));
         finalized.Trades.Single(x => x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.Closed));
-        finalized.Order.Status.Should().Be(nameof(FundCompositionState.Executed));
+        finalized.Order.Status.Should().Be(nameof(FundCompositionState.Closed));
         var replay = aggregate.RecordFundTradeClosing(closing);
         replay.AggregateVersion.Should().Be(finalized.AggregateVersion);
 

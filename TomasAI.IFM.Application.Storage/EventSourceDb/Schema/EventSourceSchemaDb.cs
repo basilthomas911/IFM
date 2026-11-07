@@ -32,4 +32,8 @@ public sealed class EventSourceSchemaDb
 
     /// <inheritdoc/>
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => objects;
+
+    /// <summary>Upgrades an existing event store before aggregate checkpoint readers start.</summary>
+    public Task EnsureAggregateCheckpointSchemaAsync(CancellationToken cancellationToken = default) =>
+        CreateAsync([EventSourceSchemaSql.AggregateCheckpointSchemaObject], cancellationToken);
 }

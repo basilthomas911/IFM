@@ -161,6 +161,20 @@ fn editor_caption_gaps_and_font_baselines_follow_display_scale() {
 }
 
 
+/// A terminal reason remains visible on the Blotter without its own modal.
+#[test]
+fn terminal_submission_rejection_stays_inline_across_refreshes() {
+    let mut h = harness();
+    let reason = "Broker rejected the accepted order: EM.EXPIRED: Approval expired.";
+    h.state_mut().snapshot.result.context.insert("submissionRejection".into(), reason.into());
+    let inline = format!("Rejected · {reason}");
+    for _ in 0..3 {
+        h.run();
+        assert!(h.query_by_label(&inline).is_some());
+        assert!(h.query_by_label("Order Submission Error").is_none());
+    }
+}
+
 /// Broker captions wrap with their controls instead of overlapping neighboring fields.
 #[test]
 fn broker_field_groups_fit_a_narrow_editor() {
@@ -408,6 +422,17 @@ fn order_draft_is_compact_with_left_aligned_values_and_centered_actions() {
                             .save(std::path::Path::new(&directory).join("add-fund-order.png"))
                             .unwrap();
                     }
+                }
+            } else {
+                for (index, value) in [(0, "84"), (5, "NewTrade"), (6, "Sell")] {
+                    let field = controls[&format!("draft-field-{index}")];
+                    let painted = h.output().shapes.iter().find_map(|shape| match &shape.shape {
+                        egui::Shape::Text(text) if text.galley.text() == value && field.contains(text.pos) =>
+                            Some(text.pos.x + text.galley.rect.left()),
+                        _ => None,
+                    }).unwrap_or_else(|| panic!("missing value {value} at {dpi}"));
+                    assert!(((painted - field.left()) * dpi - 4.).abs() <= 1.,
+                        "left-aligned trade value {value} at {dpi}");
                 }
             }
             let point = cancel.center();
@@ -695,6 +720,77 @@ fn iron_condor_tabs_and_broker_fields_match_the_source_inventory() {
         "Manage qualification...",
     ] {
         assert!(h.query_by_label(label).is_some(), "Missing {label}");
+    }
+}
+
+/// OrderPrice uses the execution highlight only when the published preview permits placement.
+#[test]
+fn broker_order_price_highlight_follows_placement_eligibility() {
+    fn yellow_background(shape: &egui::Shape, bounds: egui::Rect) -> bool {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().any(|shape| yellow_background(shape, bounds)),
+            egui::Shape::Rect(rect) => rect.fill == egui::Color32::YELLOW
+                && bounds.contains(rect.rect.center()),
+            _ => false,
+        }
+    }
+    for (editable, can_place, expected) in [(true, true, true), (true, false, false), (false, true, false)] {
+        let mut h = harness();
+        let context = &mut h.state_mut().snapshot.result.context;
+        context.insert("editable".into(), if editable { "True" } else { "False" }.into());
+        context.insert("canPlaceOrder".into(), if can_place { "True" } else { "False" }.into());
+        h.state_mut().snapshot.invalidate_render_cache();
+        h.get_by_label("Broker Trade").click();
+        h.run();
+        let bounds = h.state().view.controls["brokerPreviewNetLimitTicks"];
+        assert_eq!(h.output().shapes.iter().any(|shape| yellow_background(&shape.shape, bounds)), expected);
+    }
+}
+
+
+#[test]
+fn broker_trade_draws_four_prices_and_indicative_mid_with_an_empty_order_price() {
+    let mut h = harness();
+    let result = &mut h.state_mut().snapshot.result;
+    result.context.insert("price".into(), String::new());
+    result.context.insert("canPlaceOrder".into(), "False".into());
+    let mut push = |kind: &str, index: usize, value: serde_json::Value| {
+        result.rows.push(serde_json::from_value(serde_json::json!({
+            "id": format!("{kind}:{index}"),
+            "fields": {"kind": kind},
+            "data": ifm_ui_egui::wire::encode_value(&value).unwrap(),
+        })).unwrap());
+    };
+    for (index, (role, bid, ask)) in [
+        ("+LC", "0.50", "0.75"),
+        ("-SC", "0.70", "0.95"),
+        ("-SP", "125.00", "126.00"),
+        ("+LP", "108.50", "110.00"),
+    ].into_iter().enumerate() {
+        push("leg", index, serde_json::json!({
+            "contractId": format!("ES-LEG-{index}"), "role": role, "bid": bid, "ask": ask,
+            "quoteAtUtc": "2026-11-06T11:15:00Z", "stale": index < 2,
+        }));
+    }
+    push("broker-preview", 0, serde_json::json!({"fields": {"Indicative net mid": "-16.45"}}));
+    h.state_mut().snapshot.result.context.insert("asOfUtc".into(), "2026-11-06T11:17:00Z".into());
+    h.state_mut().snapshot.invalidate_render_cache();
+    h.get_by_label("Broker Trade").click();
+    h.run();
+    for label in ["ES-LEG-0", "ES-LEG-1", "ES-LEG-2", "ES-LEG-3", "0.50", "0.95",
+        "Indicative net mid:"] {
+        assert!(h.query_by_label(label).is_some(), "Missing {label}");
+    }
+    let grid = h.state().view.controls["brokerPreviewLegGrid"];
+    let mid = h.state().view.controls["broker-field-Indicative net mid"];
+    let price = h.state().view.controls["brokerPreviewNetLimitTicks"];
+    assert_eq!(text_baselines(&h.output().shapes, grid).iter()
+        .filter(|(text, _)| text == "120s (stale)").count(), 2);
+    assert!(text_baselines(&h.output().shapes, mid).iter().any(|(text, _)| text == "-16.45"));
+    assert!(text_baselines(&h.output().shapes, price).is_empty());
+    if let Ok(directory) = std::env::var("IFM_ALIGNMENT_SCREENSHOTS") {
+        h.render().unwrap()
+            .save(std::path::Path::new(&directory).join("broker-indicative-net-mid.png")).unwrap();
     }
 }
 
@@ -1018,6 +1114,102 @@ fn working_order_mutations_target_the_selected_broker_identity() {
 }
 
 
+#[test]
+fn add_trade_reference_defaults_to_action_and_tab_label_and_preserves_edits() {
+    let mut h = harness();
+    let title = "1901:1501 ShortIronCondor=8100:8050|7375:7325 26-Nov-20";
+    h.state_mut().snapshot.result.context.extend([
+        ("preparedTradeId".into(), "2000".into()),
+        ("preparedTradeLabel".into(), title.into()),
+        ("closingType".into(), "LongIronCondor".into()),
+    ]);
+    h.get_by_label("Trade Orders").click();
+    h.run();
+    h.get_by_label("Add Trade...").click();
+    h.run();
+    h.run();
+    assert!(h.query_by_label("Instruction Reference:").is_none());
+    let expected = format!("Buy {title}");
+    let input_font = egui::FontSelection::Default.resolve(&h.ctx.style());
+    let text_width = h.ctx.fonts(|fonts| fonts.layout_no_wrap(
+        expected.clone(), input_font, egui::Color32::WHITE,
+    ).size().x);
+    assert!(h.state().view.controls["draft-trade-reference"].width() >= text_width + 8.);
+    assert!(h.output().shapes.iter().any(|shape| matches!(
+        &shape.shape, egui::Shape::Text(text) if text.galley.job.text == expected
+    )));
+    let point = h.state().view.controls["draft-trade-reference"].center();
+    for pressed in [true, false] {
+        h.input_mut().events.push(egui::Event::PointerButton {
+            pos: point, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE,
+        });
+        h.run();
+    }
+    h.input_mut().events.push(egui::Event::Key {
+        key: egui::Key::End, physical_key: None, pressed: true, repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    h.run();
+    h.input_mut().events.push(egui::Event::Text(" — my edited reference".into()));
+    h.run();
+    let request: serde_json::Value = serde_json::from_str(
+        &h.state_mut().view.request("inspect-draft", &snapshot()),
+    ).unwrap();
+    assert_eq!(request["fields"]["tradeReference"], format!("{expected} — my edited reference"));
+}
+
+
+#[test]
+fn rejected_trade_shows_status_and_confirms_removal_with_centered_buttons() {
+    let mut h = harness();
+    let reason = "EM.EXPIRED: Approved order is expired or time is not UTC.";
+    let row = h.state_mut().snapshot.result.rows.iter_mut().find(|row| row.id == "trade:1").unwrap();
+    row.fields.insert("data".into(), serde_json::json!({
+        "index": 0, "tradeId": 1, "tradeState": "Rejected", "tradeStatus": reason
+    }).to_string());
+    h.get_by_label("Trade Orders").click();
+    h.run();
+    assert!(h.query_by_label("Rejected").is_some());
+    assert!(h.query_by_label("Trade Status").is_some());
+    assert!(h.query_by_label(reason).is_some());
+    fn paints_red_rejection(shape: &egui::Shape) -> bool {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().any(paints_red_rejection),
+            egui::Shape::Text(text) => text.galley.job.text == "Rejected"
+                && text.galley.job.sections.iter().any(|section| {
+                    let color = if section.format.color == egui::Color32::PLACEHOLDER {
+                        text.fallback_color
+                    } else {
+                        section.format.color
+                    };
+                    text.override_text_color.unwrap_or(color) == egui::Color32::from_rgb(255, 85, 85)
+                }),
+            _ => false,
+        }
+    }
+    assert!(h.output().shapes.iter().any(|shape| paints_red_rejection(&shape.shape)));
+    h.get_by_label("Remove Trade").click();
+    h.run();
+    assert!(h.query_by_label("Do you want to remove TradeId: 1 ?").is_some());
+    let controls = &h.state().view.controls;
+    assert_eq!(controls["remove-trade-icon"].size(), egui::Vec2::splat(56.0));
+    let buttons = controls["remove-trade-yes"].union(controls["remove-trade-no"]);
+    assert!((buttons.center().x - controls["draft-dialog"].center().x).abs() < 2.);
+    h.get_by_label("No").click();
+    h.run();
+    assert!(!h.state().requests.iter().any(|request| request["intent"] == "remove-trade"));
+    h.get_by_label("Remove Trade").click();
+    h.run();
+    h.get_by_label("Yes").click();
+    h.run();
+    h.run();
+    let requests: Vec<_> = h.state().requests.iter().filter(|request| request["intent"] == "remove-trade").collect();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0]["fields"]["removeTradeId"], "1");
+    assert!(h.query_by_label("Do you want to remove TradeId: 1 ?").is_none());
+}
+
+
 /// Verifies that load trade closes the editor and keeps monitoring outside the blotter.
 #[test]
 fn load_trade_closes_the_editor_and_keeps_monitoring_outside_the_blotter() {
@@ -1188,6 +1380,31 @@ fn physical_pointer_click_switches_the_blotter_tab() {
     });
     h.run();
     assert!(h.query_by_label("Cancel Unfilled").is_some());
+}
+
+#[test]
+fn reconcile_button_uses_the_restored_pending_broker_identity() {
+    let mut h = harness();
+    let id = "101.701.2202.6fb55186c47973eab0af65a34f98c51c.8c6aaaa142c745998c1a2caae964a793";
+    h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({
+        "id": format!("broker-order:{id}"),
+        "fields":{"kind":"broker-order","data":serde_json::json!({"status":"OutcomeUnknown"}).to_string()}
+    })).unwrap());
+    h.run();
+    h.get_by_label("Order Fills").click();
+    h.run();
+    let pos = h.get_by_label("Reconcile").rect().center();
+    h.input_mut().events.push(egui::Event::PointerMoved(pos));
+    h.step();
+    for pressed in [true, false] {
+        h.input_mut().events.push(egui::Event::PointerButton {
+            pos, pressed, button: egui::PointerButton::Primary, modifiers: egui::Modifiers::NONE,
+        });
+        h.step();
+    }
+    h.run();
+    let request = h.state().requests.iter().find(|request| request["intent"] == "reconcile-broker-order").unwrap();
+    assert_eq!(request["fields"]["brokerOrderId"], id);
 }
 
 

@@ -39,7 +39,7 @@ impl TradeWorkspace {
                                 .layout_no_wrap(title.clone(), font, Color32::WHITE)
                                 .size()
                                 .x
-                                + 46. / p)
+                                + 54. / p)
                                 .max(120. / p);
                             let (r, _) = ui.allocate_exact_size(
                                 egui::vec2(width, 30. / p),
@@ -63,8 +63,8 @@ impl TradeWorkspace {
                                 );
                             }
                             let close = egui::Rect::from_min_max(
-                                egui::pos2(r.right() - 24. / p, r.top() + 3. / p),
-                                egui::pos2(r.right() - 4. / p, r.bottom() - 3. / p),
+                                egui::pos2(r.right() - 30. / p, r.top() + 2. / p),
+                                egui::pos2(r.right() - 4. / p, r.bottom() - 2. / p),
                             );
                             let title_rect = egui::Rect::from_min_max(
                                 r.min,
@@ -88,7 +88,9 @@ impl TradeWorkspace {
                                     action = Some("activate-trade");
                                 }
                                 let response = ui
-                                    .put(close, egui::Button::new("\u{00d7}").frame(false))
+                                    .put(close, egui::Button::new(
+                                        egui::RichText::new("\u{00d7}").size(24. / p).strong(),
+                                    ).frame(false))
                                     .on_hover_text(prepared.close_caption.clone());
                                 response.widget_info(|| {
                                     egui::WidgetInfo::labeled(

@@ -208,7 +208,7 @@ impl TradeWorkspace {
         if let Some(trade) = s.result.context.get("tradeId") {
             self.draft.insert("tradeId".into(), trade.clone());
         }
-        if matches!(action, "create-order" | "create-trade") {
+        if matches!(action, "create-order" | "create-trade" | "remove-trade") {
             self.pending_dialog = self.dialog.clone();
         }
         serde_json::json!({"schema":1,"requestId":id,"view":"trade-orders","intent":action,"expectedGeneration":s.generation,"originalId":s.result.context.get("orderId"),"fields":self.draft}).to_string()
@@ -398,7 +398,32 @@ impl TradeWorkspace {
         if self.dialog == "qualification" {
             action = self.qualification(ctx, s).or(action);
         }
-        if !self.dialog.is_empty() && self.dialog != "qualification" && self.dialog != "eod" {
+        if self.dialog == "remove-trade" {
+            let id = self.draft.get("removeTradeId").cloned().unwrap_or_default();
+            let pending = self.pending_action == "remove-trade";
+            let selected = s.result.context.get("tradeId").is_some_and(|selected| selected == &id);
+            let modal = egui::Modal::new(egui::Id::new("remove-trade-confirmation"))
+                .show(ctx, |ui| {
+                    let layout = crate::status_dialog::confirmation(
+                        ui, "Remove Trade", &format!("Do you want to remove TradeId: {id} ?"),
+                        !s.busy && !pending && selected, !s.busy && !pending,
+                    );
+                    self.controls.insert("remove-trade-yes".into(), layout.ok);
+                    self.controls.insert("remove-trade-no".into(), layout.no.unwrap());
+                    self.controls.insert("remove-trade-icon".into(), layout.icon);
+                    if layout.acknowledged {
+                        action = Some("remove-trade");
+                    }
+                    if layout.declined {
+                        self.dialog.clear();
+                    }
+                });
+            self.controls.insert("draft-dialog".into(), modal.response.rect);
+            if modal.should_close() && !pending {
+                self.dialog.clear();
+            }
+        }
+        if !self.dialog.is_empty() && !matches!(self.dialog.as_str(), "qualification" | "eod" | "remove-trade") {
             let kind = self.dialog.clone();
             let mut keep = true;
             let dialog_window =
@@ -414,7 +439,10 @@ impl TradeWorkspace {
                 .resizable(false)
                 .fixed_size(match kind.as_str() {
                     "create-order" | "create-trade" => {
-                        order_layout::draft_layout(ctx, kind == "create-order").size / scale
+                        order_layout::draft_layout(ctx, kind == "create-order",
+                            self.draft.get("tradeReference")
+                                .or_else(|| s.result.context.get("preparedTradeLabel")).map(String::as_str),
+                        ).size / scale
                     }
                     _ => egui::vec2(420., 180.),
                 })
@@ -881,7 +909,7 @@ impl TradeWorkspace {
             .collect();
         let widths: &[f32] = match kind {
             "order" => &[80., 110., 125., 800., 150.],
-            "trade" => &[80., 110., 119., 110., 387.],
+            "trade" => &[80., 110., 119., 110., 115., 470., 470., 350.],
             _ => &[],
         };
         let layout: Vec<_> = columns
@@ -899,14 +927,23 @@ impl TradeWorkspace {
                 })
                 .is_some_and(|id| r.id == format!("{kind}:{id}"))
         });
-        let (clicked, drawn) = crate::control_parity::report_list(
+        let (clicked, drawn) = crate::control_parity::report_list_styled(
             ui,
             kind,
             &layout,
             rows.len(),
             selected,
             height,
-            |row, column| text(&display.row(&rows[row].id), columns[column].0),
+            |row, column| {
+                let key = columns[column].0;
+                let value = text(&display.row(&rows[row].id), key);
+                let color = if kind == "trade" && key == "tradeState" && value == "Rejected" {
+                    egui::Color32::from_rgb(255, 85, 85)
+                } else {
+                    egui::Color32::WHITE
+                };
+                egui::RichText::new(value).color(color)
+            },
         );
         self.drawn_rows = drawn;
         clicked.map(|index| rows[index].id.split_once(':').unwrap().1.to_string())

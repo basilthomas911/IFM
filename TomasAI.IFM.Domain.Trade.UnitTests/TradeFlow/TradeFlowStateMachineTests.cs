@@ -58,11 +58,12 @@ public sealed class TradeFlowStateMachineTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Execution_handlers_persist_balanced_acceptance_or_cancellation(bool cancel)
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    public void Execution_handlers_persist_balanced_acceptance_or_cancellation(bool cancel, bool permitPartial)
     {
-        var order = Fixture.ExecutingOrder(2, permitPartial: true);
+        var order = Fixture.ExecutingOrder(2, permitPartial: permitPartial);
         var attempt = Guid.NewGuid();
         var executionId = new OrderExecutionId(order.Id, attempt);
         var subject = new ActorSubject(ActorType.Command, StartOrderExecutionCommand.Actor, StartOrderExecutionCommand.Verb, executionId.Format());
@@ -88,6 +89,11 @@ public sealed class TradeFlowStateMachineTests
         new UpdateOrderExecutionFillCostCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
             Subject = subject with { Verb = UpdateOrderExecutionFillCostCommand.Verb },
             ExternalExecutionId = fills[0].ExternalExecutionId, Commission = 1.5m }.Execute(state).Success.Should().BeTrue();
+        if (!permitPartial)
+        {
+            new AcceptOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+                Subject = subject with { Verb = AcceptOrderExecutionCommand.Verb }, EffectiveAtUtc = Now.AddSeconds(30) }.Execute(state).Success.Should().BeFalse();
+        }
         var terminal = cancel
             ? new CancelOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
                 Subject = subject with { Verb = CancelOrderExecutionCommand.Verb }, EffectiveAtUtc = Now.AddSeconds(30) }.Execute(state)
@@ -97,12 +103,43 @@ public sealed class TradeFlowStateMachineTests
         state.OrderExecutionDefinition!.Status.Should().Be(cancel ? OrderExecutionStatus.Cancelled : OrderExecutionStatus.Filled);
         state.OrderExecutionDefinition.CumulativeFilledQuantity.Should().Be(cancel ? 1 : 2);
         var source = state.Events.OfType<OrderExecutionChangedEvent>().Last();
-        source.CreatedTrades.Should().ContainSingle();
+        source.CreatedTrades.Should().ContainSingle().Which.Legs.Should()
+            .OnlyContain(leg => Math.Abs(leg.SignedQuantity) == (cancel ? 1 : 2));
+        if (cancel)
+        {
+            var eventCount = state.Events.Count;
+            new CancelOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+                Subject = subject with { Verb = CancelOrderExecutionCommand.Verb }, EffectiveAtUtc = Now.AddSeconds(30) }.Execute(state).Success.Should().BeTrue();
+            state.Events.Count.Should().Be(eventCount);
+        }
         var bytes = MessagePack.MessagePackSerializer.Serialize(source);
         var restored = MessagePack.MessagePackSerializer.Deserialize<OrderExecutionChangedEvent>(bytes);
         restored.OrderExecutionDefinition.Id.Should().Be(executionId);
         restored.CreatedTrades.Should().ContainSingle();
         restored.OrderExecutionDefinition.Fills[0].Commission.Should().Be(1.5m);
+    }
+
+    [Fact]
+    public void Final_broker_cancellation_does_not_establish_an_unbalanced_position()
+    {
+        var order = Fixture.ExecutingOrder(2, permitPartial: false);
+        var attempt = Guid.NewGuid();
+        var executionId = new OrderExecutionId(order.Id, attempt);
+        var state = new OrderExecutionCommandState();
+        new StartOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+            Order = order, ExecutionAttemptId = attempt, Channel = ExecutionChannel.Broker, EffectiveAtUtc = Now }
+            .Execute(state).Success.Should().BeTrue();
+        var fill = Fixture.Fills(order.Components.Single(), attempt, 1)[0];
+        new AddOrderExecutionFillCommand { CommandId = Guid.NewGuid(), EntityId = executionId, Fill = fill }
+            .Execute(state).Success.Should().BeTrue();
+        var before = state.OrderExecutionDefinition;
+        var count = state.Events.Count;
+        var result = new CancelOrderExecutionCommand { CommandId = Guid.NewGuid(), EntityId = executionId,
+            EffectiveAtUtc = Now.AddSeconds(1) }.Execute(state);
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("OrderExecution.UNBALANCED_EXPOSURE");
+        state.OrderExecutionDefinition.Should().BeSameAs(before);
+        state.Events.Count.Should().Be(count);
     }
 
     [Fact]
@@ -490,6 +527,40 @@ public sealed class TradeFlowStateMachineTests
         state.Current.EvidenceRevision.Should().Be(trade.EvidenceRevision + 1);
         state.Current.Status.Should().Be(EstablishedTradeStatus.Corrected);
         state.Events.Should().ContainSingle().Which.Should().BeOfType<OptionTradeChangedEvent>();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Multiplier_reconciliation_preserves_execution_evidence_and_rejects_unverified_changes(int invalid)
+    {
+        var trade = Fixture.Trade();
+        trade = trade with { Legs = trade.Legs.Select(leg => leg with { CashMultiplier = 1 }).ToArray() };
+        var state = Fixture.CreatedOptionTradeState(trade);
+        var amendment = Fixture.AmendOptionTradeEvidenceCommand(trade.Id, Guid.NewGuid(), 0) with {
+            CorrectedLegs = trade.Legs.Select(leg => leg with { CashMultiplier = leg.CashMultiplier * 50 }).ToArray(),
+            ExpectedEvidenceRevision = trade.EvidenceRevision,
+            ReconciliationReason = "Verified historical contract multiplier", ReconciliationEvidence = "catalog:verified;journals:301-308"
+        };
+        amendment = invalid switch {
+            1 => amendment with { ExpectedEvidenceRevision = 0 },
+            2 => amendment with { ReconciliationEvidence = "" },
+            3 => amendment with { CorrectedLegs = [amendment.CorrectedLegs[0] with { SignedQuantity = 999 }] },
+            4 => amendment with { CorrectedLegs = [amendment.CorrectedLegs[0] with { CashMultiplier = 0 }] },
+            _ => amendment
+        };
+        var result = amendment.Execute(state);
+        result.Success.Should().Be(invalid == 0, result.ErrorMessage);
+        if (invalid != 0) { state.Events.Should().BeEmpty(); return; }
+        state.Current!.Legs.Should().OnlyContain(leg => leg.CashMultiplier == trade.Legs[0].CashMultiplier * 50);
+        state.Current.OriginalFills.Should().Equal(trade.OriginalFills);
+        state.Current.OpeningCommission.Should().Be(trade.OpeningCommission);
+        var restored = new FuturesOptionTradeCommandState();
+        restored.ReplayEvents(new DomainEventCollection(state.Events));
+        restored.Current.Should().BeEquivalentTo(state.Current);
     }
 
     [Fact]

@@ -103,7 +103,7 @@ async fn closing_order_reverses_remaining_position_and_restores_exact_uncertain_
         let evaluated = operation.evaluate(&b, &r, deadline()).await;
         if mode == "LostAck" {
             assert!(evaluated.unwrap_err().starts_with("OutcomeUnknown:"));
-            let saved = store::pending()
+            let saved = store::retained()
                 .await
                 .unwrap()
                 .into_iter()

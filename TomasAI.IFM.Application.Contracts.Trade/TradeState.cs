@@ -18,5 +18,6 @@ public enum TradeState
     OrderCompleted,
     OrderSubmitted,
     Open,
-    Closed
+    Closed,
+    Rejected
 }

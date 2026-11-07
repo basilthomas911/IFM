@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TWS API\9.76\source\CSharpClient\client.net\CSharpNetAPI.csproj" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Application.TradeBroker.UnitTests" />
+  </ItemGroup>
+
 </Project>

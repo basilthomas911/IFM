@@ -22171,6 +22171,12 @@ pub struct FundOrderTradeProjectionReadModel {
     /// C# ExecutionAttemptId, wire slot 24.
     #[serde(default, rename = "executionAttemptId", alias = "ExecutionAttemptId")]
     pub execution_attempt_id: Option<String>,
+    /// C# TradeStatus, wire slot 25.
+    #[serde(default, rename = "tradeStatus", alias = "TradeStatus")]
+    pub trade_status: Option<String>,
+    /// C# TradeReference, wire slot 26.
+    #[serde(default, rename = "tradeReference", alias = "TradeReference")]
+    pub trade_reference: Option<String>,
 }
 impl FromBackend for FundOrderTradeProjectionReadModel {
     const KIND: &'static str =
@@ -22267,6 +22273,14 @@ impl FromBackend for FundOrderTradeProjectionReadModel {
             execution_attempt_id: FromBackend::from_backend(fields.get(24).unwrap_or(&Value::Nil))
                 .map_err(|error| {
                     format!("FundOrderTradeProjectionReadModel.ExecutionAttemptId: {error}")
+                })?,
+            trade_status: FromBackend::from_backend(fields.get(25).unwrap_or(&Value::Nil))
+                .map_err(|error| {
+                    format!("FundOrderTradeProjectionReadModel.TradeStatus: {error}")
+                })?,
+            trade_reference: FromBackend::from_backend(fields.get(26).unwrap_or(&Value::Nil))
+                .map_err(|error| {
+                    format!("FundOrderTradeProjectionReadModel.TradeReference: {error}")
                 })?,
         })
     }
@@ -22459,6 +22473,20 @@ impl PresentationRecord for FundOrderTradeProjectionReadModel {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "tradeStatus",
+            &FieldValue {
+                value: &self.trade_status,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "tradeReference",
+            &FieldValue {
+                value: &self.trade_reference,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -22549,6 +22577,8 @@ impl BackendRecord for FundOrderTradeProjectionReadModel {
             "ExecutionAttemptId",
             &BackendDocument(&self.execution_attempt_id),
         )?;
+        map.serialize_entry("TradeStatus", &BackendDocument(&self.trade_status))?;
+        map.serialize_entry("TradeReference", &BackendDocument(&self.trade_reference))?;
         map.end()
     }
 }
@@ -22585,6 +22615,8 @@ impl Cells for FundOrderTradeProjectionReadModel {
             "tradeDate" | "TradeDate" => self.trade_date.scalar_cell(),
             "maturityDate" | "MaturityDate" => self.maturity_date.scalar_cell(),
             "executionAttemptId" | "ExecutionAttemptId" => self.execution_attempt_id.scalar_cell(),
+            "tradeStatus" | "TradeStatus" => self.trade_status.scalar_cell(),
+            "tradeReference" | "TradeReference" => self.trade_reference.scalar_cell(),
             _ => Cell::Missing,
         }
     }
@@ -33994,6 +34026,13 @@ pub struct IronCondorPositionChangedEvent {
         alias = "IsRealtimeMarketObservation"
     )]
     pub is_realtime_market_observation: Option<bool>,
+    /// C# CurrencyEvidenceEventId, wire slot 10.
+    #[serde(
+        default,
+        rename = "currencyEvidenceEventId",
+        alias = "CurrencyEvidenceEventId"
+    )]
+    pub currency_evidence_event_id: Option<i64>,
 }
 impl FromBackend for IronCondorPositionChangedEvent {
     const KIND: &'static str =
@@ -34032,6 +34071,12 @@ impl FromBackend for IronCondorPositionChangedEvent {
             .map_err(|error| {
                 format!("IronCondorPositionChangedEvent.IsRealtimeMarketObservation: {error}")
             })?,
+            currency_evidence_event_id: FromBackend::from_backend(
+                fields.get(10).unwrap_or(&Value::Nil),
+            )
+            .map_err(|error| {
+                format!("IronCondorPositionChangedEvent.CurrencyEvidenceEventId: {error}")
+            })?,
         })
     }
 }
@@ -34052,6 +34097,13 @@ impl PresentationRecord for IronCondorPositionChangedEvent {
             "isRealtimeMarketObservation",
             &FieldValue {
                 value: &self.is_realtime_market_observation,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "currencyEvidenceEventId",
+            &FieldValue {
+                value: &self.currency_evidence_event_id,
                 mode: child_mode,
             },
         )?;
@@ -34153,6 +34205,10 @@ impl BackendRecord for IronCondorPositionChangedEvent {
             "IsRealtimeMarketObservation",
             &BackendDocument(&self.is_realtime_market_observation),
         )?;
+        map.serialize_entry(
+            "CurrencyEvidenceEventId",
+            &BackendDocument(&self.currency_evidence_event_id),
+        )?;
         map.serialize_entry("Subject", &BackendDocument(&self.subject))?;
         map.serialize_entry("Id", &BackendDocument(&self.id))?;
         map.serialize_entry("EntityId", &BackendDocument(&self.entity_id))?;
@@ -34174,6 +34230,9 @@ impl Cells for IronCondorPositionChangedEvent {
         match column {
             "isRealtimeMarketObservation" | "IsRealtimeMarketObservation" => {
                 self.is_realtime_market_observation.scalar_cell()
+            }
+            "currencyEvidenceEventId" | "CurrencyEvidenceEventId" => {
+                self.currency_evidence_event_id.scalar_cell()
             }
             "id" | "Id" => self.id.scalar_cell(),
             "eventId" | "EventId" => self.event_id.scalar_cell(),
@@ -34497,6 +34556,13 @@ pub struct BrokerOrderDefinition {
     /// C# PriorOperationId, wire slot 14.
     #[serde(default, rename = "priorOperationId", alias = "PriorOperationId")]
     pub prior_operation_id: Option<String>,
+    /// C# RequestedSignedNetDebitLimit, wire slot 15.
+    #[serde(
+        default,
+        rename = "requestedSignedNetDebitLimit",
+        alias = "RequestedSignedNetDebitLimit"
+    )]
+    pub requested_signed_net_debit_limit: Option<DecimalText>,
 }
 impl FromBackend for BrokerOrderDefinition {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderDefinition";
@@ -34544,6 +34610,12 @@ impl FromBackend for BrokerOrderDefinition {
                 .map_err(|error| format!("BrokerOrderDefinition.BrokerRevision: {error}"))?,
             prior_operation_id: FromBackend::from_backend(fields.get(14).unwrap_or(&Value::Nil))
                 .map_err(|error| format!("BrokerOrderDefinition.PriorOperationId: {error}"))?,
+            requested_signed_net_debit_limit: FromBackend::from_backend(
+                fields.get(15).unwrap_or(&Value::Nil),
+            )
+            .map_err(|error| {
+                format!("BrokerOrderDefinition.RequestedSignedNetDebitLimit: {error}")
+            })?,
         })
     }
 }
@@ -34665,6 +34737,13 @@ impl PresentationRecord for BrokerOrderDefinition {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "requestedSignedNetDebitLimit",
+            &FieldValue {
+                value: &self.requested_signed_net_debit_limit,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -34723,6 +34802,10 @@ impl BackendRecord for BrokerOrderDefinition {
             "PriorOperationId",
             &BackendDocument(&self.prior_operation_id),
         )?;
+        map.serialize_entry(
+            "RequestedSignedNetDebitLimit",
+            &BackendDocument(&self.requested_signed_net_debit_limit),
+        )?;
         map.end()
     }
 }
@@ -34746,6 +34829,9 @@ impl Cells for BrokerOrderDefinition {
             }
             "brokerRevision" | "BrokerRevision" => self.broker_revision.scalar_cell(),
             "priorOperationId" | "PriorOperationId" => self.prior_operation_id.scalar_cell(),
+            "requestedSignedNetDebitLimit" | "RequestedSignedNetDebitLimit" => {
+                self.requested_signed_net_debit_limit.scalar_cell()
+            }
             _ => Cell::Missing,
         }
     }
@@ -34810,6 +34896,9 @@ pub struct BrokerOrderObservationEvidence {
     /// C# ContentHash, wire slot 17.
     #[serde(default, rename = "contentHash", alias = "ContentHash")]
     pub content_hash: Option<String>,
+    /// C# ExecutionFinal, wire slot 18.
+    #[serde(default, rename = "executionFinal", alias = "ExecutionFinal")]
+    pub execution_final: Option<bool>,
 }
 impl FromBackend for BrokerOrderObservationEvidence {
     const KIND: &'static str =
@@ -34870,6 +34959,10 @@ impl FromBackend for BrokerOrderObservationEvidence {
                 .map_err(|error| format!("BrokerOrderObservationEvidence.Detail: {error}"))?,
             content_hash: FromBackend::from_backend(fields.get(17).unwrap_or(&Value::Nil))
                 .map_err(|error| format!("BrokerOrderObservationEvidence.ContentHash: {error}"))?,
+            execution_final: FromBackend::from_backend(fields.get(18).unwrap_or(&Value::Nil))
+                .map_err(|error| {
+                    format!("BrokerOrderObservationEvidence.ExecutionFinal: {error}")
+                })?,
         })
     }
 }
@@ -35012,6 +35105,13 @@ impl PresentationRecord for BrokerOrderObservationEvidence {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "executionFinal",
+            &FieldValue {
+                value: &self.execution_final,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -35064,6 +35164,7 @@ impl BackendRecord for BrokerOrderObservationEvidence {
         map.serialize_entry("Category", &BackendDocument(&self.category))?;
         map.serialize_entry("Detail", &BackendDocument(&self.detail))?;
         map.serialize_entry("ContentHash", &BackendDocument(&self.content_hash))?;
+        map.serialize_entry("ExecutionFinal", &BackendDocument(&self.execution_final))?;
         map.end()
     }
 }
@@ -35091,6 +35192,7 @@ impl Cells for BrokerOrderObservationEvidence {
             "category" | "Category" => self.category.scalar_cell(),
             "detail" | "Detail" => self.detail.scalar_cell(),
             "contentHash" | "ContentHash" => self.content_hash.scalar_cell(),
+            "executionFinal" | "ExecutionFinal" => self.execution_final.scalar_cell(),
             _ => Cell::Missing,
         }
     }
@@ -36104,6 +36206,9 @@ pub struct OrderExecutionDefinition {
         alias = "CumulativeFilledQuantity"
     )]
     pub cumulative_filled_quantity: Option<i32>,
+    /// C# RejectionDetail, wire slot 16.
+    #[serde(default, rename = "rejectionDetail", alias = "RejectionDetail")]
+    pub rejection_detail: Option<String>,
 }
 impl FromBackend for OrderExecutionDefinition {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionDefinition";
@@ -36153,6 +36258,8 @@ impl FromBackend for OrderExecutionDefinition {
             .map_err(|error| {
                 format!("OrderExecutionDefinition.CumulativeFilledQuantity: {error}")
             })?,
+            rejection_detail: FromBackend::from_backend(fields.get(16).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("OrderExecutionDefinition.RejectionDetail: {error}"))?,
         })
     }
 }
@@ -36281,6 +36388,13 @@ impl PresentationRecord for OrderExecutionDefinition {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "rejectionDetail",
+            &FieldValue {
+                value: &self.rejection_detail,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -36347,6 +36461,7 @@ impl BackendRecord for OrderExecutionDefinition {
             "CumulativeFilledQuantity",
             &BackendDocument(&self.cumulative_filled_quantity),
         )?;
+        map.serialize_entry("RejectionDetail", &BackendDocument(&self.rejection_detail))?;
         map.end()
     }
 }
@@ -36366,6 +36481,7 @@ impl Cells for OrderExecutionDefinition {
             "cumulativeFilledQuantity" | "CumulativeFilledQuantity" => {
                 self.cumulative_filled_quantity.scalar_cell()
             }
+            "rejectionDetail" | "RejectionDetail" => self.rejection_detail.scalar_cell(),
             _ => Cell::Missing,
         }
     }
@@ -44901,6 +45017,7 @@ pub enum TradeState {
     OrderSubmitted,
     Open,
     Closed,
+    Rejected,
     Unrecognized(i64),
 }
 impl TradeState {
@@ -44918,6 +45035,7 @@ impl TradeState {
             Self::OrderSubmitted => "OrderSubmitted".into(),
             Self::Open => "Open".into(),
             Self::Closed => "Closed".into(),
+            Self::Rejected => "Rejected".into(),
             Self::Unrecognized(value) => value.to_string().into(),
         }
     }
@@ -44941,6 +45059,7 @@ impl FromBackend for TradeState {
                 8 => Self::OrderSubmitted,
                 9 => Self::Open,
                 10 => Self::Closed,
+                11 => Self::Rejected,
                 value => Self::Unrecognized(value),
             },
         )
@@ -44996,6 +45115,7 @@ impl<'de> Deserialize<'de> for TradeState {
                     "OrderSubmitted" => TradeState::OrderSubmitted,
                     "Open" => TradeState::Open,
                     "Closed" => TradeState::Closed,
+                    "Rejected" => TradeState::Rejected,
                     value => TradeState::Unrecognized(value.parse().map_err(E::custom)?),
                 })
             }
@@ -52557,6 +52677,18 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "System.Guid",
     ),
     (
+        "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel",
+        "TradeStatus",
+        25,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel",
+        "TradeReference",
+        26,
+        "System.String",
+    ),
+    (
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundRiskEnvelopeReadModel",
         "PortfolioId",
         0,
@@ -54772,6 +54904,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
     ),
     (
         "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent",
+        "CurrencyEvidenceEventId",
+        10,
+        "System.Nullable`1[System.Int64]",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent",
         "Subject",
         0,
         "TomasAI.IFM.Shared.EventModelActor.ActorSubject",
@@ -54915,6 +55053,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "System.Guid",
     ),
     (
+        "TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderDefinition",
+        "RequestedSignedNetDebitLimit",
+        15,
+        "System.Nullable`1[System.Decimal]",
+    ),
+    (
         "TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderObservationEvidence",
         "ObservationId",
         0,
@@ -55021,6 +55165,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "ContentHash",
         17,
         "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderObservationEvidence",
+        "ExecutionFinal",
+        18,
+        "System.Boolean",
     ),
     (
         "TomasAI.IFM.Domain.Trade.Shared.Order.TradeEndOfDayDisplay",
@@ -55279,6 +55429,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "CumulativeFilledQuantity",
         15,
         "System.Int32",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionDefinition",
+        "RejectionDetail",
+        16,
+        "System.String",
     ),
     (
         "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId",

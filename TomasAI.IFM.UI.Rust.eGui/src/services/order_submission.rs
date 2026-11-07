@@ -38,6 +38,8 @@ pub struct Operation {
     pub channel: String,
     /// Whether confirmed is enabled or currently true.
     pub confirmed: bool,
+    /// Authoritative broker rejection retained with the original operation.
+    pub rejection: Option<String>,
 }
 
 
@@ -101,6 +103,11 @@ fn semantic_candidate(
     Ok(value)
 }
 impl Operation {
+    /// Whether an authoritative outcome still needs to be recovered.
+    pub fn needs_recovery(&self) -> bool {
+        !self.confirmed && self.rejection.is_none()
+    }
+
     /// Prepares order submission for operation.
     pub fn prepare(
         registry: &Registry,
@@ -276,6 +283,7 @@ impl Operation {
             dispatched: 0,
             channel: "Broker".into(),
             confirmed: false,
+            rejection: None,
         })
     }
 
@@ -520,12 +528,22 @@ impl Operation {
                     ("EntityId".into(), entity.clone()),
                 ]);
                 if stage == "create" {
+                    let mut definition = order.clone();
+                    // Older accepted futures orders used zero for the absent option right.
+                    // Preserve their receipt and reuse the same lifecycle command identity.
+                    if let Some(components) = definition["Components"].as_array_mut() {
+                        for leg in components.iter_mut().filter_map(|component| component["Legs"].as_array_mut()).flatten() {
+                            if leg["AssetFamily"] == "Futures" && leg["PutCall"] == 0 {
+                                leg["PutCall"] = Json::Null;
+                            }
+                        }
+                    }
                     fields.insert(
                         "Order".into(),
                         parameters::from_document(
                             registry,
                             &format!("{TRADE}.TradeOrderDefinition"),
-                            order,
+                            &definition,
                         )?,
                     );
                 }

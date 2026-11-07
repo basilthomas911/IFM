@@ -36,8 +36,8 @@ internal static class FrozenEmulatorOptionChain
         var at = DateTimeOffset.UtcNow;
         var contracts = new EvaluatedOptionContractReadModel[window.Contracts.Length];
         var storedQuotes = observationDate is { } date
-            ? await context.DbFactory.MarketDataDb.GetFuturesOptionChainQuoteDataAsync(
-                query.UnderlyingContractId, query.ExpiryDate, date, token).ConfigureAwait(false)
+            ? await context.DbFactory.MarketDataDb.GetLatestFuturesOptionChainQuoteDataAsync(
+                query.UnderlyingContractId, query.ExpiryDate, date, at.AddHours(-24), token).ConfigureAwait(false)
             : [];
         var byContract = storedQuotes.ToDictionary(quote => quote.ContractId, StringComparer.Ordinal);
         await (Parallel.ForEachAsync(Enumerable.Range(0, contracts.Length), new ParallelOptions
@@ -68,7 +68,8 @@ internal static class FrozenEmulatorOptionChain
             }
         
 
-        var source = observationDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "stored inputs";
+        var quoteDate = storedQuotes.Count > 0 ? storedQuotes.First().ValueDate : observationDate;
+        var source = quoteDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "stored inputs";
         var modelNote = inputs.Deviation is > 0 ? "historical/model quotes" : "historical/model quotes; 20% default IV";
         FrozenEmulatorQuoteStore.Publish(contracts, at);
         return new ServiceOk<EvaluatedOptionChainReadModel>(new(query.UnderlyingContractId,

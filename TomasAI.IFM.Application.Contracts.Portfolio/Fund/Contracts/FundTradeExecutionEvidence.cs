@@ -18,4 +18,8 @@ public sealed record FundTradeExecutionEvidence
     [Key(10)] public int? OpeningExecutionTradeId { get; init; }
     /// <summary>True only when confirmed fills reverse every remaining leg; partial closes keep the setup active.</summary>
     [Key(11)] public bool FullyClosed { get; init; }
+    /// <summary>Broker reason for a terminal rejection with no execution fills.</summary>
+    [Key(12)] public string? RejectionDetail { get; init; }
+    /// <summary>The committed execution status, including whether a partial execution is still working.</summary>
+    [Key(13)] public string? ExecutionStatus { get; init; }
 }

@@ -112,7 +112,7 @@ fn invalid_outcomes_never_open_a_dialog() {
 /// Verifies that all status icons have equal bounds and ok is centered.
 #[test]
 fn all_status_icons_have_equal_bounds_and_ok_is_centered() {
-    for severity in [Severity::Error, Severity::Success, Severity::Warning] {
+    for severity in [Severity::Error, Severity::Success, Severity::Warning, Severity::Question] {
         let ctx = eframe::egui::Context::default();
         let input = eframe::egui::RawInput {
             screen_rect: Some(eframe::egui::Rect::from_min_size(

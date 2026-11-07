@@ -25,4 +25,5 @@ public sealed record BrokerOrderObservationEvidence
     [Key(15)] public string Category { get; init; } = string.Empty;
     [Key(16)] public string Detail { get; init; } = string.Empty;
     [Key(17)] public string ContentHash { get; init; } = string.Empty;
+    [Key(18)] public bool ExecutionFinal { get; init; }
 }

@@ -161,8 +161,39 @@ fn order_date_ranges_use_calendar_dropdowns() {
     let request: serde_json::Value =
         serde_json::from_str(h.state().requests.last().unwrap()).unwrap();
     assert_eq!(request["intent"], "range");
-    assert_eq!(request["fields"]["from"], "2026-10-15");
+    assert_eq!(request["fields"]["from"], "2026-09-15");
     assert_eq!(request["fields"]["to"], "2026-10-31");
+}
+
+/// The rendered calendars use both authoritative range endpoints, including year changes.
+#[test]
+fn order_calendars_show_previous_month_start_and_current_month_end() {
+    for (date, from, to) in [
+        ("2026-11-09", "2026-10-01", "2026-11-30"),
+        ("2027-01-04", "2026-12-01", "2027-01-31"),
+        ("2024-02-15", "2024-01-01", "2024-02-29"),
+    ] {
+        let mut snapshot = fixture(1);
+        snapshot.result.context.insert("valueDate".into(), date.into());
+        snapshot.result.context.insert("from".into(), from.into());
+        snapshot.result.context.insert("to".into(), to.into());
+        let request_context = fixture(1);
+        let mut view = TradeWorkspace::default();
+        view.open = true;
+        let mut h = Harness::new_state(
+            move |ctx, state: &mut State| {
+                let _ = state.view.draw(ctx, &snapshot);
+            },
+            State { view, requests: vec![] },
+        );
+        h.set_size(eframe::egui::vec2(1800., 1200.));
+        h.run();
+        let request: serde_json::Value = serde_json::from_str(
+            &h.state_mut().view.request("range", &request_context),
+        ).unwrap();
+        assert_eq!(request["fields"]["from"], from);
+        assert_eq!(request["fields"]["to"], to);
+    }
 }
 
 /// Verifies that empty editor has only create order enabled and no completed label.

@@ -41,15 +41,17 @@ public sealed class DatabentoOptionQuoteBackfill
         var end = DateTimeOffset.Parse(Required("IFM_BACKFILL_END"), CultureInfo.InvariantCulture);
         var date = DateOnly.FromDateTime(start.UtcDateTime);
         Assert.True(end > start && end - start <= TimeSpan.FromHours(24));
+        Assert.True(end <= DateTimeOffset.UtcNow.AddHours(-24), "Emulator close quotes must be older than 24 hours.");
         Assert.Equal(date, DateOnly.FromDateTime(end.AddTicks(-1).UtcDateTime));
         Assert.True(expiry >= date);
         var key = Environment.GetEnvironmentVariable("DATABENTO_API_KEY")
             ?? Environment.GetEnvironmentVariable("DATABENTO_API_KEY", EnvironmentVariableTarget.User)
             ?? Environment.GetEnvironmentVariable("DATABENTO_API_KEY", EnvironmentVariableTarget.Machine)
             ?? throw new InvalidOperationException("DATABENTO_API_KEY is unavailable.");
+        var connection = Required("IFM_BACKFILL_POSTGRES_CONNECTION");
         var settings = new DbConnectionSettings()
-            .Add("MarketDataDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=market_data_test_db", "System.Data.ScyllaDb")
-            .Add("SecuritiesDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=securities_test_db", "System.Data.ScyllaDb");
+            .Add("MarketDataDbConnection", connection, "System.Data.Postgres")
+            .Add("SecuritiesDbConnection", connection, "System.Data.Postgres");
         var factory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<DbProvider>>();
         var db = new MarketDataDbContext(settings, factory, Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(), logger);
@@ -59,8 +61,11 @@ public sealed class DatabentoOptionQuoteBackfill
         var definitions = await securities.GetCachedOptionContractDefinitionsAsync(
             Required("IFM_BACKFILL_SYMBOL"), underlying, expiry, Required("IFM_BACKFILL_ROOTS").Split(','), CancellationToken.None);
         var centre = decimal.Parse(Required("IFM_BACKFILL_UNDERLYING_PRICE"), CultureInfo.InvariantCulture);
-        var strikes = definitions.Select(x => x.Definition.StrikePrice).Distinct().OrderBy(x => Math.Abs((decimal)x - centre)).Take(80).ToHashSet();
-        var selected = definitions.Select(x => x.Definition).Where(x => strikes.Contains(x.StrikePrice)).DistinctBy(x => x.ContractId).ToArray();
+        var requiredContracts = Required("IFM_BACKFILL_CONTRACT_IDS").Split(',').ToHashSet(StringComparer.Ordinal);
+        Assert.InRange(requiredContracts.Count, 1, 4);
+        var selected = definitions.Select(x => x.Definition).Where(x => requiredContracts.Contains(x.ContractId))
+            .DistinctBy(x => x.ContractId).ToArray();
+        Assert.Equal(requiredContracts.Count, selected.Length);
         Assert.NotEmpty(selected);
         Assert.All(selected, x => Assert.True(x.InstrumentId is > 0));
         var byId = selected.ToDictionary(x => x.InstrumentId!.Value);
@@ -76,7 +81,7 @@ public sealed class DatabentoOptionQuoteBackfill
         if (!estimateResponse.IsSuccessStatusCode) throw new InvalidOperationException(await estimateResponse.Content.ReadAsStringAsync());
         var cost = decimal.Parse(await estimateResponse.Content.ReadAsStringAsync(), CultureInfo.InvariantCulture);
         Console.WriteLine($"Databento estimate: ${cost:F6}; {selected.Length} contracts, {start:O} to {end:O}.");
-        Assert.InRange(cost, 0, 1); // Check the $1 maintenance budget before downloading.
+        Assert.Equal(0, cost); // Download only when the provider confirms zero cost.
         fields["encoding"] = "json";
         fields["compression"] = "none";
         fields["pretty_px"] = "true";
@@ -97,7 +102,8 @@ public sealed class DatabentoOptionQuoteBackfill
             if (!byId.TryGetValue(id, out var definition)) continue;
             records++;
             var level = row.GetProperty("levels")[0];
-            double Price(string name) => double.TryParse(level.GetProperty(name).ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : double.NaN;
+            double Price(string name) => level.TryGetProperty(name, out var property)
+                && double.TryParse(property.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : double.NaN;
             var bid = Price("bid_px");
             var ask = Price("ask_px");
             if (!double.IsFinite(bid) || !double.IsFinite(ask) || bid <= 0 || ask < bid || ask > 1e8) continue;
@@ -113,12 +119,14 @@ public sealed class DatabentoOptionQuoteBackfill
             if (!latest.TryGetValue(tick.ContractId, out var old) || old.TickId < tick.TickId) latest[tick.ContractId] = tick;
         }
         Assert.NotEmpty(latest);
-        // Conditional insertion cannot replace a newer quote or a concurrent live update.
+        Assert.Equal(requiredContracts.Count, latest.Count);
+        // A historical replay must never replace a newer observation for the same session.
         foreach (var source in latest.Values)
         {
             var definition = byId.Values.First(x => x.ContractId == source.ContractId);
             var tick = OptionQuoteGreekEnrichment.Calculate(definition, source);
-            await db.Use("BackfillOptionQuoteIfAbsent", MarketDataDbCql.UpsertFuturesOptionChainQuoteData.TrimEnd().TrimEnd(';') + " IF NOT EXISTS;")
+            await db.Use("BackfillOptionQuoteIfNewer", MarketDataDbSql.UpsertFuturesOptionChainQuoteData.TrimEnd().TrimEnd(';')
+                    + " WHERE futures_option_chain_quote_data.tickId < EXCLUDED.tickId;")
                 .SetParameters(new UpsertFuturesOptionChainQuoteData(underlying, expiry, tick)).ExecuteCommandAsync();
         }
         var stored = await db.GetFuturesOptionChainQuoteDataAsync(underlying, expiry, date);

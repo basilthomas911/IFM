@@ -509,6 +509,7 @@ struct Fixture {
     task: tokio::task::JoinHandle<()>,
     accepted: Arc<AtomicUsize>,
     accepted_notice: Arc<tokio::sync::Notify>,
+    monitored_quote_replays: Arc<AtomicUsize>,
     closed: Arc<AtomicUsize>,
     closed_notice: Arc<tokio::sync::Notify>,
 }
@@ -524,6 +525,8 @@ impl Fixture {
         let closed = Arc::new(AtomicUsize::new(0));
         let closed_notice = Arc::new(tokio::sync::Notify::new());
         let notice = closed_notice.clone();
+        let monitored_quote_replays = Arc::new(AtomicUsize::new(0));
+        let quote_replays = monitored_quote_replays.clone();
         let (seen, ended) = (accepted.clone(), closed.clone());
         let task = tokio::spawn(async move {
             let mut clients = tokio::task::JoinSet::new();
@@ -536,7 +539,8 @@ impl Fixture {
                         accepted_signal.notify_one();
                         let ended = ended.clone();
                         let notice = notice.clone();
-                        clients.spawn(async move { serve(socket, mode, attempt).await; ended.fetch_add(1, Ordering::SeqCst); notice.notify_one(); });
+                        let quote_replays = quote_replays.clone();
+                        clients.spawn(async move { serve(socket, mode, attempt, &quote_replays).await; ended.fetch_add(1, Ordering::SeqCst); notice.notify_one(); });
                     }
                     Some(result) = clients.join_next(), if !clients.is_empty() => { result.unwrap(); }
                 }
@@ -552,6 +556,7 @@ impl Fixture {
             task,
             accepted,
             accepted_notice,
+            monitored_quote_replays,
             closed,
             closed_notice,
         }
@@ -582,7 +587,7 @@ impl Fixture {
     }
 }
 
-async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
+async fn serve(socket: TcpStream, mode: Mode, attempt: usize, quote_replays: &AtomicUsize) {
     let timestamp = if let Mode::PricingTradeAt(at) | Mode::PricingTradeReplayAt(at) = mode {
         at
     } else if let Mode::PricingAt(at, step) = mode {
@@ -659,6 +664,15 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
     line.clear();
     if peer.read_line(&mut line).await.unwrap_or(0) == 0 || !line.ends_with('\n') {
         return;
+    }
+    let additional_quotes = line.contains("schema=mbp-1");
+    if additional_quotes {
+        assert!(quote_replay && !line.contains("start="));
+        quote_replays.fetch_add(1, Ordering::SeqCst);
+        line.clear();
+        if peer.read_line(&mut line).await.unwrap_or(0) == 0 {
+            return;
+        }
     }
     let additional_statistics = line.contains("schema=statistics");
     if additional_statistics {
@@ -760,10 +774,19 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
                 )
                 .await
                 .unwrap();
-            if matches!(mode, Mode::OptionReplay) || additional_statistics {
+            if additional_quotes || matches!(mode, Mode::OptionReplay) || additional_statistics {
                 records
                     .encode(
                         &SystemMsg::new(11, Some(SystemCode::SubscriptionAck), "subscription_id=3")
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+            }
+            if additional_quotes && additional_statistics {
+                records
+                    .encode(
+                        &SystemMsg::new(11, Some(SystemCode::SubscriptionAck), "subscription_id=4")
                             .unwrap(),
                     )
                     .await
@@ -1076,7 +1099,10 @@ async fn serve(socket: TcpStream, mode: Mode, attempt: usize) {
             }
         }
     }
-    if quote_replay {
+    // The real gateway may omit schema completion when the same schema has
+    // both replay and live subscriptions. Mixed monitored coverage must still
+    // become ready on acknowledgements and qualify any actual quotes.
+    if quote_replay && !additional_quotes {
         records
             .encode(
                 &SystemMsg::new(
@@ -7455,6 +7481,11 @@ async fn native_options_group_case(
             let view = market
                 .options_current()
                 .expect("Monitored source blocked by unrelated background quote");
+            assert_eq!(
+                fixture.monitored_quote_replays.load(Ordering::SeqCst),
+                1,
+                "The provider must receive a monitored MBP-1 replay alongside live-only coverage"
+            );
             assert!(
                 view.queries
                     .raw_prices(43)

@@ -12,6 +12,19 @@ namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Workflow;
 
 public sealed class FundTradeExecutionLifecycleTests
 {
+    [Fact]
+    public void Operator_trade_reference_is_separate_from_the_generated_instruction_reference()
+    {
+        var (aggregate, evidence) = Fixture();
+        var rows = aggregate.RecordFundTradeSubmission(evidence).Trades;
+        var opening = rows.Single(trade => trade.PrimaryTrade);
+        var closing = rows.Single(trade => !trade.PrimaryTrade);
+        opening.TradeReference.Should().Be("Open");
+        closing.TradeReference.Should().Be("Close");
+        opening.InstructionReference.Should().Be(FundOrderTradeReference.Create("ESZ26", new(2026, 10, 9), null));
+        closing.InstructionReference.Should().Be(FundOrderTradeReference.Create("ESZ26", new(2026, 10, 9), null));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -75,7 +88,7 @@ public sealed class FundTradeExecutionLifecycleTests
         aggregate.RecordFundTradeSubmission(evidence);
         var released = aggregate.ReleaseFundTradeSubmission(evidence);
         released.Trades.Single(x => x.PrimaryTrade).ExecutionOrderId.Should().Be(0);
-        released.Trades.Single(x => x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.NewTrade));
+        released.Trades.Single(x => x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.OrderCancelled));
         var retried = aggregate.RecordFundTradeSubmission(evidence with { ExecutionAttemptId = Guid.NewGuid(), ExecutionOrderId = 31 });
         retried.Trades.Single(x => x.PrimaryTrade).ExecutionOrderId.Should().Be(31);
     }
@@ -85,6 +98,131 @@ public sealed class FundTradeExecutionLifecycleTests
         var (aggregate, evidence) = Fixture();
         aggregate.RecordFundTradeOpening(evidence);
         aggregate.ReleaseFundTradeSubmission(evidence).Trades.Single(x => x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.Open));
+    }
+
+    [Fact] public void Broker_rejection_persists_reason_and_allows_removing_the_unfilled_setup()
+    {
+        var (aggregate, evidence) = Fixture(includeClosing: false);
+        aggregate.RecordFundTradeSubmission(evidence);
+        const string reason = "EM.EXPIRED: Approved order is expired or time is not UTC.";
+        var rejected = aggregate.ReleaseFundTradeSubmission(evidence with { RejectionDetail = reason });
+        var trade = rejected.Trades.Single();
+        trade.TradeState.Should().Be(nameof(TradeState.Rejected));
+        trade.TradeStatus.Should().Be(reason);
+        trade.ExecutionOrderId.Should().Be(0);
+        aggregate.RecordFundTradeSubmission(evidence).Trades.Single().TradeStatus.Should().Be(reason);
+        var removed = aggregate.RemoveManualTrade(new()
+        {
+            PortfolioId = 1, FundId = 2, OrderId = 10, TradeId = 20,
+            ExpectedOrderVersion = rejected.AggregateVersion, RequestedAtUtc = Now
+        });
+        removed.Trades.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Each_execution_transition_updates_the_status_with_the_state()
+    {
+        var (aggregate, evidence) = Fixture(includeClosing: false);
+        aggregate.RecordFundTradeSubmission(evidence).Trades.Single().TradeStatus
+            .Should().Be("Order submitted for execution.");
+        aggregate.ReleaseFundTradeSubmission(evidence with { RejectionDetail = "Broker rejected the order." });
+        var retry = evidence with { ExecutionAttemptId = Guid.NewGuid(), ExecutionOrderId = 31 };
+        var submitted = aggregate.RecordFundTradeSubmission(retry).Trades.Single();
+        submitted.TradeState.Should().Be(nameof(TradeState.OrderSubmitted));
+        submitted.TradeStatus.Should().Be("Order submitted for execution.");
+        var opened = aggregate.RecordFundTradeOpening(retry).Trades.Single();
+        opened.TradeState.Should().Be(nameof(TradeState.Open));
+        opened.TradeStatus.Should().Be("Opening execution completed.");
+    }
+
+    [Fact]
+    public void Reconciled_rejected_close_can_be_removed_without_removing_its_opening_trade()
+    {
+        var (aggregate, opening) = Fixture();
+        aggregate.RecordFundTradeOpening(opening);
+        var closing = opening with
+        {
+            SetupTrade = new() { OrderId = 10, TradeId = 21 }, ClosingExecution = true,
+            OpeningExecutionTradeId = opening.ExecutionTradeId, ExecutionOrderId = 31,
+            ExecutionAttemptId = Guid.NewGuid(), RejectionDetail = "EM.EXPIRED: Approval expired."
+        };
+        var rejected = aggregate.ReleaseFundTradeSubmission(closing);
+        rejected.Trades.Single(x => x.TradeId == 21).TradeStatus.Should().Be(closing.RejectionDetail);
+        aggregate.ReleaseFundTradeSubmission(closing).AggregateVersion.Should().Be(rejected.AggregateVersion);
+        var removed = aggregate.RemoveManualTrade(new()
+        {
+            PortfolioId = 1, FundId = 2, OrderId = 10, TradeId = 21,
+            ExpectedOrderVersion = rejected.AggregateVersion, RequestedAtUtc = Now
+        });
+        removed.Trades.Should().ContainSingle().Which.TradeState.Should().Be(nameof(TradeState.Open));
+        rejected.Order.Status.Should().Be(nameof(FundCompositionState.Opened));
+        removed.Order.Status.Should().Be(nameof(FundCompositionState.Opened));
+    }
+
+    [Fact]
+    public void Order_status_tracks_opening_closing_rejection_removal_and_retry()
+    {
+        var (aggregate, opening) = Fixture();
+        aggregate.RecordFundTradeSubmission(opening).Order.Status.Should().Be(nameof(FundCompositionState.Opening));
+        aggregate.RecordFundTradeSubmission(opening with { ExecutionStatus = "PartiallyFilled" })
+            .Order.Status.Should().Be(nameof(FundCompositionState.Opening));
+        aggregate.RecordFundTradeOpening(opening).Order.Status.Should().Be(nameof(FundCompositionState.Opened));
+        var close = opening with { SetupTrade = new() { OrderId = 10, TradeId = 21 }, ClosingExecution = true,
+            OpeningExecutionTradeId = opening.ExecutionTradeId, ExecutionOrderId = 31, ExecutionAttemptId = Guid.NewGuid() };
+        aggregate.RecordFundTradeSubmission(close).Order.Status.Should().Be(nameof(FundCompositionState.Closing));
+        var rejected = aggregate.ReleaseFundTradeSubmission(close with { RejectionDetail = "Rejected" });
+        rejected.Order.Status.Should().Be(nameof(FundCompositionState.Opened));
+        var removed = aggregate.RemoveManualTrade(new() { PortfolioId = 1, FundId = 2, OrderId = 10,
+            TradeId = 21, ExpectedOrderVersion = rejected.AggregateVersion, RequestedAtUtc = Now });
+        removed.Order.Status.Should().Be(nameof(FundCompositionState.Opened));
+        var added = aggregate.AddManualTrade(new() { PortfolioId = 1, FundId = 2, OrderId = 10,
+            TradeId = 22, ExpectedOrderVersion = removed.AggregateVersion, TradeType = nameof(TradeType.LongIronCondor),
+            TradeAction = nameof(TradeAction.Buy), TradeState = nameof(TradeState.NewTrade), PrimaryTrade = false,
+            EffectiveDate = new(2026,10,9), BaseContractSymbol = "ES", BaseContractId = "ESZ26", RequestedAtUtc = Now }, "test");
+        added.Order.Status.Should().Be(nameof(FundCompositionState.Opened));
+        var retry = close with { SetupTrade = new() { OrderId = 10, TradeId = 22 }, ExecutionOrderId = 32,
+            ExecutionAttemptId = Guid.NewGuid(), FullyClosed = true };
+        aggregate.RecordFundTradeSubmission(retry).Order.Status.Should().Be(nameof(FundCompositionState.Closing));
+        var filled = aggregate.RecordFundTradeSubmission(retry with { ExecutionStatus = "Filled" });
+        filled.Order.Status.Should().Be(nameof(FundCompositionState.Closing));
+        filled.Trades.Single(row => !row.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.OrderFilled));
+        aggregate.RecordFundTradeSubmission(retry with { ExecutionStatus = "PartiallyFilled" })
+            .Trades.Single(row => !row.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.OrderFilled));
+        aggregate.RecordFundTradeClosing(retry).Order.Status.Should().Be(nameof(FundCompositionState.Closed));
+        var restored = new PortfolioFundCompositionAggregate();
+        restored.Restore(aggregate.CaptureState());
+        restored.ReservationForOrder(10).Order.Status.Should().Be(nameof(FundCompositionState.Closed));
+        restored.ReservationForOrder(10).Trades.Should().OnlyContain(row => row.TradeState == nameof(TradeState.Closed));
+    }
+
+    [Theory]
+    [InlineData(null, FundCompositionState.Cancelled)]
+    [InlineData("Rejected", FundCompositionState.Rejected)]
+    public void Removing_a_terminal_unfilled_opening_resets_the_order_to_draft(string? rejection,
+        FundCompositionState expected)
+    {
+        var (aggregate, opening) = Fixture(false);
+        aggregate.RecordFundTradeSubmission(opening);
+        var terminal = aggregate.ReleaseFundTradeSubmission(opening with { RejectionDetail = rejection });
+        terminal.Order.Status.Should().Be(expected.ToString());
+        aggregate.RemoveManualTrade(new() { PortfolioId = 1, FundId = 2, OrderId = 10, TradeId = 20,
+            ExpectedOrderVersion = terminal.AggregateVersion, RequestedAtUtc = Now }).Order.Status
+            .Should().Be(nameof(FundCompositionState.Draft));
+    }
+
+    [Fact]
+    public void A_working_partial_close_remains_closing_until_terminal_cancellation()
+    {
+        var (aggregate, opening) = Fixture();
+        aggregate.RecordFundTradeOpening(opening);
+        var close = opening with { SetupTrade = new() { OrderId = 10, TradeId = 21 }, ClosingExecution = true,
+            OpeningExecutionTradeId = opening.ExecutionTradeId, ExecutionOrderId = 31, ExecutionAttemptId = Guid.NewGuid() };
+        aggregate.RecordFundTradeSubmission(close);
+        var progress = close with { ExecutionStatus = "PartiallyFilled" };
+        aggregate.RecordFundTradeSubmission(progress).Order.Status.Should().Be(nameof(FundCompositionState.Closing));
+        aggregate.RecordFundTradeClosing(close with { ExecutionStatus = "Cancelled" }).Order.Status
+            .Should().Be(nameof(FundCompositionState.Opened));
+        aggregate.RecordFundTradeSubmission(progress).Order.Status.Should().Be(nameof(FundCompositionState.Opened));
     }
 
     [Fact] public void Stale_attempt_and_wrong_fund_are_rejected()
@@ -103,7 +241,7 @@ public sealed class FundTradeExecutionLifecycleTests
             ExecutionAttemptId = Guid.NewGuid(), ClosingExecution = true, OpeningExecutionTradeId = 40, FullyClosed = true };
         aggregate.RecordFundTradeSubmission(close);
         var completed = aggregate.RecordFundTradeClosing(close);
-        completed.Order.Status.Should().Be(nameof(FundCompositionState.Executed));
+        completed.Order.Status.Should().Be(nameof(FundCompositionState.Closed));
         completed.Trades.Single(x => x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.Closed));
         completed.Trades.Single(x => !x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.Closed));
         aggregate.RecordFundTradeClosing(close).AggregateVersion.Should().Be(completed.AggregateVersion);
@@ -117,12 +255,12 @@ public sealed class FundTradeExecutionLifecycleTests
             ExecutionAttemptId = Guid.NewGuid(), ClosingExecution = true, OpeningExecutionTradeId = 40 };
         aggregate.RecordFundTradeSubmission(close);
         var partial = aggregate.RecordFundTradeClosing(close);
-        partial.Order.Status.Should().Be(nameof(FundCompositionState.Draft));
+        partial.Order.Status.Should().Be(nameof(FundCompositionState.Opened));
         partial.Trades.Single(x => x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.Open));
         partial.Trades.Single(x => !x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.OrderPartiallyFilled));
         var remainder = close with { ExecutionAttemptId = Guid.NewGuid(), ExecutionOrderId = 32, FullyClosed = true };
         aggregate.RecordFundTradeSubmission(remainder);
-        aggregate.RecordFundTradeClosing(remainder).Order.Status.Should().Be(nameof(FundCompositionState.Executed));
+        aggregate.RecordFundTradeClosing(remainder).Order.Status.Should().Be(nameof(FundCompositionState.Closed));
         ((Action)(() => aggregate.RecordFundTradeClosing(close))).Should().Throw<InvalidOperationException>();
     }
 

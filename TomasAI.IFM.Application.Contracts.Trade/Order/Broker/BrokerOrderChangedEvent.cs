@@ -18,6 +18,7 @@ public sealed record BrokerOrderChangedEvent : IEvent<BrokerOrderId>
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
     [Key(8)] public BrokerOrderDefinition BrokerOrderDefinition { get; init; } = new();
+    [Key(9)] public bool IsDispatchReceipt { get; init; }
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(BrokerOrderChangedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

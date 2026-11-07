@@ -7,7 +7,12 @@ use crate::{
 };
 use serde_json::Value as Json;
 
+const REJECTION_PREFIX: &str = "Broker rejected the accepted order:";
 
+/// Distinguishes a terminal broker decision from an unavailable acknowledgement.
+pub fn is_rejection(error: &str) -> bool {
+    error.starts_with(REJECTION_PREFIX)
+}
 /// Waits for for broker for order submission ack.
 pub async fn wait_for_broker(
     backend: &Backend,
@@ -67,7 +72,7 @@ pub async fn wait_for_broker(
                         )
                 }) {
                     return Err(format!(
-                        "Broker rejected the accepted order: {}: {}",
+                        "{REJECTION_PREFIX} {}: {}",
                         rejected.dispatch_category.as_deref().unwrap_or_default(),
                         rejected.dispatch_detail.as_deref().unwrap_or_default()
                     ));

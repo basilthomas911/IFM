@@ -45,7 +45,10 @@ public static class SubmitOrderExecution
         /// <returns>True when computation accepts the intent.</returns>
         internal bool Compute(OrderExecutionDefinition? orderExecutionDefinition, out OrderExecutionCompute executionChange)
         {
-            executionChange = OrderExecutionComputation.Move(orderExecutionDefinition, [OrderExecutionStatus.Pending], OrderExecutionStatus.Submitted, "submit");
+            // Broker acknowledgements can arrive after a fill or a terminal observation.
+            executionChange = orderExecutionDefinition is { Channel: ExecutionChannel.Broker, Status: not OrderExecutionStatus.Pending }
+                ? OrderExecutionCompute.Accept(orderExecutionDefinition)
+                : OrderExecutionComputation.Move(orderExecutionDefinition, [OrderExecutionStatus.Pending], OrderExecutionStatus.Submitted, "submit");
             return executionChange.Accepted;
         }
 

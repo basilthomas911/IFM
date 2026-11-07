@@ -3,6 +3,7 @@
 use super::option_draft::Selected;
 use crate::models::{
     broker_presentation::{LegDisplay, MarketDisplay},
+    cells::Cells,
     trade_contracts::*,
     wire_types::{DecimalText, OffsetText, UtcText},
 };
@@ -76,10 +77,58 @@ pub fn leg(value: &Selected) -> Result<LegDisplay, String> {
         vega: value.quote.vega,
         multiplier: decimal(&value.quote.multiplier),
         quote_at_utc: stamp(value.quote_at.as_ref())?,
+        stale: None,
         frozen: Some(value.frozen),
         is_future: Some(value.quote.is_future),
         sign: Some(value.quote.side),
     })
+}
+
+/// Chooses the newest complete display quote without changing the order draft.
+pub fn last_known_leg(
+    selected: &Selected,
+    chain: Option<&EvaluatedOptionContractReadModel>,
+    saved: Option<&FuturesOptionTickDataV2ReadModel>,
+) -> Result<LegDisplay, String> {
+    let mut display = leg(selected)?;
+    if selected.quote.is_future || selected.quote.bid.is_some() && selected.quote.ask.is_some() {
+        return Ok(display);
+    }
+    let chain = chain.and_then(|row| {
+        Some((row.bid.clone()?, row.ask.clone()?, row.quote_at_utc.as_ref()?))
+    });
+    let saved = saved.and_then(|row| {
+        let bid = row.bid_price?;
+        let ask = row.ask_price?;
+        (bid.is_finite() && ask.is_finite() && bid >= 0. && ask >= bid).then_some((
+            DecimalText(bid.to_string()),
+            DecimalText(ask.to_string()),
+            row.observed_at_utc.as_ref()?,
+        ))
+    });
+    let quote = chain.into_iter().chain(saved).max_by_key(|(_, _, at)| {
+        chrono::DateTime::parse_from_rfc3339(at.as_str()).ok()
+    });
+    if let Some((bid, ask, at)) = quote {
+        display.bid = Some(bid);
+        display.ask = Some(ask);
+        display.quote_at_utc = stamp(Some(at))?;
+        display.stale = Some(true);
+    }
+    Ok(display)
+}
+
+/// Signed per-combination midpoint from displayed legs, for information only.
+pub fn indicative_net_mid(legs: &[LegDisplay]) -> Option<String> {
+    if legs.is_empty() || legs.iter().any(|leg| leg.is_future == Some(true)) {
+        return None;
+    }
+    let mid = legs.iter().try_fold(0., |net, leg| {
+        let bid = leg.cell("bid").number()?;
+        let ask = leg.cell("ask").number()?;
+        Some(net + f64::from(leg.sign?) * (bid + ask) / 2.)
+    })?;
+    mid.is_finite().then(|| format!("{mid:.2}"))
 }
 
 /// Account Display used by the broker market display component.

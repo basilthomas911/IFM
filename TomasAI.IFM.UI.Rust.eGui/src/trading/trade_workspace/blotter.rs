@@ -464,11 +464,16 @@ impl TradeWorkspace {
             rect(o, p, 3., 44., w - 6., 28.),
             "sourceModeLabel",
             |ui| {
-                ui.trading_label(format!(
-                    "Manual submitted / evidence; Trade {}; State {}",
-                    context(s, "tradeId"),
-                    context(s, "tradeState")
-                ));
+                let rejection = context(s, "submissionRejection");
+                if rejection.is_empty() {
+                    ui.trading_label(format!(
+                        "Manual submitted / evidence; Trade {}; State {}",
+                        context(s, "tradeId"),
+                        context(s, "tradeState")
+                    ));
+                } else {
+                    ui.colored_label(ui.visuals().error_fg_color, format!("Rejected · {rejection}"));
+                }
             },
         );
         ui.painter().line_segment(
@@ -614,7 +619,9 @@ impl TradeWorkspace {
         {
             if self.compose_tab >= 2 && self.compose_tab != 3 {
                 action = Some("refresh-execution");
-            } else if self.draft.get("live").is_some_and(|v| v == "true") {
+            } else if context(s, "submissionRejection").is_empty()
+                && self.draft.get("live").is_some_and(|v| v == "true")
+            {
                 action = Some("refresh-chain");
             }
             if action.is_some() {
@@ -987,7 +994,11 @@ impl TradeWorkspace {
             ],
             vec![
                 ("Net bid", ""),
-                ("Net mid", ""),
+                (if fields.is_some_and(|fields| fields.contains_key("Indicative net mid")) {
+                    "Indicative net mid"
+                } else {
+                    "Net mid"
+                }, ""),
                 ("Net ask", ""),
                 ("OrderPrice", "price"),
                 ("Combo tick", ""),
@@ -1123,9 +1134,11 @@ impl TradeWorkspace {
                                     }
                                     "price" => {
                                         form_at(ui, r, key, |ui| {
-                                            ui.visuals_mut().extreme_bg_color = Color32::YELLOW;
-                                            ui.visuals_mut().override_text_color =
-                                                Some(Color32::BLACK);
+                                            if editable && flag(s, "canPlaceOrder") {
+                                                ui.visuals_mut().extreme_bg_color = Color32::YELLOW;
+                                                ui.visuals_mut().override_text_color =
+                                                    Some(Color32::BLACK);
+                                            }
                                             ui.add_enabled_ui(editable, |ui| {
                                                 ui.add_sized(
                                                     r.size(),
@@ -1134,7 +1147,6 @@ impl TradeWorkspace {
                                                             .entry("price".into())
                                                             .or_default(),
                                                     )
-                                                    .text_color(Color32::BLACK)
                                                     .vertical_align(egui::Align::Center)
                                                     .margin(egui::vec2(4. / p, 0.))
                                                     .desired_width(r.width()),
@@ -1571,10 +1583,17 @@ impl TradeWorkspace {
                                         .number()
                                         .map(|delta| format!("{delta:.6}"))
                                         .unwrap_or_default(),
-                                    _ => crate::services::broker_market_display::quote_age(
-                                        &api_as_of,
-                                        &cell_text(leg, "quoteAtUtc"),
-                                    ),
+                                    _ => {
+                                        let age = crate::services::broker_market_display::quote_age(
+                                            &api_as_of,
+                                            &cell_text(leg, "quoteAtUtc"),
+                                        );
+                                        if leg.stale == Some(true) {
+                                            format!("{age} (stale)")
+                                        } else {
+                                            age
+                                        }
+                                    }
                                 });
                             }
                         });

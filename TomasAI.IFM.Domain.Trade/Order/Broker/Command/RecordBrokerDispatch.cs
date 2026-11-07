@@ -60,7 +60,8 @@ public static class RecordBrokerDispatch
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, BrokerOrderChangedEvent.Actor, BrokerOrderChangedEvent.Verb, command.EntityId.Format()),
             EntityId = command.EntityId,
-            BrokerOrderDefinition = brokerOrderChange.BrokerOrderDefinition!
+            BrokerOrderDefinition = brokerOrderChange.BrokerOrderDefinition!,
+            IsDispatchReceipt = true
         };
     }
 }

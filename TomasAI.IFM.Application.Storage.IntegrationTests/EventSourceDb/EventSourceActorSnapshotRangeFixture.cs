@@ -57,7 +57,7 @@ public sealed partial class EventSourceActorSnapshotRangeFixture : IAsyncLifetim
         var resolver = new DbContextResolver(type => repositories[type]);
         DbFactory = new DbContextFactory(resolver);
         _logger = Substitute.For<ILogger<DbProvider>>();
-        await new EventSourceSchemaDb(_connectionSettings, _logger).CreateAllAsync();
+        await CreateSchemaDb().CreateAllAsync();
 
         var cache = Substitute.For<IRedisCache>();
         var cacheValues = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
@@ -87,6 +87,8 @@ public sealed partial class EventSourceActorSnapshotRangeFixture : IAsyncLifetim
     public EventSourceActorDbContext ActorEventDb { get; private set; } = null!;
     public IBlackboardService Blackboard => _blackboard;
     public string ConnectionString => _authenticatedConnectionString;
+
+    internal EventSourceSchemaDb CreateSchemaDb() => new(_connectionSettings, _logger);
 
     public EventSourceActorDbContext CreateActorEventDb(EventLogPersistenceOptions? options = null)
         => new(_connectionSettings, DbFactory, _blackboard, _logger, options);

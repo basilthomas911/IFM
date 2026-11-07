@@ -186,12 +186,17 @@ pub fn add(
     contract: &Json,
     effective: chrono::NaiveDate,
     maturity: Option<chrono::NaiveDate>,
+    reference: &str,
     correlation: uuid::Uuid,
 ) -> Result<Operation, String> {
     let p = positive(order, "PortfolioId")?;
     let f = positive(order, "FundId")?;
     let id = positive(order, "OrderId")?;
     let version = revision(order, "AggregateVersion")?;
+    let reference = reference.trim();
+    if reference.is_empty() || reference.encode_utf16().count() > 2048 {
+        return Err("Enter a trade reference of at most 2048 characters".into());
+    }
     if trade <= 0 || version == i64::MAX {
         return Err("Invalid reserved trade identity or order version".into());
     }
@@ -241,18 +246,7 @@ pub fn add(
             ),
             ("TradeState".into(), "NewTrade".into()),
             ("TradeAction".into(), action.into()),
-            (
-                "Reference".into(),
-                format!(
-                    "{} @ {}{}",
-                    contract_id.trim(),
-                    effective.format("%Y%m%d"),
-                    maturity
-                        .map(|date| format!(" - {}", date.format("%Y%m%d")))
-                        .unwrap_or_default()
-                )
-                .into(),
-            ),
+            ("Reference".into(), reference.into()),
             ("PrimaryTrade".into(), primary_trade.into()),
             ("BaseContractSymbol".into(), symbol.into()),
             ("BaseContractId".into(), contract_id.into()),

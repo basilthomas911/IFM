@@ -22,19 +22,28 @@ internal static class FundExecutionLifecycle
         SendAsync(actors, order, trade.ExecutionAttemptId, trade.EstablishedAtUtc, RecordFundTradeOpeningCommand.Verb,
             trade.TradeDate, trade.MaturityDate);
 
+    /// <summary>Publishes working fills without treating a pending remainder as a completed trade.</summary>
+    public static Task ProgressAsync(IActorService actors, OrderExecutionDefinition execution, Guid sourceEvent, DateTime atUtc) =>
+        SendAsync(actors, execution.Order, execution.ExecutionAttemptId, atUtc, RecordFundTradeSubmissionCommand.Verb,
+            executionStatus: execution.Status, progressIdentity: sourceEvent.ToString("N"));
+
     /// <summary>Finalizes the setup after accounting and actual position closure succeed.</summary>
-    public static Task ClosedAsync(IActorService actors, TradeOrderDefinition order, PositionCloseExecution close) =>
+    public static Task ClosedAsync(IActorService actors, TradeOrderDefinition order, PositionCloseExecution close,
+        OrderExecutionStatus? executionStatus = null) =>
         SendAsync(actors, order, close.ExecutionAttemptId, close.CompletedAtUtc, RecordFundTradeClosingCommand.Verb,
             fullyClosed: order.Components.SelectMany(x => x.Legs).All(leg =>
-                close.Fills.Where(fill => fill.TradeLegId == leg.TradeLegId).Sum(fill => fill.SignedQuantity) == leg.SignedQuantity));
+                close.Fills.Where(fill => fill.TradeLegId == leg.TradeLegId).Sum(fill => fill.SignedQuantity) == leg.SignedQuantity),
+            executionStatus: executionStatus);
 
     /// <summary>Releases an unfilled cancelled/rejected execution without changing an established position.</summary>
     public static Task ReleasedAsync(IActorService actors, OrderExecutionDefinition execution) =>
         SendAsync(actors, execution.Order, execution.ExecutionAttemptId, execution.CompletedAtUtc ?? execution.StartedAtUtc,
-            ReleaseFundTradeSubmissionCommand.Verb);
+            ReleaseFundTradeSubmissionCommand.Verb, rejectionDetail: execution.Status == OrderExecutionStatus.Rejected
+                ? execution.RejectionDetail ?? "Broker rejected the order." : null);
 
     static async Task SendAsync(IActorService actors, TradeOrderDefinition order, Guid attempt, DateTime atUtc,
-        string verb, DateOnly? tradeDate = null, DateOnly? maturityDate = null, bool fullyClosed = false)
+        string verb, DateOnly? tradeDate = null, DateOnly? maturityDate = null, bool fullyClosed = false,
+        string? rejectionDetail = null, OrderExecutionStatus? executionStatus = null, string? progressIdentity = null)
     {
         if (order.SetupTrade is not { } setup) return; // Existing fully automated and legacy orders remain supported.
         if (order.Components.Length != 1)
@@ -46,9 +55,11 @@ internal static class FundExecutionLifecycle
             ExecutionOrderId = order.Id.OrderId, ExecutionTradeId = order.Components[0].ReservedTradeId,
             ExecutionAttemptId = attempt, OccurredAtUtc = atUtc, TradeDate = tradeDate, MaturityDate = maturityDate,
             ClosingExecution = order.PositionType == TradeOrderPositionType.Closing,
-            OpeningExecutionTradeId = order.TargetPositionId?.Trade.TradeId, FullyClosed = fullyClosed
+            OpeningExecutionTradeId = order.TargetPositionId?.Trade.TradeId, FullyClosed = fullyClosed,
+            RejectionDetail = rejectionDetail, ExecutionStatus = executionStatus?.ToString()
         };
-        var commandId = TradeHandoffIdentity.Create(verb, order.Id.Format(), attempt.ToString("N"));
+        var commandId = TradeHandoffIdentity.Create(verb, order.Id.Format(),
+            progressIdentity is null ? attempt.ToString("N") : $"{attempt:N}:{progressIdentity}");
         var subject = new ActorSubject(ActorType.Command, "PortfolioFundCommand", verb, id.Format());
         var access = PortfolioAccessContext.Workflow("TradeExecution");
         ServiceResult<Guid> result;

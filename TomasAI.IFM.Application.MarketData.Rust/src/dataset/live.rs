@@ -46,6 +46,9 @@ pub struct Registration {
 pub enum Evidence {
     /// Explicit API-session-aware quiet/closed control evidence only.
     ControlOnly,
+    /// Options setup accepts subscription acknowledgements while opportunistic
+    /// monitored MBP-1 replay continues. Trade/statistics replay stays required.
+    ControlOnlyWithOptionalQuoteReplay,
     /// Every required registration must have a positive trade or usable quote.
     Observations,
 }
@@ -1140,7 +1143,10 @@ impl LiveData {
                     .signal(1 << (lane as u32))
                     .map_err(|_| "Native delivery signal interrupted")?;
             }
-            if matches!(evidence, Evidence::ControlOnly) {
+            if matches!(
+                evidence,
+                Evidence::ControlOnly | Evidence::ControlOnlyWithOptionalQuoteReplay
+            ) {
                 // The physical book/identity exists after a valid provider
                 // record. Individual trade/quote fields remain None until real
                 // observations arrive; this never manufactures market data.
@@ -1174,7 +1180,15 @@ impl LiveData {
             Ok(true)
         };
         let mut status = if let Some(parent) = parent {
-            lanes.start_nested(plan, key, gateway, processor, deadline, parent)
+            lanes.start_nested_with_quote_replay(
+                plan,
+                key,
+                gateway,
+                processor,
+                deadline,
+                parent,
+                evidence == Evidence::ControlOnlyWithOptionalQuoteReplay,
+            )
         } else {
             lanes.start_tracked(plan, key, gateway, processor, deadline, &self.owner)
         }

@@ -37,6 +37,10 @@ public sealed record FundOrderTradeProjectionReadModel
     [Key(23)] public DateOnly? MaturityDate { get; init; }
     /// <summary>The backend attempt bound to this setup; fences delayed execution outcomes.</summary>
     [Key(24)] public Guid ExecutionAttemptId { get; init; }
+    /// <summary>The latest broker outcome detail for the setup trade.</summary>
+    [Key(25)] public string TradeStatus { get; init; } = string.Empty;
+    /// <summary>The operator-entered trade reference, separate from the generated instruction reference.</summary>
+    [Key(26)] public string TradeReference { get; init; } = string.Empty;
     /// <summary>The intended effective date; the existing wire slot is retained for historical compatibility.</summary>
     [IgnoreMember] public DateOnly EffectiveDate { get => RequestedTradeDate; init => RequestedTradeDate = value; }
 }

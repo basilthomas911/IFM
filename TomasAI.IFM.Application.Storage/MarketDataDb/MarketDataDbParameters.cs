@@ -699,6 +699,14 @@ internal readonly record struct GetFuturesOptionChainQuoteData(
 }
 
 
+/// <summary>Bounds a historical emulator snapshot by both session date and observation time.</summary>
+internal readonly record struct GetLatestFuturesOptionChainQuoteData(
+    string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, long tickId) : IBindValue
+{
+    public object Bind() => new object?[] { Text(underlyingContractId), Date(expiryDate), Date(valueDate), tickId };
+}
+
+
 
 
 

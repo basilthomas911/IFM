@@ -24,6 +24,32 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.PortfolioDb;
 public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixture)
 {
     [Fact]
+    public async Task Fund_trade_status_column_tracks_the_persisted_projection()
+    {
+        var settings = new DbConnectionSettings().Add(PortfolioDbContext.PortfolioDbConnection, fixture.Connection, "System.Data.Postgres");
+        await new PortfolioSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
+        var context = new PortfolioDbContext(settings, NullLogger<DbProvider>.Instance);
+        var id = Random.Shared.Next(100000000, 900000000);
+        var now = DateTime.UtcNow;
+        var setup = new FundOrderTradeProjectionReadModel
+        {
+            PortfolioId = id, FundId = id, OrderId = id, TradeId = id, CreatedOnUtc = now,
+            TradeState = "Rejected", TradeStatus = "EM.EXPIRED: Approved order is expired or time is not UTC.",
+            TradeReference = "Buy saved trade — operator note",
+            InstructionReference = "ESZ26 @ 20261107 - 20261120"
+        };
+        await context.UpsertTradeAsync(PortfolioProjection<FundOrderTradeProjectionReadModel>.Create(setup, 1, 1, now));
+        var statuses = await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.QueryAsync(
+            "SELECT trade_status FROM portfolio.fund_order_trade WHERE trade_id=$1;", [id], row => row.GetString(0), ct));
+        statuses.Should().Equal(setup.TradeStatus);
+        var references = await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.QueryAsync(
+            "SELECT trade_reference,instruction_reference FROM portfolio.fund_order_trade WHERE trade_id=$1;",
+            [id], row => (row.GetString(0), row.GetString(1)), ct));
+        references.Should().ContainSingle().Which.Should().Be((setup.TradeReference, setup.InstructionReference));
+        (await context.GetTradeAsync(id)).Should().BeEquivalentTo(setup);
+    }
+
+    [Fact]
     public async Task New_fund_version_disables_older_projections_and_replay_cannot_reactivate_them()
     {
         var settings=new DbConnectionSettings().Add(PortfolioDbContext.PortfolioDbConnection,fixture.Connection,"System.Data.Postgres");

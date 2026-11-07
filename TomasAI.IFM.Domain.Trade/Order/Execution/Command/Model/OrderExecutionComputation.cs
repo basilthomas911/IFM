@@ -105,6 +105,10 @@ internal static class OrderExecutionComputation
 
     /// <summary>Computes Accept business data without modifying the input definition.</summary>
     internal static OrderExecutionCompute Accept(OrderExecutionDefinition? orderExecutionDefinition, DateTime completedAtUtc)
+        => Establish(orderExecutionDefinition, completedAtUtc, brokerCancellation: false);
+
+    private static OrderExecutionCompute Establish(OrderExecutionDefinition? orderExecutionDefinition,
+        DateTime completedAtUtc, bool brokerCancellation)
     {
         var executionFills = orderExecutionDefinition?.Fills.ToList() ?? [];
         if (orderExecutionDefinition is null)
@@ -117,13 +121,18 @@ internal static class OrderExecutionComputation
         foreach (var component in orderExecutionDefinition.Components)
         {
             var componentFills = executionFills.Where(value => value.ComponentId == component.ComponentId).ToArray();
-            if (!TryResolveAcceptedScale(component, componentFills, out _))
+            if (!TryResolveAcceptedScale(component, componentFills, out var scale) ||
+                scale < 1 && !brokerCancellation && !component.PermitBalancedPartialAcceptance)
                 return OrderExecutionCompute.Reject("OrderExecution.UNBALANCED_EXPOSURE", $"Component {component.ComponentId} is not completely filled or an allowed balanced partial fill.");
             if (orderExecutionDefinition.PositionType == TradeOrderPositionType.Closing)
                 continue;
             var assetFamily = component.StrategyKind == TradeStrategyKind.FuturesOutright ? TradeAssetFamily.Futures : TradeAssetFamily.FuturesOption;
             var id = new TradeEntityId(orderExecutionDefinition.TradeOrderId.PortfolioId, orderExecutionDefinition.TradeOrderId.FundId, orderExecutionDefinition.TradeOrderId.OrderId, component.ReservedTradeId);
-            var established = new EstablishedTradeDefinition { Id = id, AssetFamily = assetFamily, StrategyKind = component.StrategyKind, SourceComponentId = component.ComponentId, ExecutionAttemptId = orderExecutionDefinition.ExecutionAttemptId, Status = EstablishedTradeStatus.Open, Legs = component.Legs, OriginalFills = componentFills, OpeningValue = componentFills.Sum(static value => value.Price * value.SignedQuantity), OpeningCommission = componentFills.Sum(static value => value.Commission), EstablishedAtUtc = completedAtUtc, EvidenceRevision = 1 };
+            var legs = scale == 1 ? component.Legs : component.Legs.Select(leg => leg with
+            {
+                SignedQuantity = componentFills.Where(fill => fill.TradeLegId == leg.TradeLegId).Sum(static fill => fill.SignedQuantity)
+            }).ToArray();
+            var established = new EstablishedTradeDefinition { Id = id, AssetFamily = assetFamily, StrategyKind = component.StrategyKind, SourceComponentId = component.ComponentId, ExecutionAttemptId = orderExecutionDefinition.ExecutionAttemptId, Status = EstablishedTradeStatus.Open, Legs = legs, OriginalFills = componentFills, OpeningValue = componentFills.Sum(static value => value.Price * value.SignedQuantity), OpeningCommission = componentFills.Sum(static value => value.Commission), EstablishedAtUtc = completedAtUtc, EvidenceRevision = 1 };
             if (orderExecutionDefinition.Order.PortfolioApprovalId != Guid.Empty && established.StrategyKind == TradeStrategyKind.IronCondor)
                 established = established with { MonitoringLimits = TomasAI.IFM.Domain.Trade.Model.ApprovedTradeMonitoringLimits.Create(orderExecutionDefinition.Order, established) };
             trades.Add(established);
@@ -177,7 +186,7 @@ internal static class OrderExecutionComputation
         }
 
         scale = common ?? 0;
-        return scale == 1 || component.PermitBalancedPartialAcceptance;
+        return common.HasValue;
     }
 
     /// <summary>Counts fully evidenced strategy units across components.</summary>
@@ -196,13 +205,17 @@ internal static class OrderExecutionComputation
     /// <summary>Computes cancellation, establishing only balanced already-filled exposure.</summary>
     internal static OrderExecutionCompute Cancel(OrderExecutionDefinition? execution, DateTime completedAtUtc)
     {
+        if (execution is { Status: OrderExecutionStatus.Cancelled } && execution.CompletedAtUtc == completedAtUtc)
+            return OrderExecutionCompute.Accept(execution);
+
         var cancellation = execution switch
         {
             null => OrderExecutionCompute.Reject("OrderExecution.NOT_FOUND", "Execution does not exist."),
             _ when completedAtUtc.Kind != DateTimeKind.Utc => OrderExecutionCompute.Reject("OrderExecution.INVALID_TIME", "Completion time must be UTC."),
             _ when execution.Status is not (OrderExecutionStatus.Pending or OrderExecutionStatus.Submitted or OrderExecutionStatus.PartiallyFilled) => OrderExecutionCompute.Reject("OrderExecution.INVALID_TRANSITION", $"Cannot cancel an execution in {execution.Status} state."),
             _ when execution.Fills.Length == 0 => OrderExecutionCompute.Accept(execution with { Status = OrderExecutionStatus.Cancelled, CompletedAtUtc = completedAtUtc }),
-            _ => Accept(execution, completedAtUtc)};
+            // A final broker cancellation settles executed exposure even when normal partial acceptance is disabled.
+            _ => Establish(execution, completedAtUtc, brokerCancellation: execution.Channel == ExecutionChannel.Broker)};
         return cancellation.Accepted ? cancellation with
         {
             OrderExecutionDefinition = cancellation.OrderExecutionDefinition!with

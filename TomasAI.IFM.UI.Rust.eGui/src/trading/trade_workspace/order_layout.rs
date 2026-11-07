@@ -19,13 +19,26 @@ pub(super) struct DraftLayout {
 
 
 /// Fit the draft dialog to its fields and action row without reserving a second block below them.
-pub(super) fn draft_layout(ctx: &egui::Context, order: bool) -> DraftLayout {
+pub(super) fn draft_layout(ctx: &egui::Context, order: bool, trade_reference: Option<&str>) -> DraftLayout {
     let p = ctx.pixels_per_point();
     let font = egui::TextStyle::Body.resolve(&ctx.style());
     let line = ctx.fonts(|fonts| fonts.row_height(&font)) * p;
     let row_height = (if order { 34_f32 } else { 30_f32 }).max(line + 4.);
     let reference_height = 140_f32.max(4. * line + 8.);
     let button_height = 30_f32.max(line + 8.);
+    let width = if order {
+        721.
+    } else {
+        let caption = ctx.fonts(|fonts| fonts.layout_no_wrap(
+            "Trade Reference:".into(), font.clone(), Color32::WHITE,
+        ).size().x) * p;
+        let input_font = egui::FontSelection::Default.resolve(&ctx.style());
+        let text = ctx.fonts(|fonts| fonts.layout_no_wrap(
+            trade_reference.unwrap_or_default().into(), input_font, Color32::WHITE,
+        ).size().x) * p;
+        (caption.max(137.) + 20. + text + 48.).max(900.)
+            .min((ctx.screen_rect().width() * p - 64.).max(320.))
+    };
     let buttons_top = if order {
         12. + 3. * row_height + reference_height + 16.
     } else {
@@ -37,7 +50,7 @@ pub(super) fn draft_layout(ctx: &egui::Context, order: bool) -> DraftLayout {
         buttons_top,
         button_height,
         size: egui::vec2(
-            if order { 721. } else { 621. },
+            width,
             buttons_top + button_height + 12.,
         ),
     }
@@ -137,7 +150,7 @@ impl TradeWorkspace {
                 .is_some_and(|id| {
                     s.result.rows.iter().any(|r| {
                         r.id == format!("trade:{id}")
-                            && text(&display.row(&r.id), "tradeState") != "NewTrade"
+                            && !matches!(text(&display.row(&r.id), "tradeState").as_str(), "NewTrade" | "Rejected")
                     })
                 }),
             "canAddTrade" => s
@@ -153,11 +166,22 @@ impl TradeWorkspace {
                                 || text(&display.row(&r.id), "source") == self.source_filter)
                     })
                 }),
-            "canRemoveTrade" => s
-                .result
-                .rows
-                .iter()
-                .any(|r| r.fields.get("kind").is_some_and(|k| k == "trade")),
+            "canRemoveTrade" => {
+                let mut trades = s.result.rows.iter().filter(|r| {
+                    r.fields.get("kind").is_some_and(|kind| kind == "trade")
+                });
+                let Some(id) = s.result.context.get("tradeId") else { return false };
+                let selected = format!("trade:{id}");
+                let Some(trade) = trades.clone().find(|row| row.id == selected) else { return false };
+                let mut siblings = trades.by_ref().filter(|row| row.id != selected);
+                match text(&display.row(&trade.id), "tradeState").as_str() {
+                    "NewTrade" => siblings.next().is_none(),
+                    "Rejected" => siblings.next().is_none_or(|row| {
+                        text(&display.row(&row.id), "tradeState") == "Open" && siblings.next().is_none()
+                    }),
+                    _ => false,
+                }
+            }
             _ => false,
         }
     }
@@ -281,13 +305,22 @@ impl TradeWorkspace {
         let initial = s
             .result
             .context
-            .get("from")
-            .or_else(|| s.result.context.get("valueDate"))
+            .get("valueDate")
             .map(String::as_str)
             .unwrap_or("2026-10-01");
         let date = NaiveDate::parse_from_str(initial, "%Y-%m-%d").unwrap();
-        let first = date.with_day(1).unwrap();
+        let first = date.with_day(1).unwrap()
+            .checked_sub_months(chrono::Months::new(1)).unwrap();
         let last = month_end(date);
+        if self.pending_action != "range" && self.deferred_action != Some("range") {
+            for key in ["from", "to"] {
+                if let Some(value) = s.result.context.get(key)
+                    && NaiveDate::parse_from_str(value, "%Y-%m-%d").is_ok()
+                {
+                    self.draft.insert(key.into(), value.clone());
+                }
+            }
+        }
         let mut from = NaiveDate::parse_from_str(
             self.draft.entry("from".into()).or_insert(first.to_string()),
             "%Y-%m-%d",
@@ -317,7 +350,6 @@ impl TradeWorkspace {
             response.changed()
         });
         if changed {
-            to = month_end(from);
             action = Some("range");
         }
         let r = form_rect(ui, rect(o, p, 624., 188., 416., 27.));
@@ -371,6 +403,9 @@ impl TradeWorkspace {
                     ("effectiveDate", "Effective Date"),
                     ("tradeState", "Trade State"),
                     ("tradeAction", "Trade Action"),
+                    ("tradeStatus", "Trade Status"),
+                    ("tradeReference", "Trade Reference"),
+                    ("instructionReference", "Instruction Reference"),
                 ],
             ),
         ] {
@@ -457,11 +492,19 @@ impl TradeWorkspace {
                     }
                     "prepare-trade" => {
                         self.dialog = "create-trade".into();
+                        self.draft.remove("tradeReference");
+                        self.draft.remove("tradeReferenceDefault");
                         action = Some(intent);
                     }
                     "load-trade" => {
                         self.open = false;
                         action = Some(intent);
+                    }
+                    "remove-trade" => {
+                        if let Some(id) = s.result.context.get("tradeId") {
+                            self.draft.insert("removeTradeId".into(), id.clone());
+                            self.dialog = intent.into();
+                        }
                     }
                     _ => {
                         self.dialog = intent.into();
@@ -991,6 +1034,20 @@ impl TradeWorkspace {
                 action = Some(intent);
             }
         }
+        let reconcile = egui::Rect::from_min_size(
+            egui::pos2(area.left() + 10. / p, y),
+            egui::vec2(100., 29.) / p,
+        );
+        if at(ui, reconcile, "Reconcile", |ui| {
+            ui.add_enabled(
+                current.is_some() && self.interaction_ready(s),
+                egui::Button::new("Reconcile").min_size(reconcile.size()),
+            )
+        })
+        .clicked()
+        {
+            action = Some("reconcile-broker-order");
+        }
         action
     }
 
@@ -1007,7 +1064,8 @@ impl TradeWorkspace {
         let o = ui.cursor().min;
         let order = kind == "create-order";
         let font = egui::TextStyle::Body.resolve(ui.style());
-        let layout = draft_layout(ui.ctx(), order);
+        let layout = draft_layout(ui.ctx(), order, self.draft.get("tradeReference")
+            .or_else(|| s.result.context.get("preparedTradeLabel")).map(String::as_str));
         let row_height = layout.row_height;
         let form_width = ui.available_width() * p;
         self.controls.insert(
@@ -1026,7 +1084,7 @@ impl TradeWorkspace {
                 "Trade State:",
                 "Trade Action:",
                 "Base Contract:",
-                "Reference:",
+                "Trade Reference:",
             ]
         };
         let value_x = labels
@@ -1070,9 +1128,10 @@ impl TradeWorkspace {
                 y,
                 if order {
                     (form_width - value_x - 12.).max(120.)
+                } else if i == 8 {
+                    (form_width - value_x - 12.).max(100.)
                 } else {
-                    (if i == 8 { 462_f32 } else { 311_f32 })
-                        .min((form_width - value_x - 12.).max(100.))
+                    311_f32.min((form_width - value_x - 12.).max(100.))
                 },
                 26.,
             );
@@ -1145,14 +1204,27 @@ impl TradeWorkspace {
                     }
                 } else {
                     match i {
-                        0 => {
-                            ui.trading_label(
-                                s.result
-                                    .context
-                                    .get("preparedTradeId")
-                                    .cloned()
-                                    .unwrap_or_default(),
+                        0 | 5 | 6 => {
+                            let value = match i {
+                                0 => s.result.context.get("preparedTradeId").cloned().unwrap_or_default(),
+                                5 => "NewTrade".into(),
+                                _ => {
+                                    let credit = self.draft.get("tradeType").is_none_or(|kind| matches!(
+                                        kind.as_str(), "ShortIronCondor" | "PutCreditSpread" | "CallCreditSpread"
+                                    ));
+                                    if credit { "Sell" } else { "Buy" }.into()
+                                }
+                            };
+                            let size = ui.painter().layout_no_wrap(value.clone(), font.clone(), Color32::WHITE).size();
+                            let bounds = egui::Rect::from_min_size(
+                                egui::pos2(r.left() + 4. / p, r.center().y - size.y * 0.5),
+                                egui::vec2(size.x.min((r.width() - 8. / p).max(0.)), size.y),
                             );
+                            let mut text = egui::RichText::new(value).font(font.clone());
+                            if i == 5 {
+                                text = text.color(crate::presentation::CAPTION_FOREGROUND);
+                            }
+                            ui.place(bounds, crate::presentation::label_widget(text).truncate());
                         }
                         1 => {
                             let selected_type = self
@@ -1242,28 +1314,31 @@ impl TradeWorkspace {
                                 *selected = date.to_string();
                             }
                         }
-                        5 => {
-                            ui.trading_caption("NewTrade");
-                        }
-                        6 => {
-                            let credit = self.draft.get("tradeType").is_none_or(|t| {
-                                matches!(
-                                    t.as_str(),
-                                    "ShortIronCondor" | "PutCreditSpread" | "CallCreditSpread"
-                                )
-                            });
-                            ui.trading_label(if credit { "Sell" } else { "Buy" });
-                        }
                         8 => {
-                            ui.trading_label(format!(
-                                "{}@{}",
-                                self.draft.get("baseContract").cloned().unwrap_or_default(),
-                                self.draft
-                                    .get("effectiveDate")
-                                    .cloned()
-                                    .unwrap_or_default()
-                                    .replace("-", "")
+                            let trade_type = self.draft.get("tradeType").map(String::as_str).unwrap_or("ShortIronCondor");
+                            let action = if matches!(trade_type, "ShortIronCondor" | "PutCreditSpread" | "CallCreditSpread") {
+                                "Sell"
+                            } else {
+                                "Buy"
+                            };
+                            let label = s.result.context.get("preparedTradeLabel").filter(|label| !label.is_empty())
+                                .cloned().unwrap_or_else(|| format!("{}:{} {trade_type}",
+                                    s.result.context.get("orderId").map(String::as_str).unwrap_or_default(),
+                                    s.result.context.get("preparedTradeId").map(String::as_str).unwrap_or_default()));
+                            let default = format!("{action} {label}");
+                            let unedited = self.draft.get("tradeReference").is_none()
+                                || self.draft.get("tradeReference") == self.draft.get("tradeReferenceDefault");
+                            if unedited {
+                                self.draft.insert("tradeReference".into(), default.clone());
+                            }
+                            self.draft.insert("tradeReferenceDefault".into(), default);
+                            let response = ui.add_sized(r.size(), egui::TextEdit::singleline(
+                                self.draft.entry("tradeReference".into()).or_default(),
                             ));
+                            response.widget_info(|| egui::WidgetInfo::labeled(
+                                egui::WidgetType::TextEdit, true, "Trade Reference",
+                            ));
+                            self.controls.insert("draft-trade-reference".into(), response.rect);
                         }
                         _ => {}
                     }

@@ -307,6 +307,12 @@ public static class PortfolioSchemaSql
             CREATE TABLE IF NOT EXISTS portfolio.fund_order(portfolio_id int NOT NULL,fund_id int NOT NULL,order_month date NOT NULL,created_on_utc timestamptz NOT NULL,order_id int PRIMARY KEY,status text NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL);
             CREATE INDEX IF NOT EXISTS fund_order_timeline ON portfolio.fund_order(portfolio_id,fund_id,order_month,created_on_utc DESC,order_id DESC);
             CREATE TABLE IF NOT EXISTS portfolio.fund_order_trade(order_id int NOT NULL,trade_id int PRIMARY KEY,portfolio_id int NOT NULL,fund_id int NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL);
+            ALTER TABLE portfolio.fund_order_trade ADD COLUMN IF NOT EXISTS trade_status text
+                GENERATED ALWAYS AS (COALESCE(payload_json->>'TradeStatus', '')) STORED;
+            ALTER TABLE portfolio.fund_order_trade ADD COLUMN IF NOT EXISTS trade_reference text
+                GENERATED ALWAYS AS (COALESCE(payload_json->>'TradeReference', '')) STORED;
+            ALTER TABLE portfolio.fund_order_trade ADD COLUMN IF NOT EXISTS instruction_reference text
+                GENERATED ALWAYS AS (COALESCE(payload_json->>'InstructionReference', '')) STORED;
             CREATE INDEX IF NOT EXISTS fund_order_trade_by_order ON portfolio.fund_order_trade(order_id,trade_id);
             CREATE TABLE IF NOT EXISTS portfolio.fund_composition(workflow_id uuid NOT NULL,order_id int NOT NULL,portfolio_id int NOT NULL,fund_id int NOT NULL,status text NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL,PRIMARY KEY(workflow_id,order_id));
             CREATE TABLE IF NOT EXISTS portfolio.portfolio_policy(policy_id int NOT NULL,policy_version bigint NOT NULL,portfolio_id int NOT NULL,operating_state text NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL,PRIMARY KEY(policy_id,policy_version));
@@ -319,9 +325,11 @@ public static class PortfolioSchemaSql
             CREATE TABLE IF NOT EXISTS portfolio.accepted_trade_order_capacity(order_id int NOT NULL REFERENCES portfolio.accepted_trade_order(order_id) ON DELETE RESTRICT,portfolio_id int NOT NULL,fund_id int NOT NULL,scope_kind int NOT NULL,scope_key text NOT NULL,measure int NOT NULL,unit int NOT NULL,amount numeric(38,10) NOT NULL,method_version int NOT NULL,financial_revision bigint NOT NULL,PRIMARY KEY(order_id,scope_kind,scope_key,measure,unit));
             CREATE TABLE IF NOT EXISTS portfolio.accepted_position_close(
               operation_id uuid PRIMARY KEY REFERENCES portfolio.order_composition_decision(operation_id) ON DELETE RESTRICT,
-              target_position_id text NOT NULL UNIQUE,target_order_id int NOT NULL,target_trade_id int NOT NULL,
+              target_position_id text NOT NULL,target_order_id int NOT NULL,target_trade_id int NOT NULL,
               close_order_id int NOT NULL UNIQUE REFERENCES portfolio.accepted_trade_order(order_id) ON DELETE RESTRICT,
               accepted_at_utc timestamptz NOT NULL);
+            ALTER TABLE portfolio.accepted_position_close DROP CONSTRAINT IF EXISTS accepted_position_close_target_position_id_key;
+            CREATE INDEX IF NOT EXISTS accepted_position_close_by_target ON portfolio.accepted_position_close(target_position_id);
             """ + FinancialHistory;
 
     /// <summary>Drops the Portfolio projection schema.</summary>

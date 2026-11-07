@@ -13,6 +13,24 @@ fn failed(code: &str, input: &str) -> Failure {
         input: input.into(),
     }
 }
+
+fn option_capture_ready(phase: Phase, resources_ready: bool, browser: bool) -> bool {
+    phase == Phase::Running || browser && phase == Phase::Starting && resources_ready
+}
+
+#[cfg(test)]
+mod capture_readiness_tests {
+    use super::{Phase, option_capture_ready};
+
+    #[test]
+    fn partial_browser_can_use_ready_resources_while_composition_waits() {
+        assert!(option_capture_ready(Phase::Starting, true, true));
+        assert!(!option_capture_ready(Phase::Starting, true, false));
+        assert!(!option_capture_ready(Phase::Starting, false, true));
+        assert!(!option_capture_ready(Phase::Recovering, true, true));
+        assert!(option_capture_ready(Phase::Running, true, false));
+    }
+}
 fn risk_scope(contract: &str) -> String {
     use sha2::{Digest, Sha256};
     format!("native-risk-{:x}", Sha256::digest(contract.as_bytes()))
@@ -53,6 +71,9 @@ impl MarketData {
         }
         let health = self.health(Lane::OptionsGlbx);
         let before = health.status();
+        let browser = request.allow_missing
+            && request.selection
+            && request.scope.starts_with("native-browser-");
         let claims = self
             .option_claims()
             .ok_or_else(|| failed("LeaseEnded", "ScopeId"))?;
@@ -143,8 +164,12 @@ impl MarketData {
             result=capture::capture(request,vec![page],&self.clock,stop,deadline)=>result,
         }?;
         let after = health.status();
+        // The browser presents partial, age-qualified books while background
+        // strategy caches are still warming. It shares the same readiness rule
+        // as the browser's entry wait. Full composition still requires Running.
+        let ready = option_capture_ready(after.phase, browser && health.resources_ready(), browser);
         if before.ticket != after.ticket
-            || after.phase != Phase::Running
+            || !ready
             || self
                 .publication_identity(Lane::OptionsGlbx)
                 .is_none_or(|h| h.generation != generation)

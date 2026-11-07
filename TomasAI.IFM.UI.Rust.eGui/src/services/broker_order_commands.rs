@@ -16,6 +16,52 @@ use rmpv::Value;
 use std::collections::BTreeMap;
 const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared.Order.Broker";
 
+/// Requests a read of the retained broker order and routes any recovered evidence.
+pub async fn reconcile_order(
+    backend: &Backend,
+    registry: &Registry,
+    order: &BrokerOrderDefinition,
+    command_id: uuid::Uuid,
+    deadline: tokio::time::Instant,
+) -> Result<(), String> {
+    let request = prepare_reconcile(registry, order, command_id)?;
+    portfolio_commands::submit(backend, &request, deadline)
+        .await
+        .map(|_| ())
+        .map_err(|error| error.replace("Portfolio command", "Broker reconciliation"))
+}
+
+/// Encodes only the exact order identity for a broker evidence lookup.
+pub fn prepare_reconcile(
+    registry: &Registry,
+    order: &BrokerOrderDefinition,
+    command_id: uuid::Uuid,
+) -> Result<Prepared, String> {
+    if command_id.is_nil() {
+        return Err("Missing reconciliation request identity".into());
+    }
+    let entity = order.id.as_ref().ok_or("Missing broker order identity")?;
+    let subject = ActorSubject {
+        kind: ActorKind::Command,
+        name: "BrokerOrderCommand".into(),
+        verb: "ReconcileBrokerOrder".into(),
+        entity: broker_reads::typed_identity(entity)?,
+    };
+    let fields = BTreeMap::from([
+        ("CommandId".into(), command_id.to_string().into()),
+        ("Subject".into(), subject.wire()),
+        ("PostEvents".into(), true.into()),
+        ("EntityId".into(), parameters::from_document(
+            registry, "TomasAI.IFM.Domain.Trade.Shared.BrokerOrderId", &request_document(entity)?,
+        )?),
+    ]);
+    Ok(Prepared {
+        command_id,
+        subject,
+        body: registry.encode(&format!("{ROOT}.ReconcileBrokerOrderCommand"), &fields)?,
+    })
+}
+
 /// Operation used by the broker order commands component.
 pub struct Operation {
     /// Prepared associated with this operation.

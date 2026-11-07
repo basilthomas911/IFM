@@ -805,7 +805,22 @@ public static class PortfolioDbSql
         public const string InsertLeg = "INSERT INTO portfolio.accepted_trade_order_leg(order_id,component_id,trade_leg_id,ordinal,definition) VALUES($1,$2,$3,$4,$5);";
         public const string InsertCapacity = "INSERT INTO portfolio.accepted_trade_order_capacity(order_id,portfolio_id,fund_id,scope_kind,scope_key,measure,unit,amount,method_version,financial_revision) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10);";
         public const string SelectOpeningOrder = "SELECT definition::text FROM portfolio.accepted_trade_order WHERE order_id=$1 AND portfolio_id=$2 AND fund_id=$3 FOR SHARE;";
-        public const string SelectAcceptedClose = "SELECT operation_id FROM portfolio.accepted_position_close WHERE target_position_id=$1;";
+        public const string SelectAcceptedClose = """
+            SELECT c.close_order_id
+            FROM portfolio.accepted_position_close c
+            JOIN portfolio.order_composition_decision d USING (operation_id)
+            WHERE c.target_position_id=$1
+            ORDER BY d.financial_revision DESC
+            LIMIT 1;
+            """;
+        public const string SelectPriorCloseExecution = """
+            SELECT CASE WHEN count(*)=1 THEN (array_agg(payload))[1] END
+            FROM trade.order_execution WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3;
+            """;
+        public const string SelectCurrentClosePosition = """
+            SELECT payload FROM trade.strategy_position_current
+            WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5 AND isopen;
+            """;
         public const string InsertAcceptedClose = "INSERT INTO portfolio.accepted_position_close(operation_id,target_position_id,target_order_id,target_trade_id,close_order_id,accepted_at_utc) VALUES($1,$2,$3,$4,$5,$6);";
     }
 }

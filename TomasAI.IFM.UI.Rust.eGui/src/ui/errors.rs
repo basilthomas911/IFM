@@ -31,6 +31,12 @@ impl ErrorDialogs {
             self.seen.pop_front();
         }
         self.seen.push_back(identity);
+        // The outcome and its inline context can report the same failure in one publication.
+        // Retain the first dialog and remember both identities so refreshes cannot reopen it.
+        let reason = |text: &str| text.strip_prefix("Portfolio declined the request: ").unwrap_or(text).to_owned();
+        if self.pending.iter().any(|pending| reason(pending) == reason(&message)) {
+            return;
+        }
         self.pending.push_back(message);
     }
 
@@ -67,6 +73,39 @@ impl ErrorDialogs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A failed placement is reported once even when its outcome is also published inline.
+    #[test]
+    fn placement_outcome_and_inline_error_share_the_first_dialog() {
+        let mut dialogs = ErrorDialogs::default();
+        let message = "Portfolio declined the request: Backend error 34131: Close declined.";
+        let outcomes: Vec<EditorOutcome> = serde_json::from_value(serde_json::json!([
+            {"requestId":"placement","state":"Failed","message":message}
+        ])).unwrap();
+        let context = [("submissionError".into(), message.into())].into_iter().collect();
+        dialogs.outcomes("trade-orders", &outcomes);
+        dialogs.context("trade-orders", &context);
+        assert_eq!(dialogs.message(), Some(message));
+        dialogs.acknowledge();
+        assert_eq!(dialogs.message(), None);
+        dialogs.context("trade-orders", &context);
+        dialogs.outcomes("trade-orders", &outcomes);
+        assert_eq!(dialogs.message(), None);
+        dialogs.report("new-placement".into(), message.into());
+        assert_eq!(dialogs.message(), Some(message));
+    }
+
+    /// A controller wrapper must not queue a second dialog behind the original backend rejection.
+    #[test]
+    fn backend_rejection_is_kept_when_the_controller_adds_context() {
+        let mut dialogs = ErrorDialogs::default();
+        let original = "Backend error 34131: Close declined.";
+        dialogs.report("backend".into(), original.into());
+        dialogs.report("controller".into(), format!("Portfolio declined the request: {original}"));
+        assert_eq!(dialogs.message(), Some(original));
+        dialogs.acknowledge();
+        assert_eq!(dialogs.message(), None);
+    }
 
 
     /// Verifies that failures are retained and replayed receipts do not reopen them.

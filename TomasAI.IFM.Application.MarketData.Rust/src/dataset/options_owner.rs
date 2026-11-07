@@ -4,7 +4,7 @@
 use super::{
     live::{Diagnostics, Evidence, LiveData, Queries, Registration, Start},
     supervisor::{Factory, Readiness, Resources},
-    transport::Lane,
+    transport::{Lane, SessionPlan},
 };
 use crate::messaging::diagnostic_delivery;
 use crate::{
@@ -37,6 +37,119 @@ use std::{
 };
 use tokio::{sync::watch, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
+
+fn replay_monitored_quotes(
+    plan: &mut SessionPlan,
+    registrations: &[Registration],
+    monitored: &BTreeSet<u32>,
+    session_start_ns: i64,
+    now_ns: i64,
+) -> bool {
+    use databento::dbn::{SType, Schema};
+
+    if monitored.is_empty() || now_ns <= session_start_ns {
+        return false;
+    }
+    // One replay per schema keeps the provider's schema-level completion
+    // marker unambiguous. Existing explicit replay plans keep their policy.
+    let mut quotes = plan
+        .subscriptions
+        .iter()
+        .enumerate()
+        .filter(|(_, subscription)| subscription.schema == Schema::Mbp1);
+    let Some((index, subscription)) = quotes.next() else {
+        return false;
+    };
+    if quotes.next().is_some()
+        || subscription.replay_start_ns.is_some()
+        || subscription.symbology != SType::InstrumentId
+    {
+        return false;
+    }
+    let requested: BTreeSet<&str> = registrations
+        .iter()
+        .filter(|registration| {
+            registration.asset == Asset::Option && monitored.contains(&registration.instrument)
+        })
+        .map(|registration| registration.source.as_str())
+        .collect();
+    let (monitored_symbols, live_symbols): (Vec<_>, Vec<_>) = subscription
+        .symbols
+        .iter()
+        .cloned()
+        .partition(|symbol| requested.contains(symbol.as_str()));
+    if monitored_symbols.is_empty() || (!live_symbols.is_empty() && plan.subscriptions.len() == 64) {
+        return false;
+    }
+
+    // Replay only a small recent range. The normal pricing path still checks
+    // the provider's original event and receive times and rejects stale books.
+    let mut replay = subscription.clone();
+    replay.symbols = monitored_symbols;
+    replay.replay_start_ns = Some(session_start_ns.max(now_ns.saturating_sub(30_000_000_000)));
+    if live_symbols.is_empty() {
+        plan.subscriptions[index] = replay;
+    } else {
+        plan.subscriptions[index].symbols = live_symbols;
+        plan.subscriptions.insert(index, replay);
+    }
+    true
+}
+
+#[cfg(test)]
+mod monitored_quote_replay_tests {
+    use super::*;
+    use crate::dataset::transport::SubscriptionSpec;
+    use databento::dbn::{SType, Schema};
+
+    #[test]
+    fn only_monitored_option_quotes_get_session_bounded_replay() {
+        let symbols = vec!["1".into(), "2".into(), "3".into()];
+        let mut plan = SessionPlan {
+            lane: Lane::OptionsGlbx,
+            subscriptions: [Schema::Trades, Schema::Mbp1]
+                .into_iter()
+                .map(|schema| SubscriptionSpec {
+                    symbols: symbols.clone(),
+                    schema,
+                    symbology: SType::InstrumentId,
+                    replay_start_ns: None,
+                })
+                .collect(),
+        };
+        let registrations = [Asset::Option, Asset::Option, Asset::Futures]
+            .into_iter()
+            .enumerate()
+            .map(|(index, asset)| {
+                let instrument = index as u32 + 1;
+                Registration {
+                    instrument,
+                    publisher: 1,
+                    contract: instrument.to_string(),
+                    source: instrument.to_string(),
+                    asset,
+                    tick: None,
+                    vwap: false,
+                    required: false,
+                }
+            })
+            .collect::<Vec<_>>();
+        replay_monitored_quotes(
+            &mut plan,
+            &registrations,
+            &[1, 3].into(),
+            50_000_000_000,
+            55_000_000_000,
+        );
+        plan.validate().unwrap();
+        assert_eq!(plan.subscriptions[0].symbols, symbols);
+        assert_eq!(plan.subscriptions[0].replay_start_ns, None);
+        assert_eq!(plan.subscriptions[1].symbols, ["1"]);
+        assert_eq!(plan.subscriptions[1].replay_start_ns, Some(50_000_000_000));
+        assert_eq!(plan.subscriptions[2].symbols, ["2", "3"]);
+        assert_eq!(plan.subscriptions[2].replay_start_ns, None);
+    }
+}
 
 // Diagnose unavailable output only when the existing availability watchdog fires.
 // This copies bounded scalar evidence; it changes neither quote qualification nor
@@ -78,9 +191,9 @@ fn next_validity_wakeup(next: &mut Option<tokio::time::Instant>, at: i64, until:
 }
 // Cache construction can race the first quote/reference calculation after a
 // successful subscription rebuild. These typed financial-input results are not
-// provider/component failures. Retry only on existing source/calculation events;
-// malformed snapshots, changed generations and unknown errors still escalate.
-fn cache_waits_for_market_data(code: &str) -> bool {
+// provider/component failures. Malformed snapshots, changed generations and
+// unknown errors still escalate.
+fn cache_can_defer(code: &str) -> bool {
     matches!(
         code,
         "StaleData"
@@ -90,6 +203,8 @@ fn cache_waits_for_market_data(code: &str) -> bool {
             | "SelectionCalculationUnavailable"
             | "InvalidQuote"
             | "IncoherentQuotes"
+            | "SnapshotTimeout"
+            | "Candidate selection original deadline expired"
     )
 }
 
@@ -890,6 +1005,26 @@ impl Run {
             }
         }
         source.evidence = Evidence::ControlOnly;
+        if !intent.monitored.is_empty() {
+            // Reopening a realized recipe also takes this path. Its resolved
+            // membership no longer carries the background configuration.
+            let session_start = super::futures_bootstrap::session_start(intent.date)?;
+            let now = self
+                .clock
+                .utc_ticks()
+                .map_err(|error| format!("{error:?}"))?
+                .checked_mul(100)
+                .ok_or("Native monitored quote replay clock overflow")?;
+            if replay_monitored_quotes(
+                &mut source.plan,
+                &source.registrations,
+                &intent.monitored,
+                session_start,
+                now,
+            ) {
+                source.evidence = Evidence::ControlOnlyWithOptionalQuoteReplay;
+            }
+        }
         self.stage(
             stage,
             "Opening final option subscriptions and awaiting acknowledgements",
@@ -1057,7 +1192,7 @@ impl Run {
             })
             .collect();
         let processed:Result<(),String>=async {
-            loop {
+            'worker: loop {
                 if stop.is_cancelled(){break;}
                 let at=self.clock.utc_ticks().map_err(|_|"Native options API clock unavailable")?;
                 let transport=lifecycle.borrow_and_update().clone();let broker=publication.borrow_and_update().clone();let io=storage.borrow_and_update().clone();
@@ -1130,6 +1265,10 @@ impl Run {
                     && transport.phase==super::lanes::Phase::Running && engine.reference_window(at)?.0;
                 if cache_dirty && cache_eligible && cache_cadence.ready() {
                     cache_cadence.attempted();
+                    // Optional cache work has its own bounded sweep. It
+                    // never consumes or renews the worker's recovery timer.
+                    let cache_budget=Deadline::after(std::time::Duration::from_secs(5));
+                    let mut retry_cache=false;
                     let token=configuration.lock().map_err(|_|"Native cache configuration interrupted")?.clone();
                     let complete=source::read(&data,&engine,&intent.reviewed,self.generation,&token,at)
                         .map_err(|error|format!("Native cache source failed: {}: {}",error.code,error.input))?;
@@ -1145,6 +1284,12 @@ impl Run {
                         let mut no_candidate:Option<crate::option_chain::composition::model::Snapshot>=None;
                         let mut complete_choices=true;
                         for membership in choices {
+                        if stop.is_cancelled(){break 'worker;}
+                        if cache_budget.remaining().is_zero(){
+                            retry_cache=true;
+                            complete_choices=false;
+                            break;
+                        }
                         let items=complete.instruments.iter().filter(|i|membership.contains(&i.contract)).cloned().collect::<Vec<_>>();
                         if items.len()!=membership.len(){return Err("Native cache complete membership changed".into());}
                         // Source/evidence draining and preceding cache calculations may
@@ -1153,18 +1298,28 @@ impl Run {
                         // recovery deadline or source timestamp is extended.
                         let capture_at=self.clock.utc_ticks().map_err(|_|"Native cache API clock unavailable")?;
                         let request=capture::Request{id:rand::random::<u128>().max(1).to_le_bytes(),scope:cache.scope.clone(),generation:self.generation,
-                            horizon:cache.horizon.clone(),at:capture_at,until:budget.utc_until(capture_at).ok_or("Native cache validity overflow")?,maximum:2048,
+                            horizon:cache.horizon.clone(),at:capture_at,until:capture_at.checked_add(50_000_000).ok_or("Native cache validity overflow")?,maximum:2048,
                             age:5000,skew:2000,options:true,selection:false,allow_missing:cache.ranking.is_some(),risk:Default::default()};
                         let page=capture::Page{generation:self.generation,token:token.clone(),total:items.len(),instruments:items,continuation:None};
-                        let snapshot=match capture::capture(request,vec![page],&self.clock,stop,budget).await {
+                        let snapshot=match capture::capture(request,vec![page],&self.clock,stop,cache_budget).await {
                             Ok(snapshot)=>snapshot,
-                            Err(error) if cache_waits_for_market_data(&error.code)
-                                || error.code=="SnapshotTimeout" && !stop.is_cancelled()=>{complete_choices=false;continue;},
+                            Err(_) if stop.is_cancelled()=>break 'worker,
+                            Err(error) if cache_can_defer(&error.code)=>{
+                                retry_cache|=error.code=="SnapshotTimeout";
+                                complete_choices=false;
+                                continue;
+                            },
                             Err(error)=>return Err(format!("Native cache capture failed: {}: {}; horizon={}; scope_chars={}; capture_age_ms={}",error.code,error.input,cache.horizon,cache.scope.encode_utf16().count(),self.clock.utc_ticks().unwrap_or(capture_at).saturating_sub(capture_at)/10_000)),
                         };
                         let snapshot=if let Some(ranking)=&cache.ranking {
-                            match crate::option_chain::strategy::prepare(&snapshot,ranking.clone(),capture_at,stop,budget){
+                            match crate::option_chain::strategy::prepare(&snapshot,ranking.clone(),capture_at,stop,cache_budget){
                                 Ok(snapshot)=>snapshot,
+                                Err(_) if stop.is_cancelled()=>break 'worker,
+                                Err("Candidate selection original deadline expired")=>{
+                                    retry_cache=true;
+                                    complete_choices=false;
+                                    continue;
+                                },
                                 Err("CandidateCoverageUnavailable")=>{
                                     match qualified_empty_scope(&snapshot,ranking,capture_at)? {
                                         Some(mut empty)=>{
@@ -1197,7 +1352,8 @@ impl Run {
                     let complete=next.len()==intent.caches.len();
                     cache_port.submit(next.clone())?;
                     *cache_directory.lock().map_err(|_|"Native cache directory interrupted")?=next;
-                    cache_dirty=false;cache_evaluated=complete;
+                    if retry_cache {cache_cadence.attempted();}
+                    cache_dirty=retry_cache;cache_evaluated=complete;
                 }
                 let mut proofs=Vec::new();
                 if transport.phase==super::lanes::Phase::Running{proofs.push(Proof::Transport);}
@@ -1537,10 +1693,9 @@ mod failure_budget_tests {
             "InvalidQuote",
             "IncoherentQuotes",
         ] {
-            assert!(cache_waits_for_market_data(code), "{code}");
+            assert!(cache_can_defer(code), "{code}");
         }
         for code in [
-            "SnapshotTimeout",
             "InvalidSnapshotRequest",
             "IncompleteChain",
             "ConflictingDefinition",
@@ -1548,8 +1703,13 @@ mod failure_budget_tests {
             "GreeksCalculationFailed",
             "UnknownFailure",
         ] {
-            assert!(!cache_waits_for_market_data(code), "{code}");
+            assert!(!cache_can_defer(code), "{code}");
         }
+    }
+    #[test]
+    fn monthly_capture_and_candidate_timeouts_defer_to_the_next_sweep() {
+        assert!(cache_can_defer("SnapshotTimeout"));
+        assert!(cache_can_defer("Candidate selection original deadline expired"));
     }
     #[tokio::test(start_paused = true)]
     async fn unrelated_expired_output_does_not_expire_a_new_policy_fault() {

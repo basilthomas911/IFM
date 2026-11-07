@@ -37,6 +37,8 @@ pub struct TradeController {
     order_draft: Option<crate::models::broker_presentation::OrderDraftDisplay>,
     /// Optional prepared trade; `None` represents an absent value.
     prepared_trade: Option<i32>,
+    /// Established opening tab caption used as the closing trade reference default.
+    prepared_trade_label: Option<String>,
     /// Optional pending manual; `None` represents an absent value.
     pending_manual: Option<crate::services::manual_orders::Operation>,
     /// Optional manual request; `None` represents an absent value.
@@ -236,28 +238,17 @@ impl TradeController {
                 if !["Open", "Closed"].contains(&trade["TradeState"].as_str().unwrap_or_default()) {
                     return Err("Only an established Open or Closed trade can be loaded".into());
                 }
-                let number = |name: &str| {
-                    trade[name]
-                        .as_i64()
-                        .and_then(|n| i32::try_from(n).ok())
-                        .filter(|n| *n > 0)
-                        .ok_or("The setup has no established execution identity")
-                };
-                let scope = crate::services::trade_monitor_queries::Scope {
-                    portfolio: self
-                        .data
-                        .portfolio
-                        .and_then(|n| i32::try_from(n).ok())
-                        .ok_or("Missing Portfolio")?,
-                    fund: self
-                        .data
-                        .fund
-                        .and_then(|n| i32::try_from(n).ok())
-                        .ok_or("Missing Fund")?,
-                    order: number("ExecutionOrderId")?,
-                    trade: number("ExecutionTradeId")?,
-                };
-                let trade_type = text(&trade["TradeType"]);
+                // A closing setup owns its execution, but its monitor belongs to
+                // the original established trade and position.
+                let selected_trade = selected_typed::<crate::models::trade_contracts::FundOrderTradeProjectionReadModel>(
+                    &self.data.trades, "TradeId", self.data.trade,
+                )?.ok_or("Select an established trade")?;
+                let rows = self.data.trades.iter()
+                    .map(<crate::models::trade_contracts::FundOrderTradeProjectionReadModel as crate::models::wire_types::FromBackend>::from_backend)
+                    .collect::<Result<Vec<_>, _>>()?;
+                let monitored = crate::services::order_close::monitor_trade(&selected_trade, &rows)?;
+                let scope = crate::services::order_close::primary_scope(&monitored)?;
+                let trade_type = monitored.trade_type.clone().unwrap_or_default();
                 let strategy = if trade_type.ends_with("IronCondor") {
                     "IronCondor"
                 } else if trade_type == "FuturesOutright" {
@@ -292,7 +283,7 @@ impl TradeController {
                             scope,
                             strategy: strategy.into(),
                             trade_type,
-                            trade_action: text(&trade["TradeAction"]),
+                            trade_action: monitored.trade_action.clone().unwrap_or_default(),
                             fund_name: text(&fund["Name"]),
                         },
                         context,
@@ -342,6 +333,7 @@ impl TradeController {
                 | "refresh-execution"
                 | "update-limit"
                 | "cancel-unfilled"
+                | "reconcile-broker-order"
         ) {
             let result = self
                 .composer_action(backend, registry, intent, deadline)
@@ -551,6 +543,9 @@ impl TradeController {
                     maturity_date: trade.maturity_date.clone(),
                     trade_state: trade.trade_state.clone(),
                     trade_action: trade.trade_action.clone(),
+                    trade_status: trade.trade_status.clone(),
+                    trade_reference: trade.trade_reference.clone(),
+                    instruction_reference: trade.instruction_reference.clone(),
                     base_contract_id: trade.base_contract_id.clone(),
                 },
             )?);
@@ -580,7 +575,8 @@ impl TradeController {
                     .map(|v| v.to_string())
                     .unwrap_or("-1".into()))
             };
-        let mutable = order.as_ref().and_then(|o| o.status.as_deref()) == Some("Draft");
+        let mutable = matches!(order.as_ref().and_then(|o| o.status.as_deref()),
+            Some("Draft" | "Opened" | "Rejected" | "Cancelled"));
         let development =
             std::env::var("DOTNET_ENVIRONMENT").unwrap_or("Development".into()) == "Development";
         let can_enter = data.context.as_ref().is_some_and(|context| {
@@ -649,6 +645,7 @@ impl TradeController {
                     .map(|v| closing(v.trade_type.as_deref().unwrap_or_default()).to_string())
                     .unwrap_or_default(),
             ),
+            ("preparedTradeLabel", self.prepared_trade_label.clone().unwrap_or_default()),
             (
                 "closingContract",
                 primary
@@ -662,8 +659,11 @@ impl TradeController {
             ("status", self.message.clone()),
             ("canCreateOrder", "True".into()),
             ("canRemoveOrder", (!data.orders.is_empty()).to_string()),
-            ("canAddTrade", (order.is_some()).to_string()),
-            ("canRemoveTrade", (!data.trades.is_empty()).to_string()),
+            ("canAddTrade", (mutable && order.is_some()).to_string()),
+            ("canRemoveTrade", (mutable && trade.as_ref().is_some_and(|trade|
+                matches!(trade.trade_state.as_deref(), Some("NewTrade" | "Rejected" | "OrderCancelled"))
+                    && trade.execution_order_id.unwrap_or_default() == 0
+                    && trade.execution_trade_id.unwrap_or_default() == 0)).to_string()),
             (
                 "canLoadTrade",
                 (trade.is_some() && trade.cell("TradeState").text() != "NewTrade").to_string(),
@@ -720,11 +720,12 @@ impl TradeController {
             if let Some(operation) = self
                 .submission_operations
                 .values()
-                .find(|operation| self.matches_submission(registry, operation))
+                .filter(|operation| self.matches_submission(registry, operation))
+                .min_by_key(|operation| operation.rejection.is_some())
             {
                 result.context.insert(
                     "submissionUnconfirmed".into(),
-                    if operation.confirmed { "False" } else { "True" }.into(),
+                    if operation.needs_recovery() { "True" } else { "False" }.into(),
                 );
                 result.context.insert(
                     "submitted".into(),
@@ -811,8 +812,19 @@ impl TradeController {
                 .broker_mutation(backend, registry, &context, intent, deadline)
                 .await;
         }
+        if intent["intent"] == "reconcile-broker-order" {
+            let composer = self.composer.as_mut().ok_or("Open Trade Blotter first")?;
+            let (order, _) = composer.broker_order(field(intent, "brokerOrderId"))?;
+            let id = uuid::Uuid::parse_str(intent["requestId"].as_str().unwrap_or_default())
+                .map_err(|_| "Invalid reconciliation request identity")?;
+            crate::services::broker_order_commands::reconcile_order(backend, registry, &order, id, deadline).await?;
+            composer.refresh_evidence(backend, registry, deadline).await?;
+            return Ok("Broker evidence retrieved and queued for reconciliation".into());
+        }
         self.load_submissions(registry).await?;
-        if intent["intent"] == "refresh-execution" {
+        if intent["intent"] == "refresh-execution"
+            && !self.composer.as_ref().is_some_and(composer::Composer::awaiting_broker_reply)
+        {
             self.reconcile_submissions(backend, registry, &context, deadline)
                 .await?;
         }
@@ -919,12 +931,32 @@ impl TradeController {
                 == "Development";
             let allowed =
                 context.market_state == 2 || development && context.allow_development_emulator;
-            let editable = order.status.as_deref() == Some("Draft")
-                && trade.trade_state.as_deref() == Some("NewTrade")
+            let cancelled_close = if opening.is_some()
+                && trade.trade_state.as_deref() == Some("OrderPartiallyFilled")
+            {
+                composer::cancelled_partial_close(backend, registry, scope, &trade, deadline)
+                    .await?
+            } else {
+                None
+            };
+            if let Some(cancelled) = cancelled_close {
+                // Only the confirmed receipt for this exact terminal close is historical.
+                self.submission_operations.retain(|_, operation| {
+                    !operation.confirmed
+                        || !matches!(operation.accepted.as_slice(), [order] if cancelled.matches(&order["Id"]))
+                });
+            }
+            let editable = matches!(order.status.as_deref(), Some("Draft" | "Opened" | "Rejected" | "Cancelled"))
+                && (trade.trade_state.as_deref() == Some("NewTrade") || cancelled_close.is_some())
                 && allowed;
+            let completed_close = if opening.is_some() && trade.trade_state.as_deref() == Some("Closed") {
+                trade.execution_order_id.map(|order| crate::services::broker_reads::Scope { order, ..scope })
+            } else {
+                None
+            };
             // Install the owner before I/O: cancellation cannot discard the only
             // subscription identity capable of cleaning up a partial open.
-            self.composer = Some(composer::Composer::new(
+            let mut composer = composer::Composer::new(
                 scope,
                 trade,
                 opening,
@@ -932,14 +964,24 @@ impl TradeController {
                 &context,
                 editable,
                 development,
-            )?);
+            )?;
+            composer.replacing_cancelled_close = cancelled_close.is_some();
+            self.composer = Some(composer);
             if let Some(operation) = self
                 .submission_operations
                 .values()
-                .find(|operation| self.matches_submission(registry, operation))
+                .filter(|operation| {
+                    self.matches_submission(registry, operation)
+                        && completed_close.is_none_or(|closed| {
+                            matches!(operation.accepted.as_slice(), [order] if closed.matches(&order["Id"]))
+                        })
+                })
+                .min_by_key(|operation| operation.rejection.is_some())
             {
                 let composer = self.composer.as_mut().unwrap();
-                if operation.confirmed {
+                if let Some(reason) = &operation.rejection {
+                    composer.show_broker_rejection(operation.accepted.clone(), reason)?;
+                } else if operation.confirmed {
                     composer.accept_submission(
                         operation.accepted.clone(),
                         "Previously submitted order restored",
@@ -1024,8 +1066,20 @@ impl TradeController {
             let result =
                 tokio::time::timeout_at(deadline, Box::pin(self.apply(backend, registry, intent, deadline)))
                     .await
-                    .map_err(|_| if self.pending_manual.as_ref().is_some_and(|operation|operation.attempted){"OutcomeUnknown: manual order deadline expired; reload to check the retained operation".into()}else if self.account_operations.get(&request).is_some_and(|operation|operation.attempted&&!operation.acknowledged){"OutcomeUnknown: broker account deadline expired; refresh Account to check its retained operation".into()}else if self.order_operations.get(&request).is_some_and(|operation|operation.attempted&&!operation.acknowledged){"OutcomeUnknown: broker order deadline expired; refresh its original evidence".into()}else if self.submission_operations.get(&request).is_some_and(|operation|operation.attempted&&!operation.confirmed){"OutcomeUnknown: order submission deadline expired; reconcile its retained identity".into()}else{"Trade workspace deadline expired".to_string()})
+                    .map_err(|_| if self.pending_manual.as_ref().is_some_and(|operation|operation.attempted){"OutcomeUnknown: manual order deadline expired; reload to check the retained operation".into()}else if self.account_operations.get(&request).is_some_and(|operation|operation.attempted&&!operation.acknowledged){"OutcomeUnknown: broker account deadline expired; refresh Account to check its retained operation".into()}else if self.order_operations.get(&request).is_some_and(|operation|operation.attempted&&!operation.acknowledged){"OutcomeUnknown: broker order deadline expired; refresh its original evidence".into()}else if self.submission_operations.get(&request).is_some_and(|operation|operation.attempted&&operation.needs_recovery()){"OutcomeUnknown: order submission deadline expired; reconcile its retained identity".into()}else{"Trade workspace deadline expired".to_string()})
                     .and_then(|v| v);
+            let result = if matches!(intent["intent"].as_str(), Some("chain" | "chain-source" | "refresh-chain"))
+                && let Some(composer) = self.composer.as_mut()
+            {
+                let retry_live = match intent["intent"].as_str() {
+                    Some("chain") => field(intent, "live") == "true",
+                    Some("chain-source") => field(intent, "liquiditySelector") == "Live",
+                    _ => true,
+                };
+                composer.live_chain_read_result(result, retry_live)
+            } else {
+                result
+            };
             let result = if result.is_err() && self.confirmed_write {
                 Ok("Saved; reload the trade workspace to refresh its projections".into())
             } else {
@@ -1042,7 +1096,9 @@ impl TradeController {
                         self.message = message.clone();
                         EditorOutcome {
                             request_id: request.clone(),
-                            state: if message.starts_with("OutcomeUnknown:")
+                            state: if self.submission_operations.get(&request).is_some_and(|operation| operation.rejection.is_some()) {
+                                "Rejected"
+                            } else if message.starts_with("OutcomeUnknown:")
                                 && (self.eod.as_ref().is_some_and(|v| v.pending)
                                     || self.manual_request.as_deref() == Some(request.as_str())
                                     || self.account_operations.get(&request).is_some_and(
@@ -1052,7 +1108,7 @@ impl TradeController {
                                         |operation| operation.attempted && !operation.acknowledged,
                                     )
                                     || self.submission_operations.get(&request).is_some_and(
-                                        |operation| operation.attempted && !operation.confirmed,
+                                        |operation| operation.attempted && operation.needs_recovery(),
                                     ))
                             {
                                 "Unknown"

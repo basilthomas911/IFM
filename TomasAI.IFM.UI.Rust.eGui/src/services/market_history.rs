@@ -339,22 +339,27 @@ async fn load_bands(
     let mut source = Vec::<FuturesBbSignalReadModel>::from_backend(&wire)?;
     // The current provisional Daily point is provided by Analytics, never
     // recomputed in the frontend. Failure to fetch it keeps committed history.
-    if let Ok(contract) = current_contract(backend, registry, "ES").await {
+    if let Some(value_date) = context.active_value_date.filter(|_| context.is_live_trading())
+        && let Ok(contract) = current_contract(backend, registry, "ES").await
+    {
         if let Ok(outlook) = actor_requests::query(
             backend,
             registry,
             &format!("{root}Queries.GetMarketOutlookSnapshotQuery"),
-            &format!("{contract}.{}", context.value_date.format("%Y%m%d")),
+            &format!("{contract}.{}", value_date.format("%Y%m%d")),
             BTreeMap::from([
-                ("ContractId".into(), contract.into()),
-                ("ValueDate".into(), date_only_wire(context.value_date)),
+                ("ContractId".into(), contract.clone().into()),
+                ("ValueDate".into(), date_only_wire(value_date)),
             ]),
         )
         .await
         {
             let value = MarketOutlookReadModel::from_backend(&outlook)?;
-            if let Some(value) = value.futures_bb_signal {
-                source.push(value);
+            if value.contract_id.as_deref() == Some(contract.as_str())
+                && value.cell("ValueDate").as_str() == Some(value_date.to_string().as_str())
+                && let Some(signal) = value.futures_bb_signal
+            {
+                source.push(signal);
             }
         }
     }
@@ -372,18 +377,39 @@ pub async fn load(
     let context = tokio::time::timeout_at(deadline, BusinessContext::load(backend))
         .await
         .map_err(|_| "Market history session deadline expired")??;
+    Ok(load_for_session_until(backend, registry, &context, deadline).await)
+}
+
+
+/// Refreshes chart histories using the session already observed by the desktop.
+pub async fn load_for_session(
+    backend: &Backend,
+    registry: &Registry,
+    context: &BusinessContext,
+) -> BTreeMap<String, ChartSnapshot> {
+    let deadline = tokio::time::Instant::now() + backend.default_timeout();
+    load_for_session_until(backend, registry, context, deadline).await
+}
+
+
+async fn load_for_session_until(
+    backend: &Backend,
+    registry: &Registry,
+    context: &BusinessContext,
+    deadline: tokio::time::Instant,
+) -> BTreeMap<String, ChartSnapshot> {
     // Bound each result by the same deadline while retaining siblings that have
     // already completed. A hung VX read must not discard a successful ES read.
     let results = tokio::join!(
-        tokio::time::timeout_at(deadline, load_bars(backend, registry, &context, "ES")),
-        tokio::time::timeout_at(deadline, load_bars(backend, registry, &context, "VX")),
-        tokio::time::timeout_at(deadline, load_bands(backend, registry, &context))
+        tokio::time::timeout_at(deadline, load_bars(backend, registry, context, "ES")),
+        tokio::time::timeout_at(deadline, load_bars(backend, registry, context, "VX")),
+        tokio::time::timeout_at(deadline, load_bands(backend, registry, context))
     );
     let bounded = |result: Result<Result<ChartSnapshot, String>, tokio::time::error::Elapsed>| {
         result.unwrap_or_else(|_| Err("Market history refresh deadline expired".into()))
     };
     let results = (bounded(results.0), bounded(results.1), bounded(results.2));
-    Ok([("ES", results.0), ("VX", results.1), ("ES-BB", results.2)]
+    [("ES", results.0), ("VX", results.1), ("ES-BB", results.2)]
         .into_iter()
         .map(|(key, value)| {
             (
@@ -394,5 +420,5 @@ pub async fn load(
                 }),
             )
         })
-        .collect())
+        .collect()
 }

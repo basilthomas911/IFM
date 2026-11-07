@@ -35,12 +35,18 @@ internal static class BrokerOrderComputation
             return BrokerOrderCompute.Reject("BrokerOrder.NOT_FOUND");
         if (brokerOrderDefinition.OperationId != command.OperationId)
             return BrokerOrderCompute.Reject("BrokerOrder.OPERATION.CONFLICT");
+        if (brokerOrderDefinition is { Status: BrokerOrderStatus.Rejected, LastObservation.Kind: BrokerOrderObservationKind.Rejected })
+            return BrokerOrderCompute.Replay(brokerOrderDefinition);
         if (brokerOrderDefinition.PendingMutation == BrokerMutationKind.Unknown && string.Equals(brokerOrderDefinition.DispatchCategory, command.Category, StringComparison.Ordinal) && string.Equals(brokerOrderDefinition.DispatchDetail, command.Detail, StringComparison.Ordinal))
             return BrokerOrderCompute.Replay(brokerOrderDefinition!);
+        if (brokerOrderDefinition.PendingMutation == BrokerMutationKind.Unknown && brokerOrderDefinition.LastObservation is not null)
+            return command.Outcome == BrokerDispatchResult.RejectedLocally
+                ? BrokerOrderCompute.Reject("BrokerOrder.DISPATCH.CONFLICTS_WITH_AUTHORITATIVE_OBSERVATION")
+                : BrokerOrderCompute.Replay(brokerOrderDefinition);
         var acceptedStatus = brokerOrderDefinition.PendingMutation switch
         {
             BrokerMutationKind.Place => BrokerOrderStatus.Dispatched,
-            BrokerMutationKind.UpdateLimit => brokerOrderDefinition.StatusBeforeMutation,
+            BrokerMutationKind.UpdateLimit => BrokerOrderStatus.UpdatePending,
             BrokerMutationKind.Cancel => BrokerOrderStatus.CancelPending,
             _ => BrokerOrderStatus.Unknown
         };
@@ -59,17 +65,19 @@ internal static class BrokerOrderComputation
             return BrokerOrderCompute.Replay(brokerOrderDefinition!);
         if (brokerOrderDefinition.Status is not (BrokerOrderStatus.PlacePending or BrokerOrderStatus.UpdatePending or BrokerOrderStatus.CancelPending) && !authoritativeStatusAlreadyAdvanced)
             return BrokerOrderCompute.Reject($"BrokerOrder.DISPATCH.INVALID_STATE;{brokerOrderDefinition.Status}");
-        if (authoritativeStatusAlreadyAdvanced && command.Outcome == BrokerDispatchResult.RejectedLocally)
+        if (authoritativeStatusAlreadyAdvanced && command.Outcome == BrokerDispatchResult.RejectedLocally && brokerOrderDefinition.PendingMutation == BrokerMutationKind.Place)
             return BrokerOrderCompute.Reject("BrokerOrder.DISPATCH.CONFLICTS_WITH_AUTHORITATIVE_OBSERVATION");
+        var rejected = command.Outcome == BrokerDispatchResult.RejectedLocally;
         var proposedBrokerOrderDefinition = brokerOrderDefinition with
         {
-            Status = status,
+            Status = rejected && authoritativeStatusAlreadyAdvanced ? brokerOrderDefinition.Status : status,
             Revision = brokerOrderDefinition.Revision + 1,
             DispatchCategory = command.Category,
             DispatchDetail = command.Detail,
             ChangedAtUtc = command.RecordedAtUtc,
             LastObservation = null,
-            PendingMutation = command.Outcome == BrokerDispatchResult.OutcomeUnknown ? brokerOrderDefinition.PendingMutation : BrokerMutationKind.Unknown
+            PendingMutation = rejected ? BrokerMutationKind.Unknown : brokerOrderDefinition.PendingMutation,
+            RequestedSignedNetDebitLimit = rejected ? null : brokerOrderDefinition.RequestedSignedNetDebitLimit
         };
         return BrokerOrderCompute.Accept(proposedBrokerOrderDefinition);
     }
@@ -87,16 +95,29 @@ internal static class BrokerOrderComputation
         var isLateExecutionFact = observation.Kind is BrokerOrderObservationKind.Execution or BrokerOrderObservationKind.Commission or BrokerOrderObservationKind.OrderCompleted;
         if (observation.OperationId != Guid.Empty && observation.OperationId != brokerOrderDefinition.OperationId && (!isLateExecutionFact || observation.OperationId != brokerOrderDefinition.PriorOperationId))
             return BrokerOrderCompute.Reject("BrokerOrder.OBSERVATION_OPERATION_CONFLICT");
+        var sameOperation = observation.OperationId == brokerOrderDefinition.OperationId;
+        var confirmsUpdate = sameOperation && observation.Kind == BrokerOrderObservationKind.Acknowledged &&
+            brokerOrderDefinition.PendingMutation == BrokerMutationKind.UpdateLimit;
+        var confirmsPlacement = brokerOrderDefinition.PendingMutation == BrokerMutationKind.Place &&
+            observation.Kind is BrokerOrderObservationKind.Acknowledged or BrokerOrderObservationKind.Execution;
         var nextStatus = ResolveStatus(brokerOrderDefinition.Status, brokerOrderDefinition.StatusBeforeMutation, observation.Kind);
         if (nextStatus == BrokerOrderStatus.Unknown)
             return BrokerOrderCompute.Reject($"BrokerOrder.OBSERVATION_INVALID_STATE;{brokerOrderDefinition.Status};{observation.Kind}");
+        if (confirmsUpdate && brokerOrderDefinition.StatusBeforeMutation == BrokerOrderStatus.PartiallyFilled)
+            nextStatus = BrokerOrderStatus.PartiallyFilled;
+        var resolvesMutation = confirmsPlacement || confirmsUpdate || nextStatus is BrokerOrderStatus.Filled or BrokerOrderStatus.Cancelled or BrokerOrderStatus.Rejected;
         var proposedBrokerOrderDefinition = brokerOrderDefinition with
         {
             Status = nextStatus,
             Revision = brokerOrderDefinition.Revision + 1,
             BrokerRevision = Math.Max(brokerOrderDefinition.BrokerRevision, observation.OrderRevision),
             LastObservation = observation,
-            ChangedAtUtc = observation.OccurredAtUtc
+            ChangedAtUtc = observation.OccurredAtUtc,
+            CurrentSignedNetDebitLimit = confirmsUpdate
+                ? brokerOrderDefinition.RequestedSignedNetDebitLimit ?? brokerOrderDefinition.CurrentSignedNetDebitLimit
+                : brokerOrderDefinition.CurrentSignedNetDebitLimit,
+            PendingMutation = resolvesMutation ? BrokerMutationKind.Unknown : brokerOrderDefinition.PendingMutation,
+            RequestedSignedNetDebitLimit = resolvesMutation ? null : brokerOrderDefinition.RequestedSignedNetDebitLimit
         };
         return BrokerOrderCompute.Accept(proposedBrokerOrderDefinition);
     }
@@ -106,11 +127,11 @@ internal static class BrokerOrderComputation
     {
         BrokerOrderObservationKind.Acknowledged when current is BrokerOrderStatus.PlacePending or BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or BrokerOrderStatus.OutcomeUnknown or BrokerOrderStatus.UpdatePending => current == BrokerOrderStatus.UpdatePending && statusBeforeMutation == BrokerOrderStatus.PartiallyFilled ? BrokerOrderStatus.PartiallyFilled : BrokerOrderStatus.Working,
         BrokerOrderObservationKind.Acknowledged when current == BrokerOrderStatus.PartiallyFilled => BrokerOrderStatus.PartiallyFilled,
-        BrokerOrderObservationKind.Execution when current is BrokerOrderStatus.PlacePending or BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or BrokerOrderStatus.PartiallyFilled or BrokerOrderStatus.UpdatePending or BrokerOrderStatus.CancelPending or BrokerOrderStatus.Cancelled => BrokerOrderStatus.PartiallyFilled,
-        BrokerOrderObservationKind.Commission when current is BrokerOrderStatus.PlacePending or BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or BrokerOrderStatus.PartiallyFilled or BrokerOrderStatus.Filled or BrokerOrderStatus.UpdatePending or BrokerOrderStatus.CancelPending or BrokerOrderStatus.Cancelled => current,
+        BrokerOrderObservationKind.Execution when current is BrokerOrderStatus.PlacePending or BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or BrokerOrderStatus.PartiallyFilled or BrokerOrderStatus.UpdatePending or BrokerOrderStatus.CancelPending or BrokerOrderStatus.Cancelled or BrokerOrderStatus.OutcomeUnknown => BrokerOrderStatus.PartiallyFilled,
+        BrokerOrderObservationKind.Commission when current is BrokerOrderStatus.PlacePending or BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or BrokerOrderStatus.PartiallyFilled or BrokerOrderStatus.Filled or BrokerOrderStatus.UpdatePending or BrokerOrderStatus.CancelPending or BrokerOrderStatus.Cancelled or BrokerOrderStatus.OutcomeUnknown => current,
         BrokerOrderObservationKind.OrderCompleted when current is BrokerOrderStatus.Working or BrokerOrderStatus.PartiallyFilled or BrokerOrderStatus.CancelPending or BrokerOrderStatus.UpdatePending => BrokerOrderStatus.Filled,
-        BrokerOrderObservationKind.Cancelled when current is BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or BrokerOrderStatus.PartiallyFilled or BrokerOrderStatus.CancelPending => BrokerOrderStatus.Cancelled,
-        BrokerOrderObservationKind.Rejected when current is BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or BrokerOrderStatus.OutcomeUnknown => BrokerOrderStatus.Rejected,
+        BrokerOrderObservationKind.Cancelled when current is BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or BrokerOrderStatus.PartiallyFilled or BrokerOrderStatus.CancelPending or BrokerOrderStatus.OutcomeUnknown => BrokerOrderStatus.Cancelled,
+        BrokerOrderObservationKind.Rejected when current is BrokerOrderStatus.PlacePending or BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or BrokerOrderStatus.OutcomeUnknown => BrokerOrderStatus.Rejected,
         _ => BrokerOrderStatus.Unknown
     };
     /// <summary>Computes the RequestBrokerOrderCancel decision without mutating state or performing broker effects.</summary>
@@ -120,7 +141,7 @@ internal static class BrokerOrderComputation
             return BrokerOrderCompute.Reject("BrokerOrder.NOT_FOUND");
         if (brokerOrderDefinition.OperationId == command.OperationId && brokerOrderDefinition.Status == BrokerOrderStatus.CancelPending)
             return BrokerOrderCompute.Replay(brokerOrderDefinition!);
-        if (brokerOrderDefinition.Status is not (BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or BrokerOrderStatus.PartiallyFilled or BrokerOrderStatus.OutcomeUnknown))
+        if (brokerOrderDefinition.PendingMutation != BrokerMutationKind.Unknown || brokerOrderDefinition.Status is not (BrokerOrderStatus.Dispatched or BrokerOrderStatus.Working or BrokerOrderStatus.PartiallyFilled))
             return BrokerOrderCompute.Reject($"BrokerOrder.CANCEL.INVALID_STATE;{brokerOrderDefinition.Status}");
         if (brokerOrderDefinition.BrokerRevision <= 0)
             return BrokerOrderCompute.Reject("BrokerOrder.CANCEL.BROKER_REVISION_UNKNOWN");
@@ -133,6 +154,8 @@ internal static class BrokerOrderComputation
             PendingMutation = BrokerMutationKind.Cancel,
             Revision = brokerOrderDefinition.Revision + 1,
             ChangedAtUtc = command.EffectiveAtUtc,
+            DispatchCategory = string.Empty,
+            DispatchDetail = string.Empty,
             LastObservation = null
         };
         return BrokerOrderCompute.Accept(proposedBrokerOrderDefinition);
@@ -143,9 +166,9 @@ internal static class BrokerOrderComputation
     {
         if (brokerOrderDefinition is null)
             return BrokerOrderCompute.Reject("BrokerOrder.NOT_FOUND");
-        if (brokerOrderDefinition.OperationId == command.OperationId && brokerOrderDefinition.CurrentSignedNetDebitLimit == command.NewSignedNetDebitLimit)
+        if (brokerOrderDefinition.OperationId == command.OperationId && (brokerOrderDefinition.RequestedSignedNetDebitLimit ?? brokerOrderDefinition.CurrentSignedNetDebitLimit) == command.NewSignedNetDebitLimit)
             return BrokerOrderCompute.Replay(brokerOrderDefinition!);
-        if (brokerOrderDefinition.Status is not (BrokerOrderStatus.Working or BrokerOrderStatus.Dispatched or BrokerOrderStatus.PartiallyFilled))
+        if (brokerOrderDefinition.PendingMutation != BrokerMutationKind.Unknown || brokerOrderDefinition.Status is not (BrokerOrderStatus.Working or BrokerOrderStatus.Dispatched or BrokerOrderStatus.PartiallyFilled))
             return BrokerOrderCompute.Reject($"BrokerOrder.UPDATE.INVALID_STATE;{brokerOrderDefinition.Status}");
         if (brokerOrderDefinition.BrokerRevision <= 0)
             return BrokerOrderCompute.Reject("BrokerOrder.UPDATE.BROKER_REVISION_UNKNOWN");
@@ -163,12 +186,14 @@ internal static class BrokerOrderComputation
         {
             PriorOperationId = brokerOrderDefinition.OperationId,
             OperationId = command.OperationId,
-            CurrentSignedNetDebitLimit = command.NewSignedNetDebitLimit,
+            RequestedSignedNetDebitLimit = command.NewSignedNetDebitLimit,
             StatusBeforeMutation = brokerOrderDefinition.Status,
             Status = BrokerOrderStatus.UpdatePending,
             PendingMutation = BrokerMutationKind.UpdateLimit,
             Revision = brokerOrderDefinition.Revision + 1,
             ChangedAtUtc = command.EffectiveAtUtc,
+            DispatchCategory = string.Empty,
+            DispatchDetail = string.Empty,
             LastObservation = null
         };
         return BrokerOrderCompute.Accept(proposedBrokerOrderDefinition);

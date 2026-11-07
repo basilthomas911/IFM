@@ -164,7 +164,7 @@ public sealed class BrokerOrderCommandTests
         };
         Assert.True(receipt.Execute(state).Success);
         Assert.Equal(BrokerOrderStatus.Working, state.BrokerOrderDefinition!.Status);
-        Assert.Null(state.BrokerOrderDefinition.LastObservation);
+        Assert.Equal(BrokerOrderObservationKind.Acknowledged, state.BrokerOrderDefinition.LastObservation?.Kind);
     }
 
     [Fact]
@@ -202,7 +202,11 @@ public sealed class BrokerOrderCommandTests
             RecordedAtUtc = create.EffectiveAtUtc.AddSeconds(2)
         };
         Assert.True(updateReceipt.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.Working, state.BrokerOrderDefinition!.Status);
+        Assert.Equal(BrokerOrderStatus.UpdatePending, state.BrokerOrderDefinition!.Status);
+        Assert.Equal(100m, state.BrokerOrderDefinition.CurrentSignedNetDebitLimit);
+        Assert.True(AcknowledgeUpdate(create, update, state));
+        Assert.Equal(BrokerOrderStatus.Working, state.BrokerOrderDefinition.Status);
+        Assert.Equal(99.5m, state.BrokerOrderDefinition.CurrentSignedNetDebitLimit);
         state.AcceptChanges();
         var cancel = new RequestBrokerOrderCancelCommand
         {
@@ -275,7 +279,9 @@ public sealed class BrokerOrderCommandTests
             Detail = "remaining quantity updated",
             RecordedAtUtc = create.EffectiveAtUtc.AddSeconds(3)
         }.Execute(state).Success);
-        Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.BrokerOrderDefinition!.Status);
+        Assert.Equal(BrokerOrderStatus.UpdatePending, state.BrokerOrderDefinition!.Status);
+        Assert.True(AcknowledgeUpdate(create, update, state));
+        Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.BrokerOrderDefinition.Status);
 
         var cancel = new RequestBrokerOrderCancelCommand
         {
@@ -326,6 +332,19 @@ public sealed class BrokerOrderCommandTests
         }.Execute(state).Success);
         Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.BrokerOrderDefinition!.Status);
     }
+
+    private static bool AcknowledgeUpdate(CreateBrokerOrderCommand create, RequestBrokerOrderLimitUpdateCommand update, BrokerOrderCommandState state) =>
+        new RecordBrokerOrderObservationCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = create.EntityId,
+            Subject = new(ActorType.Command, BrokerOrderActorNames.Command, RecordBrokerOrderObservationCommand.Verb, create.EntityId.Format()),
+            Observation = new BrokerOrderObservationEvidence
+            {
+                ObservationId = Guid.NewGuid(), Kind = BrokerOrderObservationKind.Acknowledged, AccountAlias = "EMU",
+                OperationId = update.OperationId, ComponentId = create.EntityId.ComponentId, OrderRevision = 2,
+                SourceEpoch = 1, SourceSequence = 3, OccurredAtUtc = update.EffectiveAtUtc.AddSeconds(1), ContentHash = "UPDATE-ACK"
+            }
+        }.Execute(state).Success;
 
     [Theory]
     [InlineData(TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator)]

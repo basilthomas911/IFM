@@ -20,6 +20,8 @@ public sealed class PortfolioDbContractTests
         queries.Where(sql => sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase))
             .Should().OnlyContain(sql => sql.Contains("portfolio.", StringComparison.OrdinalIgnoreCase)
                 || sql.Contains("portfolio_financial.", StringComparison.OrdinalIgnoreCase)
+                || sql.Contains("trade.order_execution", StringComparison.OrdinalIgnoreCase)
+                || sql.Contains("trade.strategy_position_current", StringComparison.OrdinalIgnoreCase)
                 || sql.Contains("event_log", StringComparison.OrdinalIgnoreCase)
                 || sql.Contains("event_stream_id", StringComparison.OrdinalIgnoreCase)
                 || sql.Contains("event_name_id", StringComparison.OrdinalIgnoreCase)

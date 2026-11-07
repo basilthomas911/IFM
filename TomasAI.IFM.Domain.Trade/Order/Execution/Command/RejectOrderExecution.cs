@@ -45,7 +45,12 @@ public static class RejectOrderExecution
         /// <returns>True when computation accepts the intent.</returns>
         internal bool Compute(OrderExecutionDefinition? orderExecutionDefinition, out OrderExecutionCompute executionChange)
         {
-            executionChange = OrderExecutionComputation.Move(orderExecutionDefinition, [OrderExecutionStatus.Pending, OrderExecutionStatus.Submitted], OrderExecutionStatus.Rejected, "reject");
+            executionChange = orderExecutionDefinition is { Status: OrderExecutionStatus.Rejected }
+                ? OrderExecutionCompute.Accept(orderExecutionDefinition)
+                : OrderExecutionComputation.Move(orderExecutionDefinition, [OrderExecutionStatus.Pending, OrderExecutionStatus.Submitted], OrderExecutionStatus.Rejected, "reject");
+            if (executionChange.Accepted && !ReferenceEquals(executionChange.OrderExecutionDefinition, orderExecutionDefinition)
+                && executionChange.OrderExecutionDefinition is { } rejected)
+                executionChange = executionChange with { OrderExecutionDefinition = rejected with { RejectionDetail = command.RejectionDetail } };
             return executionChange.Accepted;
         }
 

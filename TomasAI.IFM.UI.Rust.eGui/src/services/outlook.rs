@@ -547,38 +547,57 @@ pub fn project(
 pub async fn load(backend: &Backend, registry: &Registry) -> Result<Outlook, String> {
     tokio::time::timeout(backend.default_timeout(), async {
         let context = BusinessContext::load(backend).await?;
+        load_for_session(backend, registry, Some(&context)).await
+    })
+    .await
+    .map_err(|_| "Market outlook refresh deadline expired".to_string())?
+}
+
+
+/// Loads the live snapshot only for a session confirmed to be in trading hours.
+pub async fn load_for_session(
+    backend: &Backend,
+    registry: &Registry,
+    context: Option<&BusinessContext>,
+) -> Result<Outlook, String> {
+    let Some(context) = context else {
+        return Ok(Outlook {
+            cells: BTreeMap::new(),
+            status: "Market Outlook paused until the API confirms trading hours".into(),
+            summary: "Market session unavailable".into(),
+        });
+    };
+    let Some(value_date) = context.active_value_date.filter(|_| context.is_live_trading()) else {
+        return Ok(Outlook {
+            cells: BTreeMap::new(),
+            status: "Market Outlook paused outside live trading hours".into(),
+            summary: format!("{} | Outside live trading hours", context.value_date),
+        });
+    };
+    tokio::time::timeout(backend.default_timeout(), async {
         let contract = market_history::current_contract(backend, registry, "ES").await?;
         let root = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.";
         let wire = actor_requests::query(
             backend,
             registry,
             &format!("{root}Queries.GetMarketOutlookSnapshotQuery"),
-            &format!("{contract}.{}", context.value_date.format("%Y%m%d")),
+            &format!("{contract}.{}", value_date.format("%Y%m%d")),
             BTreeMap::from([
                 ("ContractId".into(), contract.clone().into()),
-                ("ValueDate".into(), date_only_wire(context.value_date)),
+                ("ValueDate".into(), date_only_wire(value_date)),
             ]),
         )
         .await?;
         let snapshot = MarketOutlookReadModel::from_backend(&wire)?;
-        let mut outlook = project(&snapshot, context.market_state == 2, context.as_of_utc)?;
-        if snapshot.cell("ValueDate").as_str() != Some(context.value_date.to_string().as_str())
+        let mut outlook = project(&snapshot, true, context.as_of_utc)?;
+        if snapshot.cell("ValueDate").as_str() != Some(value_date.to_string().as_str())
             || snapshot.contract_id.as_deref() != Some(contract.as_str())
         {
             return Err(
                 "Market outlook does not match the API session and current contract".into(),
             );
         }
-        outlook.summary = format!(
-            "{contract} | {} | {}",
-            context.value_date,
-            match context.market_state {
-                0 => "Closed",
-                1 => "OffTrading",
-                2 => "LiveTrading",
-                _ => "Unknown",
-            }
-        );
+        outlook.summary = format!("{contract} | {value_date} | LiveTrading");
         Ok(outlook)
     })
     .await

@@ -172,7 +172,7 @@ public sealed class EmulatorLedger
             {
                 order.Cancelled = true;
                 Append("Cancel", request.BrokerOrderId, request.OperationId);
-                CommitAndPublish(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.Cancelled, ObservationId = ObservationId("cancel", request.BrokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = request.BrokerOrderId, OperationId = request.OperationId, ComponentId = order.Request.ComponentId, OrderRevision = order.Revision, SourceEpoch = _generation, SourceSequence = _sequence, OccurredAtUtc = _clock.UtcNow });
+                CommitAndPublish(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.Cancelled, ObservationId = ObservationId("cancel", request.BrokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = request.BrokerOrderId, OperationId = request.OperationId, ComponentId = order.Request.ComponentId, OrderRevision = order.Revision, SourceEpoch = _generation, SourceSequence = _sequence, OccurredAtUtc = _clock.UtcNow, ExecutionFinal = !Faults.AllowFillsAfterCancel });
             }
             return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.AcceptedForDispatch, "EM.CANCELLED", "Synthetic order cancelled or already final."));
         }

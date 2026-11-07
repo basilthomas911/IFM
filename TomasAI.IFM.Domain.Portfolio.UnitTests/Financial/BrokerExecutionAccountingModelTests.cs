@@ -8,6 +8,43 @@ namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Financial;
 public sealed class BrokerExecutionAccountingModelTests
 {
     [Fact]
+    public void Historical_multiplier_delta_links_original_journals_without_reposting_fills_or_commissions()
+    {
+        var configuration = Fixture(TradeOrderPositionType.Opening, -1, 12.45m, .65m).Input.Configuration;
+        var component = Guid.NewGuid(); var attempt = Guid.NewGuid(); var amendment = Guid.NewGuid();
+        var at = new DateTime(2026, 11, 7, 15, 0, 0, DateTimeKind.Utc);
+        var quantities = new[] { -1, 1, -1, 1 }; var prices = new[] { 12.45m, 1m, 1m, 1m };
+        var legs = Enumerable.Range(0, 4).Select(index => new TradeLegDefinition {
+            TradeLegId = Guid.NewGuid(), ContractId = $"ES-LEG-{index}", SignedQuantity = quantities[index], CashMultiplier = 1
+        }).ToArray();
+        var fills = legs.Select((leg, index) => new ExecutionFillEvidence {
+            ExecutionFillId = Guid.NewGuid(), ExecutionAttemptId = attempt, ComponentId = component,
+            TradeLegId = leg.TradeLegId, ContractId = leg.ContractId, SignedQuantity = leg.SignedQuantity,
+            Price = prices[index], Commission = .65m, FilledAtUtc = at.AddDays(-20), ExternalExecutionId = $"original-{index}"
+        }).ToArray();
+        var original = new EstablishedTradeDefinition { Id = new(1,2,3,4), Legs = legs, OriginalFills = fills,
+            SourceComponentId = component, ExecutionAttemptId = attempt, EvidenceRevision = 1 };
+        var corrected = legs.Select(leg => leg with { CashMultiplier = 50 }).ToArray();
+        var posted = fills.Select((fill, index) => new { fill.ExecutionFillId,
+            Posting = new PostedOpeningSettlement(301 + index, fill.Price * fill.SignedQuantity) })
+            .ToDictionary(item => item.ExecutionFillId, item => item.Posting);
+        var batch = OpeningMultiplierReconciliation.Create(original, corrected, configuration, posted, amendment, at);
+        batch.Items.Should().HaveCount(4);
+        batch.Items.Sum(item => item.Amount).Should().Be(-561.05m);
+        batch.Items.Should().OnlyContain(item => item.TransactionKind == LedgerTransactionKind.TradeSettlement);
+        batch.Items.Select(item => item.RelatedJournalId).Should().Equal(301L,302L,303L,304L);
+        batch.Items.Select(item => item.Source.FillId).Should().OnlyHaveUniqueItems();
+        batch.Items.Select(item => item.Source.SourceEventId).Should().OnlyHaveUniqueItems();
+        OpeningMultiplierReconciliation.Create(original, corrected, configuration, posted, amendment, at).ManifestHash
+            .Should().Be(batch.ManifestHash);
+        original.Legs.Should().OnlyContain(leg => leg.CashMultiplier == 1);
+        original.OriginalFills.Should().Equal(fills);
+        var wrong = posted.ToDictionary(item => item.Key, item => item.Value);
+        wrong[fills[0].ExecutionFillId] = new(301, -99);
+        ((Action)(() => OpeningMultiplierReconciliation.Create(original, corrected, configuration, wrong, amendment, at)))
+            .Should().Throw<ArgumentException>();
+    }
+    [Fact]
     public void Accepted_fill_hashes_are_independent_of_process_culture()
     {
         var fixture = Fixture(TradeOrderPositionType.Opening, 1, 100.25m, 2.50m);

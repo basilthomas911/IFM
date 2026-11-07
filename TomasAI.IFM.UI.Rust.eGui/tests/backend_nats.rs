@@ -2956,6 +2956,52 @@ async fn market_history_uses_api_clock_and_current_contracts_without_local_indic
 }
 
 
+/// Verifies both snapshot consumers skip requests outside live trading hours.
+#[tokio::test]
+#[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
+async fn market_outlook_snapshot_is_skipped_outside_live_trading_hours() {
+    use futures_util::StreamExt;
+    use ifm_ui_egui::services::{business_context::BusinessContext, market_history, outlook};
+
+    let url = std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap();
+    let observer = async_nats::connect(&url).await.unwrap();
+    let mut snapshots = observer
+        .subscribe("Query.MarketOutlookSnapshotQuery.GetMarketOutlookSnapshot.>")
+        .await
+        .unwrap();
+    observer.flush().await.unwrap();
+    let backend = Backend::connect(Settings {
+        url,
+        credentials_file: None,
+        token: None,
+        request_timeout: Duration::from_secs(5),
+    })
+    .await
+    .unwrap();
+    let registry = ifm_ui_egui::backend::schema::Registry::compiled().unwrap();
+    let mut session = BusinessContext::load(&backend).await.unwrap();
+    assert!(session.is_live_trading());
+
+    // Prove the observer sees the live chart request before checking for silence.
+    let _ = market_history::load_for_session(&backend, &registry, &session).await;
+    assert!(tokio::time::timeout(Duration::from_secs(2), snapshots.next()).await.unwrap().is_some());
+
+    for state in [1, 0] {
+        session.market_state = state;
+        if state == 0 {
+            session.active_value_date = None;
+        }
+        let outlook = outlook::load_for_session(&backend, &registry, Some(&session)).await.unwrap();
+        assert!(outlook.cells.is_empty());
+        assert!(outlook.status.contains("outside live trading hours"));
+        let charts = market_history::load_for_session(&backend, &registry, &session).await;
+        assert!(charts["ES-BB"].status.is_empty(), "{}", charts["ES-BB"].status);
+        assert!(!charts["ES-BB"].series[0].points.is_empty());
+    }
+    assert!(tokio::time::timeout(Duration::from_millis(200), snapshots.next()).await.is_err());
+}
+
+
 /// Verifies that pending calendar hydration does not delay the recovery error publication.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]

@@ -28,6 +28,111 @@ fn chain() -> Json {
 }
 
 
+/// Saved closing legs may use frozen quotes only in the explicit Development emulator chain.
+#[test]
+fn frozen_closing_legs_retain_prices_without_weakening_live_freshness() {
+    let delta = ExactDecimal::parse("16").unwrap();
+    let width = ExactDecimal::parse("50").unwrap();
+    for (live, development, method, eligible) in [
+        (false, true, "Frozen emulator preview (2026-11-06; historical/model quotes)", true),
+        (true, true, "Frozen emulator preview", false),
+        (false, false, "Frozen emulator preview", false),
+        (false, true, "Live", false),
+    ] {
+        let mut settings = Settings {
+            strategy: "ShortIronCondor", call_delta: &delta, put_delta: &delta,
+            call_width: &width, put_width: &width, multiplier: &width,
+            live: true, development: true, editable: true,
+        };
+        let mut draft = Draft::default();
+        draft.accept(serde_json::from_value(chain()).unwrap(), &settings).unwrap();
+        assert_eq!(draft.legs.len(), 4);
+        draft.manual = true;
+        // Reverse the saved opening position, as the close preview does.
+        for leg in &mut draft.legs {
+            leg.quote.side = -leg.quote.side;
+            leg.role = match leg.role.as_str() {
+                "-SC" => "+LC", "+LC" => "-SC", "-SP" => "+LP", "+LP" => "-SP",
+                _ => unreachable!(),
+            }.into();
+        }
+        let identities = draft.legs.iter().map(|leg| (leg.quote.contract.clone(), leg.quote.side))
+            .collect::<Vec<_>>();
+        settings.live = live;
+        settings.development = development;
+        let mut frozen = chain();
+        frozen["WindowMethod"] = json!(method);
+        for row in frozen["Contracts"].as_array_mut().unwrap() {
+            row["IsStale"] = json!(true);
+        }
+        draft.accept(serde_json::from_value(frozen).unwrap(), &settings).unwrap();
+        assert_eq!(identities, draft.legs.iter()
+            .map(|leg| (leg.quote.contract.clone(), leg.quote.side)).collect::<Vec<_>>());
+        for leg in &draft.legs {
+            assert_eq!(leg.quote.bid.is_some(), eligible, "{live}/{development}/{method}");
+            assert_eq!(leg.quote.ask.is_some(), eligible);
+            assert_eq!(leg.frozen, eligible);
+        }
+    }
+}
+
+#[test]
+fn saved_legs_keep_display_quotes_without_reusing_them_for_order_price() {
+    use ifm_ui_egui::services::broker_market_display::{indicative_net_mid, last_known_leg, quote_age};
+    let delta = ExactDecimal::parse("16").unwrap();
+    let width = ExactDecimal::parse("50").unwrap();
+    let settings = Settings {
+        strategy: "ShortIronCondor",
+        call_delta: &delta,
+        put_delta: &delta,
+        call_width: &width,
+        put_width: &width,
+        multiplier: &width,
+        live: true,
+        development: false,
+        editable: true,
+    };
+    let mut draft = Draft::default();
+    let mut first = chain();
+    first["Contracts"][1]["Bid"] = json!("2.25");
+    first["Contracts"][1]["Ask"] = json!("2.50");
+    draft.accept(serde_json::from_value(first).unwrap(), &settings).unwrap();
+    draft.manual = true;
+    let mut next = chain();
+    next["Contracts"][1]["IsStale"] = json!(true);
+    next["Contracts"][1]["Bid"] = Json::Null;
+    next["Contracts"][1]["Ask"] = Json::Null;
+    next["Contracts"][1]["QuoteAtUtc"] = Json::Null;
+    next["Contracts"].as_array_mut().unwrap().remove(0);
+    draft.accept(serde_json::from_value(next).unwrap(), &settings).unwrap();
+    assert_eq!(draft.legs.len(), 4);
+    assert!(draft.legs.iter().filter(|leg| leg.quote.is_call)
+        .all(|leg| leg.quote.bid.is_none() && leg.quote.ask.is_none()));
+    let rows = draft.display.as_ref().unwrap().contracts.as_ref().unwrap();
+    let legs = draft.legs.iter().map(|leg| last_known_leg(
+        leg,
+        rows.iter().find(|row| row.contract_id.as_deref() == Some(&leg.quote.contract)),
+        None,
+    ).unwrap()).collect::<Vec<_>>();
+    assert_eq!(legs.iter().filter(|leg| leg.stale == Some(true)).count(), 2);
+    assert!(legs.iter().all(|leg| leg.bid.is_some() && leg.ask.is_some()));
+    assert_eq!(indicative_net_mid(&legs).as_deref(), Some("-1.00"));
+    assert_eq!(quote_age("2026-10-26T12:32:00Z", legs[0].quote_at_utc.as_ref().unwrap().as_str()), "120s");
+    let saved = serde_json::from_value(json!({
+        "bidPrice": 3.25, "askPrice": 3.50, "observedAtUtc": "2026-10-26T12:30:10Z",
+    })).unwrap();
+    let reopened = last_known_leg(&draft.legs[0], None, Some(&saved)).unwrap();
+    assert_eq!(reopened.bid.as_ref().unwrap().as_str(), "3.25");
+    assert_eq!(reopened.ask.as_ref().unwrap().as_str(), "3.5");
+    assert_eq!(reopened.stale, Some(true));
+    assert!(draft.legs[0].quote.bid.is_none());
+    draft.accept(serde_json::from_value(chain()).unwrap(), &settings).unwrap();
+    assert!(draft.legs.iter().all(|leg| leg.quote.bid.is_some() && leg.quote.ask.is_some()));
+    draft.expire_live_quotes("2026-10-26T12:30:05Z".parse().unwrap());
+    assert!(draft.legs.iter().all(|leg| leg.quote.bid.is_none() && leg.quote.ask.is_none()));
+}
+
+
 /// Verifies that all manual roles match unchanged managed normalizer.
 #[test]
 fn all_manual_roles_match_unchanged_managed_normalizer() {

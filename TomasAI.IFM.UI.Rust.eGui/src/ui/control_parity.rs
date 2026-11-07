@@ -143,6 +143,21 @@ pub fn report_list(
     height: f32,
     mut text: impl FnMut(usize, usize) -> String,
 ) -> (Option<usize>, usize) {
+    report_list_styled(ui, id, columns, row_count, selected, height, |row, column| {
+        egui::RichText::new(text(row, column)).color(Color32::WHITE)
+    })
+}
+
+/// Render a report list whose cells can carry an explicit text color.
+pub fn report_list_styled(
+    ui: &mut egui::Ui,
+    id: &str,
+    columns: &[(&str, f32)],
+    row_count: usize,
+    selected: Option<usize>,
+    height: f32,
+    mut text: impl FnMut(usize, usize) -> egui::RichText,
+) -> (Option<usize>, usize) {
     let bounds =
         egui::Rect::from_min_size(ui.cursor().min, egui::vec2(ui.available_width(), height));
     let result = grid_viewport(ui, bounds, |ui| {
@@ -173,7 +188,7 @@ fn report_list_content(
     row_count: usize,
     selected: Option<usize>,
     height: f32,
-    mut text: impl FnMut(usize, usize) -> String,
+    mut text: impl FnMut(usize, usize) -> egui::RichText,
 ) -> (Option<usize>, usize) {
     let scale = ui.ctx().pixels_per_point();
     let row_height = 24. / scale;
@@ -270,10 +285,7 @@ fn report_list_content(
                                 // before the table's combined row response sees it.
                                 if ui
                                     .add(
-                                        crate::presentation::label_widget(
-                                            egui::RichText::new(text(index, column))
-                                                .color(Color32::WHITE),
-                                        )
+                                        crate::presentation::label_widget(text(index, column))
                                         .truncate()
                                         .sense(egui::Sense::click()),
                                     )

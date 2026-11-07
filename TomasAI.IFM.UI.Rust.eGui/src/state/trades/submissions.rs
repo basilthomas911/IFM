@@ -2,7 +2,7 @@
 //! never holds the controller lock. An uncertain write retains its exact scope,
 //! bytes and identity independently of the Blotter that initiated it.
 use super::*;
-use crate::services::{order_submission::Operation, order_submission_store as store};
+use crate::services::{order_submission::Operation, order_submission_ack, order_submission_store as store};
 impl TradeController {
     /// Submits confirmed for trade controller.
     pub(super) async fn submit_confirmed(
@@ -105,7 +105,7 @@ impl TradeController {
                 .dispatch(backend, registry, context, channel, deadline)
                 .await?;
             if channel == "Broker" {
-                crate::services::order_submission_ack::wait_for_broker(
+                order_submission_ack::wait_for_broker(
                     backend,
                     registry,
                     &operation.accepted,
@@ -166,12 +166,14 @@ impl TradeController {
                 Ok(message)
             }
             Err(error) => {
+                if order_submission_ack::is_rejection(&error) {
+                    self.record_broker_rejection(&id.to_string(), &error).await?;
+                    return Err(error);
+                }
                 let operation = self.submission_operations.get_mut(&id.to_string()).unwrap();
                 operation.confirmed = false;
                 let unknown = operation.attempted
-                    && (error.starts_with("OutcomeUnknown:")
-                        || !operation.accepted.is_empty()
-                            && !error.starts_with("Broker rejected the accepted order:"));
+                    && (error.starts_with("OutcomeUnknown:") || !operation.accepted.is_empty());
                 if unknown {
                     let message = format!(
                         "OutcomeUnknown: {error}; reconcile the original submission {}",
@@ -196,6 +198,17 @@ impl TradeController {
         }
     }
 
+    /// Records a terminal broker decision against its original operation.
+    async fn record_broker_rejection(&mut self, id: &str, message: &str) -> Result<(), String> {
+        let operation = self.submission_operations.get_mut(id).unwrap();
+        operation.rejection = Some(message.into());
+        if let Some(composer) = self.composer.as_mut() {
+            composer.show_broker_rejection(operation.accepted.clone(), message)?;
+        }
+        store::save(operation, 3, message)
+            .await
+            .map_err(|error| format!("{message}; could not save terminal rejection: {error}"))
+    }
 
     /// Checks matches submission against the current submissions state.
     pub(super) fn matches_submission(&self, registry: &Registry, operation: &Operation) -> bool {
@@ -219,7 +232,7 @@ impl TradeController {
         if self.submissions_loaded {
             return Ok(());
         }
-        for value in store::pending().await? {
+        for value in store::retained().await? {
             let operation = store::restore(registry, &value)?;
             self.submission_operations
                 .entry(operation.id.to_string())
@@ -242,31 +255,43 @@ impl TradeController {
             .submission_operations
             .iter()
             .filter(|(_, operation)| {
-                !operation.confirmed && self.matches_submission(registry, operation)
+                operation.needs_recovery() && self.matches_submission(registry, operation)
             })
             .map(|(id, _)| id.clone())
             .collect::<Vec<_>>();
         for id in ids {
             let operation = self.submission_operations.get_mut(&id).unwrap();
-            operation.reconcile(backend, registry, deadline).await?;
-            store::save(
-                operation,
-                1,
-                "Portfolio result reconciled; checking lifecycle",
-            )
-            .await?;
+            if operation.completed.is_none() {
+                operation.reconcile(backend, registry, deadline).await?;
+                store::save(operation, 1, "Portfolio result reconciled; checking lifecycle").await?;
+            }
             let channel = operation.channel.clone();
             operation
                 .dispatch(backend, registry, context, &channel, deadline)
                 .await?;
-            if channel == "Broker" && !operation.accepted.is_empty() {
-                crate::services::order_submission_ack::wait_for_broker(
+            if channel == "Broker" && !operation.accepted.is_empty()
+                && let Err(error) = order_submission_ack::wait_for_broker(
                     backend,
                     registry,
                     &operation.accepted,
                     deadline,
                 )
-                .await?;
+                .await
+            {
+                if !order_submission_ack::is_rejection(&error) {
+                    return Err(error);
+                }
+                self.record_broker_rejection(&id, &error).await?;
+                let outcome = EditorOutcome {
+                    request_id: id.clone(),
+                    state: "Rejected".into(),
+                    message: error,
+                };
+                if let Some((_, previous)) = self.receipts.get_mut(&id) {
+                    *previous = outcome.clone();
+                }
+                self.reconciled.push(outcome);
+                continue;
             }
             operation.confirmed = true;
             store::save(operation, 2, "Submission reconciled").await?;

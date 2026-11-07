@@ -539,6 +539,10 @@ public interface IMarketDataDbReadContext
     /// <returns>The typed result of the market-data query or mutation.</returns>
     Task<ICollection<FuturesOptionTickDataV2ReadModel>> GetFuturesOptionChainQuoteDataAsync(
         string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, CancellationToken cancellationToken = default);
+    /// <summary>Reads the latest single-session quote snapshot no later than the requested date and UTC cutoff.</summary>
+    Task<ICollection<FuturesOptionTickDataV2ReadModel>> GetLatestFuturesOptionChainQuoteDataAsync(
+        string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, DateTimeOffset notAfterUtc,
+        CancellationToken cancellationToken = default);
     /// <summary>Get Last Futures Option Tick Price Data using the MarketDataDb persistence.</summary>
     /// <param name="contractId">The contract id used by this operation.</param>
     /// <param name="valueDate">The value date used by this operation.</param>

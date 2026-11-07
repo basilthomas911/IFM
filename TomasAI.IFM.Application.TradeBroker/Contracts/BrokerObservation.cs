@@ -21,4 +21,5 @@ public sealed record BrokerObservation
     public DateTime OccurredAtUtc { get; init; }
     public string Category { get; init; } = string.Empty;
     public string Detail { get; init; } = string.Empty;
+    public bool ExecutionFinal { get; init; }
 }

@@ -6,8 +6,9 @@ use crate::models::{
     broker_presentation::QualificationReport,
     cells::{Cell, Cells},
     trade_contracts::{
-        BrokerOrderDefinition, FundOrderTradeProjectionReadModel, FuturesContractV3ReadModel,
-        OrderExecutionDefinition, TradeOrderDefinition, TradeOrderPreview,
+        BrokerOrderDefinition, BrokerOrderStatus, FundOrderTradeProjectionReadModel, FuturesContractV3ReadModel,
+        OrderExecutionDefinition, OrderExecutionStatus, TradeOrderDefinition,
+        TradeOrderPositionType, TradeOrderPreview, TradeRealtimeSnapshot,
     },
 };
 use crate::services::{
@@ -25,6 +26,37 @@ fn exact_cell(value: Cell<'_>) -> Result<ExactDecimal, String> {
     ExactDecimal::parse(&value.text())
 }
 
+/// Finds terminal broker and execution evidence for the exact Fund setup attempt.
+pub(super) async fn cancelled_partial_close(
+    backend: &Backend,
+    registry: &Registry,
+    scope: Scope,
+    trade: &FundOrderTradeProjectionReadModel,
+    deadline: tokio::time::Instant,
+) -> Result<Option<Scope>, String> {
+    let Some(order) = trade.execution_order_id.filter(|order| *order > 0) else {
+        return Ok(None);
+    };
+    let Some(attempt) = trade.execution_attempt_id.as_deref() else {
+        return Ok(None);
+    };
+    let scope = Scope { order, ..scope };
+    let evidence = broker_reads::evidence(backend, registry, &[scope], deadline).await?;
+    let [broker] = evidence.orders.as_slice() else {
+        return Ok(None);
+    };
+    let [execution] = evidence.executions.as_slice() else {
+        return Ok(None);
+    };
+    Ok((broker.status == Some(BrokerOrderStatus::Cancelled)
+        && execution.execution_attempt_id.as_deref() == Some(attempt)
+        && execution.status == Some(OrderExecutionStatus::Cancelled)
+        && execution.position_type == Some(TradeOrderPositionType::Closing)
+        && execution.cumulative_filled_quantity.zip(execution.order_quantity)
+            .is_some_and(|(filled, requested)| filled > 0 && filled < requested))
+        .then_some(scope))
+}
+
 /// Composer used by the composer component.
 pub(super) struct Composer {
     /// Execution associated with this composer.
@@ -36,6 +68,8 @@ pub(super) struct Composer {
     /// Trade associated with this composer.
     pub(super) trade: FundOrderTradeProjectionReadModel,
     opening: Option<FundOrderTradeProjectionReadModel>,
+    /// Whether a terminal partial close has left the setup eligible for a new draft.
+    pub(super) replacing_cancelled_close: bool,
     /// Market associated with this composer.
     market: Market,
     /// Optional initialization; `None` represents an absent value.
@@ -46,6 +80,10 @@ pub(super) struct Composer {
     preview: Preview,
     /// Optional totals; `None` represents an absent value.
     totals: Option<TradeOrderPreview>,
+    /// Last observations for this saved trade, used only for display.
+    saved_quotes: Option<TradeRealtimeSnapshot>,
+    /// Consecutive temporary live chain read failures for this Blotter.
+    live_chain_retry: LiveChainRetry,
     /// Quantity associated with this composer.
     quantity: i32,
     /// Execution action associated with this composer.
@@ -72,6 +110,8 @@ pub(super) struct Composer {
     submission_unknown: bool,
     /// Submission error associated with this composer.
     submission_error: String,
+    /// Terminal broker reason displayed in the Blotter header.
+    submission_rejection: String,
     /// Optional preparation; `None` represents an absent value.
     pub(super) preparation: Option<crate::services::order_preparation::Prepared>,
     /// Optional confirmation id; `None` represents an absent value.
@@ -109,6 +149,54 @@ pub(super) fn entered(text: &str) -> Option<ExactDecimal> {
 fn flag(value: bool) -> String {
     if value { "True" } else { "False" }.into()
 }
+
+#[derive(Default)]
+struct LiveChainRetry {
+    attempts: u8,
+    status: String,
+}
+
+impl LiveChainRetry {
+    fn defer(&mut self, error: &str) -> Option<String> {
+        const LIMIT: u8 = 3;
+        let temporary = error.starts_with("Backend request deadline expired")
+            || error == "Trade workspace deadline expired"
+            || error == "Backend error 1065: A task was canceled."
+            || error == "Backend error 503: No reply received"
+            || error.starts_with("Backend error 503: Native browser capture Recovering:")
+            || error.starts_with("Backend error 503: Native browser capture SnapshotTimeout:")
+            || error.starts_with("Backend error 503: Native browser capture DeadlineExpired:")
+            || error.starts_with("Backend error 503: Native browser source is unavailable");
+        if !temporary || self.attempts >= LIMIT {
+            *self = Self::default();
+            return None;
+        }
+        self.attempts += 1;
+        self.status = format!("Live Feed waiting for fresh quotes (retry {}/{LIMIT})", self.attempts);
+        Some(self.status.clone())
+    }
+}
+
+#[cfg(test)]
+mod live_chain_retry_tests {
+    use super::LiveChainRetry;
+
+    #[test]
+    fn temporary_reads_retry_three_times_and_terminal_errors_surface() {
+        let mut retry = LiveChainRetry::default();
+        for error in [
+            "Backend error 1065: A task was canceled.",
+            "Backend error 503: Native browser capture Recovering: GenerationId",
+            "Backend error 503: No reply received",
+        ] {
+            assert!(retry.defer(error).is_some());
+        }
+        assert!(retry.defer("Trade workspace deadline expired").is_none());
+        assert!(retry.status.is_empty());
+        assert!(retry.defer("Backend error 503: Native browser capture IncompleteChain: Snapshot").is_none());
+    }
+}
+
 impl Composer {
     /// Constructs Composer from the supplied inputs.
     pub fn new(
@@ -147,10 +235,13 @@ impl Composer {
             trade,
             market,
             opening,
+            replacing_cancelled_close: false,
             initialization: None,
             evidence: Default::default(),
             preview: Default::default(),
             totals: None,
+            saved_quotes: None,
+            live_chain_retry: LiveChainRetry::default(),
             quantity: 1,
             execution_action,
             order_type: "Limit".into(),
@@ -166,6 +257,7 @@ impl Composer {
             accepted_orders: vec![],
             submission_unknown: false,
             submission_error: String::new(),
+            submission_rejection: String::new(),
         })
     }
 
@@ -177,6 +269,15 @@ impl Composer {
         context: &BusinessContext,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
+        if !self.submission_rejection.is_empty() {
+            return self.refresh_evidence(backend, registry, deadline).await;
+        }
+        if self.opening.is_some() && self.trade.trade_state.as_deref() == Some("Closed") {
+            // A completed close can be reconciled from its saved execution.
+            // There is no remaining position to reverse or price.
+            self.refresh_evidence(backend, registry, deadline).await?;
+            return self.restore_stored_legs();
+        }
         let contract = self
             .market
             .underlying
@@ -288,7 +389,9 @@ impl Composer {
         self.refresh_evidence(backend, registry, deadline).await?;
         if self.trade.cell("TradeState").text() != "NewTrade" {
             let previous = self.market.expiry;
-            self.restore_stored_legs()?;
+            if !self.replacing_cancelled_close {
+                self.restore_stored_legs()?;
+            }
             if self
                 .market
                 .draft
@@ -305,9 +408,18 @@ impl Composer {
                 // Stored contract IDs remain authoritative. Refresh their quotes without
                 // auto-selecting a different trade from the current chain.
                 self.market.refresh(backend, registry, deadline).await?;
+                if let Ok(scope) = crate::services::order_close::primary_scope(
+                    self.opening.as_ref().unwrap_or(&self.trade),
+                ) {
+                    let quote_deadline = deadline.min(tokio::time::Instant::now()
+                        + std::time::Duration::from_millis(500));
+                    self.saved_quotes = crate::services::trade_monitor_queries::realtime(
+                        backend, registry, scope, context.value_date, quote_deadline,
+                    ).await.ok().flatten();
+                }
             }
         }
-        self.refresh_preview(backend, registry, deadline).await?;
+        self.refresh_preview(backend, registry, context, deadline).await?;
         self.refresh_account(backend, registry, deadline).await
     }
 
@@ -389,6 +501,16 @@ impl Composer {
             })
             .cloned();
         Ok((order, execution))
+    }
+
+    /// Leaves an already dispatched submission available for an explicit broker lookup.
+    pub(super) fn awaiting_broker_reply(&self) -> bool {
+        self.submission_unknown && self.evidence.orders.iter().any(|broker| {
+            matches!(broker.status, Some(BrokerOrderStatus::PlacePending | BrokerOrderStatus::Dispatched | BrokerOrderStatus::OutcomeUnknown))
+                && broker.id.as_ref().and_then(|id| id.execution.as_ref()).is_some_and(|execution| {
+                    self.accepted_orders.iter().any(|order| order.id == execution.trade_order)
+                })
+        })
     }
 
     /// Restores stored legs for composer.
@@ -495,21 +617,25 @@ impl Composer {
         &mut self,
         backend: &Backend,
         registry: &Registry,
+        context: &BusinessContext,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
-        let legs = self
-            .market
-            .draft
-            .legs
-            .iter()
-            .map(|l| l.quote.clone())
-            .collect::<Vec<_>>();
+        if self.market.live {
+            self.market.draft.expire_live_quotes(context.as_of_utc);
+        }
+        let selected = &self.market.draft.legs;
+        let legs = if selected.len() == self.required_legs() {
+            selected.iter().map(|leg| leg.quote.clone()).collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
         let reference = self
             .initialization
             .as_ref()
             .and_then(|i| i.price.as_ref())
             .map(|p| exact_cell(p.cell("ClosePrice")))
             .transpose()?;
+        self.totals = Some(TradeOrderPreview::default());
         self.totals = Some(
             self.preview
                 .load(
@@ -524,6 +650,42 @@ impl Composer {
                 .await?,
         );
         Ok(())
+    }
+
+    fn required_legs(&self) -> usize {
+        if self.market.strategy == "FuturesOutright" {
+            1
+        } else if self.market.strategy.ends_with("IronCondor") {
+            4
+        } else {
+            2
+        }
+    }
+
+    /// Applies a read outcome even if the workspace deadline dropped the read
+    /// before it could finish. Cached display marks remain in the display chain.
+    pub(super) fn live_chain_read_result(
+        &mut self,
+        result: Result<String, String>,
+        retry_live: bool,
+    ) -> Result<String, String> {
+        match result {
+            Ok(status) => {
+                self.live_chain_retry = LiveChainRetry::default();
+                Ok(status)
+            }
+            Err(error) if self.market.live => {
+                self.market.draft.clear_live_quotes();
+                self.totals = Some(TradeOrderPreview::default());
+                if retry_live {
+                    self.live_chain_retry.defer(&error).ok_or(error)
+                } else {
+                    self.live_chain_retry = LiveChainRetry::default();
+                    Err(error)
+                }
+            }
+            Err(error) => Err(error),
+        }
     }
 
     /// Handles a composer intent and returns the resulting publication or error.
@@ -558,12 +720,15 @@ impl Composer {
         }
         match intent["intent"].as_str().ok_or("Missing Blotter action")? {
             "refresh-chain" => {
-                if self.market.live && self.market.draft.raw.is_some() {
+                if self.market.live && self.market.strategy != "FuturesOutright" {
                     self.market.refresh(backend, registry, deadline).await?;
                 }
             }
             "refresh-execution" => {
                 self.refresh_evidence(backend, registry, deadline).await?;
+                if !self.submission_rejection.is_empty() {
+                    return Ok("Execution evidence refreshed".into());
+                }
             }
             "clear-staged" => {
                 if !self.market.editable {
@@ -612,14 +777,17 @@ impl Composer {
                     "Live" => true,
                     _ => return Err("Select Emulator or Live liquidity".into()),
                 };
+                self.totals = None;
                 self.market
-                    .select_source(backend, registry, live, deadline)
+                    .select_source(
+                        backend, registry, live,
+                        self.trade.cell("TradeState").text() != "NewTrade", deadline,
+                    )
                     .await?;
                 // Chain browsing remains available without configured order
                 // defaults or a broker preview; order gates remain unchanged.
-                self.totals = None;
                 if !self.market.draft.legs.is_empty() && self.initialization.is_some() {
-                    self.refresh_preview(backend, registry, deadline).await?;
+                    self.refresh_preview(backend, registry, context, deadline).await?;
                 }
                 return Ok("Option chain source updated".into());
             }
@@ -633,6 +801,7 @@ impl Composer {
                     call_width: number("callWidth")?,
                     put_width: number("putWidth")?,
                 };
+                self.totals = None;
                 self.market
                     .change(
                         backend,
@@ -641,6 +810,7 @@ impl Composer {
                         expiry,
                         field(intent, "live") == "true",
                         defaults,
+                        self.trade.cell("TradeState").text() != "NewTrade",
                         deadline,
                     )
                     .await?;
@@ -756,7 +926,7 @@ impl Composer {
             }
             action => return Err(format!("Blotter action {action} is not yet implemented")),
         }
-        self.refresh_preview(backend, registry, deadline).await?;
+        self.refresh_preview(backend, registry, context, deadline).await?;
         self.refresh_account(backend, registry, deadline).await?;
         Ok("Blotter updated".into())
     }
@@ -810,10 +980,20 @@ impl Composer {
             }
             .then_with(|| b.quote.is_call.cmp(&a.quote.is_call))
         });
-        for (index, leg) in legs.into_iter().enumerate() {
-            result
-                .rows
-                .push(typed_row("leg", index, &broker_market_display::leg(leg)?)?);
+        let display_legs = legs.into_iter().map(|leg| {
+            let chain = self.market.draft.display.as_ref()
+                .and_then(|market| market.contracts.as_ref())
+                .and_then(|rows| rows.iter().find(|row| row.contract_id.as_deref() == Some(&leg.quote.contract)));
+            let saved = self.saved_quotes.as_ref()
+                .filter(|snapshot| self.market.live
+                    && snapshot.value_date.as_ref().is_some_and(|date| date.as_str() == context.value_date.to_string()))
+                .and_then(|snapshot| snapshot.legs.as_ref())
+                .and_then(|rows| rows.iter().filter_map(|row| row.observation.as_deref())
+                    .find(|row| row.contract_id.as_deref() == Some(&leg.quote.contract)));
+            broker_market_display::last_known_leg(leg, chain, saved)
+        }).collect::<Result<Vec<_>, _>>()?;
+        for (index, leg) in display_legs.iter().enumerate() {
+            result.rows.push(typed_row("leg", index, leg)?);
         }
         if let Some(chain) = &self.market.draft.raw {
             if self.totals.is_some() {
@@ -838,6 +1018,12 @@ impl Composer {
                 self.totals.as_ref().unwrap(),
                 self.initialization.as_ref(),
             )?;
+            if display_legs.len() == self.required_legs()
+                && display_legs.iter().any(|leg| leg.stale == Some(true))
+                && let Some(mid) = broker_market_display::indicative_net_mid(&display_legs)
+            {
+                preview.fields.insert("Indicative net mid".into(), mid);
+            }
             if let Some(account) = self
                 .initialization
                 .as_ref()
@@ -900,19 +1086,13 @@ impl Composer {
             || self.market.strategy == "FuturesOutright"
             || self.opening.is_some();
         let quantity = self.market.draft.legs.len();
-        let required = if self.market.strategy == "FuturesOutright" {
-            1
-        } else if self.market.strategy.ends_with("IronCondor") {
-            4
-        } else {
-            2
-        };
+        let required = self.required_legs();
         let can_place = self.accepted_orders.is_empty()
             && !self.submission_unknown
             && self.preparation.is_none()
             && self.market.editable
             && loaded
-            && self.totals.is_some()
+            && self.totals.as_ref().is_some_and(|totals| totals.input_revision.is_some())
             && quantity == required
             && self.market.draft.legs.iter().all(|l| {
                 l.quote.is_future
@@ -936,7 +1116,9 @@ impl Composer {
             ("brokerMode", self.execution.environment.clone()),
             (
                 "composerStatus",
-                if self.status.is_empty() {
+                if !self.live_chain_retry.status.is_empty() {
+                    self.live_chain_retry.status.clone()
+                } else if self.status.is_empty() {
                     self.market.status.clone()
                 } else {
                     self.status.clone()
@@ -953,9 +1135,12 @@ impl Composer {
             ("submitted", flag(!self.accepted_orders.is_empty())),
             ("submissionUnconfirmed", flag(self.submission_unknown)),
             ("submissionError", self.submission_error.clone()),
+            ("submissionRejection", self.submission_rejection.clone()),
             ("live", flag(self.market.live)),
             ("quantity", self.quantity.to_string()),
-            ("price", self.totals.cell("OrderPrice").text()),
+            ("price", self.market.draft.entered_price.as_ref()
+                .map(|price| price.as_str().to_string())
+                .unwrap_or_else(|| self.totals.cell("OrderPrice").text())),
             ("comboTick", self.totals.cell("ResolvedTickIncrement").text()),
             (
                 "previewKey",
@@ -1035,6 +1220,7 @@ impl Composer {
             .map_err(|e| e.to_string())?;
         self.submission_unknown = false;
         self.submission_error.clear();
+        self.submission_rejection.clear();
         self.preparation = None;
         self.confirmation_id = None;
         self.status = message.into();
@@ -1053,7 +1239,7 @@ impl Composer {
             .collect::<Result<_, _>>()
             .map_err(|e| e.to_string())?;
         self.submission_unknown = true;
-        self.submission_error = message.into();
+        self.submission_error.clear();
         self.preparation = None;
         self.confirmation_id = None;
         self.status = message.into();
@@ -1067,6 +1253,14 @@ impl Composer {
         self.submission_unknown = false;
         self.submission_error = error.into();
         self.status = error.into();
+    }
+
+    /// Retains the rejected order for inspection and presents its reason inline.
+    pub(super) fn show_broker_rejection(&mut self, orders: Vec<Json>, message: &str) -> Result<(), String> {
+        self.accept_submission(orders, "Rejected")?;
+        self.market.editable = false;
+        self.submission_rejection = message.into();
+        Ok(())
     }
 
     /// Prepares confirmation for composer.
